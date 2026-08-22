@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+claude_bin="$(command -v claude || true)"
+if [[ -z "$claude_bin" ]]; then
+  claude_bin="/Users/danielrajakumar/.local/bin/claude"
+fi
+if [[ ! -x "$claude_bin" ]]; then
+  echo "Claude Code was not found. Install it, then rerun this launcher." >&2
+  exit 1
+fi
+
+exec "$claude_bin" \
+  --name rockygpt-brain-cleanroom \
+  --setting-sources project \
+  --settings .claude/settings.json \
+  --strict-mcp-config \
+  --mcp-config '{}' \
+  --disable-slash-commands \
+  --no-chrome

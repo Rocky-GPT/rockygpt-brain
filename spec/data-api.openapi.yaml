@@ -1,0 +1,538 @@
+openapi: 3.1.0
+info:
+  title: RockyGPT Campus Data API
+  version: 1.1.3
+  description: Public, read-only campus information owned by rockygpt-data.
+security:
+  - environmentToken: []
+  - {}
+servers:
+  - url: http://127.0.0.1:8100
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        '200':
+          description: Process is alive.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiceHealth' }
+  /readiness:
+    get:
+      operationId: getReadiness
+      responses:
+        '200':
+          description: An active campus dataset is available.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiceReadiness' }
+        '503':
+          description: The database or active dataset is unavailable.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiceReadiness' }
+  /v1/menu:
+    get:
+      operationId: getCurrentMenu
+      responses:
+        '200':
+          description: Current menu markdown, or a declared seasonal closure.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MenuResponse' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/menu/browse:
+    get:
+      operationId: browseMenu
+      parameters:
+        - $ref: '#/components/parameters/RequiredDate'
+      responses:
+        '200':
+          description: Menu markdown for one date, including an explicit unavailable state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MenuBrowseResponse' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/dining-hours:
+    get:
+      operationId: getDiningHours
+      parameters:
+        - $ref: '#/components/parameters/OptionalDate'
+      responses:
+        '200':
+          description: Resolved daily and general dining-location schedules.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiningHoursResponse' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/directory:
+    get:
+      operationId: getDirectory
+      responses:
+        '200':
+          description: Search-ready campus office and people directory.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DirectoryResponse' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/search/campus-hours:
+    get:
+      operationId: searchCampusHours
+      parameters: &hoursParameters
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/Day'
+        - $ref: '#/components/parameters/At'
+      responses: &searchResponses
+        '200': { $ref: '#/components/responses/Search' }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/search/dining-hours:
+    get:
+      operationId: searchDiningHours
+      parameters: *hoursParameters
+      responses: *searchResponses
+  /v1/search/menu:
+    get:
+      operationId: searchMenu
+      parameters:
+        - $ref: '#/components/parameters/Query'
+        - name: meal
+          in: query
+          schema: { type: string, maxLength: 64 }
+        - $ref: '#/components/parameters/At'
+      responses: *searchResponses
+  /v1/search/contacts:
+    get:
+      operationId: searchContacts
+      parameters: &textSearchParameters
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/At'
+      responses: *searchResponses
+  /v1/search/clubs:
+    get:
+      operationId: searchClubs
+      parameters: *textSearchParameters
+      responses: *searchResponses
+  /v1/search/events:
+    get:
+      operationId: searchEvents
+      parameters: *textSearchParameters
+      responses: *searchResponses
+  /v1/search/programs:
+    get:
+      operationId: searchPrograms
+      parameters: *textSearchParameters
+      responses: *searchResponses
+  /v1/search/academic-dates:
+    get:
+      operationId: searchAcademicDates
+      parameters: *textSearchParameters
+      responses: *searchResponses
+  /v1/search/shuttles:
+    get:
+      operationId: searchShuttles
+      parameters:
+        - name: route
+          in: query
+          schema: { type: string, maxLength: 120 }
+        - name: serviceDay
+          in: query
+          schema: { type: string, enum: [weekday, saturday, sunday] }
+        - $ref: '#/components/parameters/At'
+      responses: *searchResponses
+  /v1/safety-resources:
+    get:
+      operationId: getSafetyResources
+      responses:
+        '200':
+          description: Deterministic safety contacts with official sources.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SafetyResources' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/map:
+    get:
+      operationId: getMap
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 200 }
+      responses:
+        '200':
+          description: Campus locations and optional query resolution.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MapResponse' }
+        '400': { $ref: '#/components/responses/Invalid' }
+  /v1/shuttle:
+    get:
+      operationId: getShuttleSchedule
+      responses:
+        '200':
+          description: Published shuttle and Shortline schedules.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShuttleResponse' }
+  /v1/data/{artifact}:
+    get:
+      operationId: getArtifact
+      parameters:
+        - name: artifact
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [calendar, clubs, courses, events, hours, programs]
+      responses:
+        '200':
+          description: One heterogeneous published release artifact.
+          headers:
+            X-RockyGPT-Release:
+              schema: { type: string }
+            ETag:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    additionalProperties: true
+                  - type: array
+                    items: {}
+        '304': { description: The supplied ETag still identifies the active artifact. }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+components:
+  securitySchemes:
+    environmentToken:
+      type: apiKey
+      in: header
+      name: x-rockygpt-environment-token
+      description: Required on non-health staging routes when STAGING_SERVICE_TOKEN is configured; omitted in production.
+  parameters:
+    Query:
+      name: q
+      in: query
+      schema: { type: string, default: '', maxLength: 200 }
+    Day:
+      name: day
+      in: query
+      schema:
+        type: string
+        enum: [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
+    At:
+      name: at
+      in: query
+      description: ISO 8601 instant with an explicit timezone.
+      schema: { type: string, format: date-time, maxLength: 64 }
+    OptionalDate:
+      name: date
+      in: query
+      schema: { type: string, format: date, maxLength: 10 }
+    RequiredDate:
+      name: date
+      in: query
+      required: true
+      schema: { type: string, format: date, maxLength: 10 }
+  responses:
+    Search:
+      description: Records from one pinned dataset release.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SearchResponse' }
+    Invalid:
+      description: Invalid query or request target.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Unavailable:
+      description: Campus data is unavailable.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+  schemas:
+    ServiceHealth:
+      type: object
+      additionalProperties: false
+      required: [status, service, uptimeSeconds]
+      properties:
+        status: { type: string, enum: [healthy] }
+        service: { type: string, enum: [rockygpt-data] }
+        uptimeSeconds: { type: number, minimum: 0 }
+    ServiceReadiness:
+      type: object
+      additionalProperties: false
+      required: [status, timestamp]
+      properties:
+        status: { type: string, enum: [ready, unready] }
+        failing:
+          type: array
+          items: { type: string, enum: [database, dataset] }
+          uniqueItems: true
+        timestamp: { type: string, format: date-time }
+    Source:
+      type: object
+      additionalProperties: false
+      required: [sourceId, title, url]
+      properties:
+        sourceId: { type: string }
+        title: { type: string }
+        url: { type: string, format: uri }
+        collectedAt: { type: string, format: date-time }
+    Dataset:
+      type: object
+      additionalProperties: false
+      required: [id, version, activatedAt]
+      properties:
+        id: { type: string }
+        version: { type: string }
+        activatedAt: { type: string, format: date-time }
+    SearchResponse:
+      type: object
+      additionalProperties: false
+      required: [dataset, records]
+      properties:
+        dataset: { $ref: '#/components/schemas/Dataset' }
+        records:
+          type: array
+          items: { type: object, additionalProperties: true }
+    SafetyResources:
+      type: object
+      additionalProperties: false
+      required: [dataset, emergencyPhone, sources]
+      properties:
+        dataset: { $ref: '#/components/schemas/Dataset' }
+        emergencyPhone: { type: [string, 'null'] }
+        sources:
+          type: object
+          additionalProperties: false
+          required: [safety, counseling]
+          properties:
+            safety: { $ref: '#/components/schemas/Source' }
+            counseling: { $ref: '#/components/schemas/Source' }
+    MapLocation:
+      type: object
+      additionalProperties: false
+      required: [key, name, type, mapUrl, aliases, roomPrefixes]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        type: { type: string, enum: [building, office, parking, layer] }
+        mapUrl: { type: string, format: uri }
+        aliases: { type: array, items: { type: string } }
+        roomPrefixes: { type: array, items: { type: string } }
+        category: { type: string }
+        description: { type: string }
+        buildingKey: { type: string }
+        buildingName: { type: string }
+        officeUrl: { type: [string, 'null'], format: uri }
+        room: { type: [string, 'null'] }
+    MapResponse:
+      type: object
+      additionalProperties: false
+      required: [locations]
+      properties:
+        locations: { type: array, items: { $ref: '#/components/schemas/MapLocation' } }
+        resolved:
+          oneOf:
+            - { $ref: '#/components/schemas/MapLocation' }
+            - { type: 'null' }
+    MenuResponse:
+      type: object
+      additionalProperties: false
+      required: [content, success, available]
+      properties:
+        content: { type: [string, 'null'] }
+        success: { type: boolean }
+        available: { type: boolean }
+        generatedUtc: { type: [string, 'null'] }
+        fileUpdatedUtc: { type: [string, 'null'] }
+        releaseVersion: { type: string }
+        closed: { type: boolean }
+        closureReason: { type: string }
+    MenuBrowseResponse:
+      type: object
+      additionalProperties: false
+      required: [content, success, available, date]
+      properties:
+        content: { type: [string, 'null'] }
+        success: { type: boolean }
+        available: { type: boolean }
+        generatedUtc: { type: [string, 'null'] }
+        fileUpdatedUtc: { type: [string, 'null'] }
+        releaseVersion: { type: string }
+        closed: { type: boolean }
+        closureReason: { type: string }
+        date: { type: string, format: date }
+    HoursRange:
+      type: object
+      additionalProperties: false
+      required: [time]
+      properties:
+        label: { type: string }
+        time: { type: string }
+    DiningLocation:
+      type: object
+      additionalProperties: false
+      required: [name, emoji, todayLabel, isOverride, hours]
+      properties:
+        name: { type: string }
+        emoji: { type: string }
+        todayLabel: { type: string }
+        isOverride: { type: boolean }
+        overrideNote: { type: string }
+        hours: { type: array, items: { $ref: '#/components/schemas/HoursRange' } }
+    GeneralDiningLocation:
+      type: object
+      additionalProperties: false
+      required: [name, emoji, schedule]
+      properties:
+        name: { type: string }
+        emoji: { type: string }
+        schedule:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [days, hours]
+            properties:
+              days: { type: string }
+              hours: { type: array, items: { $ref: '#/components/schemas/HoursRange' } }
+    DiningHoursResponse:
+      type: object
+      additionalProperties: false
+      required: [success, today, dateFormatted, locations, generalHours, releaseVersion]
+      properties:
+        success: { type: boolean }
+        today: { type: string }
+        dateFormatted: { type: string }
+        locations: { type: array, items: { $ref: '#/components/schemas/DiningLocation' } }
+        generalHours: { type: array, items: { $ref: '#/components/schemas/GeneralDiningLocation' } }
+        releaseVersion: { type: string }
+    OfficeContact:
+      type: object
+      additionalProperties: false
+      required: [name, phone, category, department, helpsWith]
+      properties:
+        name: { type: string }
+        phone: { type: string }
+        category: { type: string }
+        email: { type: string, format: email }
+        department: { type: string }
+        office: { type: string }
+        helpsWith: { type: array, items: { type: string } }
+    PersonContact:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        title: { type: string }
+        school: { type: string }
+        unit: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        office: { type: string }
+        profileUrl: { type: string, format: uri }
+        imageUrl: { type: string, format: uri }
+    NormalizedDirectoryContact:
+      type: object
+      required: [id, bucket, kind, source, name, searchText]
+      properties:
+        id: { type: string }
+        bucket: { type: string, enum: [Offices, 'Staff & Faculty', Others] }
+        kind: { type: string, enum: [office, person] }
+        source: { type: string, enum: [office-static, faculty-dataset, other-static] }
+        name: { type: string }
+        title: { type: string }
+        category: { type: string }
+        department: { type: string }
+        school: { type: string }
+        unit: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        office: { type: string }
+        profileUrl: { type: string, format: uri }
+        imageUrl: { type: string, format: uri }
+        helpsWith: { type: array, items: { type: string } }
+        searchText: { type: string }
+    DirectoryResponse:
+      type: object
+      additionalProperties: false
+      required: [offices, facultyStaff, others, allContacts, counts, total, generatedAt]
+      properties:
+        offices: { type: array, items: { $ref: '#/components/schemas/OfficeContact' } }
+        facultyStaff: { type: array, items: { $ref: '#/components/schemas/PersonContact' } }
+        others: { type: array, items: { $ref: '#/components/schemas/PersonContact' } }
+        allContacts: { type: array, items: { $ref: '#/components/schemas/NormalizedDirectoryContact' } }
+        counts:
+          type: object
+          additionalProperties: false
+          required: [offices, staffFaculty, others, total]
+          properties:
+            offices: { type: integer, minimum: 0 }
+            staffFaculty: { type: integer, minimum: 0 }
+            others: { type: integer, minimum: 0 }
+            total: { type: integer, minimum: 0 }
+        total: { type: integer, minimum: 0 }
+        generatedAt: { type: string, format: date-time }
+        releaseVersion: { type: string }
+    ShuttleStop:
+      type: object
+      additionalProperties: false
+      required: [location, time]
+      properties:
+        location: { type: string }
+        time: { type: string }
+    ShuttleTrip:
+      type: object
+      additionalProperties: false
+      required: [departure, stops, arrival]
+      properties:
+        departure: { type: string }
+        stops: { type: array, items: { $ref: '#/components/schemas/ShuttleStop' } }
+        arrival: { type: string }
+    DayTimetable:
+      type: object
+      additionalProperties: false
+      required: [weekday, saturday, sunday]
+      properties:
+        weekday: { type: array, items: { type: string } }
+        saturday: { type: array, items: { type: string } }
+        sunday: { type: array, items: { type: string } }
+    ShuttleResponse:
+      type: object
+      additionalProperties: false
+      required: [trainLoop, shortline, weekday, saturday, sunday]
+      properties:
+        trainLoop: { type: array, items: { $ref: '#/components/schemas/ShuttleTrip' } }
+        shortline:
+          type: object
+          additionalProperties: false
+          required: [toNYC, fromNYC]
+          properties:
+            toNYC: { $ref: '#/components/schemas/DayTimetable' }
+            fromNYC: { $ref: '#/components/schemas/DayTimetable' }
+        weekday: { type: array, items: { $ref: '#/components/schemas/ShuttleTrip' } }
+        saturday: { type: array, items: { $ref: '#/components/schemas/ShuttleTrip' } }
+        sunday: { type: array, items: { $ref: '#/components/schemas/ShuttleTrip' } }
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message, retryable]
+          properties:
+            code: { type: string, enum: [NOT_FOUND, INVALID_REQUEST, UNAVAILABLE] }
+            message: { type: string }
+            retryable: { type: boolean }
