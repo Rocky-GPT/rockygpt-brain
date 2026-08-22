@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "defaultMode": "default",
+    "disableBypassPermissionsMode": "disable",
+    "disableAutoMode": "disable",
+    "deny": [
+      "Read(//Users/danielrajakumar/code/RockyGPT/rockygpt-brain/**)",
+      "Read(//Users/danielrajakumar/code/RockyGPT/rockygpt-ui/**)",
+      "Read(//Users/danielrajakumar/code/RockyGPT/rockygpt-data/**)",
+      "Read(//Users/danielrajakumar/code/RockyGPT/rockygpt-evals/**)",
+      "Read(//Users/danielrajakumar/code/RockyGPT/rockygpt-infra/**)",
+      "Edit(//Users/danielrajakumar/code/RockyGPT/rockygpt-brain/**)",
+      "Edit(//Users/danielrajakumar/code/RockyGPT/rockygpt-ui/**)",
+      "Edit(//Users/danielrajakumar/code/RockyGPT/rockygpt-data/**)",
+      "Edit(//Users/danielrajakumar/code/RockyGPT/rockygpt-evals/**)",
+      "Edit(//Users/danielrajakumar/code/RockyGPT/rockygpt-infra/**)",
+      "Edit(/.claude/**)",
+      "Edit(/CLAUDE.md)",
+      "Edit(/spec/**)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:*.github.com)",
+      "WebFetch(domain:*.githubusercontent.com)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "denyRead": [
+        "/Users/danielrajakumar"
+      ],
+      "allowRead": [
+        "/Users/danielrajakumar/code/RockyGPT/rockygpt-brain-python"
+      ],
+      "denyWrite": [
+        "/Users/danielrajakumar/code/RockyGPT/rockygpt-brain-python/.claude",
+        "/Users/danielrajakumar/code/RockyGPT/rockygpt-brain-python/CLAUDE.md",
+        "/Users/danielrajakumar/code/RockyGPT/rockygpt-brain-python/spec"
+      ]
+    },
+    "network": {
+      "allowedDomains": [
+        "127.0.0.1",
+        "localhost",
+        "api.openai.com",
+        "developers.openai.com",
+        "platform.openai.com",
+        "pypi.org",
+        "files.pythonhosted.org",
+        "docs.python.org",
+        "docs.pytest.org",
+        "fastapi.tiangolo.com",
+        "docs.pydantic.dev",
+        "docs.sqlalchemy.org",
+        "www.psycopg.org",
+        "www.uvicorn.org",
+        "rockygpt-data-staging.onrender.com"
+      ],
+      "deniedDomains": [
+        "github.com",
+        "*.github.com",
+        "*.githubusercontent.com"
+      ],
+      "strictAllowlist": true
+    },
+    "credentials": {
+      "envVars": [
+        { "name": "ANTHROPIC_API_KEY", "mode": "deny" },
+        { "name": "GH_TOKEN", "mode": "deny" },
+        { "name": "GITHUB_TOKEN", "mode": "deny" },
+        { "name": "OPENAI_ADMIN_KEY", "mode": "deny" }
+      ]
+    }
+  }
+}

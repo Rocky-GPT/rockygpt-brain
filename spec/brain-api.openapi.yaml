@@ -1,0 +1,746 @@
+openapi: 3.1.0
+info:
+  title: RockyGPT Brain Clean-room API
+  version: 1.0.0
+  description: >-
+    Consumer-facing contract for an independent RockyGPT brain implementation.
+    This document specifies network behavior only and intentionally makes no
+    architecture or framework choices.
+servers:
+  - url: http://127.0.0.1:8000
+    description: Local development
+tags:
+  - name: Probes
+  - name: Chat
+  - name: Feedback
+  - name: Development administration
+paths:
+  /health:
+    get:
+      tags: [Probes]
+      operationId: getHealth
+      summary: Process liveness
+      description: Must not depend on the model, data service, or database.
+      responses:
+        '200':
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /readiness:
+    get:
+      tags: [Probes]
+      operationId: getReadiness
+      summary: Required dependency readiness
+      description: Unauthenticated and expected to finish within three seconds.
+      responses:
+        '200':
+          description: The service can accept chat traffic.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Readiness'
+        '503':
+          description: At least one required dependency is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Readiness'
+  /v1/chat:
+    post:
+      tags: [Chat]
+      operationId: createChatTurn
+      summary: Produce one complete chat answer
+      description: >-
+        Returns one JSON document; this endpoint does not stream model tokens.
+        If a staging token is configured, the environment-token header is
+        required. Client identity is trusted only when its signature verifies.
+      parameters:
+        - $ref: '#/components/parameters/EnvironmentToken'
+        - $ref: '#/components/parameters/ClientKey'
+        - $ref: '#/components/parameters/ClientSignature'
+        - $ref: '#/components/parameters/QuestionOriginHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: A completed answer.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSuccess'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          description: A client or service quota was exceeded.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/feedback:
+    post:
+      tags: [Feedback]
+      operationId: upsertChatFeedback
+      summary: Create or update student feedback for a chat request
+      description: >-
+        The same request ID may be submitted repeatedly as the user adds a
+        rating, category, and comment. Persist using upsert semantics.
+      parameters:
+        - $ref: '#/components/parameters/EnvironmentToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackRequest'
+      responses:
+        '200':
+          description: Feedback has been persisted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackSuccess'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          description: Feedback quota exceeded.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/admin/logs:
+    get:
+      tags: [Development administration]
+      operationId: listChatLogs
+      summary: List redacted chat logs and aggregate metrics
+      description: Development/operator surface; do not expose publicly in production.
+      security:
+        - AdminBearer: []
+      parameters:
+        - $ref: '#/components/parameters/EnvironmentToken'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+        - name: route
+          in: query
+          description: Comma-separated route values.
+          schema:
+            type: string
+            maxLength: 300
+        - name: origin
+          in: query
+          description: Comma-separated client, dev, and bot values.
+          schema:
+            type: string
+            maxLength: 64
+        - name: version
+          in: query
+          description: Opaque change watermark from a prior response.
+          schema:
+            type: string
+            maxLength: 256
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current log page and metrics, or an unchanged marker.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/LogListResponse'
+                  - $ref: '#/components/schemas/UnmodifiedResponse'
+        '304':
+          description: No changes since the supplied validator.
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Operator routes are not registered in this environment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/admin/logs/feedback:
+    post:
+      tags: [Development administration]
+      operationId: setOperatorLogFeedback
+      summary: Set or clear operator feedback on a log entry
+      security:
+        - AdminBearer: []
+      parameters:
+        - $ref: '#/components/parameters/EnvironmentToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFeedbackRequest'
+      responses:
+        '200':
+          description: Feedback has been persisted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackSuccess'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Operator routes are unavailable or the log does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/admin/logs/stream:
+    get:
+      tags: [Development administration]
+      operationId: streamLogChanges
+      summary: Stream log-change notifications
+      description: >-
+        Sends default SSE message events whose data is
+        {"type":"change"}. Heartbeat comments are allowed. Clients reconnect.
+      security:
+        - AdminBearer: []
+      parameters:
+        - $ref: '#/components/parameters/EnvironmentToken'
+      responses:
+        '200':
+          description: Server-sent event stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                examples:
+                  - 'data: {"type":"change"}\n\n'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Operator routes are not registered in this environment.
+components:
+  securitySchemes:
+    AdminBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque server secret
+  parameters:
+    EnvironmentToken:
+      name: x-rockygpt-environment-token
+      in: header
+      required: false
+      description: Required on functional staging routes when configured.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 512
+    ClientKey:
+      name: x-rockygpt-client-key
+      in: header
+      required: false
+      description: Pseudonymous client key; trust only with a valid signature.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]+$'
+    ClientSignature:
+      name: x-rockygpt-client-signature
+      in: header
+      required: false
+      description: Lower- or uppercase hexadecimal HMAC-SHA256 over the exact client key.
+      schema:
+        type: string
+        pattern: '^[A-Fa-f0-9]{64}$'
+    QuestionOriginHeader:
+      name: x-rockygpt-origin
+      in: header
+      required: false
+      description: Used by direct test and automation clients.
+      schema:
+        type: string
+        enum: [client, dev, bot]
+  headers:
+    RequestId:
+      description: Stable identifier matching the response body's requestId.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    RetryAfter:
+      description: Number of seconds before retrying.
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    InvalidRequest:
+      description: The request is malformed or violates a documented bound.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: A required environment or admin credential is missing or invalid.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PayloadTooLarge:
+      description: The request body is too large.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: An unexpected service error occurred.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unavailable:
+      description: A required dependency or dataset is temporarily unavailable.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    Health:
+      type: object
+      additionalProperties: true
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [healthy, ok]
+        service:
+          type: string
+        uptimeSeconds:
+          type: number
+          minimum: 0
+    Readiness:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ready, unready]
+        failing:
+          type: array
+          items:
+            type: string
+          uniqueItems: true
+        timestamp:
+          type: string
+          format: date-time
+    ChatTurn:
+      type: object
+      additionalProperties: false
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    ChatRequest:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        history:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/ChatTurn'
+        styleMode:
+          type: string
+          minLength: 1
+          maxLength: 32
+          pattern: '^[A-Za-z0-9_-]+$'
+          examples: [standard, rocky]
+        responseMode:
+          type: string
+          minLength: 1
+          maxLength: 32
+          pattern: '^[A-Za-z0-9_-]+$'
+          examples: [concise]
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 100
+          examples: [America/New_York]
+        conversationId:
+          $ref: '#/components/schemas/Identifier'
+        visitorId:
+          $ref: '#/components/schemas/Identifier'
+        now:
+          type: string
+          format: date-time
+        questionOrigin:
+          type: string
+          enum: [client, dev, bot]
+    Identifier:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$'
+    ChatSuccess:
+      type: object
+      additionalProperties: false
+      required: [requestId, answer, route, citations, uiActions, suggestedQuestions]
+      properties:
+        requestId:
+          $ref: '#/components/schemas/Identifier'
+        answer:
+          type: string
+          minLength: 1
+          description: Markdown answer text.
+        route:
+          type: string
+          minLength: 1
+          maxLength: 64
+          examples: [standard, safety, ungrounded]
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+        uiActions:
+          type: array
+          items:
+            $ref: '#/components/schemas/UiAction'
+        suggestedQuestions:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 120
+    Citation:
+      type: object
+      additionalProperties: false
+      required: [title, url]
+      properties:
+        sourceId:
+          type: string
+          maxLength: 256
+        title:
+          type: string
+          minLength: 1
+          maxLength: 500
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+        sourcePath:
+          type: string
+          maxLength: 1024
+        snippet:
+          type: string
+          maxLength: 1000
+        collectedAt:
+          type: string
+          format: date-time
+    UiAction:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum:
+            - VIEW_MENU
+            - VIEW_BUS
+            - VIEW_PRINT
+            - VIEW_EVENTS
+            - VIEW_MAP
+            - VIEW_DIRECTORY
+        payload:
+          type: object
+          additionalProperties:
+            type: string
+    FeedbackRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, rating]
+      properties:
+        requestId:
+          $ref: '#/components/schemas/Identifier'
+        rating:
+          type: integer
+          enum: [-1, 1]
+        category:
+          type: [string, 'null']
+          enum: [inaccurate, incomplete, could_be_better, outdated, other, null]
+        comments:
+          type: [string, 'null']
+          maxLength: 2000
+    FeedbackSuccess:
+      type: object
+      additionalProperties: false
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          const: true
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      required: [code, message, retryable]
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_REQUEST
+            - PAYLOAD_TOO_LARGE
+            - UNAUTHORIZED
+            - RATE_LIMITED
+            - DATASET_UNAVAILABLE
+            - SERVICE_UNAVAILABLE
+            - INTERNAL_ERROR
+            - NOT_FOUND
+        message:
+          type: string
+          minLength: 1
+          maxLength: 500
+        retryable:
+          type: boolean
+        retryAfterSeconds:
+          type: integer
+          minimum: 1
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [requestId, error]
+      properties:
+        requestId:
+          $ref: '#/components/schemas/Identifier'
+        error:
+          $ref: '#/components/schemas/ErrorDetail'
+    LogCitation:
+      type: object
+      additionalProperties: false
+      required: [title, url]
+      properties:
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+    ExtractedFact:
+      type: object
+      additionalProperties: false
+      required: [key, kind, value]
+      properties:
+        key:
+          type: string
+        kind:
+          type: string
+        value: {}
+    ChatLogItem:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - session_id
+        - user_message
+        - assistant_message
+        - route
+        - tools_invoked
+        - tool_arguments
+        - citations
+        - facts_extracted
+        - latency_ms
+        - feedback
+        - feedback_rating
+        - feedback_category
+        - feedback_comment
+        - created_at
+      properties:
+        id:
+          type: string
+        session_id:
+          type: string
+          description: Pseudonymous durable identifier, never the raw conversation ID.
+        visitor_id:
+          type: string
+          description: Pseudonymous durable identifier, never the raw visitor ID.
+        user_message:
+          type: string
+        assistant_message:
+          type: string
+        route:
+          type: string
+        question_origin:
+          type: string
+          enum: [client, dev, bot]
+        tools_invoked:
+          type: array
+          items:
+            type: string
+        tool_arguments:
+          type: object
+          additionalProperties: true
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogCitation'
+        facts_extracted:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExtractedFact'
+        debug_info:
+          type: object
+          additionalProperties: true
+        latency_ms:
+          type: integer
+          minimum: 0
+        feedback:
+          type: [string, 'null']
+          enum: [positive, negative, null]
+        feedback_rating:
+          type: [integer, 'null']
+          enum: [-1, 1, null]
+        feedback_category:
+          type: [string, 'null']
+        feedback_comment:
+          type: [string, 'null']
+        created_at:
+          type: string
+          format: date-time
+    LogMetrics:
+      type: object
+      additionalProperties: false
+      required:
+        - totalLogs
+        - avgLatencyMs
+        - uniqueSessions
+        - errorCount
+        - clientCount
+        - devCount
+        - botCount
+      properties:
+        totalLogs:
+          type: integer
+          minimum: 0
+        avgLatencyMs:
+          type: number
+          minimum: 0
+        uniqueSessions:
+          type: integer
+          minimum: 0
+        uniqueVisitors:
+          type: integer
+          minimum: 0
+        errorCount:
+          type: integer
+          minimum: 0
+        clientCount:
+          type: integer
+          minimum: 0
+        devCount:
+          type: integer
+          minimum: 0
+        botCount:
+          type: integer
+          minimum: 0
+    LogListResponse:
+      type: object
+      additionalProperties: false
+      required: [logs, metrics, version]
+      properties:
+        logs:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/ChatLogItem'
+        metrics:
+          $ref: '#/components/schemas/LogMetrics'
+        version:
+          type: string
+          description: Opaque change watermark.
+    UnmodifiedResponse:
+      type: object
+      additionalProperties: false
+      required: [modified]
+      properties:
+        modified:
+          type: boolean
+          const: false
+    OperatorFeedbackRequest:
+      type: object
+      additionalProperties: false
+      required: [logId, feedback]
+      properties:
+        logId:
+          $ref: '#/components/schemas/Identifier'
+        feedback:
+          type: [string, 'null']
+          enum: [positive, negative, null]
