@@ -17,6 +17,6 @@ exec "$claude_bin" \
   --setting-sources project \
   --settings .claude/settings.json \
   --strict-mcp-config \
-  --mcp-config '{}' \
+  --mcp-config '{"mcpServers":{}}' \
   --disable-slash-commands \
   --no-chrome
