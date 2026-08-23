@@ -9,8 +9,9 @@ canonical list of variable names.
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Any
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,7 +28,7 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, alias="PORT")
 
     openai_api_key: SecretStr | None = Field(default=None, alias="OPENAI_API_KEY")
-    openai_chat_model: str = Field(default="gpt-4o-mini", alias="OPENAI_CHAT_MODEL")
+    openai_chat_model: str = Field(default="gpt-4.1-mini", alias="OPENAI_CHAT_MODEL")
 
     database_url: SecretStr | None = Field(default=None, alias="DATABASE_URL")
 
@@ -39,6 +40,32 @@ class Settings(BaseSettings):
     staging_service_token: SecretStr | None = Field(
         default=None, alias="STAGING_SERVICE_TOKEN"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _blank_means_unset(cls, data: Any) -> Any:
+        """Treat a blank environment variable as absent, not as a value.
+
+        `.env` files and deployment consoles both spell "I have not filled
+        this in yet" as `KEY=`, but pydantic-settings hands that through as
+        the empty string — which is a *value*, so it silently beats the
+        field default. `OPENAI_CHAT_MODEL=` shipped `model: ""` to the
+        provider and surfaced as a generic "model provider is unavailable"
+        503, with nothing pointing at configuration.
+
+        Dropping blank keys here fixes the whole class at once: fields with
+        defaults fall back to them, and optional secrets stay `None` rather
+        than becoming an empty `SecretStr` — which matters because a
+        `SecretStr("")` is truthy, so an unfilled `DATABASE_URL` would
+        otherwise read as configured and be dialed.
+        """
+        if isinstance(data, dict):
+            return {
+                key: value
+                for key, value in data.items()
+                if not (isinstance(value, str) and not value.strip())
+            }
+        return data
 
     @field_validator("data_url")
     @classmethod

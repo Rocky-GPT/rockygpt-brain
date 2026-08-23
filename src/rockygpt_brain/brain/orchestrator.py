@@ -301,9 +301,17 @@ def _finalize(
     tools_invoked: list[str],
     tool_calls_log: list[dict[str, Any]],
 ) -> ChatOutcome:
+    # "standard" is what the UI presents as a verified campus answer, so it
+    # has to be one: an answer with nothing to cite is unverified no matter
+    # what the model labelled it, and the honest route for that is
+    # "ungrounded". Downgrading is always safe in this direction — the
+    # opposite (promoting an uncited answer to "standard") is the one that
+    # would overstate what the brain checked. brain/answer.py already
+    # rejects the mirror case, "ungrounded" carrying citations.
+    route = "ungrounded" if parsed.route == "standard" and not citations else parsed.route
     return ChatOutcome(
         answer=parsed.answer_markdown,
-        route=parsed.route,
+        route=route,
         citations=citations,
         ui_actions=parsed.ui_actions,
         suggested_questions=list(parsed.suggested_questions),

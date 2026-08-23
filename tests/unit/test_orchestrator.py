@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 from rockygpt_brain.brain.model_client import ModelTurn, ToolCall
@@ -9,6 +10,7 @@ from rockygpt_brain.brain.orchestrator import (
     run_chat_turn,
 )
 from rockygpt_brain.data_client.errors import DataServiceUnavailable
+from rockygpt_brain.data_client.models import Dataset, SearchResult
 from rockygpt_brain.schemas.chat import ChatRequest
 
 
@@ -35,6 +37,26 @@ class FakeDataClient:
 
     async def search_campus_hours(self, **kwargs: object):
         raise DataServiceUnavailable()
+
+
+class CitingDataClient:
+    """Returns one record carrying a well-formed source, so the turn has a
+    genuinely citable sourceId for grounding to resolve."""
+
+    async def search_clubs(self, **kwargs: object) -> SearchResult:
+        return SearchResult(
+            dataset=Dataset(id="d1", version="v1", activated_at=datetime(2024, 1, 1, tzinfo=UTC)),
+            records=[
+                {
+                    "name": "Chess Club",
+                    "source": {
+                        "sourceId": "src-1",
+                        "title": "Student Orgs",
+                        "url": "https://archway.ramapo.edu/clubs",
+                    },
+                }
+            ],
+        )
 
 
 def _submit_call(call_id: str, **args: object) -> ToolCall:
@@ -89,7 +111,26 @@ class TestSubmitAnswerConstraints:
             request=_request(), model_client=model_client, data_client=FakeDataClient()
         )
         assert outcome.answer == "Here is the answer."
+        # The answer is kept, but the model labelled it "standard" while
+        # citing nothing, so the route is corrected rather than trusted.
+        assert outcome.route == "ungrounded"
+        assert outcome.citations == []
+
+    async def test_standard_route_survives_when_citations_resolve(self) -> None:
+        # The same submission, but with a sourceId a tool really produced
+        # this turn: nothing to downgrade, so "standard" stands.
+        data_call = ModelTurn(content=None, tool_calls=[_tool_call("t1", name="search_clubs")])
+        submit = ModelTurn(
+            content=None,
+            tool_calls=[_submit_call("c1", citedSourceIds=["src-1"])],
+        )
+        outcome = await run_chat_turn(
+            request=_request(),
+            model_client=FakeModelClient([data_call, submit]),
+            data_client=CitingDataClient(),
+        )
         assert outcome.route == "standard"
+        assert [citation.source_id for citation in outcome.citations] == ["src-1"]
 
 
 class TestDuplicateAndBudget:
