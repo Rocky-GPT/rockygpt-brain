@@ -5,6 +5,7 @@ from rockygpt_brain.brain.time_context import resolve_time_context
 from rockygpt_brain.brain.tools import (
     MAX_RECORDS_PER_CALL,
     TOOL_HANDLERS,
+    ToolPayload,
     _bound_value,
     _summarize,
     _validate_arguments,
@@ -94,7 +95,7 @@ class TestSummarize:
             dataset=Dataset(id="d1", version="v1", activated_at=datetime(2024, 1, 1, tzinfo=UTC)),
             records=records,
         )
-        envelope = _summarize(result, registry=registry)
+        envelope = _summarize(ToolPayload.from_search(result), registry=registry)
         assert len(envelope["records"]) <= MAX_RECORDS_PER_CALL
         # The extra records past the cap must never become citable.
         assert registry.resolve([f"src-{MAX_RECORDS_PER_CALL + 2}"]) is None
@@ -105,7 +106,7 @@ class TestSummarize:
             dataset=Dataset(id="d1", version="v1", activated_at=datetime(2024, 1, 1, tzinfo=UTC)),
             records=[_record("src-1")],
         )
-        envelope = _summarize(result, registry=registry)
+        envelope = _summarize(ToolPayload.from_search(result), registry=registry)
         shown_id = envelope["records"][0]["sourceId"]
         assert registry.resolve([shown_id]) is not None
 
@@ -124,7 +125,7 @@ class TestSummarize:
                 )
             ],
         )
-        envelope = _summarize(result, registry=registry)
+        envelope = _summarize(ToolPayload.from_search(result), registry=registry)
         assert "sourceId" not in envelope["records"][0]
         assert registry.resolve(["s"]) is None
 
@@ -151,3 +152,133 @@ class TestSummarize:
             cursor = cursor[0]
             depth += 1
         assert depth <= MAX_DEPTH + 1
+
+
+class TestSearchMap:
+    """`/v1/map` is the one campus endpoint returning no per-record source,
+    so the brain mints one from the location itself. These pin the rules
+    that make those minted citations trustworthy."""
+
+    class _MapClient:
+        def __init__(self, response: object) -> None:
+            self._response = response
+            self.queries: list[object] = []
+
+        async def map(self, *, q: object = None) -> object:
+            self.queries.append(q)
+            return self._response
+
+    _LOCATION = {
+        "key": "building_arch-havemeyer",
+        "name": "Arch (Havemeyer)",
+        "type": "building",
+        "mapUrl": "https://www.ramapo.edu/map/?building=Arch",
+    }
+
+    async def test_location_is_citable_under_a_namespaced_source_id(self) -> None:
+        registry = ProvenanceRegistry()
+        client = self._MapClient({"locations": [self._LOCATION]})
+        envelope = await execute_tool(
+            "search_map",
+            {"q": "arch"},
+            client=client,  # type: ignore[arg-type]
+            time_context=resolve_time_context(now=None, timezone_name=None),
+            registry=registry,
+        )
+        shown_id = envelope["records"][0]["sourceId"]
+        assert shown_id == "map:building_arch-havemeyer"
+        citations = registry.resolve([shown_id])
+        assert citations is not None
+        # Title and URL come from the data service's own record, never the model.
+        assert citations[0].title == "Arch (Havemeyer)"
+        assert citations[0].url == "https://www.ramapo.edu/map/?building=Arch"
+
+    async def test_location_key_is_exposed_for_view_map_actions(self) -> None:
+        # A VIEW_MAP uiAction needs a real locationKey; the model can only
+        # use one it was shown.
+        registry = ProvenanceRegistry()
+        client = self._MapClient({"locations": [self._LOCATION]})
+        envelope = await execute_tool(
+            "search_map",
+            {},
+            client=client,  # type: ignore[arg-type]
+            time_context=resolve_time_context(now=None, timezone_name=None),
+            registry=registry,
+        )
+        assert envelope["records"][0]["key"] == "building_arch-havemeyer"
+
+    async def test_location_without_a_usable_url_is_shown_but_not_citable(self) -> None:
+        registry = ProvenanceRegistry()
+        client = self._MapClient(
+            {"locations": [{**self._LOCATION, "mapUrl": "javascript:alert(1)"}]}
+        )
+        envelope = await execute_tool(
+            "search_map",
+            {},
+            client=client,  # type: ignore[arg-type]
+            time_context=resolve_time_context(now=None, timezone_name=None),
+            registry=registry,
+        )
+        assert "sourceId" not in envelope["records"][0]
+        assert registry.known_source_ids() == []
+
+    async def test_map_envelope_omits_dataset_fields(self) -> None:
+        # /v1/map carries no dataset version, and claiming one would be a lie.
+        registry = ProvenanceRegistry()
+        client = self._MapClient({"locations": [self._LOCATION]})
+        envelope = await execute_tool(
+            "search_map",
+            {},
+            client=client,  # type: ignore[arg-type]
+            time_context=resolve_time_context(now=None, timezone_name=None),
+            registry=registry,
+        )
+        assert "datasetId" not in envelope
+        assert "datasetVersion" not in envelope
+
+    async def test_resolved_match_leads_the_records(self) -> None:
+        # /v1/map returns every campus location unfiltered and reports the
+        # query's match only in `resolved`. Without hoisting it, the
+        # per-call cap would drop the one location the model asked for.
+        registry = ProvenanceRegistry()
+        target = {
+            "key": "office_csi",
+            "name": "Center for Student Involvement (CSI)",
+            "type": "office",
+            "mapUrl": "https://www.ramapo.edu/map/?office=CSI",
+        }
+        filler = [
+            {
+                "key": f"building_{i}",
+                "name": f"Building {i}",
+                "type": "building",
+                "mapUrl": f"https://www.ramapo.edu/map/?building={i}",
+            }
+            for i in range(MAX_RECORDS_PER_CALL + 5)
+        ]
+        client = self._MapClient({"locations": [*filler, target], "resolved": target})
+        envelope = await execute_tool(
+            "search_map",
+            {"q": "CSI office"},
+            client=client,  # type: ignore[arg-type]
+            time_context=resolve_time_context(now=None, timezone_name=None),
+            registry=registry,
+        )
+        first = envelope["records"][0]
+        assert first["key"] == "office_csi"
+        assert first["bestMatch"] is True
+        # Present exactly once, not duplicated by the hoist.
+        assert [r["key"] for r in envelope["records"]].count("office_csi") == 1
+
+    async def test_no_resolved_match_still_lists_locations(self) -> None:
+        registry = ProvenanceRegistry()
+        client = self._MapClient({"locations": [self._LOCATION], "resolved": None})
+        envelope = await execute_tool(
+            "search_map",
+            {"q": "nothing matches this"},
+            client=client,  # type: ignore[arg-type]
+            time_context=resolve_time_context(now=None, timezone_name=None),
+            registry=registry,
+        )
+        assert envelope["records"][0]["key"] == "building_arch-havemeyer"
+        assert "bestMatch" not in envelope["records"][0]

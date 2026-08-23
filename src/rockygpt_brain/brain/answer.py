@@ -149,6 +149,12 @@ class SubmitAnswerArguments(BaseModel):
         # by supplying citations that would otherwise have been dropped.
         if self.route == "ungrounded" and self.cited_source_ids:
             raise ValueError("route 'ungrounded' must not include citedSourceIds")
+        # The converse (route "standard" with no citations) is deliberately
+        # *not* rejected here. Rejecting a submission costs the whole turn —
+        # orchestrator.py falls back to a canned apology — which is a heavy
+        # price for a mislabeled route when the answer text itself is fine.
+        # orchestrator._finalize downgrades that case to "ungrounded"
+        # instead, so the invariant still holds at the API boundary.
         return self
 
 
@@ -184,6 +190,13 @@ SUBMIT_ANSWER_TOOL_SPEC: dict[str, Any] = {
                 },
                 "uiActions": {
                     "type": "array",
+                    "description": (
+                        "Campus panels to open beside the answer. VIEW_MAP takes "
+                        "payload {\"locationKey\": <a `key` from a search_map result "
+                        "this turn} and belongs on any 'where is X' answer. VIEW_MENU "
+                        "takes optional {\"meal\": <breakfast|lunch|dinner>}. VIEW_BUS, "
+                        "VIEW_EVENTS, VIEW_PRINT, and VIEW_DIRECTORY take no payload."
+                    ),
                     "items": {
                         "type": "object",
                         "properties": {
