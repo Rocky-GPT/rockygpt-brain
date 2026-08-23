@@ -4,6 +4,32 @@ This is an independent workspace for a from-scratch Python brain. It contains
 requirements and external contracts only. It contains no previous brain source,
 prompt, architecture, package manifest, generated client, or Git history.
 
+## Implementation
+
+A candidate Python implementation now lives under `src/rockygpt_brain/`
+(FastAPI + `asyncpg` + the OpenAI SDK), built independently from `spec/`
+per `CLAUDE.md`'s clean-room rule. Start here:
+
+- **`DESIGN.md`** — architecture proposal: stack choices, the chat
+  pipeline, and the anti-hallucination citation-provenance design.
+- **`THREAT_MODEL.md`** — assets, trust boundaries, and mitigations.
+- **`DEPLOYMENT.md`** — configuration, running locally/in a container,
+  readiness semantics, and the promotion rule.
+- **`ROLLBACK.md`** — the rollback procedure and rehearsal required before
+  promotion.
+
+Quick start:
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+uvicorn rockygpt_brain.main:app --reload
+```
+
+See `DEPLOYMENT.md` for which environment variables each route needs.
+Nothing here switches production traffic — see the promotion rule in
+`spec/acceptance.md` and `DEPLOYMENT.md`.
+
 ## Start Claude Code in the clean room
 
 From this directory:
