@@ -2,9 +2,9 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
+from rockygpt_brain.brain.fallback import FALLBACK_ANSWER
 from rockygpt_brain.brain.model_client import ModelTurn, ToolCall
 from rockygpt_brain.brain.orchestrator import (
-    FALLBACK_ANSWER,
     MAX_TOOL_ITERATIONS,
     MAX_TOTAL_TOOL_CALLS,
     run_chat_turn,
@@ -395,7 +395,7 @@ class TestRepeatedToolCallsAreDeduplicated:
         assert data_client.calls == ["search_clubs"]
 
     async def test_citation_from_a_deduplicated_repeat_still_resolves(self) -> None:
-        """The cached branch skips _summarize, which is what registers
+        """The cached branch skips summarize, which is what registers
         provenance — the first execution's registration must still stand."""
         repeated = ModelTurn(
             content=None,

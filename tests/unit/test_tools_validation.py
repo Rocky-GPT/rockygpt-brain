@@ -6,11 +6,11 @@ from rockygpt_brain.brain.tools import (
     MAX_RECORDS_PER_CALL,
     TOOL_HANDLERS,
     ToolPayload,
-    _bound_value,
-    _summarize,
-    _validate_arguments,
     execute_tool,
+    summarize,
+    validate_arguments,
 )
+from rockygpt_brain.brain.tools.bounding import _bound_value
 from rockygpt_brain.data_client.models import Dataset, SearchResult
 
 _SEARCH_CAMPUS_HOURS = TOOL_HANDLERS["search_campus_hours"]
@@ -19,31 +19,31 @@ _SEARCH_SHUTTLES = TOOL_HANDLERS["search_shuttles"]
 
 class TestValidateArguments:
     def test_valid_arguments_pass(self) -> None:
-        result = _validate_arguments(_SEARCH_CAMPUS_HOURS, {"q": "library", "day": "Monday"})
+        result = validate_arguments(_SEARCH_CAMPUS_HOURS, {"q": "library", "day": "Monday"})
         assert result == {"q": "library", "day": "Monday"}
 
     def test_empty_arguments_ok(self) -> None:
-        assert _validate_arguments(_SEARCH_CAMPUS_HOURS, {}) == {}
+        assert validate_arguments(_SEARCH_CAMPUS_HOURS, {}) == {}
 
     def test_non_dict_rejected(self) -> None:
-        assert _validate_arguments(_SEARCH_CAMPUS_HOURS, None) is None
-        assert _validate_arguments(_SEARCH_CAMPUS_HOURS, ["q", "library"]) is None
-        assert _validate_arguments(_SEARCH_CAMPUS_HOURS, "library") is None
+        assert validate_arguments(_SEARCH_CAMPUS_HOURS, None) is None
+        assert validate_arguments(_SEARCH_CAMPUS_HOURS, ["q", "library"]) is None
+        assert validate_arguments(_SEARCH_CAMPUS_HOURS, "library") is None
 
     def test_unknown_key_rejected(self) -> None:
-        assert _validate_arguments(_SEARCH_CAMPUS_HOURS, {"q": "library", "evil": "x"}) is None
+        assert validate_arguments(_SEARCH_CAMPUS_HOURS, {"q": "library", "evil": "x"}) is None
 
     def test_wrong_type_value_rejected(self) -> None:
-        assert _validate_arguments(_SEARCH_CAMPUS_HOURS, {"q": 123}) is None
+        assert validate_arguments(_SEARCH_CAMPUS_HOURS, {"q": 123}) is None
 
     def test_oversized_value_rejected(self) -> None:
-        assert _validate_arguments(_SEARCH_CAMPUS_HOURS, {"q": "x" * 201}) is None
+        assert validate_arguments(_SEARCH_CAMPUS_HOURS, {"q": "x" * 201}) is None
 
     def test_enum_violation_rejected(self) -> None:
-        assert _validate_arguments(_SEARCH_CAMPUS_HOURS, {"day": "Someday"}) is None
+        assert validate_arguments(_SEARCH_CAMPUS_HOURS, {"day": "Someday"}) is None
 
     def test_valid_enum_value_passes(self) -> None:
-        assert _validate_arguments(_SEARCH_SHUTTLES, {"serviceDay": "weekday"}) == {
+        assert validate_arguments(_SEARCH_SHUTTLES, {"serviceDay": "weekday"}) == {
             "serviceDay": "weekday"
         }
 
@@ -95,7 +95,7 @@ class TestSummarize:
             dataset=Dataset(id="d1", version="v1", activated_at=datetime(2024, 1, 1, tzinfo=UTC)),
             records=records,
         )
-        envelope = _summarize(ToolPayload.from_search(result), registry=registry)
+        envelope = summarize(ToolPayload.from_search(result), registry=registry)
         assert len(envelope["records"]) <= MAX_RECORDS_PER_CALL
         # The extra records past the cap must never become citable.
         assert registry.resolve([f"src-{MAX_RECORDS_PER_CALL + 2}"]) is None
@@ -106,7 +106,7 @@ class TestSummarize:
             dataset=Dataset(id="d1", version="v1", activated_at=datetime(2024, 1, 1, tzinfo=UTC)),
             records=[_record("src-1")],
         )
-        envelope = _summarize(ToolPayload.from_search(result), registry=registry)
+        envelope = summarize(ToolPayload.from_search(result), registry=registry)
         shown_id = envelope["records"][0]["sourceId"]
         assert registry.resolve([shown_id]) is not None
 
@@ -125,7 +125,7 @@ class TestSummarize:
                 )
             ],
         )
-        envelope = _summarize(ToolPayload.from_search(result), registry=registry)
+        envelope = summarize(ToolPayload.from_search(result), registry=registry)
         assert "sourceId" not in envelope["records"][0]
         assert registry.resolve(["s"]) is None
 
