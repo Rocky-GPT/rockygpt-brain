@@ -18,7 +18,9 @@ old implementation is neither required nor permitted.
 - `message` and every history content value are at most 2,000 characters;
   history has at most ten turns.
 - Oversized bodies fail with `413`; unsupported paths/methods fail safely.
-- Every response has a stable request ID in the body and `X-Request-Id` header.
+- Every finite HTTP response has a stable `X-Request-Id` header; the SSE
+  handshake has the same header. A request ID is also in the body only when the
+  documented response schema permits it (chat and error responses).
 - Rate-limit responses are `429`, include numeric `Retry-After`, and use the
   documented error envelope.
 - The process handles shutdown gracefully and does not abandon accepted
