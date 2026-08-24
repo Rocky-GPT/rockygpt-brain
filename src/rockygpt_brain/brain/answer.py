@@ -69,7 +69,14 @@ MAX_SUGGESTED_QUESTION_LENGTH = 120
 
 _CONTROL_OR_FORMAT_CATEGORIES = ("Cc", "Cf", "Cs", "Co")
 
-ModelRoute = Literal["standard", "ungrounded"]
+# "conversation" is a claim about what was said earlier in this conversation,
+# not about the campus. It carries no citedSourceIds for the same reason
+# "ungrounded" does not — there is no campus source for a fact about a
+# conversation — but it is a *verified* answer drawn from the discourse record,
+# not an admission that nothing could be verified. Keeping them apart is what
+# stops "what did you tell me" from being refused as an unsourceable campus
+# claim (brain/discourse.py).
+ModelRoute = Literal["standard", "ungrounded", "conversation"]
 
 SUBMIT_ANSWER_TOOL_NAME = "submit_answer"
 
@@ -147,8 +154,8 @@ class SubmitAnswerArguments(BaseModel):
         # this field only ever raises or passes the list through unchanged
         # (never filters), so an ungrounded answer cannot evade this check
         # by supplying citations that would otherwise have been dropped.
-        if self.route == "ungrounded" and self.cited_source_ids:
-            raise ValueError("route 'ungrounded' must not include citedSourceIds")
+        if self.route in ("ungrounded", "conversation") and self.cited_source_ids:
+            raise ValueError(f"route '{self.route}' must not include citedSourceIds")
         # The converse (route "standard" with no citations) is deliberately
         # *not* rejected here. Rejecting a submission costs the whole turn —
         # orchestrator.py falls back to a canned apology — which is a heavy
@@ -178,13 +185,17 @@ SUBMIT_ANSWER_TOOL_SPEC: dict[str, Any] = {
                 },
                 "route": {
                     "type": "string",
-                    "enum": ["standard", "ungrounded"],
+                    "enum": ["standard", "ungrounded", "conversation"],
                     "description": (
                         "'standard' means every campus fact in this answer is "
-                        "backed by a citedSourceId from this turn. Use "
-                        "'ungrounded' for everything else — small talk, "
-                        "general knowledge, questions about you, and any "
-                        "answer you have nothing to cite for."
+                        "backed by a citedSourceId from this turn. "
+                        "'conversation' means the answer reports what you said "
+                        "earlier in this conversation, taken from the record of "
+                        "it — use this for 'what did you tell me', 'what time "
+                        "did you say', and similar, and cite nothing. Use "
+                        "'ungrounded' for everything else — small talk, general "
+                        "knowledge, questions about you, and any answer you have "
+                        "nothing to cite for."
                     ),
                 },
                 "citedSourceIds": {
@@ -258,13 +269,33 @@ SUBMIT_ANSWER_TOOL_SPEC: dict[str, Any] = {
 
 
 def parse_submit_answer(arguments_json: str) -> SubmitAnswerArguments | None:
+    parsed, _ = parse_submit_answer_diagnosed(arguments_json)
+    return parsed
+
+
+def parse_submit_answer_diagnosed(
+    arguments_json: str,
+) -> tuple[SubmitAnswerArguments | None, str | None]:
+    """Parse, and say which rule rejected it when one does.
+
+    The diagnostic is built from the *schema* — the field path and Pydantic's
+    error type — never from the submitted values. A rejected submission costs
+    the whole turn, so knowing which rule fired is the difference between
+    fixing a real defect and guessing at one; retaining what the model wrote
+    would defeat the redaction the rest of this service is built around.
+    """
     try:
         data = json.loads(arguments_json)
     except (ValueError, UnicodeDecodeError):
-        return None
+        return None, "not_json"
     if not isinstance(data, dict):
-        return None
+        return None, "not_object"
     try:
-        return SubmitAnswerArguments.model_validate(data)
-    except ValidationError:
-        return None
+        return SubmitAnswerArguments.model_validate(data), None
+    except ValidationError as error:
+        details = error.errors()
+        if not details:
+            return None, "unknown:invalid"
+        first = details[0]
+        location = ".".join(str(part) for part in first["loc"]) or "unknown"
+        return None, f"{location}:{first['type']}"
