@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import date, datetime
 from enum import StrEnum
-from typing import Annotated, Any, Literal, Protocol, TypeAlias, TypeVar
+from typing import Any, Literal, Protocol, TypeAlias, TypeVar
 
 from openai import AsyncOpenAI
 from pydantic import BaseModel, ConfigDict, Field
@@ -106,10 +106,7 @@ class ShuttleCodeRequest(StrictModel):
     operation: SemanticOperation | None = None
 
 
-CodeRequest: TypeAlias = Annotated[
-    HoursCodeRequest | MenuCodeRequest | SearchCodeRequest | ShuttleCodeRequest,
-    Field(discriminator="action"),
-]
+CodeRequest: TypeAlias = HoursCodeRequest | MenuCodeRequest | SearchCodeRequest | ShuttleCodeRequest
 
 
 class CodeIntent(StrictModel):
@@ -136,10 +133,7 @@ class SafetyIntent(StrictModel):
     lane: Literal[Lane.SAFETY]
 
 
-LaneIntent: TypeAlias = Annotated[
-    CodeIntent | RagIntent | MemoryIntent | GeneralIntent | SafetyIntent,
-    Field(discriminator="lane"),
-]
+LaneIntent: TypeAlias = CodeIntent | RagIntent | MemoryIntent | GeneralIntent | SafetyIntent
 
 
 class Intent(StrictModel):
