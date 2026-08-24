@@ -195,3 +195,72 @@ token-costly to run on every probe, and a transient model outage should
 surface as a per-request `503` from `/v1/chat` (which does call the model)
 rather than pull the whole service out of rotation. See `DEPLOYMENT.md` and
 `ROLLBACK.md` for the container definition and rollback procedure.
+
+## 9. Evidence-derived design rules
+
+Added 2026-08-23. Each of these was arrived at from measurement against a
+scored corpus (`rockygpt-evals/corpus/`), not from judgement about what ought
+to be code. They are recorded here because they govern BRAIN development
+regardless of which architecture the migration settles on.
+
+### 9.1 Tool result contract
+
+Tool results must be produced in this order:
+
+```
+retrieve -> semantically filter -> sort/rank where the domain defines an order
+         -> apply a bounded limit -> declare completeness
+```
+
+Bounding must come **last**. Today `brain/tools.py` applies
+`MAX_RECORDS_PER_CALL` first, taking the leading 8 records of whatever the data
+service returned, before any filtering, with no signal that anything was
+dropped. Measured effect in two unrelated domains: a 12-trip shuttle timetable
+loses its last four departures, and a 10-venue hours listing loses two venues,
+in both cases making the correct answer unreachable by any reasoning layer.
+
+The cap itself is not the defect and is not to be removed — the threat model
+(§3.7) relies on a bound existing. The defect is that truncation is arbitrary,
+precedes filtering, and is silent. Full rationale and measurements:
+`rockygpt-evals/corpus/EVIDENCE_INTEGRITY.md`.
+
+### 9.2 Admission rule for deterministic functions
+
+> A deterministic function enters the brain only after a reproduced failure
+> survives the upstream contract and evidence repairs, and shows that
+> deterministic execution would remove that failure class.
+
+In procedure form:
+
+```
+1. Reproduce the failure.
+2. Prove the correct evidence reached the model.
+3. Repair upstream DATA / tool-contract defects first.
+4. Rerun.
+5. Only if the failure survives, promote that operation into
+   deterministic code.
+```
+
+"This feels like it should be code" is not sufficient. Clock arithmetic,
+ordinal traversal and interval containment are all plausible candidates, and
+the first measurement of them found that most of the observed failures were
+caused upstream — evidence that never reached the model — not by the model
+reasoning badly over complete evidence. A primitive written against that
+misdiagnosis would have added machinery and fixed nothing.
+
+The corollary: before proposing a deterministic primitive, establish that the
+correct evidence was present in the model-visible slice when the failure
+occurred. `rockygpt-evals/corpus/availability.ts` computes this from outside
+the service.
+
+### 9.3 Diagnostics belong on the operator channel
+
+Observability that EVAL needs does not go on `/v1/chat`. The public response
+schema is frozen (`spec/brain-api.openapi.yaml`, `additionalProperties:
+false`), and widening it to carry diagnostics would trade a stable contract for
+a debugging convenience.
+
+Tool names, per-call result categories, and declared argument *names* are
+persisted to `chat_logs` and read through the admin API, which is already
+authenticated. Argument **values** are never recorded — see
+`brain/orchestrator.py` and `security/redaction.py`.

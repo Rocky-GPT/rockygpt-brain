@@ -19,6 +19,22 @@ in design notes you create outside `spec/`.
 If required behavior is missing or contradictory, stop and ask the user. Do
 not resolve ambiguity by seeking the old implementation.
 
+## Architecture Audit Exception — 2026-08-23
+
+The clean-room restriction above, prohibiting inspection of sibling RockyGPT
+repositories, is **lifted** for the current architecture reconciliation and
+migration work.
+
+The TypeScript brain (`rockygpt-brain`) may be inspected as a historical and
+reference implementation, for identifying proven behaviours, past regressions,
+algorithms, and tests. `rockygpt-data` and `rockygpt-evals` may be inspected
+and modified as part of the same work.
+
+New production BRAIN development remains in Python unless explicitly decided
+otherwise. The clean-room rule stands as written for any *new* from-scratch
+implementation work; it no longer applies to reconciling this implementation
+with what the previous one measured.
+
 ## Non-negotiable boundaries
 
 - Python is the implementation language.

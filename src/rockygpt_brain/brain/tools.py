@@ -179,6 +179,26 @@ def _validate_arguments(tool: ToolDefinition, arguments: Any) -> dict[str, str] 
     return validated
 
 
+def declared_argument_keys(name: str, arguments: Any) -> list[str]:
+    """Which of a tool's *declared* argument names the model actually supplied.
+
+    Names only — never values. Whether the model narrowed a search or left an
+    optional filter off is the difference between "the evidence was never
+    retrievable" and "the evidence was there and the wrong record was picked",
+    and that distinction is not recoverable from the answer text alone.
+
+    Filtered through the tool's own schema `properties` for the same reason
+    `_tool_log_name` filters the tool name: a model-invented key is not a fact
+    about this system and must not be retained verbatim in anything that
+    reaches a log. Sorted so a diagnostic comparison is order-insensitive.
+    """
+    tool = TOOL_HANDLERS.get(name)
+    if tool is None or not isinstance(arguments, dict):
+        return []
+    properties: dict[str, Any] = tool.parameters.get("properties", {})
+    return sorted(key for key in arguments if key in properties)
+
+
 async def _search_campus_hours(
     client: DataServiceClient, time_context: TimeContext, args: dict[str, Any]
 ) -> ToolPayload:

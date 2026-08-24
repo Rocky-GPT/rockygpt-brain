@@ -47,7 +47,12 @@ from rockygpt_brain.brain.model_client import ModelClient
 from rockygpt_brain.brain.prompts import build_system_prompt
 from rockygpt_brain.brain.safety import SafetyClassification, classify_safety
 from rockygpt_brain.brain.time_context import TimeContext, resolve_time_context
-from rockygpt_brain.brain.tools import TOOL_HANDLERS, execute_tool, openai_tool_specs
+from rockygpt_brain.brain.tools import (
+    TOOL_HANDLERS,
+    declared_argument_keys,
+    execute_tool,
+    openai_tool_specs,
+)
 from rockygpt_brain.data_client.client import DataServiceClient
 from rockygpt_brain.data_client.errors import DataClientError
 from rockygpt_brain.data_client.models import normalize_source
@@ -253,6 +258,16 @@ async def _run_grounded_turn(
             # text elsewhere (security/redaction.py, THREAT_MODEL.md §3.3).
             result_category = result.get("error", "ok") if isinstance(result, dict) else "ok"
             log_entry: dict[str, Any] = {"tool": log_name, "result": result_category}
+            # Argument *names* only, filtered through the tool's own schema.
+            # An optional filter the model did or did not supply decides
+            # whether the answer was even reachable, and nothing in the
+            # response text records that choice. Values stay excluded, exactly
+            # as before.
+            argument_keys = declared_argument_keys(
+                call.name, _safe_json_loads(call.arguments_json)
+            )
+            if argument_keys:
+                log_entry["argumentKeys"] = argument_keys
             if cached_result is not None:
                 # Still one logged call and still one unit of budget spent
                 # — the model did ask twice, and hiding that would make the
