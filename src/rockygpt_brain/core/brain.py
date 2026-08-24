@@ -121,13 +121,17 @@ class Brain:
             return await self._code.execute(decision.request, now), [decision.request.action.value]
 
         if isinstance(decision, RagIntent):
-            return await self._data.retrieve(decision.query, decision.domains), ["retrieve"]
+            return await self._data.retrieve(decision.query, []), ["retrieve"]
 
         if isinstance(decision, MemoryIntent):
             return {"outcome": "success", "turns": history}, ["memory"]
 
         if isinstance(decision, GeneralIntent):
-            return {"outcome": "general", "question": message}, []
+            return {
+                "outcome": "general",
+                "question": message,
+                "currentTime": now.isoformat(),
+            }, []
 
         assert isinstance(decision, SafetyIntent)
         return {
