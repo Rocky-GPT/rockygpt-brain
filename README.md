@@ -5,9 +5,10 @@ This repository contains the small Python brain for RockyGPT.
 ```text
 QUESTION
   -> AI #1 UNDERSTAND
-  -> structured Intent / query plan
+  -> strict lane-specific semantic Intent
   -> Python chooses CODE | RAG | MEMORY | GENERAL | SAFETY
-  -> CODE executes generic filter / order / limit operations
+  -> Python validates and compiles CODE against its capability registry
+  -> CODE executes the compiled filter / order / limit operations
   -> result JSON
   -> AI #2 COMMUNICATE
   -> answer
@@ -19,6 +20,12 @@ structured DATA, then finishes the requested record operations in Python. RAG
 sends campus policy and document questions to DATA retrieval. MEMORY reads recent
 process-local turns. GENERAL lets AI #2 answer non-campus questions. SAFETY
 supplies a short emergency result.
+
+AI #1 describes meaning; it never chooses DATA field paths. Every lane has its
+own strict output shape, and every CODE action has action-specific filters. A
+single Python capability registry maps semantic concepts such as `time`, `date`,
+or `calories` to real structured fields. Unsupported computations return an
+explicit structured result instead of silently selecting an arbitrary record.
 
 There is no agent loop, planner, verifier, repair pass, database, claim ledger,
 or orchestration framework in BASE.

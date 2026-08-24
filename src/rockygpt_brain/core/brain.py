@@ -18,7 +18,15 @@ from rockygpt_brain.api.contracts import (
     UiActionType,
 )
 from rockygpt_brain.core.code import CodeExecutor
-from rockygpt_brain.core.model import Intent, Lane, ModelPort
+from rockygpt_brain.core.model import (
+    CodeIntent,
+    GeneralIntent,
+    Intent,
+    MemoryIntent,
+    ModelPort,
+    RagIntent,
+    SafetyIntent,
+)
 from rockygpt_brain.services.data_client import DataPort
 from rockygpt_brain.services.memory import MemoryStore
 
@@ -68,7 +76,10 @@ class Brain:
         )
 
         citations = self._citations(result)
-        action = _CODE_ACTIONS.get(intent.action) if intent.lane == Lane.CODE else None
+        decision = intent.decision
+        action = (
+            _CODE_ACTIONS.get(decision.request.action) if isinstance(decision, CodeIntent) else None
+        )
         actions = [UiAction(type=action)] if action else []
         response = ChatSuccess(
             requestId=identity.request_id,
@@ -78,7 +89,7 @@ class Brain:
             uiActions=actions,
             suggestedQuestions=draft.suggested_questions[:10],
             brainTrace=BrainTrace(
-                input=intent.model_dump(mode="json", by_alias=True, exclude_none=True),
+                input=intent.trace(),
                 output=result,
             ),
         )
@@ -91,7 +102,7 @@ class Brain:
             assistant_message=response.answer,
             route=response.route,
             tools=tools,
-            tool_arguments=intent.model_dump(mode="json", by_alias=True, exclude_none=True),
+            tool_arguments=intent.trace(),
             citations=citations,
             result=result,
             latency_ms=max(0, round((time.monotonic() - started) * 1000)),
@@ -105,19 +116,20 @@ class Brain:
         history: list[dict[str, Any]],
         now: datetime,
     ) -> tuple[dict[str, Any], list[str]]:
-        if intent.lane == Lane.CODE:
-            return await self._code.execute(intent, now), [intent.action or "code"]
+        decision = intent.decision
+        if isinstance(decision, CodeIntent):
+            return await self._code.execute(decision.request, now), [decision.request.action.value]
 
-        if intent.lane == Lane.RAG:
-            query = intent.query or message
-            return await self._data.retrieve(query, intent.domains), ["retrieve"]
+        if isinstance(decision, RagIntent):
+            return await self._data.retrieve(decision.query, decision.domains), ["retrieve"]
 
-        if intent.lane == Lane.MEMORY:
+        if isinstance(decision, MemoryIntent):
             return {"outcome": "success", "turns": history}, ["memory"]
 
-        if intent.lane == Lane.GENERAL:
+        if isinstance(decision, GeneralIntent):
             return {"outcome": "general", "question": message}, []
 
+        assert isinstance(decision, SafetyIntent)
         return {
             "outcome": "safety",
             "message": (
