@@ -47,6 +47,7 @@ Day = Literal[
 class SearchFilters(StrictModel):
     query: str | None = Field(
         default=None,
+        max_length=200,
         description="A literal entity, title, name, or topic to search for; never an operation.",
     )
 
@@ -56,13 +57,13 @@ class HoursFilters(SearchFilters):
 
 
 class MenuFilters(SearchFilters):
-    meal: str | None = None
+    meal: str | None = Field(default=None, max_length=64)
 
 
 class ShuttleFilters(StrictModel):
-    route: str | None = None
-    origin: str | None = None
-    destination: str | None = None
+    route: str | None = Field(default=None, min_length=1, max_length=120)
+    origin: str | None = Field(default=None, min_length=1, max_length=120)
+    destination: str | None = Field(default=None, min_length=1, max_length=120)
     service_date: date | None = Field(default=None, alias="serviceDate")
 
 
@@ -116,8 +117,7 @@ class CodeIntent(StrictModel):
 
 class RagIntent(StrictModel):
     lane: Literal[Lane.RAG]
-    query: str = Field(min_length=1)
-    domains: list[str] = Field(default_factory=list)
+    query: str = Field(min_length=1, max_length=500)
 
 
 class MemoryIntent(StrictModel):
@@ -241,8 +241,9 @@ class OpenAIModel:
                 "calculate new facts. If code reports an unsupported operation, say that the "
                 "available campus data cannot answer it; never substitute an arbitrary record. "
                 "For RAG results, use only the retrieved records. For memory results, use only "
-                "the supplied turns. General results may be answered from your general knowledge. "
-                "Keep suggested questions short."
+                "the supplied turns. General results may be answered from your general knowledge, "
+                "but result.currentTime is authoritative for current date or time. Keep suggested "
+                "questions short."
             ),
             {
                 "message": message,
