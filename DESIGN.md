@@ -1,266 +1,178 @@
-# RockyGPT brain (Python) — architecture proposal
+# RockyGPT Hybrid V1
 
-This document is an independent design proposal written from `spec/` only, per
-`CLAUDE.md`'s clean-room rule. It records the choices `spec/` deliberately
-leaves open and the reasoning behind them. See `THREAT_MODEL.md` for the
-companion security analysis.
+This is a greenfield brain. Its architecture is derived only from the public UI,
+Brain, DATA, deployment, and acceptance contracts. Previous brain source is not
+an implementation input.
 
-## 1. Goals derived from `spec/`
+## Core architecture
 
-- Serve `GET /health`, `GET /readiness`, `POST /v1/chat`, `POST /v1/feedback`,
-  and the `/v1/admin/logs*` operator surface exactly as described in
-  `spec/brain-api.openapi.yaml`.
-- Ground campus-fact answers in `rockygpt-data` responses only, with citations
-  that trace to real fetched records — never invented URLs or titles.
-- Route active emergencies and suicidal-intent messages to a deterministic
-  `safety` path that always surfaces `911` or `988`.
-- Own conversation persistence, feedback, and redaction/expiry, without ever
-  touching the data service's database or storing raw identifiers.
-- Work from a standalone checkout with no source dependency on any other
-  RockyGPT repository.
-
-## 2. Stack choices
-
-| Concern | Choice | Why |
-| --- | --- | --- |
-| Language/runtime | Python 3.11+ | Mandated by `CLAUDE.md`. |
-| Web framework | FastAPI + Uvicorn (ASGI) | Async-native, integrates typed Pydantic models for strict validation, gives an introspectable OpenAPI document for the contract gate almost for free. |
-| Request/response models | Pydantic v2, `extra="forbid"` everywhere | Directly encodes the OpenAPI `additionalProperties: false` requirement and the field-level bounds (`maxLength`, enums, patterns) called out in `spec/brain-api.openapi.yaml`. |
-| Outbound HTTP (data service, OpenAI) | `httpx.AsyncClient` | Async, timeout-first, used natively by the `openai` SDK too so there is one HTTP stack in the process. |
-| Model calls | OpenAI Chat Completions with tool/function calling (`openai` SDK) | `OPENAI_CHAT_MODEL` is caller-selected; tool calling lets the model request structured campus data instead of free-associating, which is the basis of the anti-hallucination design in §4. |
-| Persistence | PostgreSQL via `asyncpg`, hand-written SQL, no ORM | The schema is one table with simple upsert/expiry semantics; an ORM would add ceremony without simplifying anything. Raw SQL keeps the brain-owned-schema boundary auditable in one file (`persistence/schema.sql`). |
-| Rate limiting | In-process fixed-window counters | Single-instance-correct and dependency-free. Documented as a scaling limitation in §7 rather than papered over with an unverified Redis dependency. |
-| Logging | Stdlib `logging` with a JSON formatter | Structured logs without a new dependency; the formatter is written to make it structurally impossible to pass raw message text through (see `observability/logging.py`). |
-| Lint/format | `ruff` (lint + format) | One fast dependency covering both jobs. |
-| Types | `mypy --strict` on `src/` | Matches "type checker" in the delivery order. |
-| Tests | `pytest` + `pytest-asyncio` + `respx` (HTTP mocking) | `respx` intercepts `httpx` calls so data-service and OpenAI interactions are tested without live network access. |
-
-## 3. Process shape
-
-```
-                          ┌─────────────────────────┐
- browser → rockygpt-ui →  │        FastAPI app        │
-                          │                          │
-                          │  probes  chat  feedback  │
-                          │              admin       │
-                          └───────┬─────────┬────────┘
-                                  │         │
-                     data_client  │         │  persistence (asyncpg)
-                                  ▼         ▼
-                          rockygpt-data   brain-owned Postgres schema
-                                  ▲
-                                  │ tool calls
-                          brain/orchestrator ── model_client (OpenAI)
+```text
+question
+  -> AI #1: UNDERSTAND (typed structured intent)
+  -> Python BRAIN: choose exactly the needed path
+       CODE | RAG | MEMORY | GENERAL | SAFETY
+  -> typed result JSON
+  -> AI #2: COMMUNICATE
+  -> human-facing answer
 ```
 
-One process serves all routes; there is no internal message queue or worker
-tier because the brain has no long-running background work beyond a purge
-loop and an SSE fan-out, both of which are cheap in-process tasks (§8).
+CODE versus RAG is the central hybrid decision. Objective, computable campus
+questions go to deterministic code over structured DATA. Document, policy, and
+prose questions go to retrieval. Memory answers conversation questions; GENERAL
+is restricted to confirmed non-campus questions; deterministic SAFETY may
+intercept before AI #1. AI #2 receives results and communicates them—it does not
+recalculate shuttle times or invent facts. `RoutePlan` is only the validated
+wire shape emitted by AI #1, not an agent framework. The supporting security,
+evidence, memory, and compatibility layers may constrain or verify this pipeline
+but must not obscure it.
 
-## 4. Chat pipeline and the anti-hallucination guarantee
+## Request lifecycle
 
-`brain/orchestrator.py` runs, per request:
-
-1. **Environment/admin gates and rate limiting** (see `THREAT_MODEL.md`).
-2. **Deterministic safety classification** (`brain/safety.py`) on the message.
-   If it fires, the model is never called: the brain fetches
-   `GET /v1/safety-resources` for citations (falling back to a static,
-   hardcoded 911/988 message if that call fails — a safety answer must not
-   depend on a live dependency to mention emergency numbers) and returns
-   `route: "safety"` immediately. This makes the safety gates in
-   `spec/acceptance.md` deterministic and fast rather than a probabilistic
-   property of a model call.
-3. **Otherwise, a bounded tool-calling loop.** The model is given one tool
-   per `rockygpt-data` search endpoint (`brain/tools.py`), plus
-   `get_safety_resources` and `get_map`. Tool execution calls
-   `data_client`, and every record's `source` object (the data service's own
-   `sourceId`/`title`/`url`/`collectedAt`) is recorded in a per-turn
-   `ProvenanceRegistry` (`brain/grounding.py`) keyed by `sourceId`. The loop
-   runs for at most `MAX_TOOL_ITERATIONS` (default 4) round trips.
-4. **Structured final answer.** The model's last step must call a
-   `submit_answer` tool whose arguments are `answerMarkdown`, `route`,
-   `citedSourceIds` (a list of `sourceId` values), `uiActions`,
-   `suggestedQuestions`. The brain **never renders a citation the model
-   typed** — it looks up each `citedSourceId` in the registry built from
-   real tool results this turn and discards anything not present there. This
-   is the load-bearing decision behind "fabricated URLs or source titles fail
-   the gate": fabrication is structurally impossible because the citation
-   payload the user sees is assembled server-side from data actually
-   fetched, not from model output.
-5. **UI action and suggested-question validation.** Both are re-validated
-   against the OpenAPI enum/shape before being returned; anything malformed
-   is dropped rather than allowed to break the contract.
-6. **Synchronous persistence.** The chat log row is written before the HTTP
-   response is returned, so a `requestId` returned to the UI is always
-   upsert-able by a subsequent `/v1/feedback` call (§6).
-
-General-knowledge questions (e.g. "2 + 2") take the same loop but the model
-is instructed to skip tool calls when no campus grounding is needed, giving
-`citations: []` and `route: "standard"` (or `"ungrounded"` when it is
-explicitly declining an unsupported campus claim) without being forced to
-invoke `rockygpt-data`.
-
-### Time pinning
-
-`ChatRequest.now` and `ChatRequest.timezone` are threaded through as the
-single source of truth for "current time": if `now` is supplied, it — not
-wall-clock time — is what is passed as `at` to hours/shuttle tools and stated
-in the system prompt. Absent `now`, the brain uses its own UTC clock. This
-satisfies "pinned `now` and timezone values control hours and shuttle
-calculations."
-
-## 5. Safety classification design
-
-`brain/safety.py` is a deterministic, dependency-free classifier (no model
-call) with two independent triggers:
-
-- **Active emergency**: present-tense/active-indicator phrasing about
-  unconsciousness, a current fire, or weapon use (e.g. "he's unconscious",
-  "there's a fire in", "someone has a gun"). A second pattern set for
-  informational/hypothetical phrasing ("what's the fire evacuation
-  procedure", "how do I report a weapon") suppresses the trigger so
-  procedural questions are not misrouted, matching the explicit acceptance
-  gate for that case.
-- **Suicidal intent**: phrase-level patterns for expressed self-harm intent
-  ("kill myself", "want to end my life", "don't want to be alive anymore").
-
-Both are intentionally conservative toward false positives (a safety route
-that isn't needed costs a slightly-off answer; a missed one is unacceptable)
-and are unit-tested against both the acceptance-gate examples and adjacent
-informational phrasings that must *not* trigger. This is documented as a
-heuristic, not a clinical tool, in `THREAT_MODEL.md`.
-
-## 6. Persistence and privacy
-
-Single table `chat_logs` (see `persistence/schema.sql`) keyed by `id =
-requestId`. `conversationId` and `visitorId` are never stored raw: they are
-transformed with `HMAC-SHA256(CHAT_LOG_HASH_KEY, value)` before insertion
-(`persistence/hashing.py`), matching "durable identifiers use a keyed,
-non-reversible transformation." `user_message`, `assistant_message`, and
-`feedback_comment` are redacted (`security/redaction.py`) before being
-written — the redaction never touches the live response returned to the
-caller, only the stored copy.
-
-`/v1/feedback` upserts rating/category/comment plus a normalized
-`feedback` (`positive`/`negative`) column onto the row matching
-`requestId`. `/v1/admin/logs/feedback` sets/clears that same `feedback`
-column directly as an operator override, independent of the student rating.
-
-**Expiry** is enforced by a background purge loop (`persistence/purge.py`)
-that runs hourly:
-
-- rows older than 30 days have `user_message`/`assistant_message`/
-  `feedback_comment` cleared (satisfies "question and answer text expires
-  within 30 days" while keeping the row for aggregate `LogMetrics`);
-- rows older than 90 days are deleted outright (satisfies "ratings, redacted
-  feedback, and non-text operational metadata expire within 90 days").
-
-The admin log listing (`/v1/admin/logs`) computes an opaque `version`
-watermark from `(max(updated_at), count(*))`. A request whose `version` query
-parameter or `If-None-Match` header matches the current watermark gets a
-cheap "nothing changed" response (`{"modified": false}` or `304`) instead of
-re-querying and re-serializing the page. `/v1/admin/logs/stream` is an
-in-process SSE fan-out (`observability/change_bus.py`) that emits
-`data: {"type":"change"}` whenever a row is written, plus a heartbeat
-comment every 15s so idle connections aren't silently dropped and clients
-can safely reconnect.
-
-## 7. Known scaling limitations (documented, not hidden)
-
-- **Rate limiting is per-process.** A multi-instance deployment needs a
-  shared store (e.g. Redis) to enforce one global quota per client; today
-  each instance enforces its own. This is acceptable for the current
-  single-instance staging/production topology implied by `spec/` and is
-  called out here so it is a conscious tradeoff, not a surprise.
-- **The SSE change bus is per-process** for the same reason; multi-instance
-  operator dashboards would only see changes written by the instance they
-  are connected to.
-- **Unsigned-client rate limiting falls back to a coarse identity** (the
-  hashed `conversationId`) because the brain never sees a raw IP. This is an
-  abuse-mitigation heuristic, not a security boundary — the real boundary is
-  the signed `x-rockygpt-client-key`/`x-rockygpt-client-signature` pair from
-  `rockygpt-ui`.
-
-## 8. Deployment shape
-
-Single container, one process, `uvicorn` serving the FastAPI app. Startup
-runs schema migration (idempotent `CREATE TABLE IF NOT EXISTS`). `/health`
-never touches the database, data service, or model, per spec. `/readiness`
-pings the brain's own database (`SELECT 1`) and the data service's
-`GET /health`/`GET /readiness` — both are cheap, sub-second, deterministic
-checks that fit the 3-second budget — and reports `failing: ["database"]`
-and/or `["dataset"]` accordingly. It does not call OpenAI: there is no cheap
-liveness ping for a model provider, a real completion call would be slow and
-token-costly to run on every probe, and a transient model outage should
-surface as a per-request `503` from `/v1/chat` (which does call the model)
-rather than pull the whole service out of rotation. See `DEPLOYMENT.md` and
-`ROLLBACK.md` for the container definition and rollback procedure.
-
-## 9. Evidence-derived design rules
-
-Added 2026-08-23. Each of these was arrived at from measurement against a
-scored corpus (`rockygpt-evals/corpus/`), not from judgement about what ought
-to be code. They are recorded here because they govern BRAIN development
-regardless of which architecture the migration settles on.
-
-### 9.1 Tool result contract
-
-Tool results must be produced in this order:
-
-```
-retrieve -> semantically filter -> sort/rank where the domain defines an order
-         -> apply a bounded limit -> declare completeness
+```text
+validate/authenticate
+  -> deterministic safety and privacy preflight
+  -> schema-validated RoutePlan (zero to four allowlisted operations)
+  -> execute capability, retrieval, and conversation-memory reads
+  -> normalize records into an EvidenceBundle
+  -> generate a structured draft that names evidence IDs
+  -> post-generation grounding and policy validation
+  -> project through the external API compatibility adapter
+  -> atomically persist the successful turn and memory updates
+  -> return one JSON response
 ```
 
-Bounding must come **last**. Today `brain/tools.py` applies
-`MAX_RECORDS_PER_CALL` first, taking the leading 8 records of whatever the data
-service returned, before any filtering, with no signal that anything was
-dropped. Measured effect in two unrelated domains: a 12-trip shuttle timetable
-loses its last four departures, and a 10-venue hours listing loses two venues,
-in both cases making the correct answer unreachable by any reasoning layer.
+The planner and writer are bounded model calls, not an autonomous tool loop.
+Invalid structured output gets one repair attempt. A draft with unknown evidence
+IDs or unsupported campus claims gets one correction attempt; otherwise the
+brain returns a conservative verified answer.
 
-The cap itself is not the defect and is not to be removed — the threat model
-(§3.7) relies on a bound existing. The defect is that truncation is arbitrary,
-precedes filtering, and is silent. Full rationale and measurements:
-`rockygpt-evals/corpus/EVIDENCE_INTEGRITY.md`.
+Safety and privacy preflight happens before any model or DATA call. Output policy
+and grounding run after draft generation, because model text is untrusted until
+then.
 
-### 9.2 Admission rule for deterministic functions
+## Modules
 
-> A deterministic function enters the brain only after a reproduced failure
-> survives the upstream contract and evidence repairs, and shows that
-> deterministic execution would remove that failure class.
+- `app`: FastAPI routes and the compatibility adapter for the frozen Brain API.
+- `brain`: the readable request coordinator implementing the lifecycle above.
+- `planning`: typed `RoutePlan` parsing and capability allowlisting.
+- `capabilities`: small domain adapters; deterministic operations stay in DATA.
+- `data_client`: typed HTTP-only access to DATA `/v2` contracts.
+- `evidence`: provenance registry, normalized facts, and grounding validation.
+- `model`: stateless OpenAI Responses API adapter using strict JSON-schema output
+  and `store=false`.
+- `memory`: bounded recent turns, assistant-claim ledger, entity/correction state.
+- `persistence`: brain-owned PostgreSQL logs, feedback, retention, and memory.
+- `policy`: deterministic emergency, privacy, secret, and output checks.
 
-In procedure form:
+The external response shape, admin log shape, and persistence schema are edge
+contracts; they do not determine internal routing or capability design.
 
+## RoutePlan
+
+`RoutePlan.mode` is one of `general`, `conversation`, `capability`, `rag`,
+`composite`, `clarify`, or `policy`. It contains at most four operations. Each
+operation has an allowlisted name and validated typed arguments. Campus intent
+that is unsupported or unavailable never falls through to general model
+knowledge. Composite partial success returns verified portions and identifies
+the unavailable portions.
+
+For shuttle planning, the brain normalizes language into distinct `route`,
+`origin`, `destination`, `serviceDate`, `serviceDay`, `selection`, and
+`timeScope` fields. `first` means `selection=first,timeScope=full_day`; `next`
+means `selection=next,timeScope=remaining`.
+
+## Capability result and evidence
+
+Every capability returns:
+
+```text
+outcome: success | empty | no_match | needs_clarification |
+         unsupported | unavailable | error
+records: typed records
+completeness: complete | partial | unknown, plus returned/matched/limit/truncated
+appliedFilters and deterministic ordering
+dataset identity/version
+evidence: immutable IDs plus server-owned public source metadata
+warnings and safe error code when applicable
 ```
-1. Reproduce the failure.
-2. Prove the correct evidence reached the model.
-3. Repair upstream DATA / tool-contract defects first.
-4. Rerun.
-5. Only if the failure survives, promote that operation into
-   deterministic code.
-```
 
-"This feels like it should be code" is not sufficient. Clock arithmetic,
-ordinal traversal and interval containment are all plausible candidates, and
-the first measurement of them found that most of the observed failures were
-caused upstream — evidence that never reached the model — not by the model
-reasoning badly over complete evidence. A primitive written against that
-misdiagnosis would have added machinery and fixed nothing.
+Only DATA can declare corpus completeness. BRAIN may preserve or weaken that
+declaration, never strengthen it. DATA performs `retrieve -> filter -> sort ->
+bound -> declare completeness`.
 
-The corollary: before proposing a deterministic primitive, establish that the
-correct evidence was present in the model-visible slice when the failure
-occurred. `rockygpt-evals/corpus/availability.ts` computes this from outside
-the service.
+Evidence registries are scoped to one turn, but every accepted claim persists a
+durable turn/evidence mapping and the server-owned evidence snapshot needed to
+audit it later. Public citation titles and URLs are resolved from that registry,
+never copied from model output. Conversation evidence may support only claims
+about the conversation. RAG text is untrusted content and can neither change
+instructions nor select capabilities. An authoritative empty result still carries
+dataset/source evidence so that negative claims are auditable.
 
-### 9.3 Diagnostics belong on the operator channel
+## Time
 
-Observability that EVAL needs does not go on `/v1/chat`. The public response
-schema is frozen (`spec/brain-api.openapi.yaml`, `additionalProperties:
-false`), and widening it to carry diagnostics would trade a stable contract for
-a debugging convenience.
+One immutable `TimeContext` is created at request start from the optional pinned
+`now`, the requested IANA timezone, and the campus timezone
+`America/New_York`. `now` fixes the instant. The validated request timezone is
+authoritative for interpreting relative dates such as today and tomorrow;
+published schedule clock times and next/current comparisons use the campus
+timezone at that same instant. `serviceDay` is derived only from `serviceDate`,
+and a supplied inconsistent pair is rejected. DATA owns schedule parsing,
+DST-aware local comparison, cross-midnight behavior, and half-open opening
+intervals. Different operations never call their own wall clocks.
 
-Tool names, per-call result categories, and declared argument *names* are
-persisted to `chat_logs` and read through the admin API, which is already
-authenticated. Argument **values** are never recorded — see
-`brain/orchestrator.py` and `security/redaction.py`.
+## Memory and persistence
+
+Memory is keyed by separate HMAC-SHA256 hashes of visitor and conversation IDs;
+neither identifier grants authorization. It contains:
+
+1. a bounded recent-turn window;
+2. an exact assistant utterance/normalized-claim ledger with evidence IDs;
+3. bounded selected entities and explicit corrections with attribution.
+
+User corrections remain user claims until independently verified. Sensitive
+facts are not promoted to durable entity memory. The server-owned claim ledger
+outranks client-supplied history; the last ten client history entries are only a
+bounded fallback and can never overwrite durable state. A successful response,
+its evidence snapshot, and its memory update commit together. Failed accepted
+attempts record only redacted operational/error metadata and never change
+conversational state. Concurrent updates use database transactions and
+monotonically ordered turns. Question, answer, and claim text expires within 30
+days; feedback and non-text operational metadata expires within 90 days.
+
+## External API and security
+
+`spec/brain-api.openapi.yaml` is normative. The service returns a single complete
+JSON response within the UI's 60-second timeout and implements probes, chat,
+feedback, authenticated development logs, operator feedback, and SSE change
+notifications. Request bodies are capped at 64 KiB. Malformed JSON, JSON scalars,
+unknown fields, and schema violations normalize to the documented HTTP 400
+envelope; oversized bodies use HTTP 413. `X-Request-Id` is present on every
+finite HTTP response and on the SSE handshake, while a body request ID appears
+only in schemas that permit it (chat and error). Framework documentation and
+implicit OpenAPI routes are disabled so every runtime route remains represented
+by the normative checked-in specification. Readiness checks local model
+configuration presence as well as required DATA/database dependencies without a
+live model call. Staging environment tokens, admin bearer authentication, and
+constant-time signed-client verification are compatibility requirements.
+
+All capabilities are public and read-only. Grades, GPA, private student data,
+private addresses, secrets, and account actions are unsupported. Active fire,
+weapon use, unconsciousness, and suicidal intent take deterministic policy paths;
+informational safety questions do not.
+
+## Budgets
+
+- overall brain deadline: 55 seconds (below the UI's 60-second timeout)
+- validation, identity, policy preflight, and compatibility projection: 2 seconds
+- routing including its single repair attempt: 8 seconds total
+- at most four parallel DATA capability/retrieval operations, including one safe
+  transient retry: 5 seconds total
+- drafting including its single grounding correction attempt: 24 seconds total
+- deterministic grounding and output-policy verification: 2 seconds
+- atomic persistence: 3 seconds
+- scheduling, transport, and response buffer: 11 seconds
+- no retry for deterministic 4xx; one retry only for safe transient DATA/model
+  failures when the remaining deadline permits it
+
+Tests inject clocks and fake model/DATA ports. Prompts, model name, code SHA, and
+DATA release version are recorded for the frozen integration build.
