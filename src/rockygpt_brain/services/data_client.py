@@ -51,10 +51,11 @@ class DataClient:
             return {"outcome": "unsupported", "action": intent.action}
 
         path, fields, include_time = _STRUCTURED_ROUTES[intent.action]
+        filters = self._filters(intent)
         params = {
-            parameter: value
+            parameter: filters[field]
             for field, parameter in fields.items()
-            if (value := getattr(intent, field))
+            if field in filters
         }
         if include_time:
             params["at"] = now.isoformat()
@@ -62,24 +63,30 @@ class DataClient:
         return self._add_source_evidence(result)
 
     async def _shuttle(self, intent: Intent, now: datetime) -> dict[str, Any]:
+        filters = self._filters(intent)
+        requested_scope = intent.operation.time_scope if intent.operation else None
         scopes = {
-            "first": "full_day",
-            "next": "remaining",
-            "current": "at_time",
-            "all": "full_day",
+            "all": ("all", "full_day"),
+            "remaining": ("all", "remaining"),
+            "active": ("current", "at_time"),
         }
+        selection, time_scope = scopes[requested_scope or "all"]
         body: dict[str, Any] = {
             "asOf": now.isoformat(),
-            "selection": intent.selection,
-            "timeScope": scopes[intent.selection],
+            "selection": selection,
+            "timeScope": time_scope,
         }
         for name in ("route", "origin", "destination"):
-            value = getattr(intent, name)
+            value = filters.get(name)
             if value:
                 body[name] = value
-        if intent.service_date:
-            body["serviceDate"] = intent.service_date.isoformat()
+        if filters.get("serviceDate"):
+            body["serviceDate"] = filters["serviceDate"]
         return await self._post("/v2/capabilities/shuttle/query", body)
+
+    @staticmethod
+    def _filters(intent: Intent) -> dict[str, str]:
+        return {item.field: item.value for item in intent.filters if item.value.strip()}
 
     async def retrieve(self, query: str, domains: list[str]) -> dict[str, Any]:
         body: dict[str, Any] = {"query": query}

@@ -17,6 +17,7 @@ from rockygpt_brain.api.contracts import (
     UiAction,
     UiActionType,
 )
+from rockygpt_brain.core.code import CodeExecutor
 from rockygpt_brain.core.model import Intent, Lane, ModelPort
 from rockygpt_brain.services.data_client import DataPort
 from rockygpt_brain.services.memory import MemoryStore
@@ -41,6 +42,7 @@ class TurnIdentity:
 class Brain:
     def __init__(self, model: ModelPort, data: DataPort, memory: MemoryStore) -> None:
         self._model = model
+        self._code = CodeExecutor(data)
         self._data = data
         self._memory = memory
 
@@ -48,9 +50,10 @@ class Brain:
         started = time.monotonic()
         now = request.now or datetime.now(UTC)
         history = self._memory.history(identity.session_id)
+        model_history = [turn.model_dump() for turn in request.history] or history
 
         # AI #1 — understand the question and choose one explicit lane.
-        intent = await self._model.understand(request.message, request.history, history, now)
+        intent = await self._model.understand(request.message, model_history, now)
 
         # Python — execute exactly one branch of the hybrid brain.
         result, tools = await self._execute(intent, request.message, history, now)
@@ -103,7 +106,7 @@ class Brain:
         now: datetime,
     ) -> tuple[dict[str, Any], list[str]]:
         if intent.lane == Lane.CODE:
-            return await self._data.code(intent, now), [intent.action or "code"]
+            return await self._code.execute(intent, now), [intent.action or "code"]
 
         if intent.lane == Lane.RAG:
             query = intent.query or message

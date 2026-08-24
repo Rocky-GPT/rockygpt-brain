@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal, Protocol, TypeVar
 
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
-from rockygpt_brain.api.contracts import ChatTurn
 from rockygpt_brain.errors import ServiceError
 
 
@@ -36,29 +35,40 @@ CodeAction = Literal[
 ]
 
 
+class QueryFilter(BaseModel):
+    """One exact filter for a structured campus dataset."""
+
+    field: Literal[
+        "query",
+        "day",
+        "meal",
+        "route",
+        "origin",
+        "destination",
+        "serviceDate",
+    ]
+    value: str
+
+
+class QueryOperation(BaseModel):
+    """Generic record operations executed by Python CODE."""
+
+    time_scope: Literal["all", "remaining", "active"] | None = Field(
+        default=None,
+        alias="timeScope",
+    )
+    order_by: str | None = Field(default=None, alias="orderBy")
+    direction: Literal["ascending", "descending"] | None = None
+    limit: int | None = Field(default=None, ge=1, le=50)
+
+
 class Intent(BaseModel):
     """Structured intent returned by AI #1."""
 
     lane: Lane
     action: CodeAction | None = None
-    selection: Literal["first", "next", "current", "all"] = "next"
-    day: (
-        Literal[
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-        ]
-        | None
-    ) = None
-    meal: str | None = None
-    route: str | None = None
-    origin: str | None = None
-    destination: str | None = None
-    service_date: date | None = Field(default=None, alias="serviceDate")
+    filters: list[QueryFilter] = Field(default_factory=list)
+    operation: QueryOperation | None = None
     query: str | None = None
     domains: list[str] = Field(default_factory=list)
 
@@ -79,8 +89,7 @@ class ModelPort(Protocol):
     async def understand(
         self,
         message: str,
-        history: list[ChatTurn],
-        memory: list[dict[str, Any]],
+        history: list[dict[str, Any]],
         now: datetime,
     ) -> Intent: ...
 
@@ -108,8 +117,7 @@ class OpenAIModel:
     async def understand(
         self,
         message: str,
-        history: list[ChatTurn],
-        memory: list[dict[str, Any]],
+        history: list[dict[str, Any]],
         now: datetime,
     ) -> Intent:
         return await self._parse(
@@ -120,14 +128,17 @@ class OpenAIModel:
                 "contacts, clubs, events, programs, academic_dates, map, or shuttle. Use rag "
                 "for campus documents, policies, and prose. Use memory for questions about this "
                 "conversation. Use general for non-campus knowledge. Use safety for urgent "
-                "danger or crisis requests. For code, set query only to an actual search term; "
-                "leave it empty for broad requests such as today's menu. Extract only useful "
-                "fields."
+                "danger or crisis requests. For code, describe the computation with filters "
+                "and an optional operation. Filters identify exact source fields. Operations "
+                "are generic: timeScope narrows records to all, remaining, or active; orderBy "
+                "is a record field path; direction orders it; and limit controls how many "
+                "records remain. Dot paths are supported, and a shuttle's departure time is "
+                "departure.time. Do not invent filters. Use the top-level query and domains "
+                "only for rag. Extract only useful fields."
             ),
             {
                 "message": message,
-                "history": [turn.model_dump() for turn in history],
-                "memory": memory,
+                "history": history,
                 "now": now.isoformat(),
             },
         )
