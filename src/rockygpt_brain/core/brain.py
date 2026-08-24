@@ -10,6 +10,7 @@ from typing import Any, Literal
 from pydantic import ValidationError
 
 from rockygpt_brain.api.contracts import (
+    BrainTrace,
     ChatRequest,
     ChatSuccess,
     Citation,
@@ -73,6 +74,10 @@ class Brain:
             citations=citations,
             uiActions=actions,
             suggestedQuestions=draft.suggested_questions[:10],
+            brainTrace=BrainTrace(
+                input=intent.model_dump(mode="json", by_alias=True, exclude_none=True),
+                output=result,
+            ),
         )
         self._memory.record(
             request_id=identity.request_id,
