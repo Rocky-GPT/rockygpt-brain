@@ -317,7 +317,12 @@ async def _run_grounded_turn(
             # that verbatim would defeat the point of redacting stored chat
             # text elsewhere (security/redaction.py, THREAT_MODEL.md §3.3).
             result_category = result.get("error", "ok") if isinstance(result, dict) else "ok"
+            # Operator-only fields are recorded and then removed, so what the
+            # model reads is unchanged by the presence of diagnostics.
+            defect = result.pop("_defect", None) if isinstance(result, dict) else None
             log_entry: dict[str, Any] = {"tool": log_name, "result": result_category}
+            if defect is not None:
+                log_entry["defect"] = defect
             # Argument *names* only, filtered through the tool's own schema.
             # An optional filter the model did or did not supply decides
             # whether the answer was even reachable, and nothing in the
