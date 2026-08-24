@@ -74,6 +74,22 @@ class EvidenceRegistry:
     def prompt_payload(self) -> list[dict[str, Any]]:
         return [item.model_dump(mode="json", by_alias=True) for item in self._items.values()]
 
+    def model_prompt_payload(self) -> list[dict[str, Any]]:
+        """Keep durable trace IDs out of AI #2's selectable evidence surface."""
+
+        payload = self.prompt_payload()
+        for item in payload:
+            if item["kind"] in {
+                EvidenceKind.CONVERSATION.value,
+                EvidenceKind.HISTORICAL_DATA.value,
+            }:
+                item["payload"] = {
+                    key: value
+                    for key, value in item["payload"].items()
+                    if key not in {"originalEvidenceId", "originalEvidenceIds"}
+                }
+        return payload
+
 
 _FACT_ANCHOR = re.compile(
     r"(?:https?://[^\s]+|\b\d{1,4}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?\b)", re.I
@@ -88,8 +104,8 @@ def _validate_conversation_claim(claim_text: str, evidence: list[Evidence]) -> l
     reasons: list[str] = []
     conversation = [item for item in evidence if item.kind == EvidenceKind.CONVERSATION]
     historical = [item for item in evidence if item.kind == EvidenceKind.HISTORICAL_DATA]
-    if not conversation:
-        return ["conversation claim has no exact assistant-ledger evidence"]
+    if not conversation and not historical:
+        return ["conversation claim has no selected ledger evidence"]
 
     normalized_claim = _normalized(claim_text)
     prior_texts = [str(item.payload.get("text", "")).strip() for item in conversation]
@@ -99,12 +115,17 @@ def _validate_conversation_claim(claim_text: str, evidence: list[Evidence]) -> l
     if not historical:
         return ["conversation claim does not reproduce the exact assistant-ledger statement"]
 
-    turn_ids = {
+    conversation_turn_ids = {
         item.source_id.removeprefix("turn:")
         for item in conversation
         if item.source_id.startswith("turn:")
     }
-    if any(str(item.payload.get("turnRequestId", "")) not in turn_ids for item in historical):
+    historical_turn_ids = {str(item.payload.get("turnRequestId", "")) for item in historical}
+    if "" in historical_turn_ids:
+        reasons.append("historical evidence has no selected conversation turn")
+    if conversation_turn_ids and any(
+        turn_id not in conversation_turn_ids for turn_id in historical_turn_ids
+    ):
         reasons.append("historical evidence is not linked to the cited conversation turn")
 
     named_source = any(
@@ -148,16 +169,6 @@ def validate_draft(
     used: set[str] = set()
     if require_grounding and not draft.claims:
         reasons.append("grounded routes require at least one claim")
-    if (
-        mode == RouteMode.CONVERSATION
-        and draft.claims
-        and not any(
-            claim.kind == ClaimKind.CONVERSATION
-            and _normalized(claim.text) == _normalized(draft.answer)
-            for claim in draft.claims
-        )
-    ):
-        reasons.append("conversation answer must equal a declared conversation claim")
     for claim in draft.claims:
         if claim.kind in {ClaimKind.CAMPUS, ClaimKind.CONVERSATION} and not claim.evidence_ids:
             reasons.append(f"{claim.kind.value} claim has no evidence")
@@ -187,6 +198,15 @@ def validate_draft(
                 if (item := registry.get(evidence_id)) is not None
             ]
             reasons.extend(_validate_conversation_claim(claim.text, claim_evidence))
+    if mode == RouteMode.CONVERSATION and draft.claims:
+        answer_evidence = [
+            item
+            for claim in draft.claims
+            if claim.kind == ClaimKind.CONVERSATION
+            for evidence_id in claim.evidence_ids
+            if (item := registry.get(evidence_id)) is not None
+        ]
+        reasons.extend(_validate_conversation_claim(draft.answer, answer_evidence))
     for evidence_id in draft.citation_evidence_ids:
         evidence = registry.get(evidence_id)
         if evidence is None:

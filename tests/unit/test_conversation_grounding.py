@@ -60,6 +60,23 @@ def test_exact_conversation_recall_is_accepted() -> None:
     )
 
 
+def test_conversation_answer_cannot_lie_behind_an_accurate_claim() -> None:
+    registry = _conversation_registry()
+    draft = _draft(
+        "Earlier, I told you: The shuttle leaves at 9:00 AM.",
+        ["conversation:claim-1"],
+    )
+    dishonest = draft.model_copy(update={"answer": "Earlier, I said it leaves at 10:00 PM."})
+
+    with pytest.raises(GroundingError):
+        validate_draft(
+            dishonest,
+            registry,
+            RouteMode.CONVERSATION,
+            require_grounding=True,
+        )
+
+
 def test_source_recall_requires_same_turn_and_rejects_added_time() -> None:
     registry = _conversation_registry()
     registry.register(
@@ -87,6 +104,40 @@ def test_source_recall_requires_same_turn_and_rejects_added_time() -> None:
             _draft(
                 "Official Shuttle Schedule supported the earlier 10:00 PM answer.",
                 ["conversation:claim-1", "historical:source-1"],
+            ),
+            registry,
+            RouteMode.CONVERSATION,
+            require_grounding=True,
+        )
+
+
+def test_selected_historical_source_alone_supports_source_recall_not_new_facts() -> None:
+    registry = _conversation_registry()
+    registry.register(
+        Evidence(
+            evidenceId="historical:source-only",
+            kind=EvidenceKind.HISTORICAL_DATA,
+            sourceId="transportation",
+            title="Official Shuttle Schedule",
+            url="https://www.ramapo.edu/shuttle/",
+            payload={"turnRequestId": "turn-1"},
+        )
+    )
+    validate_draft(
+        _draft(
+            "The source I used then was Official Shuttle Schedule.",
+            ["historical:source-only"],
+        ),
+        registry,
+        RouteMode.CONVERSATION,
+        require_grounding=True,
+    )
+
+    with pytest.raises(GroundingError):
+        validate_draft(
+            _draft(
+                "Official Shuttle Schedule supported a 10:00 PM answer.",
+                ["historical:source-only"],
             ),
             registry,
             RouteMode.CONVERSATION,

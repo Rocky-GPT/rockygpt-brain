@@ -38,6 +38,7 @@ UNDERSTAND_BUDGET_SECONDS = 8.0
 CAPABILITY_BUDGET_SECONDS = 5.0
 COMMUNICATE_BUDGET_SECONDS = 24.0
 PERSISTENCE_BUDGET_SECONDS = 3.0
+PUBLIC_ROUTES = {"standard", "policy", "safety", "ungrounded"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,7 +206,7 @@ class Brain:
                         "outcome": (
                             "success" if communication_memory.claims else "no_server_record"
                         ),
-                        "claims": communication_memory.prompt_payload()["assistantClaims"],
+                        "claims": communication_memory.communication_claims(registry),
                     }
                 )
             elif plan.mode == RouteMode.GENERAL:
@@ -264,8 +265,8 @@ class Brain:
             message=request.message,
             plan=plan,
             typed_results=tuple(results),
-            evidence=tuple(registry.prompt_payload()),
-            memory=communication_memory,
+            evidence=tuple(registry.model_prompt_payload()),
+            memory=MemorySnapshot(),
             style_mode=request.style_mode,
             response_mode=request.response_mode,
             safety_identifier=identity.safety_identifier,
@@ -374,11 +375,12 @@ class Brain:
         actions = (
             [UiAction(type=UiActionType.VIEW_BUS)] if shuttle_succeeded else list(draft.ui_actions)
         )
+        public_route = draft.route if draft.route in PUBLIC_ROUTES else "standard"
 
         response = ChatSuccess(
             request_id=identity.request_id,
             answer=draft.answer,
-            route=draft.route,
+            route=public_route,
             citations=citations,
             ui_actions=actions,
             suggested_questions=draft.suggested_questions,
@@ -409,7 +411,7 @@ class Brain:
             visitor_id=identity.visitor_id,
             user_message=redact_text(request.message) or "[REDACTED]",
             assistant_message=redact_text(draft.answer) or "[REDACTED]",
-            route=draft.route,
+            route=public_route,
             question_origin=identity.question_origin,
             tools_invoked=tuple(operation.name for operation in plan.operations),
             tool_arguments=tool_arguments,
@@ -422,7 +424,7 @@ class Brain:
         # The repository commits answer log, evidence snapshot, and memory atomically.
         async with asyncio.timeout(PERSISTENCE_BUDGET_SECONDS):
             await self._repository.commit_success(successful)
-        return response, draft.route
+        return response, public_route
 
     async def _record_failure(
         self,
