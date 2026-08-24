@@ -5,8 +5,9 @@ This repository contains the small Python brain for RockyGPT.
 ```text
 QUESTION
   -> AI #1 UNDERSTAND
-  -> structured Intent
+  -> structured Intent / query plan
   -> Python chooses CODE | RAG | MEMORY | GENERAL | SAFETY
+  -> CODE executes generic filter / order / limit operations
   -> result JSON
   -> AI #2 COMMUNICATE
   -> answer
@@ -14,9 +15,10 @@ QUESTION
 
 CODE and RAG are the heart of the hybrid design. CODE sends objective campus
 questions—menus, hours, contacts, events, programs, maps, and shuttles—to
-structured DATA. RAG sends campus policy and document questions to DATA
-retrieval. MEMORY reads recent process-local turns. GENERAL lets AI #2 answer
-non-campus questions. SAFETY supplies a short emergency result.
+structured DATA, then finishes the requested record operations in Python. RAG
+sends campus policy and document questions to DATA retrieval. MEMORY reads recent
+process-local turns. GENERAL lets AI #2 answer non-campus questions. SAFETY
+supplies a short emergency result.
 
 There is no agent loop, planner, verifier, repair pass, database, claim ledger,
 or orchestration framework in BASE.
