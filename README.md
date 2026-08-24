@@ -1,41 +1,58 @@
-# RockyGPT Brain — BASE
+# RockyGPT Brain
 
-This repository contains the small Python brain for RockyGPT.
+`spec/brain-contract.md` is the normative document. This file is orientation.
 
 ```text
 QUESTION
-  -> AI #1 UNDERSTAND
-  -> strict lane-specific semantic Intent
-  -> Python chooses CODE | RAG | MEMORY | GENERAL | SAFETY
-  -> Python validates and compiles CODE against its capability registry
-  -> CODE executes the compiled filter / order / limit operations
-  -> result JSON
-  -> AI #2 COMMUNICATE
-  -> answer
+  -> LISTENER      interprets meaning into a typed Interpretation
+  -> SAFETY        code-assembled block when a danger class is present
+  -> WORKER        compile -> execute -> select -> seal, once per task
+  -> OUT           one discriminated outcome per task
+  -> WRITER        communicates the sealed outcomes
+  -> ANSWER
 ```
 
-CODE and RAG are the heart of the hybrid design. CODE sends objective campus
-questions—menus, hours, contacts, events, programs, maps, and shuttles—to
-structured DATA, then finishes the requested record operations in Python. RAG
-sends campus policy and document questions to DATA retrieval. MEMORY reads recent
-process-local turns. GENERAL lets AI #2 answer non-campus questions. SAFETY
-supplies a short emergency result.
+The invariant the whole design serves:
 
-AI #1 describes meaning; it never chooses DATA field paths. Every lane has its
-own strict output shape, and every CODE action has action-specific filters. A
-single Python capability registry maps semantic concepts such as `time`, `date`,
-or `calories` to real structured fields. Unsupported computations return an
-explicit structured result instead of silently selecting an arbitrary record.
+```text
+The Listener interprets.
+The Worker decides and computes.
+The Writer communicates.
+```
 
-There is no agent loop, planner, verifier, repair pass, database, claim ledger,
-or orchestration framework in BASE.
+The Listener emits no execution — no resolved dates, no weekday names, no sort
+fields, no limits, no endpoints, no query predicates. It names relations,
+references and time the way the reader did. The Worker compiles that against a
+declarative capability registry, resolves every temporal and entity value,
+executes, performs any selection the transport did not, and seals exactly one
+outcome. The Writer receives only sealed outcomes and adds no facts.
+
+Absence is typed. `entity_unknown`, `no_qualifying_records`,
+`no_supporting_evidence`, `no_capability`, `out_of_scope` and `incomplete_source`
+mean different things and render differently; none of them describes the world. A
+measured zero is a `success`, not an absence.
+
+Capabilities are declarations, not branches. A domain states its relations,
+entity roles, constraints, accepted time references, orderings and absence causes;
+anything undeclared is `no_capability`. Extremal relations are computed
+generically against a declared ordering, and only over a result set the source
+reports as complete.
 
 ## Package layout
 
 ```text
 rockygpt_brain/
 ├── api/          HTTP routes and public contracts
-├── core/         hybrid pipeline and the two AI calls
+├── core/
+│   ├── interpretation.py   the Listener's schema
+│   ├── capabilities.py     declarations
+│   ├── compilation.py      Interpretation -> operations; all time arithmetic
+│   ├── selection.py        ordering and completeness
+│   ├── executor.py         the Worker
+│   ├── outcomes.py         the discriminated OUT union
+│   ├── safety.py           code-assembled emergency replies
+│   ├── model.py            the two model calls
+│   └── brain.py            the turn
 ├── services/     DATA client and process-local memory
 ├── config.py     environment settings
 ├── errors.py     shared API error
@@ -47,12 +64,24 @@ rockygpt_brain/
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -e '.[dev]'
 cp .env.example .env
 rockygpt-brain
 ```
 
 Set `OPENAI_API_KEY`, `OPENAI_CHAT_MODEL`, and `DATA_URL` in `.env`.
+`CAMPUS_TIMEZONE` defaults to `America/New_York` and is where every date is
+resolved.
 
-The current UI surface remains available at `/v1/chat`, `/v1/feedback`, and the
-three `/v1/admin/logs*` endpoints. Logs and memory reset when the process restarts.
+## Checks
+
+```bash
+ruff check src tests && mypy src/rockygpt_brain && pytest
+```
+
+`tests/` holds contract properties, not question cases. A test that names a
+question from an evaluation suite would only prove that a case had been
+special-cased; see `spec/brain-contract.md` section 13.
+
+The UI surface remains `/v1/chat`, `/v1/feedback`, and the three
+`/v1/admin/logs*` endpoints. Logs and memory reset when the process restarts.

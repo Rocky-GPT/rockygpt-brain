@@ -67,12 +67,12 @@ def _json(
 def _error(request_id: str, error: ServiceError) -> JSONResponse:
     return _json(
         ErrorResponse(
-            requestId=request_id,
+            request_id=request_id,
             error=ErrorDetail(
                 code=error.code,
                 message=error.public_message,
                 retryable=error.retryable,
-                retryAfterSeconds=error.retry_after_seconds,
+                retry_after_seconds=error.retry_after_seconds,
             ),
         ),
         error.status_code,
@@ -97,7 +97,7 @@ def create_app(
         config.openai_chat_model,
     )
     memory_store = memory or MemoryStore()
-    brain = Brain(model_port, data_port, memory_store)
+    brain = Brain(model_port, data_port, memory_store, config.campus_timezone)
     services = AppServices(data_port, model_port, memory_store, brain)
     started = time.monotonic()
 
