@@ -54,11 +54,15 @@ def test_invalid_route_rejected() -> None:
     assert parse_submit_answer(_args(route="made_up")) is None
 
 
-def test_ungrounded_with_citations_rejected_whole_answer() -> None:
-    parsed = parse_submit_answer(
-        _args(route="ungrounded", citedSourceIds=["src-1"])
-    )
-    assert parsed is None
+def test_route_citation_mismatch_is_accepted_and_normalised_later() -> None:
+    # Parsing no longer rejects this. A mislabeled route on an otherwise sound
+    # answer used to cost the whole turn — the caller received a canned apology
+    # instead of a correct reply. `finalize.finalize` drops the citations
+    # instead, so the invariant still holds where it matters, at the boundary.
+    for route in ("ungrounded", "conversation"):
+        parsed = parse_submit_answer(_args(route=route, citedSourceIds=["src-1"]))
+        assert parsed is not None
+        assert parsed.route == route
 
 
 def test_ungrounded_without_citations_ok() -> None:

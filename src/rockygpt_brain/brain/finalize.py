@@ -56,16 +56,22 @@ def finalize(
     tools_invoked: list[str],
     tool_calls_log: list[dict[str, Any]],
 ) -> ChatOutcome:
+    # Both directions of a route/citation mismatch are normalised here rather
+    # than rejected, because rejecting costs the whole turn (brain/answer.py).
+    #
     # "standard" is what the UI presents as a verified campus answer, so an
     # answer with nothing to cite is downgraded — the honest route for that is
-    # "ungrounded". Downgrading is always safe in this direction; the opposite
-    # (promoting an uncited answer to "standard") would overstate what the
-    # brain checked, and brain/answer.py already rejects the mirror case of
-    # "ungrounded" carrying citations. "conversation" is left alone: it is
-    # *expected* to carry no citations, because the record of what was said is
-    # not a campus source, and downgrading it would relabel a verified
-    # recollection as something that could not be verified.
+    # "ungrounded". "conversation" is never downgraded: it is *expected* to
+    # carry no citations, because the record of what was said is not a campus
+    # source, and downgrading it would relabel a verified recollection as
+    # something that could not be verified.
     route = "ungrounded" if parsed.route == "standard" and not citations else parsed.route
+    # The mirror case: a route meaning "no campus source" arrived carrying
+    # citations. Drop them and keep the answer. Never resolved the other way —
+    # promoting the route to "standard" would present an answer the model
+    # itself called unverified as though it were sourced.
+    if route in ("ungrounded", "conversation"):
+        citations = []
     return ChatOutcome(
         answer=parsed.answer_markdown,
         route=route,
