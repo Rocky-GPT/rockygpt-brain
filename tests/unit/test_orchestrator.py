@@ -210,9 +210,33 @@ class TestLoggingNeverContainsRawArguments:
         )
         serialized_log = json.dumps(outcome.tool_calls_log)
         assert secret_looking_arg not in serialized_log
+        # The argument *name* is retained; the value it carried is not. Which
+        # optional filters the model supplied decides whether an answer was
+        # reachable at all, and nothing else in the log records that.
         assert outcome.tool_calls_log == [
-            {"tool": "search_campus_hours", "result": "data_unavailable"}
+            {
+                "tool": "search_campus_hours",
+                "result": "data_unavailable",
+                "argumentKeys": ["q"],
+            }
         ]
+
+    async def test_argument_keys_exclude_names_the_tool_never_declared(self) -> None:
+        first = ModelTurn(
+            content=None,
+            tool_calls=[
+                _tool_call("c1", q="library", not_a_real_field="x")
+            ],
+        )
+        second = ModelTurn(content=None, tool_calls=[_submit_call("c2")])
+        model_client = FakeModelClient([first, second])
+        outcome = await run_chat_turn(
+            request=_request(), model_client=model_client, data_client=FakeDataClient()
+        )
+        # A model-invented key is not a fact about this system, so it is
+        # dropped rather than retained verbatim — the same reason an unknown
+        # tool name becomes "unknown".
+        assert outcome.tool_calls_log[0].get("argumentKeys") == ["q"]
 
     async def test_unknown_model_provided_tool_name_logged_as_unknown(self) -> None:
         first = ModelTurn(content=None, tool_calls=[_tool_call("c1", name="not_a_real_tool")])
