@@ -41,7 +41,7 @@ from __future__ import annotations
 
 import json
 import unicodedata
-from typing import Annotated, Literal, Self
+from typing import Annotated, Literal
 
 from pydantic import (
     BaseModel,
@@ -50,7 +50,6 @@ from pydantic import (
     StringConstraints,
     ValidationError,
     field_validator,
-    model_validator,
 )
 
 from rockygpt_brain.schemas.common import (
@@ -143,23 +142,22 @@ class SubmitAnswerArguments(BaseModel):
                 )
         return values
 
-    @model_validator(mode="after")
-    def _ungrounded_carries_no_citations(self) -> Self:
-        # A citation asserts a supported claim; route "ungrounded" means "I
-        # could not verify this." The two are contradictory. This runs
-        # against `self.cited_source_ids` after field validation, which for
-        # this field only ever raises or passes the list through unchanged
-        # (never filters), so an ungrounded answer cannot evade this check
-        # by supplying citations that would otherwise have been dropped.
-        if self.route in ("ungrounded", "conversation") and self.cited_source_ids:
-            raise ValueError(f"route '{self.route}' must not include citedSourceIds")
-        # The converse (route "standard" with no citations) is deliberately
-        # *not* rejected here. Rejecting a submission costs the whole turn —
-        # orchestrator.py falls back to a canned apology — which is a heavy
-        # price for a mislabeled route when the answer text itself is fine.
-        # orchestrator._finalize downgrades that case to "ungrounded"
-        # instead, so the invariant still holds at the API boundary.
-        return self
+    # There is deliberately no validator rejecting a route/citation mismatch.
+    #
+    # Both directions of that mismatch are a *mislabeled field* on an answer
+    # whose text is usually fine, and rejecting a submission costs the whole
+    # turn — the orchestrator falls back to a canned apology. Measured once
+    # route "conversation" came into use: one such rejection per ~180 turns
+    # discarded an otherwise-correct answer, surfaced by the fallback reason
+    # `submit_malformed:unknown:value_error` (rockygpt-evals/corpus).
+    #
+    # `finalize.finalize` normalises both directions instead, so the invariant
+    # still holds at the API boundary:
+    #   route "standard" with no citations             -> downgraded to "ungrounded"
+    #   route "ungrounded"/"conversation" + citations   -> citations dropped
+    #
+    # Normalisation only ever runs in the conservative direction. A route
+    # claiming nothing was verified is never promoted to one claiming it was.
 
 
 def parse_submit_answer(arguments_json: str) -> SubmitAnswerArguments | None:

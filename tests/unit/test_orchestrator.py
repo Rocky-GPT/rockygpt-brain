@@ -93,16 +93,39 @@ class TestSubmitAnswerConstraints:
         )
         assert outcome.answer == FALLBACK_ANSWER
 
-    async def test_unknown_cited_source_id_falls_back(self) -> None:
-        turn = ModelTurn(
+    async def test_unknown_cited_source_id_gets_one_correction(self) -> None:
+        # The id is never accepted — but one mislabelled id used to cost the
+        # student the whole answer, and in production traces that was the most
+        # common way a good turn was lost. The retry names the ids that do
+        # resolve; a corrected resubmission is accepted.
+        bad = ModelTurn(
             content=None,
             tool_calls=[_submit_call("c1", citedSourceIds=["never-produced"])],
         )
-        model_client = FakeModelClient([turn])
+        good = ModelTurn(content=None, tool_calls=[_submit_call("c2")])
+        model_client = FakeModelClient([bad, good])
+        outcome = await run_chat_turn(
+            request=_request(), model_client=model_client, data_client=FakeDataClient()
+        )
+        assert outcome.answer == "Here is the answer."
+
+    async def test_unknown_cited_source_id_is_never_accepted(self) -> None:
+        # The retry is a second chance to cite correctly, not a second chance
+        # for the same bad id to get through.
+        bad = ModelTurn(
+            content=None,
+            tool_calls=[_submit_call("c1", citedSourceIds=["never-produced"])],
+        )
+        still_bad = ModelTurn(
+            content=None,
+            tool_calls=[_submit_call("c2", citedSourceIds=["also-never-produced"])],
+        )
+        model_client = FakeModelClient([bad, still_bad])
         outcome = await run_chat_turn(
             request=_request(), model_client=model_client, data_client=FakeDataClient()
         )
         assert outcome.answer == FALLBACK_ANSWER
+        assert outcome.citations == []
 
     async def test_clean_submit_succeeds(self) -> None:
         turn = ModelTurn(content=None, tool_calls=[_submit_call("c1")])

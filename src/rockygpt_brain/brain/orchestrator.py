@@ -46,6 +46,7 @@ from rockygpt_brain.brain.fallback import (
     FORCED_SUBMIT_REFUSED,
     ITERATIONS_EXHAUSTED,
     NO_TOOL_CALLS,
+    SUBMIT_CITATION_UNRESOLVED,
     SUBMIT_MALFORMED,
     TRANSCRIPT_TOO_LARGE,
     FallbackReason,
@@ -153,6 +154,7 @@ async def _run_grounded_turn(
     # requests, where the underlying campus data may well have changed.
     tool_result_cache: dict[tuple[str, str], dict[str, Any]] = {}
     fallback_reason: FallbackReason = ITERATIONS_EXHAUSTED
+    citation_retry_used = False
 
     for iteration in range(MAX_TOOL_ITERATIONS):
         # Reserve the final slot: force submit_answer once only one slot of
@@ -225,6 +227,56 @@ async def _run_grounded_turn(
                 _remember(discourse, request.message, outcome)
                 return outcome
             fallback_reason = reason or SUBMIT_MALFORMED
+
+            # An unresolved citation gets one correction before the turn is
+            # given up on. The guarantee is untouched — an id this turn never
+            # produced is still never accepted — but a single mislabelled id
+            # used to cost the student the whole answer, and in traces this was
+            # the most common way a good turn was lost. The retry names the ids
+            # that do resolve, so the model is correcting against the actual
+            # set rather than guessing again. Only once, and only for this
+            # cause: a malformed submission is a formatting failure that a
+            # re-ask does not inform.
+            if reason == SUBMIT_CITATION_UNRESOLVED and not citation_retry_used:
+                citation_retry_used = True
+                known = registry.known_source_ids()
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": submit_calls[0].id,
+                        "content": json.dumps(
+                            {
+                                "error": "unknown_source_id",
+                                "validSourceIds": known,
+                                "hint": (
+                                    "citedSourceIds must be ids from this turn's "
+                                    "tool results. Resubmit citing only ids from "
+                                    "validSourceIds, or cite nothing and use route "
+                                    "'ungrounded'."
+                                ),
+                            },
+                            ensure_ascii=False,
+                        ),
+                    }
+                )
+                messages.insert(
+                    len(messages) - 1,
+                    {
+                        "role": "assistant",
+                        "content": model_turn.content,
+                        "tool_calls": [
+                            {
+                                "id": submit_calls[0].id,
+                                "type": "function",
+                                "function": {
+                                    "name": submit_calls[0].name,
+                                    "arguments": submit_calls[0].arguments_json,
+                                },
+                            }
+                        ],
+                    },
+                )
+                continue
             break
 
         messages.append(
