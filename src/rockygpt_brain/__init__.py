@@ -1,4 +1,4 @@
-"""RockyGPT Hybrid V1 clean-room brain."""
+"""RockyGPT BASE hybrid brain."""
 
 __all__ = ["__version__"]
 

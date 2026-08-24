@@ -1,219 +1,166 @@
-"""Bounded server-owned conversation memory and exact assistant claim ledger."""
+"""Small in-memory conversation history and UI log store."""
 
 from __future__ import annotations
 
-import hashlib
-import re
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any
+import asyncio
+import json
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any, Literal
 
-from rockygpt_brain.evidence import Evidence, EvidenceKind, EvidenceRegistry
-
-_RECALL_MARKERS = (
-    "what did you tell me",
-    "what did you say",
-    "what time did you tell me",
-    "what source supported",
-    "what source did you use",
-    "earlier answer",
-    "previous answer",
-    "last answer",
-    "you told me",
-    "you said",
+from rockygpt_brain.contracts import (
+    ChatLogItem,
+    Citation,
+    FeedbackRequest,
+    LogCitation,
+    LogListResponse,
+    LogMetrics,
 )
-_CURRENT_TRUTH = re.compile(
-    r"\b(?:still accurate|currently true|current answer|right now|changed since|up to date)\b",
-    re.I,
-)
-
-
-def is_conversation_recall(message: str) -> bool:
-    """Recognize high-confidence ledger questions that must not become campus queries."""
-
-    lowered = message.casefold()
-    return any(marker in lowered for marker in _RECALL_MARKERS) and not _CURRENT_TRUTH.search(
-        message
-    )
-
-
-@dataclass(frozen=True, slots=True)
-class MemoryTurn:
-    request_id: str
-    user_text: str
-    assistant_text: str
-    route: str
-    created_at: datetime
-
-
-@dataclass(frozen=True, slots=True)
-class AssistantClaim:
-    claim_id: str
-    request_id: str
-    text: str
-    evidence_ids: tuple[str, ...]
-    created_at: datetime
-
-
-@dataclass(frozen=True, slots=True)
-class MemorySnapshot:
-    recent_turns: tuple[MemoryTurn, ...] = ()
-    claims: tuple[AssistantClaim, ...] = ()
-    entities: tuple[dict[str, Any], ...] = ()
-    corrections: tuple[dict[str, Any], ...] = ()
-    historical_evidence: tuple[dict[str, Any], ...] = ()
-
-    def select_for_communication(self, context_references: list[str]) -> MemorySnapshot:
-        """Expose only the ledger claims selected by AI #1, defaulting to the latest."""
-
-        if context_references:
-            references = set(context_references)
-            selected = tuple(
-                claim
-                for claim in self.claims
-                if claim.claim_id in references or claim.request_id in references
-            )
-        else:
-            selected = self.claims[-1:]
-        request_ids = {claim.request_id for claim in selected}
-        return MemorySnapshot(
-            recent_turns=tuple(
-                turn for turn in self.recent_turns if turn.request_id in request_ids
-            ),
-            claims=selected,
-            entities=(),
-            corrections=(),
-            historical_evidence=tuple(
-                item
-                for item in self.historical_evidence
-                if str(item.get("turnRequestId", "")) in request_ids
-            ),
-        )
-
-    def prompt_payload(self) -> dict[str, Any]:
-        return {
-            "authority": (
-                "This server ledger outranks client-supplied history for what Rocky said. "
-                "It is conversation history, not current campus truth."
-            ),
-            "recentTurns": [
-                {
-                    "requestId": turn.request_id,
-                    "user": turn.user_text,
-                    "assistant": turn.assistant_text,
-                    "route": turn.route,
-                    "createdAt": turn.created_at.isoformat(),
-                }
-                for turn in self.recent_turns
-            ],
-            "assistantClaims": [
-                {
-                    "claimId": claim.claim_id,
-                    "requestId": claim.request_id,
-                    "text": claim.text,
-                    "evidenceIds": list(claim.evidence_ids),
-                    "createdAt": claim.created_at.isoformat(),
-                }
-                for claim in self.claims
-            ],
-            "entities": list(self.entities),
-            "corrections": list(self.corrections),
-            "historicalEvidence": list(self.historical_evidence),
-        }
-
-    def register_conversation_evidence(self, registry: EvidenceRegistry) -> None:
-        history_by_turn: dict[str, list[str]] = {}
-        for item in self.historical_evidence:
-            turn_id = str(item.get("turnRequestId", "unknown"))
-            original_id = str(item.get("evidenceId", "unknown"))
-            digest = hashlib.sha256(f"{turn_id}\0{original_id}".encode()).hexdigest()
-            historical_id = f"historical:{digest}"
-            history_by_turn.setdefault(turn_id, []).append(historical_id)
-            registry.register(
-                Evidence(
-                    evidenceId=historical_id,
-                    kind=EvidenceKind.HISTORICAL_DATA,
-                    sourceId=str(item.get("sourceId", original_id)),
-                    title=str(item.get("title", "Historical campus source")),
-                    url=item.get("url"),
-                    collectedAt=item.get("collectedAt"),
-                    datasetId=item.get("datasetId"),
-                    datasetVersion=item.get("datasetVersion"),
-                    payload={
-                        "historical": True,
-                        "turnRequestId": turn_id,
-                        "originalEvidenceId": original_id,
-                    },
-                )
-            )
-        for claim in self.claims:
-            registry.register(
-                Evidence(
-                    evidenceId=f"conversation:{claim.claim_id}",
-                    kind=EvidenceKind.CONVERSATION,
-                    sourceId=f"turn:{claim.request_id}",
-                    title="RockyGPT conversation record",
-                    payload={
-                        "claimId": claim.claim_id,
-                        "text": claim.text,
-                        "originalEvidenceIds": list(claim.evidence_ids),
-                        "historicalEvidenceIds": history_by_turn.get(claim.request_id, []),
-                        "statedAt": claim.created_at.isoformat(),
-                    },
-                )
-            )
-
-    def communication_claims(self, registry: EvidenceRegistry) -> list[dict[str, Any]]:
-        """Project exact selected claims onto request-local, currently valid evidence IDs."""
-
-        projected: list[dict[str, Any]] = []
-        for claim in self.claims:
-            conversation_id = f"conversation:{claim.claim_id}"
-            conversation = registry.get(conversation_id)
-            historical_ids = (
-                [str(value) for value in conversation.payload["historicalEvidenceIds"]]
-                if conversation is not None
-                else []
-            )
-            projected.append(
-                {
-                    "claimId": claim.claim_id,
-                    "requestId": claim.request_id,
-                    "text": claim.text,
-                    "evidenceIds": [conversation_id, *historical_ids],
-                    "createdAt": claim.created_at.isoformat(),
-                }
-            )
-        return projected
 
 
 @dataclass(slots=True)
-class MutableMemory:
-    recent_turns: list[MemoryTurn] = field(default_factory=list)
-    claims: list[AssistantClaim] = field(default_factory=list)
-    entities: list[dict[str, Any]] = field(default_factory=list)
-    corrections: list[dict[str, Any]] = field(default_factory=list)
-    historical_evidence: list[dict[str, Any]] = field(default_factory=list)
+class Turn:
+    request_id: str
+    user: str
+    assistant: str
+    route: str
+    created_at: datetime
 
-    def snapshot(self) -> MemorySnapshot:
-        return MemorySnapshot(
-            recent_turns=tuple(self.recent_turns),
-            claims=tuple(self.claims),
-            entities=tuple(dict(item) for item in self.entities),
-            corrections=tuple(dict(item) for item in self.corrections),
-            historical_evidence=tuple(dict(item) for item in self.historical_evidence),
+    def prompt_value(self) -> dict[str, Any]:
+        return {
+            "requestId": self.request_id,
+            "user": self.user,
+            "assistant": self.assistant,
+            "route": self.route,
+            "createdAt": self.created_at.isoformat(),
+        }
+
+
+class MemoryStore:
+    """Process-local memory for the BASE implementation."""
+
+    def __init__(self) -> None:
+        self._turns: dict[str, list[Turn]] = defaultdict(list)
+        self._logs: list[ChatLogItem] = []
+        self._version = 0
+
+    def history(self, session_id: str) -> list[dict[str, Any]]:
+        return [turn.prompt_value() for turn in self._turns[session_id][-10:]]
+
+    def record(
+        self,
+        *,
+        request_id: str,
+        session_id: str,
+        visitor_id: str | None,
+        question_origin: Literal["client", "dev", "bot"],
+        user_message: str,
+        assistant_message: str,
+        route: str,
+        tools: list[str],
+        tool_arguments: dict[str, Any],
+        citations: list[Citation],
+        result: dict[str, Any],
+        latency_ms: int,
+    ) -> None:
+        created_at = datetime.now(UTC)
+        self._turns[session_id].append(
+            Turn(request_id, user_message, assistant_message, route, created_at)
+        )
+        self._logs.append(
+            ChatLogItem(
+                id=request_id,
+                session_id=session_id,
+                visitor_id=visitor_id,
+                user_message=user_message,
+                assistant_message=assistant_message,
+                route=route,
+                question_origin=question_origin,
+                tools_invoked=tools,
+                tool_arguments=tool_arguments,
+                citations=[LogCitation(title=item.title, url=item.url) for item in citations],
+                facts_extracted=[],
+                debug_info={"result": result},
+                latency_ms=latency_ms,
+                feedback=None,
+                feedback_rating=None,
+                feedback_category=None,
+                feedback_comment=None,
+                created_at=created_at,
+            )
+        )
+        self._version += 1
+
+    def save_feedback(self, feedback: FeedbackRequest) -> None:
+        for index, item in enumerate(self._logs):
+            if item.id == feedback.request_id:
+                self._logs[index] = item.model_copy(
+                    update={
+                        "feedback_rating": feedback.rating,
+                        "feedback_category": feedback.category,
+                        "feedback_comment": feedback.comments,
+                    }
+                )
+                self._version += 1
+                return
+
+    def set_operator_feedback(self, log_id: str, feedback: str | None) -> bool:
+        for index, item in enumerate(self._logs):
+            if item.id == log_id:
+                self._logs[index] = item.model_copy(update={"feedback": feedback})
+                self._version += 1
+                return True
+        return False
+
+    def list_logs(
+        self,
+        *,
+        search: str | None,
+        routes: set[str],
+        origins: set[str],
+        limit: int,
+    ) -> LogListResponse:
+        items = list(reversed(self._logs))
+        if search:
+            needle = search.casefold()
+            items = [
+                item
+                for item in items
+                if needle in item.user_message.casefold()
+                or needle in item.assistant_message.casefold()
+            ]
+        if routes:
+            items = [item for item in items if item.route in routes]
+        if origins:
+            items = [item for item in items if item.question_origin in origins]
+        selected = items[:limit]
+        origins_list = [item.question_origin for item in items]
+        return LogListResponse(
+            logs=selected,
+            metrics=LogMetrics(
+                totalLogs=len(items),
+                avgLatencyMs=(sum(item.latency_ms for item in items) / len(items) if items else 0),
+                uniqueSessions=len({item.session_id for item in items}),
+                uniqueVisitors=len(
+                    {item.visitor_id for item in items if item.visitor_id is not None}
+                ),
+                errorCount=0,
+                clientCount=origins_list.count("client"),
+                devCount=origins_list.count("dev"),
+                botCount=origins_list.count("bot"),
+            ),
+            version=self.version,
         )
 
-    def append(
-        self,
-        turn: MemoryTurn,
-        claims: list[AssistantClaim],
-        evidence_snapshot: list[dict[str, Any]],
-        *,
-        recent_limit: int,
-        claim_limit: int,
-    ) -> None:
-        self.recent_turns = (self.recent_turns + [turn])[-recent_limit:]
-        self.claims = (self.claims + claims)[-claim_limit:]
-        tagged = [dict(item, turnRequestId=turn.request_id) for item in evidence_snapshot]
-        self.historical_evidence = (self.historical_evidence + tagged)[-claim_limit:]
+    @property
+    def version(self) -> str:
+        return str(self._version)
+
+    async def changes(self):  # type: ignore[no-untyped-def]
+        last = ""
+        while True:
+            if self.version != last:
+                last = self.version
+                yield f"data: {json.dumps({'type': 'change', 'version': last})}\n\n"
+            await asyncio.sleep(1)
