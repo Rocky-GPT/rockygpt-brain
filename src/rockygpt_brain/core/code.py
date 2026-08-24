@@ -5,7 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from rockygpt_brain.core.model import Intent, QueryOperation
+from rockygpt_brain.core.capabilities import CAPABILITIES, Capability
+from rockygpt_brain.core.model import CodeRequest, SemanticOperation
 from rockygpt_brain.services.data_client import DataPort
 
 
@@ -15,16 +16,29 @@ class CodeExecutor:
     def __init__(self, data: DataPort) -> None:
         self._data = data
 
-    async def execute(self, intent: Intent, now: datetime) -> dict[str, Any]:
-        payload = await self._data.code(intent, now)
+    async def execute(self, request: CodeRequest, now: datetime) -> dict[str, Any]:
+        capability = CAPABILITIES[request.action]
+        plan_error = self._plan_error(capability, request.operation)
+        if plan_error:
+            return {
+                "outcome": "unsupported",
+                "action": request.action.value,
+                "reason": plan_error,
+                "requestedOperation": self._operation_json(request.operation),
+                "supportedSorts": [metric.value for metric in capability.sort_fields],
+                "supportedTimeScopes": [scope.value for scope in capability.time_scopes],
+            }
+
+        payload = await self._data.code(request, now)
         records = payload.get("records")
         if not isinstance(records, list):
             return payload
 
         selected = [record for record in records if isinstance(record, dict)]
-        operation = intent.operation
+        operation = request.operation
         if operation:
-            selected = self._apply(selected, operation)
+            order_by = capability.sort_fields.get(operation.sort_by) if operation.sort_by else None
+            selected = self._apply(selected, operation, order_by)
 
         result: dict[str, Any] = {
             "outcome": payload.get("outcome", "success" if selected else "empty"),
@@ -39,29 +53,47 @@ class CodeExecutor:
             result["completeness"] = {**completeness, "returned": len(selected)}
 
         if operation:
-            result["operation"] = operation.model_dump(
-                mode="json",
-                by_alias=True,
-                exclude_none=True,
-            )
+            result["operation"] = self._operation_json(operation)
         result["evidence"] = self._selected_evidence(result.get("evidence"), selected)
         return result
+
+    @staticmethod
+    def _plan_error(
+        capability: Capability,
+        operation: SemanticOperation | None,
+    ) -> str | None:
+        if operation is None:
+            return None
+        if operation.time_scope and operation.time_scope not in capability.time_scopes:
+            return "time_scope_not_supported"
+        if operation.sort_by and operation.sort_by not in capability.sort_fields:
+            return "sort_not_supported"
+        if operation.direction and not operation.sort_by:
+            return "sort_direction_requires_sort"
+        return None
+
+    @staticmethod
+    def _operation_json(operation: SemanticOperation | None) -> dict[str, Any] | None:
+        if operation is None:
+            return None
+        return operation.model_dump(mode="json", by_alias=True, exclude_none=True)
 
     @classmethod
     def _apply(
         cls,
         records: list[dict[str, Any]],
-        operation: QueryOperation,
+        operation: SemanticOperation,
+        order_by: str | None,
     ) -> list[dict[str, Any]]:
         selected = records
-        if operation.order_by:
+        if order_by:
             present: list[dict[str, Any]] = []
             missing: list[dict[str, Any]] = []
             for record in selected:
-                target = present if cls._field(record, operation.order_by) is not None else missing
+                target = present if cls._field(record, order_by) is not None else missing
                 target.append(record)
             present.sort(
-                key=lambda record: cls._sort_value(cls._field(record, operation.order_by or "")),
+                key=lambda record: cls._sort_value(cls._field(record, order_by)),
                 reverse=operation.direction == "descending",
             )
             selected = present + missing

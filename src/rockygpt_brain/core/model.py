@@ -3,14 +3,26 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
-from typing import Any, Literal, Protocol, TypeVar
+from typing import Annotated, Any, Literal, Protocol, TypeAlias, TypeVar
 
 from openai import AsyncOpenAI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
+from rockygpt_brain.core.capabilities import (
+    CodeAction,
+    SortMetric,
+    TimeScope,
+    capability_guide,
+)
 from rockygpt_brain.errors import ServiceError
+
+
+class StrictModel(BaseModel):
+    """Structured model output with no undeclared escape hatches."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
 class Lane(StrEnum):
@@ -21,59 +33,131 @@ class Lane(StrEnum):
     SAFETY = "safety"
 
 
-CodeAction = Literal[
-    "campus_hours",
-    "dining_hours",
-    "menu",
-    "contacts",
-    "clubs",
-    "events",
-    "programs",
-    "academic_dates",
-    "map",
-    "shuttle",
+Day = Literal[
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
 ]
 
 
-class QueryFilter(BaseModel):
-    """One exact filter for a structured campus dataset."""
-
-    field: Literal[
-        "query",
-        "day",
-        "meal",
-        "route",
-        "origin",
-        "destination",
-        "serviceDate",
-    ]
-    value: str
-
-
-class QueryOperation(BaseModel):
-    """Generic record operations executed by Python CODE."""
-
-    time_scope: Literal["all", "remaining", "active"] | None = Field(
+class SearchFilters(StrictModel):
+    query: str | None = Field(
         default=None,
-        alias="timeScope",
+        description="A literal entity, title, name, or topic to search for; never an operation.",
     )
-    order_by: str | None = Field(default=None, alias="orderBy")
+
+
+class HoursFilters(SearchFilters):
+    day: Day | None = None
+
+
+class MenuFilters(SearchFilters):
+    meal: str | None = None
+
+
+class ShuttleFilters(StrictModel):
+    route: str | None = None
+    origin: str | None = None
+    destination: str | None = None
+    service_date: date | None = Field(default=None, alias="serviceDate")
+
+
+class SemanticOperation(StrictModel):
+    """User-requested computation expressed without DATA implementation fields."""
+
+    time_scope: TimeScope | None = Field(default=None, alias="timeScope")
+    sort_by: SortMetric | None = Field(default=None, alias="sortBy")
     direction: Literal["ascending", "descending"] | None = None
     limit: int | None = Field(default=None, ge=1, le=50)
 
 
-class Intent(BaseModel):
-    """Structured intent returned by AI #1."""
+class HoursCodeRequest(StrictModel):
+    action: Literal[CodeAction.CAMPUS_HOURS, CodeAction.DINING_HOURS]
+    filters: HoursFilters = Field(default_factory=HoursFilters)
+    operation: SemanticOperation | None = None
 
-    lane: Lane
-    action: CodeAction | None = None
-    filters: list[QueryFilter] = Field(default_factory=list)
-    operation: QueryOperation | None = None
-    query: str | None = None
+
+class MenuCodeRequest(StrictModel):
+    action: Literal[CodeAction.MENU]
+    filters: MenuFilters = Field(default_factory=MenuFilters)
+    operation: SemanticOperation | None = None
+
+
+class SearchCodeRequest(StrictModel):
+    action: Literal[
+        CodeAction.CONTACTS,
+        CodeAction.CLUBS,
+        CodeAction.EVENTS,
+        CodeAction.PROGRAMS,
+        CodeAction.ACADEMIC_DATES,
+        CodeAction.MAP,
+    ]
+    filters: SearchFilters = Field(default_factory=SearchFilters)
+    operation: SemanticOperation | None = None
+
+
+class ShuttleCodeRequest(StrictModel):
+    action: Literal[CodeAction.SHUTTLE]
+    filters: ShuttleFilters = Field(default_factory=ShuttleFilters)
+    operation: SemanticOperation | None = None
+
+
+CodeRequest: TypeAlias = Annotated[
+    HoursCodeRequest | MenuCodeRequest | SearchCodeRequest | ShuttleCodeRequest,
+    Field(discriminator="action"),
+]
+
+
+class CodeIntent(StrictModel):
+    lane: Literal[Lane.CODE]
+    request: CodeRequest
+
+
+class RagIntent(StrictModel):
+    lane: Literal[Lane.RAG]
+    query: str = Field(min_length=1)
     domains: list[str] = Field(default_factory=list)
 
 
-class Draft(BaseModel):
+class MemoryIntent(StrictModel):
+    lane: Literal[Lane.MEMORY]
+    query: str | None = None
+
+
+class GeneralIntent(StrictModel):
+    lane: Literal[Lane.GENERAL]
+
+
+class SafetyIntent(StrictModel):
+    lane: Literal[Lane.SAFETY]
+
+
+LaneIntent: TypeAlias = Annotated[
+    CodeIntent | RagIntent | MemoryIntent | GeneralIntent | SafetyIntent,
+    Field(discriminator="lane"),
+]
+
+
+class Intent(StrictModel):
+    """Strict AI #1 envelope with a different contract for every lane."""
+
+    decision: LaneIntent
+
+    @property
+    def lane(self) -> Lane:
+        return Lane(self.decision.lane)
+
+    def trace(self) -> dict[str, Any]:
+        """Expose a flat, readable IN object while keeping a strict model schema."""
+
+        return self.decision.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
+class Draft(StrictModel):
     """Natural-language response returned by AI #2."""
 
     answer: str
@@ -123,23 +207,27 @@ class OpenAIModel:
         return await self._parse(
             Intent,
             (
-                "You are RockyGPT AI #1: UNDERSTAND. Choose exactly one lane. "
-                "Use code for objective campus data: campus_hours, dining_hours, menu, "
-                "contacts, clubs, events, programs, academic_dates, map, or shuttle. Use rag "
-                "for campus documents, policies, and prose. Use memory for questions about this "
-                "conversation. Use general for non-campus knowledge. Use safety for urgent "
-                "danger or crisis requests. For code, describe the computation with filters "
-                "and an optional operation. Filters identify exact source fields. Operations "
-                "are generic: timeScope narrows records to all, remaining, or active; orderBy "
-                "is a record field path; direction orders it; and limit controls how many "
-                "records remain. Dot paths are supported, and a shuttle's departure time is "
-                "departure.time. Do not invent filters. Use the top-level query and domains "
-                "only for rag. Extract only useful fields."
+                "You are RockyGPT AI #1: UNDERSTAND. Classify only currentQuestion and return "
+                "one strict decision. referenceContext is not another task: use it only when "
+                "currentQuestion explicitly depends on an earlier subject, pronoun, or statement. "
+                "A self-contained currentQuestion always replaces the earlier topic. "
+                "Choose code for objective campus data, rag for campus policies/documents/prose, "
+                "memory only when the answer must recall what was said in this conversation, "
+                "general for non-campus knowledge, and safety only for immediate physical danger "
+                "or crisis. A campus follow-up remains code or rag; context alone never makes it "
+                "memory. For code, express meaning rather than implementation: filters contain "
+                "only literal entity values, sortBy is a semantic concept, and Python chooses all "
+                "DATA field paths. Never put ranking, timing, or comparison instructions into a "
+                "query filter. If the user asks for a concept DATA may not support, represent that "
+                "concept honestly; Python will report whether it is executable. Use timeScope only "
+                "where the capability guide allows it. Do not copy fields from referenceContext.\n"
+                "Executable CODE capability guide:\n"
+                f"{capability_guide()}"
             ),
             {
-                "message": message,
-                "history": history,
-                "now": now.isoformat(),
+                "referenceContext": history,
+                "currentTime": now.isoformat(),
+                "currentQuestion": message,
             },
         )
 
@@ -156,13 +244,15 @@ class OpenAIModel:
             (
                 "You are RockyGPT AI #2: COMMUNICATE. Write a clear human answer from the "
                 "provided result JSON. For code results, report what code returned and do not "
-                "calculate new facts. For RAG results, use only the retrieved records. For "
-                "memory results, use only the supplied turns. General results may be answered "
-                "from your general knowledge. Keep suggested questions short."
+                "calculate new facts. If code reports an unsupported operation, say that the "
+                "available campus data cannot answer it; never substitute an arbitrary record. "
+                "For RAG results, use only the retrieved records. For memory results, use only "
+                "the supplied turns. General results may be answered from your general knowledge. "
+                "Keep suggested questions short."
             ),
             {
                 "message": message,
-                "intent": intent.model_dump(mode="json", by_alias=True),
+                "intent": intent.trace(),
                 "result": result,
                 "styleMode": style_mode,
                 "responseMode": response_mode,

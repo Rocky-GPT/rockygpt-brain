@@ -7,24 +7,13 @@ from typing import Any, Protocol
 
 import httpx
 
-from rockygpt_brain.core.model import Intent
+from rockygpt_brain.core.capabilities import CAPABILITIES, Capability, TimeScope
+from rockygpt_brain.core.model import CodeRequest
 from rockygpt_brain.errors import ServiceError
-
-_STRUCTURED_ROUTES: dict[str, tuple[str, dict[str, str], bool]] = {
-    "campus_hours": ("/v1/search/campus-hours", {"query": "q", "day": "day"}, True),
-    "dining_hours": ("/v1/search/dining-hours", {"query": "q", "day": "day"}, True),
-    "menu": ("/v1/search/menu", {"query": "q", "meal": "meal"}, True),
-    "contacts": ("/v1/search/contacts", {"query": "q"}, True),
-    "clubs": ("/v1/search/clubs", {"query": "q"}, True),
-    "events": ("/v1/search/events", {"query": "q"}, True),
-    "programs": ("/v1/search/programs", {"query": "q"}, True),
-    "academic_dates": ("/v1/search/academic-dates", {"query": "q"}, True),
-    "map": ("/v1/map", {"query": "q"}, False),
-}
 
 
 class DataPort(Protocol):
-    async def code(self, intent: Intent, now: datetime) -> dict[str, Any]: ...
+    async def code(self, request: CodeRequest, now: datetime) -> dict[str, Any]: ...
 
     async def retrieve(self, query: str, domains: list[str]) -> dict[str, Any]: ...
 
@@ -44,49 +33,50 @@ class DataClient:
             {"x-rockygpt-environment-token": environment_token} if environment_token else {}
         )
 
-    async def code(self, intent: Intent, now: datetime) -> dict[str, Any]:
-        if intent.action == "shuttle":
-            return await self._shuttle(intent, now)
-        if intent.action not in _STRUCTURED_ROUTES:
-            return {"outcome": "unsupported", "action": intent.action}
+    async def code(self, request: CodeRequest, now: datetime) -> dict[str, Any]:
+        capability = CAPABILITIES[request.action]
+        if capability.method == "POST":
+            return await self._shuttle(request, capability, now)
 
-        path, fields, include_time = _STRUCTURED_ROUTES[intent.action]
-        filters = self._filters(intent)
+        filters = self._filters(request)
         params = {
             parameter: filters[field]
-            for field, parameter in fields.items()
+            for field, parameter in capability.filter_parameters.items()
             if field in filters
         }
-        if include_time:
+        if capability.include_time:
             params["at"] = now.isoformat()
-        result = await self._get(path, params)
+        result = await self._get(capability.path, params)
         return self._add_source_evidence(result)
 
-    async def _shuttle(self, intent: Intent, now: datetime) -> dict[str, Any]:
-        filters = self._filters(intent)
-        requested_scope = intent.operation.time_scope if intent.operation else None
+    async def _shuttle(
+        self,
+        request: CodeRequest,
+        capability: Capability,
+        now: datetime,
+    ) -> dict[str, Any]:
+        filters = self._filters(request)
+        requested_scope = request.operation.time_scope if request.operation else None
         scopes = {
-            "all": ("all", "full_day"),
-            "remaining": ("all", "remaining"),
-            "active": ("current", "at_time"),
+            TimeScope.ALL: ("all", "full_day"),
+            TimeScope.REMAINING: ("all", "remaining"),
+            TimeScope.ACTIVE: ("current", "at_time"),
         }
-        selection, time_scope = scopes[requested_scope or "all"]
+        selection, time_scope = scopes[requested_scope or TimeScope.ALL]
         body: dict[str, Any] = {
             "asOf": now.isoformat(),
             "selection": selection,
             "timeScope": time_scope,
         }
-        for name in ("route", "origin", "destination"):
-            value = filters.get(name)
+        for field, parameter in capability.filter_parameters.items():
+            value = filters.get(field)
             if value:
-                body[name] = value
-        if filters.get("serviceDate"):
-            body["serviceDate"] = filters["serviceDate"]
-        return await self._post("/v2/capabilities/shuttle/query", body)
+                body[parameter] = value
+        return await self._post(capability.path, body)
 
     @staticmethod
-    def _filters(intent: Intent) -> dict[str, str]:
-        return {item.field: item.value for item in intent.filters if item.value.strip()}
+    def _filters(request: CodeRequest) -> dict[str, Any]:
+        return request.filters.model_dump(mode="json", by_alias=True, exclude_none=True)
 
     async def retrieve(self, query: str, domains: list[str]) -> dict[str, Any]:
         body: dict[str, Any] = {"query": query}
