@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncIterator, Protocol
 
@@ -17,6 +17,7 @@ from rockygpt_brain.contracts import (
     LogMetrics,
 )
 from rockygpt_brain.memory import AssistantClaim, MemorySnapshot, MemoryTurn, MutableMemory
+from rockygpt_brain.security import redact_text
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,6 +127,7 @@ class InMemoryRepository:
                     created_at=turn.created_at,
                 ),
                 list(turn.claims),
+                list(turn.evidence_snapshot),
                 recent_limit=self._recent_limit,
                 claim_limit=self._claim_limit,
             )
@@ -143,7 +145,7 @@ class InMemoryRepository:
             self._student_feedback[feedback.request_id] = StoredFeedback(
                 rating=feedback.rating,
                 category=feedback.category,
-                comments=feedback.comments,
+                comments=redact_text(feedback.comments),
             )
             self._version += 1
             self._condition.notify_all()
@@ -246,7 +248,23 @@ class InMemoryRepository:
         text_cutoff = cutoff_now - self._text_retention
         metadata_cutoff = cutoff_now - self._metadata_retention
         async with self._condition:
-            self._turns = [turn for turn in self._turns if turn.created_at >= metadata_cutoff]
+            retained: list[SuccessfulTurn] = []
+            for turn in self._turns:
+                if turn.created_at < metadata_cutoff:
+                    continue
+                if turn.created_at < text_cutoff:
+                    retained.append(
+                        replace(
+                            turn,
+                            user_message="[EXPIRED]",
+                            assistant_message="[EXPIRED]",
+                            claims=(),
+                            evidence_snapshot=(),
+                        )
+                    )
+                else:
+                    retained.append(turn)
+            self._turns = retained
             self._failures = [item for item in self._failures if item.created_at >= metadata_cutoff]
             active_requests = {turn.request_id for turn in self._turns}
             self._student_feedback = {
@@ -260,6 +278,12 @@ class InMemoryRepository:
                     turn for turn in memory.recent_turns if turn.created_at >= text_cutoff
                 ]
                 memory.claims = [claim for claim in memory.claims if claim.created_at >= text_cutoff]
+                active_turns = {turn.request_id for turn in memory.recent_turns}
+                memory.historical_evidence = [
+                    item
+                    for item in memory.historical_evidence
+                    if item.get("turnRequestId") in active_turns
+                ]
             self._memories = {
                 key: memory
                 for key, memory in self._memories.items()

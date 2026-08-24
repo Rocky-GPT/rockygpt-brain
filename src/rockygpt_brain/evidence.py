@@ -18,6 +18,7 @@ class EvidenceKind(str, Enum):
     CONVERSATION = "conversation"
     POLICY = "policy"
     RAG = "rag"
+    HISTORICAL_DATA = "historical_data"
 
 
 class Evidence(BaseModel):
@@ -98,7 +99,10 @@ def validate_draft(
                 EvidenceKind.POLICY,
             }:
                 reasons.append(f"campus claim uses {evidence.kind.value} evidence")
-            if claim.kind == ClaimKind.CONVERSATION and evidence.kind != EvidenceKind.CONVERSATION:
+            if claim.kind == ClaimKind.CONVERSATION and evidence.kind not in {
+                EvidenceKind.CONVERSATION,
+                EvidenceKind.HISTORICAL_DATA,
+            }:
                 reasons.append("conversation claim uses non-conversation evidence")
             if claim.kind == ClaimKind.GENERAL and mode != RouteMode.GENERAL:
                 reasons.append("general claim is not allowed on a campus route")

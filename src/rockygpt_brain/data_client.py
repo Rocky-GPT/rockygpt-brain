@@ -36,7 +36,14 @@ class Completeness(DataModel):
     matched: int | None = Field(default=None, ge=0)
     limit: int = Field(ge=1)
     truncated: bool
-    reason: str | None = None
+    reason: Literal[
+        "entity_no_match",
+        "no_remaining",
+        "not_current",
+        "dataset_empty",
+        "limit",
+        "dependency_unavailable",
+    ] | None = None
 
 
 class DataOrdering(DataModel):
@@ -53,7 +60,7 @@ class ShuttleQuery(DataModel):
     as_of: datetime = Field(alias="asOf")
     selection: ShuttleSelection
     time_scope: ShuttleTimeScope = Field(alias="timeScope")
-    limit: int = Field(default=8, ge=1, le=25)
+    limit: int | None = Field(default=None, ge=1, le=50)
 
     @model_validator(mode="after")
     def as_of_is_aware(self) -> "ShuttleQuery":
@@ -71,6 +78,9 @@ class ShuttleAppliedFilters(DataModel):
     as_of: datetime = Field(alias="asOf")
     selection: ShuttleSelection
     time_scope: ShuttleTimeScope = Field(alias="timeScope")
+    service_dates_considered: list[date] = Field(
+        alias="serviceDatesConsidered", min_length=1, max_length=2
+    )
 
 
 class ShuttleStop(DataModel):
@@ -151,7 +161,24 @@ class HttpDataV2Client:
     async def readiness(self) -> bool:
         try:
             response = await self._client.get("/readiness", timeout=2.5)
-            return response.status_code == 200 and response.json().get("status") == "ready"
+            if response.status_code != 200 or response.json().get("status") != "ready":
+                return False
+            if self._token is None:
+                return True
+            # A public readiness probe cannot detect a mismatched staging credential. Exercise the
+            # smallest authenticated, read-only v2 operation without asking for a particular record.
+            functional = await self._client.post(
+                "/v2/capabilities/shuttle/query",
+                json={
+                    "asOf": datetime.now().astimezone().isoformat(),
+                    "selection": "first",
+                    "timeScope": "full_day",
+                    "limit": 1,
+                },
+                headers=self._headers(),
+                timeout=2.0,
+            )
+            return functional.status_code == 200
         except (httpx.HTTPError, ValueError):
             return False
 

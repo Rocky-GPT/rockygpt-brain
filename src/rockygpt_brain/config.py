@@ -45,6 +45,23 @@ class Settings(BaseSettings):
     def blank_model_uses_default(cls, value: object) -> object:
         return "gpt-4.1-mini" if value in (None, "") else value
 
+    @field_validator(
+        "openai_api_key",
+        "database_url",
+        "chat_log_hash_key",
+        "admin_api_token",
+        "abuse_hash_key",
+        "staging_service_token",
+        mode="before",
+    )
+    @classmethod
+    def blank_optional_secret_is_unset(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
     @field_validator("data_url")
     @classmethod
     def normalize_data_url(cls, value: str) -> str:
@@ -64,6 +81,8 @@ class Settings(BaseSettings):
             for name, secret in required.items():
                 if secret is None or len(secret.get_secret_value()) < 32:
                     raise ValueError(f"{name} must contain at least 32 characters")
+            if self.database_url is None:
+                raise ValueError("DATABASE_URL is required outside local development/test")
         return self
 
     def secret_value(self, value: SecretStr | None) -> str | None:

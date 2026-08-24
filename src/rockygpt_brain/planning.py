@@ -50,10 +50,12 @@ class ShuttleIntent(InternalModel):
     service_day: ServiceDay | None = Field(default=None, alias="serviceDay")
     selection: ShuttleSelection
     time_scope: ShuttleTimeScope = Field(alias="timeScope")
-    limit: int = Field(default=8, ge=1, le=25)
+    limit: int | None = Field(default=None, ge=1, le=50)
 
     @model_validator(mode="after")
     def selection_matches_scope(self) -> "ShuttleIntent":
+        if self.service_day is not None and self.service_date is None:
+            raise ValueError("serviceDay assertions require an explicit serviceDate")
         expected = {
             ShuttleSelection.FIRST: ShuttleTimeScope.FULL_DAY,
             ShuttleSelection.NEXT: ShuttleTimeScope.REMAINING,

@@ -33,6 +33,7 @@ class MemorySnapshot:
     claims: tuple[AssistantClaim, ...] = ()
     entities: tuple[dict[str, Any], ...] = ()
     corrections: tuple[dict[str, Any], ...] = ()
+    historical_evidence: tuple[dict[str, Any], ...] = ()
 
     def prompt_payload(self) -> dict[str, Any]:
         return {
@@ -62,9 +63,33 @@ class MemorySnapshot:
             ],
             "entities": list(self.entities),
             "corrections": list(self.corrections),
+            "historicalEvidence": list(self.historical_evidence),
         }
 
     def register_conversation_evidence(self, registry: EvidenceRegistry) -> None:
+        history_by_turn: dict[str, list[str]] = {}
+        for item in self.historical_evidence:
+            turn_id = str(item.get("turnRequestId", "unknown"))
+            original_id = str(item.get("evidenceId", "unknown"))
+            historical_id = f"historical:{turn_id}:{original_id}"
+            history_by_turn.setdefault(turn_id, []).append(historical_id)
+            registry.register(
+                Evidence(
+                    evidenceId=historical_id,
+                    kind=EvidenceKind.HISTORICAL_DATA,
+                    sourceId=str(item.get("sourceId", original_id)),
+                    title=str(item.get("title", "Historical campus source")),
+                    url=item.get("url"),
+                    collectedAt=item.get("collectedAt"),
+                    datasetId=item.get("datasetId"),
+                    datasetVersion=item.get("datasetVersion"),
+                    payload={
+                        "historical": True,
+                        "turnRequestId": turn_id,
+                        "originalEvidenceId": original_id,
+                    },
+                )
+            )
         for claim in self.claims:
             registry.register(
                 Evidence(
@@ -76,6 +101,7 @@ class MemorySnapshot:
                         "claimId": claim.claim_id,
                         "text": claim.text,
                         "originalEvidenceIds": list(claim.evidence_ids),
+                        "historicalEvidenceIds": history_by_turn.get(claim.request_id, []),
                         "statedAt": claim.created_at.isoformat(),
                     },
                 )
@@ -88,6 +114,7 @@ class MutableMemory:
     claims: list[AssistantClaim] = field(default_factory=list)
     entities: list[dict[str, Any]] = field(default_factory=list)
     corrections: list[dict[str, Any]] = field(default_factory=list)
+    historical_evidence: list[dict[str, Any]] = field(default_factory=list)
 
     def snapshot(self) -> MemorySnapshot:
         return MemorySnapshot(
@@ -95,15 +122,19 @@ class MutableMemory:
             claims=tuple(self.claims),
             entities=tuple(dict(item) for item in self.entities),
             corrections=tuple(dict(item) for item in self.corrections),
+            historical_evidence=tuple(dict(item) for item in self.historical_evidence),
         )
 
     def append(
         self,
         turn: MemoryTurn,
         claims: list[AssistantClaim],
+        evidence_snapshot: list[dict[str, Any]],
         *,
         recent_limit: int,
         claim_limit: int,
     ) -> None:
         self.recent_turns = (self.recent_turns + [turn])[-recent_limit:]
         self.claims = (self.claims + claims)[-claim_limit:]
+        tagged = [dict(item, turnRequestId=turn.request_id) for item in evidence_snapshot]
+        self.historical_evidence = (self.historical_evidence + tagged)[-claim_limit:]

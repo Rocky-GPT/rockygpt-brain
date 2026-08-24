@@ -17,6 +17,8 @@ class TimeContext:
     campus_timezone: str
     request_local: datetime
     campus_local: datetime
+    request_date: date
+    campus_date: date
     service_date: date
     service_day: str
 
@@ -39,15 +41,20 @@ class TimeContext:
             raise ServiceError(400, "INVALID_REQUEST", "timezone must be a valid IANA name.") from exc
         instant = now.astimezone(timezone.utc)
         campus_local = instant.astimezone(campus_zone)
-        weekday = campus_local.weekday()
+        request_local = instant.astimezone(request_zone)
+        # Relative dates are interpreted in the caller's validated timezone.
+        service_date = request_local.date()
+        weekday = service_date.weekday()
         service_day = "saturday" if weekday == 5 else "sunday" if weekday == 6 else "weekday"
         return cls(
             instant=instant,
             requested_timezone=requested_timezone or campus_timezone,
             campus_timezone=campus_timezone,
-            request_local=instant.astimezone(request_zone),
+            request_local=request_local,
             campus_local=campus_local,
-            service_date=campus_local.date(),
+            request_date=request_local.date(),
+            campus_date=campus_local.date(),
+            service_date=service_date,
             service_day=service_day,
         )
 
