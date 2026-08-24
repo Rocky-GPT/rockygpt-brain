@@ -1,4 +1,4 @@
-"""Frozen public HTTP contracts from ``spec/brain-api.openapi.yaml``."""
+"""Public HTTP contracts from ``spec/brain-api.openapi.yaml``."""
 
 from __future__ import annotations
 

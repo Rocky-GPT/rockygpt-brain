@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from rockygpt_brain.contracts import ErrorCode
+from rockygpt_brain.api.contracts import ErrorCode
 
 
 @dataclass(slots=True)

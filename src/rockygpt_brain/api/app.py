@@ -15,9 +15,7 @@ from fastapi import FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from rockygpt_brain.brain import Brain, TurnIdentity
-from rockygpt_brain.config import Settings, get_settings
-from rockygpt_brain.contracts import (
+from rockygpt_brain.api.contracts import (
     ChatRequest,
     ChatSuccess,
     ErrorDetail,
@@ -29,10 +27,12 @@ from rockygpt_brain.contracts import (
     Readiness,
     UnmodifiedResponse,
 )
-from rockygpt_brain.data_client import DataClient, DataPort
+from rockygpt_brain.config import Settings, get_settings
+from rockygpt_brain.core.brain import Brain, TurnIdentity
+from rockygpt_brain.core.model import ModelPort, OpenAIModel
 from rockygpt_brain.errors import ServiceError
-from rockygpt_brain.memory import MemoryStore
-from rockygpt_brain.model import ModelPort, OpenAIModel
+from rockygpt_brain.services.data_client import DataClient, DataPort
+from rockygpt_brain.services.memory import MemoryStore
 
 EnvironmentHeader = Annotated[
     str | None,

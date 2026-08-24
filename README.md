@@ -20,6 +20,18 @@ answer non-campus questions. SAFETY supplies a short emergency result.
 There is no agent loop, planner, verifier, repair pass, database, claim ledger,
 or orchestration framework in BASE.
 
+## Package layout
+
+```text
+rockygpt_brain/
+├── api/          HTTP routes and public contracts
+├── core/         hybrid pipeline and the two AI calls
+├── services/     DATA client and process-local memory
+├── config.py     environment settings
+├── errors.py     shared API error
+└── main.py       process entry point
+```
+
 ## Run
 
 ```bash

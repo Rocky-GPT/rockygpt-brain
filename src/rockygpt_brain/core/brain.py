@@ -9,16 +9,16 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
-from rockygpt_brain.contracts import (
+from rockygpt_brain.api.contracts import (
     ChatRequest,
     ChatSuccess,
     Citation,
     UiAction,
     UiActionType,
 )
-from rockygpt_brain.data_client import DataPort
-from rockygpt_brain.memory import MemoryStore
-from rockygpt_brain.model import Intent, Lane, ModelPort
+from rockygpt_brain.core.model import Intent, Lane, ModelPort
+from rockygpt_brain.services.data_client import DataPort
+from rockygpt_brain.services.memory import MemoryStore
 
 
 @dataclass(slots=True)

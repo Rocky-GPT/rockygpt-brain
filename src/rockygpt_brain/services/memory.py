@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from rockygpt_brain.contracts import (
+from rockygpt_brain.api.contracts import (
     ChatLogItem,
     Citation,
     FeedbackRequest,
