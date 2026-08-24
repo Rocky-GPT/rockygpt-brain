@@ -33,21 +33,31 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass, field
 from typing import Any
 
-from rockygpt_brain.brain.answer import (
-    SUBMIT_ANSWER_TOOL_NAME,
-    SUBMIT_ANSWER_TOOL_SPEC,
-    SubmitAnswerArguments,
-    parse_submit_answer_diagnosed,
-)
+from rockygpt_brain.brain.answer import SUBMIT_ANSWER_TOOL_NAME
+from rockygpt_brain.brain.answer_spec import SUBMIT_ANSWER_TOOL_SPEC
 from rockygpt_brain.brain.conversation_state import record_for
 from rockygpt_brain.brain.discourse import DiscourseRecord, render_discourse
+from rockygpt_brain.brain.fallback import (
+    AMBIGUOUS_SUBMIT_BATCH,
+    BUDGET_EXCEEDED,
+    DUPLICATE_CALL_ID,
+    FORCED_SUBMIT_REFUSED,
+    ITERATIONS_EXHAUSTED,
+    NO_TOOL_CALLS,
+    SUBMIT_MALFORMED,
+    TRANSCRIPT_TOO_LARGE,
+    FallbackReason,
+    fallback_outcome,
+)
+from rockygpt_brain.brain.finalize import try_finalize
 from rockygpt_brain.brain.grounding import ProvenanceRegistry
 from rockygpt_brain.brain.model_client import ModelClient
+from rockygpt_brain.brain.outcome import ChatOutcome
 from rockygpt_brain.brain.prompts import build_system_prompt
-from rockygpt_brain.brain.safety import SafetyClassification, classify_safety
+from rockygpt_brain.brain.safety import classify_safety
+from rockygpt_brain.brain.safety_outcome import safety_outcome
 from rockygpt_brain.brain.time_context import TimeContext, resolve_time_context
 from rockygpt_brain.brain.tools import (
     TOOL_HANDLERS,
@@ -57,9 +67,7 @@ from rockygpt_brain.brain.tools import (
 )
 from rockygpt_brain.data_client.client import DataServiceClient
 from rockygpt_brain.data_client.errors import DataClientError
-from rockygpt_brain.data_client.models import normalize_source
 from rockygpt_brain.schemas.chat import ChatRequest
-from rockygpt_brain.schemas.common import Citation, UiAction
 
 MAX_TOOL_ITERATIONS = 4
 MAX_TOTAL_TOOL_CALLS = 20
@@ -74,10 +82,6 @@ MAX_TRANSCRIPT_BYTES = 200_000
 # cancels the in-flight call cleanly, so this is cancellation-safe.
 OUTER_DEADLINE_SECONDS = 45.0
 
-FALLBACK_ANSWER = (
-    "I'm sorry, I wasn't able to put together a reliable answer to that just now. "
-    "Could you try rephrasing your question, or asking again in a moment?"
-)
 
 # Every tool name that reaches a log/persistence-facing field is mapped
 # through this allowlist first; anything else (a hallucinated or malformed
@@ -90,40 +94,6 @@ def _tool_log_name(name: str) -> str:
     return name if name in _KNOWN_TOOL_NAMES else "unknown"
 
 
-# Why a turn ended in the canned apology. A fixed vocabulary — these strings
-# are literals in this module, never model- or user-supplied text — so they can
-# be persisted and read back through the operator channel without widening what
-# is retained about a conversation.
-FallbackReason = str
-_NO_TOOL_CALLS = "no_tool_calls"
-_FORCED_SUBMIT_REFUSED = "forced_submit_refused"
-_DUPLICATE_CALL_ID = "duplicate_call_id"
-_BUDGET_EXCEEDED = "budget_exceeded"
-_AMBIGUOUS_SUBMIT_BATCH = "ambiguous_submit_batch"
-# Two very different failures used to share one label. A submission whose
-# arguments do not validate is a formatting problem; a submission citing a
-# sourceId this turn never produced is a grounding problem with its own
-# deliberate, security-relevant handling (THREAT_MODEL 3.4). Telling them apart
-# is the whole point of the trace.
-_SUBMIT_MALFORMED = "submit_malformed"
-_SUBMIT_CITATION_UNRESOLVED = "submit_citation_unresolved"
-_TRANSCRIPT_TOO_LARGE = "transcript_too_large"
-_ITERATIONS_EXHAUSTED = "iterations_exhausted"
-_DEADLINE = "deadline"
-
-
-@dataclass(slots=True)
-class ChatOutcome:
-    answer: str
-    route: str
-    citations: list[Citation]
-    ui_actions: list[UiAction]
-    suggested_questions: list[str]
-    tools_invoked: list[str]
-    tool_calls_log: list[dict[str, Any]]
-    debug_info: dict[str, Any] = field(default_factory=dict)
-
-
 async def run_chat_turn(
     *,
     request: ChatRequest,
@@ -132,7 +102,7 @@ async def run_chat_turn(
 ) -> ChatOutcome:
     safety = classify_safety(request.message)
     if safety is not None:
-        return await _safety_outcome(safety, data_client)
+        return await safety_outcome(safety, data_client)
 
     try:
         async with asyncio.timeout(OUTER_DEADLINE_SECONDS):
@@ -140,7 +110,7 @@ async def run_chat_turn(
                 request=request, model_client=model_client, data_client=data_client
             )
     except TimeoutError:
-        return _fallback_outcome(tools_invoked=[], tool_calls_log=[])
+        return fallback_outcome(tools_invoked=[], tool_calls_log=[])
 
 
 async def _run_grounded_turn(
@@ -182,7 +152,7 @@ async def _run_grounded_turn(
     # identical request. Scoped to this turn only -- never across
     # requests, where the underlying campus data may well have changed.
     tool_result_cache: dict[tuple[str, str], dict[str, Any]] = {}
-    fallback_reason: FallbackReason = _ITERATIONS_EXHAUSTED
+    fallback_reason: FallbackReason = ITERATIONS_EXHAUSTED
 
     for iteration in range(MAX_TOOL_ITERATIONS):
         # Reserve the final slot: force submit_answer once only one slot of
@@ -209,27 +179,27 @@ async def _run_grounded_turn(
             # rather than around it. Only a model that still refuses the
             # tool, or a turn that is already forced, falls back.
             if force_final or not model_turn.content:
-                fallback_reason = _NO_TOOL_CALLS
+                fallback_reason = NO_TOOL_CALLS
                 break
             messages.append({"role": "assistant", "content": model_turn.content})
             model_turn = await model_client.complete(
                 messages=messages, tools=tools, force_tool=SUBMIT_ANSWER_TOOL_NAME
             )
             if not model_turn.tool_calls:
-                fallback_reason = _FORCED_SUBMIT_REFUSED
+                fallback_reason = FORCED_SUBMIT_REFUSED
                 break
 
         call_ids = [call.id for call in model_turn.tool_calls]
         if len(call_ids) != len(set(call_ids)) or seen_call_ids.intersection(call_ids):
             # duplicate tool-call id, within this batch or vs. an earlier one
-            fallback_reason = _DUPLICATE_CALL_ID
+            fallback_reason = DUPLICATE_CALL_ID
             break
 
         # Absolute, exception-free budget: every batch, submit_answer
         # included, must fit what's left of MAX_TOTAL_TOOL_CALLS.
         remaining_budget = MAX_TOTAL_TOOL_CALLS - total_tool_calls
         if len(model_turn.tool_calls) > remaining_budget:
-            fallback_reason = _BUDGET_EXCEEDED
+            fallback_reason = BUDGET_EXCEEDED
             break
 
         seen_call_ids.update(call_ids)
@@ -243,9 +213,9 @@ async def _run_grounded_turn(
             # submit_answer calls, or submit_answer mixed with data calls,
             # is an ambiguous/conflicting turn, not something to arbitrate.
             if len(submit_calls) > 1 or len(model_turn.tool_calls) > 1:
-                fallback_reason = _AMBIGUOUS_SUBMIT_BATCH
+                fallback_reason = AMBIGUOUS_SUBMIT_BATCH
                 break
-            outcome, reason = _try_finalize(
+            outcome, reason = try_finalize(
                 submit_calls[0],
                 registry=registry,
                 tools_invoked=tools_invoked,
@@ -254,7 +224,7 @@ async def _run_grounded_turn(
             if outcome is not None:
                 _remember(discourse, request.message, outcome)
                 return outcome
-            fallback_reason = reason or _SUBMIT_MALFORMED
+            fallback_reason = reason or SUBMIT_MALFORMED
             break
 
         messages.append(
@@ -322,10 +292,10 @@ async def _run_grounded_turn(
             )
 
         if _transcript_size(messages) > MAX_TRANSCRIPT_BYTES:
-            fallback_reason = _TRANSCRIPT_TOO_LARGE
+            fallback_reason = TRANSCRIPT_TOO_LARGE
             break
 
-    fallback = _fallback_outcome(
+    fallback = fallback_outcome(
         tools_invoked=tools_invoked,
         tool_calls_log=tool_calls_log,
         reason=fallback_reason,
@@ -388,151 +358,3 @@ def _safe_json_loads(text: str) -> Any:
         return None
 
 
-def _try_finalize(
-    submit_call: Any,
-    *,
-    registry: ProvenanceRegistry,
-    tools_invoked: list[str],
-    tool_calls_log: list[dict[str, Any]],
-) -> tuple[ChatOutcome | None, FallbackReason | None]:
-    parsed, defect = parse_submit_answer_diagnosed(submit_call.arguments_json)
-    if parsed is None:
-        return None, f"{_SUBMIT_MALFORMED}:{defect}"
-    citations = registry.resolve(parsed.cited_source_ids)
-    if citations is None:
-        # A citedSourceId that this turn's tools never actually produced:
-        # fail the whole answer rather than silently dropping it and returning
-        # a still-"standard"-routed answer with fewer citations than the model
-        # claimed. Deliberate, and unchanged (THREAT_MODEL 3.4).
-        return None, _SUBMIT_CITATION_UNRESOLVED
-    return (
-        _finalize(
-            parsed,
-            citations=citations,
-            tools_invoked=tools_invoked,
-            tool_calls_log=tool_calls_log,
-        ),
-        None,
-    )
-
-
-def _finalize(
-    parsed: SubmitAnswerArguments,
-    *,
-    citations: list[Citation],
-    tools_invoked: list[str],
-    tool_calls_log: list[dict[str, Any]],
-) -> ChatOutcome:
-    # "standard" is what the UI presents as a verified campus answer, so it
-    # has to be one: an answer with nothing to cite is unverified no matter
-    # what the model labelled it, and the honest route for that is
-    # "ungrounded". Downgrading is always safe in this direction — the
-    # opposite (promoting an uncited answer to "standard") is the one that
-    # would overstate what the brain checked. brain/answer.py already
-    # rejects the mirror case, "ungrounded" carrying citations.
-    # "standard" is what the UI presents as a verified campus answer, so an
-    # answer with nothing to cite is downgraded. "conversation" is left alone:
-    # it is *expected* to carry no citations, because the record of what was
-    # said is not a campus source, and downgrading it to "ungrounded" would
-    # relabel a verified recollection as something that could not be verified.
-    route = "ungrounded" if parsed.route == "standard" and not citations else parsed.route
-    return ChatOutcome(
-        answer=parsed.answer_markdown,
-        route=route,
-        citations=citations,
-        ui_actions=parsed.ui_actions,
-        suggested_questions=list(parsed.suggested_questions),
-        tools_invoked=tools_invoked,
-        tool_calls_log=tool_calls_log,
-        debug_info={"tool_call_count": len(tool_calls_log), "route_submitted": parsed.route},
-    )
-
-
-def _fallback_outcome(
-    *,
-    tools_invoked: list[str],
-    tool_calls_log: list[dict[str, Any]],
-    reason: FallbackReason = _DEADLINE,
-    discourse_turns: int = 0,
-) -> ChatOutcome:
-    return ChatOutcome(
-        answer=FALLBACK_ANSWER,
-        route="ungrounded",
-        citations=[],
-        ui_actions=[],
-        suggested_questions=[],
-        tools_invoked=tools_invoked,
-        tool_calls_log=tool_calls_log,
-        debug_info={
-            "fallback": True,
-            "tool_call_count": len(tool_calls_log),
-            # Which branch ended the turn, from a fixed vocabulary defined in
-            # this module. Enough to tell a refused submission from an
-            # exhausted budget without retaining anything about the message.
-            "fallback_reason": reason,
-            "discourse_turns": discourse_turns,
-        },
-    )
-
-
-async def _safety_outcome(
-    classification: SafetyClassification, data_client: DataServiceClient
-) -> ChatOutcome:
-    try:
-        resources = await data_client.safety_resources()
-    except DataClientError:
-        resources = None
-
-    citations: list[Citation] = []
-    if classification.reason == "active_emergency":
-        lines = [
-            "**If this is an active emergency, call 911 immediately.**",
-            "",
-            "Get to safety if you can, and stay with emergency services on the line "
-            "until help arrives.",
-        ]
-        source = normalize_source(resources.safety_source) if resources else None
-        if source is not None:
-            # Fixed prose only — an untrusted data-service Source.title is
-            # never interpolated into Markdown answer text (it could itself
-            # contain Markdown syntax and render as something other than
-            # plain text). The real title/url are carried entirely by the
-            # separately-structured Citation the UI renders on its own.
-            lines += ["", "See the campus safety resource listed in Sources."]
-            citations.append(
-                Citation(
-                    source_id=source.source_id,
-                    title=source.title,
-                    url=source.url,
-                    collected_at=source.collected_at,
-                )
-            )
-    else:
-        lines = [
-            "**If you are in crisis, please call or text 988 (Suicide & Crisis Lifeline) "
-            "right now.** You deserve support, and help is available 24/7.",
-            "",
-            "If you are in immediate danger, call 911.",
-        ]
-        source = normalize_source(resources.counseling_source) if resources else None
-        if source is not None:
-            lines += ["", "See the campus counseling resource listed in Sources."]
-            citations.append(
-                Citation(
-                    source_id=source.source_id,
-                    title=source.title,
-                    url=source.url,
-                    collected_at=source.collected_at,
-                )
-            )
-
-    return ChatOutcome(
-        answer="\n".join(lines),
-        route="safety",
-        citations=citations,
-        ui_actions=[],
-        suggested_questions=[],
-        tools_invoked=["get_safety_resources"] if resources is not None else [],
-        tool_calls_log=[],
-        debug_info={"safety_reason": classification.reason},
-    )

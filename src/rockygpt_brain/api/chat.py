@@ -37,7 +37,8 @@ import asyncpg
 from fastapi import APIRouter, Request
 
 from rockygpt_brain.api.parsing import MAX_CHAT_BODY_BYTES, parse_json_body
-from rockygpt_brain.brain.orchestrator import ChatOutcome, run_chat_turn
+from rockygpt_brain.brain.orchestrator import run_chat_turn
+from rockygpt_brain.brain.outcome import ChatOutcome
 from rockygpt_brain.errors import InternalError, RateLimitedError, ServiceUnavailableError
 from rockygpt_brain.persistence.chat_logs import ChatLogInput, insert_chat_log
 from rockygpt_brain.persistence.hashing import hash_identifier
