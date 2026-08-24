@@ -80,3 +80,35 @@ async def test_invalid_shuttle_model_output_falls_back_to_exact_code_projection(
     )
     assert response.json()["citations"][0]["sourceId"] == "transportation"
     assert response.json()["uiActions"] == [{"type": "VIEW_BUS"}]
+
+
+@pytest.mark.asyncio
+async def test_model_controlled_route_is_normalized_at_compatibility_edge(
+    settings: Settings,
+) -> None:
+    model = ScriptedModel()
+    model.plan_queue.append(RoutePlan(mode=RouteMode.GENERAL))
+    model.draft_queue.append(
+        AnswerDraft(
+            answer="A harmless response.",
+            route="internal-claim-id",
+            claims=[],
+            citationEvidenceIds=[],
+            uiActions=[],
+            suggestedQuestions=[],
+        )
+    )
+    app = create_app(
+        settings=settings,
+        data=FakeData(),
+        model=model,
+        repository=InMemoryRepository(),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://brain"
+    ) as client:
+        response = await client.post("/v1/chat", json={"message": "Tell me a harmless joke."})
+
+    assert response.status_code == 200
+    assert response.json()["route"] == "standard"

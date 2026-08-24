@@ -10,7 +10,6 @@ from typing import Any
 
 from rockygpt_brain.evidence import Evidence, EvidenceKind, EvidenceRegistry
 
-
 _RECALL_MARKERS = (
     "what did you tell me",
     "what did you say",
@@ -163,6 +162,29 @@ class MemorySnapshot:
                     },
                 )
             )
+
+    def communication_claims(self, registry: EvidenceRegistry) -> list[dict[str, Any]]:
+        """Project exact selected claims onto request-local, currently valid evidence IDs."""
+
+        projected: list[dict[str, Any]] = []
+        for claim in self.claims:
+            conversation_id = f"conversation:{claim.claim_id}"
+            conversation = registry.get(conversation_id)
+            historical_ids = (
+                [str(value) for value in conversation.payload["historicalEvidenceIds"]]
+                if conversation is not None
+                else []
+            )
+            projected.append(
+                {
+                    "claimId": claim.claim_id,
+                    "requestId": claim.request_id,
+                    "text": claim.text,
+                    "evidenceIds": [conversation_id, *historical_ids],
+                    "createdAt": claim.created_at.isoformat(),
+                }
+            )
+        return projected
 
 
 @dataclass(slots=True)
