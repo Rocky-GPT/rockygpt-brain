@@ -20,6 +20,14 @@ from rockygpt_brain.core.model import Intent, Lane, ModelPort
 from rockygpt_brain.services.data_client import DataPort
 from rockygpt_brain.services.memory import MemoryStore
 
+_CODE_ACTIONS = {
+    "menu": UiActionType.VIEW_MENU,
+    "shuttle": UiActionType.VIEW_BUS,
+    "events": UiActionType.VIEW_EVENTS,
+    "map": UiActionType.VIEW_MAP,
+    "contacts": UiActionType.VIEW_DIRECTORY,
+}
+
 
 @dataclass(slots=True)
 class TurnIdentity:
@@ -56,11 +64,8 @@ class Brain:
         )
 
         citations = self._citations(result)
-        actions = (
-            [UiAction(type=UiActionType.VIEW_BUS)]
-            if intent.lane == Lane.CODE and intent.action == "shuttle"
-            else []
-        )
+        action = _CODE_ACTIONS.get(intent.action) if intent.lane == Lane.CODE else None
+        actions = [UiAction(type=action)] if action else []
         response = ChatSuccess(
             requestId=identity.request_id,
             answer=draft.answer,
@@ -93,9 +98,7 @@ class Brain:
         now: datetime,
     ) -> tuple[dict[str, Any], list[str]]:
         if intent.lane == Lane.CODE:
-            if intent.action != "shuttle":
-                return {"outcome": "unsupported", "action": intent.action}, []
-            return await self._data.shuttle(intent, now), ["shuttle"]
+            return await self._data.code(intent, now), [intent.action or "code"]
 
         if intent.lane == Lane.RAG:
             query = intent.query or message

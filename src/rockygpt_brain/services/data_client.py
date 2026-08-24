@@ -10,9 +10,21 @@ import httpx
 from rockygpt_brain.core.model import Intent
 from rockygpt_brain.errors import ServiceError
 
+_STRUCTURED_ROUTES: dict[str, tuple[str, dict[str, str], bool]] = {
+    "campus_hours": ("/v1/search/campus-hours", {"query": "q", "day": "day"}, True),
+    "dining_hours": ("/v1/search/dining-hours", {"query": "q", "day": "day"}, True),
+    "menu": ("/v1/search/menu", {"query": "q", "meal": "meal"}, True),
+    "contacts": ("/v1/search/contacts", {"query": "q"}, True),
+    "clubs": ("/v1/search/clubs", {"query": "q"}, True),
+    "events": ("/v1/search/events", {"query": "q"}, True),
+    "programs": ("/v1/search/programs", {"query": "q"}, True),
+    "academic_dates": ("/v1/search/academic-dates", {"query": "q"}, True),
+    "map": ("/v1/map", {"query": "q"}, False),
+}
+
 
 class DataPort(Protocol):
-    async def shuttle(self, intent: Intent, now: datetime) -> dict[str, Any]: ...
+    async def code(self, intent: Intent, now: datetime) -> dict[str, Any]: ...
 
     async def retrieve(self, query: str, domains: list[str]) -> dict[str, Any]: ...
 
@@ -32,7 +44,24 @@ class DataClient:
             {"x-rockygpt-environment-token": environment_token} if environment_token else {}
         )
 
-    async def shuttle(self, intent: Intent, now: datetime) -> dict[str, Any]:
+    async def code(self, intent: Intent, now: datetime) -> dict[str, Any]:
+        if intent.action == "shuttle":
+            return await self._shuttle(intent, now)
+        if intent.action not in _STRUCTURED_ROUTES:
+            return {"outcome": "unsupported", "action": intent.action}
+
+        path, fields, include_time = _STRUCTURED_ROUTES[intent.action]
+        params = {
+            parameter: value
+            for field, parameter in fields.items()
+            if (value := getattr(intent, field))
+        }
+        if include_time:
+            params["at"] = now.isoformat()
+        result = await self._get(path, params)
+        return self._add_source_evidence(result)
+
+    async def _shuttle(self, intent: Intent, now: datetime) -> dict[str, Any]:
         scopes = {
             "first": "full_day",
             "next": "remaining",
@@ -59,8 +88,27 @@ class DataClient:
         return await self._post("/v2/retrieve", body)
 
     async def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("POST", path, body=body)
+
+    async def _get(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("GET", path, params=params)
+
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        body: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         try:
-            response = await self._client.post(path, json=body, headers=self._headers)
+            response = await self._client.request(
+                method,
+                path,
+                json=body,
+                params=params,
+                headers=self._headers,
+            )
             if response.status_code == 400:
                 raise ServiceError(400, "INVALID_REQUEST", "The request is invalid.")
             if response.status_code != 200:
@@ -83,6 +131,27 @@ class DataClient:
                 "Campus data is temporarily unavailable.",
                 retryable=True,
             ) from exc
+
+    @staticmethod
+    def _add_source_evidence(payload: dict[str, Any]) -> dict[str, Any]:
+        records = payload.get("records")
+        evidence: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        if isinstance(records, list):
+            for record in records:
+                source = record.get("source") if isinstance(record, dict) else None
+                if not isinstance(source, dict) or not source.get("sourceId"):
+                    continue
+                source_id = str(source["sourceId"])
+                if source_id in seen:
+                    continue
+                seen.add(source_id)
+                evidence.append({"evidenceId": f"source:{source_id}", **source})
+        return {
+            "outcome": "success" if records else "empty",
+            **payload,
+            "evidence": evidence,
+        }
 
     async def readiness(self) -> bool:
         try:

@@ -22,12 +22,39 @@ class Lane(StrEnum):
     SAFETY = "safety"
 
 
+CodeAction = Literal[
+    "campus_hours",
+    "dining_hours",
+    "menu",
+    "contacts",
+    "clubs",
+    "events",
+    "programs",
+    "academic_dates",
+    "map",
+    "shuttle",
+]
+
+
 class Intent(BaseModel):
     """Structured intent returned by AI #1."""
 
     lane: Lane
-    action: Literal["shuttle"] | None = None
+    action: CodeAction | None = None
     selection: Literal["first", "next", "current", "all"] = "next"
+    day: (
+        Literal[
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
+        | None
+    ) = None
+    meal: str | None = None
     route: str | None = None
     origin: str | None = None
     destination: str | None = None
@@ -89,10 +116,13 @@ class OpenAIModel:
             Intent,
             (
                 "You are RockyGPT AI #1: UNDERSTAND. Choose exactly one lane. "
-                "Use code for objective/computable campus requests; the only BASE code action "
-                "is shuttle. Use rag for campus documents, policies, and prose. Use memory for "
-                "questions about this conversation. Use general for non-campus knowledge. Use "
-                "safety for urgent danger or crisis requests. Extract only useful fields."
+                "Use code for objective campus data: campus_hours, dining_hours, menu, "
+                "contacts, clubs, events, programs, academic_dates, map, or shuttle. Use rag "
+                "for campus documents, policies, and prose. Use memory for questions about this "
+                "conversation. Use general for non-campus knowledge. Use safety for urgent "
+                "danger or crisis requests. For code, set query only to an actual search term; "
+                "leave it empty for broad requests such as today's menu. Extract only useful "
+                "fields."
             ),
             {
                 "message": message,
