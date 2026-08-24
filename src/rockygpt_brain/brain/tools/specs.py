@@ -74,7 +74,23 @@ TOOL_DEFINITIONS: list[ToolDefinition] = [
     ),
     ToolDefinition(
         name="search_contacts",
-        description="Search campus office and staff/faculty contacts.",
+        # Measured: "I'm walking alone at night" and "Can someone walk me to my
+        # car?" produced **zero tool calls** — read as conversation rather than
+        # as a request for a campus phone number, so the Public Safety record
+        # was never looked up even though it answers both. A student in that
+        # situation is asking who to call; say so, because the previous wording
+        # described the table's contents and not the questions it answers.
+        description=(
+            "Search campus offices, departments, staff and faculty for a phone "
+            "number, email, or office location. Use this whenever someone asks "
+            "who to call, who to contact, or who can help with something on "
+            "campus — including when they describe a situation rather than "
+            "naming an office ('I'm walking alone at night', 'I'm locked out', "
+            "'someone should walk me to my car'), since Public Safety and other "
+            "offices provide those services. Argument `q` is a free-text search "
+            "over office and person names; a plain description of the need "
+            "('safety escort', 'walking alone') works."
+        ),
         parameters={
             "type": "object",
             "properties": {"q": {"type": "string", "maxLength": 200}},
