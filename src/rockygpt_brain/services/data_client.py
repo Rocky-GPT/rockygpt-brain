@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import httpx
 
-from rockygpt_brain.core.capabilities import CAPABILITIES, Capability, TimeScope
-from rockygpt_brain.core.model import CodeRequest
 from rockygpt_brain.errors import ServiceError
+
+if TYPE_CHECKING:
+    from rockygpt_brain.core.compilation import CompiledPlan
 
 
 class DataPort(Protocol):
-    async def code(self, request: CodeRequest, now: datetime) -> dict[str, Any]: ...
+    async def execute(self, plan: CompiledPlan) -> dict[str, Any]: ...
 
     async def retrieve(self, query: str, domains: list[str]) -> dict[str, Any]: ...
 
@@ -33,50 +33,17 @@ class DataClient:
             {"x-rockygpt-environment-token": environment_token} if environment_token else {}
         )
 
-    async def code(self, request: CodeRequest, now: datetime) -> dict[str, Any]:
-        capability = CAPABILITIES[request.action]
-        if capability.method == "POST":
-            return await self._shuttle(request, capability, now)
+    async def execute(self, plan: CompiledPlan) -> dict[str, Any]:
+        """Send a compiled plan. The client chooses nothing.
 
-        filters = self._filters(request)
-        params = {
-            parameter: filters[field]
-            for field, parameter in capability.filter_parameters.items()
-            if field in filters
-        }
-        if capability.include_time:
-            params["at"] = now.isoformat()
-        result = await self._get(capability.path, params)
+        Every parameter was fixed during compilation, so there is no place here
+        for a default, a fallback, or a filter decision.
+        """
+
+        if plan.capability.method == "POST":
+            return await self._post(plan.capability.path, plan.body)
+        result = await self._get(plan.capability.path, plan.params)
         return self._add_source_evidence(result)
-
-    async def _shuttle(
-        self,
-        request: CodeRequest,
-        capability: Capability,
-        now: datetime,
-    ) -> dict[str, Any]:
-        filters = self._filters(request)
-        requested_scope = request.operation.time_scope if request.operation else None
-        scopes = {
-            TimeScope.ALL: ("all", "full_day"),
-            TimeScope.REMAINING: ("all", "remaining"),
-            TimeScope.ACTIVE: ("current", "at_time"),
-        }
-        selection, time_scope = scopes[requested_scope or TimeScope.ALL]
-        body: dict[str, Any] = {
-            "asOf": now.isoformat(),
-            "selection": selection,
-            "timeScope": time_scope,
-        }
-        for field, parameter in capability.filter_parameters.items():
-            value = filters.get(field)
-            if value:
-                body[parameter] = value
-        return await self._post(capability.path, body)
-
-    @staticmethod
-    def _filters(request: CodeRequest) -> dict[str, Any]:
-        return request.filters.model_dump(mode="json", by_alias=True, exclude_none=True)
 
     async def retrieve(self, query: str, domains: list[str]) -> dict[str, Any]:
         body: dict[str, Any] = {"query": query}

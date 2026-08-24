@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections import defaultdict
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -139,16 +140,18 @@ class MemoryStore:
         return LogListResponse(
             logs=selected,
             metrics=LogMetrics(
-                totalLogs=len(items),
-                avgLatencyMs=(sum(item.latency_ms for item in items) / len(items) if items else 0),
-                uniqueSessions=len({item.session_id for item in items}),
-                uniqueVisitors=len(
+                total_logs=len(items),
+                avg_latency_ms=(
+                    sum(item.latency_ms for item in items) / len(items) if items else 0
+                ),
+                unique_sessions=len({item.session_id for item in items}),
+                unique_visitors=len(
                     {item.visitor_id for item in items if item.visitor_id is not None}
                 ),
-                errorCount=0,
-                clientCount=origins_list.count("client"),
-                devCount=origins_list.count("dev"),
-                botCount=origins_list.count("bot"),
+                error_count=0,
+                client_count=origins_list.count("client"),
+                dev_count=origins_list.count("dev"),
+                bot_count=origins_list.count("bot"),
             ),
             version=self.version,
         )
@@ -157,7 +160,7 @@ class MemoryStore:
     def version(self) -> str:
         return str(self._version)
 
-    async def changes(self):  # type: ignore[no-untyped-def]
+    async def changes(self) -> AsyncIterator[str]:
         last = ""
         while True:
             if self.version != last:
