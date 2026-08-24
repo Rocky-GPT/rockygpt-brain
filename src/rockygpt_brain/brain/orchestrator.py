@@ -21,6 +21,12 @@ needing a special case; (3) `submit_answer` must be the *only* call in its
 turn. Any failure of these — or a `citedSourceId` that doesn't resolve, or
 a transcript that has grown past its byte cap — falls back to a safe
 default answer rather than salvaging a partial or ambiguous result.
+
+Within a single turn, a call repeating an earlier call's exact name and
+arguments is answered from that earlier result instead of re-querying the
+data service. It still counts against the tool-call budget and still
+appears in the log (flagged `cached`); only the redundant network request
+is skipped.
 """
 
 from __future__ import annotations
@@ -133,6 +139,15 @@ async def _run_grounded_turn(
     tool_calls_log: list[dict[str, Any]] = []
     seen_call_ids: set[str] = set()
     total_tool_calls = 0
+    # Results of this turn's data calls, keyed by the exact (name,
+    # arguments) pair that produced them. Models repeat a call verbatim
+    # fairly often, and every repeat is otherwise a real round trip to
+    # rockygpt-data spending latency against OUTER_DEADLINE_SECONDS to
+    # learn nothing new. `at` is injected server-side from this turn's
+    # fixed TimeContext, so identical arguments really do mean an
+    # identical request. Scoped to this turn only -- never across
+    # requests, where the underlying campus data may well have changed.
+    tool_result_cache: dict[tuple[str, str], dict[str, Any]] = {}
 
     for iteration in range(MAX_TOOL_ITERATIONS):
         # Reserve the final slot: force submit_answer once only one slot of
@@ -217,16 +232,34 @@ async def _run_grounded_turn(
         for call in model_turn.tool_calls:
             log_name = _tool_log_name(call.name)
             tools_invoked.append(log_name)
-            result = await _execute_tool_call(
-                call, data_client=data_client, time_context=time_context, registry=registry
-            )
+            cache_key = (call.name, call.arguments_json)
+            cached_result = tool_result_cache.get(cache_key)
+            if cached_result is None:
+                result = await _execute_tool_call(
+                    call, data_client=data_client, time_context=time_context, registry=registry
+                )
+                tool_result_cache[cache_key] = result
+            else:
+                # Provenance is unaffected: the first execution of this
+                # exact call already registered its sources into this same
+                # turn's registry, so every sourceId the model sees here
+                # stays resolvable. Re-running the call would register the
+                # identical set again, not a larger one.
+                result = cached_result
             # Only a fixed, bounded result category is retained — never the
             # raw argument values. The model can copy arbitrary user text
             # (or an attempted secret) into an argument like `q`; logging
             # that verbatim would defeat the point of redacting stored chat
             # text elsewhere (security/redaction.py, THREAT_MODEL.md §3.3).
             result_category = result.get("error", "ok") if isinstance(result, dict) else "ok"
-            tool_calls_log.append({"tool": log_name, "result": result_category})
+            log_entry: dict[str, Any] = {"tool": log_name, "result": result_category}
+            if cached_result is not None:
+                # Still one logged call and still one unit of budget spent
+                # — the model did ask twice, and hiding that would make the
+                # budget accounting unreadable to an operator. The flag
+                # records only that no second request left the service.
+                log_entry["cached"] = True
+            tool_calls_log.append(log_entry)
             messages.append(
                 {
                     "role": "tool",
