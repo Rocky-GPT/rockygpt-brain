@@ -13,6 +13,64 @@ from typing import Any
 from rockygpt_brain.brain.tools.payload import ToolDefinition
 from rockygpt_brain.brain.tools.specs import TOOL_HANDLERS
 
+# Argument names a model plausibly invents for these tools. Classifying an
+# undeclared key against a fixed vocabulary says *which* mistake was made
+# without retaining a model-generated string: anything outside the list is
+# recorded as "other" rather than verbatim, for the same reason
+# `declared_argument_keys` filters to declared names only.
+_PLAUSIBLE_UNDECLARED = frozenset(
+    {
+        "date",
+        "day",
+        "when",
+        "time",
+        "at",
+        "today",
+        "start",
+        "end",
+        "limit",
+        "count",
+        "max",
+        "category",
+        "type",
+        "location",
+        "query",
+        "search",
+        "name",
+        "meal",
+        "route",
+        "serviceDay",
+    }
+)
+
+
+def classify_argument_defect(tool: ToolDefinition, arguments: Any) -> str | None:
+    """Why `validate_arguments` rejected a call, from a fixed vocabulary.
+
+    `None` when the arguments are valid. Every returned string is a literal in
+    this module or a *declared* schema key — never a model-generated name and
+    never a value — so this can be persisted through the operator channel
+    without widening what is retained about a turn.
+    """
+    if not isinstance(arguments, dict):
+        return "not_an_object"
+    properties: dict[str, Any] = tool.parameters.get("properties", {})
+    undeclared = sorted(set(arguments) - set(properties))
+    if undeclared:
+        named = [key for key in undeclared if key in _PLAUSIBLE_UNDECLARED]
+        return "unknown_key:" + ",".join(named or ["other"])
+    for key, value in arguments.items():
+        spec = properties[key]
+        if spec.get("type") != "string" or not isinstance(value, str):
+            return f"wrong_type:{key}"
+        max_length = spec.get("maxLength")
+        if max_length is not None and len(value) > max_length:
+            return f"too_long:{key}"
+        enum = spec.get("enum")
+        if enum is not None and value not in enum:
+            return f"enum_mismatch:{key}"
+    return None
+
 
 def validate_arguments(tool: ToolDefinition, arguments: Any) -> dict[str, str] | None:
     """Re-validate model-supplied arguments against the tool's own schema.

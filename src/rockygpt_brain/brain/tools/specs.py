@@ -94,7 +94,22 @@ TOOL_DEFINITIONS: list[ToolDefinition] = [
     ),
     ToolDefinition(
         name="search_events",
-        description="Search campus events.",
+        # Measured: 21% of search_events calls were rejected, and every
+        # rejection was an undeclared argument — `day` twelve times, `date`
+        # four. The cause is this description saying nothing about time while
+        # sibling tools (search_dining_hours, search_menu, search_shuttles) all
+        # take a narrowing argument, so a question about "today" invites one
+        # here too. Results are already scoped to the current campus time by an
+        # `at` value injected server-side, so the argument was never needed —
+        # only unmentioned. Saying so is the fix; adding a `day` parameter would
+        # mean building a filter the data service does not have.
+        description=(
+            "Search upcoming campus events. Results are already limited to "
+            "events on and after the current campus date, so do not pass a "
+            "date, day, or time argument — there is none. The only argument is "
+            "`q`, an optional free-text filter on event title or organizer; "
+            "omit it to see what is coming up."
+        ),
         parameters={
             "type": "object",
             "properties": {"q": {"type": "string", "maxLength": 200}},

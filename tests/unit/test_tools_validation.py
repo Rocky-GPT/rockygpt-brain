@@ -67,7 +67,39 @@ class TestExecuteTool:
             time_context=time_context,
             registry=registry,
         )
-        assert result == {"error": "invalid_arguments"}
+        # The model-visible part is unchanged: a small, fixed, non-reflective
+        # error. `_defect` rides alongside for the operator log and is stripped
+        # by the orchestrator before the result is shown to the model.
+        assert result["error"] == "invalid_arguments"
+        assert result["_defect"] == "unknown_key:other"
+        assert set(result) == {"error", "_defect"}
+
+    async def test_defect_names_a_plausible_invented_key(self) -> None:
+        registry = ProvenanceRegistry()
+        time_context = resolve_time_context(now=None, timezone_name=None)
+        result = await execute_tool(
+            "search_events",
+            {"q": "today", "date": "2026-08-24"},
+            client=None,
+            time_context=time_context,
+            registry=registry,
+        )
+        assert result["_defect"] == "unknown_key:date"
+
+    async def test_defect_never_retains_a_model_invented_name(self) -> None:
+        registry = ProvenanceRegistry()
+        time_context = resolve_time_context(now=None, timezone_name=None)
+        result = await execute_tool(
+            "search_events",
+            {"totally_made_up_field": "eve@example.com"},
+            client=None,
+            time_context=time_context,
+            registry=registry,
+        )
+        # Neither the invented key nor its value appears anywhere.
+        assert result["_defect"] == "unknown_key:other"
+        assert "totally_made_up_field" not in str(result)
+        assert "eve@example.com" not in str(result)
 
 
 def _record(source_id: str, **fields: object) -> dict[str, object]:
