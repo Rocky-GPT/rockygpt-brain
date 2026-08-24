@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uvicorn
 
+from rockygpt_brain.app import app as app
 from rockygpt_brain.config import get_settings
 
 

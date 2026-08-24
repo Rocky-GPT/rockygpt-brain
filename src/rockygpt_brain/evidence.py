@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import re
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
@@ -13,7 +15,7 @@ from rockygpt_brain.errors import GroundingError
 from rockygpt_brain.planning import AnswerDraft, ClaimKind, RouteMode
 
 
-class EvidenceKind(str, Enum):
+class EvidenceKind(StrEnum):
     DATA = "data"
     CONVERSATION = "conversation"
     POLICY = "policy"
@@ -61,16 +63,78 @@ class EvidenceRegistry:
             seen.add(item.source_id)
             citations.append(
                 Citation(
-                    sourceId=item.source_id,
+                    source_id=item.source_id,
                     title=item.title,
                     url=item.url,
-                    collectedAt=item.collected_at,
+                    collected_at=item.collected_at,
                 )
             )
         return citations[:3]
 
     def prompt_payload(self) -> list[dict[str, Any]]:
         return [item.model_dump(mode="json", by_alias=True) for item in self._items.values()]
+
+
+_FACT_ANCHOR = re.compile(
+    r"(?:https?://[^\s]+|\b\d{1,4}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?\b)", re.I
+)
+
+
+def _normalized(value: str) -> str:
+    return " ".join(value.casefold().split())
+
+
+def _validate_conversation_claim(claim_text: str, evidence: list[Evidence]) -> list[str]:
+    reasons: list[str] = []
+    conversation = [item for item in evidence if item.kind == EvidenceKind.CONVERSATION]
+    historical = [item for item in evidence if item.kind == EvidenceKind.HISTORICAL_DATA]
+    if not conversation:
+        return ["conversation claim has no exact assistant-ledger evidence"]
+
+    normalized_claim = _normalized(claim_text)
+    prior_texts = [str(item.payload.get("text", "")).strip() for item in conversation]
+    if any(text and _normalized(text) in normalized_claim for text in prior_texts):
+        return reasons
+
+    if not historical:
+        return ["conversation claim does not reproduce the exact assistant-ledger statement"]
+
+    turn_ids = {
+        item.source_id.removeprefix("turn:")
+        for item in conversation
+        if item.source_id.startswith("turn:")
+    }
+    if any(str(item.payload.get("turnRequestId", "")) not in turn_ids for item in historical):
+        reasons.append("historical evidence is not linked to the cited conversation turn")
+
+    named_source = any(
+        _normalized(item.title) in normalized_claim
+        or (item.url is not None and str(item.url).casefold() in normalized_claim)
+        for item in historical
+    )
+    if not named_source:
+        reasons.append("source-recall claim does not name its historical source")
+
+    support_corpus = _normalized(
+        " ".join(
+            [
+                *prior_texts,
+                *(
+                    f"{item.title} {item.url or ''} {item.source_id} "
+                    f"{json.dumps(item.payload, default=str, sort_keys=True)}"
+                    for item in historical
+                ),
+            ]
+        )
+    )
+    unsupported = [
+        anchor.group(0)
+        for anchor in _FACT_ANCHOR.finditer(claim_text)
+        if _normalized(anchor.group(0).rstrip(".,)")) not in support_corpus
+    ]
+    if unsupported:
+        reasons.append("conversation claim adds facts absent from the exact ledger")
+    return reasons
 
 
 def validate_draft(
@@ -84,6 +148,16 @@ def validate_draft(
     used: set[str] = set()
     if require_grounding and not draft.claims:
         reasons.append("grounded routes require at least one claim")
+    if (
+        mode == RouteMode.CONVERSATION
+        and draft.claims
+        and not any(
+            claim.kind == ClaimKind.CONVERSATION
+            and _normalized(claim.text) == _normalized(draft.answer)
+            for claim in draft.claims
+        )
+    ):
+        reasons.append("conversation answer must equal a declared conversation claim")
     for claim in draft.claims:
         if claim.kind in {ClaimKind.CAMPUS, ClaimKind.CONVERSATION} and not claim.evidence_ids:
             reasons.append(f"{claim.kind.value} claim has no evidence")
@@ -106,6 +180,13 @@ def validate_draft(
                 reasons.append("conversation claim uses non-conversation evidence")
             if claim.kind == ClaimKind.GENERAL and mode != RouteMode.GENERAL:
                 reasons.append("general claim is not allowed on a campus route")
+        if claim.kind == ClaimKind.CONVERSATION:
+            claim_evidence = [
+                item
+                for evidence_id in claim.evidence_ids
+                if (item := registry.get(evidence_id)) is not None
+            ]
+            reasons.extend(_validate_conversation_claim(claim.text, claim_evidence))
     for evidence_id in draft.citation_evidence_ids:
         evidence = registry.get(evidence_id)
         if evidence is None:

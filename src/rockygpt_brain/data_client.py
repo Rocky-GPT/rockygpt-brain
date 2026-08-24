@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Annotated, Any, Literal, Protocol
+from typing import Annotated, Literal, Protocol
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StringConstraints, model_validator
@@ -36,14 +36,17 @@ class Completeness(DataModel):
     matched: int | None = Field(default=None, ge=0)
     limit: int = Field(ge=1)
     truncated: bool
-    reason: Literal[
-        "entity_no_match",
-        "no_remaining",
-        "not_current",
-        "dataset_empty",
-        "limit",
-        "dependency_unavailable",
-    ] | None = None
+    reason: (
+        Literal[
+            "entity_no_match",
+            "no_remaining",
+            "not_current",
+            "dataset_empty",
+            "limit",
+            "dependency_unavailable",
+        ]
+        | None
+    ) = None
 
 
 class DataOrdering(DataModel):
@@ -63,7 +66,7 @@ class ShuttleQuery(DataModel):
     limit: int | None = Field(default=None, ge=1, le=50)
 
     @model_validator(mode="after")
-    def as_of_is_aware(self) -> "ShuttleQuery":
+    def as_of_is_aware(self) -> ShuttleQuery:
         if self.as_of.tzinfo is None or self.as_of.utcoffset() is None:
             raise ValueError("asOf must include a timezone")
         return self
@@ -134,9 +137,7 @@ class HttpDataV2Client:
         self._client = client or httpx.AsyncClient(base_url=base_url, timeout=timeout_seconds)
 
     def _headers(self) -> dict[str, str]:
-        return (
-            {"x-rockygpt-environment-token": self._token} if self._token is not None else {}
-        )
+        return {"x-rockygpt-environment-token": self._token} if self._token is not None else {}
 
     async def query_shuttle(self, query: ShuttleQuery) -> ShuttleResponse:
         try:

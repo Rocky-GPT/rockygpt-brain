@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
-from typing import Callable
+from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from rockygpt_brain.errors import ServiceError
@@ -30,20 +30,23 @@ class TimeContext:
         requested_timezone: str | None,
         campus_timezone: str = "America/New_York",
         clock: Callable[[], datetime] | None = None,
-    ) -> "TimeContext":
-        now = pinned_now or (clock() if clock is not None else datetime.now(timezone.utc))
+    ) -> TimeContext:
+        now = pinned_now or (clock() if clock is not None else datetime.now(UTC))
         if now.tzinfo is None or now.utcoffset() is None:
             raise ServiceError(400, "INVALID_REQUEST", "now must include an explicit timezone.")
         try:
             campus_zone = ZoneInfo(campus_timezone)
             request_zone = ZoneInfo(requested_timezone or campus_timezone)
         except ZoneInfoNotFoundError as exc:
-            raise ServiceError(400, "INVALID_REQUEST", "timezone must be a valid IANA name.") from exc
-        instant = now.astimezone(timezone.utc)
+            raise ServiceError(
+                400, "INVALID_REQUEST", "timezone must be a valid IANA name."
+            ) from exc
+        instant = now.astimezone(UTC)
         campus_local = instant.astimezone(campus_zone)
         request_local = instant.astimezone(request_zone)
-        # Relative dates are interpreted in the caller's validated timezone.
-        service_date = request_local.date()
+        # An omitted shuttle date defaults to the campus calendar. Explicit relative
+        # dates are resolved by UNDERSTAND from request_date and travel in the intent.
+        service_date = campus_local.date()
         weekday = service_date.weekday()
         service_day = "saturday" if weekday == 5 else "sunday" if weekday == 6 else "weekday"
         return cls(

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
-from typing import Any
+from datetime import date, timedelta
 
 import pytest
 
@@ -104,33 +103,20 @@ class ScriptedModel:
                 raise value
             return value
         if request.plan.mode in {RouteMode.CAPABILITY, RouteMode.COMPOSITE}:
-            result = request.typed_results[0]["result"]
-            evidence_ids = list(result["evidenceIds"])
-            if result["outcome"] in {"empty", "no_match"}:
-                answer = "No matching shuttle remains in the requested service period."
-                claim = answer
-            else:
-                record = result["records"][0]
-                answer = (
-                    f"{record['route']} leaves {record['departure']['location']} at "
-                    f"{record['departure']['time']} and reaches "
-                    f"{record['matchedDestination']['location']} at "
-                    f"{record['matchedDestination']['time']}."
-                )
-                claim = answer
+            required = request.typed_results[0]["requiredCommunication"]
+            answer = str(required["answer"])
+            evidence_ids = [str(value) for value in required["evidenceIds"]]
             return AnswerDraft(
                 answer=answer,
                 route="standard",
-                claims=[DraftClaim(text=claim, kind=ClaimKind.CAMPUS, evidenceIds=evidence_ids)],
+                claims=[DraftClaim(text=answer, kind=ClaimKind.CAMPUS, evidenceIds=evidence_ids)],
                 citationEvidenceIds=evidence_ids[:1],
                 uiActions=[],
                 suggestedQuestions=[],
             )
         if request.plan.mode == RouteMode.CONVERSATION:
             claim_evidence = next(
-                item["evidenceId"]
-                for item in request.evidence
-                if item["kind"] == "conversation"
+                item["evidenceId"] for item in request.evidence if item["kind"] == "conversation"
             )
             prior = next(
                 item["payload"]["text"]
@@ -184,6 +170,7 @@ class ScriptedModel:
 def shuttle_plan(
     *,
     route: str | None = None,
+    origin: str | None = None,
     destination: str | None = None,
     selection: ShuttleSelection = ShuttleSelection.NEXT,
     scope: ShuttleTimeScope = ShuttleTimeScope.REMAINING,
@@ -196,6 +183,7 @@ def shuttle_plan(
                 name="shuttle",
                 arguments=ShuttleIntent(
                     route=route,
+                    origin=origin,
                     destination=destination,
                     serviceDate=service_date,
                     selection=selection,
@@ -213,16 +201,24 @@ def make_shuttle_response(
     evidence: bool = True,
     route: str = "Route A",
     service_date: date = date(2026, 8, 24),
+    matched_origin: tuple[str, str] = ("Campus", "9:00 AM"),
+    matched_destination: tuple[str, str] = ("GSP", "9:20 AM"),
 ) -> ShuttleResponse:
-    day = "weekday" if service_date.weekday() < 5 else "saturday" if service_date.weekday() == 5 else "sunday"
+    day = (
+        "weekday"
+        if service_date.weekday() < 5
+        else "saturday"
+        if service_date.weekday() == 5
+        else "sunday"
+    )
     evidence_items = (
         [
             DataEvidence(
-                evidenceId="shuttle-source-1",
-                sourceId="transportation",
+                evidence_id="shuttle-source-1",
+                source_id="transportation",
                 title="Official Shuttle Schedule",
                 url="https://www.ramapo.edu/shuttle/",
-                collectedAt="2026-08-24T12:00:00Z",
+                collected_at="2026-08-24T12:00:00Z",
             )
         ]
         if evidence
@@ -232,14 +228,16 @@ def make_shuttle_response(
         [
             ShuttleRecord(
                 route=route,
-                serviceDate=service_date,
-                serviceDay=day,
+                service_date=service_date,
+                service_day=day,
                 departure=ShuttleStop(location="Campus", time="9:00 AM"),
                 stops=[ShuttleStop(location="GSP", time="9:20 AM")],
                 arrival=ShuttleStop(location="Campus", time="9:40 AM"),
-                matchedOrigin=ShuttleStop(location="Campus", time="9:00 AM"),
-                matchedDestination=ShuttleStop(location="GSP", time="9:20 AM"),
-                evidenceIds=["shuttle-source-1"],
+                matched_origin=ShuttleStop(location=matched_origin[0], time=matched_origin[1]),
+                matched_destination=ShuttleStop(
+                    location=matched_destination[0], time=matched_destination[1]
+                ),
+                evidence_ids=["shuttle-source-1"],
             )
         ]
         if records
@@ -255,19 +253,19 @@ def make_shuttle_response(
             limit=8,
             truncated=False,
         ),
-        appliedFilters=ShuttleAppliedFilters(
-            serviceDate=service_date,
-            serviceDay=day,
-            asOf="2026-08-24T13:00:00Z",
+        applied_filters=ShuttleAppliedFilters(
+            service_date=service_date,
+            service_day=day,
+            as_of="2026-08-24T13:00:00Z",
             selection="next",
-            timeScope="remaining",
-            serviceDatesConsidered=[service_date],
+            time_scope="remaining",
+            service_dates_considered=[service_date],
         ),
         ordering=[DataOrdering(field="matchedDestination.time", direction="asc")],
         dataset=DataDataset(
             id="transportation",
             version="release-2026-08-24",
-            activatedAt="2026-08-24T12:00:00Z",
+            activated_at="2026-08-24T12:00:00Z",
         ),
         evidence=evidence_items,
     )

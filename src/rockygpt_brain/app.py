@@ -7,15 +7,15 @@ import contextlib
 import hashlib
 import time
 import uuid
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Annotated, AsyncIterator, Literal
+from datetime import UTC, datetime
+from typing import Annotated, Literal
 
 from fastapi import FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
-from pydantic import StringConstraints
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from rockygpt_brain.brain import Brain, TurnIdentity
@@ -37,7 +37,12 @@ from rockygpt_brain.contracts import (
 from rockygpt_brain.data_client import DataPort, HttpDataV2Client
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.model import ModelPort, OpenAIResponsesModel
-from rockygpt_brain.persistence import InMemoryRepository, Repository
+from rockygpt_brain.persistence import (
+    Repository,
+    ServiceSafeRepository,
+    UnavailableRepository,
+)
+from rockygpt_brain.postgres_repository import PostgresRepository
 from rockygpt_brain.security import (
     SlidingWindowRateLimiter,
     client_identity,
@@ -46,14 +51,13 @@ from rockygpt_brain.security import (
     require_shared_token,
 )
 
-
 ClientKeyHeader = Annotated[
     str | None,
-    Header(alias="x-rockygpt-client-key", max_length=512),
+    Header(alias="x-rockygpt-client-key"),
 ]
 ClientSignatureHeader = Annotated[
     str | None,
-    Header(alias="x-rockygpt-client-signature", max_length=512),
+    Header(alias="x-rockygpt-client-signature"),
 ]
 EnvironmentHeader = Annotated[
     str | None,
@@ -77,7 +81,9 @@ class AppServices:
     feedback_limiter: SlidingWindowRateLimiter
 
 
-def _json(model: object, status_code: int = 200, headers: dict[str, str] | None = None) -> JSONResponse:
+def _json(
+    model: object, status_code: int = 200, headers: dict[str, str] | None = None
+) -> JSONResponse:
     if hasattr(model, "model_dump"):
         content = model.model_dump(mode="json", by_alias=True, exclude_none=True)
     else:
@@ -91,12 +97,12 @@ def _error_response(request_id: str, error: ServiceError) -> JSONResponse:
         headers["Retry-After"] = str(error.retry_after_seconds)
     return _json(
         ErrorResponse(
-            requestId=request_id,
+            request_id=request_id,
             error=ErrorDetail(
                 code=error.code,
                 message=error.public_message,
                 retryable=error.retryable,
-                retryAfterSeconds=error.retry_after_seconds,
+                retry_after_seconds=error.retry_after_seconds,
             ),
         ),
         status_code=error.status_code,
@@ -120,14 +126,19 @@ def create_app(
         api_key=config.secret_value(config.openai_api_key),
         model=config.openai_chat_model,
     )
-    # Tests/local callers inject InMemoryRepository. A configured deployed app is replaced below
-    # by PostgresRepository once its connection is available; never infer another service's schema.
-    repo = repository or InMemoryRepository(
-        recent_turn_limit=config.memory_recent_turns,
-        claim_limit=config.memory_claims,
-        text_retention_days=config.text_retention_days,
-        metadata_retention_days=config.metadata_retention_days,
+    database_url = config.secret_value(config.database_url)
+    repository_backend = repository or (
+        PostgresRepository(
+            database_url,
+            recent_turn_limit=config.memory_recent_turns,
+            claim_limit=config.memory_claims,
+            text_retention_days=config.text_retention_days,
+            metadata_retention_days=config.metadata_retention_days,
+        )
+        if database_url
+        else UnavailableRepository()
     )
+    repo = ServiceSafeRepository(repository_backend)
     brain = Brain(
         model=model_port,
         shuttle=ShuttleCapability(data_port),
@@ -140,9 +151,7 @@ def create_app(
         model=model_port,
         repository=repo,
         brain=brain,
-        chat_limiter=SlidingWindowRateLimiter(
-            config.chat_rate_limit, config.rate_window_seconds
-        ),
+        chat_limiter=SlidingWindowRateLimiter(config.chat_rate_limit, config.rate_window_seconds),
         feedback_limiter=SlidingWindowRateLimiter(
             config.feedback_rate_limit, config.rate_window_seconds
         ),
@@ -151,27 +160,44 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        initialize = getattr(repo, "initialize", None)
-        if initialize is not None:
-            await initialize()
-        await repo.purge_expired()
+        async def initialize_and_purge() -> None:
+            try:
+                initialize = getattr(repository_backend, "initialize", None)
+                if initialize is not None:
+                    await initialize()
+                await repo.purge_expired()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # Dependency startup cannot remove the independent health/readiness surface.
+                # Readiness and functional calls continue to fail closed until storage recovers.
+                app.state.persistence_startup_failed = True
+                return
 
         async def retention_loop() -> None:
             while True:
                 await asyncio.sleep(3600)
-                await repo.purge_expired()
+                try:
+                    await repo.purge_expired()
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    # A transient cleanup fault must not terminate future retention attempts.
+                    app.state.retention_failure_count += 1
 
+        initialization_task = asyncio.create_task(initialize_and_purge())
         retention_task = asyncio.create_task(retention_loop())
         try:
             yield
         finally:
-            retention_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await retention_task
-            for dependency in (data_port, repo):
+            for task in (initialization_task, retention_task):
+                task.cancel()
+            await asyncio.gather(initialization_task, retention_task, return_exceptions=True)
+            for dependency in (data_port, repository_backend):
                 close = getattr(dependency, "close", None)
                 if close is not None:
-                    await close()
+                    with contextlib.suppress(Exception):
+                        await close()
 
     app = FastAPI(
         title="RockyGPT Hybrid V1",
@@ -181,9 +207,14 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.services = services
+    app.state.persistence_startup_failed = False
+    app.state.retention_failure_count = 0
 
     @app.middleware("http")
-    async def request_boundary(request: Request, call_next: object) -> Response:
+    async def request_boundary(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
         request_id = uuid.uuid4().hex
         request.state.request_id = request_id
         if request.method in {"POST", "PUT", "PATCH"}:
@@ -213,7 +244,7 @@ def create_app(
                     request_id,
                     ServiceError(413, "PAYLOAD_TOO_LARGE", "The request body is too large."),
                 )
-        response = await call_next(request)  # type: ignore[operator]
+        response = await call_next(request)
         response.headers["X-Request-Id"] = request_id
         return response
 
@@ -230,10 +261,24 @@ def create_app(
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-        message = "The requested resource was not found."
+        if exc.status_code == 405:
+            return _error_response(
+                request.state.request_id,
+                ServiceError(
+                    405,
+                    "INVALID_REQUEST",
+                    "The request method is not allowed for this resource.",
+                ),
+            )
         return _error_response(
             request.state.request_id,
-            ServiceError(404, "NOT_FOUND", message, retryable=False),
+            ServiceError(
+                exc.status_code if exc.status_code == 404 else 500,
+                "NOT_FOUND" if exc.status_code == 404 else "INTERNAL_ERROR",
+                "The requested resource was not found."
+                if exc.status_code == 404
+                else "An unexpected service error occurred.",
+            ),
         )
 
     @app.exception_handler(Exception)
@@ -275,7 +320,7 @@ def create_app(
         result = Readiness(
             status="unready" if failing else "ready",
             failing=failing or None,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
         return _json(result, status_code=503 if failing else 200)
 
@@ -302,10 +347,10 @@ def create_app(
         hash_key = config.secret_value(config.chat_log_hash_key)
         session_value = body.conversation_id or body.visitor_id or request.state.request_id
         session_id = pseudonymize(session_value, hash_key, "conversation")
-        visitor_id = (
-            pseudonymize(body.visitor_id, hash_key, "visitor") if body.visitor_id else None
-        )
-        rate_key = signed.rate_key if signed.trusted else visitor_id or session_id
+        visitor_id = pseudonymize(body.visitor_id, hash_key, "visitor") if body.visitor_id else None
+        # Unsigned callers share one fail-closed bucket. User-controlled conversation and visitor
+        # identifiers must never mint fresh abuse identities.
+        rate_key = signed.rate_key
         await services.chat_limiter.check(rate_key)
         safety_identifier = hashlib.sha256(rate_key.encode()).hexdigest()
         return await brain.answer(
@@ -329,12 +374,9 @@ def create_app(
         environment_token: EnvironmentHeader = None,
     ) -> FeedbackSuccess:
         check_environment(environment_token)
-        rate_key = pseudonymize(
-            body.request_id,
-            config.secret_value(config.chat_log_hash_key),
-            "feedback-rate",
-        )
-        await services.feedback_limiter.check(rate_key)
+        # Feedback has no authenticated abuse identity in the frozen API, so use a stable shared
+        # bucket instead of the caller-selected request ID.
+        await services.feedback_limiter.check("untrusted:feedback")
         await repo.upsert_feedback(body)
         return FeedbackSuccess()
 
@@ -344,9 +386,7 @@ def create_app(
         async def list_logs(
             authorization: AuthorizationHeader = None,
             environment_token: EnvironmentHeader = None,
-            search: Annotated[
-                str | None, Query(max_length=200)
-            ] = None,
+            search: Annotated[str | None, Query(max_length=200)] = None,
             route: Annotated[str | None, Query(max_length=300)] = None,
             origin: Annotated[str | None, Query(max_length=64)] = None,
             version: Annotated[str | None, Query(max_length=256)] = None,
