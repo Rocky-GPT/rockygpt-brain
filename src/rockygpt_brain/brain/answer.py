@@ -176,7 +176,17 @@ SUBMIT_ANSWER_TOOL_SPEC: dict[str, Any] = {
                     "minLength": 1,
                     "maxLength": MAX_ANSWER_LENGTH,
                 },
-                "route": {"type": "string", "enum": ["standard", "ungrounded"]},
+                "route": {
+                    "type": "string",
+                    "enum": ["standard", "ungrounded"],
+                    "description": (
+                        "'standard' means every campus fact in this answer is "
+                        "backed by a citedSourceId from this turn. Use "
+                        "'ungrounded' for everything else — small talk, "
+                        "general knowledge, questions about you, and any "
+                        "answer you have nothing to cite for."
+                    ),
+                },
                 "citedSourceIds": {
                     "type": "array",
                     "items": {

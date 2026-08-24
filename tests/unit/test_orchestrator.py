@@ -282,3 +282,110 @@ class TestSafetyBypassesModel:
         assert outcome.route == "safety"
         assert "911" in outcome.answer
         assert model_client.calls == []
+
+
+class CountingDataClient:
+    """Records every call that actually reaches the data service, so a
+    deduplicated repeat is distinguishable from one that was re-queried."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def search_clubs(self, **kwargs: object) -> SearchResult:
+        self.calls.append("search_clubs")
+        return SearchResult(
+            dataset=Dataset(id="d1", version="v1", activated_at=datetime(2024, 1, 1, tzinfo=UTC)),
+            records=[
+                {
+                    "name": "Chess Club",
+                    "source": {
+                        "sourceId": "src-1",
+                        "title": "Student Orgs",
+                        "url": "https://archway.ramapo.edu/clubs",
+                    },
+                }
+            ],
+        )
+
+
+class TestRepeatedToolCallsAreDeduplicated:
+    """Models repeat a call verbatim fairly often; each repeat would
+    otherwise be a real round trip to rockygpt-data returning what the
+    turn already has."""
+
+    async def test_identical_repeat_queries_data_service_once(self) -> None:
+        repeated = ModelTurn(
+            content=None,
+            tool_calls=[
+                _tool_call("c1", name="search_clubs", q="chess"),
+                _tool_call("c2", name="search_clubs", q="chess"),
+                _tool_call("c3", name="search_clubs", q="chess"),
+            ],
+        )
+        submit = ModelTurn(content=None, tool_calls=[_submit_call("c4")])
+        data_client = CountingDataClient()
+        outcome = await run_chat_turn(
+            request=_request(), model_client=FakeModelClient([repeated, submit]),
+            data_client=data_client,
+        )
+        assert data_client.calls == ["search_clubs"]
+        # The model still asked three times, and the budget still reflects
+        # that — only the redundant network requests were skipped.
+        assert outcome.tools_invoked == ["search_clubs"] * 3
+        assert [entry.get("cached", False) for entry in outcome.tool_calls_log] == [
+            False,
+            True,
+            True,
+        ]
+
+    async def test_differing_arguments_are_not_deduplicated(self) -> None:
+        distinct = ModelTurn(
+            content=None,
+            tool_calls=[
+                _tool_call("c1", name="search_clubs", q="chess"),
+                _tool_call("c2", name="search_clubs", q="robotics"),
+            ],
+        )
+        submit = ModelTurn(content=None, tool_calls=[_submit_call("c3")])
+        data_client = CountingDataClient()
+        await run_chat_turn(
+            request=_request(), model_client=FakeModelClient([distinct, submit]),
+            data_client=data_client,
+        )
+        assert data_client.calls == ["search_clubs", "search_clubs"]
+
+    async def test_repeat_across_iterations_is_also_deduplicated(self) -> None:
+        call = _tool_call("c1", name="search_clubs", q="chess")
+        again = _tool_call("c2", name="search_clubs", q="chess")
+        submit = ModelTurn(content=None, tool_calls=[_submit_call("c3")])
+        data_client = CountingDataClient()
+        await run_chat_turn(
+            request=_request(),
+            model_client=FakeModelClient([
+                ModelTurn(content=None, tool_calls=[call]),
+                ModelTurn(content=None, tool_calls=[again]),
+                submit,
+            ]),
+            data_client=data_client,
+        )
+        assert data_client.calls == ["search_clubs"]
+
+    async def test_citation_from_a_deduplicated_repeat_still_resolves(self) -> None:
+        """The cached branch skips _summarize, which is what registers
+        provenance — the first execution's registration must still stand."""
+        repeated = ModelTurn(
+            content=None,
+            tool_calls=[
+                _tool_call("c1", name="search_clubs", q="chess"),
+                _tool_call("c2", name="search_clubs", q="chess"),
+            ],
+        )
+        submit = ModelTurn(
+            content=None, tool_calls=[_submit_call("c3", citedSourceIds=["src-1"])]
+        )
+        outcome = await run_chat_turn(
+            request=_request(), model_client=FakeModelClient([repeated, submit]),
+            data_client=CountingDataClient(),
+        )
+        assert outcome.route == "standard"
+        assert [citation.source_id for citation in outcome.citations] == ["src-1"]
