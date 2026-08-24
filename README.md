@@ -12,10 +12,11 @@ QUESTION
   -> answer
 ```
 
-CODE and RAG are the heart of the hybrid design. CODE sends objective shuttle
-questions to structured DATA. RAG sends campus policy and document questions to
-DATA retrieval. MEMORY reads recent process-local turns. GENERAL lets AI #2
-answer non-campus questions. SAFETY supplies a short emergency result.
+CODE and RAG are the heart of the hybrid design. CODE sends objective campus
+questions—menus, hours, contacts, events, programs, maps, and shuttles—to
+structured DATA. RAG sends campus policy and document questions to DATA
+retrieval. MEMORY reads recent process-local turns. GENERAL lets AI #2 answer
+non-campus questions. SAFETY supplies a short emergency result.
 
 There is no agent loop, planner, verifier, repair pass, database, claim ledger,
 or orchestration framework in BASE.
