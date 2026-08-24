@@ -455,7 +455,7 @@ components:
     ChatSuccess:
       type: object
       additionalProperties: false
-      required: [requestId, answer, route, citations, uiActions, suggestedQuestions]
+      required: [requestId, answer, route, citations, uiActions, suggestedQuestions, brainTrace]
       properties:
         requestId:
           $ref: '#/components/schemas/Identifier'
@@ -483,6 +483,21 @@ components:
             type: string
             minLength: 1
             maxLength: 120
+        brainTrace:
+          $ref: '#/components/schemas/BrainTrace'
+    BrainTrace:
+      type: object
+      additionalProperties: false
+      required: [in, out]
+      properties:
+        in:
+          type: object
+          additionalProperties: true
+          description: Structured intent emitted by AI #1.
+        out:
+          type: object
+          additionalProperties: true
+          description: Result JSON Python supplied to AI #2.
     Citation:
       type: object
       additionalProperties: false

@@ -84,6 +84,13 @@ class UiAction(ContractModel):
     payload: dict[str, str] | None = None
 
 
+class BrainTrace(ContractModel):
+    """The structured intent and result at the Python routing boundary."""
+
+    input: dict[str, Any] = Field(alias="in")
+    output: dict[str, Any] = Field(alias="out")
+
+
 class ChatSuccess(ContractModel):
     request_id: Identifier = Field(alias="requestId")
     answer: str = Field(min_length=1)
@@ -93,6 +100,7 @@ class ChatSuccess(ContractModel):
     suggested_questions: list[Annotated[str, StringConstraints(min_length=1, max_length=120)]] = (
         Field(alias="suggestedQuestions", max_length=10)
     )
+    brain_trace: BrainTrace = Field(alias="brainTrace")
 
     @field_validator("answer")
     @classmethod
