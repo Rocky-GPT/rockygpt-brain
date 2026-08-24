@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
@@ -15,7 +15,7 @@ class InternalModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class RouteMode(str, Enum):
+class RouteMode(StrEnum):
     GENERAL = "general"
     CONVERSATION = "conversation"
     CAPABILITY = "capability"
@@ -25,14 +25,14 @@ class RouteMode(str, Enum):
     POLICY = "policy"
 
 
-class ShuttleSelection(str, Enum):
+class ShuttleSelection(StrEnum):
     FIRST = "first"
     NEXT = "next"
     ALL = "all"
     CURRENT = "current"
 
 
-class ShuttleTimeScope(str, Enum):
+class ShuttleTimeScope(StrEnum):
     FULL_DAY = "full_day"
     REMAINING = "remaining"
     AT_TIME = "at_time"
@@ -53,7 +53,7 @@ class ShuttleIntent(InternalModel):
     limit: int | None = Field(default=None, ge=1, le=50)
 
     @model_validator(mode="after")
-    def selection_matches_scope(self) -> "ShuttleIntent":
+    def selection_matches_scope(self) -> ShuttleIntent:
         if self.service_day is not None and self.service_date is None:
             raise ValueError("serviceDay assertions require an explicit serviceDate")
         expected = {
@@ -81,7 +81,7 @@ class RoutePlan(InternalModel):
     clarification: str | None = Field(default=None, max_length=500)
 
     @model_validator(mode="after")
-    def mode_matches_operations(self) -> "RoutePlan":
+    def mode_matches_operations(self) -> RoutePlan:
         uses_capability = self.mode in {RouteMode.CAPABILITY, RouteMode.COMPOSITE}
         if uses_capability and not self.operations:
             raise ValueError("capability and composite plans require an operation")
@@ -92,7 +92,7 @@ class RoutePlan(InternalModel):
         return self
 
 
-class ClaimKind(str, Enum):
+class ClaimKind(StrEnum):
     CAMPUS = "campus"
     CONVERSATION = "conversation"
     GENERAL = "general"

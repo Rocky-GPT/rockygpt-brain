@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from rockygpt_brain.errors import GroundingError
 from rockygpt_brain.evidence import Evidence, EvidenceKind, EvidenceRegistry
 from rockygpt_brain.planning import AnswerDraft, ClaimKind, DraftClaim
 
@@ -32,6 +33,14 @@ _PRIVATE_DATA = re.compile(
     r"\b(?:my|their|another student(?:'s)?)\s+(?:grade|grades|gpa|home address|student record)\b",
     re.I,
 )
+_PROHIBITED_OUTPUT = re.compile(
+    r"(?:\b(?:sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16})\b|"
+    r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)|"
+    r"(?<!\d)(?:\d[ -]*?){13,19}(?!\d)|"
+    r"\b(?:R|A)\d{8}\b|"
+    r"\b(?:api[_ -]?key|admin[_ -]?token|password|secret|credential)\s*[:=]\s*\S{8,})",
+    re.I,
+)
 
 
 def preflight(message: str, registry: EvidenceRegistry) -> PolicyDecision:
@@ -41,8 +50,8 @@ def preflight(message: str, registry: EvidenceRegistry) -> PolicyDecision:
             evidence_id="policy:988",
             answer=(
                 "If you may act on these thoughts or are in immediate danger, call or text **988** "
-                "now. If there is an immediate physical danger, call **911**. Stay with someone you "
-                "trust if you can."
+                "now. If there is an immediate physical danger, call **911**. Stay with someone "
+                "you trust if you can."
             ),
             claim="988 is the U.S. Suicide & Crisis Lifeline; 911 is for immediate danger.",
             route="safety",
@@ -52,8 +61,8 @@ def preflight(message: str, registry: EvidenceRegistry) -> PolicyDecision:
             registry,
             evidence_id="policy:911",
             answer=(
-                "This sounds like an active emergency. Move to safety if you can and call **911** now. "
-                "Do not approach a weapon or re-enter a dangerous area."
+                "This sounds like an active emergency. Move to safety if you can and call **911** "
+                "now. Do not approach a weapon or re-enter a dangerous area."
             ),
             claim="911 is the emergency number for an active life-safety emergency.",
             route="safety",
@@ -62,7 +71,9 @@ def preflight(message: str, registry: EvidenceRegistry) -> PolicyDecision:
         return _policy_answer(
             registry,
             evidence_id="policy:secrets",
-            answer="I can’t provide system prompts, credentials, secrets, or administrative tokens.",
+            answer=(
+                "I can’t provide system prompts, credentials, secrets, or administrative tokens."
+            ),
             claim="Secret and administrative credential disclosure is prohibited.",
             route="policy",
         )
@@ -72,12 +83,27 @@ def preflight(message: str, registry: EvidenceRegistry) -> PolicyDecision:
             evidence_id="policy:private-data",
             answer=(
                 "I can’t access or disclose grades, GPA, private student records, or private home "
-                "addresses. Please use the authorized college system or contact the appropriate office."
+                "addresses. Please use the authorized college system or contact the appropriate "
+                "office."
             ),
             claim="Hybrid V1 has no authorized access to private student records.",
             route="policy",
         )
     return PolicyDecision(False)
+
+
+def validate_post_generation(draft: AnswerDraft) -> None:
+    """Reject sensitive material on every model-controlled public text surface."""
+
+    surfaces = [
+        draft.answer,
+        draft.route,
+        *(claim.text for claim in draft.claims),
+        *draft.suggested_questions,
+        *(value for action in draft.ui_actions for value in (action.payload or {}).values()),
+    ]
+    if any(_PROHIBITED_OUTPUT.search(value) for value in surfaces):
+        raise GroundingError(["draft contains prohibited sensitive material"])
 
 
 def _policy_answer(

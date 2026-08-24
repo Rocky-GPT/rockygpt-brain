@@ -61,7 +61,9 @@ then.
 - `model`: stateless OpenAI Responses API adapter using strict JSON-schema output
   and `store=false`.
 - `memory`: bounded recent turns, assistant-claim ledger, entity/correction state.
-- `persistence`: brain-owned PostgreSQL logs, feedback, retention, and memory.
+- `persistence`: the small repository protocol and deterministic in-memory test backend.
+- `postgres_repository`: brain-owned PostgreSQL logs, feedback, retention, evidence,
+  and derived server memory.
 - `policy`: deterministic emergency, privacy, secret, and output checks.
 
 The external response shape, admin log shape, and persistence schema are edge
@@ -114,8 +116,10 @@ One immutable `TimeContext` is created at request start from the optional pinned
 `now`, the requested IANA timezone, and the campus timezone
 `America/New_York`. `now` fixes the instant. The validated request timezone is
 authoritative for interpreting relative dates such as today and tomorrow;
-published schedule clock times and next/current comparisons use the campus
-timezone at that same instant. `serviceDay` is derived only from `serviceDate`,
+an unqualified next/current query defaults to the campus-local date. Published
+schedule clock times and next/current comparisons use the campus timezone at
+that same instant, including the immediately prior service date when an upcoming
+cross-midnight pickup requires it. `serviceDay` is derived only from `serviceDate`,
 and a supplied inconsistent pair is rejected. DATA owns schedule parsing,
 DST-aware local comparison, cross-midnight behavior, and half-open opening
 intervals. Different operations never call their own wall clocks.
@@ -132,12 +136,20 @@ neither identifier grants authorization. It contains:
 User corrections remain user claims until independently verified. Sensitive
 facts are not promoted to durable entity memory. The server-owned claim ledger
 outranks client-supplied history; the last ten client history entries are only a
-bounded fallback and can never overwrite durable state. A successful response,
+bounded fallback and can never overwrite durable state. AI #1 may select only
+exact claim/request IDs from that ledger for AI #2; when it omits a reference,
+Python exposes only the latest claim. Conversation drafts must reproduce the
+selected statement or name a source linked to the same turn. A successful response,
 its evidence snapshot, and its memory update commit together. Failed accepted
 attempts record only redacted operational/error metadata and never change
 conversational state. Concurrent updates use database transactions and
 monotonically ordered turns. Question, answer, and claim text expires within 30
 days; feedback and non-text operational metadata expires within 90 days.
+
+A caller resets conversational memory by starting with a new `conversationId`;
+there is no implicit model-controlled reset. When `conversationId` is omitted,
+`visitorId` is the fallback session correlation key, and omitting both creates a
+fresh request-scoped session.
 
 ## External API and security
 
@@ -154,6 +166,9 @@ by the normative checked-in specification. Readiness checks local model
 configuration presence as well as required DATA/database dependencies without a
 live model call. Staging environment tokens, admin bearer authentication, and
 constant-time signed-client verification are compatibility requirements.
+Unsigned callers share stable fail-closed rate buckets; user-chosen visitor,
+conversation, and feedback IDs cannot mint new buckets. The in-process limiter
+also bounds and expires its key map.
 
 All capabilities are public and read-only. Grades, GPA, private student data,
 private addresses, secrets, and account actions are unsupported. Active fire,
@@ -165,7 +180,7 @@ informational safety questions do not.
 - overall brain deadline: 55 seconds (below the UI's 60-second timeout)
 - validation, identity, policy preflight, and compatibility projection: 2 seconds
 - routing including its single repair attempt: 8 seconds total
-- at most four parallel DATA capability/retrieval operations, including one safe
+- at most four bounded DATA capability/retrieval operations, including one safe
   transient retry: 5 seconds total
 - drafting including its single grounding correction attempt: 24 seconds total
 - deterministic grounding and output-policy verification: 2 seconds

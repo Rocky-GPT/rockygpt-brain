@@ -70,7 +70,7 @@ class Settings(BaseSettings):
         return value.rstrip("/")
 
     @model_validator(mode="after")
-    def validate_environment_secrets(self) -> "Settings":
+    def validate_environment_secrets(self) -> Settings:
         if self.admin_enabled is None:
             self.admin_enabled = self.app_env in {"development", "test", "staging"}
         if self.app_env in {"staging", "production"}:

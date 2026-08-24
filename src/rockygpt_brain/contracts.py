@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Any, Literal
 
 from pydantic import (
@@ -70,7 +70,7 @@ class Citation(ContractModel):
     collected_at: datetime | None = Field(default=None, alias="collectedAt")
 
 
-class UiActionType(str, Enum):
+class UiActionType(StrEnum):
     VIEW_MENU = "VIEW_MENU"
     VIEW_BUS = "VIEW_BUS"
     VIEW_PRINT = "VIEW_PRINT"

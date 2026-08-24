@@ -8,7 +8,7 @@ import hmac
 import re
 import secrets
 import time
-from collections import defaultdict, deque
+from collections import OrderedDict, deque
 from dataclasses import dataclass
 
 from rockygpt_brain.errors import ServiceError
@@ -30,7 +30,13 @@ def require_admin_bearer(authorization: str | None, configured: str | None) -> N
 
 
 def verify_signed_client(client_key: str | None, signature: str | None, secret: str | None) -> bool:
-    if not client_key or not signature or not secret or len(signature) != 64:
+    if (
+        not client_key
+        or not signature
+        or not secret
+        or len(client_key) > 512
+        or len(signature) != 64
+    ):
         return False
     try:
         bytes.fromhex(signature)
@@ -78,7 +84,9 @@ class ClientIdentity:
     trusted: bool
 
 
-def client_identity(client_key: str | None, signature: str | None, abuse_secret: str | None) -> ClientIdentity:
+def client_identity(
+    client_key: str | None, signature: str | None, abuse_secret: str | None
+) -> ClientIdentity:
     trusted = verify_signed_client(client_key, signature, abuse_secret)
     if trusted and client_key:
         # This digest is process-only and is never persisted.
@@ -87,16 +95,32 @@ def client_identity(client_key: str | None, signature: str | None, abuse_secret:
 
 
 class SlidingWindowRateLimiter:
-    def __init__(self, limit: int, window_seconds: int) -> None:
+    def __init__(self, limit: int, window_seconds: int, *, max_keys: int = 10_000) -> None:
+        if limit < 1 or window_seconds < 1 or max_keys < 1:
+            raise ValueError("rate limiter bounds must be positive")
         self._limit = limit
         self._window = float(window_seconds)
-        self._events: dict[str, deque[float]] = defaultdict(deque)
+        self._max_keys = max_keys
+        self._events: OrderedDict[str, deque[float]] = OrderedDict()
         self._lock = asyncio.Lock()
 
     async def check(self, key: str) -> None:
         now = time.monotonic()
         async with self._lock:
-            events = self._events[key]
+            # OrderedDict order follows the most recent event. Expired buckets can therefore be
+            # removed from the oldest edge without scanning attacker-controlled cardinality.
+            while self._events:
+                _, oldest = next(iter(self._events.items()))
+                if oldest and now - oldest[-1] < self._window:
+                    break
+                self._events.popitem(last=False)
+
+            events = self._events.get(key)
+            if events is None:
+                if len(self._events) >= self._max_keys:
+                    self._events.popitem(last=False)
+                events = deque()
+                self._events[key] = events
             while events and now - events[0] >= self._window:
                 events.popleft()
             if len(events) >= self._limit:
@@ -109,3 +133,4 @@ class SlidingWindowRateLimiter:
                     retry_after_seconds=retry,
                 )
             events.append(now)
+            self._events.move_to_end(key)

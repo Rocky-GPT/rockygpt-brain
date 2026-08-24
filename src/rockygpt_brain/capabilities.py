@@ -7,8 +7,8 @@ from datetime import date
 from typing import Any
 
 from rockygpt_brain.data_client import DataPort, ShuttleQuery
-from rockygpt_brain.evidence import Evidence, EvidenceKind, EvidenceRegistry
 from rockygpt_brain.errors import GroundingError
+from rockygpt_brain.evidence import Evidence, EvidenceKind, EvidenceRegistry
 from rockygpt_brain.planning import AnswerDraft, ClaimKind, ShuttleIntent
 from rockygpt_brain.time_context import TimeContext
 
@@ -70,11 +70,11 @@ class ShuttleCapability:
             route=intent.route,
             origin=intent.origin,
             destination=intent.destination,
-            serviceDate=service_date,
-            serviceDay=derived_day,
-            asOf=time.instant,
+            service_date=service_date,
+            service_day=derived_day,
+            as_of=time.instant,
             selection=intent.selection,
-            timeScope=intent.time_scope,
+            time_scope=intent.time_scope,
             limit=intent.limit,
         )
         response = await self._data.query_shuttle(query)
@@ -117,7 +117,7 @@ def shuttle_communication(result: CapabilityResult) -> ShuttleCommunication:
         lines: list[str] = []
         evidence_ids: list[str] = []
         for record in result.records:
-            departure = record["departure"]
+            departure = record["matchedOrigin"]
             destination = record["matchedDestination"]
             lines.append(
                 f"{record['route']} leaves {departure['location']} at {departure['time']} "
@@ -141,12 +141,22 @@ def shuttle_communication(result: CapabilityResult) -> ShuttleCommunication:
     return ShuttleCommunication(answer=answer, evidence_ids=tuple(dict.fromkeys(evidence_ids)))
 
 
+def combined_shuttle_communication(results: list[CapabilityResult]) -> ShuttleCommunication:
+    projections = [shuttle_communication(result) for result in results if result.name == "shuttle"]
+    return ShuttleCommunication(
+        answer="\n\n".join(item.answer for item in projections),
+        evidence_ids=tuple(
+            dict.fromkeys(evidence_id for item in projections for evidence_id in item.evidence_ids)
+        ),
+    )
+
+
 def validate_shuttle_communication(
     draft: AnswerDraft,
-    result: CapabilityResult,
+    results: list[CapabilityResult],
     registry: EvidenceRegistry,
 ) -> None:
-    required = shuttle_communication(result)
+    required = combined_shuttle_communication(results)
     reasons: list[str] = []
     if draft.answer != required.answer:
         reasons.append("shuttle answer must exactly render the CODE projection")

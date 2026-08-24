@@ -62,7 +62,11 @@ until PostgreSQL and DATA are reachable and the model key/name are configured.
 
 ## Persistence
 
-The deployment must provision a brain-owned schema before chat is promoted.
+The deployment credential must be allowed to create and use only the
+`rockygpt_brain` schema. The repository initializes its idempotent tables and
+indexes in supervised startup work. A database failure does not prevent the
+process or `/health` from starting; `/readiness` remains 503 and functional
+storage-backed routes fail with a retryable safe 503 until PostgreSQL recovers.
 Successful chat response, memory updates, and durable evidence/source snapshots
 commit atomically. This ensures feedback can refer to the returned request ID and
 later conversation-truth turns can recover the exact source/version context.
@@ -76,17 +80,19 @@ Retention jobs enforce:
 - 30 days maximum for redacted question, answer, and claim text;
 - 90 days maximum for redacted feedback and non-text operational metadata.
 
-The exact migration command, cleanup scheduler, and multi-instance SSE/log
-notification mechanism remain implementation choices and must be documented
-once the runtime is present. Deployment must not assume startup-created tables
-or a particular table layout.
+The application runs retention cleanup at startup and hourly. Log/SSE change
+watermarks use a durable PostgreSQL version plus bounded polling, so multiple
+instances observe each other's commits without sharing process memory. Future
+schema changes require forward migrations; do not drop or rewrite the existing
+brain schema during deploy or rollback.
 
 ## Security boundaries
 
 - Probes remain public; functional staging routes require the environment token.
 - Admin routes require bearer authentication and are not registered as public
   production functionality.
-- Invalid signed-client input falls back to an untrusted ephemeral identity.
+- Invalid signed-client input falls back to a stable shared fail-closed abuse
+  bucket. Caller-provided correlation IDs never become rate-limit identities.
 - Raw IPs, raw visitor/conversation IDs, abuse keys, prompts, and secrets are not
   written to application or operational logs.
 - DATA access is HTTP-only through `DATA_URL`; the brain never reads DATA tables.

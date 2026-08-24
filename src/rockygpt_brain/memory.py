@@ -2,11 +2,40 @@
 
 from __future__ import annotations
 
+import hashlib
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 from rockygpt_brain.evidence import Evidence, EvidenceKind, EvidenceRegistry
+
+
+_RECALL_MARKERS = (
+    "what did you tell me",
+    "what did you say",
+    "what time did you tell me",
+    "what source supported",
+    "what source did you use",
+    "earlier answer",
+    "previous answer",
+    "last answer",
+    "you told me",
+    "you said",
+)
+_CURRENT_TRUTH = re.compile(
+    r"\b(?:still accurate|currently true|current answer|right now|changed since|up to date)\b",
+    re.I,
+)
+
+
+def is_conversation_recall(message: str) -> bool:
+    """Recognize high-confidence ledger questions that must not become campus queries."""
+
+    lowered = message.casefold()
+    return any(marker in lowered for marker in _RECALL_MARKERS) and not _CURRENT_TRUTH.search(
+        message
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +63,33 @@ class MemorySnapshot:
     entities: tuple[dict[str, Any], ...] = ()
     corrections: tuple[dict[str, Any], ...] = ()
     historical_evidence: tuple[dict[str, Any], ...] = ()
+
+    def select_for_communication(self, context_references: list[str]) -> MemorySnapshot:
+        """Expose only the ledger claims selected by AI #1, defaulting to the latest."""
+
+        if context_references:
+            references = set(context_references)
+            selected = tuple(
+                claim
+                for claim in self.claims
+                if claim.claim_id in references or claim.request_id in references
+            )
+        else:
+            selected = self.claims[-1:]
+        request_ids = {claim.request_id for claim in selected}
+        return MemorySnapshot(
+            recent_turns=tuple(
+                turn for turn in self.recent_turns if turn.request_id in request_ids
+            ),
+            claims=selected,
+            entities=(),
+            corrections=(),
+            historical_evidence=tuple(
+                item
+                for item in self.historical_evidence
+                if str(item.get("turnRequestId", "")) in request_ids
+            ),
+        )
 
     def prompt_payload(self) -> dict[str, Any]:
         return {
@@ -71,7 +127,8 @@ class MemorySnapshot:
         for item in self.historical_evidence:
             turn_id = str(item.get("turnRequestId", "unknown"))
             original_id = str(item.get("evidenceId", "unknown"))
-            historical_id = f"historical:{turn_id}:{original_id}"
+            digest = hashlib.sha256(f"{turn_id}\0{original_id}".encode()).hexdigest()
+            historical_id = f"historical:{digest}"
             history_by_turn.setdefault(turn_id, []).append(historical_id)
             registry.register(
                 Evidence(

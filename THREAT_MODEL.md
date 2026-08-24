@@ -57,9 +57,10 @@ for deterministic emergency and privacy responses.
 - Admin routes independently require a bearer token and are not exposed as
   public production functionality.
 - A client key is trusted only after constant-time HMAC-SHA256 verification with
-  `ABUSE_HASH_KEY`. Missing/invalid signatures receive an untrusted ephemeral
-  identity and cannot select another caller's state.
-- Visitor/conversation IDs are opaque correlation inputs, not authorization.
+  `ABUSE_HASH_KEY`. Missing/invalid signatures share a stable fail-closed abuse
+  bucket, so rotating caller-controlled IDs cannot bypass the limiter.
+- Visitor/conversation IDs are high-entropy opaque correlation inputs, not
+  authentication or authorization. No private capability relies on them.
 
 ### Sensitive data at rest or in telemetry
 
@@ -104,6 +105,8 @@ Redaction is heuristic defense in depth; bounded retention is the backstop.
   student data, grades/GPA, private addresses, and unauthorized actions.
 - RAG text and user content cannot alter the dispatcher allowlist or policy.
 - Post-generation grounding and output policy treat AI #2 text as untrusted.
+  Credential-, SSN-, payment-, and student-ID-like output is rejected before it
+  reaches the client; a second invalid draft becomes a fixed safe response.
 - Active fire, weapon use, unconsciousness, and suicidal intent take
   deterministic emergency paths; informational safety questions remain normal
   evidence-backed requests.
@@ -117,6 +120,8 @@ Redaction is heuristic defense in depth; bounded retention is the backstop.
   55-second overall deadline; retries occur only when the remaining budget can
   still produce a valid response.
 - Rate-limit failures use the frozen 429 envelope and numeric `Retry-After`.
+- Process-local rate-limit key state is bounded and expired; unsigned chat and
+  feedback use shared fail-closed buckets rather than caller-selected IDs.
 - Readiness stays under three seconds, checks database and DATA reachability, and
   verifies required model configuration without a paid/live model call.
 
@@ -125,8 +130,9 @@ Redaction is heuristic defense in depth; bounded retention is the backstop.
 - OpenAI still processes prompt content even with Responses API `store=false`;
   provider-side handling remains an external dependency risk.
 - Free-text redaction and emergency classification cannot be perfect.
-- The shared-store strategy for rate limiting, SSE fan-out, and log-change
-  notification must be finalized before horizontal scaling.
-- Database migration, retention scheduling, graceful-shutdown draining, and
-  encrypted backup procedures depend on the chosen deployment platform and must
-  be documented before promotion.
+- Rate limiting is process-local in this milestone and therefore must move to a
+  shared store before horizontal scaling. Log/SSE change notification already
+  uses a durable PostgreSQL watermark with bounded polling.
+- Forward database migrations and encrypted backup procedures depend on the
+  deployment platform and must be documented before promotion. Retention runs
+  at startup and hourly; graceful shutdown closes DATA and PostgreSQL clients.
