@@ -40,8 +40,10 @@ from rockygpt_brain.brain.answer import (
     SUBMIT_ANSWER_TOOL_NAME,
     SUBMIT_ANSWER_TOOL_SPEC,
     SubmitAnswerArguments,
-    parse_submit_answer,
+    parse_submit_answer_diagnosed,
 )
+from rockygpt_brain.brain.conversation_state import record_for
+from rockygpt_brain.brain.discourse import DiscourseRecord, render_discourse
 from rockygpt_brain.brain.grounding import ProvenanceRegistry
 from rockygpt_brain.brain.model_client import ModelClient
 from rockygpt_brain.brain.prompts import build_system_prompt
@@ -88,6 +90,28 @@ def _tool_log_name(name: str) -> str:
     return name if name in _KNOWN_TOOL_NAMES else "unknown"
 
 
+# Why a turn ended in the canned apology. A fixed vocabulary — these strings
+# are literals in this module, never model- or user-supplied text — so they can
+# be persisted and read back through the operator channel without widening what
+# is retained about a conversation.
+FallbackReason = str
+_NO_TOOL_CALLS = "no_tool_calls"
+_FORCED_SUBMIT_REFUSED = "forced_submit_refused"
+_DUPLICATE_CALL_ID = "duplicate_call_id"
+_BUDGET_EXCEEDED = "budget_exceeded"
+_AMBIGUOUS_SUBMIT_BATCH = "ambiguous_submit_batch"
+# Two very different failures used to share one label. A submission whose
+# arguments do not validate is a formatting problem; a submission citing a
+# sourceId this turn never produced is a grounding problem with its own
+# deliberate, security-relevant handling (THREAT_MODEL 3.4). Telling them apart
+# is the whole point of the trace.
+_SUBMIT_MALFORMED = "submit_malformed"
+_SUBMIT_CITATION_UNRESOLVED = "submit_citation_unresolved"
+_TRANSCRIPT_TOO_LARGE = "transcript_too_large"
+_ITERATIONS_EXHAUSTED = "iterations_exhausted"
+_DEADLINE = "deadline"
+
+
 @dataclass(slots=True)
 class ChatOutcome:
     answer: str
@@ -127,10 +151,15 @@ async def _run_grounded_turn(
 ) -> ChatOutcome:
     time_context = resolve_time_context(now=request.now, timezone_name=request.timezone)
     registry = ProvenanceRegistry()
+    # The record outlives the client's ten-entry history window, so a fact from
+    # six exchanges ago is still answerable even though the raw turn that
+    # carried it is long gone from the request (brain/conversation_state.py).
+    discourse = record_for(request.visitor_id, request.conversation_id)
     system_prompt = build_system_prompt(
         time_context=time_context,
         style_mode=request.style_mode,
         response_mode=request.response_mode,
+        discourse=render_discourse(discourse) if discourse is not None else None,
     )
 
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
@@ -153,6 +182,7 @@ async def _run_grounded_turn(
     # identical request. Scoped to this turn only -- never across
     # requests, where the underlying campus data may well have changed.
     tool_result_cache: dict[tuple[str, str], dict[str, Any]] = {}
+    fallback_reason: FallbackReason = _ITERATIONS_EXHAUSTED
 
     for iteration in range(MAX_TOOL_ITERATIONS):
         # Reserve the final slot: force submit_answer once only one slot of
@@ -179,22 +209,27 @@ async def _run_grounded_turn(
             # rather than around it. Only a model that still refuses the
             # tool, or a turn that is already forced, falls back.
             if force_final or not model_turn.content:
+                fallback_reason = _NO_TOOL_CALLS
                 break
             messages.append({"role": "assistant", "content": model_turn.content})
             model_turn = await model_client.complete(
                 messages=messages, tools=tools, force_tool=SUBMIT_ANSWER_TOOL_NAME
             )
             if not model_turn.tool_calls:
+                fallback_reason = _FORCED_SUBMIT_REFUSED
                 break
 
         call_ids = [call.id for call in model_turn.tool_calls]
         if len(call_ids) != len(set(call_ids)) or seen_call_ids.intersection(call_ids):
-            break  # duplicate tool-call id, within this batch or vs. an earlier one
+            # duplicate tool-call id, within this batch or vs. an earlier one
+            fallback_reason = _DUPLICATE_CALL_ID
+            break
 
         # Absolute, exception-free budget: every batch, submit_answer
         # included, must fit what's left of MAX_TOTAL_TOOL_CALLS.
         remaining_budget = MAX_TOTAL_TOOL_CALLS - total_tool_calls
         if len(model_turn.tool_calls) > remaining_budget:
+            fallback_reason = _BUDGET_EXCEEDED
             break
 
         seen_call_ids.update(call_ids)
@@ -208,16 +243,19 @@ async def _run_grounded_turn(
             # submit_answer calls, or submit_answer mixed with data calls,
             # is an ambiguous/conflicting turn, not something to arbitrate.
             if len(submit_calls) > 1 or len(model_turn.tool_calls) > 1:
+                fallback_reason = _AMBIGUOUS_SUBMIT_BATCH
                 break
-            outcome = _try_finalize(
+            outcome, reason = _try_finalize(
                 submit_calls[0],
                 registry=registry,
                 tools_invoked=tools_invoked,
                 tool_calls_log=tool_calls_log,
             )
             if outcome is not None:
+                _remember(discourse, request.message, outcome)
                 return outcome
-            break  # malformed arguments or an unresolved citedSourceId
+            fallback_reason = reason or _SUBMIT_MALFORMED
+            break
 
         messages.append(
             {
@@ -284,9 +322,39 @@ async def _run_grounded_turn(
             )
 
         if _transcript_size(messages) > MAX_TRANSCRIPT_BYTES:
+            fallback_reason = _TRANSCRIPT_TOO_LARGE
             break
 
-    return _fallback_outcome(tools_invoked=tools_invoked, tool_calls_log=tool_calls_log)
+    fallback = _fallback_outcome(
+        tools_invoked=tools_invoked,
+        tool_calls_log=tool_calls_log,
+        reason=fallback_reason,
+        discourse_turns=len(discourse.spoken) if discourse is not None else 0,
+    )
+    _remember(discourse, request.message, fallback)
+    return fallback
+
+
+def _remember(
+    discourse: DiscourseRecord | None, question: str, outcome: ChatOutcome
+) -> None:
+    """Note what the student was told, once the turn is settled.
+
+    A fallback is recorded as *withheld* rather than as an answer, so a later
+    recap cannot promote "I could not put that together" into a fact Rocky
+    never stated. Only the answer text reaches the record — never a tool
+    result, and never a citation — so no campus claim can enter the discourse
+    path and be mistaken for something that was said.
+    """
+    if discourse is None:
+        return
+    withheld = bool(outcome.debug_info.get("fallback"))
+    discourse.record(
+        question=question,
+        answer="" if withheld else outcome.answer,
+        withheld=withheld,
+        entities=tuple(dict.fromkeys(outcome.tools_invoked)),
+    )
 
 
 def _transcript_size(messages: list[dict[str, Any]]) -> int:
@@ -326,19 +394,25 @@ def _try_finalize(
     registry: ProvenanceRegistry,
     tools_invoked: list[str],
     tool_calls_log: list[dict[str, Any]],
-) -> ChatOutcome | None:
-    parsed = parse_submit_answer(submit_call.arguments_json)
+) -> tuple[ChatOutcome | None, FallbackReason | None]:
+    parsed, defect = parse_submit_answer_diagnosed(submit_call.arguments_json)
     if parsed is None:
-        return None
+        return None, f"{_SUBMIT_MALFORMED}:{defect}"
     citations = registry.resolve(parsed.cited_source_ids)
     if citations is None:
         # A citedSourceId that this turn's tools never actually produced:
-        # fail the whole answer rather than silently dropping it and
-        # returning a still-"standard"-routed answer with fewer citations
-        # than the model claimed.
-        return None
-    return _finalize(
-        parsed, citations=citations, tools_invoked=tools_invoked, tool_calls_log=tool_calls_log
+        # fail the whole answer rather than silently dropping it and returning
+        # a still-"standard"-routed answer with fewer citations than the model
+        # claimed. Deliberate, and unchanged (THREAT_MODEL 3.4).
+        return None, _SUBMIT_CITATION_UNRESOLVED
+    return (
+        _finalize(
+            parsed,
+            citations=citations,
+            tools_invoked=tools_invoked,
+            tool_calls_log=tool_calls_log,
+        ),
+        None,
     )
 
 
@@ -356,6 +430,11 @@ def _finalize(
     # opposite (promoting an uncited answer to "standard") is the one that
     # would overstate what the brain checked. brain/answer.py already
     # rejects the mirror case, "ungrounded" carrying citations.
+    # "standard" is what the UI presents as a verified campus answer, so an
+    # answer with nothing to cite is downgraded. "conversation" is left alone:
+    # it is *expected* to carry no citations, because the record of what was
+    # said is not a campus source, and downgrading it to "ungrounded" would
+    # relabel a verified recollection as something that could not be verified.
     route = "ungrounded" if parsed.route == "standard" and not citations else parsed.route
     return ChatOutcome(
         answer=parsed.answer_markdown,
@@ -365,12 +444,16 @@ def _finalize(
         suggested_questions=list(parsed.suggested_questions),
         tools_invoked=tools_invoked,
         tool_calls_log=tool_calls_log,
-        debug_info={"tool_call_count": len(tool_calls_log)},
+        debug_info={"tool_call_count": len(tool_calls_log), "route_submitted": parsed.route},
     )
 
 
 def _fallback_outcome(
-    *, tools_invoked: list[str], tool_calls_log: list[dict[str, Any]]
+    *,
+    tools_invoked: list[str],
+    tool_calls_log: list[dict[str, Any]],
+    reason: FallbackReason = _DEADLINE,
+    discourse_turns: int = 0,
 ) -> ChatOutcome:
     return ChatOutcome(
         answer=FALLBACK_ANSWER,
@@ -380,7 +463,15 @@ def _fallback_outcome(
         suggested_questions=[],
         tools_invoked=tools_invoked,
         tool_calls_log=tool_calls_log,
-        debug_info={"fallback": True, "tool_call_count": len(tool_calls_log)},
+        debug_info={
+            "fallback": True,
+            "tool_call_count": len(tool_calls_log),
+            # Which branch ended the turn, from a fixed vocabulary defined in
+            # this module. Enough to tell a refused submission from an
+            # exhausted budget without retaining anything about the message.
+            "fallback_reason": reason,
+            "discourse_turns": discourse_turns,
+        },
     )
 
 
