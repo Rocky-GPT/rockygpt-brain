@@ -10,7 +10,7 @@ from typing import Any, Literal, Protocol, TypeVar
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
-from rockygpt_brain.contracts import ChatTurn
+from rockygpt_brain.api.contracts import ChatTurn
 from rockygpt_brain.errors import ServiceError
 
 

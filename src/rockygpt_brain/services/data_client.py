@@ -7,8 +7,8 @@ from typing import Any, Protocol
 
 import httpx
 
+from rockygpt_brain.core.model import Intent
 from rockygpt_brain.errors import ServiceError
-from rockygpt_brain.model import Intent
 
 
 class DataPort(Protocol):
