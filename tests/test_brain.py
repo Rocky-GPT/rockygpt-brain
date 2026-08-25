@@ -110,7 +110,7 @@ async def test_the_planner_is_told_the_same_question_and_time() -> None:
     assert planner.seen["currentTime"] == NOW.astimezone(TZ).isoformat()
 
 
-async def test_the_checked_plan_is_what_rocky_was_given() -> None:
+async def test_the_plan_is_its_own_stage() -> None:
     plan = Plan(
         lane=Lane.CODE,
         capability="shuttle",
@@ -118,7 +118,7 @@ async def test_the_checked_plan_is_what_rocky_was_given() -> None:
         operation=Operation(order_by="departureTime", direction="descending", limit=1),
     )
     response, _ = await ask(planner=FakePlanner(plan))
-    assert response.brain_trace.input["plan"] == {
+    assert response.brain_trace.plan == {
         "lane": "CODE",
         "capability": "shuttle",
         "filters": {"date": "2031-03-06"},
@@ -126,10 +126,24 @@ async def test_the_checked_plan_is_what_rocky_was_given() -> None:
     }
 
 
-async def test_the_answer_is_all_that_comes_out() -> None:
-    """Nothing executes a plan yet, so OUT is the answer and nothing else."""
-    response, _ = await ask()
-    assert response.brain_trace.output == {"answer": "written"}
+async def test_the_turn_reads_end_to_end_as_four_stages() -> None:
+    response, _ = await ask("a question")
+    trace = response.brain_trace
+    assert trace.question["question"] == "a question"
+    assert trace.plan == {"lane": "GENERAL"}
+    assert trace.execution == {
+        "lane": "GENERAL",
+        "ran": False,
+        "note": "no executor for the GENERAL lane yet",
+    }
+    assert trace.answer == {"answer": "written"}
+
+
+async def test_the_middle_stage_says_which_lane_would_have_run() -> None:
+    """A turn answered from the model's own knowledge must not look looked-up."""
+    response, _ = await ask(planner=FakePlanner(Plan(lane=Lane.RAG, topic="parking")))
+    assert response.brain_trace.execution["lane"] == "RAG"
+    assert response.brain_trace.execution["ran"] is False
 
 
 async def test_the_route_is_the_lane() -> None:
@@ -141,10 +155,10 @@ async def test_a_rejected_plan_says_why_and_still_answers() -> None:
     response, _ = await ask(planner=FakePlanner(Plan(lane=Lane.CODE, capability="weather")))
     assert response.answer == "written"
     assert response.route == "general"
-    assert "weather" in response.brain_trace.input["plan"]["rejected"]
+    assert "weather" in response.brain_trace.plan["rejected"]
 
 
 async def test_a_planner_outage_costs_the_plan_not_the_answer() -> None:
     response, _ = await ask(planner=FakePlanner(fails=True))
     assert response.answer == "written"
-    assert response.brain_trace.input["plan"] == {"rejected": "the planner was unavailable"}
+    assert response.brain_trace.plan == {"rejected": "the planner was unavailable"}

@@ -1,22 +1,20 @@
 """One request, start to finish.
 
-    question in -> plan it, answer it -> answer out
+    the question
+        -> BRAIN #1  understand it, and write a plan   (planner.py + validate.py)
+        -> PYTHON    run the lane the plan names       (execute.py)
+        -> BRAIN #2  write the answer                  (model.py)
 
-Two model calls, made at the same time because neither waits on the other.
-AI #1 translates the question into a plan; the answer model writes the prose.
-The plan is checked before Rocky would act on it, and is recorded on every turn
-so a wrong plan is visible in the log rather than only in a wrong answer.
+Four stages, in that order, and the trace carries one entry for each. The order
+is the point: BRAIN #2 answers after the lane has run, because once a lane has
+an executor its results are what there is to write about.
 
-The plan belongs to IN. It is what Rocky understood the question to be, and
-what an executor will act on; OUT is what came back from acting on it.
-
-Nothing executes a plan yet. When a lane grows an executor, it goes in `answer`
-where `checked` is available and before the answer is composed.
+Nothing has an executor yet, so today the middle stage only records which lane
+would have run. When one lands, its results go to BRAIN #2 from here.
 """
 
 from __future__ import annotations
 
-import asyncio
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -24,6 +22,7 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from rockygpt_brain.api.contracts import BrainTrace, ChatRequest, ChatSuccess
+from rockygpt_brain.core.execute import run
 from rockygpt_brain.core.model import ModelPort
 from rockygpt_brain.core.plan import Plan
 from rockygpt_brain.core.planner import PlannerPort
@@ -59,27 +58,30 @@ class Brain:
         history = self._memory.history(identity.session_id)
         context = [turn.model_dump() for turn in request.history] or history
 
-        checked, draft = await asyncio.gather(
-            self._plan(request.message, context, now),
-            self._model.answer(
-                request.message,
-                context,
-                now.isoformat(),
-                request.style_mode,
-                request.response_mode,
-            ),
+        # 1. the question
+        question = {"question": request.message, "currentTime": now.isoformat()}
+
+        # 2. BRAIN #1 — understand it, and write a plan
+        checked = await self._plan(request.message, context, now)
+
+        # 3. PYTHON — run the lane
+        execution = run(checked)
+
+        # 4. BRAIN #2 — write the answer
+        draft = await self._model.answer(
+            request.message,
+            context,
+            now.isoformat(),
+            request.style_mode,
+            request.response_mode,
         )
 
-        # IN — the question, and what AI #1 made of it
-        question = {
-            "question": request.message,
-            "currentTime": now.isoformat(),
-            "plan": _traced(checked),
-        }
-
-        # OUT
-        result = {"answer": draft.answer}
-
+        trace = BrainTrace(
+            question=question,
+            plan=_traced(checked),
+            execution=execution.summary(),
+            answer={"answer": draft.answer},
+        )
         response = ChatSuccess(
             request_id=identity.request_id,
             answer=draft.answer,
@@ -87,7 +89,7 @@ class Brain:
             citations=[],
             ui_actions=[],
             suggested_questions=draft.suggested_questions[:10],
-            brain_trace=BrainTrace(input=question, output=result),
+            brain_trace=trace,
         )
         self._memory.record(
             request_id=identity.request_id,
@@ -98,9 +100,9 @@ class Brain:
             assistant_message=response.answer,
             route=response.route,
             tools=[],
-            tool_arguments=question,
+            tool_arguments=trace.plan,
             citations=[],
-            result=result,
+            result={"execution": trace.execution, "answer": trace.answer},
             latency_ms=max(0, round((time.monotonic() - started) * 1000)),
         )
         return response
@@ -111,7 +113,7 @@ class Brain:
         context: list[dict[str, Any]],
         now: datetime,
     ) -> Plan | Rejected:
-        """AI #1, then the check. A planner outage costs the plan, not the answer."""
+        """BRAIN #1, then the check. A planner outage costs the plan, not the answer."""
         try:
             drafted = await self._planner.plan(message, context, now.isoformat())
         except ServiceError:

@@ -4,9 +4,7 @@ A question goes in, an answer comes out — and a plan saying what Rocky would
 have done to look it up.
 
 ```text
-IN   the question + the current time + the plan AI #1 wrote for it
-     -> AI #1 translates the question, and the answer model writes the prose
-OUT  the answer
+the question -> BRAIN #1 plans it -> PYTHON runs the lane -> BRAIN #2 answers
 ```
 
 A plan is a lane, a capability, filters, and a generic operation — never an
@@ -23,7 +21,8 @@ rockygpt_brain/
 │   ├── capabilities.py     what Rocky can look up, and with which fields
 │   ├── planner.py          AI #1 — question in, plan out
 │   ├── validate.py         the check applied before a plan runs
-│   ├── model.py            the answer call
+│   ├── execute.py          PYTHON — run the lane
+│   ├── model.py            BRAIN #2 — the answer call
 │   └── brain.py            the request lifecycle
 ├── services/     turns and the admin log
 ├── config.py     environment settings

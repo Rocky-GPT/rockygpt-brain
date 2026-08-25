@@ -85,14 +85,21 @@ class UiAction(ContractModel):
 
 
 class BrainTrace(ContractModel):
-    """What Rocky was given and made of it, and what came back.
+    """The four stages of a turn, in the order they ran.
 
-    ``in`` carries the question and the plan AI #1 wrote for it; ``out``
-    carries the answer, and whatever acting on the plan produced.
+    ``question`` what was asked, and the clock it was asked at
+    ``plan``     BRAIN #1 — what it understood, as operations
+    ``execution``PYTHON — what running that lane produced
+    ``answer``   BRAIN #2 — the prose
+
+    One box each in the dev inspector. A stage that did nothing says so rather
+    than going missing, so the pipeline always reads end to end.
     """
 
-    input: dict[str, Any] = Field(alias="in")
-    output: dict[str, Any] = Field(alias="out")
+    question: dict[str, Any]
+    plan: dict[str, Any]
+    execution: dict[str, Any]
+    answer: dict[str, Any]
 
 
 class ChatSuccess(ContractModel):

@@ -488,16 +488,28 @@ components:
     BrainTrace:
       type: object
       additionalProperties: false
-      required: [in, out]
+      description: >-
+        The four stages of a turn, in the order they ran. A stage that did
+        nothing reports that it did nothing rather than being omitted, so the
+        pipeline always reads end to end.
+      required: [question, plan, execution, answer]
       properties:
-        in:
+        question:
           type: object
           additionalProperties: true
-          description: What the brain sent into the model call.
-        out:
+          description: What was asked, and the clock it was asked at.
+        plan:
           type: object
           additionalProperties: true
-          description: What the brain produced from the model call.
+          description: BRAIN #1 — the question understood as operations.
+        execution:
+          type: object
+          additionalProperties: true
+          description: PYTHON — what running the plan's lane produced.
+        answer:
+          type: object
+          additionalProperties: true
+          description: BRAIN #2 — the prose.
     Citation:
       type: object
       additionalProperties: false
