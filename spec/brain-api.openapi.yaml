@@ -20,7 +20,7 @@ paths:
       tags: [Probes]
       operationId: getHealth
       summary: Process liveness
-      description: Must not depend on the model, data service, or database.
+      description: Must not depend on the model or on any downstream dependency.
       responses:
         '200':
           description: Process is alive.
@@ -356,7 +356,7 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     Unavailable:
-      description: A required dependency or dataset is temporarily unavailable.
+      description: A required dependency is temporarily unavailable.
       headers:
         X-Request-Id:
           $ref: '#/components/headers/RequestId'
@@ -467,7 +467,7 @@ components:
           type: string
           minLength: 1
           maxLength: 64
-          examples: [standard, safety, ungrounded]
+          description: Opaque label for how the answer was produced.
         citations:
           type: array
           items:
