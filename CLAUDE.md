@@ -72,9 +72,11 @@ and the web search alike, loaded with `beside(__file__)`. A paragraph added to
 the planning instruction has twice moved lane routing on questions it was not
 about, and that belongs in a diff you read as sentences; a markdown file also
 cannot quietly acquire an f-string, which is how a prompt starts behaving
-differently from what it appears to say. Everything above the `---` rule is
-notes for whoever edits the file and is never sent — a model told about a past
-routing bug will try to be helpful about it. A test enforces this: inline an
+differently from what it appears to say. The file is the whole instruction
+and nothing else: what it reads as is what is sent, with nothing stripped on
+the way out.
+Notes for whoever edits one go in the docstring of the module that loads it,
+where they cannot be sent by construction. A test enforces this: inline an
 instruction as a Python string and the suite fails.
 
 Two things that look like lanes are not, and must not become lanes again. A

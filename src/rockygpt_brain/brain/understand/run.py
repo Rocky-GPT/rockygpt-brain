@@ -1,4 +1,13 @@
-"""Ask BRAIN #1 what the question is asking."""
+"""Ask BRAIN #1 what the question is asking.
+
+The only stage shown the conversation.
+
+Before editing `prompt.md`: it is the highest-churn, highest-risk text in the
+brain, and a sentence added to it has twice moved lane routing on questions it
+was not about. Measure before and after. It describes steps, not questions —
+no phrase, entity, or example from any test belongs in it, because prose added
+to fix one question reliably breaks three others.
+"""
 
 from __future__ import annotations
 

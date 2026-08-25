@@ -5,6 +5,12 @@ original wording. Two calls rather than one so that is a fact about what the
 model can read rather than a line in an instruction it may or may not heed. A
 plan that would have needed the conversation is a plan built on a resolution
 that failed, and `understand.validate` is where that shows.
+
+Before editing `prompt.md`: adding the safety paragraph to it once moved lane
+routing across the whole 30-question set. Measure before and after. It
+describes lanes, fields and operations and contains no worked example — the
+moment a question shape appears there, the translator has become a list of
+intents and the next question needs code again.
 """
 
 from __future__ import annotations

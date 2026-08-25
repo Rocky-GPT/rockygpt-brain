@@ -1,11 +1,13 @@
 """The web, as the brain sees it.
 
-The second outbound call that is not the pipeline's own two, and the only one
-that leaves campus. It answers a `current` GENERAL question — one whose answer
-changes between askings — and nothing else.
+The one outbound call that leaves campus. It answers a `current` GENERAL
+question — one whose answer changes between askings — and nothing else.
 
 Every fact comes back with the page it came from, because an answer built from
 the open web is only worth as much as what a reader can check.
+
+Before editing `prompt.md`: its last line carries the most weight. Returning
+nothing is a valid answer, and a fact no page supports is not.
 """
 
 from __future__ import annotations

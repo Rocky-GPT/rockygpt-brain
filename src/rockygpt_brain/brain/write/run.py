@@ -4,6 +4,12 @@ Last, and never concurrent with the lane. It writes from what PYTHON produced:
 `grounding` carries `answerFrom` on every turn — campus rows, web results, the
 safety response, or the model's own knowledge — so it never has to infer what
 to do from a field that is not there.
+
+Before editing `prompt.md`: `answerFrom` is an instruction, never a status. It
+says where this answer comes from, not that anything is missing or unbuilt. A
+lane with no executor must stay indistinguishable from a question that never
+needed one — told a lookup failed, the model apologises for a capability
+instead of answering the question.
 """
 
 from __future__ import annotations
