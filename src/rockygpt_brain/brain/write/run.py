@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from rockygpt_brain.brain.prompt import beside
 from rockygpt_brain.brain.write.schema import Draft
+from rockygpt_brain.prompt import beside
 from rockygpt_brain.services.openai import StructuredModel
 
 ANSWER = beside(__file__)

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from rockygpt_brain.brain.prompt import beside
 from rockygpt_brain.brain.understand.schema import Understanding
+from rockygpt_brain.prompt import beside
 from rockygpt_brain.services.openai import StructuredModel
 
 UNDERSTAND = beside(__file__)

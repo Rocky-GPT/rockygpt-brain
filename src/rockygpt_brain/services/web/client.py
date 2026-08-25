@@ -15,13 +15,9 @@ from typing import Any, Protocol
 from openai import AsyncOpenAI
 from pydantic import BaseModel, ConfigDict, Field
 
-_SEARCH = """Search the web and answer the query.
+from rockygpt_brain.prompt import beside
 
-Return one entry per fact that answers it. `source` is the page URL the fact
-came from, on its own with no surrounding text. `publishedAt` is the date that
-page gives for the fact, or null when it gives none.
-
-Return nothing rather than a fact no page supports."""
+SEARCH = beside(__file__)
 
 
 class WebUnavailable(Exception):
@@ -61,7 +57,7 @@ class OpenAIWeb:
             response = await self._client.responses.parse(
                 model=self._model,
                 tools=[{"type": "web_search"}],
-                instructions=_SEARCH,
+                instructions=SEARCH,
                 input=query,
                 text_format=Found,
                 store=False,
