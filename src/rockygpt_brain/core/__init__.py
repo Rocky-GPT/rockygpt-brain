@@ -1,1 +1,1 @@
-"""The hybrid brain pipeline and its model interface."""
+"""The request lifecycle and the model call."""

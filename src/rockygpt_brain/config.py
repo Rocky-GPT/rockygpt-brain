@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, ge=1, le=65535)
     openai_api_key: SecretStr | None = None
     openai_chat_model: str = "gpt-4.1-mini"
-    #: All temporal resolution happens in this zone. Contract section 5.
+    #: The clock the model is given. All temporal resolution happens in this zone.
     campus_timezone: str = "America/New_York"
     staging_service_token: SecretStr | None = None
     admin_api_token: SecretStr | None = None

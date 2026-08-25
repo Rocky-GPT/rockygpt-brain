@@ -1,1 +1,1 @@
-"""DATA and process-local memory adapters."""
+"""Process-local conversation memory and the admin log."""
