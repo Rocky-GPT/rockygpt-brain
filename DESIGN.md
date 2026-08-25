@@ -1,47 +1,36 @@
 # Design
 
 ```text
-question
-   │
- AI #1 ── understands the request
-   │
- Python ── runs a lane      (only GENERAL exists so far)
-   │
- result JSON
-   │
- AI #2 ── writes the answer
+IN    the question, plus the current time
+        │
+      one model call
+        │
+OUT   the answer
 ```
+
+No router, no lanes, no lookups, no filters. Every question is answered the same
+way, by the model, from its own knowledge.
 
 ## Modules
 
 ```text
-core/intent.py   what AI #1 returns
-core/brain.py    the request lifecycle
-core/model.py    the two AI calls
-services/memory.py  turns and the admin log
-api/            HTTP surface
+core/brain.py       the request lifecycle — IN, the call, OUT
+core/model.py       the model call and its one instruction
+services/memory.py  turns kept for follow-ups, and the admin log
+api/                the HTTP surface
+config.py           settings from .env
 ```
 
-## Lanes
+## What Python contributes
 
-| Lane | State |
-| --- | --- |
-| GENERAL | built |
-| CODE | not built — structured campus facts |
-| RAG | not built — policies and documents |
-| SAFETY | not built — emergencies, privacy, secrets, unsupported actions |
-| MEMORY | not built — what was said earlier |
+The current date and time, in the campus timezone, because the model does not
+know it. That is the only thing.
 
-Adding one back is a variant on `Decision` in `intent.py` and a branch in
-`Brain._run`. Nothing else in the pipeline changes.
+## Where it grows
 
-## What this means today
-
-The brain makes no DATA calls, so it can answer nothing about the college. AI #2
-is told to say so rather than guess at hours, menus, shuttles, staff or policies.
-
-There is no SAFETY lane, so an emergency question is answered by the model's
-general knowledge with no fixed wording. It currently does say to call 911, but
-that is the model's choice on the day, not a guarantee.
+A second way of answering — looking something up — goes in `Brain.answer`,
+between building IN and returning OUT. That is also the point at which a router
+starts to be worth its own model call; with one way of answering there is nothing
+to route between.
 
 Earlier architectures are on the `backup/*` branches.
