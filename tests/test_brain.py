@@ -15,6 +15,7 @@ from rockygpt_brain.services.memory import MemoryStore
 
 TZ = ZoneInfo("America/New_York")
 NOW = datetime(2031, 3, 6, 18, 30, tzinfo=UTC)
+CLOCK = NOW.astimezone(TZ).isoformat()
 
 
 class FakeModel:
@@ -30,8 +31,14 @@ class FakeModel:
         current_time: str,
         style_mode: str | None,
         response_mode: str | None,
+        campus_data: list[dict[str, Any]] | None,
     ) -> Draft:
-        self.seen = {"question": question, "context": context, "currentTime": current_time}
+        self.seen = {
+            "question": question,
+            "context": context,
+            "currentTime": current_time,
+            "campusData": campus_data,
+        }
         return Draft(answer="written", suggested_questions=["a"])
 
 
@@ -55,6 +62,13 @@ class FakePlanner:
         return self._plan
 
 
+class FakeData:
+    """No capability is asked for in these tests, so nothing is looked up."""
+
+    async def shuttle(self, query: dict[str, Any]) -> list[dict[str, Any]]:
+        return []
+
+
 async def ask(
     message: str = "anything",
     memory: MemoryStore | None = None,
@@ -62,7 +76,7 @@ async def ask(
     planner: FakePlanner | None = None,
 ) -> tuple[ChatSuccess, FakeModel]:
     model = FakeModel()
-    brain = Brain(model, planner or FakePlanner(), memory or MemoryStore())
+    brain = Brain(model, planner or FakePlanner(), FakeData(), memory or MemoryStore())
     response = await brain.answer(
         ChatRequest(message=message, now=NOW), TurnIdentity(rid, "s", None, "client")
     )
@@ -96,8 +110,22 @@ async def test_nothing_is_cited_because_nothing_is_looked_up() -> None:
 async def test_a_follow_up_sees_the_earlier_turn() -> None:
     memory = MemoryStore()
     await ask("first", memory, "r1")
-    _, model = await ask("second", memory, "r2")
+    response, model = await ask("second", memory, "r2")
     assert model.seen["context"], "the second turn sees the first"
+    assert response.brain_trace.question["earlierTurns"] == model.seen["context"], (
+        "what the trace shows is what the model was given"
+    )
+
+
+async def test_the_modes_the_ui_asked_for_are_on_the_turn() -> None:
+    model = FakeModel()
+    brain = Brain(model, FakePlanner(), FakeData(), MemoryStore())
+    response = await brain.answer(
+        ChatRequest(message="m", now=NOW, style_mode="warm", response_mode="concise"),
+        TurnIdentity("r", "s", None, "client"),
+    )
+    assert response.brain_trace.question["styleMode"] == "warm"
+    assert response.brain_trace.question["responseMode"] == "concise"
 
 
 # The planning half
@@ -119,6 +147,7 @@ async def test_the_plan_is_its_own_stage() -> None:
     )
     response, _ = await ask(planner=FakePlanner(plan))
     assert response.brain_trace.plan == {
+        "currentTime": CLOCK,
         "lane": "CODE",
         "capability": "shuttle",
         "filters": {"date": "2031-03-06"},
@@ -129,14 +158,20 @@ async def test_the_plan_is_its_own_stage() -> None:
 async def test_the_turn_reads_end_to_end_as_four_stages() -> None:
     response, _ = await ask("a question")
     trace = response.brain_trace
-    assert trace.question["question"] == "a question"
-    assert trace.plan == {"lane": "GENERAL"}
+    assert trace.question == {"question": "a question", "earlierTurns": []}
+    assert trace.plan == {"currentTime": CLOCK, "lane": "GENERAL"}
     assert trace.execution == {
         "lane": "GENERAL",
         "ran": False,
         "note": "no executor for the GENERAL lane yet",
     }
     assert trace.answer == {"answer": "written"}
+
+
+async def test_brain_two_is_told_nothing_was_looked_up() -> None:
+    """No lookup means no `campusData`, so BRAIN #2 answers from its own knowledge."""
+    _, model = await ask()
+    assert model.seen["campusData"] is None
 
 
 async def test_the_middle_stage_says_which_lane_would_have_run() -> None:
@@ -161,4 +196,7 @@ async def test_a_rejected_plan_says_why_and_still_answers() -> None:
 async def test_a_planner_outage_costs_the_plan_not_the_answer() -> None:
     response, _ = await ask(planner=FakePlanner(fails=True))
     assert response.answer == "written"
-    assert response.brain_trace.plan == {"rejected": "the planner was unavailable"}
+    assert response.brain_trace.plan == {
+        "currentTime": CLOCK,
+        "rejected": "the planner was unavailable",
+    }

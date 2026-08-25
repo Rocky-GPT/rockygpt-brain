@@ -12,6 +12,10 @@ from rockygpt_brain.errors import ServiceError
 
 _ANSWER = """Answer the question.
 
+`campusData` is what was looked up for this question. When it is there, it is
+the authority — answer from it and add nothing to it. When it is absent,
+nothing was looked up, so answer from what you know.
+
 `currentTime` is the authority on today's date and time. Do not work either out yourself.
 
 `earlierTurns` is what has already been said in this conversation. Use it only to work out
@@ -37,6 +41,7 @@ class ModelPort(Protocol):
         current_time: str,
         style_mode: str | None,
         response_mode: str | None,
+        campus_data: list[dict[str, Any]] | None,
     ) -> Draft: ...
 
 
@@ -53,18 +58,23 @@ class OpenAIModel:
         current_time: str,
         style_mode: str | None,
         response_mode: str | None,
+        campus_data: list[dict[str, Any]] | None,
     ) -> Draft:
         if self._client is None:
             raise ServiceError(
                 503, "SERVICE_UNAVAILABLE", "OPENAI_API_KEY is not configured.", retryable=True
             )
-        payload = {
+        payload: dict[str, Any] = {
             "question": question,
             "earlierTurns": context,
             "currentTime": current_time,
             "styleMode": style_mode,
             "responseMode": response_mode,
         }
+        # Absent rather than empty when nothing ran: an empty list reads as
+        # "looked, found none", which is a different answer.
+        if campus_data is not None:
+            payload["campusData"] = campus_data
         try:
             response = await self._client.responses.parse(
                 model=self._model,

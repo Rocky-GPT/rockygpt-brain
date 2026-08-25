@@ -9,8 +9,14 @@ Four stages, in that order, and the trace carries one entry for each. The order
 is the point: BRAIN #2 answers after the lane has run, because once a lane has
 an executor its results are what there is to write about.
 
-Nothing has an executor yet, so today the middle stage only records which lane
-would have run. When one lands, its results go to BRAIN #2 from here.
+A lane without an executor records that it did not run, and BRAIN #2 answers
+from its own knowledge. A lane with one hands its results to BRAIN #2, which is
+the whole reason the stages are in this order.
+
+The question stage holds what arrived with the request — the words, the earlier
+turns, and the modes the UI asked for. The clock is not part of it: the browser
+never sends a time and the proxy would drop one, so it sits with BRAIN #1,
+which is the stage that read the question against it.
 """
 
 from __future__ import annotations
@@ -28,6 +34,7 @@ from rockygpt_brain.core.plan import Plan
 from rockygpt_brain.core.planner import PlannerPort
 from rockygpt_brain.core.validate import Rejected, check
 from rockygpt_brain.errors import ServiceError
+from rockygpt_brain.services.data import DataPort
 from rockygpt_brain.services.memory import MemoryStore
 
 
@@ -44,11 +51,13 @@ class Brain:
         self,
         model: ModelPort,
         planner: PlannerPort,
+        data: DataPort,
         memory: MemoryStore,
         timezone: str = "America/New_York",
     ) -> None:
         self._model = model
         self._planner = planner
+        self._data = data
         self._memory = memory
         self._tz = ZoneInfo(timezone)
 
@@ -58,27 +67,43 @@ class Brain:
         history = self._memory.history(identity.session_id)
         context = [turn.model_dump() for turn in request.history] or history
 
-        # 1. the question
-        question = {"question": request.message, "currentTime": now.isoformat()}
+        # 1. the question, and everything that arrived with it. The clock is
+        # not here — Python sets that, and it belongs to the stage that read
+        # the question against it.
+        question: dict[str, Any] = {
+            "question": request.message,
+            "earlierTurns": context,
+        }
+        if request.style_mode:
+            question["styleMode"] = request.style_mode
+        if request.response_mode:
+            question["responseMode"] = request.response_mode
 
         # 2. BRAIN #1 — understand it, and write a plan
         checked = await self._plan(request.message, context, now)
 
         # 3. PYTHON — run the lane
-        execution = run(checked)
+        execution = await run(checked, now, self._data)
 
-        # 4. BRAIN #2 — write the answer
+        # 4. BRAIN #2 — write the answer, from what the lane returned
         draft = await self._model.answer(
             request.message,
             context,
             now.isoformat(),
             request.style_mode,
             request.response_mode,
+            execution.grounding(),
         )
 
         trace = BrainTrace(
             question=question,
-            plan=_traced(checked),
+            # The clock leads the plan because it is what the question was read
+            # against: `today` means nothing until an instant fixes it. It is
+            # shown on every turn, including turns with nothing temporal in
+            # them — both brains are handed it unconditionally, and a trace
+            # that hid a real input would cost an hour the first time a date
+            # came out wrong. Do not make it conditional.
+            plan={"currentTime": now.isoformat(), **_traced(checked)},
             execution=execution.summary(),
             answer={"answer": draft.answer},
         )

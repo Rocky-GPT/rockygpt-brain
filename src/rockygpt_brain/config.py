@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     openai_chat_model: str = "gpt-4.1-mini"
     #: AI #1, the planner. Its job is translation, not prose.
     openai_planner_model: str = "gpt-4.1-mini"
+    #: The data service the CODE lane looks things up in. BASE reaches nothing else.
+    data_url: str = "http://127.0.0.1:8100"
+    data_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
     #: The clock the model is given. All temporal resolution happens in this zone.
     campus_timezone: str = "America/New_York"
     staging_service_token: SecretStr | None = None
