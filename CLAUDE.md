@@ -4,14 +4,17 @@ Keep it minimal. The whole request lifecycle is `core/brain.py`, and it should
 stay readable in a minute.
 
 ```text
-IN   the question + the current time + the plan AI #1 wrote for it
-     -> AI #1 translates the question      (planner.py)
-     -> the plan is checked                (validate.py)
-     -> the answer model writes the prose  (model.py)
-OUT  the answer, and whatever acting on the plan produced
+the question
+  -> BRAIN #1  understand it, write a plan   (planner.py + validate.py)
+  -> PYTHON    run the lane the plan names   (execute.py)
+  -> BRAIN #2  write the answer              (model.py)
 ```
 
-The two calls are made at the same time. Neither waits on the other.
+Four stages, in that order, and the trace carries one entry for each. The order
+is the point: BRAIN #2 answers after the lane has run, because once a lane has
+an executor its results are what there is to write about. Do not make the two
+calls concurrent to save latency — it would make the trace describe a pipeline
+that did not happen.
 
 **Rocky's vocabulary describes what it can do, never what anyone may ask.**
 Five lanes, a registry of capabilities, the fields each capability allows, and
@@ -22,10 +25,11 @@ no `menu_lookup`, no enum whose members are questions. "The first shuttle" and
 should need no code at all. `plan.py` holds the vocabulary, `capabilities.py`
 the registry.
 
-**The plan is IN, not OUT.** It is what Rocky understood the question to be
-and what an executor will act on; OUT is what came back from acting on it. The
-trace has read this way since the first lane architecture, and the admin log's
-`tool_arguments` is the same dict.
+**The trace is the four stages, not two halves.** `question`, `plan`,
+`execution`, `answer` — one box each in the dev inspector, read top to bottom.
+A stage that did nothing says so rather than going missing: an unexecuted lane
+reports `ran: false`, so a turn answered from the model's own knowledge can
+never be mistaken for one answered from campus data.
 
 **Python decides what runs.** The model writes a plan; `validate.check` decides
 whether Rocky acts on it. A plan naming a field the capability does not list is

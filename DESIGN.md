@@ -1,28 +1,33 @@
 # Design
 
 ```text
-IN    the question, the current time, and the plan
-        │
-        ├── AI #1 ──► a plan ──► checked against the registry ──┐
-        │                                                       │
-        └── the answer model ──► the prose ────────────────────┐ │
-                                                               │ │
-OUT   the answer, and whatever acting on the plan produced ────┘ │
-      IN carries the plan ──────────────────────────────────────┘
+    the question
+         │
+         ▼
+    BRAIN #1        understand it, and write a plan
+         │          checked against the registry before it goes on
+         ▼
+    PYTHON          run the lane the plan names
+         │          no lane has an executor yet
+         ▼
+    BRAIN #2        write the answer
 ```
 
-Two model calls, made concurrently. AI #1 translates the question into
-operations; the answer model writes the answer. Nothing executes a plan yet.
+Four stages, run in that order, with one trace entry each. BRAIN #2 comes last
+because once a lane has an executor, what it returned is what there is to write
+about. Nothing executes a plan yet, so the middle stage only records which lane
+would have run.
 
 ## Modules
 
 ```text
-core/brain.py         the request lifecycle — IN, the two calls, OUT
-core/planner.py       AI #1 — question in, plan out
+core/brain.py         the request lifecycle — the four stages, in order
+core/planner.py       BRAIN #1 — question in, plan out
 core/plan.py          the vocabulary a plan is written in
 core/capabilities.py  the registry — what Rocky can look up, and with which fields
 core/validate.py      the check, and the clock, applied to a plan before it runs
-core/model.py         the answer call and its one instruction
+core/execute.py       PYTHON — run the lane; the seam every executor lands in
+core/model.py         BRAIN #2 — the answer call and its one instruction
 services/memory.py    turns kept for follow-ups, and the admin log
 api/                  the HTTP surface
 config.py             settings from .env
@@ -50,13 +55,16 @@ Filters are a list of pairs rather than a map because a strict response schema
 cannot describe an object with arbitrary keys. `Plan.filter_values` gives back
 the map, and `Plan.summary` is the shape a human reads in the log.
 
-## Where the plan sits in the trace
+## The trace
 
-`brainTrace.in` carries the question, the clock, and the plan. `brainTrace.out`
-carries the answer. The plan is an input: it is what Rocky understood, and what
-an executor will act on. When lanes grow executors, what they return joins the
-answer in `out` — which is where the pre-simplification architecture put its
-results too.
+`brainTrace` carries one entry per stage: `question`, `plan`, `execution`,
+`answer`. The dev inspector renders them as four boxes in that order, so
+reading down the modal is reading the request.
+
+A stage that did nothing reports that it did nothing rather than being
+omitted. `execution` on an unexecuted lane is `{lane, ran: false, note}` — the
+distinction between "Rocky looked this up" and "the model knew it" is the one
+a reader most needs, and a missing box would hide it.
 
 ## What Python contributes
 
