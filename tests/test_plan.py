@@ -9,9 +9,10 @@ from zoneinfo import ZoneInfo
 from openai.lib._pydantic import to_strict_json_schema
 
 from rockygpt_brain.core.capabilities import CAPABILITIES
-from rockygpt_brain.core.plan import TIME_WORDS, Concern, Filter, Lane, Operation, Plan
+from rockygpt_brain.core.plan import TIME_WORDS, Filter, Lane, Operation, Plan
 from rockygpt_brain.core.planner import _PLAN
 from rockygpt_brain.core.validate import Rejected, anchor, check, resolve
+from rockygpt_brain.safety.schema import Concern
 
 TZ = ZoneInfo("America/New_York")
 NOW = datetime(2031, 3, 6, 18, 30, tzinfo=UTC).astimezone(TZ)

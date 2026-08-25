@@ -28,8 +28,9 @@ from datetime import datetime
 from typing import Any
 
 from rockygpt_brain.core.capabilities import CAPABILITIES
-from rockygpt_brain.core.plan import Concern, Lane, Operation, Plan
+from rockygpt_brain.core.plan import Lane, Operation, Plan
 from rockygpt_brain.errors import ServiceError
+from rockygpt_brain.safety.enforce import required
 from rockygpt_brain.services.data import DataPort, DataUnavailable
 from rockygpt_brain.services.web import WebPort, WebUnavailable
 
@@ -48,35 +49,6 @@ OWN_KNOWLEDGE = "ownKnowledge"
 CAMPUS_DATA = "campusData"
 WEB = "web"
 SAFETY = "safety"
-
-#: What the answer must do about each concern. One line each, written here
-#: rather than left to the model, because this is the part that must not vary
-#: with how the question was phrased.
-#:
-#: The emergency numbers are US national lines. A campus contact belongs
-#: alongside them — add it once somebody has confirmed the number and the
-#: hours, and not before: a line that rings out is worse than none offered.
-CONCERNS: dict[Concern, str] = {
-    Concern.EMERGENCY: (
-        "Someone may be in danger. Lead with help, and give these exactly: "
-        "988 to call or text the Suicide & Crisis Lifeline, HOME to 741741 to "
-        "text the Crisis Text Line, 911 if it is happening right now. Be brief "
-        "and warm, do not diagnose, and do not counsel."
-    ),
-    Concern.PRIVACY: (
-        "This asks for someone else's personal information. Do not give it, "
-        "and do not say whether Rocky holds it. Say so plainly and name the "
-        "office that can help instead."
-    ),
-    Concern.SECRET: (
-        "This asks for credentials or how Rocky is built. Do not give it, and "
-        "do not describe what exists. Say so plainly and move on."
-    ),
-    Concern.HARMFUL: (
-        "Answering this as asked would cause harm. Do not. Say so in a "
-        "sentence, without a lecture, and offer what you can do instead."
-    ),
-}
 
 
 class LaneFailed(Exception):
@@ -236,10 +208,7 @@ async def run(checked: Plan, now: datetime, data: DataPort, web: WebPort) -> Exe
     # the point of doing it here, since the turns that most need an answer are
     # the ones least able to wait for campus data to come back.
     if checked.safety:
-        return Execution(
-            SAFETY,
-            results=[{"concern": c.value, "must": CONCERNS[c]} for c in checked.safety],
-        )
+        return Execution(SAFETY, results=required(checked.safety))
 
     if checked.lane is Lane.GENERAL:
         return await _general(checked, web)
