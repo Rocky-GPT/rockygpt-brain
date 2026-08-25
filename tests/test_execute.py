@@ -143,7 +143,10 @@ async def test_a_record_is_cut_down_to_the_fields_the_capability_publishes() -> 
 
 async def test_what_ran_is_what_brain_two_answers_from() -> None:
     execution = await run(shuttle({}, limit=1), NOW, FakeData())
-    assert execution.grounding() == execution.results
+    assert execution.grounding() == {
+        "answerFrom": "campusData",
+        "campusData": execution.results,
+    }
 
 
 async def test_looking_and_finding_none_is_not_the_same_as_not_looking() -> None:
@@ -151,23 +154,27 @@ async def test_looking_and_finding_none_is_not_the_same_as_not_looking() -> None
     found_none = await run(shuttle({}, limit=1), NOW, FakeData(records=[]))
     never_looked = await run(Plan(lane=Lane.GENERAL), NOW, FakeData())
 
-    assert found_none.summary() == {"results": []}, "an empty list, not a missing one"
+    assert found_none.summary() == {"answerFrom": "campusData", "results": []}, (
+        "an empty list, not a missing one"
+    )
     assert "results" not in never_looked.summary()
 
-    assert found_none.grounding() == [], "BRAIN #2 is told the lookup came back empty"
-    assert never_looked.grounding() is None, "BRAIN #2 is told nothing was looked up"
+    assert found_none.grounding() == {"answerFrom": "campusData", "campusData": []}, (
+        "the lookup ran and matched nothing"
+    )
+    assert never_looked.grounding() == {"answerFrom": "ownKnowledge"}
 
 
 async def test_a_count_reports_the_count_and_not_an_empty_list() -> None:
     execution = await run(shuttle({}, count=True), NOW, FakeData())
-    assert execution.summary() == {"count": 3}
+    assert execution.summary() == {"answerFrom": "campusData", "count": 3}
 
 
 async def test_general_is_not_reported_as_a_missing_executor() -> None:
     """It is the lane that means "no lookup", not one still to be built."""
     execution = await run(Plan(lane=Lane.GENERAL), NOW, FakeData())
     assert "no executor" not in execution.note
-    assert execution.grounding() is None
+    assert execution.grounding() == {"answerFrom": "ownKnowledge"}
 
 
 async def test_a_lane_still_to_be_built_says_so() -> None:
@@ -175,11 +182,21 @@ async def test_a_lane_still_to_be_built_says_so() -> None:
     assert "no executor for the RAG lane yet" == execution.note
 
 
+async def test_the_trace_shows_what_brain_two_was_handed() -> None:
+    """`answerFrom` in the trace is the same value that crossed the boundary."""
+    for execution in (
+        await run(shuttle({}, limit=1), NOW, FakeData()),
+        await run(shuttle({}, count=True), NOW, FakeData()),
+        await run(Plan(lane=Lane.GENERAL), NOW, FakeData()),
+    ):
+        assert execution.summary()["answerFrom"] == execution.grounding()["answerFrom"]
+
+
 async def test_a_lane_that_did_not_run_grounds_nothing() -> None:
     """None, not an empty list — "nothing was looked up" is not "found none"."""
     execution = await run(Plan(lane=Lane.GENERAL), NOW, FakeData())
     assert execution.ran is False
-    assert execution.grounding() is None
+    assert execution.grounding() == {"answerFrom": "ownKnowledge"}
 
 
 async def test_a_capability_without_an_executor_says_which_one() -> None:
@@ -191,7 +208,7 @@ async def test_a_capability_without_an_executor_says_which_one() -> None:
 async def test_a_data_outage_costs_the_lookup_not_the_turn() -> None:
     execution = await run(shuttle({}), NOW, FakeData(fails=True))
     assert execution.ran is False
-    assert execution.grounding() is None
+    assert execution.grounding() == {"answerFrom": "ownKnowledge"}
     assert "did not happen" in execution.note
 
 

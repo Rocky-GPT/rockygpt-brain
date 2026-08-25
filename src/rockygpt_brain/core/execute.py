@@ -48,32 +48,46 @@ class Execution:
     count: int | None = None
 
     def summary(self) -> dict[str, Any]:
-        """One of three shapes, and which one it is says what happened.
+        """This stage, for a person reading the trace.
 
-        ``{"note": ...}``      the lane did not run, and why
-        ``{"count": n}``       it ran and counted
-        ``{"results": [...]}`` it ran and listed — ``[]`` means it found none
+        ``answerFrom`` leads, and is the same value BRAIN #2 was handed — so
+        the handoff is visible rather than something you have to take on
+        trust. What follows it is what BRAIN #2 got, plus, when nothing ran, a
+        ``note`` saying why. The note is the one thing here BRAIN #2 never
+        sees; telling it a lookup failed makes it apologise for the capability
+        instead of answering.
 
-        There is no ``ran`` flag because the shape is the flag. What a reader
-        must never confuse is an empty ``results`` with a missing one: the
-        first is "Rocky looked and there is nothing", the second is "Rocky
-        never looked", and those are different answers. Keeping ``results``
-        present-but-empty is what draws that line, so do not drop it when it
-        is empty.
+        ``{"answerFrom": "ownKnowledge", "note": ...}``  nothing was looked up
+        ``{"answerFrom": "campusData", "count": n}``     it ran and counted
+        ``{"answerFrom": "campusData", "results": []}``  it ran and matched none
+
+        Do not drop ``results`` when it is empty. "Rocky looked and there is
+        nothing" and "Rocky never looked" are different answers, and the empty
+        list is what says which.
         """
         if not self.ran:
-            return {"note": self.note}
+            return {"answerFrom": "ownKnowledge", "note": self.note}
         if self.count is not None:
-            return {"count": self.count}
-        return {"results": self.results}
+            return {"answerFrom": "campusData", "count": self.count}
+        return {"answerFrom": "campusData", "results": self.results}
 
-    def grounding(self) -> list[dict[str, Any]] | None:
-        """What BRAIN #2 answers from. None when nothing was looked up."""
+    def grounding(self) -> dict[str, Any]:
+        """What BRAIN #2 answers from. Every lane produces one; none is empty.
+
+        ``answerFrom`` is an instruction, never a status. It says where this
+        answer comes from — not that anything is missing, broken, or not built
+        yet. A lane with no executor is indistinguishable here from a question
+        that never needed one, and that is the point: told a lookup failed,
+        BRAIN #2 apologises for a capability instead of answering the question.
+
+        ``campusData`` rides along only when there was a lookup. Empty means it
+        ran and matched nothing, which is an answer in itself — and now says so
+        unambiguously, because ``answerFrom`` already established that it ran.
+        """
         if not self.ran:
-            return None
-        if self.count is not None:
-            return [{"count": self.count}]
-        return self.results
+            return {"answerFrom": "ownKnowledge"}
+        found = [{"count": self.count}] if self.count is not None else self.results
+        return {"answerFrom": "campusData", "campusData": found}
 
 
 Executor = Callable[[Plan, datetime, DataPort], Awaitable[list[dict[str, Any]]]]

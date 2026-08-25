@@ -14,10 +14,14 @@
 ```
 
 Four stages, run in that order, with one trace entry each. BRAIN #2 comes last
-because what the lane returned is what there is to write about: it is handed
-those results as `campusData` and told to answer from them. A capability with
-no executor records that it did not run, hands over nothing, and BRAIN #2
-answers from its own knowledge instead.
+because it writes from what PYTHON produced, on every lane: it is handed
+`answerFrom` — `campusData` with the rows a lookup returned, or `ownKnowledge`
+— and never has to infer what to do from a field that is not there.
+
+The trace and BRAIN #2 are told different things on purpose. The trace says
+exactly why a lane did not run, because that is for a person debugging. BRAIN
+#2 is told only where to answer from, because a model told its lookup failed
+apologises for the capability rather than answering the question.
 
 ## Modules
 
