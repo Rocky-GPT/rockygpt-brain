@@ -85,7 +85,11 @@ class UiAction(ContractModel):
 
 
 class BrainTrace(ContractModel):
-    """What went into the model call, and what came out of it."""
+    """What Rocky was given and made of it, and what came back.
+
+    ``in`` carries the question and the plan AI #1 wrote for it; ``out``
+    carries the answer, and whatever acting on the plan produced.
+    """
 
     input: dict[str, Any] = Field(alias="in")
     output: dict[str, Any] = Field(alias="out")

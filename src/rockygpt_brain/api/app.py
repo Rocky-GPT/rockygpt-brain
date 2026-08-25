@@ -29,6 +29,7 @@ from rockygpt_brain.api.contracts import (
 from rockygpt_brain.config import Settings, get_settings
 from rockygpt_brain.core.brain import Brain, TurnIdentity
 from rockygpt_brain.core.model import ModelPort, OpenAIModel
+from rockygpt_brain.core.planner import OpenAIPlanner, PlannerPort
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.services.memory import MemoryStore
 
@@ -46,6 +47,7 @@ OriginHeader = Annotated[
 @dataclass(slots=True)
 class AppServices:
     model: ModelPort
+    planner: PlannerPort
     memory: MemoryStore
     brain: Brain
 
@@ -81,6 +83,7 @@ def create_app(
     *,
     settings: Settings | None = None,
     model: ModelPort | None = None,
+    planner: PlannerPort | None = None,
     memory: MemoryStore | None = None,
 ) -> FastAPI:
     config = settings or get_settings()
@@ -88,9 +91,13 @@ def create_app(
         config.secret_value(config.openai_api_key),
         config.openai_chat_model,
     )
+    planner_port = planner or OpenAIPlanner(
+        config.secret_value(config.openai_api_key),
+        config.openai_planner_model,
+    )
     memory_store = memory or MemoryStore()
-    brain = Brain(model_port, memory_store, config.campus_timezone)
-    services = AppServices(model_port, memory_store, brain)
+    brain = Brain(model_port, planner_port, memory_store, config.campus_timezone)
+    services = AppServices(model_port, planner_port, memory_store, brain)
     started = time.monotonic()
 
     @asynccontextmanager
@@ -157,6 +164,8 @@ def create_app(
         failing: list[str] = []
         if not model_port.configured:
             failing.append("model")
+        if not planner_port.configured:
+            failing.append("planner")
         result = Readiness(
             status="unready" if failing else "ready",
             failing=failing or None,

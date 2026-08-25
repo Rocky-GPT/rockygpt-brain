@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, ge=1, le=65535)
     openai_api_key: SecretStr | None = None
     openai_chat_model: str = "gpt-4.1-mini"
+    #: AI #1, the planner. Its job is translation, not prose.
+    openai_planner_model: str = "gpt-4.1-mini"
     #: The clock the model is given. All temporal resolution happens in this zone.
     campus_timezone: str = "America/New_York"
     staging_service_token: SecretStr | None = None
