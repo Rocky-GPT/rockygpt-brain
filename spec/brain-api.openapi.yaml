@@ -418,6 +418,11 @@ components:
         history:
           type: array
           maxItems: 10
+          description: >-
+            Earlier turns, newest last. Absent and empty differ: a client that
+            tracks the conversation sends this every turn, and `[]` is taken at
+            its word as "nothing earlier". Omit the field to have the brain use
+            its own record of the session instead.
           items:
             $ref: '#/components/schemas/ChatTurn'
         styleMode:
@@ -492,12 +497,18 @@ components:
         The four stages of a turn, in the order they ran. A stage that did
         nothing reports that it did nothing rather than being omitted, so the
         pipeline always reads end to end.
-      required: [question, plan, execution, answer]
+      required: [question, context, plan, execution, answer]
       properties:
         question:
           type: object
           additionalProperties: true
-          description: What was asked, and the clock it was asked at.
+          description: What was asked, in the student's own words.
+        context:
+          type: object
+          additionalProperties: true
+          description: >-
+            Everything else the turn is read against — the clock, the earlier
+            turns, and the modes the client asked for.
         plan:
           type: object
           additionalProperties: true
