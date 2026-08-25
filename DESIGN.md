@@ -68,10 +68,14 @@ not part of the question — the browser never sends a time and the proxy would
 drop one — it is what Python read the question against, and `today` means
 nothing until an instant fixes it.
 
-A stage that did nothing reports that it did nothing rather than being
-omitted. `execution` on an unexecuted lane is `{lane, ran: false, note}` — the
-distinction between "Rocky looked this up" and "the model knew it" is the one
-a reader most needs, and a missing box would hide it.
+The `execution` stage is one of three shapes, and which one it is says what
+happened: `{"note": ...}` did not run, `{"count": n}` ran and counted,
+`{"results": [...]}` ran and listed. It carries no lane — the plan stage above
+already names it — and no `ran` flag, because the shape is the flag.
+
+The distinction that matters is `{"results": []}` against `{"note": ...}`:
+"Rocky looked and there is nothing" against "Rocky never looked". Those are
+different answers, and the empty list is what says so.
 
 ## What Python contributes
 
