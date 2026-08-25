@@ -51,12 +51,11 @@ config.py             settings from .env
 A plan is a lane, and whatever that lane needs.
 
 ```text
-lane        CODE | RAG | GENERAL | SAFETY | MEMORY
+lane        CODE | RAG | GENERAL | SAFETY
 capability  CODE: which lookup, from the registry
 filters     CODE: field/value pairs, drawn from that capability's filter fields
 operation   CODE: orderBy + direction, limit, count, compare
 topic       RAG: what to find in the documents
-query       MEMORY: what was said earlier
 ```
 
 The vocabulary is fixed and small on purpose. It grows by capability — a new

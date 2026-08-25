@@ -132,7 +132,14 @@ class Brain:
         trace = BrainTrace(
             question=question,
             memory=memory,
-            # What the turn drew on, and empty when it drew on nothing.
+            # What BRAIN #1 made of the question, and separately what it had
+            # to borrow to get there. Split because the first is produced on
+            # every turn and the second only when the conversation mattered.
+            understanding={
+                "normalizedQuestion": read.normalized,
+                "usesContext": read.uses_context,
+                "resolvedQuestion": read.resolved,
+            },
             context=_context(read, earlier),
             plan=checked.summary(),
             execution=execution.summary(),
@@ -182,10 +189,8 @@ def _context(read: Understanding, earlier: list[dict[str, Any]]) -> dict[str, An
         return {}
     used = [earlier[i] for i in read.used_turns if 0 <= i < len(earlier)]
     return {
-        "normalizedQuestion": read.normalized,
         "references": [r.model_dump(by_alias=True) for r in read.references],
         "contextUsed": used,
-        "resolvedQuestion": read.resolved,
     }
 
 

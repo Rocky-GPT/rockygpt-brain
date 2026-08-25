@@ -38,7 +38,7 @@ looked". Do not drop `results` when it is empty — the empty list is the
 message.
 
 **Rocky's vocabulary describes what it can do, never what anyone may ask.**
-Five lanes, a registry of capabilities, the fields each capability allows, and
+Four lanes, a registry of capabilities, the fields each capability allows, and
 a few generic operations — filter, sort, limit, count, compare. That is all of
 it. There is no list of intents and there must never be one: no `next_shuttle`,
 no `menu_lookup`, no enum whose members are questions. "The first shuttle" and

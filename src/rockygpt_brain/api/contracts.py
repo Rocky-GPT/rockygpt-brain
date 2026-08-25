@@ -102,8 +102,10 @@ class BrainTrace(ContractModel):
     ``question`` what was asked, in the student's own words
     ``memory``   what was available to read it against — the earlier turns, the
                  clock, and the modes the client asked for
-    ``context``  what this question actually drew on: the resolved question,
-                 and whether resolving it needed the memory at all
+    ``understanding``
+                 BRAIN #1 — what the question turned out to be asking
+    ``context``  what it borrowed from the conversation to get there. Empty
+                 unless BRAIN #1 says the question needed it
     ``plan``     BRAIN #1 — the clock it read the question against, and what
                  it understood, as operations
     ``execution``PYTHON — what running that lane produced
@@ -115,6 +117,7 @@ class BrainTrace(ContractModel):
 
     question: dict[str, Any]
     memory: dict[str, Any]
+    understanding: dict[str, Any]
     context: dict[str, Any]
     plan: dict[str, Any]
     execution: dict[str, Any]
