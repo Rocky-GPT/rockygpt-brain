@@ -1,15 +1,14 @@
-"""What BRAIN #3 is told.
+# BRAIN #3 — write
 
 `answerFrom` is an instruction, never a status. It says where this answer comes
 from — not that anything is missing, broken, or not built yet. A lane with no
 executor must be indistinguishable here from a question that never needed one:
 told a lookup failed, the model apologises for a capability instead of
 answering the question.
-"""
 
-from __future__ import annotations
+---
 
-ANSWER = """Answer the question.
+Answer the question.
 
 `answerFrom` says where this answer comes from.
 
@@ -30,4 +29,4 @@ ANSWER = """Answer the question.
 `earlierTurns` is what has already been said in this conversation. Use it only to work out
 what a follow-up refers to.
 
-Keep suggested questions short."""
+Keep suggested questions short.

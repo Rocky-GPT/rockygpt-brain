@@ -11,10 +11,12 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from rockygpt_brain.brain.plan.prompt import PLAN
 from rockygpt_brain.brain.plan.schema import TIME_WORDS, Plan
+from rockygpt_brain.brain.prompt import beside
 from rockygpt_brain.capabilities.registry import catalogue
 from rockygpt_brain.services.openai import StructuredModel
+
+PLAN = beside(__file__)
 
 
 class PlanPort(Protocol):

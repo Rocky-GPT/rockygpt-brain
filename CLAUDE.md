@@ -67,9 +67,11 @@ does not, and that claim is what the registry rule above exists to prevent.
 **Each stage keeps the same four files** — `run.py`, `prompt.py`, `schema.py`,
 `validate.py` — so the same question is always asked in the same place. A
 stage missing one does not have the file rather than an empty one. Prompts
-stay in their own file: a paragraph added to the planning instruction has
+are `prompt.md`, not Python: a paragraph added to the planning instruction has
 twice moved lane routing on questions it was not about, and that belongs in a
-diff you can read as prose.
+diff you read as sentences. Everything above the `---` rule is notes for
+whoever edits the file and is never sent — a model told about a past routing
+bug will try to be helpful about it.
 
 Two things that look like lanes are not, and must not become lanes again. A
 lane says where an answer lives; neither of these is a place.

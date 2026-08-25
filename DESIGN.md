@@ -45,10 +45,11 @@ it. `_unresolved` in `brain.py` holds the two tests.
 brain/                the four stages, in the order they run
   brain.py            the lifecycle — what calls what, and what fails the turn
   values.py           the constrained scalars every stage schema is built from
-  understand/         BRAIN #1: run, prompt, schema, validate
-  plan/               BRAIN #2: run, prompt, schema, validate
+  prompt.py           reads a stage's prompt.md, minus its notes
+  understand/         BRAIN #1: run, prompt.md, schema, validate
+  plan/               BRAIN #2: run, prompt.md, schema, validate
   execute/            PYTHON: run (safety, then the lane), schema
-  write/              BRAIN #3: run, prompt, schema
+  write/              BRAIN #3: run, prompt.md, schema
 lanes/                where an answer comes from
   code/               a capability lookup, then the plan's operation
   general/            what the model knows, or a web search
@@ -69,10 +70,19 @@ be used. A stage without one of those does not have the file — `execute` has n
 `prompt.py` because it calls no model, and no `validate.py` because a plan is
 checked before it runs, not after.
 
-Prompts are separate files because they are the highest-risk text here. A
-paragraph added to the planning instruction has twice moved lane routing on
-questions it was not about, and that change should read as prose in a one-file
-diff rather than as a string buried among Python.
+Prompts are `prompt.md`, not Python, because they are prose and the highest-risk
+text here. A paragraph added to the planning instruction has twice moved lane
+routing on questions it was not about, and that change should diff as sentences
+rather than as a quoted string — and a markdown file cannot quietly acquire an
+f-string or a conditional, which is how a prompt starts behaving differently
+from what the file appears to say.
+
+Each one is two halves split by a `---` rule. Above it is for whoever edits the
+file: what the instruction is for and what it has broken before. Below is what
+the model is sent. Keeping the rationale in the same file is what makes it
+likely to be read; keeping it above the rule is what stops the model reading it
+too, since a model told about a past routing bug will try to be helpful about
+it.
 
 A directory exists when there is code for it. There is no `lanes/rag/` and no
 `capabilities/dining/`, because an empty package claims the product does
