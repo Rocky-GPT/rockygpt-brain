@@ -27,7 +27,11 @@ _PLAN = """Translate the question into a plan. Choose one lane.
 
 CODE     the answer is a lookup in campus data. Name the capability.
 RAG      the answer is written in a campus document. Give the topic.
-GENERAL  the answer is general knowledge.
+GENERAL  the answer is general knowledge. Say which kind with `freshness`:
+         `stable` if the answer is the same whenever it is asked, and
+         `current` if an honest answer would have to say "as of" some date —
+         anything measured, counted, priced, ranked, or currently held, however
+         slowly it moves. For `current`, give the `query` to look up.
 SAFETY   the person may be at risk of harm.
 MEMORY   the question is about what was already said. Give the query.
 

@@ -31,21 +31,33 @@ from rockygpt_brain.core.capabilities import CAPABILITIES
 from rockygpt_brain.core.plan import Lane, Operation, Plan
 from rockygpt_brain.core.validate import Rejected
 from rockygpt_brain.services.data import DataPort, DataUnavailable
+from rockygpt_brain.services.web import WebPort, WebUnavailable
 
 #: The most a lookup asks for before the operation narrows it down.
 _FETCH_LIMIT = 100
 _CLOCK = re.compile(r"^(\d{1,2}):(\d{2})\s*([AaPp])[Mm]?$")
 
 
+#: Where an answer comes from. `ownKnowledge` is the model's own; the other two
+#: are looked up, and carry `results`.
+OWN_KNOWLEDGE = "ownKnowledge"
+CAMPUS_DATA = "campusData"
+WEB = "web"
+
+
 @dataclass(frozen=True, slots=True)
 class Execution:
     #: No lane here. The plan stage above already names it, and repeating it
-    #: only invites the two to disagree. What this stage adds is whether the
-    #: lane ran, and what came back.
-    ran: bool
-    note: str
+    #: only invites the two to disagree. What this stage adds is where the
+    #: answer comes from, and what came back.
+    answer_from: str
+    note: str = ""
     results: list[dict[str, Any]] = field(default_factory=list)
     count: int | None = None
+
+    @property
+    def ran(self) -> bool:
+        return self.answer_from != OWN_KNOWLEDGE
 
     def summary(self) -> dict[str, Any]:
         """This stage, for a person reading the trace.
@@ -66,10 +78,10 @@ class Execution:
         list is what says which.
         """
         if not self.ran:
-            return {"answerFrom": "ownKnowledge", "note": self.note}
+            return {"answerFrom": OWN_KNOWLEDGE, "note": self.note}
         if self.count is not None:
-            return {"answerFrom": "campusData", "count": self.count}
-        return {"answerFrom": "campusData", "results": self.results}
+            return {"answerFrom": self.answer_from, "count": self.count}
+        return {"answerFrom": self.answer_from, "results": self.results}
 
     def grounding(self) -> dict[str, Any]:
         """What BRAIN #2 answers from. Every lane produces one; none is empty.
@@ -85,9 +97,9 @@ class Execution:
         unambiguously, because ``answerFrom`` already established that it ran.
         """
         if not self.ran:
-            return {"answerFrom": "ownKnowledge"}
+            return {"answerFrom": OWN_KNOWLEDGE}
         found = [{"count": self.count}] if self.count is not None else self.results
-        return {"answerFrom": "campusData", "campusData": found}
+        return {"answerFrom": self.answer_from, "results": found}
 
 
 Executor = Callable[[Plan, datetime, DataPort], Awaitable[list[dict[str, Any]]]]
@@ -165,28 +177,40 @@ def _apply(
     return [_project(row, capability) for row in rows], None
 
 
-async def run(checked: Plan | Rejected, now: datetime, data: DataPort) -> Execution:
+async def run(checked: Plan | Rejected, now: datetime, data: DataPort, web: WebPort) -> Execution:
     """Act on a checked plan."""
     if isinstance(checked, Rejected):
-        return Execution(ran=False, note=checked.reason)
+        return Execution(OWN_KNOWLEDGE, note=checked.reason)
 
-    # GENERAL is the lane that means "no lookup needed", so it is not waiting
-    # for anything. Saying "yet" of it would report a finished design as a gap,
-    # and is the difference between a turn that worked and one that was cut
-    # short — which is the distinction this stage exists to draw.
     if checked.lane is Lane.GENERAL:
-        return Execution(ran=False, note="nothing to look up; answered from what the model knows")
+        return await _general(checked, web)
 
     capability = checked.capability or ""
     executor = _EXECUTORS.get(capability) if checked.lane is Lane.CODE else None
     if executor is None:
         missing = f"the {capability} capability" if capability else f"the {checked.lane.value} lane"
-        return Execution(ran=False, note=f"no executor for {missing} yet")
+        return Execution(OWN_KNOWLEDGE, note=f"no executor for {missing} yet")
 
     try:
         records = await executor(checked, now, data)
     except DataUnavailable as exc:
-        return Execution(ran=False, note=f"the lookup did not happen: {exc}")
+        return Execution(OWN_KNOWLEDGE, note=f"the lookup did not happen: {exc}")
 
     results, count = _apply(records, checked.operation, capability)
-    return Execution(ran=True, note="", results=results, count=count)
+    return Execution(CAMPUS_DATA, results=results, count=count)
+
+
+async def _general(plan: Plan, web: WebPort) -> Execution:
+    """General knowledge: the model's own, unless the answer has a shelf life.
+
+    A `stable` question is not waiting for an executor — it is the lane that
+    means "no lookup needed", and calling that a gap would report a finished
+    design as an unfinished one.
+    """
+    if plan.freshness != "current" or not plan.query:
+        return Execution(OWN_KNOWLEDGE, note="stable; answered from what the model knows")
+    try:
+        results = await web.search(plan.query)
+    except WebUnavailable as exc:
+        return Execution(OWN_KNOWLEDGE, note=f"the search did not happen: {exc}")
+    return Execution(WEB, results=results)

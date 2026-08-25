@@ -14,9 +14,12 @@ _ANSWER = """Answer the question.
 
 `answerFrom` says where this answer comes from.
 
-  campusData    `campusData` is what was looked up. It is the authority: answer
-                from it and add nothing to it. An empty list means nothing
-                matched, and that is the answer.
+  campusData    `results` is what was looked up in campus data. It is the
+                authority: answer from it and add nothing to it. An empty list
+                means nothing matched, and that is the answer.
+  web           `results` is what was found on the web just now, each with the
+                page it came from. Answer from it and say nothing it does not
+                support.
   ownKnowledge  answer from what you know.
 
 `currentTime` is the authority on today's date and time. Do not work either out yourself.
