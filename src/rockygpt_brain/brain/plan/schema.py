@@ -1,4 +1,4 @@
-"""The vocabulary a plan is written in.
+"""What BRAIN #2 returns: the vocabulary a plan is written in.
 
 Five lanes, a list of filters, and a handful of generic operations. Nothing
 here names a question anyone might ask. This file describes what Rocky can be
@@ -13,17 +13,13 @@ quietly become a taxonomy, and every new question needs code again.
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.json_schema import SkipJsonSchema
 
+from rockygpt_brain.brain.values import FieldName, Text
 from rockygpt_brain.safety.schema import Concern
-
-FieldName = Annotated[
-    str, StringConstraints(min_length=1, max_length=64, pattern=r"^[A-Za-z][A-Za-z0-9_]*$")
-]
-Text = Annotated[str, StringConstraints(min_length=1, max_length=200)]
 
 #: Words a filter value may carry instead of a date or an instant. Python
 #: resolves them against the campus clock in `validate`, because the model is
@@ -53,15 +49,6 @@ class Lane(StrEnum):
     CODE = "CODE"  # look it up in structured campus data
     RAG = "RAG"  # find it in a campus document
     GENERAL = "GENERAL"  # answer from what the model already knows
-
-
-class Reference(BaseModel):
-    """A word in the question that points somewhere else, and where it points."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    text: Text
-    refers_to: Text = Field(alias="refersTo")
 
 
 class Filter(BaseModel):
@@ -102,37 +89,6 @@ class Operation(BaseModel):
         an operation is one of the other four.
         """
         return bool(self.order_by or self.limit or self.count or self.compare)
-
-
-class Understanding(BaseModel):
-    """What the question turns out to be asking. BRAIN #1's first call.
-
-    The four fields are declared in the order they are worked out, and that
-    order is the point: a structured response is generated field by field as
-    declared, so tidying, then finding what points elsewhere, then naming the
-    turns it points into, then writing it all out, each happens with the
-    previous already on the page. Reorder them and the later ones are guesses.
-    """
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    #: The question with its wording tidied and nothing else — no reference
-    #: followed, no subject filled in.
-    normalized: Text
-    #: What in the question points elsewhere, and where.
-    references: list[Reference] = Field(default_factory=list, max_length=6)
-    #: Which entries of `earlierTurns` were read, by position. Indices rather
-    #: than the turns themselves: Python looks them up, so what the trace shows
-    #: is what was actually said and not a paraphrase of it.
-    used_turns: list[int] = Field(default_factory=list, max_length=20, alias="usedTurns")
-    #: Whether this question needs the conversation at all — to be understood,
-    #: or because it is about what was said. Stated rather than inferred from
-    #: the fields above: BRAIN #1 is the only stage that can see the
-    #: conversation, so it is the only one in a position to say.
-    uses_context: bool = Field(default=False, alias="usesContext")
-    #: The question rewritten to stand on its own. This, and only this, is what
-    #: the planning call is given — see `planner.py`.
-    resolved: Text
 
 
 class Plan(BaseModel):

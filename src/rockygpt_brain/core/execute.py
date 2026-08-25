@@ -27,8 +27,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from rockygpt_brain.brain.plan.schema import Lane, Operation, Plan
 from rockygpt_brain.capabilities.registry import CAPABILITIES
-from rockygpt_brain.core.plan import Lane, Operation, Plan
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.safety.enforce import required
 from rockygpt_brain.services.data import DataPort, DataUnavailable

@@ -8,10 +8,10 @@ from zoneinfo import ZoneInfo
 
 from openai.lib._pydantic import to_strict_json_schema
 
+from rockygpt_brain.brain.plan.prompt import PLAN
+from rockygpt_brain.brain.plan.schema import TIME_WORDS, Filter, Lane, Operation, Plan
+from rockygpt_brain.brain.plan.validate import Rejected, anchor, check, resolve
 from rockygpt_brain.capabilities.registry import CAPABILITIES
-from rockygpt_brain.core.plan import TIME_WORDS, Filter, Lane, Operation, Plan
-from rockygpt_brain.core.planner import _PLAN
-from rockygpt_brain.core.validate import Rejected, anchor, check, resolve
 from rockygpt_brain.safety.schema import Concern
 
 TZ = ZoneInfo("America/New_York")
@@ -222,7 +222,7 @@ def test_the_plan_is_a_shape_the_model_can_be_held_to() -> None:
 
 def test_the_instruction_carries_no_example_question() -> None:
     """A worked example in the prompt is the first step back to an intent list."""
-    assert "?" not in _PLAN
+    assert "?" not in PLAN
 
 
 def test_no_capability_is_named_after_a_question() -> None:
