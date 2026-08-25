@@ -8,9 +8,9 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from rockygpt_brain.brain.execute.run import run
 from rockygpt_brain.brain.plan.schema import Filter, Lane, Operation, Plan
 from rockygpt_brain.brain.plan.validate import check
-from rockygpt_brain.core.execute import run
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.safety.responses import CONCERNS
 from rockygpt_brain.safety.schema import Concern

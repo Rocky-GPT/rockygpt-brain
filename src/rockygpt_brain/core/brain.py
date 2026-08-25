@@ -40,6 +40,8 @@ from zoneinfo import ZoneInfo
 from pydantic import ValidationError
 
 from rockygpt_brain.api.contracts import BrainTrace, ChatRequest, ChatSuccess, Citation
+from rockygpt_brain.brain.execute.run import run
+from rockygpt_brain.brain.execute.schema import WEB, Execution
 from rockygpt_brain.brain.plan.run import PlanPort
 from rockygpt_brain.brain.plan.schema import Plan
 from rockygpt_brain.brain.plan.validate import Rejected, check
@@ -47,7 +49,6 @@ from rockygpt_brain.brain.understand.run import UnderstandPort
 from rockygpt_brain.brain.understand.schema import Understanding
 from rockygpt_brain.brain.understand.validate import ResolutionFailed, unresolved
 from rockygpt_brain.brain.write.run import WritePort
-from rockygpt_brain.core.execute import WEB, Execution, run
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.services.data import DataPort
 from rockygpt_brain.services.memory import MemoryStore
