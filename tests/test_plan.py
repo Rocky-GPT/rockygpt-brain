@@ -21,6 +21,7 @@ def code(capability: str, filters: dict[str, str], **operation: Any) -> Plan:
     """A CODE plan. Defaults to a stated operation, which every CODE plan needs."""
     return Plan(
         lane=Lane.CODE,
+        resolved="a resolved question",
         capability=capability,
         filters=[Filter(field=k, value=v) for k, v in filters.items()],
         operation=Operation(**(operation or {"limit": 1})),
@@ -58,9 +59,17 @@ def test_comparing_a_field_the_capability_does_not_have_is_rejected() -> None:
     assert isinstance(check(code("dining", {}, compare=["departureTime"]), NOW), Rejected)
 
 
+def test_a_plan_must_say_what_it_resolved_to() -> None:
+    """Without it, nothing forces the reference to be worked out before the lane."""
+    plan = Plan(lane=Lane.CODE, capability="shuttle", operation=Operation(limit=1))
+    rejected = check(plan, NOW)
+    assert isinstance(rejected, Rejected)
+    assert "resolved" in rejected.reason
+
+
 def test_a_capability_without_an_operation_is_rejected() -> None:
     """Half a plan: what to look in, and nothing about what to do with it."""
-    plan = Plan(lane=Lane.CODE, capability="shuttle", operation=Operation())
+    plan = Plan(lane=Lane.CODE, resolved="q", capability="shuttle", operation=Operation())
     rejected = check(plan, NOW)
     assert isinstance(rejected, Rejected)
     assert "operation" in rejected.reason
@@ -68,7 +77,12 @@ def test_a_capability_without_an_operation_is_rejected() -> None:
 
 def test_a_direction_alone_is_not_an_operation() -> None:
     """It has a default, so it is set on every plan whether meant or not."""
-    plan = Plan(lane=Lane.CODE, capability="shuttle", operation=Operation(direction="descending"))
+    plan = Plan(
+        lane=Lane.CODE,
+        resolved="q",
+        capability="shuttle",
+        operation=Operation(direction="descending"),
+    )
     assert isinstance(check(plan, NOW), Rejected)
 
 
@@ -106,22 +120,24 @@ def test_a_value_that_is_not_a_time_word_is_left_alone() -> None:
 
 
 def test_a_rag_plan_needs_a_topic() -> None:
-    assert isinstance(check(Plan(lane=Lane.RAG), NOW), Rejected)
-    assert isinstance(check(Plan(lane=Lane.RAG, topic="overnight guest policy"), NOW), Plan)
+    assert isinstance(check(Plan(lane=Lane.RAG, resolved="q"), NOW), Rejected)
+    assert isinstance(
+        check(Plan(lane=Lane.RAG, resolved="q", topic="overnight guest policy"), NOW), Plan
+    )
 
 
 def test_a_memory_plan_needs_a_query() -> None:
-    assert isinstance(check(Plan(lane=Lane.MEMORY), NOW), Rejected)
-    assert isinstance(check(Plan(lane=Lane.MEMORY, query="the shuttle"), NOW), Plan)
+    assert isinstance(check(Plan(lane=Lane.MEMORY, resolved="q"), NOW), Rejected)
+    assert isinstance(check(Plan(lane=Lane.MEMORY, resolved="q", query="the shuttle"), NOW), Plan)
 
 
 def test_general_and_safety_need_nothing() -> None:
-    assert isinstance(check(Plan(lane=Lane.GENERAL), NOW), Plan)
-    assert isinstance(check(Plan(lane=Lane.SAFETY), NOW), Plan)
+    assert isinstance(check(Plan(lane=Lane.GENERAL, resolved="q"), NOW), Plan)
+    assert isinstance(check(Plan(lane=Lane.SAFETY, resolved="q"), NOW), Plan)
 
 
 def test_a_stray_field_from_another_lane_is_dropped_not_rejected() -> None:
-    checked = check(Plan(lane=Lane.RAG, topic="parking", capability="shuttle"), NOW)
+    checked = check(Plan(lane=Lane.RAG, resolved="q", topic="parking", capability="shuttle"), NOW)
     assert isinstance(checked, Plan)
     assert checked.capability is None
 
@@ -142,6 +158,7 @@ def test_the_summary_reads_as_the_plan_was_written() -> None:
     assert isinstance(checked, Plan)
     assert checked.summary() == {
         "lane": "CODE",
+        "resolved": "a resolved question",
         "capability": "shuttle",
         "filters": {"destination": "Garden State Plaza", "date": "2031-03-06"},
         "operation": {"orderBy": "departureTime", "direction": "ascending", "limit": 1},
@@ -149,8 +166,12 @@ def test_the_summary_reads_as_the_plan_was_written() -> None:
 
 
 def test_an_unused_half_of_the_plan_is_not_in_the_summary() -> None:
-    checked = check(Plan(lane=Lane.GENERAL), NOW)
-    assert checked.summary() == {"lane": "GENERAL", "freshness": "stable"}  # type: ignore[union-attr]
+    checked = check(Plan(lane=Lane.GENERAL, resolved="q"), NOW)
+    assert checked.summary() == {  # type: ignore[union-attr]
+        "lane": "GENERAL",
+        "resolved": "q",
+        "freshness": "stable",
+    }
 
 
 # The vocabulary stays a vocabulary

@@ -499,18 +499,24 @@ components:
         The four stages of a turn, in the order they ran. A stage that did
         nothing reports that it did nothing rather than being omitted, so the
         pipeline always reads end to end.
-      required: [question, context, plan, execution, answer]
+      required: [question, memory, context, plan, execution, answer]
       properties:
         question:
           type: object
           additionalProperties: true
           description: What was asked, in the student's own words.
+        memory:
+          type: object
+          additionalProperties: true
+          description: >-
+            What was available to read the turn against — the clock, the
+            earlier turns, and the modes the client asked for.
         context:
           type: object
           additionalProperties: true
           description: >-
-            Everything else the turn is read against — the clock, the earlier
-            turns, and the modes the client asked for.
+            What the turn actually drew on: the question with anything it
+            pointed at put back in.
         plan:
           type: object
           additionalProperties: true

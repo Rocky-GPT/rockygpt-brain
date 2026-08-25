@@ -53,7 +53,7 @@ class FakePlanner:
     configured = True
 
     def __init__(self, plan: Plan | None = None, fails: bool = False) -> None:
-        self._plan = plan or Plan(lane=Lane.GENERAL)
+        self._plan = plan or Plan(lane=Lane.GENERAL, resolved="q")
         self._fails = fails
         self.seen: dict[str, Any] = {}
 
@@ -131,9 +131,24 @@ async def test_a_follow_up_sees_the_earlier_turn() -> None:
     await ask("first", memory, "r1")
     response, model = await ask("second", memory, "r2")
     assert model.seen["context"], "the second turn sees the first"
-    assert response.brain_trace.context["earlierTurns"] == model.seen["context"], (
+    assert response.brain_trace.memory["earlierTurns"] == model.seen["context"], (
         "what the trace shows is what the model was given"
     )
+
+
+async def test_a_question_that_stands_alone_has_no_context_stage() -> None:
+    """Nothing was pointed at, so there is nothing for the stage to show."""
+    plan = Plan(lane=Lane.GENERAL, resolved="what is the capital of France", freshness="stable")
+    response, _ = await ask("what is the capital of France", planner=FakePlanner(plan))
+    assert response.brain_trace.context == {}
+
+
+async def test_the_context_stage_carries_the_resolved_question() -> None:
+    """Read against the question in the header, it says what the turn drew on."""
+    plan = Plan(lane=Lane.GENERAL, resolved="population of Paris", freshness="stable")
+    response, _ = await ask("population of it", planner=FakePlanner(plan))
+    assert response.brain_trace.question == {"question": "population of it"}
+    assert response.brain_trace.context == {"resolved": "population of Paris"}
 
 
 async def test_an_empty_history_is_taken_at_its_word() -> None:
@@ -148,7 +163,7 @@ async def test_an_empty_history_is_taken_at_its_word() -> None:
         TurnIdentity("r2", "s", None, "client"),
     )
     assert model.seen["context"] == [], "the earlier turn is not resurrected"
-    assert response.brain_trace.context["earlierTurns"] == []
+    assert response.brain_trace.memory["earlierTurns"] == []
 
 
 async def test_a_client_that_sends_no_history_still_gets_the_sessions() -> None:
@@ -179,8 +194,8 @@ async def test_the_modes_the_ui_asked_for_are_on_the_turn() -> None:
         ChatRequest(message="m", now=NOW, style_mode="warm", response_mode="concise"),
         TurnIdentity("r", "s", None, "client"),
     )
-    assert response.brain_trace.context["styleMode"] == "warm"
-    assert response.brain_trace.context["responseMode"] == "concise"
+    assert response.brain_trace.memory["styleMode"] == "warm"
+    assert response.brain_trace.memory["responseMode"] == "concise"
 
 
 # The planning half
@@ -196,6 +211,7 @@ async def test_the_planner_is_told_the_same_question_and_time() -> None:
 async def test_the_plan_is_its_own_stage() -> None:
     plan = Plan(
         lane=Lane.CODE,
+        resolved="the last shuttle today",
         capability="shuttle",
         filters=[Filter(field="date", value="today")],
         operation=Operation(order_by="departureTime", direction="descending", limit=1),
@@ -203,6 +219,7 @@ async def test_the_plan_is_its_own_stage() -> None:
     response, _ = await ask(planner=FakePlanner(plan))
     assert response.brain_trace.plan == {
         "lane": "CODE",
+        "resolved": "the last shuttle today",
         "capability": "shuttle",
         "filters": {"date": "2031-03-06"},
         "operation": {"orderBy": "departureTime", "direction": "descending", "limit": 1},
@@ -213,8 +230,9 @@ async def test_the_turn_reads_end_to_end_as_four_stages() -> None:
     response, _ = await ask("a question")
     trace = response.brain_trace
     assert trace.question == {"question": "a question"}, "the words, and nothing else"
-    assert trace.context == {"currentTime": CLOCK, "earlierTurns": []}
-    assert trace.plan == {"lane": "GENERAL", "freshness": "stable"}
+    assert trace.memory == {"currentTime": CLOCK, "earlierTurns": []}
+    assert trace.plan == {"lane": "GENERAL", "resolved": "q", "freshness": "stable"}
+    assert trace.context == {"resolved": "q"}, "the question was rewritten"
     assert trace.execution == {
         "answerFrom": "ownKnowledge",
         "note": "stable; answered from what the model knows",
@@ -233,7 +251,7 @@ async def test_brain_two_never_runs_on_a_failed_lookup() -> None:
     model = FakeModel()
     brain = Brain(
         model,
-        FakePlanner(Plan(lane=Lane.CODE, capability="menu")),
+        FakePlanner(Plan(lane=Lane.CODE, resolved="q", capability="menu")),
         FakeData(),
         FakeWeb(),
         MemoryStore(),
@@ -247,12 +265,12 @@ async def test_brain_two_never_runs_on_a_failed_lookup() -> None:
 
 async def test_a_lane_with_no_executor_ends_the_turn() -> None:
     with pytest.raises(ServiceError) as raised:
-        await ask(planner=FakePlanner(Plan(lane=Lane.RAG, topic="parking")))
+        await ask(planner=FakePlanner(Plan(lane=Lane.RAG, resolved="q", topic="parking")))
     assert raised.value.status_code == 503
 
 
 async def test_the_route_is_the_lane() -> None:
-    plan = Plan(lane=Lane.CODE, capability="shuttle", operation=Operation(limit=1))
+    plan = Plan(lane=Lane.CODE, resolved="q", capability="shuttle", operation=Operation(limit=1))
     response, _ = await ask(planner=FakePlanner(plan))
     assert response.route == "code"
 
@@ -260,7 +278,7 @@ async def test_the_route_is_the_lane() -> None:
 async def test_a_rejected_plan_ends_the_turn() -> None:
     """The registry refusing a plan is a failure, not a cue to answer anyway."""
     with pytest.raises(ServiceError) as raised:
-        await ask(planner=FakePlanner(Plan(lane=Lane.CODE, capability="weather")))
+        await ask(planner=FakePlanner(Plan(lane=Lane.CODE, resolved="q", capability="weather")))
     assert "weather" in str(raised.value.__cause__)
 
 
