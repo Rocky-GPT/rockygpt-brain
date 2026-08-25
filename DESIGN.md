@@ -87,12 +87,12 @@ rather than as a quoted string — and a markdown file cannot quietly acquire an
 f-string or a conditional, which is how a prompt starts behaving differently
 from what the file appears to say.
 
-Each one is two halves split by a `---` rule. Above it is for whoever edits the
-file: what the instruction is for and what it has broken before. Below is what
-the model is sent. Keeping the rationale in the same file is what makes it
-likely to be read; keeping it above the rule is what stops the model reading it
-too, since a model told about a past routing bug will try to be helpful about
-it.
+Each file is the whole instruction and nothing else — no header, no notes, no
+section stripped on the way out. What it reads as is byte for byte what the
+model is sent, which is the same reason these are not Python: any rule for
+subtracting part of a file is one more difference between what it says and what
+it does. Notes for whoever edits one live in the docstring of the module that
+loads it, where they cannot be sent by construction.
 
 A directory exists when there is code for it. There is no `lanes/rag/` and no
 `capabilities/dining/`, because an empty package claims the product does

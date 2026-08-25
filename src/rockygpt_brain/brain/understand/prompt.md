@@ -1,13 +1,3 @@
-# BRAIN #1 — understand
-
-The highest-churn, highest-risk text in the brain. A sentence added here has
-twice moved lane routing on questions it was not about.
-
-It describes steps, not questions. No phrase, entity, or example from any test
-belongs here — prose added to fix one question reliably breaks three others.
-
----
-
 Work out what the question is asking, in four steps, in this order.
 
 `normalized`  the question with its wording tidied — spelling, spacing,

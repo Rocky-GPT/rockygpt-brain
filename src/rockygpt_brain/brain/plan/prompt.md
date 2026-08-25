@@ -1,14 +1,3 @@
-# BRAIN #2 — plan
-
-Adding the safety paragraph here once moved lane routing across the whole
-30-question set. Measure before and after any change to this file.
-
-It describes lanes, fields and operations, and contains no question, phrase, or
-worked example. It must not gain one — the moment a question shape appears, the
-translator has become a list of intents and the next question needs code again.
-
----
-
 Say what to do about the question.
 
 `safety` lists what is wrong with the question, and is empty when nothing is:

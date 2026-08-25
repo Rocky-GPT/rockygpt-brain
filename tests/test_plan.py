@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-import pytest
 from openai.lib._pydantic import to_strict_json_schema
 
 import rockygpt_brain
@@ -18,10 +17,9 @@ from rockygpt_brain.brain.plan.validate import Rejected, anchor, check, resolve
 from rockygpt_brain.brain.understand.run import UNDERSTAND
 from rockygpt_brain.brain.write.run import ANSWER
 from rockygpt_brain.capabilities.registry import CAPABILITIES
-from rockygpt_brain.prompt import beside
 from rockygpt_brain.safety.schema import Concern
 
-PROMPTS = Path(rockygpt_brain.brain.__file__).parent
+SOURCE = Path(rockygpt_brain.__file__).parent
 TZ = ZoneInfo("America/New_York")
 NOW = datetime(2031, 3, 6, 18, 30, tzinfo=UTC).astimezone(TZ)
 
@@ -239,20 +237,6 @@ def test_every_stage_loads_its_instruction_from_disk() -> None:
         assert instruction and not instruction.startswith("#")
 
 
-def test_the_notes_above_the_rule_never_reach_the_model() -> None:
-    """The half above `---` is for whoever edits the file.
-
-    It says what this instruction has broken before. Told about a past routing
-    bug, a model will try to be helpful about it — so the rule is what keeps
-    the rationale readable and unsent.
-    """
-    for stage, instruction in (("understand", UNDERSTAND), ("plan", PLAN), ("write", ANSWER)):
-        whole = (PROMPTS / stage / "prompt.md").read_text(encoding="utf-8")
-        notes = whole.split("\n---\n", 1)[0]
-        assert notes.startswith("# BRAIN"), f"{stage} has no notes above the rule"
-        assert notes.strip() not in instruction
-
-
 def test_every_model_instruction_is_a_prompt_md() -> None:
     """The rule, enforced rather than remembered.
 
@@ -260,9 +244,8 @@ def test_every_model_instruction_is_a_prompt_md() -> None:
     must have come off disk. A new stage that inlines its instruction as a
     Python string fails here, which is the only reliable moment to catch it.
     """
-    source = Path(rockygpt_brain.__file__).parent
     senders = [
-        path for path in source.rglob("*.py") if "instructions=" in path.read_text(encoding="utf-8")
+        path for path in SOURCE.rglob("*.py") if "instructions=" in path.read_text(encoding="utf-8")
     ]
     assert senders, "no model call found — this test has stopped testing anything"
     for path in senders:
@@ -272,11 +255,20 @@ def test_every_model_instruction_is_a_prompt_md() -> None:
         )
 
 
-def test_a_prompt_without_the_rule_is_refused(tmp_path: Path) -> None:
-    """Silently sending the whole file is the failure this guards."""
-    (tmp_path / "prompt.md").write_text("no rule here")
-    with pytest.raises(ValueError, match="`---` rule"):
-        beside(str(tmp_path / "run.py"))
+def test_a_prompt_file_is_the_whole_instruction() -> None:
+    """No header, no notes, no section stripped on the way out.
+
+    What the file says is what the model is sent. Any rule for subtracting part
+    of it is one more difference between what a prompt reads as and what it
+    does — which is the reason these are not Python in the first place.
+    """
+    for stage, instruction in (
+        ("brain/understand", UNDERSTAND),
+        ("brain/plan", PLAN),
+        ("brain/write", ANSWER),
+    ):
+        whole = (SOURCE / stage / "prompt.md").read_text(encoding="utf-8")
+        assert whole.strip() == instruction
 
 
 def test_no_capability_is_named_after_a_question() -> None:
