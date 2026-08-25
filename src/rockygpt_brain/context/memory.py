@@ -6,7 +6,6 @@ import asyncio
 import json
 from collections import defaultdict
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -19,24 +18,7 @@ from rockygpt_brain.api.contracts import (
     LogListResponse,
     LogMetrics,
 )
-
-
-@dataclass(slots=True)
-class Turn:
-    request_id: str
-    user: str
-    assistant: str
-    route: str
-    created_at: datetime
-
-    def prompt_value(self) -> dict[str, Any]:
-        return {
-            "requestId": self.request_id,
-            "user": self.user,
-            "assistant": self.assistant,
-            "route": self.route,
-            "createdAt": self.created_at.isoformat(),
-        }
+from rockygpt_brain.context.schema import Turn
 
 
 class MemoryStore:

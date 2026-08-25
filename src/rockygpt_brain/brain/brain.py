@@ -49,9 +49,9 @@ from rockygpt_brain.brain.understand.run import UnderstandPort
 from rockygpt_brain.brain.understand.schema import Understanding
 from rockygpt_brain.brain.understand.validate import ResolutionFailed, unresolved
 from rockygpt_brain.brain.write.run import WritePort
+from rockygpt_brain.context.memory import MemoryStore
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.services.data import DataPort
-from rockygpt_brain.services.memory import MemoryStore
 from rockygpt_brain.services.web import WebPort
 
 

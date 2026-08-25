@@ -14,6 +14,7 @@ from rockygpt_brain.api.contracts import (
     ChatSuccess,
     ChatTurn,
 )
+from rockygpt_brain.brain.brain import Brain, TurnIdentity, _citations
 from rockygpt_brain.brain.execute.schema import CAMPUS_DATA, OWN_KNOWLEDGE, WEB, Execution
 from rockygpt_brain.brain.plan.schema import (
     Filter,
@@ -24,9 +25,8 @@ from rockygpt_brain.brain.plan.schema import (
 from rockygpt_brain.brain.understand.schema import Reference, Understanding
 from rockygpt_brain.brain.understand.validate import unresolved
 from rockygpt_brain.brain.write.schema import Draft
-from rockygpt_brain.core.brain import Brain, TurnIdentity, _citations
+from rockygpt_brain.context.memory import MemoryStore
 from rockygpt_brain.errors import ServiceError
-from rockygpt_brain.services.memory import MemoryStore
 
 TZ = ZoneInfo("America/New_York")
 NOW = datetime(2031, 3, 6, 18, 30, tzinfo=UTC)

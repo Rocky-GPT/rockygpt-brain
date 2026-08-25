@@ -26,14 +26,14 @@ from rockygpt_brain.api.contracts import (
     Readiness,
     UnmodifiedResponse,
 )
+from rockygpt_brain.brain.brain import Brain, TurnIdentity
 from rockygpt_brain.brain.plan.run import OpenAIPlan, PlanPort
 from rockygpt_brain.brain.understand.run import OpenAIUnderstand, UnderstandPort
 from rockygpt_brain.brain.write.run import OpenAIWrite, WritePort
 from rockygpt_brain.config import Settings, get_settings
-from rockygpt_brain.core.brain import Brain, TurnIdentity
+from rockygpt_brain.context.memory import MemoryStore
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.services.data import DataPort, HttpData
-from rockygpt_brain.services.memory import MemoryStore
 from rockygpt_brain.services.web import OpenAIWeb, WebPort
 
 EnvironmentHeader = Annotated[
