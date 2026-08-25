@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from rockygpt_brain.core.capabilities import CAPABILITIES
+from rockygpt_brain.capabilities.registry import CAPABILITIES
 from rockygpt_brain.core.plan import Lane, Operation, Plan
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.safety.enforce import required
@@ -121,57 +121,10 @@ class Execution:
 Executor = Callable[[Plan, datetime, DataPort], Awaitable[list[dict[str, Any]]]]
 
 
-def _minutes(value: str) -> int:
-    """`7:05 PM` as minutes past midnight, so times sort as times."""
-    match = _CLOCK.match(value.strip())
-    if not match:
-        return 0
-    hour, minute, half = int(match.group(1)) % 12, int(match.group(2)), match.group(3).upper()
-    return (hour + (12 if half == "P" else 0)) * 60 + minute
-
-
-#: How each shuttle field is read out of one record the data service returned.
-_SHUTTLE_FIELDS: dict[str, Callable[[dict[str, Any]], Any]] = {
-    "departureTime": lambda r: r.get("departure", {}).get("time", ""),
-    "arrivalTime": lambda r: r.get("arrival", {}).get("time", ""),
-    "route": lambda r: r.get("route", ""),
-    "origin": lambda r: r.get("matchedOrigin", {}).get("location", ""),
-    "destination": lambda r: r.get("matchedDestination", {}).get("location", ""),
-}
-_SHUTTLE_SORT: dict[str, Callable[[dict[str, Any]], Any]] = {
-    "departureTime": lambda r: _minutes(_SHUTTLE_FIELDS["departureTime"](r)),
-    "arrivalTime": lambda r: _minutes(_SHUTTLE_FIELDS["arrivalTime"](r)),
-}
-
-
-async def _shuttle(plan: Plan, now: datetime, data: DataPort) -> list[dict[str, Any]]:
-    """A shuttle plan, in the shape the data service asks for."""
-    values = plan.filter_values
-    after = values.get("departingAfter")
-    query: dict[str, Any] = {
-        # Always "all": the plan's operation decides which trips survive, so the
-        # data service is never asked to pick one.
-        "selection": "all",
-        "timeScope": "remaining" if after else "full_day",
-        "asOf": after or now.isoformat(),
-        "limit": _FETCH_LIMIT,
-    }
-    if "date" in values:
-        query["serviceDate"] = values["date"]
-    for ours, theirs in (("route", "route"), ("origin", "origin"), ("destination", "destination")):
-        if ours in values:
-            query[theirs] = values[ours]
-    return await data.shuttle(query)
-
-
-_EXECUTORS: dict[str, Executor] = {"shuttle": _shuttle}
-
-
 def _project(record: dict[str, Any], capability: str) -> dict[str, Any]:
     """One record, cut down to the fields the capability publishes."""
-    readers = _SHUTTLE_FIELDS if capability == "shuttle" else {}
-    allowed = CAPABILITIES[capability].fields
-    return {name: read(record) for name, read in readers.items() if name in allowed}
+    entry = CAPABILITIES[capability]
+    return {name: read(record) for name, read in entry.read.items() if name in entry.fields}
 
 
 def _apply(
@@ -179,9 +132,9 @@ def _apply(
 ) -> tuple[list[dict[str, Any]], int | None]:
     """`orderBy`, `limit` and `count`, over whatever the lookup returned."""
     rows = list(records)
-    sorters = _SHUTTLE_SORT if capability == "shuttle" else {}
+    entry = CAPABILITIES[capability]
     if operation.order_by:
-        key = sorters.get(operation.order_by) or _SHUTTLE_FIELDS.get(operation.order_by)
+        key = entry.sort.get(operation.order_by) or entry.read.get(operation.order_by)
         if key is not None:
             rows.sort(key=key, reverse=operation.direction == "descending")
     if operation.count:
@@ -214,15 +167,17 @@ async def run(checked: Plan, now: datetime, data: DataPort, web: WebPort) -> Exe
         return await _general(checked, web)
 
     capability = checked.capability or ""
-    executor = _EXECUTORS.get(capability) if checked.lane is Lane.CODE else None
-    if executor is None:
+    entry = CAPABILITIES.get(capability) if checked.lane is Lane.CODE else None
+    if entry is None:
         missing = f"the {capability} capability" if capability else f"the {checked.lane.value} lane"
         raise ServiceError(
             503, "SERVICE_UNAVAILABLE", "Rocky cannot look that up yet.", retryable=False
         ) from LaneFailed(f"no executor for {missing}")
 
     try:
-        records = await executor(checked, now, data)
+        # The filters, not the plan. A capability has no business knowing
+        # what a lane is or which operations exist.
+        records = await entry.execute(checked.filter_values, now, data)
     except DataUnavailable as exc:
         raise ServiceError(
             503,
