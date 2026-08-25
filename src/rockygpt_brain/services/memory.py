@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 
 from rockygpt_brain.api.contracts import (
+    HISTORY_EXCHANGES,
     ChatLogItem,
     Citation,
     FeedbackRequest,
@@ -47,7 +48,8 @@ class MemoryStore:
         self._version = 0
 
     def history(self, session_id: str) -> list[dict[str, Any]]:
-        return [turn.prompt_value() for turn in self._turns[session_id][-10:]]
+        """The last `HISTORY_EXCHANGES` turns, for a client that tracks none."""
+        return [turn.prompt_value() for turn in self._turns[session_id][-HISTORY_EXCHANGES:]]
 
     def record(
         self,
