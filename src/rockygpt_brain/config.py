@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,17 +22,11 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, ge=1, le=65535)
     openai_api_key: SecretStr | None = None
     openai_chat_model: str = "gpt-4.1-mini"
-    data_url: str = "http://127.0.0.1:8100"
     #: All temporal resolution happens in this zone. Contract section 5.
     campus_timezone: str = "America/New_York"
     staging_service_token: SecretStr | None = None
     admin_api_token: SecretStr | None = None
     admin_enabled: bool = True
-
-    @field_validator("data_url")
-    @classmethod
-    def normalize_data_url(cls, value: str) -> str:
-        return value.rstrip("/")
 
     @staticmethod
     def secret_value(value: SecretStr | None) -> str | None:
