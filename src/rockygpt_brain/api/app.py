@@ -28,9 +28,9 @@ from rockygpt_brain.api.contracts import (
 )
 from rockygpt_brain.brain.plan.run import OpenAIPlan, PlanPort
 from rockygpt_brain.brain.understand.run import OpenAIUnderstand, UnderstandPort
+from rockygpt_brain.brain.write.run import OpenAIWrite, WritePort
 from rockygpt_brain.config import Settings, get_settings
 from rockygpt_brain.core.brain import Brain, TurnIdentity
-from rockygpt_brain.core.model import ModelPort, OpenAIModel
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.services.data import DataPort, HttpData
 from rockygpt_brain.services.memory import MemoryStore
@@ -49,7 +49,7 @@ OriginHeader = Annotated[
 
 @dataclass(slots=True)
 class AppServices:
-    model: ModelPort
+    model: WritePort
     planner: PlanPort
     data: DataPort
     web: WebPort
@@ -87,7 +87,7 @@ def _error(request_id: str, error: ServiceError) -> JSONResponse:
 def create_app(
     *,
     settings: Settings | None = None,
-    model: ModelPort | None = None,
+    model: WritePort | None = None,
     understand: UnderstandPort | None = None,
     planner: PlanPort | None = None,
     data: DataPort | None = None,
@@ -95,7 +95,7 @@ def create_app(
     memory: MemoryStore | None = None,
 ) -> FastAPI:
     config = settings or get_settings()
-    model_port = model or OpenAIModel(
+    model_port = model or OpenAIWrite(
         config.secret_value(config.openai_api_key),
         config.openai_chat_model,
     )

@@ -22,9 +22,9 @@ from rockygpt_brain.brain.plan.schema import (
 )
 from rockygpt_brain.brain.understand.schema import Reference, Understanding
 from rockygpt_brain.brain.understand.validate import unresolved
+from rockygpt_brain.brain.write.schema import Draft
 from rockygpt_brain.core.brain import Brain, TurnIdentity, _citations
 from rockygpt_brain.core.execute import CAMPUS_DATA, OWN_KNOWLEDGE, WEB, Execution
-from rockygpt_brain.core.model import Draft
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.services.memory import MemoryStore
 
