@@ -81,7 +81,12 @@ class Plan(BaseModel):
     filters: list[Filter] = Field(default_factory=list, max_length=8)
     operation: Operation = Field(default_factory=Operation)
     topic: Text | None = None  # RAG: what to look for in the documents
-    query: Text | None = None  # MEMORY: what was said earlier
+    #: GENERAL: whether the answer keeps. `stable` is true whenever it is
+    #: asked; `current` changes, and has to be looked up now.
+    freshness: Literal["stable", "current"] | None = None
+    #: What to look for. MEMORY searches the conversation with it; a `current`
+    #: GENERAL question searches the web. The lane says where, this says what.
+    query: Text | None = None
 
     @property
     def filter_values(self) -> dict[str, str]:
@@ -91,6 +96,8 @@ class Plan(BaseModel):
     def summary(self) -> dict[str, Any]:
         """The plan with its unused halves dropped — what a human reads in the log."""
         out: dict[str, Any] = {"lane": self.lane.value}
+        if self.freshness:
+            out["freshness"] = self.freshness
         if self.capability:
             out["capability"] = self.capability
         if self.filters:

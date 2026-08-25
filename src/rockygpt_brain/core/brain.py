@@ -36,6 +36,7 @@ from rockygpt_brain.core.validate import Rejected, check
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.services.data import DataPort
 from rockygpt_brain.services.memory import MemoryStore
+from rockygpt_brain.services.web import WebPort
 
 
 @dataclass(slots=True)
@@ -52,12 +53,14 @@ class Brain:
         model: ModelPort,
         planner: PlannerPort,
         data: DataPort,
+        web: WebPort,
         memory: MemoryStore,
         timezone: str = "America/New_York",
     ) -> None:
         self._model = model
         self._planner = planner
         self._data = data
+        self._web = web
         self._memory = memory
         self._tz = ZoneInfo(timezone)
 
@@ -93,7 +96,7 @@ class Brain:
         checked = await self._plan(request.message, earlier, now)
 
         # 3. PYTHON — run the lane
-        execution = await run(checked, now, self._data)
+        execution = await run(checked, now, self._data, self._web)
 
         # 4. BRAIN #2 — write the answer, from what the lane returned
         draft = await self._model.answer(

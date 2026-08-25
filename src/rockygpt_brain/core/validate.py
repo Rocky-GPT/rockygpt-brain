@@ -44,6 +44,14 @@ def check(plan: Plan, now: datetime) -> Plan | Rejected:
         if not plan.query:
             return Rejected("a MEMORY plan needs a query")
         return Plan(lane=Lane.MEMORY, query=plan.query)
+    if plan.lane is Lane.GENERAL:
+        # Absent means stable. Searching the web is the exceptional path, so a
+        # planner that says nothing about freshness does not trigger one.
+        if plan.freshness != "current":
+            return Plan(lane=Lane.GENERAL, freshness="stable")
+        if not plan.query:
+            return Rejected("a current answer needs a query to look up")
+        return Plan(lane=Lane.GENERAL, freshness="current", query=plan.query)
     return Plan(lane=plan.lane)
 
 

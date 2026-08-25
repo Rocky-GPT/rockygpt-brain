@@ -134,7 +134,8 @@ def test_the_summary_reads_as_the_plan_was_written() -> None:
 
 
 def test_an_unused_half_of_the_plan_is_not_in_the_summary() -> None:
-    assert check(Plan(lane=Lane.GENERAL), NOW).summary() == {"lane": "GENERAL"}  # type: ignore[union-attr]
+    checked = check(Plan(lane=Lane.GENERAL), NOW)
+    assert checked.summary() == {"lane": "GENERAL", "freshness": "stable"}  # type: ignore[union-attr]
 
 
 # The vocabulary stays a vocabulary

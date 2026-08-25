@@ -74,6 +74,18 @@ class FakeData:
         return []
 
 
+class FakeWeb:
+    configured = True
+
+    def __init__(self, results: list[dict[str, Any]] | None = None) -> None:
+        self.results = results or []
+        self.searched: str | None = None
+
+    async def search(self, query: str) -> list[dict[str, Any]]:
+        self.searched = query
+        return self.results
+
+
 async def ask(
     message: str = "anything",
     memory: MemoryStore | None = None,
@@ -81,7 +93,7 @@ async def ask(
     planner: FakePlanner | None = None,
 ) -> tuple[ChatSuccess, FakeModel]:
     model = FakeModel()
-    brain = Brain(model, planner or FakePlanner(), FakeData(), memory or MemoryStore())
+    brain = Brain(model, planner or FakePlanner(), FakeData(), FakeWeb(), memory or MemoryStore())
     response = await brain.answer(
         ChatRequest(message=message, now=NOW), TurnIdentity(rid, "s", None, "client")
     )
@@ -128,7 +140,7 @@ async def test_an_empty_history_is_taken_at_its_word() -> None:
     await ask("first", memory, "r1")
 
     model = FakeModel()
-    brain = Brain(model, FakePlanner(), FakeData(), memory)
+    brain = Brain(model, FakePlanner(), FakeData(), FakeWeb(), memory)
     response = await brain.answer(
         ChatRequest(message="second", history=[], now=NOW),
         TurnIdentity("r2", "s", None, "client"),
@@ -160,7 +172,7 @@ async def test_both_paths_see_the_same_distance_back() -> None:
 
 async def test_the_modes_the_ui_asked_for_are_on_the_turn() -> None:
     model = FakeModel()
-    brain = Brain(model, FakePlanner(), FakeData(), MemoryStore())
+    brain = Brain(model, FakePlanner(), FakeData(), FakeWeb(), MemoryStore())
     response = await brain.answer(
         ChatRequest(message="m", now=NOW, style_mode="warm", response_mode="concise"),
         TurnIdentity("r", "s", None, "client"),
@@ -200,10 +212,10 @@ async def test_the_turn_reads_end_to_end_as_four_stages() -> None:
     trace = response.brain_trace
     assert trace.question == {"question": "a question"}, "the words, and nothing else"
     assert trace.context == {"currentTime": CLOCK, "earlierTurns": []}
-    assert trace.plan == {"lane": "GENERAL"}, "the plan alone — the clock is context"
+    assert trace.plan == {"lane": "GENERAL", "freshness": "stable"}
     assert trace.execution == {
         "answerFrom": "ownKnowledge",
-        "note": "nothing to look up; answered from what the model knows",
+        "note": "stable; answered from what the model knows",
     }
     assert trace.answer == {"answer": "written"}
 
