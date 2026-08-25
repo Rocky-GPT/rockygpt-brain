@@ -5,6 +5,11 @@ Last, and never concurrent with the lane. It writes from what PYTHON produced:
 safety response, or the model's own knowledge — so it never has to infer what
 to do from a field that is not there.
 
+Retrieved passages reach this stage as untrusted text. The instruction tells
+the model to treat them as quoted material rather than as anything addressed
+to it, which is the only defence at this layer — scraped pages can carry
+wording aimed at whatever reads them next.
+
 Before editing `prompt.md`: `answerFrom` is an instruction, never a status. It
 says where this answer comes from, not that anything is missing or unbuilt. A
 lane with no executor must stay indistinguishable from a question that never

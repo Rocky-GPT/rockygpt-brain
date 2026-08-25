@@ -14,6 +14,7 @@ from typing import Any
 OWN_KNOWLEDGE = "ownKnowledge"
 CAMPUS_DATA = "campusData"
 WEB = "web"
+DOCUMENTS = "documents"
 SAFETY = "safety"
 
 
@@ -35,7 +36,7 @@ class Execution:
         content of the answer, and they have to reach BRAIN #3 the same way
         rows do.
         """
-        return self.answer_from in (CAMPUS_DATA, WEB, SAFETY)
+        return self.answer_from in (CAMPUS_DATA, WEB, DOCUMENTS, SAFETY)
 
     def summary(self) -> dict[str, Any]:
         """This stage, for a person reading the trace.

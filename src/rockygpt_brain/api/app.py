@@ -34,6 +34,7 @@ from rockygpt_brain.config import Settings, get_settings
 from rockygpt_brain.context.memory import MemoryStore
 from rockygpt_brain.errors import BadRequest, Internal, ServiceError, Unauthorized
 from rockygpt_brain.services.data import DataPort, HttpData
+from rockygpt_brain.services.rag.client import HttpRag, RagPort
 from rockygpt_brain.services.web import OpenAIWeb, WebPort
 
 EnvironmentHeader = Annotated[
@@ -92,6 +93,7 @@ def create_app(
     planner: PlanPort | None = None,
     data: DataPort | None = None,
     web: WebPort | None = None,
+    documents: RagPort | None = None,
     memory: MemoryStore | None = None,
 ) -> FastAPI:
     config = settings or get_settings()
@@ -108,6 +110,7 @@ def create_app(
         config.openai_planner_model,
     )
     data_port = data or HttpData(config.data_url, config.data_timeout_seconds)
+    documents_port = documents or HttpRag(config.data_url, config.data_timeout_seconds)
     web_port = web or OpenAIWeb(
         config.secret_value(config.openai_api_key),
         config.openai_web_model,
@@ -119,6 +122,7 @@ def create_app(
         planner_port,
         data_port,
         web_port,
+        documents_port,
         memory_store,
         config.campus_timezone,
     )
