@@ -85,14 +85,14 @@ class Brain:
         # input would cost an hour the first time a date came out wrong. Do not
         # make it conditional.
         question = {"question": request.message}
-        context: dict[str, Any] = {
+        memory: dict[str, Any] = {
             "currentTime": now.isoformat(),
             "earlierTurns": earlier,
         }
         if request.style_mode:
-            context["styleMode"] = request.style_mode
+            memory["styleMode"] = request.style_mode
         if request.response_mode:
-            context["responseMode"] = request.response_mode
+            memory["responseMode"] = request.response_mode
 
         # 2. BRAIN #1 — understand it, and write a plan. A planner that does
         # not answer, or a plan the registry will not accept, ends the turn:
@@ -122,7 +122,15 @@ class Brain:
 
         trace = BrainTrace(
             question=question,
-            context=context,
+            memory=memory,
+            # What the turn drew on, and empty when it drew on nothing: a
+            # question that stands on its own resolves to itself, and there is
+            # no stage to show.
+            #
+            # It says the question was rewritten, never why — BRAIN #1 also
+            # fixes typos, so a claim like "used the conversation" would
+            # sometimes be a corrected spelling wearing a lie.
+            context=_context(request.message, checked.resolved),
             plan=checked.summary(),
             execution=execution.summary(),
             answer={"answer": draft.answer},
@@ -151,6 +159,12 @@ class Brain:
             latency_ms=max(0, round((time.monotonic() - started) * 1000)),
         )
         return response
+
+
+def _context(asked: str, resolved: str | None) -> dict[str, Any]:
+    if not resolved or resolved.strip() == asked.strip():
+        return {}
+    return {"resolved": resolved}
 
 
 class PlanRejected(Exception):

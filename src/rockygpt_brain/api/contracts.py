@@ -100,8 +100,10 @@ class BrainTrace(ContractModel):
     """The four stages of a turn, in the order they ran.
 
     ``question`` what was asked, in the student's own words
-    ``context``  everything else that arrived with it — the earlier turns, and
-                 the modes the client asked for
+    ``memory``   what was available to read it against — the earlier turns, the
+                 clock, and the modes the client asked for
+    ``context``  what this question actually drew on: the resolved question,
+                 and whether resolving it needed the memory at all
     ``plan``     BRAIN #1 — the clock it read the question against, and what
                  it understood, as operations
     ``execution``PYTHON — what running that lane produced
@@ -112,6 +114,7 @@ class BrainTrace(ContractModel):
     """
 
     question: dict[str, Any]
+    memory: dict[str, Any]
     context: dict[str, Any]
     plan: dict[str, Any]
     execution: dict[str, Any]

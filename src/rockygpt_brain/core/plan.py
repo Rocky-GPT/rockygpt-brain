@@ -86,6 +86,17 @@ class Plan(BaseModel):
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
+    #: First on purpose. A structured response is generated field by field in
+    #: the order they are declared, so putting this before `lane` is what makes
+    #: the model work out what is being asked before deciding how to answer it.
+    #: Declared after `lane`, it is written as an afterthought and comes back
+    #: as the question echoed verbatim.
+    #:
+    #: The question with everything it refers to filled in: "population of it"
+    #: becomes "population of Paris". Stated on every plan, including when it
+    #: is the question unchanged — an absent one would mean both "nothing to
+    #: resolve" and "the planner did not bother", and those are different.
+    resolved: Text | None = None
     lane: Lane
     capability: FieldName | None = None
     filters: list[Filter] = Field(default_factory=list, max_length=8)
@@ -106,6 +117,8 @@ class Plan(BaseModel):
     def summary(self) -> dict[str, Any]:
         """The plan with its unused halves dropped — what a human reads in the log."""
         out: dict[str, Any] = {"lane": self.lane.value}
+        if self.resolved:
+            out["resolved"] = self.resolved
         if self.freshness:
             out["freshness"] = self.freshness
         if self.capability:

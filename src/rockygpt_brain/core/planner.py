@@ -23,7 +23,23 @@ from rockygpt_brain.core.capabilities import catalogue
 from rockygpt_brain.core.plan import TIME_WORDS, Plan
 from rockygpt_brain.errors import ServiceError
 
-_PLAN = """Translate the question into a plan. Choose one lane.
+_PLAN = """Translate the question into a plan.
+
+Start with `resolved`: the same question, rewritten so that it can be
+understood without the conversation. Whatever it points at in `earlierTurns` is
+written into it.
+
+It is still a question, and still the one that was asked — do not answer it,
+and do not replace it with what was said before.
+
+The only thing you may add is what the conversation supplies. A question that
+points at nothing is copied character for character: same words, same order,
+same spelling, same punctuation. Do not tidy it, expand it, or make it a
+grammatical sentence.
+
+Everything below is decided from `resolved`, never from the wording as typed.
+
+Then choose one lane.
 
 CODE     the answer is a lookup in campus data. Name the capability.
 RAG      the answer is written in a campus document. Give the topic.

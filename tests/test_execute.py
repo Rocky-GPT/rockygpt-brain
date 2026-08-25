@@ -187,7 +187,7 @@ async def test_what_ran_is_what_brain_two_answers_from() -> None:
 async def test_looking_and_finding_none_is_not_the_same_as_not_looking() -> None:
     """The one distinction the summary exists to draw."""
     found_none = await run(shuttle({}, limit=1), NOW, FakeData(records=[]), FakeWeb())
-    never_looked = await run(Plan(lane=Lane.GENERAL), NOW, FakeData(), FakeWeb())
+    never_looked = await run(Plan(lane=Lane.GENERAL, resolved="q"), NOW, FakeData(), FakeWeb())
 
     assert found_none.summary() == {"answerFrom": "campusData", "results": []}, (
         "an empty list, not a missing one"
@@ -207,14 +207,14 @@ async def test_a_count_reports_the_count_and_not_an_empty_list() -> None:
 
 async def test_general_is_not_reported_as_a_missing_executor() -> None:
     """It is the lane that means "no lookup", not one still to be built."""
-    execution = await run(Plan(lane=Lane.GENERAL), NOW, FakeData(), FakeWeb())
+    execution = await run(Plan(lane=Lane.GENERAL, resolved="q"), NOW, FakeData(), FakeWeb())
     assert "no executor" not in execution.note
     assert execution.grounding() == {"answerFrom": "ownKnowledge"}
 
 
 async def test_a_lane_still_to_be_built_ends_the_turn() -> None:
     with pytest.raises(ServiceError) as raised:
-        await run(Plan(lane=Lane.RAG, topic="parking"), NOW, FakeData(), FakeWeb())
+        await run(Plan(lane=Lane.RAG, resolved="q", topic="parking"), NOW, FakeData(), FakeWeb())
     assert "RAG" in str(raised.value.__cause__)
 
 
@@ -223,7 +223,7 @@ async def test_the_trace_shows_what_brain_two_was_handed() -> None:
     for execution in (
         await run(shuttle({}, limit=1), NOW, FakeData(), FakeWeb()),
         await run(shuttle({}, count=True), NOW, FakeData(), FakeWeb()),
-        await run(Plan(lane=Lane.GENERAL), NOW, FakeData(), FakeWeb()),
+        await run(Plan(lane=Lane.GENERAL, resolved="q"), NOW, FakeData(), FakeWeb()),
     ):
         assert execution.summary()["answerFrom"] == execution.grounding()["answerFrom"]
 
@@ -232,7 +232,7 @@ async def test_the_trace_shows_what_brain_two_was_handed() -> None:
 
 
 def general(freshness: Literal["stable", "current"], query: str | None = None) -> Plan:
-    return Plan(lane=Lane.GENERAL, freshness=freshness, query=query)
+    return Plan(lane=Lane.GENERAL, resolved="q", freshness=freshness, query=query)
 
 
 async def test_a_stable_question_never_reaches_the_web() -> None:
@@ -261,7 +261,7 @@ async def test_a_search_outage_ends_the_turn() -> None:
 
 async def test_a_lane_that_did_not_run_grounds_nothing() -> None:
     """None, not an empty list — "nothing was looked up" is not "found none"."""
-    execution = await run(Plan(lane=Lane.GENERAL), NOW, FakeData(), FakeWeb())
+    execution = await run(Plan(lane=Lane.GENERAL, resolved="q"), NOW, FakeData(), FakeWeb())
     assert execution.ran is False
     assert execution.grounding() == {"answerFrom": "ownKnowledge"}
 
