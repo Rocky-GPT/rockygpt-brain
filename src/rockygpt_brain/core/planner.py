@@ -66,7 +66,8 @@ GENERAL  the answer is general knowledge. Say which kind with `freshness`:
          `stable` if the answer is the same whenever it is asked, and
          `current` if an honest answer would have to say "as of" some date —
          anything measured, counted, priced, ranked, or currently held, however
-         slowly it moves. For `current`, give the `query` to look up.
+         slowly it moves. For `current`, give the `query` to look up: what it
+         means, in words. Leave the date out — Python adds it.
 
 `capabilities` is everything Rocky can look up, and the fields each one allows.
 For CODE, name one capability and use only its fields.

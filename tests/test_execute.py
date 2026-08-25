@@ -319,3 +319,12 @@ class _Unreachable:
 
     def __getattr__(self, name: str) -> Any:
         raise AssertionError(f"a safety turn must not call {name}")
+
+
+async def test_the_web_is_searched_with_the_dated_query_not_the_planners() -> None:
+    """The anchoring is the point of having two fields; searching `query` undoes it."""
+    web = FakeWeb()
+    checked = check(Plan(lane=Lane.GENERAL, freshness="current", query="population of France"), NOW)
+    assert isinstance(checked, Plan)
+    await run(checked, NOW, _Unreachable(), web)
+    assert web.searched == f"population of France as of {NOW:%Y-%m-%d}"

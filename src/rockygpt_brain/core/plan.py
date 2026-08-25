@@ -16,6 +16,7 @@ from enum import StrEnum
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic.json_schema import SkipJsonSchema
 
 FieldName = Annotated[
     str, StringConstraints(min_length=1, max_length=64, pattern=r"^[A-Za-z][A-Za-z0-9_]*$")
@@ -182,8 +183,19 @@ class Plan(BaseModel):
     #: GENERAL: whether the answer keeps. `stable` is true whenever it is
     #: asked; `current` changes, and has to be looked up now.
     freshness: Literal["stable", "current"] | None = None
-    #: What a `current` GENERAL question searches the web for.
+    #: What a `current` GENERAL question means to look up. The planner's own
+    #: words, kept as written.
     query: Text | None = None
+    #: The query Python actually searches with: `query`, dated against the
+    #: server clock unless it already carries a date of its own.
+    #:
+    #: Kept off the response schema, so the planner never sees it and never
+    #: spends a token on it — `validate.check` is the only thing that sets it.
+    #: Separate from `query` rather than overwriting it because they answer
+    #: different questions: `query` is what the model meant to look up, and
+    #: this is what was looked up. When a search comes back wrong, which of
+    #: those two was at fault is the first thing worth knowing.
+    effective_query: SkipJsonSchema[Text | None] = Field(default=None, alias="effectiveQuery")
 
     @property
     def filter_values(self) -> dict[str, str]:
@@ -218,4 +230,8 @@ class Plan(BaseModel):
             out["topic"] = self.topic
         if self.query:
             out["query"] = self.query
+        # Only when it differs. On a query the planner already dated, printing
+        # the same string twice says only that nothing happened.
+        if self.effective_query and self.effective_query != self.query:
+            out["effectiveQuery"] = self.effective_query
         return out

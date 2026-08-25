@@ -30,14 +30,18 @@ stage as purely what BRAIN #1 decided.
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
-from rockygpt_brain.api.contracts import BrainTrace, ChatRequest, ChatSuccess
-from rockygpt_brain.core.execute import run
+from pydantic import ValidationError
+
+from rockygpt_brain.api.contracts import BrainTrace, ChatRequest, ChatSuccess, Citation
+from rockygpt_brain.core.execute import WEB, Execution, run
 from rockygpt_brain.core.model import ModelPort
 from rockygpt_brain.core.plan import Plan, Understanding
 from rockygpt_brain.core.planner import PlannerPort
@@ -106,6 +110,13 @@ class Brain:
         # the registry will not accept, ends the turn: nothing downstream is
         # allowed to make up for it.
         read = await self._planner.understand(request.message, earlier, now.isoformat())
+        if failure := _unresolved(read):
+            raise ServiceError(
+                503,
+                "SERVICE_UNAVAILABLE",
+                "Rocky could not work out what that was asking.",
+                retryable=True,
+            ) from ResolutionFailed(failure)
         drafted = await self._planner.plan(read.resolved, now.isoformat())
         checked = check(drafted, now)
         if isinstance(checked, Rejected):
@@ -145,11 +156,12 @@ class Brain:
             execution=execution.summary(),
             answer={"answer": draft.answer},
         )
+        citations = _citations(execution, now)
         response = ChatSuccess(
             request_id=identity.request_id,
             answer=draft.answer,
             route=checked.lane.value.lower() if isinstance(checked, Plan) else "general",
-            citations=[],
+            citations=citations,
             ui_actions=[],
             suggested_questions=draft.suggested_questions[:10],
             brain_trace=trace,
@@ -164,7 +176,7 @@ class Brain:
             route=response.route,
             tools=[],
             tool_arguments=trace.plan,
-            citations=[],
+            citations=citations,
             result={"execution": trace.execution, "answer": trace.answer},
             latency_ms=max(0, round((time.monotonic() - started) * 1000)),
         )
@@ -194,5 +206,98 @@ def _context(read: Understanding, earlier: list[dict[str, Any]]) -> dict[str, An
     }
 
 
+def _unresolved(read: Understanding) -> str:
+    """Why this reading cannot be planned from, or empty when it can.
+
+    BRAIN #2 is shown `resolved` and nothing else — not the conversation, not
+    the words as typed. That is the design, and it holds only while `resolved`
+    really does stand on its own. When it does not, nothing downstream can
+    notice: the planner reads a question that is merely vague rather than
+    visibly broken, plans something plausible for it, and the turn comes back
+    an answer to a question nobody asked.
+
+    So a resolution is checked here, at the seam, rather than after three more
+    stages have built on it. Both tests are properties of what BRAIN #1 said
+    about its own work — no phrase list, and no judgement about the subject.
+    """
+    if not read.uses_context:
+        return ""
+
+    # It said the question needed the conversation, then wrote back the same
+    # sentence. Whatever it borrowed, none of it arrived.
+    if read.resolved.strip().casefold() == read.normalized.strip().casefold():
+        return "the question needed the conversation and came back unchanged"
+
+    for reference in read.references:
+        # A reference is resolved when what it points at reached the question.
+        # Whether the pointing word also survived is not the test: BRAIN #1
+        # regularly keeps it and appends the referent — "tomorrow" becomes
+        # "tomorrow, 2026-08-26" — and rejecting that cost one good resolution
+        # in eight when measured.
+        #
+        # Any one substantial word of the referent counts rather than the
+        # phrase entire, because a referent is often reworded on the way in.
+        # Short words are skipped: they match everything.
+        parts = [w for w in re.findall(r"[\w'-]+", reference.refers_to) if len(w) > 3]
+        if parts:
+            if not any(
+                re.search(rf"\b{re.escape(w)}", read.resolved, re.IGNORECASE) for w in parts
+            ):
+                return f"nothing of {reference.refers_to!r} reached the question"
+            continue
+        # A referent of nothing but short words cannot be judged that way, so
+        # fall back to the weaker signal: the pointing word standing alone.
+        word = reference.text.strip()
+        if word and re.search(rf"\b{re.escape(word)}\b", read.resolved, re.IGNORECASE):
+            return f"{word!r} still stands unresolved in the question"
+    return ""
+
+
+def _citations(execution: Execution, now: datetime) -> list[Citation]:
+    """The pages an answer came from, so a reader can check it.
+
+    Only the web produces these. Campus rows are Rocky's own records and carry
+    no page to point at, and a lane that looked nothing up has nothing to cite.
+
+    The title is the host, because the search returns no page title and the
+    host is the part a reader recognises anyway — `insee.fr` says more about
+    whether to trust a number than a headline would. That also makes the title
+    a function of the URL, so the client deduplicating on `title|url` and this
+    deduplicating on the URL agree rather than disagreeing quietly.
+
+    A row Rocky cannot turn into a citation is dropped, never raised on. The
+    answer is already written by this point, and losing it over a malformed URL
+    would be the citation costing more than it is worth.
+    """
+    if execution.answer_from != WEB:
+        return []
+    out: list[Citation] = []
+    seen: set[str] = set()
+    for row in execution.results:
+        url = str(row.get("source") or "")
+        if url in seen:
+            continue
+        host = (urlparse(url).hostname or "").removeprefix("www.")
+        if not host:
+            continue
+        try:
+            out.append(
+                Citation(
+                    title=host,
+                    url=url,
+                    snippet=str(row.get("fact") or "")[:1000] or None,
+                    collected_at=now,
+                )
+            )
+        except ValidationError:
+            continue
+        seen.add(url)
+    return out
+
+
 class PlanRejected(Exception):
     """Why the registry would not accept a plan. The cause of the ServiceError."""
+
+
+class ResolutionFailed(Exception):
+    """Why a reading could not be planned from. The cause of the ServiceError."""

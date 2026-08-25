@@ -11,7 +11,7 @@ from openai.lib._pydantic import to_strict_json_schema
 from rockygpt_brain.core.capabilities import CAPABILITIES
 from rockygpt_brain.core.plan import TIME_WORDS, Concern, Filter, Lane, Operation, Plan
 from rockygpt_brain.core.planner import _PLAN
-from rockygpt_brain.core.validate import Rejected, check, resolve
+from rockygpt_brain.core.validate import Rejected, anchor, check, resolve
 
 TZ = ZoneInfo("America/New_York")
 NOW = datetime(2031, 3, 6, 18, 30, tzinfo=UTC).astimezone(TZ)
@@ -212,3 +212,37 @@ def test_the_instruction_carries_no_example_question() -> None:
 def test_no_capability_is_named_after_a_question() -> None:
     for name in CAPABILITIES:
         assert "_" not in name, f"{name} reads as an intent, not a capability"
+
+
+def test_the_server_clock_dates_every_current_query() -> None:
+    """The planner did this four times in five. Python does it five times in five."""
+    assert anchor("population of France", NOW) == f"population of France as of {NOW:%Y-%m-%d}"
+
+
+def test_the_date_is_added_with_no_condition_on_the_planners_wording() -> None:
+    """A rule that dates only sometimes has to be right about when. This one does not."""
+    for query in ("who won the 2018 world cup", "price of milk", "current price of gold"):
+        assert anchor(query, NOW) == f"{query} as of {NOW:%Y-%m-%d}"
+
+
+def test_a_date_the_planner_wrote_anyway_is_replaced_not_doubled() -> None:
+    """Told the time and asked for a search, it copies the date about a third of the time."""
+    stamp = f"as of {NOW:%Y-%m-%d}"
+    assert anchor(f"population of France {stamp}", NOW) == f"population of France {stamp}"
+    assert anchor("population of France as of the most recent data", NOW) == (
+        f"population of France {stamp}"
+    )
+
+
+def test_words_of_meaning_are_not_mistaken_for_a_date() -> None:
+    """`current` is what the search is for, not when it is for."""
+    assert anchor("current president of France", NOW).startswith("current president of France")
+
+
+def test_a_current_plan_carries_both_the_meaning_and_the_dated_query() -> None:
+    """Which of the two was at fault is the first thing worth knowing."""
+    checked = check(Plan(lane=Lane.GENERAL, freshness="current", query="population of France"), NOW)
+    assert isinstance(checked, Plan)
+    assert checked.query == "population of France", "the planner's meaning is kept as written"
+    assert checked.effective_query == f"population of France as of {NOW:%Y-%m-%d}"
+    assert checked.summary()["effectiveQuery"] == checked.effective_query

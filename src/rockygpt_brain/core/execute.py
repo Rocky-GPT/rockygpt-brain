@@ -275,8 +275,11 @@ async def _general(plan: Plan, web: WebPort) -> Execution:
     """
     if plan.freshness != "current" or not plan.query:
         return Execution(OWN_KNOWLEDGE, note="stable; answered from what the model knows")
+    # What `validate` dated, never the planner's own wording — the anchoring is
+    # the point of having two fields, and falling back to `query` here would
+    # quietly undo it on any path that forgot to set the other.
     try:
-        results = await web.search(plan.query)
+        results = await web.search(plan.effective_query or plan.query)
     except WebUnavailable as exc:
         raise ServiceError(
             503, "SERVICE_UNAVAILABLE", "Rocky could not look that up just now.", retryable=True
