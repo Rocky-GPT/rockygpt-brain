@@ -15,10 +15,16 @@ is the point: what the lane returned is handed to BRAIN #2 as `campusData` and
 is what it answers from. Do not make the two calls concurrent to save latency —
 BRAIN #2 depends on what PYTHON produced.
 
-**A lookup that did not happen must never look like one that did.** An
-executor that did not run hands over nothing at all, not an empty list, so
-BRAIN #2 answers from its own knowledge rather than reporting that it found
-none. The execution stage draws the same line for a human: `{"results": []}`
+**Every lane grounds BRAIN #2.** PYTHON hands it `answerFrom` on every turn —
+`campusData` with the rows, or `ownKnowledge` — so it never infers what to do
+from a missing field. `answerFrom` is an instruction, never a status: a lane
+with no executor is indistinguishable from a question that needed no lookup,
+because told a lookup failed BRAIN #2 apologises for the capability instead of
+answering the question.
+
+**A lookup that did not happen must never look like one that did.** `campusData`
+is present only when a lookup ran, so an empty list means it ran and matched
+nothing — an answer in itself. The execution stage draws the same line for a human: `{"results": []}`
 is "Rocky looked and there is nothing", `{"note": ...}` is "Rocky never
 looked". Do not drop `results` when it is empty — the empty list is the
 message.

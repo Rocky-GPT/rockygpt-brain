@@ -36,13 +36,13 @@ class FakeModel:
         current_time: str,
         style_mode: str | None,
         response_mode: str | None,
-        campus_data: list[dict[str, Any]] | None,
+        grounding: dict[str, Any],
     ) -> Draft:
         self.seen = {
             "question": question,
             "context": context,
             "currentTime": current_time,
-            "campusData": campus_data,
+            "grounding": grounding,
         }
         return Draft(answer="written", suggested_questions=["a"])
 
@@ -201,14 +201,26 @@ async def test_the_turn_reads_end_to_end_as_four_stages() -> None:
     assert trace.question == {"question": "a question"}, "the words, and nothing else"
     assert trace.context == {"currentTime": CLOCK, "earlierTurns": []}
     assert trace.plan == {"lane": "GENERAL"}, "the plan alone — the clock is context"
-    assert trace.execution == {"note": "nothing to look up; answered from what the model knows"}
+    assert trace.execution == {
+        "answerFrom": "ownKnowledge",
+        "note": "nothing to look up; answered from what the model knows",
+    }
     assert trace.answer == {"answer": "written"}
 
 
-async def test_brain_two_is_told_nothing_was_looked_up() -> None:
-    """No lookup means no `campusData`, so BRAIN #2 answers from its own knowledge."""
+async def test_brain_two_is_grounded_on_every_lane() -> None:
+    """Every turn hands BRAIN #2 an instruction, even when nothing was looked up."""
     _, model = await ask()
-    assert model.seen["campusData"] is None
+    assert model.seen["grounding"] == {"answerFrom": "ownKnowledge"}
+
+
+async def test_brain_two_is_never_told_a_lookup_failed() -> None:
+    """It would apologise for the capability instead of answering the question."""
+    plan = Plan(lane=Lane.CODE, capability="menu")
+    _, model = await ask(planner=FakePlanner(plan))
+    assert model.seen["grounding"] == {"answerFrom": "ownKnowledge"}, (
+        "a missing executor looks exactly like a question that needed no lookup"
+    )
 
 
 async def test_a_stage_that_did_not_run_carries_no_results() -> None:
