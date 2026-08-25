@@ -8,10 +8,12 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from rockygpt_brain.core.execute import CONCERNS, run
-from rockygpt_brain.core.plan import Concern, Filter, Lane, Operation, Plan
+from rockygpt_brain.core.execute import run
+from rockygpt_brain.core.plan import Filter, Lane, Operation, Plan
 from rockygpt_brain.core.validate import check
 from rockygpt_brain.errors import ServiceError
+from rockygpt_brain.safety.responses import CONCERNS
+from rockygpt_brain.safety.schema import Concern
 from rockygpt_brain.services.data import DataUnavailable
 from rockygpt_brain.services.web import WebUnavailable
 

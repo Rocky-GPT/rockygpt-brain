@@ -18,6 +18,8 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from pydantic.json_schema import SkipJsonSchema
 
+from rockygpt_brain.safety.schema import Concern
+
 FieldName = Annotated[
     str, StringConstraints(min_length=1, max_length=64, pattern=r"^[A-Za-z][A-Za-z0-9_]*$")
 ]
@@ -51,25 +53,6 @@ class Lane(StrEnum):
     CODE = "CODE"  # look it up in structured campus data
     RAG = "RAG"  # find it in a campus document
     GENERAL = "GENERAL"  # answer from what the model already knows
-
-
-class Concern(StrEnum):
-    """What is wrong with a question, apart from where its answer lives.
-
-    A list rather than one value, because a question can be more than one of
-    these at once and Python has to act on all of them. Four, and they stay
-    four: this is a list of things Rocky must handle, not a taxonomy of things
-    people ask, and it grows only if Rocky learns to handle something new.
-    """
-
-    #: the person asking, or someone with them, may be harmed now
-    EMERGENCY = "emergency"
-    #: it asks for someone else's personal information
-    PRIVACY = "privacy"
-    #: it asks for credentials, or how Rocky is built
-    SECRET = "secret"  # noqa: S105 — the name of a concern, not a credential
-    #: answering it as asked would cause harm
-    HARMFUL = "harmful"
 
 
 class Reference(BaseModel):
