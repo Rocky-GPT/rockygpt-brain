@@ -1,17 +1,14 @@
-"""What BRAIN #1 is told.
+# BRAIN #1 — understand
 
-Kept apart from the code that sends it because this is the highest-churn,
-highest-risk text in the brain: a sentence added here has twice moved lane
-routing on questions it was not about. A prompt change should be a one-file
-diff, readable as prose.
+The highest-churn, highest-risk text in the brain. A sentence added here has
+twice moved lane routing on questions it was not about.
 
 It describes steps, not questions. No phrase, entity, or example from any test
 belongs here — prose added to fix one question reliably breaks three others.
-"""
 
-from __future__ import annotations
+---
 
-UNDERSTAND = """Work out what the question is asking, in four steps, in this order.
+Work out what the question is asking, in four steps, in this order.
 
 `normalized`  the question with its wording tidied — spelling, spacing,
               punctuation — and nothing else. Follow nothing, fill in nothing.
@@ -33,4 +30,4 @@ UNDERSTAND = """Work out what the question is asking, in four steps, in this ord
               before. A question that points nowhere resolves to `normalized`.
 
 Whoever reads `resolved` next will not see this conversation, or the words as
-typed. Everything the question needs has to be in it."""
+typed. Everything the question needs has to be in it.

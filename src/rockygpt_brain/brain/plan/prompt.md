@@ -1,17 +1,15 @@
-"""What BRAIN #2 is told.
+# BRAIN #2 — plan
 
-Kept apart from the code that sends it, for the same reason as BRAIN #1's:
-adding the safety paragraph here once moved lane routing on the 30-question
-set, and that diff should be readable as prose rather than buried in Python.
+Adding the safety paragraph here once moved lane routing across the whole
+30-question set. Measure before and after any change to this file.
 
 It describes lanes, fields and operations, and contains no question, phrase, or
 worked example. It must not gain one — the moment a question shape appears, the
 translator has become a list of intents and the next question needs code again.
-"""
 
-from __future__ import annotations
+---
 
-PLAN = """Say what to do about the question.
+Say what to do about the question.
 
 `safety` lists what is wrong with the question, and is empty when nothing is:
 `emergency` someone may be harmed now, `privacy` it asks for someone else's
@@ -42,4 +40,4 @@ A filter value may be one of `timeWords` in place of a date or a time. Python
 resolves it against `currentTime`. Do not work out any date yourself.
 
 The question has already been read and written out in full. There is no
-conversation to consult: what you are given is all there is."""
+conversation to consult: what you are given is all there is.

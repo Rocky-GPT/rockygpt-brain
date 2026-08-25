@@ -3,17 +3,24 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import pytest
 from openai.lib._pydantic import to_strict_json_schema
 
-from rockygpt_brain.brain.plan.prompt import PLAN
+import rockygpt_brain.brain
+from rockygpt_brain.brain.plan.run import PLAN
 from rockygpt_brain.brain.plan.schema import TIME_WORDS, Filter, Lane, Operation, Plan
 from rockygpt_brain.brain.plan.validate import Rejected, anchor, check, resolve
+from rockygpt_brain.brain.prompt import beside
+from rockygpt_brain.brain.understand.run import UNDERSTAND
+from rockygpt_brain.brain.write.run import ANSWER
 from rockygpt_brain.capabilities.registry import CAPABILITIES
 from rockygpt_brain.safety.schema import Concern
 
+PROMPTS = Path(rockygpt_brain.brain.__file__).parent
 TZ = ZoneInfo("America/New_York")
 NOW = datetime(2031, 3, 6, 18, 30, tzinfo=UTC).astimezone(TZ)
 
@@ -223,6 +230,33 @@ def test_the_plan_is_a_shape_the_model_can_be_held_to() -> None:
 def test_the_instruction_carries_no_example_question() -> None:
     """A worked example in the prompt is the first step back to an intent list."""
     assert "?" not in PLAN
+
+
+def test_every_stage_loads_its_instruction_from_disk() -> None:
+    """A prompt.md that goes missing should fail at startup, not on a turn."""
+    for instruction in (UNDERSTAND, PLAN, ANSWER):
+        assert instruction and not instruction.startswith("#")
+
+
+def test_the_notes_above_the_rule_never_reach_the_model() -> None:
+    """The half above `---` is for whoever edits the file.
+
+    It says what this instruction has broken before. Told about a past routing
+    bug, a model will try to be helpful about it — so the rule is what keeps
+    the rationale readable and unsent.
+    """
+    for stage, instruction in (("understand", UNDERSTAND), ("plan", PLAN), ("write", ANSWER)):
+        whole = (PROMPTS / stage / "prompt.md").read_text(encoding="utf-8")
+        notes = whole.split("\n---\n", 1)[0]
+        assert notes.startswith("# BRAIN"), f"{stage} has no notes above the rule"
+        assert notes.strip() not in instruction
+
+
+def test_a_prompt_without_the_rule_is_refused(tmp_path: Path) -> None:
+    """Silently sending the whole file is the failure this guards."""
+    (tmp_path / "prompt.md").write_text("no rule here")
+    with pytest.raises(ValueError, match="`---` rule"):
+        beside(str(tmp_path / "run.py"))
 
 
 def test_no_capability_is_named_after_a_question() -> None:
