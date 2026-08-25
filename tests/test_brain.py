@@ -187,10 +187,11 @@ async def test_the_context_stage_breaks_down_how_the_question_was_read() -> None
     planner = FakePlanner(Plan(lane=Lane.GENERAL, freshness="stable"), read=read)
     response, _ = await ask("population of it", memory, "r2", planner=planner)
     context = response.brain_trace.context
-    assert context["normalizedQuestion"] == "population of it"
     assert context["references"] == [{"text": "it", "refersTo": "Paris"}]
-    assert context["resolvedQuestion"] == "population of Paris"
     assert len(context["contextUsed"]) == 1, "looked up from the turn it named"
+    read_out = response.brain_trace.understanding
+    assert read_out["resolvedQuestion"] == "population of Paris"
+    assert read_out["usesContext"] is True
     assert planner.planned_from == "population of Paris", (
         "the plan is built from the resolved question, never the words typed"
     )
@@ -288,7 +289,12 @@ async def test_the_turn_reads_end_to_end_as_four_stages() -> None:
     assert trace.question == {"question": "a question"}, "the words, and nothing else"
     assert trace.memory == {"currentTime": CLOCK, "earlierTurns": []}
     assert trace.plan == {"lane": "GENERAL", "freshness": "stable"}
-    assert trace.context == {}, "nothing was resolved, so there is no stage"
+    assert trace.context == {}, "BRAIN #1 said the question needed no conversation"
+    assert trace.understanding == {
+        "normalizedQuestion": "q",
+        "usesContext": False,
+        "resolvedQuestion": "q",
+    }
     assert trace.execution == {
         "answerFrom": "ownKnowledge",
         "note": "stable; answered from what the model knows",
