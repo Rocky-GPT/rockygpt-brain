@@ -1,33 +1,41 @@
 # RockyGPT brain implementation rule
 
-`spec/brain-contract.md` is normative. Read it before changing anything in
-`core/`. It defines the semantics every capability must obey; this file only
-says how to work within it.
-
-The hardening phase is open. The BASE rule that forbade typed policy, claim
-state, and verification no longer applies — those are now contract requirements,
-not additions. What is still forbidden is unbounded machinery: no agent loops, no
-repair passes, no re-planning, no orchestration framework, no database.
-
-The invariant:
+Keep this brain small. The whole request lifecycle lives in
+`core/brain.py` and should stay readable in one sitting.
 
 ```text
-The Listener interprets.
-The Worker decides and computes.
-The Writer communicates.
+question
+  -> AI #1 understands the request
+  -> Python runs a lane          (GENERAL only, for now)
+  -> the lane returns a small JSON result
+  -> AI #2 writes the answer from that result
 ```
 
-Two rules that decide most questions:
+Do not add planners, compilers, agent loops, repair passes, outcome hierarchies,
+precedence lattices, evidence registries, claim ledgers, or an orchestration
+framework. If a change adds a layer between the lane and the result, it is
+probably the wrong change.
 
-**Fail closed, never widen.** A missing, unresolvable, or undeclared value
-produces a typed outcome. It never produces a broader query, a default, or a
-nearby endpoint. There is no `or <default>` on a model-supplied value anywhere in
-the execution path.
+Only the GENERAL lane exists right now. Adding a lane is a variant on `Decision`
+in `intent.py` and a branch in `Brain._run` — if it needs anything more than
+that, it is the wrong shape.
 
-**No case-by-case behaviour.** Repairs are made at the layer whose invariant was
-violated. No phrase, entity, or expected answer from any test suite appears in
-production code or prompts. A condition that names a test case is a contract
-defect that has been hidden rather than fixed.
+Three rules that survive any refactor, because each one was a real bug:
+
+**AI #2 reports, it does not compute.** It says what came back. If it starts
+picking a record out of a set, or working out a date, the fix belongs in Python,
+not in the prompt.
+
+**An empty result is not a fact about the world.** `nothing` and `cannot` are
+different words with different meanings, and AI #2 is told what each one means.
+Not knowing whether somewhere is busy is not the same as it being empty.
+
+**A refusal is never explained as missing data.** When SAFETY comes back, its
+wording belongs in code. Saying "no records found" implies Rocky would hand it
+over if it had them.
+
+No case-by-case behaviour. No phrase, entity, or expected answer from any test
+suite belongs in production code or prompts.
 
 The brain reads campus information only through DATA HTTP APIs, and preserves the
 existing `/v1` UI response shape.

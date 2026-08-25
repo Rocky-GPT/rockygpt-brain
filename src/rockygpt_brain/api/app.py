@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -31,7 +30,6 @@ from rockygpt_brain.config import Settings, get_settings
 from rockygpt_brain.core.brain import Brain, TurnIdentity
 from rockygpt_brain.core.model import ModelPort, OpenAIModel
 from rockygpt_brain.errors import ServiceError
-from rockygpt_brain.services.data_client import DataClient, DataPort
 from rockygpt_brain.services.memory import MemoryStore
 
 EnvironmentHeader = Annotated[
@@ -47,7 +45,6 @@ OriginHeader = Annotated[
 
 @dataclass(slots=True)
 class AppServices:
-    data: DataPort
     model: ModelPort
     memory: MemoryStore
     brain: Brain
@@ -83,32 +80,22 @@ def _error(request_id: str, error: ServiceError) -> JSONResponse:
 def create_app(
     *,
     settings: Settings | None = None,
-    data: DataPort | None = None,
     model: ModelPort | None = None,
     memory: MemoryStore | None = None,
 ) -> FastAPI:
     config = settings or get_settings()
-    data_port = data or DataClient(
-        config.data_url,
-        config.secret_value(config.staging_service_token),
-    )
     model_port = model or OpenAIModel(
         config.secret_value(config.openai_api_key),
         config.openai_chat_model,
     )
     memory_store = memory or MemoryStore()
-    brain = Brain(model_port, data_port, memory_store, config.campus_timezone)
-    services = AppServices(data_port, model_port, memory_store, brain)
+    brain = Brain(model_port, memory_store, config.campus_timezone)
+    services = AppServices(model_port, memory_store, brain)
     started = time.monotonic()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         yield
-        close = getattr(data_port, "close", None)
-        if close:
-            result = close()
-            if inspect.isawaitable(result):
-                await result
 
     app = FastAPI(
         title="RockyGPT BASE",
@@ -170,8 +157,6 @@ def create_app(
         failing: list[str] = []
         if not model_port.configured:
             failing.append("model")
-        if not await data_port.readiness():
-            failing.append("data")
         result = Readiness(
             status="unready" if failing else "ready",
             failing=failing or None,

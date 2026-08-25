@@ -1,42 +1,27 @@
 # RockyGPT Brain
 
-`spec/brain-contract.md` is the normative document. This file is orientation.
+A small hybrid brain: one model call to understand, one lane of Python to do the
+work, one model call to write the answer.
 
 ```text
-QUESTION
-  -> LISTENER      interprets meaning into a typed Interpretation
-  -> SAFETY        code-assembled block when a danger class is present
-  -> WORKER        compile -> execute -> select -> seal, once per task
-  -> OUT           one discriminated outcome per task
-  -> WRITER        communicates the sealed outcomes
-  -> ANSWER
+question
+  -> AI #1 understands and picks one lane
+  -> CODE | RAG | GENERAL | SAFETY | MEMORY
+  -> a small JSON result
+  -> AI #2 writes the answer
 ```
 
-The invariant the whole design serves:
+CODE is structured campus facts plus the deterministic work — resolving the date,
+asking DATA, ordering records, picking the one that was asked for. RAG is policies
+and documents. GENERAL is anything not about the college. SAFETY covers
+emergencies, privacy, credentials, and actions Rocky cannot take, with wording
+fixed in code. MEMORY is what was said earlier.
 
-```text
-The Listener interprets.
-The Worker decides and computes.
-The Writer communicates.
-```
+AI #1 never resolves a date, sorts, or picks a record — it is not even told the
+current time, so it has to name "today" rather than work it out. AI #2 never adds
+a fact, re-picks a record, or decides what an empty result meant.
 
-The Listener emits no execution — no resolved dates, no weekday names, no sort
-fields, no limits, no endpoints, no query predicates. It names relations,
-references and time the way the reader did. The Worker compiles that against a
-declarative capability registry, resolves every temporal and entity value,
-executes, performs any selection the transport did not, and seals exactly one
-outcome. The Writer receives only sealed outcomes and adds no facts.
-
-Absence is typed. `entity_unknown`, `no_qualifying_records`,
-`no_supporting_evidence`, `no_capability`, `out_of_scope` and `incomplete_source`
-mean different things and render differently; none of them describes the world. A
-measured zero is a `success`, not an absence.
-
-Capabilities are declarations, not branches. A domain states its relations,
-entity roles, constraints, accepted time references, orderings and absence causes;
-anything undeclared is `no_capability`. Extremal relations are computed
-generically against a declared ordering, and only over a result set the source
-reports as complete.
+`DESIGN.md` lists the known limits.
 
 ## Package layout
 
@@ -44,15 +29,12 @@ reports as complete.
 rockygpt_brain/
 ├── api/          HTTP routes and public contracts
 ├── core/
-│   ├── interpretation.py   the Listener's schema
-│   ├── capabilities.py     declarations
-│   ├── compilation.py      Interpretation -> operations; all time arithmetic
-│   ├── selection.py        ordering and completeness
-│   ├── executor.py         the Worker
-│   ├── outcomes.py         the discriminated OUT union
-│   ├── safety.py           code-assembled emergency replies
-│   ├── model.py            the two model calls
-│   └── brain.py            the turn
+│   ├── intent.py           what AI #1 returns
+│   ├── capabilities.py     where each CODE topic lives in DATA
+│   ├── lanes.py            the five lanes and their results
+│   ├── safety.py           fixed refusal and emergency wording
+│   ├── model.py            the two AI calls
+│   └── brain.py            the request lifecycle
 ├── services/     DATA client and process-local memory
 ├── config.py     environment settings
 ├── errors.py     shared API error
@@ -79,9 +61,8 @@ resolved.
 ruff check src tests && mypy src/rockygpt_brain && pytest
 ```
 
-`tests/` holds contract properties, not question cases. A test that names a
-question from an evaluation suite would only prove that a case had been
-special-cased; see `spec/brain-contract.md` section 13.
+`tests/` checks behaviour, not question cases. A test that named a question from
+an evaluation suite would only prove that a case had been special-cased.
 
 The UI surface remains `/v1/chat`, `/v1/feedback`, and the three
 `/v1/admin/logs*` endpoints. Logs and memory reset when the process restarts.

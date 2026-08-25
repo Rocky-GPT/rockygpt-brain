@@ -1,38 +1,47 @@
 # Design
 
-Superseded by `spec/brain-contract.md`, which is normative. This file records only
-what is built and what is not.
+```text
+question
+   │
+ AI #1 ── understands the request
+   │
+ Python ── runs a lane      (only GENERAL exists so far)
+   │
+ result JSON
+   │
+ AI #2 ── writes the answer
+```
 
-## Built
+## Modules
 
-- Typed `Interpretation` with scope, danger, operation, access, relations,
-  references and named time; no execution values.
-- Declarative capability registry; undeclared means not executable.
-- Compilation: capability and relation checks, total time resolution, entity
-  mentions confined to declared roles, plan construction. Fails closed at every
-  step and never widens.
-- Generic extremal selection against declared orderings, gated on source
-  completeness.
-- Discriminated `Outcome` union with typed absence causes, measured zero as
-  success, sealed cardinality assertions, and a precedence order under which
-  composition cannot upgrade.
-- One result per task, asserted against the task count.
-- Code-assembled safety block, prepended regardless of what else the turn holds.
+```text
+core/intent.py   what AI #1 returns
+core/brain.py    the request lifecycle
+core/model.py    the two AI calls
+services/memory.py  turns and the admin log
+api/            HTTP surface
+```
 
-## Not built
+## Lanes
 
-Named so they are not mistaken for finished work.
+| Lane | State |
+| --- | --- |
+| GENERAL | built |
+| CODE | not built — structured campus facts |
+| RAG | not built — policies and documents |
+| SAFETY | not built — emergencies, privacy, secrets, unsupported actions |
+| MEMORY | not built — what was said earlier |
 
-- **Access and operation gate** (contract 4.3). `operation` and `access` are
-  interpreted and carried, but nothing yet refuses on them. Write and personal
-  requests do not fail closed.
-- **Hard trigger** (contract 4.1). Danger classification is currently the
-  Listener's alone; the deterministic layer that can only raise it is missing.
-- **Turn state** (contract 8). No claims, no active subject, no pending request.
-  Anaphors therefore return `clarify` rather than resolving, and the conversation
-  domain returns `no_capability`.
-- **Final guard** (contract 10). No post-generation value check.
-- **Relevance floor** (contract 6.4). Unmeasured, so the documents domain
-  reports `no_supporting_evidence` rather than manufacturing success.
-- **Composition** (contract 6.1). Tasks are independent and each runs one
-  operation; multi-operation tasks are not yet expressible.
+Adding one back is a variant on `Decision` in `intent.py` and a branch in
+`Brain._run`. Nothing else in the pipeline changes.
+
+## What this means today
+
+The brain makes no DATA calls, so it can answer nothing about the college. AI #2
+is told to say so rather than guess at hours, menus, shuttles, staff or policies.
+
+There is no SAFETY lane, so an emergency question is answered by the model's
+general knowledge with no fixed wording. It currently does say to call 911, but
+that is the model's choice on the day, not a guarantee.
+
+Earlier architectures are on the `backup/*` branches.
