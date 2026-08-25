@@ -33,6 +33,12 @@ exactly why a lane did not run, because that is for a person debugging. BRAIN
 #3 is told only where to answer from, because a model told its lookup failed
 apologises for the capability rather than answering the question.
 
+A resolution is checked before it is planned from. BRAIN #2 sees `resolved`
+and nothing else, which holds only while `resolved` really stands on its own —
+so a reading that says it used the conversation and then shows no sign of it
+ends the turn at that seam, rather than after three more stages have built on
+it. `_unresolved` in `brain.py` holds the two tests.
+
 ## Modules
 
 ```text
@@ -64,7 +70,11 @@ operation   CODE: orderBy + direction, limit, count, compare
 topic       RAG: what to find in the documents
 freshness   GENERAL: `stable` answers from what the model knows, `current`
             searches the web
-query       GENERAL: what a `current` question searches for
+query       GENERAL: what a `current` question means to search for, in
+            words, with no date in it
+effectiveQuery
+            what Python actually searched: `query` plus today's date. Set by
+            `validate`, never by the planner, and never on the response schema
 ```
 
 Two things that look like lanes are not, because a lane says where an answer
@@ -126,6 +136,19 @@ different answers, and the empty list is what says so.
 
 The current date and time, in the campus timezone, because the model does not
 know it — and so the resolution of every time word a plan carries.
+
+The date on every `current` search. BRAIN #2 writes what the search means;
+Python appends the server clock's date, with no condition on it — and strips
+any date the planner wrote anyway, so the query carries exactly one and it is
+the server's. Left to the planner the date appeared four times in five, which
+is the worst possible rate: often enough to look correct, rarely enough that
+the turns it missed came back years stale and looked like nothing in
+particular.
+
+The citations, when the answer came off the open web. `title` is the URL host,
+because the search returns no page title and the host is the part a reader
+recognises anyway. Only the web lane produces them: campus rows are Rocky's own
+records and carry no page to point at.
 
 Then the decision about whether a plan runs at all. The registry is the whole
 authority: a plan naming a capability, a filter, a sort field, or a comparison

@@ -16,6 +16,7 @@ invented something, and guessing what it meant is how a taxonomy starts.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -23,6 +24,11 @@ from rockygpt_brain.core.capabilities import CAPABILITIES
 from rockygpt_brain.core.plan import Filter, Lane, Plan
 
 _DAYS = {"today": 0, "tomorrow": 1, "yesterday": -1}
+
+#: A date the planner stated in the query despite being asked not to. Told the
+#: current time and asked for a search, it copies the date in about a third of
+#: the time — so Python takes it back out rather than leaving two.
+_STATED = re.compile(r"\s*\bas of\b.*$", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,8 +59,36 @@ def check(plan: Plan, now: datetime) -> Plan | Rejected:
             return Plan(lane=Lane.GENERAL, freshness="stable")
         if not plan.query:
             return Rejected("a current answer needs a query to look up")
-        return Plan(lane=Lane.GENERAL, freshness="current", query=plan.query)
+        return Plan(
+            lane=Lane.GENERAL,
+            freshness="current",
+            query=plan.query,
+            effective_query=anchor(plan.query, now),
+        )
     return Plan(lane=plan.lane)
+
+
+def anchor(query: str, now: datetime) -> str:
+    """The query Python searches with: what BRAIN #2 meant, plus today's date.
+
+    The division is the point. BRAIN #2 writes the meaning of the search and
+    nothing else; the date comes from the server clock, every time, with no
+    condition on it. Left to the planner the date appeared about four times in
+    five — the worst possible rate, frequent enough to look correct and rare
+    enough that the turns it missed looked like nothing in particular.
+
+    Unconditional on purpose. A rule that dates a query only sometimes is a
+    rule that has to be right about when, and reading the model's own wording
+    to decide would put the model back in charge of the thing it was unreliable
+    at. Same reason Python resolves `today`: the clock is deterministic, so it
+    belongs here rather than in a prompt.
+
+    A date the planner wrote anyway is removed first. That is not the model
+    deciding anything — it is this owning the date on both ends, so the query
+    carries exactly one and it is the server's. Words of meaning are untouched:
+    "current price of gold" is what the search is for, and stays.
+    """
+    return f"{_STATED.sub('', query).strip()} as of {now:%Y-%m-%d}"
 
 
 def _check_code(plan: Plan, now: datetime) -> Plan | Rejected:

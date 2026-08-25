@@ -81,6 +81,13 @@ the execution entry on every turn, so a turn answered from the model's own
 knowledge can never be mistaken for one answered from campus data. The shape
 that follows it is the flag; there is no `ran` field to read.
 
+**A stage that failed is not planned around.** BRAIN #2 is shown `resolved`
+alone, so it cannot tell a resolution that failed from a question that is
+merely vague — it plans something plausible either way, and the turn returns a
+confident answer to a question nobody asked. `_unresolved` ends the turn at
+that seam instead. Both its tests read what BRAIN #1 said about its own work;
+neither knows anything about the subject.
+
 **Python decides what runs.** The model writes a plan; `validate.check` decides
 whether Rocky acts on it. A plan naming a field the capability does not list is
 rejected, not repaired — guessing what it meant is how a taxonomy starts.
@@ -90,7 +97,11 @@ Three rules that survived every earlier version, because each was a real bug:
 **Anything deterministic belongs in Python.** Dates and times especially — the
 model is told what time it is rather than working it out, which is how a Monday
 once became a Sunday. Time words in a plan (`today`, `now`) are resolved by
-`validate`, never by the model.
+`validate`, never by the model. So is the date on a web search: BRAIN #2 writes
+what the search means, `validate.anchor` adds the clock's date unconditionally
+and removes any the planner wrote. Left to the model that date appeared four
+times in five, and the missing fifth came back years stale in a way nothing
+downstream could see.
 
 **Don't tell the model what it cannot do.** A prompt describing missing
 capabilities makes the model apologise for them, which reads as a broken product

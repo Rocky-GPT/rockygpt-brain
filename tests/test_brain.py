@@ -14,7 +14,8 @@ from rockygpt_brain.api.contracts import (
     ChatSuccess,
     ChatTurn,
 )
-from rockygpt_brain.core.brain import Brain, TurnIdentity
+from rockygpt_brain.core.brain import Brain, TurnIdentity, _citations, _unresolved
+from rockygpt_brain.core.execute import CAMPUS_DATA, OWN_KNOWLEDGE, WEB, Execution
 from rockygpt_brain.core.model import Draft
 from rockygpt_brain.core.plan import (
     Filter,
@@ -200,13 +201,13 @@ async def test_the_context_stage_breaks_down_how_the_question_was_read() -> None
 async def test_a_turn_position_that_does_not_exist_is_dropped() -> None:
     """A miscounted index is a wrong annotation, not a wrong answer."""
     read = Understanding(
-        normalized="a",
-        references=[Reference(text="it", refers_to="something")],
+        normalized="population of it",
+        references=[Reference(text="it", refers_to="Paris")],
         used_turns=[7],
         uses_context=True,
-        resolved="b",
+        resolved="population of Paris",
     )
-    response, _ = await ask("a", planner=FakePlanner(read=read))
+    response, _ = await ask("population of it", planner=FakePlanner(read=read))
     assert response.brain_trace.context["contextUsed"] == []
 
 
@@ -348,3 +349,85 @@ async def test_a_planner_outage_ends_the_turn() -> None:
     """Everything downstream is read against the plan, so there is nothing to run."""
     with pytest.raises(ServiceError):
         await ask(planner=FakePlanner(fails=True))
+
+
+def _web(*rows: tuple[str, str]) -> Execution:
+    return Execution(WEB, results=[{"fact": f, "source": u} for f, u in rows])
+
+
+def test_a_web_answer_carries_the_pages_it_came_from() -> None:
+    """The point of the lane: an answer off the open web is checkable."""
+    found = _citations(_web(("Paris has 2.1m residents.", "https://www.insee.fr/en/stats/1")), NOW)
+    assert len(found) == 1
+    assert found[0].title == "insee.fr"  # the host, and `www.` is not part of it
+    assert str(found[0].url) == "https://www.insee.fr/en/stats/1"
+    assert found[0].snippet == "Paris has 2.1m residents."
+
+
+def test_only_the_web_lane_cites() -> None:
+    """Campus rows are Rocky's own records — there is no page to point a reader at."""
+    rows = [{"departureTime": "2:55 PM"}]
+    assert _citations(Execution(CAMPUS_DATA, results=rows), NOW) == []
+    assert _citations(Execution(OWN_KNOWLEDGE, note="stable"), NOW) == []
+
+
+def test_two_facts_from_one_page_cite_it_once() -> None:
+    """The client dedupes on `title|url`; deduping here keeps the two in step."""
+    found = _citations(
+        _web(("First.", "https://insee.fr/a"), ("Second.", "https://insee.fr/a")), NOW
+    )
+    assert len(found) == 1
+
+
+def test_a_row_that_cannot_be_cited_is_dropped_not_raised_on() -> None:
+    """The answer is already written. Losing it to a bad URL is the worse outcome."""
+    found = _citations(
+        _web(
+            ("No URL at all.", ""),
+            ("Not a URL.", "how about no"),
+            ("Fine.", "https://insee.fr/ok"),
+        ),
+        NOW,
+    )
+    assert [c.title for c in found] == ["insee.fr"]
+
+
+def _read(normalized: str, resolved: str, refs: list[tuple[str, str]]) -> Understanding:
+    return Understanding(
+        normalized=normalized,
+        resolved=resolved,
+        uses_context=True,
+        references=[Reference(text=t, refers_to=r) for t, r in refs],
+    )
+
+
+def test_a_resolution_that_carried_the_referent_through_is_planned_from() -> None:
+    assert not _unresolved(_read("Population of it", "Population of Paris?", [("it", "Paris")]))
+
+
+def test_a_referent_reworded_on_the_way_in_still_counts() -> None:
+    """BRAIN #1 keeps the word and appends the date. That is a resolution, not a failure."""
+    assert not _unresolved(
+        _read(
+            "What about tomorrow",
+            "What is the first shuttle for tomorrow, 2026-08-26?",
+            [("tomorrow", "the day after today, 2026-08-26")],
+        )
+    )
+
+
+def test_a_question_that_needed_context_and_came_back_unchanged_is_refused() -> None:
+    assert _unresolved(_read("Population of it", "Population of it", [("it", "Paris")]))
+
+
+def test_a_referent_that_never_reached_the_question_is_refused() -> None:
+    """The Italy case: `it` was found, and then dropped on the way in."""
+    assert _unresolved(
+        _read("Population of it", "Population of the capital of France", [("it", "Paris")])
+    )
+
+
+def test_a_self_contained_question_is_never_second_guessed() -> None:
+    """`usesContext` false means there was nothing to carry, so there is nothing to check."""
+    read = Understanding(normalized="Capital of France?", resolved="Capital of France?")
+    assert not _unresolved(read)
