@@ -40,10 +40,6 @@ def check(plan: Plan, now: datetime) -> Plan | Rejected:
         if not plan.topic:
             return Rejected("a RAG plan needs a topic")
         return Plan(lane=Lane.RAG, topic=plan.topic)
-    if plan.lane is Lane.MEMORY:
-        if not plan.query:
-            return Rejected("a MEMORY plan needs a query")
-        return Plan(lane=Lane.MEMORY, query=plan.query)
     if plan.lane is Lane.GENERAL:
         # Absent means stable. Searching the web is the exceptional path, so a
         # planner that says nothing about freshness does not trigger one.

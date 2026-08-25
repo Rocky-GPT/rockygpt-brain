@@ -39,6 +39,9 @@ _UNDERSTAND = """Work out what the question is asking, in four steps, in this or
               "you", not "Rocky", not a date the clock already gives.
 `usedTurns`   the positions in `earlierTurns` those references point into,
               counting from 0. Empty when there are no references.
+`usesContext` true when this question needs the conversation — because it
+              borrows from it, or because it is about what was said. False for
+              a question that would mean the same asked first.
 `resolved`    the question rewritten to stand on its own, with what it pointed
               at written in. It is still a question and still the one asked —
               do not answer it, and do not replace it with what was said
@@ -57,7 +60,6 @@ GENERAL  the answer is general knowledge. Say which kind with `freshness`:
          anything measured, counted, priced, ranked, or currently held, however
          slowly it moves. For `current`, give the `query` to look up.
 SAFETY   the person may be at risk of harm.
-MEMORY   the question is about what was already said. Give the query.
 
 `capabilities` is everything Rocky can look up, and the fields each one allows.
 For CODE, name one capability and use only its fields.

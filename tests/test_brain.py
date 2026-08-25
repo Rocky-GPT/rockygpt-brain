@@ -165,7 +165,7 @@ async def test_a_question_that_stands_alone_has_no_context_stage() -> None:
 
 
 async def test_a_reworded_question_is_not_a_borrowed_one() -> None:
-    """Tidying moves `normalized` and `resolved` together, so it shows as nothing."""
+    """BRAIN #1 said the question needed no conversation, so there is no stage."""
     plan = Plan(
         lane=Lane.GENERAL,
         freshness="stable",
@@ -179,6 +179,7 @@ async def test_the_context_stage_breaks_down_how_the_question_was_read() -> None
         normalized="population of it",
         references=[Reference(text="it", refers_to="Paris")],
         used_turns=[0],
+        uses_context=True,
         resolved="population of Paris",
     )
     memory = MemoryStore()
@@ -201,6 +202,7 @@ async def test_a_turn_position_that_does_not_exist_is_dropped() -> None:
         normalized="a",
         references=[Reference(text="it", refers_to="something")],
         used_turns=[7],
+        uses_context=True,
         resolved="b",
     )
     response, _ = await ask("a", planner=FakePlanner(read=read))
