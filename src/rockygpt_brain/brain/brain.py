@@ -31,7 +31,7 @@ stage as purely what BRAIN #1 decided.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal
 from urllib.parse import urlparse
@@ -43,14 +43,13 @@ from rockygpt_brain.api.contracts import BrainTrace, ChatRequest, ChatSuccess, C
 from rockygpt_brain.brain.execute.run import run
 from rockygpt_brain.brain.execute.schema import WEB, Execution
 from rockygpt_brain.brain.plan.run import PlanPort
-from rockygpt_brain.brain.plan.schema import Plan
 from rockygpt_brain.brain.plan.validate import Rejected, check
 from rockygpt_brain.brain.understand.run import UnderstandPort
 from rockygpt_brain.brain.understand.schema import Understanding
 from rockygpt_brain.brain.understand.validate import ResolutionFailed, unresolved
 from rockygpt_brain.brain.write.run import WritePort
 from rockygpt_brain.context.memory import MemoryStore
-from rockygpt_brain.errors import ServiceError
+from rockygpt_brain.errors import ServiceError, Unavailable
 from rockygpt_brain.services.data import DataPort
 from rockygpt_brain.services.web import WebPort
 
@@ -110,32 +109,56 @@ class Brain:
         if request.response_mode:
             memory["responseMode"] = request.response_mode
 
-        # 2. BRAIN #1 reads the question, then BRAIN #2 plans from what it
-        # read — and from nothing else. A brain that does not answer, or a plan
-        # the registry will not accept, ends the turn: nothing downstream is
+        # Written in the `finally` below however this ends. Every stage adds
+        # to it as it completes, so a turn that fails halfway is recorded with
+        # exactly what it got through.
+        recording = _Recording(identity, request.message, started)
+        try:
+            return await self._turn(request, identity, now, earlier, question, memory, recording)
+        except ServiceError as exc:
+            recording.failed = str(exc.__cause__ or exc)
+            raise
+        except Exception as exc:  # noqa: BLE001 — recorded, then re-raised untouched
+            recording.failed = f"{type(exc).__name__}: {exc}"
+            raise
+        finally:
+            recording.write(self._memory)
+
+    async def _turn(
+        self,
+        request: ChatRequest,
+        identity: TurnIdentity,
+        now: datetime,
+        earlier: list[dict[str, Any]],
+        question: dict[str, Any],
+        memory: dict[str, Any],
+        recording: _Recording,
+    ) -> ChatSuccess:
+        """The four stages. Raises rather than degrading, and is recorded either way."""
+        # BRAIN #1 reads the question, then BRAIN #2 plans from what it read —
+        # and from nothing else. A brain that does not answer, or a plan the
+        # registry will not accept, ends the turn: nothing downstream is
         # allowed to make up for it.
         read = await self._understand.understand(request.message, earlier, now.isoformat())
         if failure := unresolved(read):
-            raise ServiceError(
-                503,
-                "SERVICE_UNAVAILABLE",
-                "Rocky could not work out what that was asking.",
-                retryable=True,
-            ) from ResolutionFailed(failure)
+            raise Unavailable("Rocky could not work out what that was asking.") from (
+                ResolutionFailed(failure)
+            )
         drafted = await self._planner.plan(read.resolved, now.isoformat())
         checked = check(drafted, now)
         if isinstance(checked, Rejected):
-            raise ServiceError(
-                503,
-                "SERVICE_UNAVAILABLE",
-                "Rocky could not work out how to answer that.",
-                retryable=True,
-            ) from PlanRejected(checked.reason)
+            raise Unavailable("Rocky could not work out how to answer that.") from PlanRejected(
+                checked.reason
+            )
 
-        # 3. PYTHON — run the lane. Raises if it cannot.
+        recording.plan = checked.summary()
+        recording.route = checked.lane.value.lower()
+
+        # PYTHON — run the lane. Raises if it cannot.
         execution = await run(checked, now, self._data, self._web)
+        recording.execution = execution.summary()
 
-        # 4. BRAIN #3 — turn what the lane returned into an answer
+        # BRAIN #3 — turn what the lane returned into an answer
         draft = await self._model.answer(
             request.message,
             earlier,
@@ -165,26 +188,14 @@ class Brain:
         response = ChatSuccess(
             request_id=identity.request_id,
             answer=draft.answer,
-            route=checked.lane.value.lower() if isinstance(checked, Plan) else "general",
+            route=recording.route,
             citations=citations,
             ui_actions=[],
             suggested_questions=draft.suggested_questions[:10],
             brain_trace=trace,
         )
-        self._memory.record(
-            request_id=identity.request_id,
-            session_id=identity.session_id,
-            visitor_id=identity.visitor_id,
-            question_origin=identity.question_origin,
-            user_message=request.message,
-            assistant_message=response.answer,
-            route=response.route,
-            tools=[],
-            tool_arguments=trace.plan,
-            citations=citations,
-            result={"execution": trace.execution, "answer": trace.answer},
-            latency_ms=max(0, round((time.monotonic() - started) * 1000)),
-        )
+        recording.answer = response.answer
+        recording.citations = citations
         return response
 
 
@@ -251,6 +262,61 @@ def _citations(execution: Execution, now: datetime) -> list[Citation]:
             continue
         seen.add(url)
     return out
+
+
+@dataclass(slots=True)
+class _Recording:
+    """What is known about this turn so far, written however it ends.
+
+    The old code recorded at the end of the success path, so every turn that
+    raised — a resolution that failed, a plan the registry refused, a lookup
+    that could not run — left no trace at all. The admin log showed a clean
+    run of successes and the failures were simply absent, which is the worst
+    possible shape for a log: it looks complete.
+
+    This accumulates as the stages complete and is written in a `finally`, so
+    a new failure path cannot be added without being recorded. Nothing here
+    needs to be remembered by whoever adds one.
+    """
+
+    identity: TurnIdentity
+    question: str
+    started: float
+    plan: dict[str, Any] = field(default_factory=dict)
+    execution: dict[str, Any] = field(default_factory=dict)
+    answer: str = ""
+    route: str = ""
+    citations: list[Citation] = field(default_factory=list)
+    failed: str = ""
+
+    def write(self, memory: MemoryStore) -> None:
+        memory.record(
+            request_id=self.identity.request_id,
+            session_id=self.identity.session_id,
+            visitor_id=self.identity.visitor_id,
+            question_origin=self.identity.question_origin,
+            user_message=self.question,
+            # Empty when the turn failed, which is what keeps it out of the
+            # conversation and in the log.
+            assistant_message=self.answer,
+            route=self.route,
+            tools=[],
+            tool_arguments=self.plan,
+            citations=self.citations,
+            result=self._result(),
+            latency_ms=max(0, round((time.monotonic() - self.started) * 1000)),
+        )
+
+    def _result(self) -> dict[str, Any]:
+        """What happened, for a person reading the log.
+
+        `failed` carries the reason and is present only when there was one, so
+        a failed turn cannot be mistaken for a quiet one.
+        """
+        out: dict[str, Any] = {"execution": self.execution, "answer": {"answer": self.answer}}
+        if self.failed:
+            out["failed"] = self.failed
+        return out
 
 
 class PlanRejected(Exception):

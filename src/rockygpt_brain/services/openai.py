@@ -17,7 +17,7 @@ from typing import Any, TypeVar
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
-from rockygpt_brain.errors import ServiceError
+from rockygpt_brain.errors import ServiceError, Unavailable, Unsupported
 
 _T = TypeVar("_T", bound=BaseModel)
 
@@ -45,9 +45,8 @@ class StructuredModel:
 
     async def parse(self, instructions: str, payload: dict[str, Any], shape: type[_T]) -> _T:
         if self._client is None:
-            raise ServiceError(
-                503, "SERVICE_UNAVAILABLE", "OPENAI_API_KEY is not configured.", retryable=True
-            )
+            # Not retryable: no number of attempts sets an environment variable.
+            raise Unsupported("OPENAI_API_KEY is not configured.")
         try:
             response = await self._client.responses.parse(
                 model=self._model,
@@ -62,6 +61,25 @@ class StructuredModel:
         except ServiceError:
             raise
         except Exception as exc:
-            raise ServiceError(
-                503, "SERVICE_UNAVAILABLE", self._unavailable, retryable=True
-            ) from exc
+            if _is_exhausted(exc):
+                # A spent balance is not a hiccup. Telling the client to try
+                # again sends it back forever against something only a person
+                # with the billing page can fix — which is what happened, and
+                # took three probes to see, because the message said the
+                # service was "temporarily unavailable".
+                raise Unsupported(self._unavailable) from exc
+            raise Unavailable(self._unavailable) from exc
+
+
+#: What the provider calls having nothing left to spend. A rate limit proper —
+#: too many requests in a window — is a different thing and does clear on its
+#: own, so it is deliberately not matched here.
+_EXHAUSTED = ("insufficient_quota", "credit_balance_exhausted", "billing_hard_limit_reached")
+
+
+def _is_exhausted(exc: Exception) -> bool:
+    """Whether this failure is a spent account rather than a passing fault."""
+    code = str(getattr(exc, "code", "") or "")
+    kind = str(getattr(getattr(exc, "body", None), "get", lambda _k: "")("type") or "")
+    haystack = f"{code} {kind} {exc}".lower()
+    return any(marker in haystack for marker in _EXHAUSTED)

@@ -11,7 +11,7 @@ from datetime import datetime
 
 from rockygpt_brain.brain.execute.schema import SAFETY, Execution
 from rockygpt_brain.brain.plan.schema import Lane, Plan
-from rockygpt_brain.errors import ServiceError
+from rockygpt_brain.errors import Unsupported
 from rockygpt_brain.lanes import code, general
 from rockygpt_brain.safety.enforce import required
 from rockygpt_brain.services.data import DataPort
@@ -35,6 +35,6 @@ async def run(checked: Plan, now: datetime, data: DataPort, web: WebPort) -> Exe
 
     # RAG has no code yet. It says so here rather than returning an empty
     # result, which BRAIN #3 would read as "looked, found nothing".
-    raise ServiceError(
-        503, "SERVICE_UNAVAILABLE", "Rocky cannot look that up yet.", retryable=False
-    ) from code.run.LaneFailed(f"no code for the {checked.lane.value} lane")
+    raise Unsupported("Rocky cannot look that up yet.") from code.run.LaneFailed(
+        f"no code for the {checked.lane.value} lane"
+    )

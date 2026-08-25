@@ -32,7 +32,7 @@ from rockygpt_brain.brain.understand.run import OpenAIUnderstand, UnderstandPort
 from rockygpt_brain.brain.write.run import OpenAIWrite, WritePort
 from rockygpt_brain.config import Settings, get_settings
 from rockygpt_brain.context.memory import MemoryStore
-from rockygpt_brain.errors import ServiceError
+from rockygpt_brain.errors import BadRequest, Internal, ServiceError, Unauthorized
 from rockygpt_brain.services.data import DataPort, HttpData
 from rockygpt_brain.services.web import OpenAIWeb, WebPort
 
@@ -156,25 +156,25 @@ def create_app(
     async def validation_error(request: Request, _: RequestValidationError) -> JSONResponse:
         return _error(
             request.state.request_id,
-            ServiceError(400, "INVALID_REQUEST", "The request is invalid."),
+            BadRequest("The request is invalid."),
         )
 
     @app.exception_handler(Exception)
     async def unexpected_error(request: Request, _: Exception) -> JSONResponse:
         return _error(
             request.state.request_id,
-            ServiceError(500, "INTERNAL_ERROR", "An unexpected error occurred."),
+            Internal("An unexpected error occurred."),
         )
 
     def check_environment(token: str | None) -> None:
         expected = config.secret_value(config.staging_service_token)
         if expected and token != expected:
-            raise ServiceError(401, "UNAUTHORIZED", "Unauthorized.")
+            raise Unauthorized("Unauthorized.")
 
     def check_admin(authorization: str | None) -> None:
         expected = config.secret_value(config.admin_api_token)
         if expected and authorization != f"Bearer {expected}":
-            raise ServiceError(401, "UNAUTHORIZED", "Unauthorized.")
+            raise Unauthorized("Unauthorized.")
 
     @app.get("/health", response_model=Health, response_model_exclude_none=True)
     async def health() -> Health:

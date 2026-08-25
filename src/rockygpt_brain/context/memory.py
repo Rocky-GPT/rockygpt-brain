@@ -50,9 +50,17 @@ class MemoryStore:
         latency_ms: int,
     ) -> None:
         created_at = datetime.now(UTC)
-        self._turns[session_id].append(
-            Turn(request_id, user_message, assistant_message, route, created_at)
-        )
+        # A turn joins the conversation only when there was an answer to it.
+        # The log takes everything — a turn that failed is exactly what an
+        # operator needs to see — but `history` feeds BRAIN #1, which resolves
+        # follow-ups against what was said. "Rocky is unavailable" is not
+        # something a later question can refer back to, and offering it as
+        # context is worse than the gap. Derived from the message rather than
+        # passed in, so no caller can record an answer that never happened.
+        if assistant_message:
+            self._turns[session_id].append(
+                Turn(request_id, user_message, assistant_message, route, created_at)
+            )
         self._logs.append(
             ChatLogItem(
                 id=request_id,

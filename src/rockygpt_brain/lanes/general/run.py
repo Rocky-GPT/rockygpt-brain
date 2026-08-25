@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from rockygpt_brain.brain.execute.schema import OWN_KNOWLEDGE, WEB, Execution
 from rockygpt_brain.brain.plan.schema import Plan
-from rockygpt_brain.errors import ServiceError
+from rockygpt_brain.errors import Unavailable
 from rockygpt_brain.services.web import WebPort, WebUnavailable
 
 
@@ -23,7 +23,5 @@ async def run(plan: Plan, web: WebPort) -> Execution:
     try:
         results = await web.search(plan.effective_query or plan.query)
     except WebUnavailable as exc:
-        raise ServiceError(
-            503, "SERVICE_UNAVAILABLE", "Rocky could not look that up just now.", retryable=True
-        ) from exc
+        raise Unavailable("Rocky could not look that up just now.") from exc
     return Execution(WEB, results=results)
