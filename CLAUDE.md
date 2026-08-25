@@ -1,14 +1,14 @@
 # RockyGPT brain implementation rule
 
-Keep it minimal. The whole request lifecycle is `core/brain.py`, and it should
+Keep it minimal. The whole request lifecycle is `brain/brain.py`, and it should
 stay readable in a minute.
 
 ```text
 the question
-  -> BRAIN #1  understand it — what is it actually asking?   (planner.py)
-  -> BRAIN #2  plan it — what should be done about that?     (planner.py)
-  -> PYTHON    run the lane the plan names, or fail          (execute.py)
-  -> BRAIN #3  translate what came back into an answer       (model.py)
+  -> BRAIN #1  understand it — what is it asking?    (brain/understand/)
+  -> BRAIN #2  plan it — what to do about that?      (brain/plan/)
+  -> PYTHON    run the lane the plan names, or fail  (brain/execute/)
+  -> BRAIN #3  turn what came back into an answer    (brain/write/)
 ```
 
 **The planning call never sees the question as typed.** It is given the
@@ -45,8 +45,31 @@ compare. That is all of it. There is no list of intents and there must never be
 one: no `next_shuttle`, no `menu_lookup`, no enum whose members are questions.
 "The first shuttle" and "the last shuttle" are one
 capability with a different sort, and a new question
-should need no code at all. `plan.py` holds the vocabulary, `capabilities.py`
-the registry.
+should need no code at all. `brain/plan/schema.py` holds the vocabulary,
+`capabilities/registry.py` the registry.
+
+**The registry lists only what can run.** An entry requires its executor, so a
+capability cannot be declared without the code behind it. The planner is shown
+this list, so anything on it is something it may plan — and a plan Rocky
+cannot run fails at execution, after the question was understood and a plan
+was made, where nothing recovers. A declared-but-unbuilt capability is not a
+smaller product, it is a broken one. Never add a second list beside this one.
+
+**Capability executors take the filters, not the plan.** Nothing under
+`capabilities/` imports `Plan`: a lookup has no business knowing what a lane
+is or which operations exist. An entry also carries how to read and sort its
+own records, so adding a capability never means editing the lane.
+
+**A directory exists when there is code for it.** No `lanes/rag/`, no
+`capabilities/dining/`. An empty package claims the product does something it
+does not, and that claim is what the registry rule above exists to prevent.
+
+**Each stage keeps the same four files** — `run.py`, `prompt.py`, `schema.py`,
+`validate.py` — so the same question is always asked in the same place. A
+stage missing one does not have the file rather than an empty one. Prompts
+stay in their own file: a paragraph added to the planning instruction has
+twice moved lane routing on questions it was not about, and that belongs in a
+diff you can read as prose.
 
 Two things that look like lanes are not, and must not become lanes again. A
 lane says where an answer lives; neither of these is a place.

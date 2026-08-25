@@ -42,19 +42,42 @@ it. `_unresolved` in `brain.py` holds the two tests.
 ## Modules
 
 ```text
-core/brain.py         the request lifecycle — the four stages, in order
-core/planner.py       BRAIN #1 and BRAIN #2 — two calls, deliberately apart
-core/plan.py          the vocabulary a plan is written in
-core/capabilities.py  the registry — what Rocky can look up, and with which fields
-core/validate.py      the check, and the clock, applied to a plan before it runs
-core/execute.py       PYTHON — run the lane, and apply the generic operations
-core/model.py         BRAIN #3 — the answer call and its one instruction
-services/data.py      the campus data service, and the CODE lane's one lookup
-services/web.py       the web search a `current` GENERAL question runs
-services/memory.py    turns kept for follow-ups, and the admin log
+brain/                the four stages, in the order they run
+  brain.py            the lifecycle — what calls what, and what fails the turn
+  values.py           the constrained scalars every stage schema is built from
+  understand/         BRAIN #1: run, prompt, schema, validate
+  plan/               BRAIN #2: run, prompt, schema, validate
+  execute/            PYTHON: run (safety, then the lane), schema
+  write/              BRAIN #3: run, prompt, schema
+lanes/                where an answer comes from
+  code/               a capability lookup, then the plan's operation
+  general/            what the model knows, or a web search
+capabilities/         what Rocky can look up
+  registry.py         the only such list, and an entry needs its code
+  shuttle/            execute and normalize
+safety/               the concerns, what to do about each, and applying them
+context/              the conversation, and the record of it
+services/             the outbound calls: openai, data, web
 api/                  the HTTP surface
 config.py             settings from .env
 ```
+
+Each stage directory holds the same four things, so the same question is always
+asked in the same place: `run.py` makes the call, `prompt.py` is what the model
+is told, `schema.py` is what comes back, `validate.py` decides whether it can
+be used. A stage without one of those does not have the file — `execute` has no
+`prompt.py` because it calls no model, and no `validate.py` because a plan is
+checked before it runs, not after.
+
+Prompts are separate files because they are the highest-risk text here. A
+paragraph added to the planning instruction has twice moved lane routing on
+questions it was not about, and that change should read as prose in a one-file
+diff rather than as a string buried among Python.
+
+A directory exists when there is code for it. There is no `lanes/rag/` and no
+`capabilities/dining/`, because an empty package claims the product does
+something it does not — which is exactly the failure the registry rule below
+exists to prevent.
 
 ## The plan
 
