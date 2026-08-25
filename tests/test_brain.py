@@ -14,7 +14,7 @@ from rockygpt_brain.api.contracts import (
     ChatSuccess,
     ChatTurn,
 )
-from rockygpt_brain.brain.brain import Brain, TurnIdentity, _citations
+from rockygpt_brain.brain.brain import Brain, PlanRejected, TurnIdentity, _citations
 from rockygpt_brain.brain.execute.schema import CAMPUS_DATA, OWN_KNOWLEDGE, WEB, Execution
 from rockygpt_brain.brain.plan.schema import (
     Filter,
@@ -36,6 +36,7 @@ from rockygpt_brain.errors import (
     Unsupported,
 )
 from rockygpt_brain.services.openai import _is_exhausted
+from rockygpt_brain.services.rag.client import Passage
 
 TZ = ZoneInfo("America/New_York")
 NOW = datetime(2031, 3, 6, 18, 30, tzinfo=UTC)
@@ -104,6 +105,11 @@ class FakeData:
         return []
 
 
+class FakeRag:
+    async def retrieve(self, topic: str, limit: int) -> list[Passage]:
+        return []
+
+
 class FakeWeb:
     configured = True
 
@@ -125,7 +131,7 @@ async def ask(
     model = FakeModel()
     # One fake satisfies both ports: it answers understand and plan alike.
     brains = planner or FakePlanner()
-    brain = Brain(model, brains, brains, FakeData(), FakeWeb(), memory or MemoryStore())
+    brain = Brain(model, brains, brains, FakeData(), FakeWeb(), FakeRag(), memory or MemoryStore())
     response = await brain.answer(
         ChatRequest(message=message, now=NOW), TurnIdentity(rid, "s", None, "client")
     )
@@ -228,7 +234,7 @@ async def test_an_empty_history_is_taken_at_its_word() -> None:
     await ask("first", memory, "r1")
 
     model = FakeModel()
-    brain = Brain(model, FakePlanner(), FakePlanner(), FakeData(), FakeWeb(), memory)
+    brain = Brain(model, FakePlanner(), FakePlanner(), FakeData(), FakeWeb(), FakeRag(), memory)
     response = await brain.answer(
         ChatRequest(message="second", history=[], now=NOW),
         TurnIdentity("r2", "s", None, "client"),
@@ -260,7 +266,9 @@ async def test_both_paths_see_the_same_distance_back() -> None:
 
 async def test_the_modes_the_ui_asked_for_are_on_the_turn() -> None:
     model = FakeModel()
-    brain = Brain(model, FakePlanner(), FakePlanner(), FakeData(), FakeWeb(), MemoryStore())
+    brain = Brain(
+        model, FakePlanner(), FakePlanner(), FakeData(), FakeWeb(), FakeRag(), MemoryStore()
+    )
     response = await brain.answer(
         ChatRequest(message="m", now=NOW, style_mode="warm", response_mode="concise"),
         TurnIdentity("r", "s", None, "client"),
@@ -330,6 +338,7 @@ async def test_brain_two_never_runs_on_a_failed_lookup() -> None:
         unbuilt,
         FakeData(),
         FakeWeb(),
+        FakeRag(),
         MemoryStore(),
     )
     with pytest.raises(ServiceError):
@@ -339,10 +348,18 @@ async def test_brain_two_never_runs_on_a_failed_lookup() -> None:
     assert model.seen == {}, "BRAIN #3 was never called"
 
 
-async def test_a_lane_with_no_executor_ends_the_turn() -> None:
+async def test_a_capability_with_no_code_is_caught_before_anything_runs() -> None:
+    """Every lane runs now, so what is left unbuilt is a capability.
+
+    The registry lists only what has code, so an unknown name is refused while
+    the plan is still being checked — a stage earlier than it used to fail, and
+    retryable because the next plan may name something Rocky can do.
+    """
     with pytest.raises(ServiceError) as raised:
-        await ask(planner=FakePlanner(Plan(lane=Lane.RAG, topic="parking")))
+        await ask(planner=FakePlanner(Plan(lane=Lane.CODE, capability="menu")))
     assert raised.value.status_code == 503
+    assert isinstance(raised.value.__cause__, PlanRejected)
+    assert "menu" in str(raised.value.__cause__)
 
 
 async def test_the_route_is_the_lane() -> None:
@@ -492,7 +509,7 @@ async def test_a_turn_that_failed_still_reaches_the_log() -> None:
     memory = MemoryStore()
     model = FakeModel()
     unbuilt = FakePlanner(Plan(lane=Lane.CODE, capability="menu"))
-    brain = Brain(model, unbuilt, unbuilt, FakeData(), FakeWeb(), memory)
+    brain = Brain(model, unbuilt, unbuilt, FakeData(), FakeWeb(), FakeRag(), memory)
 
     with pytest.raises(ServiceError):
         await brain.answer(
@@ -515,7 +532,7 @@ async def test_a_failed_turn_is_not_offered_back_as_conversation() -> None:
     """
     memory = MemoryStore()
     unbuilt = FakePlanner(Plan(lane=Lane.CODE, capability="menu"))
-    brain = Brain(FakeModel(), unbuilt, unbuilt, FakeData(), FakeWeb(), memory)
+    brain = Brain(FakeModel(), unbuilt, unbuilt, FakeData(), FakeWeb(), FakeRag(), memory)
 
     with pytest.raises(ServiceError):
         await brain.answer(
@@ -531,7 +548,7 @@ async def test_a_failure_records_how_far_the_turn_got() -> None:
     """A turn that reached a plan records it; the stage that failed is visible."""
     memory = MemoryStore()
     unbuilt = FakePlanner(Plan(lane=Lane.CODE, capability="menu"))
-    brain = Brain(FakeModel(), unbuilt, unbuilt, FakeData(), FakeWeb(), memory)
+    brain = Brain(FakeModel(), unbuilt, unbuilt, FakeData(), FakeWeb(), FakeRag(), memory)
 
     with pytest.raises(ServiceError):
         await brain.answer(

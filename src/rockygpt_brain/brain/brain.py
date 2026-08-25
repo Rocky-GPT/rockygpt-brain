@@ -41,7 +41,7 @@ from pydantic import ValidationError
 
 from rockygpt_brain.api.contracts import BrainTrace, ChatRequest, ChatSuccess, Citation
 from rockygpt_brain.brain.execute.run import run
-from rockygpt_brain.brain.execute.schema import WEB, Execution
+from rockygpt_brain.brain.execute.schema import DOCUMENTS, WEB, Execution
 from rockygpt_brain.brain.plan.run import PlanPort
 from rockygpt_brain.brain.plan.validate import Rejected, check
 from rockygpt_brain.brain.understand.run import UnderstandPort
@@ -51,6 +51,7 @@ from rockygpt_brain.brain.write.run import WritePort
 from rockygpt_brain.context.memory import MemoryStore
 from rockygpt_brain.errors import ServiceError, Unavailable
 from rockygpt_brain.services.data import DataPort
+from rockygpt_brain.services.rag.client import RagPort
 from rockygpt_brain.services.web import WebPort
 
 
@@ -70,6 +71,7 @@ class Brain:
         planner: PlanPort,
         data: DataPort,
         web: WebPort,
+        documents: RagPort,
         memory: MemoryStore,
         timezone: str = "America/New_York",
     ) -> None:
@@ -78,6 +80,7 @@ class Brain:
         self._planner = planner
         self._data = data
         self._web = web
+        self._documents = documents
         self._memory = memory
         self._tz = ZoneInfo(timezone)
 
@@ -155,7 +158,7 @@ class Brain:
         recording.route = checked.lane.value.lower()
 
         # PYTHON — run the lane. Raises if it cannot.
-        execution = await run(checked, now, self._data, self._web)
+        execution = await run(checked, now, self._data, self._web, self._documents)
         recording.execution = execution.summary()
 
         # BRAIN #3 — turn what the lane returned into an answer
@@ -225,11 +228,13 @@ def _context(read: Understanding, earlier: list[dict[str, Any]]) -> dict[str, An
 def _citations(execution: Execution, now: datetime) -> list[Citation]:
     """The pages an answer came from, so a reader can check it.
 
-    Only the web produces these. Campus rows are Rocky's own records and carry
-    no page to point at, and a lane that looked nothing up has nothing to cite.
+    The web and the documents both produce these; campus rows are Rocky's own
+    records and carry no page to point at, and a lane that looked nothing up
+    has nothing to cite.
 
-    The title is the host, because the search returns no page title and the
-    host is the part a reader recognises anyway — `insee.fr` says more about
+    A document passage brings its own title, because the retrieval service
+    knows what page it cut the passage out of. A web result does not, so its
+    title is the host, which is the part a reader recognises anyway — `insee.fr` says more about
     whether to trust a number than a headline would. That also makes the title
     a function of the URL, so the client deduplicating on `title|url` and this
     deduplicating on the URL agree rather than disagreeing quietly.
@@ -238,12 +243,12 @@ def _citations(execution: Execution, now: datetime) -> list[Citation]:
     answer is already written by this point, and losing it over a malformed URL
     would be the citation costing more than it is worth.
     """
-    if execution.answer_from != WEB:
+    if execution.answer_from not in (WEB, DOCUMENTS):
         return []
     out: list[Citation] = []
     seen: set[str] = set()
     for row in execution.results:
-        url = str(row.get("source") or "")
+        url = str(row.get("source") or row.get("url") or "")
         if url in seen:
             continue
         host = (urlparse(url).hostname or "").removeprefix("www.")
@@ -252,9 +257,9 @@ def _citations(execution: Execution, now: datetime) -> list[Citation]:
         try:
             out.append(
                 Citation(
-                    title=host,
+                    title=str(row.get("title") or "") or host,
                     url=url,
-                    snippet=str(row.get("fact") or "")[:1000] or None,
+                    snippet=str(row.get("fact") or row.get("passage") or "")[:1000] or None,
                     collected_at=now,
                 )
             )
