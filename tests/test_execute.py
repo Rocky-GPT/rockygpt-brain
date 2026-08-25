@@ -6,9 +6,11 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from rockygpt_brain.core.execute import run
 from rockygpt_brain.core.plan import Filter, Lane, Operation, Plan
-from rockygpt_brain.core.validate import Rejected
+from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.services.data import DataUnavailable
 from rockygpt_brain.services.web import WebUnavailable
 
@@ -210,9 +212,10 @@ async def test_general_is_not_reported_as_a_missing_executor() -> None:
     assert execution.grounding() == {"answerFrom": "ownKnowledge"}
 
 
-async def test_a_lane_still_to_be_built_says_so() -> None:
-    execution = await run(Plan(lane=Lane.RAG, topic="parking"), NOW, FakeData(), FakeWeb())
-    assert "no executor for the RAG lane yet" == execution.note
+async def test_a_lane_still_to_be_built_ends_the_turn() -> None:
+    with pytest.raises(ServiceError) as raised:
+        await run(Plan(lane=Lane.RAG, topic="parking"), NOW, FakeData(), FakeWeb())
+    assert "RAG" in str(raised.value.__cause__)
 
 
 async def test_the_trace_shows_what_brain_two_was_handed() -> None:
@@ -251,10 +254,9 @@ async def test_a_web_fact_carries_where_it_came_from() -> None:
     assert set(execution.results[0]) == {"fact", "source", "publishedAt"}
 
 
-async def test_a_search_outage_costs_the_search_not_the_turn() -> None:
-    execution = await run(general("current", "anything"), NOW, FakeData(), FakeWeb(fails=True))
-    assert execution.grounding() == {"answerFrom": "ownKnowledge"}
-    assert "did not happen" in execution.note
+async def test_a_search_outage_ends_the_turn() -> None:
+    with pytest.raises(ServiceError):
+        await run(general("current", "anything"), NOW, FakeData(), FakeWeb(fails=True))
 
 
 async def test_a_lane_that_did_not_run_grounds_nothing() -> None:
@@ -264,22 +266,17 @@ async def test_a_lane_that_did_not_run_grounds_nothing() -> None:
     assert execution.grounding() == {"answerFrom": "ownKnowledge"}
 
 
-async def test_a_capability_without_an_executor_says_which_one() -> None:
+async def test_a_capability_without_an_executor_ends_the_turn() -> None:
     plan = shuttle({}).model_copy(update={"capability": "menu"})
-    execution = await run(plan, NOW, FakeData(), FakeWeb())
-    assert execution.ran is False
-    assert "menu" in execution.note
+    with pytest.raises(ServiceError) as raised:
+        await run(plan, NOW, FakeData(), FakeWeb())
+    assert "menu" in str(raised.value.__cause__), "the trace still says which one"
+    assert raised.value.retryable is False, "no executor is not a blip"
 
 
-async def test_a_data_outage_costs_the_lookup_not_the_turn() -> None:
-    execution = await run(shuttle({}), NOW, FakeData(fails=True), FakeWeb())
-    assert execution.ran is False
-    assert execution.grounding() == {"answerFrom": "ownKnowledge"}
-    assert "did not happen" in execution.note
-
-
-async def test_a_rejected_plan_never_reaches_the_data_service() -> None:
-    data = FakeData()
-    execution = await run(Rejected("no capability named 'weather'"), NOW, data, FakeWeb())
-    assert execution.ran is False
-    assert data.query == {}
+async def test_a_data_outage_ends_the_turn() -> None:
+    """Degrading here is how an invented departure time gets written."""
+    with pytest.raises(ServiceError) as raised:
+        await run(shuttle({}), NOW, FakeData(fails=True), FakeWeb())
+    assert raised.value.code == "DATASET_UNAVAILABLE"
+    assert raised.value.retryable is True

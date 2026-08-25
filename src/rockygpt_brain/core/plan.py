@@ -67,6 +67,16 @@ class Operation(BaseModel):
     count: bool = False
     compare: list[FieldName] = Field(default_factory=list, max_length=4)
 
+    @property
+    def stated(self) -> bool:
+        """Whether anything was actually asked for.
+
+        `direction` alone does not count: it has a default, so it is set on
+        every operation whether or not one was meant. What makes an operation
+        an operation is one of the other four.
+        """
+        return bool(self.order_by or self.limit or self.count or self.compare)
+
 
 class Plan(BaseModel):
     """What AI #1 returns: one turn, translated into operations.

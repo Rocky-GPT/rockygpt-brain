@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from rockygpt_brain.api.contracts import (
     HISTORY_EXCHANGES,
     ChatRequest,
@@ -226,36 +228,43 @@ async def test_brain_two_is_grounded_on_every_lane() -> None:
     assert model.seen["grounding"] == {"answerFrom": "ownKnowledge"}
 
 
-async def test_brain_two_is_never_told_a_lookup_failed() -> None:
-    """It would apologise for the capability instead of answering the question."""
-    plan = Plan(lane=Lane.CODE, capability="menu")
-    _, model = await ask(planner=FakePlanner(plan))
-    assert model.seen["grounding"] == {"answerFrom": "ownKnowledge"}, (
-        "a missing executor looks exactly like a question that needed no lookup"
+async def test_brain_two_never_runs_on_a_failed_lookup() -> None:
+    """No stage compensates for the one before it, so there is nothing to write."""
+    model = FakeModel()
+    brain = Brain(
+        model,
+        FakePlanner(Plan(lane=Lane.CODE, capability="menu")),
+        FakeData(),
+        FakeWeb(),
+        MemoryStore(),
     )
+    with pytest.raises(ServiceError):
+        await brain.answer(
+            ChatRequest(message="m", now=NOW), TurnIdentity("r", "s", None, "client")
+        )
+    assert model.seen == {}, "BRAIN #2 was never called"
 
 
-async def test_a_stage_that_did_not_run_carries_no_results() -> None:
-    """A turn answered from the model's own knowledge must not look looked-up."""
-    response, _ = await ask(planner=FakePlanner(Plan(lane=Lane.RAG, topic="parking")))
-    assert "results" not in response.brain_trace.execution
-    assert "RAG" in response.brain_trace.execution["note"]
+async def test_a_lane_with_no_executor_ends_the_turn() -> None:
+    with pytest.raises(ServiceError) as raised:
+        await ask(planner=FakePlanner(Plan(lane=Lane.RAG, topic="parking")))
+    assert raised.value.status_code == 503
 
 
 async def test_the_route_is_the_lane() -> None:
-    response, _ = await ask(planner=FakePlanner(Plan(lane=Lane.RAG, topic="parking")))
-    assert response.route == "rag"
+    plan = Plan(lane=Lane.CODE, capability="shuttle", operation=Operation(limit=1))
+    response, _ = await ask(planner=FakePlanner(plan))
+    assert response.route == "code"
 
 
-async def test_a_rejected_plan_says_why_and_still_answers() -> None:
-    response, _ = await ask(planner=FakePlanner(Plan(lane=Lane.CODE, capability="weather")))
-    assert response.answer == "written"
-    assert response.route == "general"
-    assert "weather" in response.brain_trace.plan["rejected"]
-    assert "weather" in response.brain_trace.execution["note"]
+async def test_a_rejected_plan_ends_the_turn() -> None:
+    """The registry refusing a plan is a failure, not a cue to answer anyway."""
+    with pytest.raises(ServiceError) as raised:
+        await ask(planner=FakePlanner(Plan(lane=Lane.CODE, capability="weather")))
+    assert "weather" in str(raised.value.__cause__)
 
 
-async def test_a_planner_outage_costs_the_plan_not_the_answer() -> None:
-    response, _ = await ask(planner=FakePlanner(fails=True))
-    assert response.answer == "written"
-    assert response.brain_trace.plan == {"rejected": "the planner was unavailable"}
+async def test_a_planner_outage_ends_the_turn() -> None:
+    """Everything downstream is read against the plan, so there is nothing to run."""
+    with pytest.raises(ServiceError):
+        await ask(planner=FakePlanner(fails=True))

@@ -29,7 +29,7 @@ from typing import Any
 
 from rockygpt_brain.core.capabilities import CAPABILITIES
 from rockygpt_brain.core.plan import Lane, Operation, Plan
-from rockygpt_brain.core.validate import Rejected
+from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.services.data import DataPort, DataUnavailable
 from rockygpt_brain.services.web import WebPort, WebUnavailable
 
@@ -38,11 +38,19 @@ _FETCH_LIMIT = 100
 _CLOCK = re.compile(r"^(\d{1,2}):(\d{2})\s*([AaPp])[Mm]?$")
 
 
-#: Where an answer comes from. `ownKnowledge` is the model's own; the other two
-#: are looked up, and carry `results`.
+#: Where an answer comes from. `campusData` and `web` are looked up and carry
+#: `results`; the other two do not.
+#:
+#: There is no value here for a lookup that failed. This stage either produces
+#: what BRAIN #2 writes from, or it raises — no stage compensates for the one
+#: before it.
 OWN_KNOWLEDGE = "ownKnowledge"
 CAMPUS_DATA = "campusData"
 WEB = "web"
+
+
+class LaneFailed(Exception):
+    """Why a lane could not run. Carried as the cause of the ServiceError."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,7 +65,8 @@ class Execution:
 
     @property
     def ran(self) -> bool:
-        return self.answer_from != OWN_KNOWLEDGE
+        """Whether a lookup produced anything. An outage did not."""
+        return self.answer_from in (CAMPUS_DATA, WEB)
 
     def summary(self) -> dict[str, Any]:
         """This stage, for a person reading the trace.
@@ -78,7 +87,7 @@ class Execution:
         list is what says which.
         """
         if not self.ran:
-            return {"answerFrom": OWN_KNOWLEDGE, "note": self.note}
+            return {"answerFrom": self.answer_from, "note": self.note}
         if self.count is not None:
             return {"answerFrom": self.answer_from, "count": self.count}
         return {"answerFrom": self.answer_from, "results": self.results}
@@ -97,7 +106,7 @@ class Execution:
         unambiguously, because ``answerFrom`` already established that it ran.
         """
         if not self.ran:
-            return {"answerFrom": OWN_KNOWLEDGE}
+            return {"answerFrom": self.answer_from}
         found = [{"count": self.count}] if self.count is not None else self.results
         return {"answerFrom": self.answer_from, "results": found}
 
@@ -177,11 +186,14 @@ def _apply(
     return [_project(row, capability) for row in rows], None
 
 
-async def run(checked: Plan | Rejected, now: datetime, data: DataPort, web: WebPort) -> Execution:
-    """Act on a checked plan."""
-    if isinstance(checked, Rejected):
-        return Execution(OWN_KNOWLEDGE, note=checked.reason)
+async def run(checked: Plan, now: datetime, data: DataPort, web: WebPort) -> Execution:
+    """Act on a checked plan, or fail the turn.
 
+    Nothing here degrades. A lane that cannot run raises rather than handing
+    BRAIN #2 something to write around — the alternative is an answer invented
+    to cover a lookup that never happened, which reads exactly like one that
+    did.
+    """
     if checked.lane is Lane.GENERAL:
         return await _general(checked, web)
 
@@ -189,12 +201,19 @@ async def run(checked: Plan | Rejected, now: datetime, data: DataPort, web: WebP
     executor = _EXECUTORS.get(capability) if checked.lane is Lane.CODE else None
     if executor is None:
         missing = f"the {capability} capability" if capability else f"the {checked.lane.value} lane"
-        return Execution(OWN_KNOWLEDGE, note=f"no executor for {missing} yet")
+        raise ServiceError(
+            503, "SERVICE_UNAVAILABLE", "Rocky cannot look that up yet.", retryable=False
+        ) from LaneFailed(f"no executor for {missing}")
 
     try:
         records = await executor(checked, now, data)
     except DataUnavailable as exc:
-        return Execution(OWN_KNOWLEDGE, note=f"the lookup did not happen: {exc}")
+        raise ServiceError(
+            503,
+            "DATASET_UNAVAILABLE",
+            "Rocky could not reach campus data just now.",
+            retryable=True,
+        ) from exc
 
     results, count = _apply(records, checked.operation, capability)
     return Execution(CAMPUS_DATA, results=results, count=count)
@@ -203,14 +222,16 @@ async def run(checked: Plan | Rejected, now: datetime, data: DataPort, web: WebP
 async def _general(plan: Plan, web: WebPort) -> Execution:
     """General knowledge: the model's own, unless the answer has a shelf life.
 
-    A `stable` question is not waiting for an executor — it is the lane that
-    means "no lookup needed", and calling that a gap would report a finished
-    design as an unfinished one.
+    A `stable` question needs no lookup, so producing nothing is this stage
+    succeeding rather than failing. A `current` one does need one, and a search
+    that does not answer fails the turn like any other.
     """
     if plan.freshness != "current" or not plan.query:
         return Execution(OWN_KNOWLEDGE, note="stable; answered from what the model knows")
     try:
         results = await web.search(plan.query)
     except WebUnavailable as exc:
-        return Execution(OWN_KNOWLEDGE, note=f"the search did not happen: {exc}")
+        raise ServiceError(
+            503, "SERVICE_UNAVAILABLE", "Rocky could not look that up just now.", retryable=True
+        ) from exc
     return Execution(WEB, results=results)

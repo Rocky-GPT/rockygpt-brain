@@ -18,11 +18,12 @@ NOW = datetime(2031, 3, 6, 18, 30, tzinfo=UTC).astimezone(TZ)
 
 
 def code(capability: str, filters: dict[str, str], **operation: Any) -> Plan:
+    """A CODE plan. Defaults to a stated operation, which every CODE plan needs."""
     return Plan(
         lane=Lane.CODE,
         capability=capability,
         filters=[Filter(field=k, value=v) for k, v in filters.items()],
-        operation=Operation(**operation),
+        operation=Operation(**(operation or {"limit": 1})),
     )
 
 
@@ -55,6 +56,20 @@ def test_sorting_by_a_field_the_capability_does_not_have_is_rejected() -> None:
 
 def test_comparing_a_field_the_capability_does_not_have_is_rejected() -> None:
     assert isinstance(check(code("dining", {}, compare=["departureTime"]), NOW), Rejected)
+
+
+def test_a_capability_without_an_operation_is_rejected() -> None:
+    """Half a plan: what to look in, and nothing about what to do with it."""
+    plan = Plan(lane=Lane.CODE, capability="shuttle", operation=Operation())
+    rejected = check(plan, NOW)
+    assert isinstance(rejected, Rejected)
+    assert "operation" in rejected.reason
+
+
+def test_a_direction_alone_is_not_an_operation() -> None:
+    """It has a default, so it is set on every plan whether meant or not."""
+    plan = Plan(lane=Lane.CODE, capability="shuttle", operation=Operation(direction="descending"))
+    assert isinstance(check(plan, NOW), Rejected)
 
 
 def test_counting_needs_no_field_and_so_is_always_allowed() -> None:

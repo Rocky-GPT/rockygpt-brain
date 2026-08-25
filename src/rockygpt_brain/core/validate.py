@@ -71,6 +71,12 @@ def _check_code(plan: Plan, now: datetime) -> Plan | Rejected:
         if name not in capability.fields:
             return Rejected(f"{plan.capability} has no field {name!r} to compare")
 
+    # A capability says what to look in; the operation says what to do with what
+    # is found. A plan with one and not the other is half-written, and running
+    # it means guessing the missing half.
+    if not operation.stated:
+        return Rejected(f"a {plan.capability} plan needs an operation")
+
     return Plan(
         lane=Lane.CODE,
         capability=plan.capability,
