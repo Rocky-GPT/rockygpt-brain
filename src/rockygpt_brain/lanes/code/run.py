@@ -14,7 +14,7 @@ from typing import Any
 from rockygpt_brain.brain.execute.schema import CAMPUS_DATA, Execution
 from rockygpt_brain.brain.plan.schema import Operation, Plan
 from rockygpt_brain.capabilities.registry import CAPABILITIES
-from rockygpt_brain.errors import ServiceError
+from rockygpt_brain.errors import DatasetUnavailable, Unsupported
 from rockygpt_brain.services.data import DataPort, DataUnavailable
 
 
@@ -26,21 +26,16 @@ async def run(checked: Plan, now: datetime, data: DataPort) -> Execution:
     capability = checked.capability or ""
     entry = CAPABILITIES.get(capability)
     if entry is None:
-        raise ServiceError(
-            503, "SERVICE_UNAVAILABLE", "Rocky cannot look that up yet.", retryable=False
-        ) from LaneFailed(f"no capability named {capability!r}")
+        raise Unsupported("Rocky cannot look that up yet.") from LaneFailed(
+            f"no capability named {capability!r}"
+        )
 
     try:
         # The filters, not the plan. A capability has no business knowing what
         # a lane is or which operations exist.
         records = await entry.execute(checked.filter_values, now, data)
     except DataUnavailable as exc:
-        raise ServiceError(
-            503,
-            "DATASET_UNAVAILABLE",
-            "Rocky could not reach campus data just now.",
-            retryable=True,
-        ) from exc
+        raise DatasetUnavailable("Rocky could not reach campus data just now.") from exc
 
     results, count = apply(records, checked.operation, capability)
     return Execution(CAMPUS_DATA, results=results, count=count)

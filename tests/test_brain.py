@@ -26,7 +26,16 @@ from rockygpt_brain.brain.understand.schema import Reference, Understanding
 from rockygpt_brain.brain.understand.validate import unresolved
 from rockygpt_brain.brain.write.schema import Draft
 from rockygpt_brain.context.memory import MemoryStore
-from rockygpt_brain.errors import ServiceError
+from rockygpt_brain.errors import (
+    BadRequest,
+    DatasetUnavailable,
+    Internal,
+    ServiceError,
+    Unauthorized,
+    Unavailable,
+    Unsupported,
+)
+from rockygpt_brain.services.openai import _is_exhausted
 
 TZ = ZoneInfo("America/New_York")
 NOW = datetime(2031, 3, 6, 18, 30, tzinfo=UTC)
@@ -80,7 +89,7 @@ class FakePlanner:
     ) -> Understanding:
         self.seen = {"question": question, "context": context, "currentTime": current_time}
         if self._fails:
-            raise ServiceError(503, "SERVICE_UNAVAILABLE", "down", retryable=True)
+            raise Unavailable("down")
         return self._read
 
     async def plan(self, resolved: str, current_time: str) -> Plan:
@@ -435,3 +444,109 @@ def test_a_self_contained_question_is_never_second_guessed() -> None:
     """`usesContext` false means there was nothing to carry, so there is nothing to check."""
     read = Understanding(normalized="Capital of France?", resolved="Capital of France?")
     assert not unresolved(read)
+
+
+def test_retryability_is_a_property_of_the_cause_not_a_choice() -> None:
+    """The field a client acts on, and the one that used to be set by hand.
+
+    Told to retry a missing key or a spent account, a client retries forever
+    against something no attempt fixes. Told not to retry a model that
+    hiccuped, it abandons a turn that would have worked. Neither is a decision
+    a raise site should be able to get wrong.
+    """
+    assert Unavailable("x").retryable, "a passing fault is worth another try"
+    assert DatasetUnavailable("x").retryable, "campus data comes back"
+    assert not Unsupported("x").retryable, "waiting does not build a capability"
+    assert not BadRequest("x").retryable
+    assert not Unauthorized("x").retryable
+    assert not Internal("x").retryable
+
+
+def test_no_raise_site_can_state_its_own_retryability() -> None:
+    """The constructor takes a message. There is no argument to get wrong."""
+    with pytest.raises(TypeError):
+        Unavailable("x", retryable=False)  # type: ignore[call-arg]
+
+
+def test_a_spent_account_is_not_advertised_as_retryable() -> None:
+    """The failure that hid behind "temporarily unavailable" for three probes."""
+
+    class Spent(Exception):
+        code = "credit_balance_exhausted"
+
+    assert _is_exhausted(Spent())
+    assert _is_exhausted(Exception("Error code: 429 - insufficient_quota"))
+    assert not _is_exhausted(Exception("connection reset by peer"))
+
+
+def _logs(memory: MemoryStore) -> list[Any]:
+    return memory.list_logs(search=None, routes=set(), origins=set(), limit=50).logs
+
+
+async def test_a_turn_that_failed_still_reaches_the_log() -> None:
+    """The bug this guards: the log showed only successes and looked complete.
+
+    A turn that raised was recorded nowhere, so an admin reading the log saw a
+    clean run and no sign of the questions Rocky could not answer.
+    """
+    memory = MemoryStore()
+    model = FakeModel()
+    unbuilt = FakePlanner(Plan(lane=Lane.CODE, capability="menu"))
+    brain = Brain(model, unbuilt, unbuilt, FakeData(), FakeWeb(), memory)
+
+    with pytest.raises(ServiceError):
+        await brain.answer(
+            ChatRequest(message="what is on the menu", now=NOW),
+            TurnIdentity("r1", "s", None, "client"),
+        )
+
+    logged = _logs(memory)
+    assert len(logged) == 1, "the failure was lost"
+    assert logged[0].user_message == "what is on the menu"
+    assert logged[0].debug_info["result"]["failed"], "the log does not say why"
+
+
+async def test_a_failed_turn_is_not_offered_back_as_conversation() -> None:
+    """It goes in the log, not the history.
+
+    `history` feeds BRAIN #1, which resolves follow-ups against what was said.
+    An error message is not something a later question can refer back to, and
+    offering it as context is worse than the gap it leaves.
+    """
+    memory = MemoryStore()
+    unbuilt = FakePlanner(Plan(lane=Lane.CODE, capability="menu"))
+    brain = Brain(FakeModel(), unbuilt, unbuilt, FakeData(), FakeWeb(), memory)
+
+    with pytest.raises(ServiceError):
+        await brain.answer(
+            ChatRequest(message="what is on the menu", now=NOW),
+            TurnIdentity("r1", "s", None, "client"),
+        )
+
+    assert memory.history("s") == [], "an error was offered back as something said"
+    assert len(_logs(memory)) == 1, "and it should still be logged"
+
+
+async def test_a_failure_records_how_far_the_turn_got() -> None:
+    """A turn that reached a plan records it; the stage that failed is visible."""
+    memory = MemoryStore()
+    unbuilt = FakePlanner(Plan(lane=Lane.CODE, capability="menu"))
+    brain = Brain(FakeModel(), unbuilt, unbuilt, FakeData(), FakeWeb(), memory)
+
+    with pytest.raises(ServiceError):
+        await brain.answer(
+            ChatRequest(message="anything", now=NOW),
+            TurnIdentity("r1", "s", None, "client"),
+        )
+
+    logged = _logs(memory)[0]
+    assert logged.tool_arguments == {}, "the plan was refused, so none was recorded"
+    assert "capability" in logged.debug_info["result"]["failed"]
+
+
+async def test_a_successful_turn_is_recorded_exactly_once() -> None:
+    """The `finally` must not double-write what the success path already wrote."""
+    memory = MemoryStore()
+    await ask("hello", memory)
+    assert len(_logs(memory)) == 1
+    assert len(memory.history("s")) == 1
