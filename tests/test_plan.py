@@ -10,14 +10,15 @@ from zoneinfo import ZoneInfo
 import pytest
 from openai.lib._pydantic import to_strict_json_schema
 
+import rockygpt_brain
 import rockygpt_brain.brain
 from rockygpt_brain.brain.plan.run import PLAN
 from rockygpt_brain.brain.plan.schema import TIME_WORDS, Filter, Lane, Operation, Plan
 from rockygpt_brain.brain.plan.validate import Rejected, anchor, check, resolve
-from rockygpt_brain.brain.prompt import beside
 from rockygpt_brain.brain.understand.run import UNDERSTAND
 from rockygpt_brain.brain.write.run import ANSWER
 from rockygpt_brain.capabilities.registry import CAPABILITIES
+from rockygpt_brain.prompt import beside
 from rockygpt_brain.safety.schema import Concern
 
 PROMPTS = Path(rockygpt_brain.brain.__file__).parent
@@ -250,6 +251,25 @@ def test_the_notes_above_the_rule_never_reach_the_model() -> None:
         notes = whole.split("\n---\n", 1)[0]
         assert notes.startswith("# BRAIN"), f"{stage} has no notes above the rule"
         assert notes.strip() not in instruction
+
+
+def test_every_model_instruction_is_a_prompt_md() -> None:
+    """The rule, enforced rather than remembered.
+
+    Any module that names `instructions=` is sending a prompt, and the value
+    must have come off disk. A new stage that inlines its instruction as a
+    Python string fails here, which is the only reliable moment to catch it.
+    """
+    source = Path(rockygpt_brain.__file__).parent
+    senders = [
+        path for path in source.rglob("*.py") if "instructions=" in path.read_text(encoding="utf-8")
+    ]
+    assert senders, "no model call found — this test has stopped testing anything"
+    for path in senders:
+        text = path.read_text(encoding="utf-8")
+        assert "beside(__file__)" in text or "instructions: str" in text, (
+            f"{path.name} sends an instruction that is not loaded from a prompt.md"
+        )
 
 
 def test_a_prompt_without_the_rule_is_refused(tmp_path: Path) -> None:

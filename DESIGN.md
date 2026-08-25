@@ -37,15 +37,21 @@ A resolution is checked before it is planned from. BRAIN #2 sees `resolved`
 and nothing else, which holds only while `resolved` really stands on its own —
 so a reading that says it used the conversation and then shows no sign of it
 ends the turn at that seam, rather than after three more stages have built on
-it. `_unresolved` in `brain.py` holds the two tests.
+it.
+
+A test enforces this rather than leaving it to memory: any module that sends
+`instructions=` must load them with `beside(__file__)`. A new stage that
+inlines
+its prompt as a Python string fails the suite. `_unresolved` in `brain.py`
+holds the two tests.
 
 ## Modules
 
 ```text
+prompt.py             reads a prompt.md, minus the notes above its rule
 brain/                the four stages, in the order they run
   brain.py            the lifecycle — what calls what, and what fails the turn
   values.py           the constrained scalars every stage schema is built from
-  prompt.py           reads a stage's prompt.md, minus its notes
   understand/         BRAIN #1: run, prompt.md, schema, validate
   plan/               BRAIN #2: run, prompt.md, schema, validate
   execute/            PYTHON: run (safety, then the lane), schema
@@ -58,7 +64,10 @@ capabilities/         what Rocky can look up
   shuttle/            execute and normalize
 safety/               the concerns, what to do about each, and applying them
 context/              the conversation, and the record of it
-services/             the outbound calls: openai, data, web
+services/             the outbound calls
+  openai.py           the one way this brain talks to a model
+  data.py             the campus data service
+  web/                client and prompt.md — a search is a model call too
 api/                  the HTTP surface
 config.py             settings from .env
 ```
@@ -70,8 +79,9 @@ be used. A stage without one of those does not have the file — `execute` has n
 `prompt.py` because it calls no model, and no `validate.py` because a plan is
 checked before it runs, not after.
 
-Prompts are `prompt.md`, not Python, because they are prose and the highest-risk
-text here. A paragraph added to the planning instruction has twice moved lane
+Every instruction sent to a model is a `prompt.md` — the three stages and the
+web search alike — because they are prose and the highest-risk text here. A
+paragraph added to the planning instruction has twice moved lane
 routing on questions it was not about, and that change should diff as sentences
 rather than as a quoted string — and a markdown file cannot quietly acquire an
 f-string or a conditional, which is how a prompt starts behaving differently

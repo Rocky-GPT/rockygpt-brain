@@ -66,12 +66,16 @@ does not, and that claim is what the registry rule above exists to prevent.
 
 **Each stage keeps the same four files** — `run.py`, `prompt.py`, `schema.py`,
 `validate.py` — so the same question is always asked in the same place. A
-stage missing one does not have the file rather than an empty one. Prompts
-are `prompt.md`, not Python: a paragraph added to the planning instruction has
-twice moved lane routing on questions it was not about, and that belongs in a
-diff you read as sentences. Everything above the `---` rule is notes for
-whoever edits the file and is never sent — a model told about a past routing
-bug will try to be helpful about it.
+stage missing one does not have the file rather than an empty one. **Every
+instruction sent to a model lives in a `prompt.md`** — the three stages
+and the web search alike, loaded with `beside(__file__)`. A paragraph added to
+the planning instruction has twice moved lane routing on questions it was not
+about, and that belongs in a diff you read as sentences; a markdown file also
+cannot quietly acquire an f-string, which is how a prompt starts behaving
+differently from what it appears to say. Everything above the `---` rule is
+notes for whoever edits the file and is never sent — a model told about a past
+routing bug will try to be helpful about it. A test enforces this: inline an
+instruction as a Python string and the suite fails.
 
 Two things that look like lanes are not, and must not become lanes again. A
 lane says where an answer lives; neither of these is a place.
@@ -129,7 +133,8 @@ times in five, and the missing fifth came back years stale in a way nothing
 downstream could see.
 
 **Don't tell the model what it cannot do.** A prompt describing missing
-capabilities makes the model apologise for them, which reads as a broken product
+capabilities makes the model apologise for them, which reads as a broken
+product
 rather than a small one. Say what it should do and stop.
 
 **No case-by-case behaviour.** No phrase, entity, or expected answer from any
