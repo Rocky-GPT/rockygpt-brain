@@ -114,11 +114,6 @@ def test_a_rag_plan_needs_a_topic() -> None:
     assert isinstance(check(Plan(lane=Lane.RAG, topic="overnight guest policy"), NOW), Plan)
 
 
-def test_a_memory_plan_needs_a_query() -> None:
-    assert isinstance(check(Plan(lane=Lane.MEMORY), NOW), Rejected)
-    assert isinstance(check(Plan(lane=Lane.MEMORY, query="the shuttle"), NOW), Plan)
-
-
 def test_general_and_safety_need_nothing() -> None:
     assert isinstance(check(Plan(lane=Lane.GENERAL), NOW), Plan)
     assert isinstance(check(Plan(lane=Lane.SAFETY), NOW), Plan)

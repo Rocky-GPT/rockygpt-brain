@@ -132,13 +132,7 @@ class Brain:
         trace = BrainTrace(
             question=question,
             memory=memory,
-            # What the turn drew on, and empty when it drew on nothing: a
-            # question that stands on its own resolves to itself, and there is
-            # no stage to show.
-            #
-            # It says the question was rewritten, never why — BRAIN #1 also
-            # fixes typos, so a claim like "used the conversation" would
-            # sometimes be a corrected spelling wearing a lie.
+            # What the turn drew on, and empty when it drew on nothing.
             context=_context(read, earlier),
             plan=checked.summary(),
             execution=execution.summary(),
@@ -171,22 +165,20 @@ class Brain:
 
 
 def _context(read: Understanding, earlier: list[dict[str, Any]]) -> dict[str, Any]:
-    """How the question was worked out, and empty when there was nothing to work.
+    """How the question was worked out, and empty when it needed no working out.
 
-    The gate is `normalized` against `resolved`, not either against the question
-    as typed. Both have already had the wording tidied, so what is left between
-    them is exactly the resolution — a corrected spelling moves both and shows
-    as nothing, which is what "are you srueeee?" should do and a raw diff did
-    not.
+    The gate is `usesContext`, which BRAIN #1 states outright. It is the only
+    stage that can see the conversation, so it is the only one in a position to
+    say whether this question needed it — and asking it beats every proxy tried
+    here: a diff against the question caught typo corrections, and `references`
+    flagged "you" and missed a subject left out altogether.
 
     `contextUsed` is looked up here from the positions BRAIN #1 named, so what
     is shown is what was actually said rather than its recollection of it.
     Positions that do not exist are dropped — a miscounted index is a wrong
     annotation, not a wrong answer, and should not cost the turn.
     """
-    normalized = (read.normalized or "").strip()
-    resolved = (read.resolved or "").strip()
-    if not resolved or resolved == normalized:
+    if not read.uses_context:
         return {}
     used = [earlier[i] for i in read.used_turns if 0 <= i < len(earlier)]
     return {

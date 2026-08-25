@@ -29,13 +29,18 @@ TIME_WORDS = ("now", "today", "tomorrow", "yesterday")
 
 
 class Lane(StrEnum):
-    """The five things Rocky can do with a turn."""
+    """The four things Rocky can do with a turn.
+
+    Recalling what was already said is not among them. A question about the
+    conversation is answered from the conversation, which BRAIN #3 is holding
+    anyway — making it a lane meant routing to it from the one stage that had
+    been denied sight of the conversation, which could not work.
+    """
 
     CODE = "CODE"  # look it up in structured campus data
     RAG = "RAG"  # find it in a campus document
     GENERAL = "GENERAL"  # answer from what the model already knows
     SAFETY = "SAFETY"  # the person may be at risk of harm
-    MEMORY = "MEMORY"  # it was already said in this conversation
 
 
 class Reference(BaseModel):
@@ -108,6 +113,11 @@ class Understanding(BaseModel):
     #: than the turns themselves: Python looks them up, so what the trace shows
     #: is what was actually said and not a paraphrase of it.
     used_turns: list[int] = Field(default_factory=list, max_length=20, alias="usedTurns")
+    #: Whether this question needs the conversation at all — to be understood,
+    #: or because it is about what was said. Stated rather than inferred from
+    #: the fields above: BRAIN #1 is the only stage that can see the
+    #: conversation, so it is the only one in a position to say.
+    uses_context: bool = Field(default=False, alias="usesContext")
     #: The question rewritten to stand on its own. This, and only this, is what
     #: the planning call is given — see `planner.py`.
     resolved: Text
@@ -143,8 +153,7 @@ class Plan(BaseModel):
     #: GENERAL: whether the answer keeps. `stable` is true whenever it is
     #: asked; `current` changes, and has to be looked up now.
     freshness: Literal["stable", "current"] | None = None
-    #: What to look for. MEMORY searches the conversation with it; a `current`
-    #: GENERAL question searches the web. The lane says where, this says what.
+    #: What a `current` GENERAL question searches the web for.
     query: Text | None = None
 
     @property

@@ -94,7 +94,11 @@ async def test_a_shuttle_plan_runs_and_says_so() -> None:
 async def test_the_plans_filters_become_the_services_query() -> None:
     data = FakeData()
     await run(
-        shuttle({"date": "2031-03-06", "destination": "Garden State Plaza"}), NOW, data, FakeWeb()
+        shuttle({"date": "2031-03-06", "destination": "Garden State Plaza"}),
+        NOW,
+        data,
+        FakeWeb(),
+        [],
     )
     assert data.query["serviceDate"] == "2031-03-06"
     assert data.query["destination"] == "Garden State Plaza"
@@ -104,7 +108,7 @@ async def test_the_service_is_never_asked_to_choose() -> None:
     """`selection` stays "all" so its vocabulary never leaks back into a plan."""
     data = FakeData()
     await run(
-        shuttle({"date": "2031-03-06"}, order_by="departureTime", limit=1), NOW, data, FakeWeb()
+        shuttle({"date": "2031-03-06"}, order_by="departureTime", limit=1), NOW, data, FakeWeb(), []
     )
     assert data.query["selection"] == "all"
 
@@ -244,7 +248,8 @@ async def test_a_stable_question_never_reaches_the_web() -> None:
 
 async def test_a_current_question_is_answered_from_the_web() -> None:
     web = FakeWeb()
-    execution = await run(general("current", "current population of Paris"), NOW, FakeData(), web)
+    plan = general("current", "current population of Paris")
+    execution = await run(plan, NOW, FakeData(), web)
     assert web.searched == "current population of Paris"
     assert execution.grounding() == {"answerFrom": "web", "results": [FACT]}
 
