@@ -97,7 +97,7 @@ class UiAction(ContractModel):
 
 
 class BrainTrace(ContractModel):
-    """The four stages of a turn, in the order they ran.
+    """A turn, entry by entry, in the order it ran.
 
     ``question`` what was asked, in the student's own words
     ``memory``   what was available to read it against — the earlier turns, the
@@ -106,8 +106,7 @@ class BrainTrace(ContractModel):
                  BRAIN #1 — what the question turned out to be asking
     ``context``  what it borrowed from the conversation to get there. Empty
                  unless BRAIN #1 says the question needed it
-    ``plan``     BRAIN #1 — the clock it read the question against, and what
-                 it understood, as operations
+    ``plan``     BRAIN #2 — what to do about it, as a lane and operations
     ``execution``PYTHON — what running that lane produced
     ``answer``   BRAIN #3 — the prose
 

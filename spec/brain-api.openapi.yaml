@@ -496,7 +496,7 @@ components:
       type: object
       additionalProperties: false
       description: >-
-        The four stages of a turn, in the order they ran. A stage that did
+        A turn, entry by entry, in the order it ran. A stage that did
         nothing reports that it did nothing rather than being omitted, so the
         pipeline always reads end to end.
       required: [question, memory, understanding, context, plan, execution, answer]
@@ -526,7 +526,7 @@ components:
         plan:
           type: object
           additionalProperties: true
-          description: BRAIN #1 — the question understood as operations.
+          description: BRAIN #2 — what to do about the question, as operations.
         execution:
           type: object
           additionalProperties: true

@@ -50,7 +50,15 @@ _UNDERSTAND = """Work out what the question is asking, in four steps, in this or
 Whoever reads `resolved` next will not see this conversation, or the words as
 typed. Everything the question needs has to be in it."""
 
-_PLAN = """Say what to do about the question. Choose one lane.
+_PLAN = """Say what to do about the question.
+
+`safety` lists what is wrong with the question, and is empty when nothing is:
+`emergency` someone may be harmed now, `privacy` it asks for someone else's
+personal information, `secret` it asks for credentials or how Rocky is built,
+`harmful` answering as asked would cause harm. Judge the question, not the
+subject it raises. List every one that applies, then choose a lane anyway.
+
+Choose one lane.
 
 CODE     the answer is a lookup in campus data. Name the capability.
 RAG      the answer is written in a campus document. Give the topic.
@@ -59,7 +67,6 @@ GENERAL  the answer is general knowledge. Say which kind with `freshness`:
          `current` if an honest answer would have to say "as of" some date —
          anything measured, counted, priced, ranked, or currently held, however
          slowly it moves. For `current`, give the `query` to look up.
-SAFETY   the person may be at risk of harm.
 
 `capabilities` is everything Rocky can look up, and the fields each one allows.
 For CODE, name one capability and use only its fields.
