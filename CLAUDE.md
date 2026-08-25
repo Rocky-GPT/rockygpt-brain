@@ -11,10 +11,14 @@ the question
 ```
 
 Four stages, in that order, and the trace carries one entry for each. The order
-is the point: BRAIN #2 answers after the lane has run, because once a lane has
-an executor its results are what there is to write about. Do not make the two
-calls concurrent to save latency — it would make the trace describe a pipeline
-that did not happen.
+is the point: what the lane returned is handed to BRAIN #2 as `campusData` and
+is what it answers from. Do not make the two calls concurrent to save latency —
+BRAIN #2 depends on what PYTHON produced.
+
+**A lookup that did not happen must never look like one that did.** An
+executor that did not run hands over nothing at all, not an empty list, so
+BRAIN #2 answers from its own knowledge rather than reporting that it found
+none. `ran` in the trace is the same distinction for a human reading the log.
 
 **Rocky's vocabulary describes what it can do, never what anyone may ask.**
 Five lanes, a registry of capabilities, the fields each capability allows, and
@@ -27,6 +31,8 @@ the registry.
 
 **The trace is the four stages, not two halves.** `question`, `plan`,
 `execution`, `answer` — one box each in the dev inspector, read top to bottom.
+`question` holds what was asked and nothing else; the clock leads `plan`,
+because it is what the question was read against.
 A stage that did nothing says so rather than going missing: an unexecuted lane
 reports `ran: false`, so a turn answered from the model's own knowledge can
 never be mistaken for one answered from campus data.

@@ -31,6 +31,7 @@ from rockygpt_brain.core.brain import Brain, TurnIdentity
 from rockygpt_brain.core.model import ModelPort, OpenAIModel
 from rockygpt_brain.core.planner import OpenAIPlanner, PlannerPort
 from rockygpt_brain.errors import ServiceError
+from rockygpt_brain.services.data import DataPort, HttpData
 from rockygpt_brain.services.memory import MemoryStore
 
 EnvironmentHeader = Annotated[
@@ -48,6 +49,7 @@ OriginHeader = Annotated[
 class AppServices:
     model: ModelPort
     planner: PlannerPort
+    data: DataPort
     memory: MemoryStore
     brain: Brain
 
@@ -84,6 +86,7 @@ def create_app(
     settings: Settings | None = None,
     model: ModelPort | None = None,
     planner: PlannerPort | None = None,
+    data: DataPort | None = None,
     memory: MemoryStore | None = None,
 ) -> FastAPI:
     config = settings or get_settings()
@@ -95,9 +98,10 @@ def create_app(
         config.secret_value(config.openai_api_key),
         config.openai_planner_model,
     )
+    data_port = data or HttpData(config.data_url, config.data_timeout_seconds)
     memory_store = memory or MemoryStore()
-    brain = Brain(model_port, planner_port, memory_store, config.campus_timezone)
-    services = AppServices(model_port, planner_port, memory_store, brain)
+    brain = Brain(model_port, planner_port, data_port, memory_store, config.campus_timezone)
+    services = AppServices(model_port, planner_port, data_port, memory_store, brain)
     started = time.monotonic()
 
     @asynccontextmanager

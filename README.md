@@ -21,10 +21,10 @@ rockygpt_brain/
 │   ├── capabilities.py     what Rocky can look up, and with which fields
 │   ├── planner.py          AI #1 — question in, plan out
 │   ├── validate.py         the check applied before a plan runs
-│   ├── execute.py          PYTHON — run the lane
+│   ├── execute.py          PYTHON — run the lane, apply the operations
 │   ├── model.py            BRAIN #2 — the answer call
 │   └── brain.py            the request lifecycle
-├── services/     turns and the admin log
+├── services/     the data service, turns, and the admin log
 ├── config.py     environment settings
 ├── errors.py     shared API error
 └── main.py       process entry point
