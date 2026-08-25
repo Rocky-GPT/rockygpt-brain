@@ -34,7 +34,12 @@ class ChatTurn(ContractModel):
 
 class ChatRequest(ContractModel):
     message: BoundedText
-    history: list[ChatTurn] = Field(default_factory=list, max_length=10)
+    #: Absent and empty mean different things. A client that tracks the
+    #: conversation sends this every turn, and `[]` from it is a statement —
+    #: "there is nothing earlier" — which the brain takes at its word. Omitting
+    #: the field says the client does not track history, and only then does the
+    #: brain fall back to its own record of the session.
+    history: Annotated[list[ChatTurn], Field(max_length=10)] | None = None
     style_mode: Annotated[
         str | None, StringConstraints(min_length=1, max_length=32, pattern=r"^[A-Za-z0-9_-]+$")
     ] = Field(default=None, alias="styleMode")
@@ -87,8 +92,9 @@ class UiAction(ContractModel):
 class BrainTrace(ContractModel):
     """The four stages of a turn, in the order they ran.
 
-    ``question`` what arrived with the request: the words, the earlier turns,
-                 and the modes asked for
+    ``question`` what was asked, in the student's own words
+    ``context``  everything else that arrived with it — the earlier turns, and
+                 the modes the client asked for
     ``plan``     BRAIN #1 — the clock it read the question against, and what
                  it understood, as operations
     ``execution``PYTHON — what running that lane produced
@@ -99,6 +105,7 @@ class BrainTrace(ContractModel):
     """
 
     question: dict[str, Any]
+    context: dict[str, Any]
     plan: dict[str, Any]
     execution: dict[str, Any]
     answer: dict[str, Any]

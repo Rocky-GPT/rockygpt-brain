@@ -13,10 +13,10 @@ A lane without an executor records that it did not run, and BRAIN #2 answers
 from its own knowledge. A lane with one hands its results to BRAIN #2, which is
 the whole reason the stages are in this order.
 
-The question stage holds what arrived with the request — the words, the earlier
-turns, and the modes the UI asked for. The clock is not part of it: the browser
-never sends a time and the proxy would drop one, so it sits with BRAIN #1,
-which is the stage that read the question against it.
+The question stage holds the words the student typed and nothing else.
+Everything the turn is read against — the clock, the earlier turns, the modes
+the client asked for — is the context stage beside it, which leaves the plan
+stage as purely what BRAIN #1 decided.
 """
 
 from __future__ import annotations
@@ -64,23 +64,33 @@ class Brain:
     async def answer(self, request: ChatRequest, identity: TurnIdentity) -> ChatSuccess:
         started = time.monotonic()
         now = (request.now or datetime.now(UTC)).astimezone(self._tz)
-        history = self._memory.history(identity.session_id)
-        context = [turn.model_dump() for turn in request.history] or history
+        # The client is the authority on its own conversation when it says
+        # anything at all. `[]` means there is nothing earlier; only a missing
+        # field falls back to what this process remembers of the session.
+        earlier = (
+            [turn.model_dump() for turn in request.history]
+            if request.history is not None
+            else self._memory.history(identity.session_id)
+        )
 
-        # 1. the question, and everything that arrived with it. The clock is
-        # not here — Python sets that, and it belongs to the stage that read
-        # the question against it.
-        question: dict[str, Any] = {
-            "question": request.message,
-            "earlierTurns": context,
+        # 1. the question in the student's own words, and separately everything
+        # else the turn is read against. The clock is context too: Python sets
+        # it, both brains are handed it, and it is on every turn — including
+        # ones with nothing temporal in them, because a trace that hid a real
+        # input would cost an hour the first time a date came out wrong. Do not
+        # make it conditional.
+        question = {"question": request.message}
+        context: dict[str, Any] = {
+            "currentTime": now.isoformat(),
+            "earlierTurns": earlier,
         }
         if request.style_mode:
-            question["styleMode"] = request.style_mode
+            context["styleMode"] = request.style_mode
         if request.response_mode:
-            question["responseMode"] = request.response_mode
+            context["responseMode"] = request.response_mode
 
         # 2. BRAIN #1 — understand it, and write a plan
-        checked = await self._plan(request.message, context, now)
+        checked = await self._plan(request.message, earlier, now)
 
         # 3. PYTHON — run the lane
         execution = await run(checked, now, self._data)
@@ -88,7 +98,7 @@ class Brain:
         # 4. BRAIN #2 — write the answer, from what the lane returned
         draft = await self._model.answer(
             request.message,
-            context,
+            earlier,
             now.isoformat(),
             request.style_mode,
             request.response_mode,
@@ -97,13 +107,8 @@ class Brain:
 
         trace = BrainTrace(
             question=question,
-            # The clock leads the plan because it is what the question was read
-            # against: `today` means nothing until an instant fixes it. It is
-            # shown on every turn, including turns with nothing temporal in
-            # them — both brains are handed it unconditionally, and a trace
-            # that hid a real input would cost an hour the first time a date
-            # came out wrong. Do not make it conditional.
-            plan={"currentTime": now.isoformat(), **_traced(checked)},
+            context=context,
+            plan=_traced(checked),
             execution=execution.summary(),
             answer={"answer": draft.answer},
         )

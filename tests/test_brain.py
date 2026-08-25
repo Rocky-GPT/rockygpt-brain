@@ -112,9 +112,32 @@ async def test_a_follow_up_sees_the_earlier_turn() -> None:
     await ask("first", memory, "r1")
     response, model = await ask("second", memory, "r2")
     assert model.seen["context"], "the second turn sees the first"
-    assert response.brain_trace.question["earlierTurns"] == model.seen["context"], (
+    assert response.brain_trace.context["earlierTurns"] == model.seen["context"], (
         "what the trace shows is what the model was given"
     )
+
+
+async def test_an_empty_history_is_taken_at_its_word() -> None:
+    """A client that says the conversation is empty is not overruled."""
+    memory = MemoryStore()
+    await ask("first", memory, "r1")
+
+    model = FakeModel()
+    brain = Brain(model, FakePlanner(), FakeData(), memory)
+    response = await brain.answer(
+        ChatRequest(message="second", history=[], now=NOW),
+        TurnIdentity("r2", "s", None, "client"),
+    )
+    assert model.seen["context"] == [], "the earlier turn is not resurrected"
+    assert response.brain_trace.context["earlierTurns"] == []
+
+
+async def test_a_client_that_sends_no_history_still_gets_the_sessions() -> None:
+    """Omitting the field means "I do not track this", so the brain fills in."""
+    memory = MemoryStore()
+    await ask("first", memory, "r1")
+    _, model = await ask("second", memory, "r2")
+    assert model.seen["context"], "a client with no history of its own gets ours"
 
 
 async def test_the_modes_the_ui_asked_for_are_on_the_turn() -> None:
@@ -124,8 +147,8 @@ async def test_the_modes_the_ui_asked_for_are_on_the_turn() -> None:
         ChatRequest(message="m", now=NOW, style_mode="warm", response_mode="concise"),
         TurnIdentity("r", "s", None, "client"),
     )
-    assert response.brain_trace.question["styleMode"] == "warm"
-    assert response.brain_trace.question["responseMode"] == "concise"
+    assert response.brain_trace.context["styleMode"] == "warm"
+    assert response.brain_trace.context["responseMode"] == "concise"
 
 
 # The planning half
@@ -147,7 +170,6 @@ async def test_the_plan_is_its_own_stage() -> None:
     )
     response, _ = await ask(planner=FakePlanner(plan))
     assert response.brain_trace.plan == {
-        "currentTime": CLOCK,
         "lane": "CODE",
         "capability": "shuttle",
         "filters": {"date": "2031-03-06"},
@@ -158,8 +180,9 @@ async def test_the_plan_is_its_own_stage() -> None:
 async def test_the_turn_reads_end_to_end_as_four_stages() -> None:
     response, _ = await ask("a question")
     trace = response.brain_trace
-    assert trace.question == {"question": "a question", "earlierTurns": []}
-    assert trace.plan == {"currentTime": CLOCK, "lane": "GENERAL"}
+    assert trace.question == {"question": "a question"}, "the words, and nothing else"
+    assert trace.context == {"currentTime": CLOCK, "earlierTurns": []}
+    assert trace.plan == {"lane": "GENERAL"}, "the plan alone — the clock is context"
     assert trace.execution == {
         "lane": "GENERAL",
         "ran": False,
@@ -196,7 +219,4 @@ async def test_a_rejected_plan_says_why_and_still_answers() -> None:
 async def test_a_planner_outage_costs_the_plan_not_the_answer() -> None:
     response, _ = await ask(planner=FakePlanner(fails=True))
     assert response.answer == "written"
-    assert response.brain_trace.plan == {
-        "currentTime": CLOCK,
-        "rejected": "the planner was unavailable",
-    }
+    assert response.brain_trace.plan == {"rejected": "the planner was unavailable"}
