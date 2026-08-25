@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, ge=1, le=65535)
     openai_api_key: SecretStr | None = None
     openai_chat_model: str = "gpt-4.1-mini"
-    #: AI #1, the planner. Its job is translation, not prose.
+    #: BRAIN #1, the planner. Its job is translation, not prose.
     openai_planner_model: str = "gpt-4.1-mini"
     #: The model that searches the web for a `current` general question.
     openai_web_model: str = "gpt-4.1-mini"

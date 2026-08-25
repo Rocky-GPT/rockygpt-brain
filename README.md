@@ -4,7 +4,7 @@ A question goes in, an answer comes out — and a plan saying what Rocky would
 have done to look it up.
 
 ```text
-the question -> BRAIN #1 plans it -> PYTHON runs the lane -> BRAIN #2 answers
+the question -> BRAIN #1 plans it -> PYTHON runs the lane -> BRAIN #3 answers
 ```
 
 A plan is a lane, a capability, filters, and a generic operation — never an
@@ -19,10 +19,10 @@ rockygpt_brain/
 ├── core/
 │   ├── plan.py             the vocabulary a plan is written in
 │   ├── capabilities.py     what Rocky can look up, and with which fields
-│   ├── planner.py          AI #1 — question in, plan out
+│   ├── planner.py          BRAIN #1 — question in, plan out
 │   ├── validate.py         the check applied before a plan runs
 │   ├── execute.py          PYTHON — run the lane, apply the operations
-│   ├── model.py            BRAIN #2 — the answer call
+│   ├── model.py            BRAIN #3 — the answer call
 │   └── brain.py            the request lifecycle
 ├── services/     the data service, turns, and the admin log
 ├── config.py     environment settings
@@ -41,7 +41,7 @@ rockygpt-brain
 ```
 
 Set `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL` in `.env`; `OPENAI_PLANNER_MODEL`
-sets the model behind AI #1 and defaults to the same. `CAMPUS_TIMEZONE`
+sets the model behind BRAIN #1 and defaults to the same. `CAMPUS_TIMEZONE`
 defaults to `America/New_York` and is the clock both calls are given, and the
 clock every time word in a plan is resolved against.
 

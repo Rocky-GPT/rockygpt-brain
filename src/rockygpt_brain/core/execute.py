@@ -1,7 +1,7 @@
 """PYTHON: run the lane.
 
 The stage between the two brains. A checked plan goes in; what the lane
-produced comes out, and that is what BRAIN #2 writes the answer from.
+produced comes out, and that is what BRAIN #3 writes the answer from.
 
 Two jobs live here and nowhere else:
 
@@ -42,7 +42,7 @@ _CLOCK = re.compile(r"^(\d{1,2}):(\d{2})\s*([AaPp])[Mm]?$")
 #: `results`; the other two do not.
 #:
 #: There is no value here for a lookup that failed. This stage either produces
-#: what BRAIN #2 writes from, or it raises — no stage compensates for the one
+#: what BRAIN #3 writes from, or it raises — no stage compensates for the one
 #: before it.
 OWN_KNOWLEDGE = "ownKnowledge"
 CAMPUS_DATA = "campusData"
@@ -71,10 +71,10 @@ class Execution:
     def summary(self) -> dict[str, Any]:
         """This stage, for a person reading the trace.
 
-        ``answerFrom`` leads, and is the same value BRAIN #2 was handed — so
+        ``answerFrom`` leads, and is the same value BRAIN #3 was handed — so
         the handoff is visible rather than something you have to take on
-        trust. What follows it is what BRAIN #2 got, plus, when nothing ran, a
-        ``note`` saying why. The note is the one thing here BRAIN #2 never
+        trust. What follows it is what BRAIN #3 got, plus, when nothing ran, a
+        ``note`` saying why. The note is the one thing here BRAIN #3 never
         sees; telling it a lookup failed makes it apologise for the capability
         instead of answering.
 
@@ -93,13 +93,13 @@ class Execution:
         return {"answerFrom": self.answer_from, "results": self.results}
 
     def grounding(self) -> dict[str, Any]:
-        """What BRAIN #2 answers from. Every lane produces one; none is empty.
+        """What BRAIN #3 answers from. Every lane produces one; none is empty.
 
         ``answerFrom`` is an instruction, never a status. It says where this
         answer comes from — not that anything is missing, broken, or not built
         yet. A lane with no executor is indistinguishable here from a question
         that never needed one, and that is the point: told a lookup failed,
-        BRAIN #2 apologises for a capability instead of answering the question.
+        BRAIN #3 apologises for a capability instead of answering the question.
 
         ``campusData`` rides along only when there was a lookup. Empty means it
         ran and matched nothing, which is an answer in itself — and now says so
@@ -190,7 +190,7 @@ async def run(checked: Plan, now: datetime, data: DataPort, web: WebPort) -> Exe
     """Act on a checked plan, or fail the turn.
 
     Nothing here degrades. A lane that cannot run raises rather than handing
-    BRAIN #2 something to write around — the alternative is an answer invented
+    BRAIN #3 something to write around — the alternative is an answer invented
     to cover a lookup that never happened, which reads exactly like one that
     did.
     """

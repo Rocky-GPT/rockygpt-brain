@@ -4,21 +4,28 @@
     the question
          │
          ▼
-    BRAIN #1        understand it, and write a plan
+    BRAIN #1        understand it — what is it actually asking?
+         │
+         ▼
+    BRAIN #2        plan it — what should be done about that?
+         │          given the resolved question and nothing else, and
          │          checked against the registry before it goes on
          ▼
     PYTHON          run the lane the plan names
          │          `shuttle` looks its trips up; the rest do not run yet
          ▼
-    BRAIN #2        write the answer, from what the lane returned
+    BRAIN #3        translate what came back into an answer
 ```
 
-Four stages, run in that order, with one trace entry each. BRAIN #2 comes last
-because it writes from what PYTHON produced, on every lane: it is handed
+Three brains and a lane, run in that order, with one trace entry each. Each
+turns the one before it into something else: words into an understanding, an
+understanding into a plan, a plan into rows, rows into prose.
+
+BRAIN #3 comes last because it writes from what PYTHON produced, on every lane: it is handed
 `answerFrom` — `campusData` with the rows a lookup returned, or `ownKnowledge`
 — and never has to infer what to do from a field that is not there.
 
-The trace and BRAIN #2 are told different things on purpose. The trace says
+The trace and BRAIN #3 are told different things on purpose. The trace says
 exactly why a lane did not run, because that is for a person debugging. BRAIN
 #2 is told only where to answer from, because a model told its lookup failed
 apologises for the capability rather than answering the question.
@@ -32,7 +39,7 @@ core/plan.py          the vocabulary a plan is written in
 core/capabilities.py  the registry — what Rocky can look up, and with which fields
 core/validate.py      the check, and the clock, applied to a plan before it runs
 core/execute.py       PYTHON — run the lane, and apply the generic operations
-core/model.py         BRAIN #2 — the answer call and its one instruction
+core/model.py         BRAIN #3 — the answer call and its one instruction
 services/data.py      the data service, and the one outbound call that is not a model
 services/memory.py    turns kept for follow-ups, and the admin log
 api/                  the HTTP surface

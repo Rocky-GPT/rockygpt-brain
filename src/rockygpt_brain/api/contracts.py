@@ -107,7 +107,7 @@ class BrainTrace(ContractModel):
     ``plan``     BRAIN #1 — the clock it read the question against, and what
                  it understood, as operations
     ``execution``PYTHON — what running that lane produced
-    ``answer``   BRAIN #2 — the prose
+    ``answer``   BRAIN #3 — the prose
 
     One box each in the dev inspector. A stage that did nothing says so rather
     than going missing, so the pipeline always reads end to end.
