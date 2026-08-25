@@ -38,6 +38,15 @@ class Lane(StrEnum):
     MEMORY = "MEMORY"  # it was already said in this conversation
 
 
+class Reference(BaseModel):
+    """A word in the question that points somewhere else, and where it points."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    text: Text
+    refers_to: Text = Field(alias="refersTo")
+
+
 class Filter(BaseModel):
     """One narrowing: a field the capability allows, and the value to match.
 
@@ -78,8 +87,38 @@ class Operation(BaseModel):
         return bool(self.order_by or self.limit or self.count or self.compare)
 
 
+class Understanding(BaseModel):
+    """What the question turns out to be asking. BRAIN #1's first call.
+
+    The four fields are declared in the order they are worked out, and that
+    order is the point: a structured response is generated field by field as
+    declared, so tidying, then finding what points elsewhere, then naming the
+    turns it points into, then writing it all out, each happens with the
+    previous already on the page. Reorder them and the later ones are guesses.
+    """
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    #: The question with its wording tidied and nothing else — no reference
+    #: followed, no subject filled in.
+    normalized: Text
+    #: What in the question points elsewhere, and where.
+    references: list[Reference] = Field(default_factory=list, max_length=6)
+    #: Which entries of `earlierTurns` were read, by position. Indices rather
+    #: than the turns themselves: Python looks them up, so what the trace shows
+    #: is what was actually said and not a paraphrase of it.
+    used_turns: list[int] = Field(default_factory=list, max_length=20, alias="usedTurns")
+    #: The question rewritten to stand on its own. This, and only this, is what
+    #: the planning call is given — see `planner.py`.
+    resolved: Text
+
+
 class Plan(BaseModel):
-    """What AI #1 returns: one turn, translated into operations.
+    """What to do about the question. BRAIN #1's second call.
+
+    Built from an `Understanding.resolved` alone — never from the words the
+    student typed. The two are separate calls so that is a fact about what the
+    model can see rather than a line in an instruction it may or may not heed.
 
     Each lane uses the fields it needs and leaves the rest empty.
     """
@@ -96,7 +135,6 @@ class Plan(BaseModel):
     #: becomes "population of Paris". Stated on every plan, including when it
     #: is the question unchanged — an absent one would mean both "nothing to
     #: resolve" and "the planner did not bother", and those are different.
-    resolved: Text | None = None
     lane: Lane
     capability: FieldName | None = None
     filters: list[Filter] = Field(default_factory=list, max_length=8)
@@ -117,8 +155,6 @@ class Plan(BaseModel):
     def summary(self) -> dict[str, Any]:
         """The plan with its unused halves dropped — what a human reads in the log."""
         out: dict[str, Any] = {"lane": self.lane.value}
-        if self.resolved:
-            out["resolved"] = self.resolved
         if self.freshness:
             out["freshness"] = self.freshness
         if self.capability:

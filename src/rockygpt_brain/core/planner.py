@@ -1,4 +1,4 @@
-"""AI #1: the question, translated into operations.
+"""BRAIN #1: the question, translated into operations.
 
     question in -> one model call -> a plan out
 
@@ -15,31 +15,39 @@ the next question needs a code change again.
 from __future__ import annotations
 
 import json
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeVar
 
 from openai import AsyncOpenAI
+from pydantic import BaseModel
 
 from rockygpt_brain.core.capabilities import catalogue
-from rockygpt_brain.core.plan import TIME_WORDS, Plan
+from rockygpt_brain.core.plan import TIME_WORDS, Plan, Understanding
 from rockygpt_brain.errors import ServiceError
 
-_PLAN = """Translate the question into a plan.
+_T = TypeVar("_T", bound=BaseModel)
 
-Start with `resolved`: the same question, rewritten so that it can be
-understood without the conversation. Whatever it points at in `earlierTurns` is
-written into it.
+_UNDERSTAND = """Work out what the question is asking, in four steps, in this order.
 
-It is still a question, and still the one that was asked — do not answer it,
-and do not replace it with what was said before.
+`normalized`  the question with its wording tidied — spelling, spacing,
+              punctuation — and nothing else. Follow nothing, fill in nothing.
+`references`  everything the question borrows from `earlierTurns`, each with
+              what it stands for. Some are a word standing in for a thing —
+              "it", "that one", "there". Some are a subject left out
+              altogether: "what about tomorrow" names a day and no topic, so
+              the topic is borrowed; put the words that carry the gap in
+              `text`. Nothing that needs no conversation belongs here — not
+              "you", not "Rocky", not a date the clock already gives.
+`usedTurns`   the positions in `earlierTurns` those references point into,
+              counting from 0. Empty when there are no references.
+`resolved`    the question rewritten to stand on its own, with what it pointed
+              at written in. It is still a question and still the one asked —
+              do not answer it, and do not replace it with what was said
+              before. A question that points nowhere resolves to `normalized`.
 
-The only thing you may add is what the conversation supplies. A question that
-points at nothing is copied character for character: same words, same order,
-same spelling, same punctuation. Do not tidy it, expand it, or make it a
-grammatical sentence.
+Whoever reads `resolved` next will not see this conversation, or the words as
+typed. Everything the question needs has to be in it."""
 
-Everything below is decided from `resolved`, never from the wording as typed.
-
-Then choose one lane.
+_PLAN = """Say what to do about the question. Choose one lane.
 
 CODE     the answer is a lookup in campus data. Name the capability.
 RAG      the answer is written in a campus document. Give the topic.
@@ -62,19 +70,21 @@ with a `direction`, a `limit`, `count` to answer with how many there are,
 A filter value may be one of `timeWords` in place of a date or a time. Python
 resolves it against `currentTime`. Do not work out any date yourself.
 
-`earlierTurns` is what has already been said in this conversation. Use it only
-to work out what a follow-up refers to."""
+The question has already been read and written out in full. There is no
+conversation to consult: what you are given is all there is."""
 
 
 class PlannerPort(Protocol):
     configured: bool
 
-    async def plan(
+    async def understand(
         self,
         question: str,
         context: list[dict[str, Any]],
         current_time: str,
-    ) -> Plan: ...
+    ) -> Understanding: ...
+
+    async def plan(self, resolved: str, current_time: str) -> Plan: ...
 
 
 class OpenAIPlanner:
@@ -83,34 +93,52 @@ class OpenAIPlanner:
         self._model = model
         self._client = client or (AsyncOpenAI(api_key=api_key) if api_key else None)
 
-    async def plan(
+    async def understand(
         self,
         question: str,
         context: list[dict[str, Any]],
         current_time: str,
-    ) -> Plan:
+    ) -> Understanding:
+        return await self._call(
+            _UNDERSTAND,
+            {"question": question, "earlierTurns": context, "currentTime": current_time},
+            Understanding,
+        )
+
+    async def plan(self, resolved: str, current_time: str) -> Plan:
+        """The question, and nothing else that was said.
+
+        `earlierTurns` is deliberately absent. A plan built from a resolved
+        question that still needed the conversation would be a plan built on a
+        resolution that failed, and this is where that shows.
+        """
+        return await self._call(
+            _PLAN,
+            {
+                "question": resolved,
+                "currentTime": current_time,
+                "capabilities": catalogue(),
+                "timeWords": list(TIME_WORDS),
+            },
+            Plan,
+        )
+
+    async def _call(self, instructions: str, payload: dict[str, Any], shape: type[_T]) -> _T:
         if self._client is None:
             raise ServiceError(
                 503, "SERVICE_UNAVAILABLE", "OPENAI_API_KEY is not configured.", retryable=True
             )
-        payload = {
-            "question": question,
-            "earlierTurns": context,
-            "currentTime": current_time,
-            "capabilities": catalogue(),
-            "timeWords": list(TIME_WORDS),
-        }
         try:
             response = await self._client.responses.parse(
                 model=self._model,
-                instructions=_PLAN,
+                instructions=instructions,
                 input=json.dumps(payload, default=str),
-                text_format=Plan,
+                text_format=shape,
                 store=False,
             )
             if response.output_parsed is None:
                 raise ValueError("empty structured response")
-            return Plan.model_validate(response.output_parsed)
+            return shape.model_validate(response.output_parsed)
         except ServiceError:
             raise
         except Exception as exc:

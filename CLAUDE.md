@@ -5,21 +5,29 @@ stay readable in a minute.
 
 ```text
 the question
-  -> BRAIN #1  understand it, write a plan   (planner.py + validate.py)
-  -> PYTHON    run the lane the plan names   (execute.py)
-  -> BRAIN #2  write the answer              (model.py)
+  -> BRAIN #1  understand it — what is it actually asking?   (planner.py)
+  -> BRAIN #3  plan it — what should be done about that?     (planner.py)
+  -> PYTHON     run the lane the plan names, or fail          (execute.py)
+  -> BRAIN #3   translate what came back into an answer       (model.py)
 ```
 
-Four stages, in that order, and the trace carries one entry for each. The order
-is the point: what the lane returned is handed to BRAIN #2 as `campusData` and
-is what it answers from. Do not make the two calls concurrent to save latency —
-BRAIN #2 depends on what PYTHON produced.
+**The planning call never sees the question as typed.** It is given the
+resolved question and nothing else — no conversation, no original wording. Two
+calls rather than one so that is a fact about what the model can read rather
+than a line in an instruction it may or may not heed. A plan that would have
+needed the conversation is a plan built on a resolution that failed, and this
+is where that shows instead of being quietly patched over.
 
-**Every lane grounds BRAIN #2.** PYTHON hands it `answerFrom` on every turn —
+Four stages, in that order, and the trace carries one entry for each. The order
+is the point: what the lane returned is handed to BRAIN #3 as `campusData` and
+is what it answers from. Do not make the two calls concurrent to save latency —
+BRAIN #3 depends on what PYTHON produced.
+
+**Every lane grounds BRAIN #3.** PYTHON hands it `answerFrom` on every turn —
 `campusData` with the rows, or `ownKnowledge` — so it never infers what to do
 from a missing field. `answerFrom` is an instruction, never a status: a lane
 with no executor is indistinguishable from a question that needed no lookup,
-because told a lookup failed BRAIN #2 apologises for the capability instead of
+because told a lookup failed BRAIN #3 apologises for the capability instead of
 answering the question.
 
 **A lookup that did not happen must never look like one that did.** `campusData`

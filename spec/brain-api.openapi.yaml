@@ -528,7 +528,7 @@ components:
         answer:
           type: object
           additionalProperties: true
-          description: BRAIN #2 — the prose.
+          description: BRAIN #3 — the prose.
     Citation:
       type: object
       additionalProperties: false

@@ -34,32 +34,25 @@ class Rejected:
 
 def check(plan: Plan, now: datetime) -> Plan | Rejected:
     """Return the plan Rocky will run, or why it will run nothing."""
-    if not plan.resolved:
-        return Rejected("a plan must state the question it resolved to")
     if plan.lane is Lane.CODE:
         return _check_code(plan, now)
     if plan.lane is Lane.RAG:
         if not plan.topic:
             return Rejected("a RAG plan needs a topic")
-        return Plan(lane=Lane.RAG, topic=plan.topic, resolved=plan.resolved)
+        return Plan(lane=Lane.RAG, topic=plan.topic)
     if plan.lane is Lane.MEMORY:
         if not plan.query:
             return Rejected("a MEMORY plan needs a query")
-        return Plan(lane=Lane.MEMORY, query=plan.query, resolved=plan.resolved)
+        return Plan(lane=Lane.MEMORY, query=plan.query)
     if plan.lane is Lane.GENERAL:
         # Absent means stable. Searching the web is the exceptional path, so a
         # planner that says nothing about freshness does not trigger one.
         if plan.freshness != "current":
-            return Plan(lane=Lane.GENERAL, freshness="stable", resolved=plan.resolved)
+            return Plan(lane=Lane.GENERAL, freshness="stable")
         if not plan.query:
             return Rejected("a current answer needs a query to look up")
-        return Plan(
-            lane=Lane.GENERAL,
-            freshness="current",
-            query=plan.query,
-            resolved=plan.resolved,
-        )
-    return Plan(lane=plan.lane, resolved=plan.resolved)
+        return Plan(lane=Lane.GENERAL, freshness="current", query=plan.query)
+    return Plan(lane=plan.lane)
 
 
 def _check_code(plan: Plan, now: datetime) -> Plan | Rejected:
@@ -86,7 +79,6 @@ def _check_code(plan: Plan, now: datetime) -> Plan | Rejected:
 
     return Plan(
         lane=Lane.CODE,
-        resolved=plan.resolved,
         capability=plan.capability,
         filters=[Filter(field=f.field, value=resolve(f.value, now)) for f in plan.filters],
         operation=operation,
