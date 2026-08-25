@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from openai.lib._pydantic import to_strict_json_schema
 
-from rockygpt_brain.core.capabilities import CAPABILITIES
+from rockygpt_brain.capabilities.registry import CAPABILITIES
 from rockygpt_brain.core.plan import TIME_WORDS, Filter, Lane, Operation, Plan
 from rockygpt_brain.core.planner import _PLAN
 from rockygpt_brain.core.validate import Rejected, anchor, check, resolve
@@ -52,11 +52,26 @@ def test_a_filter_the_capability_does_not_offer_is_rejected() -> None:
 
 
 def test_sorting_by_a_field_the_capability_does_not_have_is_rejected() -> None:
-    assert isinstance(check(code("dining", {}, order_by="departureTime"), NOW), Rejected)
+    rejected = check(code("shuttle", {}, order_by="opensAt"), NOW)
+    assert isinstance(rejected, Rejected)
+    assert "opensAt" in rejected.reason
 
 
 def test_comparing_a_field_the_capability_does_not_have_is_rejected() -> None:
-    assert isinstance(check(code("dining", {}, compare=["departureTime"]), NOW), Rejected)
+    rejected = check(code("shuttle", {}, compare=["opensAt"]), NOW)
+    assert isinstance(rejected, Rejected)
+    assert "opensAt" in rejected.reason
+
+
+def test_a_capability_with_no_code_behind_it_is_rejected_before_it_can_fail() -> None:
+    """The registry lists only what can run, so an unknown name stops here.
+
+    It used to be listed and unbuilt, which failed a whole stage later — after
+    the question was understood and a plan was made, where nothing recovers.
+    """
+    rejected = check(code("dining", {}, order_by="opensAt"), NOW)
+    assert isinstance(rejected, Rejected)
+    assert "dining" in rejected.reason
 
 
 def test_a_capability_without_an_operation_is_rejected() -> None:

@@ -20,7 +20,7 @@ from typing import Any, Protocol, TypeVar
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
-from rockygpt_brain.core.capabilities import catalogue
+from rockygpt_brain.capabilities.registry import catalogue
 from rockygpt_brain.core.plan import TIME_WORDS, Plan, Understanding
 from rockygpt_brain.errors import ServiceError
 
