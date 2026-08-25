@@ -39,21 +39,33 @@ _CLOCK = re.compile(r"^(\d{1,2}):(\d{2})\s*([AaPp])[Mm]?$")
 
 @dataclass(frozen=True, slots=True)
 class Execution:
-    lane: str
+    #: No lane here. The plan stage above already names it, and repeating it
+    #: only invites the two to disagree. What this stage adds is whether the
+    #: lane ran, and what came back.
     ran: bool
     note: str
     results: list[dict[str, Any]] = field(default_factory=list)
     count: int | None = None
 
     def summary(self) -> dict[str, Any]:
-        out: dict[str, Any] = {"lane": self.lane, "ran": self.ran}
+        """One of three shapes, and which one it is says what happened.
+
+        ``{"note": ...}``      the lane did not run, and why
+        ``{"count": n}``       it ran and counted
+        ``{"results": [...]}`` it ran and listed — ``[]`` means it found none
+
+        There is no ``ran`` flag because the shape is the flag. What a reader
+        must never confuse is an empty ``results`` with a missing one: the
+        first is "Rocky looked and there is nothing", the second is "Rocky
+        never looked", and those are different answers. Keeping ``results``
+        present-but-empty is what draws that line, so do not drop it when it
+        is empty.
+        """
+        if not self.ran:
+            return {"note": self.note}
         if self.count is not None:
-            out["count"] = self.count
-        if self.results:
-            out["results"] = self.results
-        if self.note:
-            out["note"] = self.note
-        return out
+            return {"count": self.count}
+        return {"results": self.results}
 
     def grounding(self) -> list[dict[str, Any]] | None:
         """What BRAIN #2 answers from. None when nothing was looked up."""
@@ -142,19 +154,18 @@ def _apply(
 async def run(checked: Plan | Rejected, now: datetime, data: DataPort) -> Execution:
     """Act on a checked plan."""
     if isinstance(checked, Rejected):
-        return Execution(lane="none", ran=False, note=checked.reason)
+        return Execution(ran=False, note=checked.reason)
 
-    lane = checked.lane.value
     capability = checked.capability or ""
     executor = _EXECUTORS.get(capability) if checked.lane is Lane.CODE else None
     if executor is None:
-        missing = f"the {capability} capability" if capability else f"the {lane} lane"
-        return Execution(lane=lane, ran=False, note=f"no executor for {missing} yet")
+        missing = f"the {capability} capability" if capability else f"the {checked.lane.value} lane"
+        return Execution(ran=False, note=f"no executor for {missing} yet")
 
     try:
         records = await executor(checked, now, data)
     except DataUnavailable as exc:
-        return Execution(lane=lane, ran=False, note=f"the lookup did not happen: {exc}")
+        return Execution(ran=False, note=f"the lookup did not happen: {exc}")
 
     results, count = _apply(records, checked.operation, capability)
-    return Execution(lane=lane, ran=True, note="", results=results, count=count)
+    return Execution(ran=True, note="", results=results, count=count)

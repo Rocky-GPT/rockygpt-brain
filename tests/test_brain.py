@@ -183,11 +183,7 @@ async def test_the_turn_reads_end_to_end_as_four_stages() -> None:
     assert trace.question == {"question": "a question"}, "the words, and nothing else"
     assert trace.context == {"currentTime": CLOCK, "earlierTurns": []}
     assert trace.plan == {"lane": "GENERAL"}, "the plan alone — the clock is context"
-    assert trace.execution == {
-        "lane": "GENERAL",
-        "ran": False,
-        "note": "no executor for the GENERAL lane yet",
-    }
+    assert trace.execution == {"note": "no executor for the GENERAL lane yet"}
     assert trace.answer == {"answer": "written"}
 
 
@@ -197,11 +193,11 @@ async def test_brain_two_is_told_nothing_was_looked_up() -> None:
     assert model.seen["campusData"] is None
 
 
-async def test_the_middle_stage_says_which_lane_would_have_run() -> None:
+async def test_a_stage_that_did_not_run_carries_no_results() -> None:
     """A turn answered from the model's own knowledge must not look looked-up."""
     response, _ = await ask(planner=FakePlanner(Plan(lane=Lane.RAG, topic="parking")))
-    assert response.brain_trace.execution["lane"] == "RAG"
-    assert response.brain_trace.execution["ran"] is False
+    assert "results" not in response.brain_trace.execution
+    assert "RAG" in response.brain_trace.execution["note"]
 
 
 async def test_the_route_is_the_lane() -> None:
@@ -214,6 +210,7 @@ async def test_a_rejected_plan_says_why_and_still_answers() -> None:
     assert response.answer == "written"
     assert response.route == "general"
     assert "weather" in response.brain_trace.plan["rejected"]
+    assert "weather" in response.brain_trace.execution["note"]
 
 
 async def test_a_planner_outage_costs_the_plan_not_the_answer() -> None:

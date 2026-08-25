@@ -146,6 +146,23 @@ async def test_what_ran_is_what_brain_two_answers_from() -> None:
     assert execution.grounding() == execution.results
 
 
+async def test_looking_and_finding_none_is_not_the_same_as_not_looking() -> None:
+    """The one distinction the summary exists to draw."""
+    found_none = await run(shuttle({}, limit=1), NOW, FakeData(records=[]))
+    never_looked = await run(Plan(lane=Lane.GENERAL), NOW, FakeData())
+
+    assert found_none.summary() == {"results": []}, "an empty list, not a missing one"
+    assert "results" not in never_looked.summary()
+
+    assert found_none.grounding() == [], "BRAIN #2 is told the lookup came back empty"
+    assert never_looked.grounding() is None, "BRAIN #2 is told nothing was looked up"
+
+
+async def test_a_count_reports_the_count_and_not_an_empty_list() -> None:
+    execution = await run(shuttle({}, count=True), NOW, FakeData())
+    assert execution.summary() == {"count": 3}
+
+
 async def test_a_lane_that_did_not_run_grounds_nothing() -> None:
     """None, not an empty list — "nothing was looked up" is not "found none"."""
     execution = await run(Plan(lane=Lane.GENERAL), NOW, FakeData())

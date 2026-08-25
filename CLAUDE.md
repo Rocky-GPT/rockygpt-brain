@@ -18,7 +18,10 @@ BRAIN #2 depends on what PYTHON produced.
 **A lookup that did not happen must never look like one that did.** An
 executor that did not run hands over nothing at all, not an empty list, so
 BRAIN #2 answers from its own knowledge rather than reporting that it found
-none. `ran` in the trace is the same distinction for a human reading the log.
+none. The execution stage draws the same line for a human: `{"results": []}`
+is "Rocky looked and there is nothing", `{"note": ...}` is "Rocky never
+looked". Do not drop `results` when it is empty — the empty list is the
+message.
 
 **Rocky's vocabulary describes what it can do, never what anyone may ask.**
 Five lanes, a registry of capabilities, the fields each capability allows, and
