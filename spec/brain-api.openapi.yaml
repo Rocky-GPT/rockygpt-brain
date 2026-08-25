@@ -417,12 +417,14 @@ components:
           maxLength: 2000
         history:
           type: array
-          maxItems: 10
+          maxItems: 20
           description: >-
-            Earlier turns, newest last. Absent and empty differ: a client that
-            tracks the conversation sends this every turn, and `[]` is taken at
-            its word as "nothing earlier". Omit the field to have the brain use
-            its own record of the session instead.
+            Earlier turns, newest last, one entry per speaker — so 20 entries
+            is 10 exchanges, the same depth the brain's own memory keeps.
+            Absent and empty differ: a client that tracks the conversation
+            sends this every turn, and `[]` is taken at its word as "nothing
+            earlier". Omit the field to have the brain use its own record of
+            the session instead.
           items:
             $ref: '#/components/schemas/ChatTurn'
         styleMode:

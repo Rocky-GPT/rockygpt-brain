@@ -6,7 +6,12 @@ from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from rockygpt_brain.api.contracts import ChatRequest, ChatSuccess
+from rockygpt_brain.api.contracts import (
+    HISTORY_EXCHANGES,
+    ChatRequest,
+    ChatSuccess,
+    ChatTurn,
+)
 from rockygpt_brain.core.brain import Brain, TurnIdentity
 from rockygpt_brain.core.model import Draft
 from rockygpt_brain.core.plan import Filter, Lane, Operation, Plan
@@ -140,6 +145,19 @@ async def test_a_client_that_sends_no_history_still_gets_the_sessions() -> None:
     assert model.seen["context"], "a client with no history of its own gets ours"
 
 
+async def test_both_paths_see_the_same_distance_back() -> None:
+    """A client that sends history and one that omits it get the same depth."""
+    memory = MemoryStore()
+    for turn in range(HISTORY_EXCHANGES + 4):
+        await ask(f"q{turn}", memory, f"r{turn}")
+
+    _, model = await ask("follow up", memory, "last")
+    assert len(model.seen["context"]) == HISTORY_EXCHANGES, "the memory fallback"
+
+    sent = [ChatTurn(role="user", content="x")] * (HISTORY_EXCHANGES * 2)
+    ChatRequest(message="m", history=sent)  # the contract accepts the same depth
+
+
 async def test_the_modes_the_ui_asked_for_are_on_the_turn() -> None:
     model = FakeModel()
     brain = Brain(model, FakePlanner(), FakeData(), MemoryStore())
@@ -183,7 +201,7 @@ async def test_the_turn_reads_end_to_end_as_four_stages() -> None:
     assert trace.question == {"question": "a question"}, "the words, and nothing else"
     assert trace.context == {"currentTime": CLOCK, "earlierTurns": []}
     assert trace.plan == {"lane": "GENERAL"}, "the plan alone — the clock is context"
-    assert trace.execution == {"note": "no executor for the GENERAL lane yet"}
+    assert trace.execution == {"note": "nothing to look up; answered from what the model knows"}
     assert trace.answer == {"answer": "written"}
 
 

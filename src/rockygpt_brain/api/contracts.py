@@ -27,6 +27,13 @@ Identifier = Annotated[
 BoundedText = Annotated[str, StringConstraints(min_length=1, max_length=2000)]
 
 
+#: How far back a turn can see, in exchanges — a question and its answer.
+#: `MemoryStore` keeps this many, and a client may send the same depth, which
+#: on the wire is two entries each. One number, one unit, both paths.
+HISTORY_EXCHANGES = 10
+HISTORY_MESSAGES = HISTORY_EXCHANGES * 2
+
+
 class ChatTurn(ContractModel):
     role: Literal["user", "assistant"]
     content: BoundedText
@@ -39,7 +46,7 @@ class ChatRequest(ContractModel):
     #: "there is nothing earlier" — which the brain takes at its word. Omitting
     #: the field says the client does not track history, and only then does the
     #: brain fall back to its own record of the session.
-    history: Annotated[list[ChatTurn], Field(max_length=10)] | None = None
+    history: Annotated[list[ChatTurn], Field(max_length=HISTORY_MESSAGES)] | None = None
     style_mode: Annotated[
         str | None, StringConstraints(min_length=1, max_length=32, pattern=r"^[A-Za-z0-9_-]+$")
     ] = Field(default=None, alias="styleMode")

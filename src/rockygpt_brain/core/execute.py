@@ -156,6 +156,13 @@ async def run(checked: Plan | Rejected, now: datetime, data: DataPort) -> Execut
     if isinstance(checked, Rejected):
         return Execution(ran=False, note=checked.reason)
 
+    # GENERAL is the lane that means "no lookup needed", so it is not waiting
+    # for anything. Saying "yet" of it would report a finished design as a gap,
+    # and is the difference between a turn that worked and one that was cut
+    # short — which is the distinction this stage exists to draw.
+    if checked.lane is Lane.GENERAL:
+        return Execution(ran=False, note="nothing to look up; answered from what the model knows")
+
     capability = checked.capability or ""
     executor = _EXECUTORS.get(capability) if checked.lane is Lane.CODE else None
     if executor is None:

@@ -163,6 +163,18 @@ async def test_a_count_reports_the_count_and_not_an_empty_list() -> None:
     assert execution.summary() == {"count": 3}
 
 
+async def test_general_is_not_reported_as_a_missing_executor() -> None:
+    """It is the lane that means "no lookup", not one still to be built."""
+    execution = await run(Plan(lane=Lane.GENERAL), NOW, FakeData())
+    assert "no executor" not in execution.note
+    assert execution.grounding() is None
+
+
+async def test_a_lane_still_to_be_built_says_so() -> None:
+    execution = await run(Plan(lane=Lane.RAG, topic="parking"), NOW, FakeData())
+    assert "no executor for the RAG lane yet" == execution.note
+
+
 async def test_a_lane_that_did_not_run_grounds_nothing() -> None:
     """None, not an empty list — "nothing was looked up" is not "found none"."""
     execution = await run(Plan(lane=Lane.GENERAL), NOW, FakeData())
