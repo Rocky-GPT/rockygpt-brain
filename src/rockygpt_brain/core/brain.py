@@ -46,8 +46,8 @@ from rockygpt_brain.brain.plan.validate import Rejected, check
 from rockygpt_brain.brain.understand.run import UnderstandPort
 from rockygpt_brain.brain.understand.schema import Understanding
 from rockygpt_brain.brain.understand.validate import ResolutionFailed, unresolved
+from rockygpt_brain.brain.write.run import WritePort
 from rockygpt_brain.core.execute import WEB, Execution, run
-from rockygpt_brain.core.model import ModelPort
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.services.data import DataPort
 from rockygpt_brain.services.memory import MemoryStore
@@ -65,7 +65,7 @@ class TurnIdentity:
 class Brain:
     def __init__(
         self,
-        model: ModelPort,
+        model: WritePort,
         understand: UnderstandPort,
         planner: PlanPort,
         data: DataPort,
