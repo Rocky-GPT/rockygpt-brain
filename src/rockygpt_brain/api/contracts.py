@@ -85,7 +85,7 @@ class UiAction(ContractModel):
 
 
 class BrainTrace(ContractModel):
-    """The structured intent and result at the Python routing boundary."""
+    """What went into the model call, and what came out of it."""
 
     input: dict[str, Any] = Field(alias="in")
     output: dict[str, Any] = Field(alias="out")

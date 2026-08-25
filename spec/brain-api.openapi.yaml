@@ -493,11 +493,11 @@ components:
         in:
           type: object
           additionalProperties: true
-          description: Structured intent emitted by AI #1.
+          description: What the brain sent into the model call.
         out:
           type: object
           additionalProperties: true
-          description: Result JSON Python supplied to AI #2.
+          description: What the brain produced from the model call.
     Citation:
       type: object
       additionalProperties: false
