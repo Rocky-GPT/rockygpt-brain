@@ -5,42 +5,46 @@
          │
          ▼
     BRAIN #1        understand it — what is it actually asking?
-         │
+         │          the only stage that is shown the conversation
          ▼
     BRAIN #2        plan it — what should be done about that?
          │          given the resolved question and nothing else, and
          │          checked against the registry before it goes on
          ▼
     PYTHON          run the lane the plan names
-         │          `shuttle` looks its trips up; the rest do not run yet
+         │          GENERAL answers from what the model knows, or from the
+         │          web when the answer has a shelf life; CODE looks it up,
+         │          and `shuttle` is the only capability with an executor
          ▼
     BRAIN #3        translate what came back into an answer
 ```
 
-Three brains and a lane, run in that order, with one trace entry each. Each
-turns the one before it into something else: words into an understanding, an
-understanding into a plan, a plan into rows, rows into prose.
+Three brains and a lane, run in that order, each turning the one before it into
+something else: words into an understanding, an understanding into a plan, a
+plan into rows, rows into prose.
 
-BRAIN #3 comes last because it writes from what PYTHON produced, on every lane: it is handed
-`answerFrom` — `campusData` with the rows a lookup returned, or `ownKnowledge`
-— and never has to infer what to do from a field that is not there.
+BRAIN #3 comes last because it writes from what PYTHON produced, on every lane:
+it is handed `answerFrom` — `campusData` with the rows a lookup returned, or
+`ownKnowledge` — and never has to infer what to do from a field that is not
+there.
 
 The trace and BRAIN #3 are told different things on purpose. The trace says
 exactly why a lane did not run, because that is for a person debugging. BRAIN
-#2 is told only where to answer from, because a model told its lookup failed
+#3 is told only where to answer from, because a model told its lookup failed
 apologises for the capability rather than answering the question.
 
 ## Modules
 
 ```text
 core/brain.py         the request lifecycle — the four stages, in order
-core/planner.py       BRAIN #1 — question in, plan out
+core/planner.py       BRAIN #1 and BRAIN #2 — two calls, deliberately apart
 core/plan.py          the vocabulary a plan is written in
 core/capabilities.py  the registry — what Rocky can look up, and with which fields
 core/validate.py      the check, and the clock, applied to a plan before it runs
 core/execute.py       PYTHON — run the lane, and apply the generic operations
 core/model.py         BRAIN #3 — the answer call and its one instruction
-services/data.py      the data service, and the one outbound call that is not a model
+services/data.py      the campus data service, and the CODE lane's one lookup
+services/web.py       the web search a `current` GENERAL question runs
 services/memory.py    turns kept for follow-ups, and the admin log
 api/                  the HTTP surface
 config.py             settings from .env
@@ -51,12 +55,33 @@ config.py             settings from .env
 A plan is a lane, and whatever that lane needs.
 
 ```text
-lane        CODE | RAG | GENERAL | SAFETY
+safety      what is wrong with the question, and empty when nothing is:
+            emergency | privacy | secret | harmful
+lane        CODE | RAG | GENERAL
 capability  CODE: which lookup, from the registry
 filters     CODE: field/value pairs, drawn from that capability's filter fields
 operation   CODE: orderBy + direction, limit, count, compare
 topic       RAG: what to find in the documents
+freshness   GENERAL: `stable` answers from what the model knows, `current`
+            searches the web
+query       GENERAL: what a `current` question searches for
 ```
+
+Two things that look like lanes are not, because a lane says where an answer
+lives and neither of them is a place.
+
+There is no MEMORY lane. A question about the conversation is answered from the
+conversation, and routing to such a lane would have meant choosing it in BRAIN
+#2, the one stage denied sight of the conversation. It is `usesContext` on
+BRAIN #1 instead.
+
+There is no SAFETY lane either. It was one, and it had no executor, so the one
+turn that must never fail was the only one guaranteed to — a question routed
+there came back as "Rocky cannot look that up yet." It is `safety` on the plan
+instead: a list, because a question can be more than one of these at once, and
+Python acts on every entry before any lane runs. What it does about each is
+`CONCERNS` in `execute.py`, written in Python because that is the part that
+must not vary with how the question was phrased.
 
 The vocabulary is fixed and small on purpose. It grows by capability — a new
 kind of thing Rocky can look up — and never by question. A question Rocky has
@@ -69,19 +94,29 @@ the map, and `Plan.summary` is the shape a human reads in the log.
 
 ## The trace
 
-`brainTrace` carries one entry per stage: `question`, `plan`, `execution`,
-`answer`. The dev inspector renders them as four boxes in that order, so
-reading down the modal is reading the request.
+`brainTrace` carries seven entries: `question`, `memory`, `understanding`,
+`context`, `plan`, `execution`, `answer`.
 
-`question` is what was asked and nothing else. The clock leads `plan`: it is
-not part of the question — the browser never sends a time and the proxy would
-drop one — it is what Python read the question against, and `today` means
+`question` is what was asked and nothing else. Everything it was read against
+is `memory` beside it — the clock, the earlier turns, the modes the client
+asked for. The clock is there rather than in the question because the browser
+never sends a time and the proxy would drop one, and because `today` means
 nothing until an instant fixes it.
 
-The `execution` stage is one of three shapes, and which one it is says what
-happened: `{"note": ...}` did not run, `{"count": n}` ran and counted,
-`{"results": [...]}` ran and listed. It carries no lane — the plan stage above
-already names it — and no `ran` flag, because the shape is the flag.
+`understanding` is what BRAIN #1 made of the question; `context` is what it had
+to borrow from the conversation to get there, and is empty unless BRAIN #1 says
+the question needed it.
+
+The dev inspector orders them for reading rather than for the wire: `context`,
+BRAIN #1, BRAIN #2, PYTHON, then `memory` and the leftovers shut by default,
+with `question` and `answer` as the header and footer because prose reads badly
+as a one-line JSON string.
+
+The `execution` stage leads with `answerFrom` — the same value BRAIN #3 was
+handed, so the handoff is visible — and then takes one of three shapes, which
+is what says what happened: `{"note": ...}` did not run, `{"count": n}` ran and
+counted, `{"results": [...]}` ran and listed. It carries no lane — the plan
+stage already names it — and no `ran` flag, because the shape is the flag.
 
 The distinction that matters is `{"results": []}` against `{"note": ...}`:
 "Rocky looked and there is nothing" against "Rocky never looked". Those are

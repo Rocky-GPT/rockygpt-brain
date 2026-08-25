@@ -6,9 +6,9 @@ stay readable in a minute.
 ```text
 the question
   -> BRAIN #1  understand it — what is it actually asking?   (planner.py)
-  -> BRAIN #3  plan it — what should be done about that?     (planner.py)
-  -> PYTHON     run the lane the plan names, or fail          (execute.py)
-  -> BRAIN #3   translate what came back into an answer       (model.py)
+  -> BRAIN #2  plan it — what should be done about that?     (planner.py)
+  -> PYTHON    run the lane the plan names, or fail          (execute.py)
+  -> BRAIN #3  translate what came back into an answer       (model.py)
 ```
 
 **The planning call never sees the question as typed.** It is given the
@@ -18,10 +18,10 @@ than a line in an instruction it may or may not heed. A plan that would have
 needed the conversation is a plan built on a resolution that failed, and this
 is where that shows instead of being quietly patched over.
 
-Four stages, in that order, and the trace carries one entry for each. The order
-is the point: what the lane returned is handed to BRAIN #3 as `campusData` and
-is what it answers from. Do not make the two calls concurrent to save latency —
-BRAIN #3 depends on what PYTHON produced.
+Four stages, in that order. The order is the point: what the lane returned is
+handed to BRAIN #3 as `campusData` and is what it answers from. Do not make the
+two calls concurrent to save latency — BRAIN #3 depends on what PYTHON
+produced.
 
 **Every lane grounds BRAIN #3.** PYTHON hands it `answerFrom` on every turn —
 `campusData` with the rows, or `ownKnowledge` — so it never infers what to do
@@ -32,27 +32,54 @@ answering the question.
 
 **A lookup that did not happen must never look like one that did.** `campusData`
 is present only when a lookup ran, so an empty list means it ran and matched
-nothing — an answer in itself. The execution stage draws the same line for a human: `{"results": []}`
-is "Rocky looked and there is nothing", `{"note": ...}` is "Rocky never
+nothing — an answer in itself. The execution stage draws the same line for a
+human: `{"answerFrom": "campusData", "results": []}` is "Rocky looked and there
+is nothing", `{"answerFrom": "ownKnowledge", "note": ...}` is "Rocky never
 looked". Do not drop `results` when it is empty — the empty list is the
 message.
 
 **Rocky's vocabulary describes what it can do, never what anyone may ask.**
-Four lanes, a registry of capabilities, the fields each capability allows, and
-a few generic operations — filter, sort, limit, count, compare. That is all of
-it. There is no list of intents and there must never be one: no `next_shuttle`,
-no `menu_lookup`, no enum whose members are questions. "The first shuttle" and
-"the last shuttle" are one capability with a different sort, and a new question
+Three lanes, four safety concerns, a registry of capabilities, the fields each
+capability allows, and a few generic operations — filter, sort, limit, count,
+compare. That is all of it. There is no list of intents and there must never be
+one: no `next_shuttle`, no `menu_lookup`, no enum whose members are questions.
+"The first shuttle" and "the last shuttle" are one
+capability with a different sort, and a new question
 should need no code at all. `plan.py` holds the vocabulary, `capabilities.py`
 the registry.
 
-**The trace is the four stages, not two halves.** `question`, `plan`,
-`execution`, `answer` — one box each in the dev inspector, read top to bottom.
-`question` holds what was asked and nothing else; the clock leads `plan`,
-because it is what the question was read against.
-A stage that did nothing says so rather than going missing: an unexecuted lane
-reports `ran: false`, so a turn answered from the model's own knowledge can
-never be mistaken for one answered from campus data.
+Two things that look like lanes are not, and must not become lanes again. A
+lane says where an answer lives; neither of these is a place.
+
+Recalling what was already said. A question about the conversation is answered
+from the conversation, and routing to a MEMORY lane meant deciding to route
+there from BRAIN #2 — the one stage deliberately denied sight of the
+conversation. It is `usesContext` on BRAIN #1 instead.
+
+Something being wrong with the question. As a lane, SAFETY had no executor, so
+the one turn that must never fail was the only one guaranteed to. It is
+`Plan.safety` instead — a list of `emergency`, `privacy`, `secret`, `harmful`,
+because a question can be several at once. **Python acts on every entry before
+the lane runs, and a plan carrying one is never rejected**: what Rocky does
+about a concern depends on no capability, no executor, and no network, so it
+still happens when campus data is down. `CONCERNS` in `execute.py` says what
+each one does, in Python, because that is the part that must not vary with
+phrasing.
+
+Four concerns, and they stay four. This is a list of things Rocky must handle,
+not a taxonomy of things people ask; it grows only when Rocky learns to handle
+something new.
+
+**The trace is the whole pipeline, not two halves.** `question`, `memory`,
+`understanding`, `context`, `plan`, `execution`, `answer` — one box each in
+the dev inspector. `question` holds what was asked and nothing else;
+everything the turn was read against — the clock, the earlier turns, the modes
+the client asked for — is `memory` beside it, which leaves `understanding` and
+`plan` as purely what the brains decided.
+A stage that did nothing says so rather than going missing: `answerFrom` leads
+the execution entry on every turn, so a turn answered from the model's own
+knowledge can never be mistaken for one answered from campus data. The shape
+that follows it is the flag; there is no `ran` field to read.
 
 **Python decides what runs.** The model writes a plan; `validate.check` decides
 whether Rocky acts on it. A plan naming a field the capability does not list is

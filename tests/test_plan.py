@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from openai.lib._pydantic import to_strict_json_schema
 
 from rockygpt_brain.core.capabilities import CAPABILITIES
-from rockygpt_brain.core.plan import TIME_WORDS, Filter, Lane, Operation, Plan
+from rockygpt_brain.core.plan import TIME_WORDS, Concern, Filter, Lane, Operation, Plan
 from rockygpt_brain.core.planner import _PLAN
 from rockygpt_brain.core.validate import Rejected, check, resolve
 
@@ -114,9 +114,40 @@ def test_a_rag_plan_needs_a_topic() -> None:
     assert isinstance(check(Plan(lane=Lane.RAG, topic="overnight guest policy"), NOW), Plan)
 
 
-def test_general_and_safety_need_nothing() -> None:
+def test_general_needs_nothing() -> None:
     assert isinstance(check(Plan(lane=Lane.GENERAL), NOW), Plan)
-    assert isinstance(check(Plan(lane=Lane.SAFETY), NOW), Plan)
+
+
+def test_safety_survives_a_plan_that_would_otherwise_be_rejected() -> None:
+    """The turns that most need an answer are the ones that must not be rejected.
+
+    A CODE plan naming no capability is rejected on every other turn. Carrying
+    a concern it is not, because what Python does about a concern depends on
+    no lookup.
+    """
+    assert isinstance(check(Plan(lane=Lane.CODE), NOW), Rejected)
+    checked = check(Plan(safety=[Concern.EMERGENCY], lane=Lane.CODE), NOW)
+    assert isinstance(checked, Plan)
+    assert checked.safety == [Concern.EMERGENCY]
+
+
+def test_every_concern_is_carried_through_the_check_not_just_the_first() -> None:
+    """Every branch of `check` rebuilds the plan, which is how a list goes missing."""
+    both = [Concern.PRIVACY, Concern.SECRET]
+    for plan in (
+        Plan(safety=both, lane=Lane.GENERAL),
+        Plan(safety=both, lane=Lane.RAG, topic="anything"),
+        Plan(safety=both, lane=Lane.CODE, capability="shuttle"),
+    ):
+        checked = check(plan, NOW)
+        assert isinstance(checked, Plan)
+        assert checked.safety == both, f"{plan.lane} dropped a concern"
+
+
+def test_the_concerns_lead_the_logged_plan() -> None:
+    summary = Plan(safety=[Concern.PRIVACY, Concern.SECRET], lane=Lane.CODE).summary()
+    assert list(summary)[0] == "safety"
+    assert summary["safety"] == ["privacy", "secret"]
 
 
 def test_a_stray_field_from_another_lane_is_dropped_not_rejected() -> None:

@@ -34,6 +34,12 @@ class Rejected:
 
 def check(plan: Plan, now: datetime) -> Plan | Rejected:
     """Return the plan Rocky will run, or why it will run nothing."""
+    # Safety first, and alone. Every branch below rebuilds the plan from
+    # scratch and would drop the flag; more than that, every branch below can
+    # reject, and a rejected plan ends the turn. The one turn that must never
+    # end that way is this one, so it does not pass through them at all.
+    if plan.safety:
+        return Plan(safety=list(plan.safety), lane=plan.lane)
     if plan.lane is Lane.CODE:
         return _check_code(plan, now)
     if plan.lane is Lane.RAG:

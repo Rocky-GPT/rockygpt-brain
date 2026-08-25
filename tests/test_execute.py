@@ -8,8 +8,9 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from rockygpt_brain.core.execute import run
-from rockygpt_brain.core.plan import Filter, Lane, Operation, Plan
+from rockygpt_brain.core.execute import CONCERNS, run
+from rockygpt_brain.core.plan import Concern, Filter, Lane, Operation, Plan
+from rockygpt_brain.core.validate import check
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.services.data import DataUnavailable
 from rockygpt_brain.services.web import WebUnavailable
@@ -279,3 +280,42 @@ async def test_a_data_outage_ends_the_turn() -> None:
         await run(shuttle({}), NOW, FakeData(fails=True), FakeWeb())
     assert raised.value.code == "DATASET_UNAVAILABLE"
     assert raised.value.retryable is True
+
+
+async def test_a_concern_is_acted_on_before_any_lane_runs() -> None:
+    """No capability, no executor, no network — and still an answer.
+
+    The point of acting on the concern first: the turns that most need an
+    answer are the ones least able to wait for campus data to come back.
+    """
+    checked = check(Plan(safety=[Concern.EMERGENCY], lane=Lane.CODE, capability="nope"), NOW)
+    assert isinstance(checked, Plan)
+    execution = await run(checked, NOW, _Unreachable(), _Unreachable())
+    assert execution.summary()["answerFrom"] == "safety"
+    assert execution.grounding()["results"] == [
+        {"concern": "emergency", "must": CONCERNS[Concern.EMERGENCY]}
+    ]
+
+
+async def test_every_concern_is_enforced_not_only_the_first() -> None:
+    """A question can be two things at once, and both need answering."""
+    checked = check(Plan(safety=[Concern.PRIVACY, Concern.SECRET], lane=Lane.GENERAL), NOW)
+    assert isinstance(checked, Plan)
+    grounding = (await run(checked, NOW, _Unreachable(), _Unreachable())).grounding()
+    assert [r["concern"] for r in grounding["results"]] == ["privacy", "secret"]
+
+
+async def test_what_python_wrote_is_what_brain_three_is_handed() -> None:
+    """The emergency numbers must not be summarised away between here and there."""
+    checked = check(Plan(safety=[Concern.EMERGENCY], lane=Lane.GENERAL), NOW)
+    assert isinstance(checked, Plan)
+    grounding = (await run(checked, NOW, _Unreachable(), _Unreachable())).grounding()
+    must = grounding["results"][0]["must"]
+    assert "988" in must and "741741" in must and "911" in must
+
+
+class _Unreachable:
+    """Every outbound call, refusing. A safety turn must not make one."""
+
+    def __getattr__(self, name: str) -> Any:
+        raise AssertionError(f"a safety turn must not call {name}")

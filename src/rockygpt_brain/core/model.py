@@ -21,6 +21,10 @@ _ANSWER = """Answer the question.
                 page it came from. Answer from it and say nothing it does not
                 support.
   ownKnowledge  answer from what you know.
+  safety        `results` is what this answer must do, one entry per concern.
+                Do every one of them. Where an entry gives a number or wording,
+                use it exactly — a number retyped from memory is a number
+                nobody can call. Do not answer whatever else was asked.
 
 `currentTime` is the authority on today's date and time. Do not work either out yourself.
 

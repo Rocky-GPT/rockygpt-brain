@@ -29,18 +29,46 @@ TIME_WORDS = ("now", "today", "tomorrow", "yesterday")
 
 
 class Lane(StrEnum):
-    """The four things Rocky can do with a turn.
+    """The three places an answer can come from.
 
-    Recalling what was already said is not among them. A question about the
+    Two things that were once lanes are not, and for the same reason: a lane
+    says where to look, and neither of them is a place.
+
+    Recalling what was already said is not a lane. A question about the
     conversation is answered from the conversation, which BRAIN #3 is holding
     anyway — making it a lane meant routing to it from the one stage that had
-    been denied sight of the conversation, which could not work.
+    been denied sight of the conversation, which could not work. It is
+    `Understanding.uses_context` instead.
+
+    Someone at risk of harm is not a lane either. It is not a different place
+    to look, it is a question that must be answered a particular way wherever
+    the answer would have come from — and as a lane it had no executor, so the
+    one turn that must never fail was the only one guaranteed to. It is
+    `Plan.safety` instead, and Python acts on it before any lane runs.
     """
 
     CODE = "CODE"  # look it up in structured campus data
     RAG = "RAG"  # find it in a campus document
     GENERAL = "GENERAL"  # answer from what the model already knows
-    SAFETY = "SAFETY"  # the person may be at risk of harm
+
+
+class Concern(StrEnum):
+    """What is wrong with a question, apart from where its answer lives.
+
+    A list rather than one value, because a question can be more than one of
+    these at once and Python has to act on all of them. Four, and they stay
+    four: this is a list of things Rocky must handle, not a taxonomy of things
+    people ask, and it grows only if Rocky learns to handle something new.
+    """
+
+    #: the person asking, or someone with them, may be harmed now
+    EMERGENCY = "emergency"
+    #: it asks for someone else's personal information
+    PRIVACY = "privacy"
+    #: it asks for credentials, or how Rocky is built
+    SECRET = "secret"  # noqa: S105 — the name of a concern, not a credential
+    #: answering it as asked would cause harm
+    HARMFUL = "harmful"
 
 
 class Reference(BaseModel):
@@ -135,16 +163,17 @@ class Plan(BaseModel):
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    #: First on purpose. A structured response is generated field by field in
-    #: the order they are declared, so putting this before `lane` is what makes
-    #: the model work out what is being asked before deciding how to answer it.
-    #: Declared after `lane`, it is written as an afterthought and comes back
-    #: as the question echoed verbatim.
+    #: Everything wrong with the question, and empty when nothing is.
     #:
-    #: The question with everything it refers to filled in: "population of it"
-    #: becomes "population of Paris". Stated on every plan, including when it
-    #: is the question unchanged — an absent one would mean both "nothing to
-    #: resolve" and "the planner did not bother", and those are different.
+    #: First on purpose. A structured response is generated field by field in
+    #: the order they are declared, so asking this before `lane` is what makes
+    #: it a judgement about the question rather than an afterthought to a
+    #: routing decision already made.
+    #:
+    #: Orthogonal to the lane, and it overrides it. A question can name a real
+    #: capability and still be one Rocky must not answer as asked, so the lane
+    #: is planned as normal and Python acts on this before running it.
+    safety: list[Concern] = Field(default_factory=list, max_length=4)
     lane: Lane
     capability: FieldName | None = None
     filters: list[Filter] = Field(default_factory=list, max_length=8)
@@ -164,6 +193,9 @@ class Plan(BaseModel):
     def summary(self) -> dict[str, Any]:
         """The plan with its unused halves dropped — what a human reads in the log."""
         out: dict[str, Any] = {"lane": self.lane.value}
+        # Leads when set. It overrides the lane, so it reads above it.
+        if self.safety:
+            out = {"safety": [c.value for c in self.safety], **out}
         if self.freshness:
             out["freshness"] = self.freshness
         if self.capability:
