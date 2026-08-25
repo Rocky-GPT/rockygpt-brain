@@ -20,8 +20,8 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from rockygpt_brain.brain.plan.schema import Filter, Lane, Plan
 from rockygpt_brain.capabilities.registry import CAPABILITIES
-from rockygpt_brain.core.plan import Filter, Lane, Plan
 
 _DAYS = {"today": 0, "tomorrow": 1, "yesterday": -1}
 

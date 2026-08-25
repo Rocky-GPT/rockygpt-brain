@@ -14,17 +14,17 @@ from rockygpt_brain.api.contracts import (
     ChatSuccess,
     ChatTurn,
 )
-from rockygpt_brain.core.brain import Brain, TurnIdentity, _citations, _unresolved
-from rockygpt_brain.core.execute import CAMPUS_DATA, OWN_KNOWLEDGE, WEB, Execution
-from rockygpt_brain.core.model import Draft
-from rockygpt_brain.core.plan import (
+from rockygpt_brain.brain.plan.schema import (
     Filter,
     Lane,
     Operation,
     Plan,
-    Reference,
-    Understanding,
 )
+from rockygpt_brain.brain.understand.schema import Reference, Understanding
+from rockygpt_brain.brain.understand.validate import unresolved
+from rockygpt_brain.core.brain import Brain, TurnIdentity, _citations
+from rockygpt_brain.core.execute import CAMPUS_DATA, OWN_KNOWLEDGE, WEB, Execution
+from rockygpt_brain.core.model import Draft
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.services.memory import MemoryStore
 
@@ -114,7 +114,9 @@ async def ask(
     planner: FakePlanner | None = None,
 ) -> tuple[ChatSuccess, FakeModel]:
     model = FakeModel()
-    brain = Brain(model, planner or FakePlanner(), FakeData(), FakeWeb(), memory or MemoryStore())
+    # One fake satisfies both ports: it answers understand and plan alike.
+    brains = planner or FakePlanner()
+    brain = Brain(model, brains, brains, FakeData(), FakeWeb(), memory or MemoryStore())
     response = await brain.answer(
         ChatRequest(message=message, now=NOW), TurnIdentity(rid, "s", None, "client")
     )
@@ -217,7 +219,7 @@ async def test_an_empty_history_is_taken_at_its_word() -> None:
     await ask("first", memory, "r1")
 
     model = FakeModel()
-    brain = Brain(model, FakePlanner(), FakeData(), FakeWeb(), memory)
+    brain = Brain(model, FakePlanner(), FakePlanner(), FakeData(), FakeWeb(), memory)
     response = await brain.answer(
         ChatRequest(message="second", history=[], now=NOW),
         TurnIdentity("r2", "s", None, "client"),
@@ -249,7 +251,7 @@ async def test_both_paths_see_the_same_distance_back() -> None:
 
 async def test_the_modes_the_ui_asked_for_are_on_the_turn() -> None:
     model = FakeModel()
-    brain = Brain(model, FakePlanner(), FakeData(), FakeWeb(), MemoryStore())
+    brain = Brain(model, FakePlanner(), FakePlanner(), FakeData(), FakeWeb(), MemoryStore())
     response = await brain.answer(
         ChatRequest(message="m", now=NOW, style_mode="warm", response_mode="concise"),
         TurnIdentity("r", "s", None, "client"),
@@ -312,9 +314,11 @@ async def test_brain_two_is_grounded_on_every_lane() -> None:
 async def test_brain_two_never_runs_on_a_failed_lookup() -> None:
     """No stage compensates for the one before it, so there is nothing to write."""
     model = FakeModel()
+    unbuilt = FakePlanner(Plan(lane=Lane.CODE, capability="menu"))
     brain = Brain(
         model,
-        FakePlanner(Plan(lane=Lane.CODE, capability="menu")),
+        unbuilt,
+        unbuilt,
         FakeData(),
         FakeWeb(),
         MemoryStore(),
@@ -402,12 +406,12 @@ def _read(normalized: str, resolved: str, refs: list[tuple[str, str]]) -> Unders
 
 
 def test_a_resolution_that_carried_the_referent_through_is_planned_from() -> None:
-    assert not _unresolved(_read("Population of it", "Population of Paris?", [("it", "Paris")]))
+    assert not unresolved(_read("Population of it", "Population of Paris?", [("it", "Paris")]))
 
 
 def test_a_referent_reworded_on_the_way_in_still_counts() -> None:
     """BRAIN #1 keeps the word and appends the date. That is a resolution, not a failure."""
-    assert not _unresolved(
+    assert not unresolved(
         _read(
             "What about tomorrow",
             "What is the first shuttle for tomorrow, 2026-08-26?",
@@ -417,12 +421,12 @@ def test_a_referent_reworded_on_the_way_in_still_counts() -> None:
 
 
 def test_a_question_that_needed_context_and_came_back_unchanged_is_refused() -> None:
-    assert _unresolved(_read("Population of it", "Population of it", [("it", "Paris")]))
+    assert unresolved(_read("Population of it", "Population of it", [("it", "Paris")]))
 
 
 def test_a_referent_that_never_reached_the_question_is_refused() -> None:
     """The Italy case: `it` was found, and then dropped on the way in."""
-    assert _unresolved(
+    assert unresolved(
         _read("Population of it", "Population of the capital of France", [("it", "Paris")])
     )
 
@@ -430,4 +434,4 @@ def test_a_referent_that_never_reached_the_question_is_refused() -> None:
 def test_a_self_contained_question_is_never_second_guessed() -> None:
     """`usesContext` false means there was nothing to carry, so there is nothing to check."""
     read = Understanding(normalized="Capital of France?", resolved="Capital of France?")
-    assert not _unresolved(read)
+    assert not unresolved(read)

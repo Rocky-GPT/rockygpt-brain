@@ -30,7 +30,6 @@ stage as purely what BRAIN #1 decided.
 
 from __future__ import annotations
 
-import re
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -41,11 +40,14 @@ from zoneinfo import ZoneInfo
 from pydantic import ValidationError
 
 from rockygpt_brain.api.contracts import BrainTrace, ChatRequest, ChatSuccess, Citation
+from rockygpt_brain.brain.plan.run import PlanPort
+from rockygpt_brain.brain.plan.schema import Plan
+from rockygpt_brain.brain.plan.validate import Rejected, check
+from rockygpt_brain.brain.understand.run import UnderstandPort
+from rockygpt_brain.brain.understand.schema import Understanding
+from rockygpt_brain.brain.understand.validate import ResolutionFailed, unresolved
 from rockygpt_brain.core.execute import WEB, Execution, run
 from rockygpt_brain.core.model import ModelPort
-from rockygpt_brain.core.plan import Plan, Understanding
-from rockygpt_brain.core.planner import PlannerPort
-from rockygpt_brain.core.validate import Rejected, check
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.services.data import DataPort
 from rockygpt_brain.services.memory import MemoryStore
@@ -64,13 +66,15 @@ class Brain:
     def __init__(
         self,
         model: ModelPort,
-        planner: PlannerPort,
+        understand: UnderstandPort,
+        planner: PlanPort,
         data: DataPort,
         web: WebPort,
         memory: MemoryStore,
         timezone: str = "America/New_York",
     ) -> None:
         self._model = model
+        self._understand = understand
         self._planner = planner
         self._data = data
         self._web = web
@@ -109,8 +113,8 @@ class Brain:
         # read — and from nothing else. A brain that does not answer, or a plan
         # the registry will not accept, ends the turn: nothing downstream is
         # allowed to make up for it.
-        read = await self._planner.understand(request.message, earlier, now.isoformat())
-        if failure := _unresolved(read):
+        read = await self._understand.understand(request.message, earlier, now.isoformat())
+        if failure := unresolved(read):
             raise ServiceError(
                 503,
                 "SERVICE_UNAVAILABLE",
@@ -206,53 +210,6 @@ def _context(read: Understanding, earlier: list[dict[str, Any]]) -> dict[str, An
     }
 
 
-def _unresolved(read: Understanding) -> str:
-    """Why this reading cannot be planned from, or empty when it can.
-
-    BRAIN #2 is shown `resolved` and nothing else — not the conversation, not
-    the words as typed. That is the design, and it holds only while `resolved`
-    really does stand on its own. When it does not, nothing downstream can
-    notice: the planner reads a question that is merely vague rather than
-    visibly broken, plans something plausible for it, and the turn comes back
-    an answer to a question nobody asked.
-
-    So a resolution is checked here, at the seam, rather than after three more
-    stages have built on it. Both tests are properties of what BRAIN #1 said
-    about its own work — no phrase list, and no judgement about the subject.
-    """
-    if not read.uses_context:
-        return ""
-
-    # It said the question needed the conversation, then wrote back the same
-    # sentence. Whatever it borrowed, none of it arrived.
-    if read.resolved.strip().casefold() == read.normalized.strip().casefold():
-        return "the question needed the conversation and came back unchanged"
-
-    for reference in read.references:
-        # A reference is resolved when what it points at reached the question.
-        # Whether the pointing word also survived is not the test: BRAIN #1
-        # regularly keeps it and appends the referent — "tomorrow" becomes
-        # "tomorrow, 2026-08-26" — and rejecting that cost one good resolution
-        # in eight when measured.
-        #
-        # Any one substantial word of the referent counts rather than the
-        # phrase entire, because a referent is often reworded on the way in.
-        # Short words are skipped: they match everything.
-        parts = [w for w in re.findall(r"[\w'-]+", reference.refers_to) if len(w) > 3]
-        if parts:
-            if not any(
-                re.search(rf"\b{re.escape(w)}", read.resolved, re.IGNORECASE) for w in parts
-            ):
-                return f"nothing of {reference.refers_to!r} reached the question"
-            continue
-        # A referent of nothing but short words cannot be judged that way, so
-        # fall back to the weaker signal: the pointing word standing alone.
-        word = reference.text.strip()
-        if word and re.search(rf"\b{re.escape(word)}\b", read.resolved, re.IGNORECASE):
-            return f"{word!r} still stands unresolved in the question"
-    return ""
-
-
 def _citations(execution: Execution, now: datetime) -> list[Citation]:
     """The pages an answer came from, so a reader can check it.
 
@@ -297,7 +254,3 @@ def _citations(execution: Execution, now: datetime) -> list[Citation]:
 
 class PlanRejected(Exception):
     """Why the registry would not accept a plan. The cause of the ServiceError."""
-
-
-class ResolutionFailed(Exception):
-    """Why a reading could not be planned from. The cause of the ServiceError."""
