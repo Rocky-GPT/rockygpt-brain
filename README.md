@@ -1,14 +1,17 @@
 # RockyGPT Brain
 
-A question goes in, an answer comes out.
+A question goes in, an answer comes out — and a plan saying what Rocky would
+have done to look it up.
 
 ```text
-IN   the question + the current time
-     -> one model call
+IN   the question + the current time + the plan AI #1 wrote for it
+     -> AI #1 translates the question, and the answer model writes the prose
 OUT  the answer
 ```
 
-No routing, no lookups, no filters. `DESIGN.md` says where it grows.
+A plan is a lane, a capability, filters, and a generic operation — never an
+intent. Python checks it against the capability registry before it would run.
+Nothing executes a plan yet. `DESIGN.md` says where it grows.
 
 ## Package layout
 
@@ -16,7 +19,11 @@ No routing, no lookups, no filters. `DESIGN.md` says where it grows.
 rockygpt_brain/
 ├── api/          HTTP routes and public contracts
 ├── core/
-│   ├── model.py            the model call
+│   ├── plan.py             the vocabulary a plan is written in
+│   ├── capabilities.py     what Rocky can look up, and with which fields
+│   ├── planner.py          AI #1 — question in, plan out
+│   ├── validate.py         the check applied before a plan runs
+│   ├── model.py            the answer call
 │   └── brain.py            the request lifecycle
 ├── services/     turns and the admin log
 ├── config.py     environment settings
@@ -34,8 +41,10 @@ cp .env.example .env
 rockygpt-brain
 ```
 
-Set `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL` in `.env`. `CAMPUS_TIMEZONE`
-defaults to `America/New_York` and is the clock the model is given.
+Set `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL` in `.env`; `OPENAI_PLANNER_MODEL`
+sets the model behind AI #1 and defaults to the same. `CAMPUS_TIMEZONE`
+defaults to `America/New_York` and is the clock both calls are given, and the
+clock every time word in a plan is resolved against.
 
 ## Checks
 
