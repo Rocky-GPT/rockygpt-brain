@@ -9,9 +9,11 @@ Four stages, in that order, and the trace carries one entry for each. The order
 is the point: BRAIN #2 answers after the lane has run, because once a lane has
 an executor its results are what there is to write about.
 
-A lane without an executor records that it did not run, and BRAIN #2 answers
-from its own knowledge. A lane with one hands its results to BRAIN #2, which is
-the whole reason the stages are in this order.
+No stage compensates for the one before it. A planner that does not answer, a
+plan the registry rejects, a lookup that fails — each ends the turn rather than
+letting the stage after it paper over the gap. The alternative is an answer
+written around a lookup that never happened, which reads exactly like one that
+did, and only the trace would ever know the difference.
 
 The question stage holds the words the student typed and nothing else.
 Everything the turn is read against — the clock, the earlier turns, the modes
@@ -92,10 +94,20 @@ class Brain:
         if request.response_mode:
             context["responseMode"] = request.response_mode
 
-        # 2. BRAIN #1 — understand it, and write a plan
-        checked = await self._plan(request.message, earlier, now)
+        # 2. BRAIN #1 — understand it, and write a plan. A planner that does
+        # not answer, or a plan the registry will not accept, ends the turn:
+        # nothing downstream is allowed to make up for it.
+        drafted = await self._planner.plan(request.message, earlier, now.isoformat())
+        checked = check(drafted, now)
+        if isinstance(checked, Rejected):
+            raise ServiceError(
+                503,
+                "SERVICE_UNAVAILABLE",
+                "Rocky could not work out how to answer that.",
+                retryable=True,
+            ) from PlanRejected(checked.reason)
 
-        # 3. PYTHON — run the lane
+        # 3. PYTHON — run the lane. Raises if it cannot.
         execution = await run(checked, now, self._data, self._web)
 
         # 4. BRAIN #2 — write the answer, from what the lane returned
@@ -111,7 +123,7 @@ class Brain:
         trace = BrainTrace(
             question=question,
             context=context,
-            plan=_traced(checked),
+            plan=checked.summary(),
             execution=execution.summary(),
             answer={"answer": draft.answer},
         )
@@ -140,19 +152,6 @@ class Brain:
         )
         return response
 
-    async def _plan(
-        self,
-        message: str,
-        context: list[dict[str, Any]],
-        now: datetime,
-    ) -> Plan | Rejected:
-        """BRAIN #1, then the check. A planner outage costs the plan, not the answer."""
-        try:
-            drafted = await self._planner.plan(message, context, now.isoformat())
-        except ServiceError:
-            return Rejected("the planner was unavailable")
-        return check(drafted, now)
 
-
-def _traced(checked: Plan | Rejected) -> dict[str, Any]:
-    return checked.summary() if isinstance(checked, Plan) else {"rejected": checked.reason}
+class PlanRejected(Exception):
+    """Why the registry would not accept a plan. The cause of the ServiceError."""
