@@ -8,6 +8,11 @@ from rockygpt_brain.brain.plan.schema import Filter, Lane, Plan
 from rockygpt_brain.capabilities.registry import capability_for
 
 _DAYS = {"today": 0, "tomorrow": 1, "yesterday": -1}
+#: The time words that name the moment every lookup already runs at. A filter
+#: asking for now, on a lookup that is already now, narrows nothing — which is
+#: the only reason one can be dropped instead of honoured. `tomorrow` is not
+#: here and must never be: dropping it would answer about today.
+_ALREADY = frozenset({"now", "today"})
 
 _STATED = re.compile(r"\s*\bas of\b.*$", re.IGNORECASE)
 
@@ -69,8 +74,9 @@ def _check_code(plan: Plan, now: datetime) -> Plan | Rejected:
         return Rejected(f"no capability named {plan.capability!r}")
 
     for item in plan.filters:
-        if item.field not in capability.filters:
-            return Rejected(f"{plan.capability} cannot be filtered by {item.field!r}")
+        if item.field in capability.filters or _asks_for_now(item):
+            continue
+        return Rejected(f"{plan.capability} cannot be filtered by {item.field!r}")
 
     operation = plan.operation
     if operation.order_by and operation.order_by not in capability.fields:
@@ -85,9 +91,42 @@ def _check_code(plan: Plan, now: datetime) -> Plan | Rejected:
     return Plan(
         lane=Lane.CODE,
         capability=plan.capability,
-        filters=[Filter(field=f.field, value=resolve(f.value, now)) for f in plan.filters],
+        filters=dated(plan.filters, capability.temporal, now),
         operation=operation,
     )
+
+
+def dated(filters: list[Filter], temporal: frozenset[str], now: datetime) -> list[Filter]:
+    """Time words turned into dates, but only on fields that hold a time.
+
+    A filter value is read against the clock where the field can hold a time,
+    and where it cannot, a filter asking for *now* is dropped.
+
+    Dropping is the only repair `validate` makes, and it is narrow on purpose.
+    Every lookup is handed the clock whether or not the question mentions it,
+    so `today` on a field that holds no time asks for exactly what is already
+    happening: it narrows nothing, and a filter that narrows nothing can go.
+    What the planner is doing there is looking for somewhere to put a word, and
+    "What's on the menu today?" planned `meal: "today"` three times in three —
+    `meal` holds BREAKFAST, LUNCH or DINNER. Dating it produced
+    `meal: "2026-08-26"`, a filter matching nothing that reads like it should.
+
+    `tomorrow` is never dropped, because it does narrow: dropping it would
+    answer about today under tomorrow's question. It stays, matches nothing,
+    and is reported as having matched nothing.
+    """
+    kept: list[Filter] = []
+    for f in filters:
+        if f.field in temporal:
+            kept.append(Filter(field=f.field, value=resolve(f.value, now)))
+        elif not _asks_for_now(f):
+            kept.append(f)
+    return kept
+
+
+def _asks_for_now(item: Filter) -> bool:
+    """Whether this filter asks for the moment the lookup already runs at."""
+    return item.value.strip().casefold() in _ALREADY
 
 
 def resolve(value: str, now: datetime) -> str:
