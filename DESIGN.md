@@ -14,7 +14,7 @@
     PYTHON          run the lane the plan names
          │          GENERAL answers from what the model knows, or from the
          │          web when the answer has a shelf life; CODE looks it up,
-         │          and `shuttle` is the only capability with an executor
+         │          using one of the registry's implemented capabilities
          ▼
     BRAIN #3        translate what came back into an answer
 ```
@@ -58,10 +58,15 @@ brain/                the four stages, in the order they run
   write/              BRAIN #3: run, prompt.md, schema
 lanes/                where an answer comes from
   code/               a capability lookup, then the plan's operation
+  rag/                cited passages from the campus document index
   general/            what the model knows, or a web search
 capabilities/         what Rocky can look up
   registry.py         the only such list, and an entry needs its code
-  shuttle/            execute and normalize
+  shuttle/            timetable filters and temporal ordering
+  dining/             today's menu items and dietary facts
+  events/             upcoming event search and chronological filtering
+  hours/              campus and dining opening hours
+  courses/            course catalog search
 safety/               the concerns, what to do about each, and applying them
 context/              the conversation, and the record of it
 services/             the outbound calls
@@ -94,9 +99,9 @@ subtracting part of a file is one more difference between what it says and what
 it does. Notes for whoever edits one live in the docstring of the module that
 loads it, where they cannot be sent by construction.
 
-A directory exists when there is code for it. There is no `lanes/rag/` and no
-`capabilities/dining/`, because an empty package claims the product does
-something it does not — which is exactly the failure the registry rule below
+A directory exists only when there is code for it. The RAG lane and the five
+current CODE capability directories therefore correspond to implementations,
+not roadmap placeholders. This is exactly the failure the registry rule below
 exists to prevent.
 
 ## The plan
@@ -202,15 +207,16 @@ without it.
 
 Two places, and they are different.
 
-A new thing Rocky can look up is an entry in `capabilities.py`. Nothing else
-changes.
+A new thing Rocky can look up gets a capability directory containing its
+executor and boundary normalization, a required entry in `capabilities/registry.py`,
+and one method on `DataPort`. The registry cannot advertise a capability
+without executable code.
 
-A capability earns an executor with an entry in `execute._EXECUTORS`, plus the
-method on `DataPort` it calls. `shuttle` is the worked example: it translates
-the plan's field names into the data service's request, and `orderBy`, `limit`
-and `count` are then applied in Python over what came back. The data service
-has its own selection vocabulary — `first`, `next`, `current` — and the
-executor never uses it, asking for everything and narrowing it here. That is
-what keeps those words out of a plan.
+Every executor translates the plan's published filter names into the data
+service's request, then the CODE lane applies `orderBy`, `limit`, and `count`
+over the records that came back. `shuttle` is the clearest example: the data
+service has its own selection vocabulary — `first`, `next`, `current` — while
+the executor asks for the full bounded set and leaves selection to the generic
+operation. That keeps service-specific verbs out of a plan.
 
 Earlier architectures are on the `backup/*` branches.

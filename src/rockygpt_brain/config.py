@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     data_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
     #: The clock the model is given. All temporal resolution happens in this zone.
     campus_timezone: str = "America/New_York"
+    #: Temporary rollout gate: keep RAG visible in traces while testing CODE alone.
+    rag_enabled: bool = False
     staging_service_token: SecretStr | None = None
     admin_api_token: SecretStr | None = None
     admin_enabled: bool = True

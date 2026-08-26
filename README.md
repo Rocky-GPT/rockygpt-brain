@@ -1,32 +1,37 @@
 # RockyGPT Brain
 
-A question goes in, an answer comes out — and a plan saying what Rocky would
-have done to look it up.
+A question goes in, an answer comes out — and a trace saying how Rocky
+understood, routed, looked up, and wrote the answer.
 
 ```text
-the question -> BRAIN #1 plans it -> PYTHON runs the lane -> BRAIN #3 answers
+the question -> BRAIN #1 understands -> BRAIN #2 plans -> PYTHON runs -> BRAIN #3 answers
 ```
 
-A plan is a lane, a capability, filters, and a generic operation — never an
-intent. Python checks it against the capability registry before it would run.
-Nothing executes a plan yet. `DESIGN.md` says where it grows.
+A plan answers two routing questions, then supplies the fields its derived
+lane needs. CODE names a capability, filters, and a generic operation — never
+an intent. Python checks it against the capability registry before running it.
+
+The implemented CODE capabilities are `shuttle`, `dining`, `events`, `hours`,
+and `courses`. RAG retrieves cited campus-document passages. GENERAL answers
+stable questions from model knowledge and searches the web for current ones.
+
+RAG is temporarily gated off by default while CODE is tested. A RAG-routed
+turn returns `RAG is working progress` without document retrieval or an answer
+model call. Set `RAG_ENABLED=true` to exercise the implemented RAG path.
 
 ## Package layout
 
 ```text
 rockygpt_brain/
 ├── api/          HTTP routes and public contracts
-├── core/
-│   ├── plan.py             the vocabulary a plan is written in
-│   ├── capabilities.py     what Rocky can look up, and with which fields
-│   ├── planner.py          BRAIN #1 — question in, plan out
-│   ├── validate.py         the check applied before a plan runs
-│   ├── execute.py          PYTHON — run the lane, apply the operations
-│   ├── model.py            BRAIN #3 — the answer call
-│   └── brain.py            the request lifecycle
-├── services/     the data service, turns, and the admin log
+├── brain/        understand, plan, execute, and write stages
+├── capabilities/ CODE registry plus one executor per capability
+├── lanes/        CODE, RAG, and GENERAL execution
+├── context/      conversation memory and trace records
+├── safety/       deterministic concern handling
+├── services/     OpenAI, campus data, document retrieval, and web ports
 ├── config.py     environment settings
-├── errors.py     shared API error
+├── errors.py     public service-error taxonomy
 └── main.py       process entry point
 ```
 

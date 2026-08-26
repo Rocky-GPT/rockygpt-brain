@@ -125,6 +125,7 @@ def create_app(
         documents_port,
         memory_store,
         config.campus_timezone,
+        config.rag_enabled,
     )
     services = AppServices(model_port, planner_port, data_port, web_port, memory_store, brain)
     started = time.monotonic()
