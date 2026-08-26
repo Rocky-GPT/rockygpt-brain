@@ -9,10 +9,11 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from rockygpt_brain.brain.execute.run import run
+from rockygpt_brain.brain.execute.schema import PAGE, Mode, present
+from rockygpt_brain.brain.plan.run import PLAN
 from rockygpt_brain.brain.plan.schema import Filter, Lane, Operation, Plan
 from rockygpt_brain.brain.plan.validate import check
 from rockygpt_brain.errors import ServiceError
-from rockygpt_brain.lanes.code.run import GROUNDING_ROWS
 from rockygpt_brain.safety.responses import CONCERNS
 from rockygpt_brain.safety.schema import Concern
 from rockygpt_brain.services.data import DataUnavailable
@@ -500,7 +501,9 @@ async def test_what_ran_is_what_brain_two_answers_from() -> None:
     execution = await run(shuttle({}, limit=1), NOW, FakeData(), FakeWeb(), FakeRag())
     assert execution.grounding() == {
         "answerFrom": "campusData",
-        # How many rows are here, so the writer is not left counting them.
+        # How much to write about each, and how many are here — so neither is
+        # left to the writer's judgement.
+        "presentation": "detailed",
         "showing": len(execution.results),
         "results": execution.results,
     }
@@ -737,26 +740,27 @@ async def test_a_plan_with_no_limit_does_not_hand_over_the_whole_table() -> None
     """
     many = [trip("Route 17", f"{n}:00 AM", "9:00 AM") for n in range(1, 10)] * 40
     execution = await run(shuttle({}), NOW, FakeData(records=many), FakeWeb(), FakeRag())
-    assert len(many) > GROUNDING_ROWS, "the fixture has to exceed the cap to test it"
-    assert len(execution.results) == GROUNDING_ROWS
+    assert len(many) > PAGE, "the fixture has to exceed a page to test it"
+    assert len(execution.results) == PAGE
 
 
-async def test_a_result_cut_to_fit_a_prompt_says_so() -> None:
-    """The cap is a fact about the model, not an answer. It must not read as one.
+async def test_a_page_of_a_result_says_what_it_is_a_page_of() -> None:
+    """A page is a fact about the message, not an answer. It must not read as one.
 
     Cutting to what the question asked for is the answer. Cutting to what fits
-    is a sample, and silently they look the same — which is how two hundred
-    rows becomes "the courses Ramapo offers".
+    is a page, and silently they look the same — which is how two hundred rows
+    becomes "the courses Ramapo offers".
     """
     many = [trip("Route 17", f"{n}:00 AM", "9:00 AM") for n in range(1, 10)] * 40
     grounding = (
         await run(shuttle({}), NOW, FakeData(records=many), FakeWeb(), FakeRag())
     ).grounding()
-    assert grounding["showing"] == GROUNDING_ROWS
+    assert grounding["presentation"] == "paginated"
+    assert grounding["showing"] == PAGE
     assert grounding["outOf"] == len(many)
 
 
-async def test_a_result_the_question_asked_for_is_not_called_a_sample() -> None:
+async def test_a_result_the_question_asked_for_is_not_called_a_page() -> None:
     """Asking for five and getting five is the whole answer, not part of one."""
     many = [trip("Route 17", f"{n}:00 AM", "9:00 AM") for n in range(1, 10)] * 40
     grounding = (
@@ -766,7 +770,7 @@ async def test_a_result_the_question_asked_for_is_not_called_a_sample() -> None:
     assert len(grounding["results"]) == 5
 
 
-async def test_a_result_that_fits_is_not_called_a_sample() -> None:
+async def test_a_result_that_fits_is_not_called_a_page() -> None:
     grounding = (await run(shuttle({}), NOW, FakeData(), FakeWeb(), FakeRag())).grounding()
     assert "outOf" not in grounding
 
@@ -776,3 +780,79 @@ async def test_a_plan_that_asks_for_a_number_gets_that_number() -> None:
     many = [trip("Route 17", f"{n}:00 AM", "9:00 AM") for n in range(1, 10)] * 40
     execution = await run(shuttle({}, limit=3), NOW, FakeData(records=many), FakeWeb(), FakeRag())
     assert len(execution.results) == 3
+
+
+# ---------------------------------------------------------------------------
+# how much of a result gets shown
+#
+# The count decides, in Python, before anything is written. Asked to judge the
+# number itself BRAIN #3 got it wrong in both directions on the same data:
+# handed a hundred rows it once wrote "I cannot provide a complete list" over a
+# result that was complete, and once described the first few and stopped
+# without saying it had. Neither is visible in the answer.
+
+
+def test_a_few_rows_are_described_one_by_one() -> None:
+    shown = present(8)
+    assert shown.mode is Mode.DETAILED
+    assert shown.page_size == 8
+    assert shown.total_pages == 1
+
+
+def test_more_than_can_be_described_becomes_a_list() -> None:
+    """Still all of them — the detail drops, not the rows."""
+    shown = present(40)
+    assert shown.mode is Mode.COMPACT
+    assert shown.page_size == 40
+    assert shown.total_pages == 1
+
+
+def test_more_than_a_message_holds_is_paged() -> None:
+    shown = present(100)
+    assert shown.mode is Mode.PAGINATED
+    assert shown.page_size == PAGE
+    assert shown.page == 1
+    assert shown.total_pages == 4
+
+
+def test_the_count_is_the_only_thing_that_decides() -> None:
+    """No capability, no phrasing, no plan — so it is the same every time.
+
+    The planner was briefly asked whether a question wanted everything in one
+    message. It came back set on "when is the next shuttle", unset on "show me
+    100 courses", and the sentence describing it cost a question it had
+    nothing to do with. Nothing about presentation is asked any more.
+    """
+    assert present(100) == present(100)
+    assert "presentation" not in PLAN, "the planner is told nothing about layout"
+
+
+def test_nothing_found_does_not_divide_by_zero() -> None:
+    assert present(0).page_size == 0
+    assert present(0).total_pages == 1
+
+
+async def test_the_plan_decides_how_many_rows_and_python_decides_the_page() -> None:
+    """The two are different questions, and the answer says both.
+
+    `limit` is what the question asked for; the page is what a message holds.
+    Asking for a hundred is answered with a hundred — shown twenty-five at a
+    time, and saying so.
+    """
+    many = [trip("Route 17", f"{n}:00 AM", "9:00 AM") for n in range(1, 10)] * 40
+    execution = await run(shuttle({}, limit=100), NOW, FakeData(records=many), FakeWeb(), FakeRag())
+    assert execution.grounding()["outOf"] == 100, "a page of the hundred asked for"
+    assert len(execution.results) == PAGE
+    assert execution.summary()["presentation"] == {
+        "mode": "paginated",
+        "page": 1,
+        "totalPages": 4,
+    }
+
+
+async def test_a_lane_that_returns_a_handful_is_told_nothing_about_layout() -> None:
+    """Five web facts do not need instructing on how to lay out a list."""
+    execution = await run(
+        general("current", "population of Paris"), NOW, FakeData(), FakeWeb(), FakeRag()
+    )
+    assert "presentation" not in execution.grounding()
