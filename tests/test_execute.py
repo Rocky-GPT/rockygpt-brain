@@ -500,6 +500,8 @@ async def test_what_ran_is_what_brain_two_answers_from() -> None:
     execution = await run(shuttle({}, limit=1), NOW, FakeData(), FakeWeb(), FakeRag())
     assert execution.grounding() == {
         "answerFrom": "campusData",
+        # How many rows are here, so the writer is not left counting them.
+        "showing": len(execution.results),
         "results": execution.results,
     }
 
@@ -628,7 +630,7 @@ async def test_a_current_question_is_answered_from_the_web() -> None:
     plan = general("current", "current population of Paris")
     execution = await run(plan, NOW, FakeData(), web, FakeRag())
     assert web.searched == "current population of Paris"
-    assert execution.grounding() == {"answerFrom": "web", "results": [FACT]}
+    assert execution.grounding() == {"answerFrom": "web", "showing": 1, "results": [FACT]}
 
 
 async def test_a_web_fact_carries_where_it_came_from() -> None:

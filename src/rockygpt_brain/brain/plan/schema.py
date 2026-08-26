@@ -65,6 +65,16 @@ class Filter(BaseModel):
     value: Text
 
 
+#: The most rows a plan may ask for, and the most that can be handed to the
+#: writer — one number because it is one constraint: what a prompt can hold.
+#:
+#: It was 50, which made "show me 100 courses" inexpressible. The planner could
+#: not say a hundred, so it said one, and the answer was "I can only provide
+#: details on one course". A bound the question cannot reach does not narrow
+#: the answer, it corrupts it.
+MOST_ROWS = 200
+
+
 class Operation(BaseModel):
     """What to do with the rows the filters leave behind.
 
@@ -76,7 +86,7 @@ class Operation(BaseModel):
 
     order_by: FieldName | None = Field(default=None, alias="orderBy")
     direction: Literal["ascending", "descending"] = "ascending"
-    limit: int | None = Field(default=None, ge=1, le=50)
+    limit: int | None = Field(default=None, ge=1, le=MOST_ROWS)
     count: bool = False
     compare: list[FieldName] = Field(default_factory=list, max_length=4)
 

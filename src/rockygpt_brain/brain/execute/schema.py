@@ -107,10 +107,15 @@ class Execution:
             return {"answerFrom": self.answer_from}
         found = [{"count": self.count}] if self.count is not None else self.results
         grounded: dict[str, Any] = {"answerFrom": self.answer_from, "results": found}
+        if found:
+            # How many rows are here, stated rather than left to be counted.
+            # Handed a hundred courses and asked for a hundred, a model counted
+            # them, got it wrong, and answered "the data does not reach that
+            # number" while holding exactly that number.
+            grounded["showing"] = len(found)
         if self.found is not None:
-            # Said outright, because the alternative is a model reading 200 rows
-            # as everything there is and writing "Ramapo offers these courses".
-            grounded["showing"] = len(self.results)
+            # And how many there were. Without it a model reads its rows as
+            # everything there is and writes "Ramapo offers these courses".
             grounded["outOf"] = self.found
         if not found and self.looked_for:
             # The one case where the rows cannot speak for themselves. Without

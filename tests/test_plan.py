@@ -13,6 +13,7 @@ import rockygpt_brain
 import rockygpt_brain.brain
 from rockygpt_brain.brain.plan.run import PLAN
 from rockygpt_brain.brain.plan.schema import (
+    MOST_ROWS,
     NOT_ASKED,
     TIME_WORDS,
     Filter,
@@ -23,6 +24,7 @@ from rockygpt_brain.brain.plan.validate import Rejected, anchor, check, resolve
 from rockygpt_brain.brain.understand.run import UNDERSTAND
 from rockygpt_brain.brain.write.run import ANSWER
 from rockygpt_brain.capabilities.registry import CAPABILITIES
+from rockygpt_brain.lanes.code.run import GROUNDING_ROWS
 from rockygpt_brain.safety.schema import Concern
 
 SOURCE = Path(rockygpt_brain.__file__).parent
@@ -420,3 +422,25 @@ def test_the_second_question_is_answered_when_the_cascade_reaches_it() -> None:
     checked = check(Plan(specific_to_ramapo=True, topic="parking"), NOW)
     assert isinstance(checked, Plan)
     assert checked.summary()["routing"] == {"CODE?": "No", "RAMAPO?": "Yes", "ROUTE": "RAG"}
+
+
+def test_a_plan_can_ask_for_as_many_rows_as_can_be_handed_over() -> None:
+    """The bound was 50, so "show me 100 courses" had no way to be expressed.
+
+    The planner could not say a hundred, so it said one, and the answer was "I
+    can only provide details on one course". A bound the question cannot reach
+    does not narrow the answer, it corrupts it.
+    """
+    schema = to_strict_json_schema(Plan)["$defs"]["Operation"]["properties"]["limit"]
+    allowed = next(one for one in schema["anyOf"] if one.get("type") == "integer")
+    assert allowed["maximum"] == MOST_ROWS
+    assert MOST_ROWS >= 100, "a question can plausibly ask for a hundred of something"
+
+
+def test_the_two_ceilings_are_one_number() -> None:
+    """What a plan may ask for and what may be handed over are one constraint.
+
+    Two numbers would let a plan ask for more than the writer can be given, and
+    the extra would vanish somewhere below without being reported.
+    """
+    assert GROUNDING_ROWS == MOST_ROWS
