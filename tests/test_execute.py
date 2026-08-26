@@ -12,6 +12,7 @@ from rockygpt_brain.brain.execute.run import run
 from rockygpt_brain.brain.plan.schema import Filter, Lane, Operation, Plan
 from rockygpt_brain.brain.plan.validate import check
 from rockygpt_brain.errors import ServiceError
+from rockygpt_brain.lanes.code.run import GROUNDING_ROWS
 from rockygpt_brain.safety.responses import CONCERNS
 from rockygpt_brain.safety.schema import Concern
 from rockygpt_brain.services.data import DataUnavailable
@@ -513,9 +514,14 @@ async def test_looking_and_finding_none_is_not_the_same_as_not_looking() -> None
     )
     assert "results" not in never_looked.summary()
 
-    assert found_none.grounding() == {"answerFrom": "campusData", "results": []}, (
-        "the lookup ran and matched nothing"
-    )
+    assert found_none.grounding() == {
+        "answerFrom": "campusData",
+        "results": [],
+        # Without this, "there are none" has no subject and the answer that
+        # comes back is "no information" — Rocky not knowing, rather than
+        # there being none.
+        "lookedFor": {"capability": "shuttle", "filters": {}},
+    }, "the lookup ran and matched nothing"
     assert never_looked.grounding() == {"answerFrom": "ownKnowledge"}
 
 
@@ -718,3 +724,23 @@ async def test_the_fetch_asks_for_no_more_than_the_service_accepts() -> None:
     data = FakeData()
     await run(shuttle({}), NOW, data, FakeWeb(), FakeRag())
     assert data.query["limit"] <= 100
+
+
+async def test_a_plan_with_no_limit_does_not_hand_over_the_whole_table() -> None:
+    """The data service returns everything now; a prompt cannot take everything.
+
+    "What courses does Ramapo offer" pulled 3,344 catalogue entries — three
+    megabytes — into the answer call and failed the turn. A list answer was
+    never going to read out three thousand rows.
+    """
+    many = [trip("Route 17", f"{n}:00 AM", "9:00 AM") for n in range(1, 10)] * 40
+    execution = await run(shuttle({}), NOW, FakeData(records=many), FakeWeb(), FakeRag())
+    assert len(many) > GROUNDING_ROWS, "the fixture has to exceed the cap to test it"
+    assert len(execution.results) == GROUNDING_ROWS
+
+
+async def test_a_plan_that_asks_for_a_number_gets_that_number() -> None:
+    """Deciding how much of a result to use is the plan's job. This is a fallback."""
+    many = [trip("Route 17", f"{n}:00 AM", "9:00 AM") for n in range(1, 10)] * 40
+    execution = await run(shuttle({}, limit=3), NOW, FakeData(records=many), FakeWeb(), FakeRag())
+    assert len(execution.results) == 3
