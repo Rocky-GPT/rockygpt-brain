@@ -6,6 +6,8 @@ import re
 from datetime import date, datetime, time
 from typing import Any
 
+from rockygpt_brain.capabilities.narrow import holds
+
 _CLOCK = re.compile(r"^(\d{1,2})(?::(\d{2}))?\s*([AaPp])")
 
 
@@ -78,7 +80,7 @@ def query(filters: dict[str, str], now: datetime) -> dict[str, str]:
 
 def matches(record: dict[str, Any], filters: dict[str, str]) -> bool:
     if name := filters.get("name"):
-        if name.casefold() not in _text(record, "name").casefold():
+        if not holds(_text(record, "name"), name):
             return False
     # With no named venue, `openAt` means "which places are open?" A named
     # venue keeps its row even when closed, because that negative answer is the

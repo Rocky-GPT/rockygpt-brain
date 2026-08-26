@@ -96,20 +96,17 @@ CAPABILITIES: dict[str, Capability] = {
         sort=events_normalize.SORT,
     ),
     "hours": Capability(
-        describes=(
-            "opening hours and open/closed status for campus facilities and dining venues"
-        ),
+        describes=("opening hours and open/closed status for campus facilities and dining venues"),
         filters=frozenset({"name", "kind", "date", "day", "openAt"}),
-        fields=frozenset(
-            {"name", "kind", "day", "schedule", "openNow", "opensAt", "closesAt"}
-        ),
+        fields=frozenset({"name", "kind", "day", "schedule", "openNow", "opensAt", "closesAt"}),
         execute=hours.run,
         read=hours_normalize.FIELDS,
         sort=hours_normalize.SORT,
     ),
     "courses": Capability(
         describes=(
-            "individual course catalog entries: codes, titles, descriptions, credits, and attributes"
+            "individual course catalog entries: codes, titles, descriptions, "
+            "credits, and attributes"
         ),
         filters=frozenset({"code", "subject", "name", "attribute"}),
         fields=frozenset({"code", "name", "description", "credits", "attributes", "courseUrl"}),

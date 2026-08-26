@@ -72,6 +72,24 @@ class FakeData:
     async def courses(self, query: dict[str, str]) -> list[dict[str, Any]]:
         return await self.dining(query)
 
+    async def transportation(self, query: dict[str, Any]) -> list[dict[str, Any]]:
+        return await self.shuttle(query)
+
+    async def calendar(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return await self.dining(query)
+
+    async def clubs(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return await self.dining(query)
+
+    async def directory(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return await self.dining(query)
+
+    async def locations(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return await self.dining(query)
+
+    async def programs(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return await self.dining(query)
+
 
 class FakeRag:
     """Retrieval, faked. The real index is early; the lane must not care."""

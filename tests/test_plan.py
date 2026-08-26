@@ -87,9 +87,7 @@ def test_a_capability_with_no_code_behind_it_is_rejected_before_it_can_fail() ->
 
 
 def test_dining_accepts_only_its_published_filters_and_fields() -> None:
-    checked = check(
-        code("dining", {"meal": "LUNCH", "dietary": "vegan"}, order_by="calories"), NOW
-    )
+    checked = check(code("dining", {"meal": "LUNCH", "dietary": "vegan"}, order_by="calories"), NOW)
     assert isinstance(checked, Plan)
     assert checked.filter_values == {"meal": "LUNCH", "dietary": "vegan"}
     assert isinstance(check(code("dining", {"date": "today"}), NOW), Rejected)

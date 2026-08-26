@@ -6,6 +6,8 @@ import re
 from datetime import date, datetime
 from typing import Any
 
+from rockygpt_brain.capabilities.narrow import holds
+
 _DATE_FORMATS = ("%a, %b %d, %Y", "%b %d, %Y", "%Y-%m-%d")
 _CLOCK = re.compile(r"^(\d{1,2})(?::(\d{2}))?\s*([AaPp])")
 
@@ -68,10 +70,10 @@ def query(filters: dict[str, str], now: datetime) -> dict[str, str]:
 
 def matches(record: dict[str, Any], filters: dict[str, str], now: datetime) -> bool:
     if title := filters.get("title"):
-        if title.casefold() not in _text(record, "title").casefold():
+        if not holds(_text(record, "title"), title):
             return False
     if organizer := filters.get("organizer"):
-        if organizer.casefold() not in _text(record, "organizer").casefold():
+        if not holds(_text(record, "organizer"), organizer):
             return False
     if wanted := filters.get("date"):
         try:
