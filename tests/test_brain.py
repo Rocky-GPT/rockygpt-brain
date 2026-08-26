@@ -30,6 +30,7 @@ from rockygpt_brain.brain.execute.schema import (
 )
 from rockygpt_brain.brain.plan.schema import (
     Filter,
+    Lane,
     Operation,
     Plan,
 )
@@ -681,3 +682,36 @@ async def test_only_the_documents_lane_is_held_to_this_yet() -> None:
         ChatRequest(message="anything", now=NOW), TurnIdentity("r1", "s", None, "client")
     )
     assert response.answer == "written", "the general lane is unchanged for now"
+
+
+async def test_a_narrowing_that_matched_nothing_is_not_reported_as_nothing_existing() -> None:
+    """The sentence is Python's, because told to write it BRAIN #3 denied the thing.
+
+    `subject: "CS"` matched no courses — the catalogue files them under CMPS —
+    and five answers in six came back saying there are no computer science
+    courses, over sixty-three of them. There are no rows to write about, so
+    taking the sentence away from BRAIN #3 costs nothing.
+    """
+    narrowed = Plan(
+        a_capability_answers_it=True,
+        lane=Lane.CODE,
+        capability="courses",
+        filters=[Filter(field="subject", value="CS")],
+        operation=Operation(limit=5),
+    )
+    response, _ = await ask(planner=FakePlanner(plan=narrowed))
+    assert "no computer science" not in response.answer.lower()
+    assert "subject" in response.answer and "CS" in response.answer, "it names what was searched"
+    assert "not the same as there being none" in response.answer
+
+
+async def test_an_unnarrowed_lookup_that_found_nothing_is_still_the_model_to_answer() -> None:
+    """ "There are none left today" is a real answer and must not be taken away."""
+    whole = Plan(
+        a_capability_answers_it=True,
+        lane=Lane.CODE,
+        capability="courses",
+        operation=Operation(limit=5),
+    )
+    response, _ = await ask(planner=FakePlanner(plan=whole))
+    assert response.answer == "written", "BRAIN #3 still writes it"

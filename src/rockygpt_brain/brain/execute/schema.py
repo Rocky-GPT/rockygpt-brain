@@ -31,6 +31,26 @@ INSUFFICIENT_EVIDENCE = (
 )
 
 
+def nothing_matched(looked_for: dict[str, Any]) -> str:
+    """What Rocky says when a narrowed lookup came back empty.
+
+    Python's words for the same reason as the sentence above: this one must not
+    drift, and told the same thing in a prompt the model said it four ways in
+    six, five of which denied the thing exists. "There are no computer science
+    courses listed in the current database" was written over a catalogue
+    holding sixty-three, because the filter said `CS` and the records say
+    `CMPS`. An empty result is a fact about the search, and only an unnarrowed
+    lookup makes it a fact about Ramapo.
+    """
+    filters = looked_for.get("filters") or {}
+    asked = " and ".join(f"{name} “{value}”" for name, value in filters.items())
+    return (
+        f"Nothing in Rocky's {looked_for.get('capability', 'campus')} records matched "
+        f"{asked}. That is not the same as there being none — the records may file it "
+        "under another name. It is worth asking again with a different word for it."
+    )
+
+
 class Mode(StrEnum):
     """How much to write about each row."""
 
@@ -100,6 +120,30 @@ def present(rows: int) -> Presentation:
 
 
 @dataclass(frozen=True, slots=True)
+class Ordering:
+    """What order the rows are in, when a sort put them in one.
+
+    Sorting is not ranking, and nothing Rocky holds can tell the two apart on
+    its own. Not one field any capability can sort by is a judgement — they are
+    names, codes, dates, times, categories, credits, calories — so the first
+    row of a sorted result is the earliest or the smallest, never the best.
+
+    Asked for "the top CS courses", BRAIN #2 has no way to say there is no such
+    ordering; it picks a field and sorts by it, which is a reasonable thing to
+    do with rows. What it cannot do is stop that from arriving at BRAIN #3 as
+    ten courses in an order, indistinguishable from ten courses in merit order.
+    This is what says which — and it is set only when a sort actually ran, so
+    the rows the service happened to return are never described as ordered.
+    """
+
+    by: str
+    direction: str
+
+    def summary(self) -> dict[str, str]:
+        return {"by": self.by, "direction": self.direction}
+
+
+@dataclass(frozen=True, slots=True)
 class Execution:
     #: No lane here. The plan stage above already names it, and repeating it
     #: only invites the two to disagree. What this stage adds is where the
@@ -123,6 +167,8 @@ class Execution:
     #: with a few passages, and telling BRAIN #3 how to lay out five things is
     #: an instruction it does not need.
     shown: Presentation | None = None
+    #: What order the rows are in, set only when a sort ran.
+    ordering: Ordering | None = None
 
     @property
     def ran(self) -> bool:
@@ -166,6 +212,8 @@ class Execution:
             summarised["outOf"] = self.found
         # Nothing to lay out, nothing to say about laying it out. An empty
         # result is already an answer on its own terms.
+        if self.ordering is not None and self.results:
+            summarised["ordering"] = self.ordering.summary()
         if self.shown is not None and self.results:
             summarised["presentation"] = self.shown.summary()
         summarised["results"] = self.results
@@ -188,6 +236,11 @@ class Execution:
             return {"answerFrom": self.answer_from}
         found = [{"count": self.count}] if self.count is not None else self.results
         grounded: dict[str, Any] = {"answerFrom": self.answer_from, "results": found}
+        if self.ordering is not None and found:
+            # What order they are in, so it is not left to be inferred from
+            # the rows. Handed a sorted list and asked which are best, a model
+            # answers with the first few and calls them the best.
+            grounded["ordering"] = self.ordering.summary()
         if self.shown is not None and found:
             # How much to write about each row — decided from how many there
             # are, before anything was written, because left to judge the
@@ -208,5 +261,15 @@ class Execution:
             # this the honest answer — "there are none left today" — is not
             # available, and what comes back instead is "no information", which
             # says Rocky does not know rather than that there are none.
-            grounded["lookedFor"] = self.looked_for
+            #
+            # Which of the two it is, under different names, because it is the
+            # difference between a true sentence and a false one and a model
+            # will not draw it from one name. An unnarrowed lookup lists
+            # everything there is, so nothing coming back means there are
+            # none. A narrowed one means nothing matched the narrowing —
+            # `subject: "CS"` found no courses because the catalogue calls it
+            # CMPS, and the answer was "there are no computer science courses
+            # listed in the campus data" over sixty-three of them.
+            narrowed = bool(self.looked_for.get("filters"))
+            grounded["matchedNothing" if narrowed else "foundNoneOf"] = self.looked_for
         return grounded

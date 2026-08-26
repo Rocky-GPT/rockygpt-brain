@@ -12,7 +12,12 @@ from dataclasses import replace
 from datetime import datetime
 from typing import Any
 
-from rockygpt_brain.brain.execute.schema import CAMPUS_DATA, Execution, present
+from rockygpt_brain.brain.execute.schema import (
+    CAMPUS_DATA,
+    Execution,
+    Ordering,
+    present,
+)
 from rockygpt_brain.brain.plan.schema import Operation, Plan
 from rockygpt_brain.capabilities.registry import capability_for
 from rockygpt_brain.errors import DatasetUnavailable, Unsupported
@@ -65,10 +70,15 @@ def apply(records: list[dict[str, Any]], operation: Operation, capability: str) 
         raise Unsupported("Rocky cannot look that up yet.") from LaneFailed(
             f"no capability named {capability!r}"
         )
+    ordering = None
     if operation.order_by:
         key = entry.sort.get(operation.order_by) or entry.read.get(operation.order_by)
         if key is not None:
             rows.sort(key=key, reverse=operation.direction == "descending")
+            # Recorded only where the sort actually happened. A plan naming a
+            # field nothing can sort by leaves the rows as the service returned
+            # them, and calling that an ordering would be inventing one.
+            ordering = Ordering(operation.order_by, operation.direction)
     if operation.count:
         # Counted before the limit: the answer is how many matched, not how
         # many were kept.
@@ -82,6 +92,7 @@ def apply(records: list[dict[str, Any]], operation: Operation, capability: str) 
         results=page,
         found=len(rows) if len(rows) > len(page) else None,
         shown=shown,
+        ordering=ordering,
     )
 
 

@@ -13,6 +13,8 @@ from rockygpt_brain.brain.execute.schema import PAGE, Mode, present
 from rockygpt_brain.brain.plan.run import PLAN
 from rockygpt_brain.brain.plan.schema import Filter, Lane, Operation, Plan
 from rockygpt_brain.brain.plan.validate import check
+from rockygpt_brain.capabilities.registry import CAPABILITIES
+from rockygpt_brain.capabilities.transportation.normalize import instant
 from rockygpt_brain.errors import ServiceError
 from rockygpt_brain.safety.responses import CONCERNS
 from rockygpt_brain.safety.schema import Concern
@@ -524,8 +526,9 @@ async def test_looking_and_finding_none_is_not_the_same_as_not_looking() -> None
         "results": [],
         # Without this, "there are none" has no subject and the answer that
         # comes back is "no information" — Rocky not knowing, rather than
-        # there being none.
-        "lookedFor": {"capability": "shuttle", "filters": {}},
+        # there being none. Nothing was narrowed, so this listing was
+        # everything there is and "there are none" is the honest reading.
+        "foundNoneOf": {"capability": "shuttle", "filters": {}},
     }, "the lookup ran and matched nothing"
     assert never_looked.grounding() == {"answerFrom": "ownKnowledge"}
 
@@ -856,3 +859,132 @@ async def test_a_lane_that_returns_a_handful_is_told_nothing_about_layout() -> N
         general("current", "population of Paris"), NOW, FakeData(), FakeWeb(), FakeRag()
     )
     assert "presentation" not in execution.grounding()
+
+
+# ---------------------------------------------------------------------------
+# sorting is not ranking
+#
+# Not one field any capability can sort by is a judgement — they are names,
+# codes, dates, times, categories, credits, calories. So "what are the best
+# clubs at Ramapo" came back sorted by name and was written up as "here are
+# some of the best clubs at Ramapo: #WeAreRCNJ", which is alphabetical order
+# wearing a superlative. What the rows are in has to reach BRAIN #3 as a fact,
+# because inferred from the rows alone it is indistinguishable from merit.
+
+
+async def test_a_sorted_result_says_what_it_is_sorted_by() -> None:
+    execution = await run(
+        shuttle({}, order_by="departureTime", direction="descending"),
+        NOW,
+        FakeData(),
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert execution.grounding()["ordering"] == {
+        "by": "departureTime",
+        "direction": "descending",
+    }
+
+
+async def test_an_unsorted_result_is_not_described_as_ordered() -> None:
+    """Whatever order the service returned is not an order Rocky chose."""
+    execution = await run(shuttle({}), NOW, FakeData(), FakeWeb(), FakeRag())
+    assert "ordering" not in execution.grounding()
+    assert "ordering" not in execution.summary()
+
+
+async def test_a_sort_that_could_not_run_is_not_reported_as_one() -> None:
+    """A field nothing can sort by leaves the rows as they came back.
+
+    Reporting an ordering there would be inventing one, which is the whole
+    thing this is here to stop.
+    """
+    execution = await run(
+        code("directory", {}, order_by="name"), NOW, FakeData(), FakeWeb(), FakeRag()
+    )
+    ordered = await run(
+        code("directory", {}, order_by="office"), NOW, FakeData(), FakeWeb(), FakeRag()
+    )
+    assert execution.grounding()["ordering"] == {"by": "name", "direction": "ascending"}
+    assert ordered.grounding()["ordering"] == {"by": "office", "direction": "ascending"}
+
+
+def test_no_capability_can_sort_by_anything_that_ranks() -> None:
+    """The premise the writer instruction rests on, held to by a test.
+
+    If a rating or an enrolment count is ever added to a capability's `sort`,
+    "these are not ranked" stops being true and the instruction has to change
+    with it. Nothing else would notice.
+    """
+    ranks = {"rating", "rank", "score", "popularity", "enrollment", "enrolment", "reviews"}
+    for name, entry in CAPABILITIES.items():
+        assert not ranks & set(entry.sort), f"{name} can sort by a ranking now"
+
+
+async def test_a_narrowed_lookup_that_finds_nothing_does_not_deny_the_thing_exists() -> None:
+    """ "There are no computer science courses" was said over sixty-three of them.
+
+    `subject: "CS"` matched nothing because the catalogue calls the subject
+    CMPS, and an empty result from a narrowing that did not fit its data is
+    indistinguishable, at BRAIN #3, from an empty result meaning there are
+    none. Under one name it read the second way, and the answer denied the
+    existence of a whole department.
+    """
+    narrowed = await run(
+        shuttle({"route": "Route 17"}), NOW, FakeData(records=[]), FakeWeb(), FakeRag()
+    )
+    grounding = narrowed.grounding()
+    assert "foundNoneOf" not in grounding, "nothing licenses saying there are none"
+    assert grounding["matchedNothing"] == {
+        "capability": "shuttle",
+        "filters": {"route": "Route 17"},
+    }
+
+
+async def test_an_unnarrowed_lookup_that_finds_nothing_does_say_there_are_none() -> None:
+    """The distinction has to cut both ways or it is just a hedge.
+
+    Nothing was narrowed, so the lookup listed everything there is. "There are
+    none left today" is the useful answer and must stay available.
+    """
+    whole = await run(shuttle({}), NOW, FakeData(records=[]), FakeWeb(), FakeRag())
+    assert "matchedNothing" not in whole.grounding()
+    assert whole.grounding()["foundNoneOf"] == {"capability": "shuttle", "filters": {}}
+
+
+# ---------------------------------------------------------------------------
+# a clock time is not a timestamp
+
+
+def test_a_clock_time_becomes_a_timestamp_on_todays_date() -> None:
+    """The shuttle service 400s an `asOf` without a date and a timezone.
+
+    `departingAfter: "3:00 PM"` is what a plan says when someone asks about a
+    shuttle at three, and it went to the service as "3:00 PM". Every question
+    with a time in it died as "Rocky could not reach campus data just now" —
+    an outage message for a bug that was entirely ours.
+    """
+    for value in ("15:00", "3:00 PM", "3pm", "9:30 a.m.", "9:30 A.M."):
+        stamped = datetime.fromisoformat(instant(value, NOW))
+        assert stamped.date() == NOW.date()
+        assert stamped.tzinfo is not None, "the service requires an explicit zone"
+    assert instant("15:00", NOW).startswith("2031-03-06T15:00")
+    assert instant("3pm", NOW) == instant("15:00", NOW)
+
+
+def test_a_value_that_already_carries_a_date_is_left_alone() -> None:
+    """A plan that did say a date must not be overwritten with today's.
+
+    Time words are resolved to a full timestamp upstream in `validate`, so what
+    arrives here is already dated and has to pass through untouched.
+    """
+    dated = "2031-01-02T09:00:00-05:00"
+    assert instant(dated, NOW) == dated
+    assert instant("noon", NOW) == "noon", "not a clock time, and not this to guess at"
+
+
+async def test_a_question_with_a_time_in_it_reaches_the_service() -> None:
+    execution = await run(
+        shuttle({"departingAfter": "3:00 PM"}), NOW, FakeData(), FakeWeb(), FakeRag()
+    )
+    assert execution.answer_from == "campusData"
