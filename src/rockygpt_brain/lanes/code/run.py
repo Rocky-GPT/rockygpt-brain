@@ -37,11 +37,12 @@ async def run(checked: Plan, now: datetime, data: DataPort) -> Execution:
     except DataUnavailable as exc:
         raise DatasetUnavailable("Rocky could not reach campus data just now.") from exc
 
-    results, count = apply(records, checked.operation, capability)
+    results, count, found = apply(records, checked.operation, capability)
     return Execution(
         CAMPUS_DATA,
         results=results,
         count=count,
+        found=found,
         looked_for={"capability": capability, "filters": checked.filter_values},
     )
 
@@ -63,8 +64,18 @@ GROUNDING_ROWS = 200
 
 def apply(
     records: list[dict[str, Any]], operation: Operation, capability: str
-) -> tuple[list[dict[str, Any]], int | None]:
-    """`orderBy`, `limit` and `count`, over whatever the lookup returned."""
+) -> tuple[list[dict[str, Any]], int | None, int | None]:
+    """`orderBy`, `limit` and `count`, over whatever the lookup returned.
+
+    Returns the rows, the count if one was asked for, and — only when the
+    grounding cap cut the result — how many there were before it did.
+
+    That third value is the whole point of the cap being honest. `limit` is
+    what the question asked for, and a result cut to it is the answer. The
+    grounding cap is not: it is a fact about how much a model can be handed,
+    and a result cut to it is a sample. Silently they look identical, which is
+    how "200 rows" becomes "the courses Ramapo offers".
+    """
     rows = list(records)
     entry = capability_for(capability)
     if entry is None:
@@ -78,9 +89,14 @@ def apply(
     if operation.count:
         # Counted before the limit: the answer is how many matched, not how
         # many were kept.
-        return [], len(rows)
-    rows = rows[: operation.limit if operation.limit is not None else GROUNDING_ROWS]
-    return [project(row, capability) for row in rows], None
+        return [], len(rows), None
+    if operation.limit is not None:
+        # What the question asked for. Cutting to it is the answer, not a
+        # sample of one, so nothing is reported as missing.
+        return [project(row, capability) for row in rows[: operation.limit]], None, None
+    kept = rows[:GROUNDING_ROWS]
+    found = len(rows) if len(rows) > len(kept) else None
+    return [project(row, capability) for row in kept], None, found
 
 
 def project(record: dict[str, Any], capability: str) -> dict[str, Any]:
