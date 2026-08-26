@@ -42,6 +42,11 @@ class Execution:
     #: because an empty list on its own cannot be read: "there are none" is
     #: unanswerable without none *of what*. With rows, they say it themselves.
     looked_for: dict[str, Any] = field(default_factory=dict)
+    #: How many rows the lookup found, set only when more were found than were
+    #: handed on. A result cut to what the question asked for is the answer; a
+    #: result cut to fit a prompt is a sample of one, and the difference has to
+    #: survive as far as whoever writes the sentence.
+    found: int | None = None
 
     @property
     def ran(self) -> bool:
@@ -67,6 +72,9 @@ class Execution:
         ``{"answerFrom": "campusData", "count": n}``     it ran and counted
         ``{"answerFrom": "campusData", "results": []}``  it ran and matched none
 
+        A result too large to hand to a model carries ``showing`` and ``outOf``
+        as well, so a sample never reads as the whole of it.
+
         Do not drop ``results`` when it is empty. "Rocky looked and there is
         nothing" and "Rocky never looked" are different answers, and the empty
         list is what says which.
@@ -75,7 +83,12 @@ class Execution:
             return {"answerFrom": self.answer_from, "note": self.note}
         if self.count is not None:
             return {"answerFrom": self.answer_from, "count": self.count}
-        return {"answerFrom": self.answer_from, "results": self.results}
+        summarised: dict[str, Any] = {"answerFrom": self.answer_from}
+        if self.found is not None:
+            summarised["showing"] = len(self.results)
+            summarised["outOf"] = self.found
+        summarised["results"] = self.results
+        return summarised
 
     def grounding(self) -> dict[str, Any]:
         """What BRAIN #3 answers from. Every lane produces one; none is empty.
@@ -94,6 +107,11 @@ class Execution:
             return {"answerFrom": self.answer_from}
         found = [{"count": self.count}] if self.count is not None else self.results
         grounded: dict[str, Any] = {"answerFrom": self.answer_from, "results": found}
+        if self.found is not None:
+            # Said outright, because the alternative is a model reading 200 rows
+            # as everything there is and writing "Ramapo offers these courses".
+            grounded["showing"] = len(self.results)
+            grounded["outOf"] = self.found
         if not found and self.looked_for:
             # The one case where the rows cannot speak for themselves. Without
             # this the honest answer — "there are none left today" — is not

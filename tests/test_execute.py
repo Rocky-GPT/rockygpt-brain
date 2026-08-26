@@ -739,6 +739,36 @@ async def test_a_plan_with_no_limit_does_not_hand_over_the_whole_table() -> None
     assert len(execution.results) == GROUNDING_ROWS
 
 
+async def test_a_result_cut_to_fit_a_prompt_says_so() -> None:
+    """The cap is a fact about the model, not an answer. It must not read as one.
+
+    Cutting to what the question asked for is the answer. Cutting to what fits
+    is a sample, and silently they look the same — which is how two hundred
+    rows becomes "the courses Ramapo offers".
+    """
+    many = [trip("Route 17", f"{n}:00 AM", "9:00 AM") for n in range(1, 10)] * 40
+    grounding = (
+        await run(shuttle({}), NOW, FakeData(records=many), FakeWeb(), FakeRag())
+    ).grounding()
+    assert grounding["showing"] == GROUNDING_ROWS
+    assert grounding["outOf"] == len(many)
+
+
+async def test_a_result_the_question_asked_for_is_not_called_a_sample() -> None:
+    """Asking for five and getting five is the whole answer, not part of one."""
+    many = [trip("Route 17", f"{n}:00 AM", "9:00 AM") for n in range(1, 10)] * 40
+    grounding = (
+        await run(shuttle({}, limit=5), NOW, FakeData(records=many), FakeWeb(), FakeRag())
+    ).grounding()
+    assert "outOf" not in grounding
+    assert len(grounding["results"]) == 5
+
+
+async def test_a_result_that_fits_is_not_called_a_sample() -> None:
+    grounding = (await run(shuttle({}), NOW, FakeData(), FakeWeb(), FakeRag())).grounding()
+    assert "outOf" not in grounding
+
+
 async def test_a_plan_that_asks_for_a_number_gets_that_number() -> None:
     """Deciding how much of a result to use is the plan's job. This is a fallback."""
     many = [trip("Route 17", f"{n}:00 AM", "9:00 AM") for n in range(1, 10)] * 40
