@@ -38,7 +38,27 @@ async def run(checked: Plan, now: datetime, data: DataPort) -> Execution:
         raise DatasetUnavailable("Rocky could not reach campus data just now.") from exc
 
     results, count = apply(records, checked.operation, capability)
-    return Execution(CAMPUS_DATA, results=results, count=count)
+    return Execution(
+        CAMPUS_DATA,
+        results=results,
+        count=count,
+        looked_for={"capability": capability, "filters": checked.filter_values},
+    )
+
+
+#: How many rows reach BRAIN #3 when the plan asks for no particular number.
+#:
+#: The data service will hand over its whole table now, which is right for
+#: something browsing the data and wrong for something writing a sentence: the
+#: course catalogue is 3,344 entries and three megabytes, and a question like
+#: "what courses does Ramapo offer" put all of it in the prompt and failed the
+#: turn outright. A list answer was never going to read out three thousand
+#: rows, so this is the point past which more rows stop improving the answer.
+#:
+#: Only applies when the plan named no `limit`. A plan that asks for a number
+#: gets that number — deciding how much of a result to use is its job, and this
+#: is only the fallback for when it did not say.
+GROUNDING_ROWS = 200
 
 
 def apply(
@@ -59,8 +79,7 @@ def apply(
         # Counted before the limit: the answer is how many matched, not how
         # many were kept.
         return [], len(rows)
-    if operation.limit is not None:
-        rows = rows[: operation.limit]
+    rows = rows[: operation.limit if operation.limit is not None else GROUNDING_ROWS]
     return [project(row, capability) for row in rows], None
 
 

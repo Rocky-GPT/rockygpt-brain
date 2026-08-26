@@ -38,6 +38,10 @@ class Execution:
     note: str = ""
     results: list[dict[str, Any]] = field(default_factory=list)
     count: int | None = None
+    #: What the lookup asked for. Only sent on when it came back with nothing,
+    #: because an empty list on its own cannot be read: "there are none" is
+    #: unanswerable without none *of what*. With rows, they say it themselves.
+    looked_for: dict[str, Any] = field(default_factory=dict)
 
     @property
     def ran(self) -> bool:
@@ -89,4 +93,11 @@ class Execution:
         if not self.ran:
             return {"answerFrom": self.answer_from}
         found = [{"count": self.count}] if self.count is not None else self.results
-        return {"answerFrom": self.answer_from, "results": found}
+        grounded: dict[str, Any] = {"answerFrom": self.answer_from, "results": found}
+        if not found and self.looked_for:
+            # The one case where the rows cannot speak for themselves. Without
+            # this the honest answer — "there are none left today" — is not
+            # available, and what comes back instead is "no information", which
+            # says Rocky does not know rather than that there are none.
+            grounded["lookedFor"] = self.looked_for
+        return grounded

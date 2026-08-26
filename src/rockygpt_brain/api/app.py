@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Annotated, Literal
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -30,10 +31,18 @@ from rockygpt_brain.brain.brain import Brain, TurnIdentity
 from rockygpt_brain.brain.plan.run import OpenAIPlan, PlanPort
 from rockygpt_brain.brain.understand.run import OpenAIUnderstand, UnderstandPort
 from rockygpt_brain.brain.write.run import OpenAIWrite, WritePort
+from rockygpt_brain.capabilities.registry import CAPABILITIES, catalogue
 from rockygpt_brain.config import Settings, get_settings
 from rockygpt_brain.context.memory import MemoryStore
-from rockygpt_brain.errors import BadRequest, Internal, ServiceError, Unauthorized
-from rockygpt_brain.services.data import DataPort, HttpData
+from rockygpt_brain.errors import (
+    BadRequest,
+    DatasetUnavailable,
+    Internal,
+    ServiceError,
+    Unauthorized,
+)
+from rockygpt_brain.lanes.code.run import project
+from rockygpt_brain.services.data import DataPort, DataUnavailable, HttpData
 from rockygpt_brain.services.rag.client import HttpRag, RagPort
 from rockygpt_brain.services.web import OpenAIWeb, WebPort
 
@@ -202,6 +211,48 @@ def create_app(
             timestamp=datetime.now(UTC),
         )
         return _json(result, 503 if failing else 200)
+
+    @app.get("/v1/capabilities")
+    async def capabilities() -> Response:
+        """What Rocky can look up, exactly as the planner is shown it.
+
+        The same `catalogue()` that goes into BRAIN #2's payload, so what a
+        reader sees here is what the planner had to choose from — not a
+        description of it kept in step by hand. An entry exists only when
+        there is code behind it, so this is also the list of lookups that can
+        actually run.
+        """
+        return _json({"capabilities": catalogue()}, 200)
+
+    @app.get("/v1/capabilities/{name}/records")
+    async def capability_records(name: str) -> Response:
+        """Everything a capability returns when nothing narrows it.
+
+        The same executor a turn would run, with no filters — so what a reader
+        sees is what Rocky would have to answer from, not a separate view of
+        the data that could disagree with it. Records are cut to the fields the
+        capability publishes, for the same reason: a field not listed there
+        never reaches an answer, so showing it would overstate what Rocky knows.
+        """
+        entry = CAPABILITIES.get(name)
+        if entry is None:
+            raise BadRequest(f"There is no {name!r} capability.")
+        now = datetime.now(UTC).astimezone(ZoneInfo(config.campus_timezone))
+        try:
+            records = await entry.execute({}, now, data_port)
+        except DataUnavailable as exc:
+            raise DatasetUnavailable("Rocky could not reach campus data just now.") from exc
+        # Everything the lookup returned, uncut. Something browsing the data
+        # wants all of it; the cap that matters is the one on what reaches a
+        # prompt, and that lives in the lane where the answer is written.
+        return _json(
+            {
+                "capability": name,
+                "returned": len(records),
+                "records": [project(record, name) for record in records],
+            },
+            200,
+        )
 
     @app.post("/v1/chat", response_model=ChatSuccess, response_model_by_alias=True)
     async def chat(
