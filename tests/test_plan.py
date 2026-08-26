@@ -11,6 +11,7 @@ from openai.lib._pydantic import to_strict_json_schema
 
 import rockygpt_brain
 import rockygpt_brain.brain
+from rockygpt_brain.brain.execute.schema import COMPACT_UP_TO, present
 from rockygpt_brain.brain.plan.run import PLAN
 from rockygpt_brain.brain.plan.schema import (
     MOST_ROWS,
@@ -24,7 +25,6 @@ from rockygpt_brain.brain.plan.validate import Rejected, anchor, check, resolve
 from rockygpt_brain.brain.understand.run import UNDERSTAND
 from rockygpt_brain.brain.write.run import ANSWER
 from rockygpt_brain.capabilities.registry import CAPABILITIES
-from rockygpt_brain.lanes.code.run import GROUNDING_ROWS
 from rockygpt_brain.safety.schema import Concern
 
 SOURCE = Path(rockygpt_brain.__file__).parent
@@ -437,10 +437,12 @@ def test_a_plan_can_ask_for_as_many_rows_as_can_be_handed_over() -> None:
     assert MOST_ROWS >= 100, "a question can plausibly ask for a hundred of something"
 
 
-def test_the_two_ceilings_are_one_number() -> None:
-    """What a plan may ask for and what may be handed over are one constraint.
+def test_the_largest_result_a_plan_may_ask_for_still_fits_one_message() -> None:
+    """The plan's ceiling no longer has to be small enough to be a prompt's.
 
-    Two numbers would let a plan ask for more than the writer can be given, and
-    the extra would vanish somewhere below without being reported.
+    It was: `limit` was bounded by what could be handed over, so the two moved
+    together and "show me a hundred" was inexpressible because a hundred rows
+    was too much to send. Paging separates them. A plan may ask for two hundred
+    rows and BRAIN #3 still receives a page of them.
     """
-    assert GROUNDING_ROWS == MOST_ROWS
+    assert present(MOST_ROWS).page_size <= COMPACT_UP_TO

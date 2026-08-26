@@ -65,13 +65,17 @@ class Filter(BaseModel):
     value: Text
 
 
-#: The most rows a plan may ask for, and the most that can be handed to the
-#: writer — one number because it is one constraint: what a prompt can hold.
+#: The most rows a plan may ask for.
 #:
 #: It was 50, which made "show me 100 courses" inexpressible. The planner could
 #: not say a hundred, so it said one, and the answer was "I can only provide
 #: details on one course". A bound the question cannot reach does not narrow
 #: the answer, it corrupts it.
+#:
+#: It is not what protects the prompt any more, and no longer has to be small
+#: enough to be. A result larger than a page is paged — `execute.present`
+#: decides that — so what reaches BRAIN #3 is one page however much was asked
+#: for. The two were one number only while there was nothing between them.
 MOST_ROWS = 200
 
 

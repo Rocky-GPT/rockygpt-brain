@@ -9,6 +9,8 @@ empty list is what says which — never drop it.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
+from math import ceil
 from typing import Any
 
 OWN_KNOWLEDGE = "ownKnowledge"
@@ -29,6 +31,74 @@ INSUFFICIENT_EVIDENCE = (
 )
 
 
+class Mode(StrEnum):
+    """How much to write about each row."""
+
+    DETAILED = "detailed"  # few enough to describe one by one
+    COMPACT = "compact"  # a line each
+    PAGINATED = "paginated"  # a line each, and only the first page of them
+
+
+#: How many rows can be described one at a time before a list stops being one,
+#: and how many can be listed at all before it has to be paged. `PAGE` is what
+#: a page holds past that.
+DETAILED_UP_TO = 10
+COMPACT_UP_TO = 50
+PAGE = 25
+
+
+@dataclass(frozen=True, slots=True)
+class Presentation:
+    """How much of a result can be shown at once, and in what shape.
+
+    Python's decision, and the reason it is Python's is that BRAIN #3 is bad at
+    it. Handed a hundred rows it has judged the number itself twice, and been
+    wrong both times: once writing "I cannot provide a complete list" over a
+    result that was complete, once quietly describing the first few and
+    stopping without saying it had. Neither is visible in the answer.
+
+    So the count decides, here, before anything is written. `mode` is handed to
+    BRAIN #3 as an instruction about detail; the page arithmetic is for whoever
+    renders the result, which is not the model.
+    """
+
+    mode: Mode
+    page_size: int
+    page: int = 1
+    total_pages: int = 1
+
+    def summary(self) -> dict[str, Any]:
+        """For a person reading the trace, and for the client rendering pages.
+
+        No `pageSize`: it is `showing` beside this, and one number written
+        twice is one number that can disagree with itself.
+        """
+        return {"mode": self.mode.value, "page": self.page, "totalPages": self.total_pages}
+
+
+def present(rows: int) -> Presentation:
+    """How much of a result of this size to show at once.
+
+    A ladder and nothing else. No capability is consulted, no phrasing is read,
+    and the count is the only input — the same number of rows always presents
+    the same way, which is what makes this reviewable at all.
+
+    The planner was briefly asked one thing the count cannot answer: whether
+    the question wanted the whole result in one message rather than a page at
+    a time. It measured badly on both sides. The field came back set on "when
+    is the next shuttle" and unset on "show me 100 courses", and the sentence
+    describing it cost a question it had nothing to do with — "where is the
+    Anisfield School of Business" went from planning cleanly to being rejected
+    three times in five. Asking about presentation at all is what did the
+    damage; the count is here precisely so nothing has to.
+    """
+    if rows <= DETAILED_UP_TO:
+        return Presentation(Mode.DETAILED, rows)
+    if rows <= COMPACT_UP_TO:
+        return Presentation(Mode.COMPACT, rows)
+    return Presentation(Mode.PAGINATED, PAGE, total_pages=ceil(rows / PAGE))
+
+
 @dataclass(frozen=True, slots=True)
 class Execution:
     #: No lane here. The plan stage above already names it, and repeating it
@@ -42,11 +112,17 @@ class Execution:
     #: because an empty list on its own cannot be read: "there are none" is
     #: unanswerable without none *of what*. With rows, they say it themselves.
     looked_for: dict[str, Any] = field(default_factory=dict)
-    #: How many rows the lookup found, set only when more were found than were
-    #: handed on. A result cut to what the question asked for is the answer; a
-    #: result cut to fit a prompt is a sample of one, and the difference has to
-    #: survive as far as whoever writes the sentence.
+    #: How many rows the result set holds, set only when more were found than
+    #: were handed on. What is handed on is one page; this is what it is a page
+    #: of, and the difference has to survive as far as whoever writes the
+    #: sentence. Without it a page reads as the whole of it.
     found: int | None = None
+    #: How much of the result to show, and in what shape. Set by the lane that
+    #: can return more rows than a message holds, which is the CODE lane and
+    #: only it — a web search comes back with a handful and a document search
+    #: with a few passages, and telling BRAIN #3 how to lay out five things is
+    #: an instruction it does not need.
+    shown: Presentation | None = None
 
     @property
     def ran(self) -> bool:
@@ -72,8 +148,8 @@ class Execution:
         ``{"answerFrom": "campusData", "count": n}``     it ran and counted
         ``{"answerFrom": "campusData", "results": []}``  it ran and matched none
 
-        A result too large to hand to a model carries ``showing`` and ``outOf``
-        as well, so a sample never reads as the whole of it.
+        A result too large to hand to a model carries ``showing``, ``outOf``
+        and ``presentation`` as well, so a page never reads as the whole of it.
 
         Do not drop ``results`` when it is empty. "Rocky looked and there is
         nothing" and "Rocky never looked" are different answers, and the empty
@@ -84,9 +160,14 @@ class Execution:
         if self.count is not None:
             return {"answerFrom": self.answer_from, "count": self.count}
         summarised: dict[str, Any] = {"answerFrom": self.answer_from}
-        if self.found is not None:
+        if self.results:
             summarised["showing"] = len(self.results)
+        if self.found is not None:
             summarised["outOf"] = self.found
+        # Nothing to lay out, nothing to say about laying it out. An empty
+        # result is already an answer on its own terms.
+        if self.shown is not None and self.results:
+            summarised["presentation"] = self.shown.summary()
         summarised["results"] = self.results
         return summarised
 
@@ -107,6 +188,11 @@ class Execution:
             return {"answerFrom": self.answer_from}
         found = [{"count": self.count}] if self.count is not None else self.results
         grounded: dict[str, Any] = {"answerFrom": self.answer_from, "results": found}
+        if self.shown is not None and found:
+            # How much to write about each row — decided from how many there
+            # are, before anything was written, because left to judge the
+            # number itself BRAIN #3 has got it wrong in both directions.
+            grounded["presentation"] = self.shown.mode.value
         if found:
             # How many rows are here, stated rather than left to be counted.
             # Handed a hundred courses and asked for a hundred, a model counted
@@ -114,7 +200,7 @@ class Execution:
             # number" while holding exactly that number.
             grounded["showing"] = len(found)
         if self.found is not None:
-            # And how many there were. Without it a model reads its rows as
+            # And how many there are. Without it a model reads its page as
             # everything there is and writes "Ramapo offers these courses".
             grounded["outOf"] = self.found
         if not found and self.looked_for:
