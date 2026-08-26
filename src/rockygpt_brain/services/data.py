@@ -32,6 +32,18 @@ class DataPort(Protocol):
 
     async def courses(self, query: dict[str, str]) -> list[dict[str, Any]]: ...
 
+    async def transportation(self, query: dict[str, Any]) -> list[dict[str, Any]]: ...
+
+    async def calendar(self, query: dict[str, str]) -> list[dict[str, Any]]: ...
+
+    async def clubs(self, query: dict[str, str]) -> list[dict[str, Any]]: ...
+
+    async def directory(self, query: dict[str, str]) -> list[dict[str, Any]]: ...
+
+    async def locations(self, query: dict[str, str]) -> list[dict[str, Any]]: ...
+
+    async def programs(self, query: dict[str, str]) -> list[dict[str, Any]]: ...
+
 
 class HttpData:
     def __init__(self, base_url: str, timeout: float, client: Any | None = None) -> None:
@@ -57,6 +69,41 @@ class HttpData:
 
     async def courses(self, query: dict[str, str]) -> list[dict[str, Any]]:
         return self._records(await self._get("/v1/search/courses", query), "courses")
+
+    async def transportation(self, query: dict[str, Any]) -> list[dict[str, Any]]:
+        """The same lookup `shuttle` makes. The capability was renamed, not the data."""
+        return await self.shuttle(query)
+
+    async def calendar(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return self._records(await self._get("/v1/search/academic-dates", query), "calendar")
+
+    async def clubs(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return self._records(await self._get("/v1/search/clubs", query), "clubs")
+
+    async def programs(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return self._records(await self._get("/v1/search/programs", query), "programs")
+
+    async def directory(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        """Contacts, from the one endpoint that does not answer in `records`.
+
+        It answers in buckets — offices, faculty and staff, everyone else — and
+        `allContacts` is the three of them already merged. Which bucket a
+        contact came from is the service's business; a capability asked for
+        people and gets people.
+        """
+        return self._under(await self._get("/v1/directory", query), "allContacts", "directory")
+
+    async def locations(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        """The campus map, which also answers in its own key rather than `records`."""
+        return self._under(await self._get("/v1/map", query), "locations", "locations")
+
+    @staticmethod
+    def _under(body: dict[str, Any], key: str, capability: str) -> list[dict[str, Any]]:
+        """Rows from a response that names them something other than `records`."""
+        rows = body.get(key)
+        if not isinstance(rows, list):
+            raise DataUnavailable(f"the {capability} response carried no {key}")
+        return [row for row in rows if isinstance(row, dict)]
 
     @staticmethod
     def _records(body: dict[str, Any], capability: str) -> list[dict[str, Any]]:

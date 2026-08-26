@@ -117,10 +117,18 @@ class FakePlanner:
 
 
 class FakeData:
-    """No capability is asked for in these tests, so nothing is looked up."""
+    """Every lookup, answering nothing.
 
-    async def shuttle(self, query: dict[str, Any]) -> list[dict[str, Any]]:
-        return []
+    These tests are about the lifecycle, not about any one capability, so each
+    method returns an empty list. `__getattr__` covers the registry as it grows:
+    a capability added tomorrow needs no edit here to be exercised.
+    """
+
+    def __getattr__(self, capability: str) -> Any:
+        async def looked_up(query: dict[str, Any]) -> list[dict[str, Any]]:
+            return []
+
+        return looked_up
 
 
 class FakeRag:

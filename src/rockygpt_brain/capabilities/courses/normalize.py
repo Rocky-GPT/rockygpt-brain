@@ -6,6 +6,8 @@ import re
 from datetime import datetime
 from typing import Any
 
+from rockygpt_brain.capabilities.narrow import holds
+
 
 def _text(record: dict[str, Any], name: str) -> str:
     value = record.get(name)
@@ -60,7 +62,7 @@ def matches(record: dict[str, Any], filters: dict[str, str]) -> bool:
         if _compact(_text(record, "code")) != _compact(code):
             return False
     if name := filters.get("name"):
-        if name.casefold() not in _text(record, "name").casefold():
+        if not holds(_text(record, "name"), name):
             return False
     if subject := filters.get("subject"):
         subject_text = subject.casefold()

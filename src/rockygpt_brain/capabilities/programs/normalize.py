@@ -6,6 +6,7 @@ import re
 from datetime import datetime
 from typing import Any
 
+from rockygpt_brain.capabilities.narrow import holds
 from rockygpt_brain.capabilities.types import Reader
 
 _GRADUATE = re.compile(
@@ -63,18 +64,18 @@ def query(filters: dict[str, str], now: datetime) -> dict[str, str]:
 
 def matches(record: dict[str, Any], filters: dict[str, str]) -> bool:
     if wanted := filters.get("name"):
-        if wanted.casefold() not in _text(record, "name").casefold():
+        if not holds(_text(record, "name"), wanted):
             return False
     if wanted := filters.get("subject"):
         searchable = " ".join((_text(record, "name"), _text(record, "description")))
-        if wanted.casefold() not in searchable.casefold():
+        if not holds(searchable, wanted):
             return False
     if wanted := filters.get("programKind"):
         if _text(record, "programKind").casefold() != wanted.casefold():
             return False
     for name in ("degree", "school"):
         wanted = filters.get(name)
-        if wanted and wanted.casefold() not in _text(record, name).casefold():
+        if wanted and not holds(_text(record, name), wanted):
             return False
     if wanted := filters.get("level"):
         if _level(record) != wanted.casefold():

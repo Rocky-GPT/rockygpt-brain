@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from rockygpt_brain.capabilities.narrow import holds
 from rockygpt_brain.capabilities.types import Reader
 
 
@@ -49,16 +50,16 @@ def query(filters: dict[str, str], now: datetime) -> dict[str, str]:
 def matches(record: dict[str, Any], filters: dict[str, str]) -> bool:
     if wanted := filters.get("name"):
         names = [_text(record, "name"), *_strings(record, "aliases")]
-        if not any(wanted.casefold() in name.casefold() for name in names):
+        if not any(holds(name, wanted) for name in names):
             return False
     if wanted := filters.get("type"):
         if _text(record, "type").casefold() != wanted.casefold():
             return False
     if wanted := filters.get("building"):
         buildings = (_text(record, "buildingName"), _text(record, "name"))
-        if not any(wanted.casefold() in building.casefold() for building in buildings):
+        if not any(holds(building, wanted) for building in buildings):
             return False
     if wanted := filters.get("room"):
-        if wanted.casefold() not in _text(record, "room").casefold():
+        if not holds(_text(record, "room"), wanted):
             return False
     return True

@@ -6,6 +6,7 @@ import re
 from datetime import date, datetime
 from typing import Any
 
+from rockygpt_brain.capabilities.narrow import holds
 from rockygpt_brain.capabilities.types import Reader
 
 _MONTHS = {
@@ -106,11 +107,11 @@ def matches(record: dict[str, Any], filters: dict[str, str]) -> bool:
         searchable = " ".join(
             (_text(record, "term"), _text(record, "title"), _text(record, "description"))
         )
-        if topic.casefold() not in searchable.casefold():
+        if not holds(searchable, topic):
             return False
     for name in ("title", "term"):
         wanted = filters.get(name)
-        if wanted and wanted.casefold() not in _text(record, name).casefold():
+        if wanted and not holds(_text(record, name), wanted):
             return False
     if wanted := filters.get("date"):
         parsed = _wanted_date(wanted)
