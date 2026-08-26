@@ -125,7 +125,15 @@ class Plan(BaseModel):
     #: useful test is whether it would be the same at any other college — not
     #: whether a document exists, which nothing at this stage can know.
     specific_to_ramapo: bool = Field(default=False, alias="specificToRamapo")
-    lane: Lane
+    #: Where the answer comes from. Not asked of the planner — `validate.route`
+    #: works it out from the two answers above, which is all there ever was to
+    #: it. Asked as well, it was a third claim that could disagree with the
+    #: reasoning that produced it, and a plan whose lane contradicted its own
+    #: judgement was a state the inspector could render.
+    #:
+    #: Kept off the response schema, so the disagreement is not possible rather
+    #: than not observed.
+    lane: SkipJsonSchema[Lane] = Lane.GENERAL
     capability: FieldName | None = None
     filters: list[Filter] = Field(default_factory=list, max_length=8)
     operation: Operation = Field(default_factory=Operation)

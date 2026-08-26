@@ -24,7 +24,6 @@ from rockygpt_brain.brain.execute.schema import (
 )
 from rockygpt_brain.brain.plan.schema import (
     Filter,
-    Lane,
     Operation,
     Plan,
 )
@@ -89,7 +88,7 @@ class FakePlanner:
         fails: bool = False,
         read: Understanding | None = None,
     ) -> None:
-        self._plan = plan or Plan(lane=Lane.GENERAL)
+        self._plan = plan or Plan()
         self._read = read or Understanding(normalized="q", resolved="q")
         self._fails = fails
         self.seen: dict[str, Any] = {}
@@ -191,7 +190,6 @@ async def test_a_follow_up_sees_the_earlier_turn() -> None:
 async def test_a_question_that_stands_alone_has_no_context_stage() -> None:
     """Nothing was resolved, so `normalized` and `resolved` match."""
     plan = Plan(
-        lane=Lane.GENERAL,
         freshness="stable",
     )
     response, _ = await ask("what is the capital of France", planner=FakePlanner(plan))
@@ -201,7 +199,6 @@ async def test_a_question_that_stands_alone_has_no_context_stage() -> None:
 async def test_a_reworded_question_is_not_a_borrowed_one() -> None:
     """BRAIN #1 said the question needed no conversation, so there is no stage."""
     plan = Plan(
-        lane=Lane.GENERAL,
         freshness="stable",
     )
     response, _ = await ask("are you srueeee?", planner=FakePlanner(plan))
@@ -218,7 +215,7 @@ async def test_the_context_stage_breaks_down_how_the_question_was_read() -> None
     )
     memory = MemoryStore()
     await ask("Capital of france", memory, "r1")
-    planner = FakePlanner(Plan(lane=Lane.GENERAL, freshness="stable"), read=read)
+    planner = FakePlanner(Plan(freshness="stable"), read=read)
     response, _ = await ask("population of it", memory, "r2", planner=planner)
     context = response.brain_trace.context
     assert context["references"] == [{"text": "it", "refersTo": "Paris"}]
@@ -305,14 +302,14 @@ async def test_the_planner_is_told_the_same_question_and_time() -> None:
 
 async def test_the_plan_is_its_own_stage() -> None:
     plan = Plan(
-        lane=Lane.CODE,
+        a_capability_answers_it=True,
         capability="shuttle",
         filters=[Filter(field="date", value="today")],
         operation=Operation(order_by="departureTime", direction="descending", limit=1),
     )
     response, _ = await ask(planner=FakePlanner(plan))
     assert response.brain_trace.plan == {
-        "routing": {"CODE?": "No", "RAMAPO?": "No", "ROUTE": "CODE"},
+        "routing": {"CODE?": "Yes", "RAMAPO?": "—", "ROUTE": "CODE"},
         "capability": "shuttle",
         "filters": {"date": "2031-03-06"},
         "operation": {"orderBy": "departureTime", "direction": "descending", "limit": 1},
@@ -350,7 +347,7 @@ async def test_brain_two_is_grounded_on_every_lane() -> None:
 async def test_brain_two_never_runs_on_a_failed_lookup() -> None:
     """No stage compensates for the one before it, so there is nothing to write."""
     model = FakeModel()
-    unbuilt = FakePlanner(Plan(lane=Lane.CODE, capability="menu"))
+    unbuilt = FakePlanner(Plan(a_capability_answers_it=True, capability="menu"))
     brain = Brain(
         model,
         unbuilt,
@@ -375,14 +372,14 @@ async def test_a_capability_with_no_code_is_caught_before_anything_runs() -> Non
     retryable because the next plan may name something Rocky can do.
     """
     with pytest.raises(ServiceError) as raised:
-        await ask(planner=FakePlanner(Plan(lane=Lane.CODE, capability="menu")))
+        await ask(planner=FakePlanner(Plan(a_capability_answers_it=True, capability="menu")))
     assert raised.value.status_code == 503
     assert isinstance(raised.value.__cause__, PlanRejected)
     assert "menu" in str(raised.value.__cause__)
 
 
 async def test_the_route_is_the_lane() -> None:
-    plan = Plan(lane=Lane.CODE, capability="shuttle", operation=Operation(limit=1))
+    plan = Plan(a_capability_answers_it=True, capability="shuttle", operation=Operation(limit=1))
     response, _ = await ask(planner=FakePlanner(plan))
     assert response.route == "code"
 
@@ -390,7 +387,7 @@ async def test_the_route_is_the_lane() -> None:
 async def test_a_rejected_plan_ends_the_turn() -> None:
     """The registry refusing a plan is a failure, not a cue to answer anyway."""
     with pytest.raises(ServiceError) as raised:
-        await ask(planner=FakePlanner(Plan(lane=Lane.CODE, capability="weather")))
+        await ask(planner=FakePlanner(Plan(a_capability_answers_it=True, capability="weather")))
     assert "weather" in str(raised.value.__cause__)
 
 
@@ -527,7 +524,7 @@ async def test_a_turn_that_failed_still_reaches_the_log() -> None:
     """
     memory = MemoryStore()
     model = FakeModel()
-    unbuilt = FakePlanner(Plan(lane=Lane.CODE, capability="menu"))
+    unbuilt = FakePlanner(Plan(a_capability_answers_it=True, capability="menu"))
     brain = Brain(model, unbuilt, unbuilt, FakeData(), FakeWeb(), FakeRag(), memory)
 
     with pytest.raises(ServiceError):
@@ -550,7 +547,7 @@ async def test_a_failed_turn_is_not_offered_back_as_conversation() -> None:
     offering it as context is worse than the gap it leaves.
     """
     memory = MemoryStore()
-    unbuilt = FakePlanner(Plan(lane=Lane.CODE, capability="menu"))
+    unbuilt = FakePlanner(Plan(a_capability_answers_it=True, capability="menu"))
     brain = Brain(FakeModel(), unbuilt, unbuilt, FakeData(), FakeWeb(), FakeRag(), memory)
 
     with pytest.raises(ServiceError):
@@ -566,7 +563,7 @@ async def test_a_failed_turn_is_not_offered_back_as_conversation() -> None:
 async def test_a_failure_records_how_far_the_turn_got() -> None:
     """A turn that reached a plan records it; the stage that failed is visible."""
     memory = MemoryStore()
-    unbuilt = FakePlanner(Plan(lane=Lane.CODE, capability="menu"))
+    unbuilt = FakePlanner(Plan(a_capability_answers_it=True, capability="menu"))
     brain = Brain(FakeModel(), unbuilt, unbuilt, FakeData(), FakeWeb(), FakeRag(), memory)
 
     with pytest.raises(ServiceError):
@@ -590,7 +587,7 @@ async def test_a_successful_turn_is_recorded_exactly_once() -> None:
 
 async def _documents(model: FakeModel) -> ChatSuccess:
     """A turn that reaches the RAG lane and retrieves something."""
-    brains = FakePlanner(Plan(lane=Lane.RAG, topic="guest policy"))
+    brains = FakePlanner(Plan(specific_to_ramapo=True, topic="guest policy"))
     rag = FakeRag(
         [Passage("Guests must carry ID.", "housing", "Residence Life", "https://x.edu/a")]
     )
@@ -628,7 +625,7 @@ async def test_supported_passages_are_answered_and_cited_as_normal() -> None:
 async def test_only_the_documents_lane_is_held_to_this_yet() -> None:
     """campusData and web could follow, but each needs its own measurement first."""
     model = FakeModel(sufficient_evidence=False)
-    brains = FakePlanner(Plan(lane=Lane.GENERAL))
+    brains = FakePlanner(Plan())
     brain = Brain(model, brains, brains, FakeData(), FakeWeb(), FakeRag(), MemoryStore())
     response = await brain.answer(
         ChatRequest(message="anything", now=NOW), TurnIdentity("r1", "s", None, "client")

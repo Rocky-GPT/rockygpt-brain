@@ -102,6 +102,7 @@ FACT = {
 
 def shuttle(filters: dict[str, str] | None = None, **operation: Any) -> Plan:
     return Plan(
+        a_capability_answers_it=True,
         lane=Lane.CODE,
         capability="shuttle",
         filters=[Filter(field=k, value=v) for k, v in (filters or {}).items()],
@@ -246,7 +247,11 @@ async def test_general_is_not_reported_as_a_missing_executor() -> None:
 async def test_the_rag_lane_answers_from_the_documents_it_retrieved() -> None:
     rag = FakeRag()
     execution = await run(
-        Plan(lane=Lane.RAG, topic="guest policy"), NOW, FakeData(), FakeWeb(), rag
+        Plan(specific_to_ramapo=True, lane=Lane.RAG, topic="guest policy"),
+        NOW,
+        FakeData(),
+        FakeWeb(),
+        rag,
     )
     assert rag.asked == "guest policy", "the topic is what gets searched for"
     assert execution.summary()["answerFrom"] == "documents"
@@ -256,7 +261,11 @@ async def test_the_rag_lane_answers_from_the_documents_it_retrieved() -> None:
 async def test_documents_that_hold_nothing_is_an_answer_not_a_failure() -> None:
     """`{"results": []}` is "searched and there is nothing" — which is worth saying."""
     execution = await run(
-        Plan(lane=Lane.RAG, topic="nothing at all"), NOW, FakeData(), FakeWeb(), FakeRag([])
+        Plan(specific_to_ramapo=True, lane=Lane.RAG, topic="nothing at all"),
+        NOW,
+        FakeData(),
+        FakeWeb(),
+        FakeRag([]),
     )
     assert execution.summary() == {"answerFrom": "documents", "results": []}
 
@@ -265,7 +274,11 @@ async def test_a_retrieval_that_did_not_happen_ends_the_turn() -> None:
     """Distinct from finding nothing, and the only one of the two that fails."""
     with pytest.raises(ServiceError) as raised:
         await run(
-            Plan(lane=Lane.RAG, topic="parking"), NOW, FakeData(), FakeWeb(), FakeRag(fails=True)
+            Plan(specific_to_ramapo=True, lane=Lane.RAG, topic="parking"),
+            NOW,
+            FakeData(),
+            FakeWeb(),
+            FakeRag(fails=True),
         )
     assert raised.value.retryable, "the index is usually there"
 
@@ -284,7 +297,11 @@ async def test_a_passage_is_carried_through_untouched() -> None:
         url="https://example.edu/x",
     )
     execution = await run(
-        Plan(lane=Lane.RAG, topic="x"), NOW, FakeData(), FakeWeb(), FakeRag([hostile])
+        Plan(specific_to_ramapo=True, lane=Lane.RAG, topic="x"),
+        NOW,
+        FakeData(),
+        FakeWeb(),
+        FakeRag([hostile]),
     )
     assert execution.results[0]["passage"] == hostile.content
 
@@ -360,7 +377,9 @@ async def test_a_concern_is_acted_on_before_any_lane_runs() -> None:
     The point of acting on the concern first: the turns that most need an
     answer are the ones least able to wait for campus data to come back.
     """
-    checked = check(Plan(safety=[Concern.EMERGENCY], lane=Lane.CODE, capability="nope"), NOW)
+    checked = check(
+        Plan(safety=[Concern.EMERGENCY], a_capability_answers_it=True, capability="nope"), NOW
+    )
     assert isinstance(checked, Plan)
     execution = await run(checked, NOW, _Unreachable(), _Unreachable(), FakeRag())
     assert execution.summary()["answerFrom"] == "safety"
@@ -371,7 +390,7 @@ async def test_a_concern_is_acted_on_before_any_lane_runs() -> None:
 
 async def test_every_concern_is_enforced_not_only_the_first() -> None:
     """A question can be two things at once, and both need answering."""
-    checked = check(Plan(safety=[Concern.PRIVACY, Concern.SECRET], lane=Lane.GENERAL), NOW)
+    checked = check(Plan(safety=[Concern.PRIVACY, Concern.SECRET]), NOW)
     assert isinstance(checked, Plan)
     grounding = (await run(checked, NOW, _Unreachable(), _Unreachable(), FakeRag())).grounding()
     assert [r["concern"] for r in grounding["results"]] == ["privacy", "secret"]
@@ -379,7 +398,7 @@ async def test_every_concern_is_enforced_not_only_the_first() -> None:
 
 async def test_what_python_wrote_is_what_brain_three_is_handed() -> None:
     """The emergency numbers must not be summarised away between here and there."""
-    checked = check(Plan(safety=[Concern.EMERGENCY], lane=Lane.GENERAL), NOW)
+    checked = check(Plan(safety=[Concern.EMERGENCY]), NOW)
     assert isinstance(checked, Plan)
     grounding = (await run(checked, NOW, _Unreachable(), _Unreachable(), FakeRag())).grounding()
     must = grounding["results"][0]["must"]

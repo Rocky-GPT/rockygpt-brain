@@ -16,7 +16,6 @@ from rockygpt_brain.brain.plan.schema import (
     NOT_ASKED,
     TIME_WORDS,
     Filter,
-    Lane,
     Operation,
     Plan,
 )
@@ -34,7 +33,7 @@ NOW = datetime(2031, 3, 6, 18, 30, tzinfo=UTC).astimezone(TZ)
 def code(capability: str, filters: dict[str, str], **operation: Any) -> Plan:
     """A CODE plan. Defaults to a stated operation, which every CODE plan needs."""
     return Plan(
-        lane=Lane.CODE,
+        a_capability_answers_it=True,
         capability=capability,
         filters=[Filter(field=k, value=v) for k, v in filters.items()],
         operation=Operation(**(operation or {"limit": 1})),
@@ -89,7 +88,7 @@ def test_a_capability_with_no_code_behind_it_is_rejected_before_it_can_fail() ->
 
 def test_a_capability_without_an_operation_is_rejected() -> None:
     """Half a plan: what to look in, and nothing about what to do with it."""
-    plan = Plan(lane=Lane.CODE, capability="shuttle", operation=Operation())
+    plan = Plan(a_capability_answers_it=True, capability="shuttle", operation=Operation())
     rejected = check(plan, NOW)
     assert isinstance(rejected, Rejected)
     assert "operation" in rejected.reason
@@ -98,7 +97,7 @@ def test_a_capability_without_an_operation_is_rejected() -> None:
 def test_a_direction_alone_is_not_an_operation() -> None:
     """It has a default, so it is set on every plan whether meant or not."""
     plan = Plan(
-        lane=Lane.CODE,
+        a_capability_answers_it=True,
         capability="shuttle",
         operation=Operation(direction="descending"),
     )
@@ -139,12 +138,14 @@ def test_a_value_that_is_not_a_time_word_is_left_alone() -> None:
 
 
 def test_a_rag_plan_needs_a_topic() -> None:
-    assert isinstance(check(Plan(lane=Lane.RAG), NOW), Rejected)
-    assert isinstance(check(Plan(lane=Lane.RAG, topic="overnight guest policy"), NOW), Plan)
+    assert isinstance(check(Plan(specific_to_ramapo=True), NOW), Rejected)
+    assert isinstance(
+        check(Plan(specific_to_ramapo=True, topic="overnight guest policy"), NOW), Plan
+    )
 
 
 def test_general_needs_nothing() -> None:
-    assert isinstance(check(Plan(lane=Lane.GENERAL), NOW), Plan)
+    assert isinstance(check(Plan(), NOW), Plan)
 
 
 def test_safety_survives_a_plan_that_would_otherwise_be_rejected() -> None:
@@ -154,8 +155,8 @@ def test_safety_survives_a_plan_that_would_otherwise_be_rejected() -> None:
     a concern it is not, because what Python does about a concern depends on
     no lookup.
     """
-    assert isinstance(check(Plan(lane=Lane.CODE), NOW), Rejected)
-    checked = check(Plan(safety=[Concern.EMERGENCY], lane=Lane.CODE), NOW)
+    assert isinstance(check(Plan(a_capability_answers_it=True), NOW), Rejected)
+    checked = check(Plan(safety=[Concern.EMERGENCY], a_capability_answers_it=True), NOW)
     assert isinstance(checked, Plan)
     assert checked.safety == [Concern.EMERGENCY]
 
@@ -164,9 +165,9 @@ def test_every_concern_is_carried_through_the_check_not_just_the_first() -> None
     """Every branch of `check` rebuilds the plan, which is how a list goes missing."""
     both = [Concern.PRIVACY, Concern.SECRET]
     for plan in (
-        Plan(safety=both, lane=Lane.GENERAL),
-        Plan(safety=both, lane=Lane.RAG, topic="anything"),
-        Plan(safety=both, lane=Lane.CODE, capability="shuttle"),
+        Plan(safety=both),
+        Plan(safety=both, specific_to_ramapo=True, topic="anything"),
+        Plan(safety=both, a_capability_answers_it=True, capability="shuttle"),
     ):
         checked = check(plan, NOW)
         assert isinstance(checked, Plan)
@@ -174,13 +175,13 @@ def test_every_concern_is_carried_through_the_check_not_just_the_first() -> None
 
 
 def test_the_concerns_lead_the_logged_plan() -> None:
-    summary = Plan(safety=[Concern.PRIVACY, Concern.SECRET], lane=Lane.CODE).summary()
+    summary = Plan(safety=[Concern.PRIVACY, Concern.SECRET], a_capability_answers_it=True).summary()
     assert list(summary)[0] == "safety"
     assert summary["safety"] == ["privacy", "secret"]
 
 
 def test_a_stray_field_from_another_lane_is_dropped_not_rejected() -> None:
-    checked = check(Plan(lane=Lane.RAG, topic="parking", capability="shuttle"), NOW)
+    checked = check(Plan(specific_to_ramapo=True, topic="parking", capability="shuttle"), NOW)
     assert isinstance(checked, Plan)
     assert checked.capability is None
 
@@ -200,7 +201,7 @@ def test_the_summary_reads_as_the_plan_was_written() -> None:
     )
     assert isinstance(checked, Plan)
     assert checked.summary() == {
-        "routing": {"CODE?": "No", "RAMAPO?": "No", "ROUTE": "CODE"},
+        "routing": {"CODE?": "Yes", "RAMAPO?": "—", "ROUTE": "CODE"},
         "capability": "shuttle",
         "filters": {"destination": "Garden State Plaza", "date": "2031-03-06"},
         "operation": {"orderBy": "departureTime", "direction": "ascending", "limit": 1},
@@ -208,7 +209,7 @@ def test_the_summary_reads_as_the_plan_was_written() -> None:
 
 
 def test_an_unused_half_of_the_plan_is_not_in_the_summary() -> None:
-    checked = check(Plan(lane=Lane.GENERAL), NOW)
+    checked = check(Plan(), NOW)
     assert checked.summary() == {  # type: ignore[union-attr]
         "routing": {"CODE?": "No", "RAMAPO?": "No", "ROUTE": "GENERAL"},
         "freshness": "stable",
@@ -217,7 +218,7 @@ def test_an_unused_half_of_the_plan_is_not_in_the_summary() -> None:
 
 def test_the_summary_shows_why_the_lane_was_chosen() -> None:
     """The two judgements are the reasoning, so they are in the log beside it."""
-    checked = check(Plan(specific_to_ramapo=True, lane=Lane.RAG, topic="parking"), NOW)
+    checked = check(Plan(specific_to_ramapo=True, topic="parking"), NOW)
     assert isinstance(checked, Plan)
     routing = checked.summary()["routing"]
     assert list(routing) == ["CODE?", "RAMAPO?", "ROUTE"], "the questions, then the answer"
@@ -242,7 +243,18 @@ def test_the_plan_is_a_shape_the_model_can_be_held_to() -> None:
                 closed(value)
 
     closed(schema)
-    assert schema["$defs"]["Lane"]["enum"] == [lane.value for lane in Lane]
+
+
+def test_the_planner_is_not_asked_where_the_answer_comes_from() -> None:
+    """`lane` is Python's, derived from the two answers, so it is not on the wire.
+
+    It used to be a third thing the planner said, and it could disagree with
+    the reasoning that produced it — a plan whose lane contradicted its own
+    judgement was a state the inspector could render. Off the schema, that
+    state is unrepresentable rather than unobserved.
+    """
+    assert "lane" not in to_strict_json_schema(Plan)["properties"]
+    assert "Lane" not in to_strict_json_schema(Plan).get("$defs", {})
 
 
 def test_the_instruction_names_no_campus_thing() -> None:
@@ -329,7 +341,7 @@ def test_words_of_meaning_are_not_mistaken_for_a_date() -> None:
 
 def test_a_current_plan_carries_both_the_meaning_and_the_dated_query() -> None:
     """Which of the two was at fault is the first thing worth knowing."""
-    checked = check(Plan(lane=Lane.GENERAL, freshness="current", query="population of France"), NOW)
+    checked = check(Plan(freshness="current", query="population of France"), NOW)
     assert isinstance(checked, Plan)
     assert checked.query == "population of France", "the planner's meaning is kept as written"
     assert checked.effective_query == f"population of France as of {NOW:%Y-%m-%d}"
@@ -349,7 +361,6 @@ def test_the_second_question_is_blank_when_the_cascade_never_reached_it() -> Non
             Plan(
                 a_capability_answers_it=True,
                 specific_to_ramapo=stated,
-                lane=Lane.CODE,
                 capability="shuttle",
                 operation=Operation(limit=1),
             ),
@@ -360,6 +371,6 @@ def test_the_second_question_is_blank_when_the_cascade_never_reached_it() -> Non
 
 
 def test_the_second_question_is_answered_when_the_cascade_reaches_it() -> None:
-    checked = check(Plan(specific_to_ramapo=True, lane=Lane.RAG, topic="parking"), NOW)
+    checked = check(Plan(specific_to_ramapo=True, topic="parking"), NOW)
     assert isinstance(checked, Plan)
     assert checked.summary()["routing"] == {"CODE?": "No", "RAMAPO?": "Yes", "ROUTE": "RAG"}
