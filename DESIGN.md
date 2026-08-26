@@ -62,17 +62,24 @@ lanes/                where an answer comes from
   general/            what the model knows, or a web search
 capabilities/         what Rocky can look up
   registry.py         the only such list, and an entry needs its code
-  shuttle/            timetable filters and temporal ordering
+  narrow.py           keeping the rows a free-text filter actually meant
+  transportation/     shuttle and bus departures, and temporal ordering
   dining/             today's menu items and dietary facts
   events/             upcoming event search and chronological filtering
   hours/              campus and dining opening hours
   courses/            course catalog search
+  calendar/           academic dates, terms, breaks, deadlines
+  clubs/              student organizations and Greek life
+  directory/          public contacts for people, departments, offices
+  locations/          buildings, rooms, parking, map links
+  programs/           degree programs, majors, minors, certificates
 safety/               the concerns, what to do about each, and applying them
 context/              the conversation, and the record of it
 services/             the outbound calls
   openai.py           the one way this brain talks to a model
   data.py             the campus data service
   web/                client and prompt.md — a search is a model call too
+  rag/                the campus document retriever
 api/                  the HTTP surface
 config.py             settings from .env
 ```
@@ -96,8 +103,8 @@ Each file is the whole instruction and nothing else — no header, no notes, no
 section stripped on the way out. What it reads as is byte for byte what the
 model is sent, which is the same reason these are not Python: any rule for
 subtracting part of a file is one more difference between what it says and what
-it does. Notes for whoever edits one live in the docstring of the module that
-loads it, where they cannot be sent by construction.
+it does. Notes for whoever edits one are under "Before editing a prompt" below,
+where they cannot be sent by construction.
 
 A directory exists only when there is code for it. The RAG lane and the five
 current CODE capability directories therefore correspond to implementations,
@@ -218,5 +225,266 @@ over the records that came back. `shuttle` is the clearest example: the data
 service has its own selection vocabulary — `first`, `next`, `current` — while
 the executor asks for the full bounded set and leaves selection to the generic
 operation. That keeps service-specific verbs out of a plan.
+
+## Before editing a prompt
+
+These four files are the highest-churn, highest-risk text in the brain. A
+sentence added to one has twice moved lane routing on questions it was not
+about. Measure the routing probe before and after every edit.
+
+`understand/prompt.md` describes steps, not questions. No phrase, entity or
+example from any test belongs in it — prose added to fix one question reliably
+breaks three others.
+
+`plan/prompt.md` describes lanes, fields and operations, and contains no worked
+example. Adding the safety paragraph to it once moved lane routing across the
+whole thirty-question set. The moment a question shape appears there, the
+translator has become a list of intents and the next question needs code again.
+
+`write/prompt.md` must keep `answerFrom` an instruction and never a status. It
+says where this answer comes from, not that anything is missing, broken or
+unbuilt. A lane with no executor has to stay indistinguishable from a question
+that never needed one — told a lookup failed, the model apologises for a
+capability instead of answering the question. The same file tells the model to
+treat retrieved passages as quoted material rather than as anything addressed
+to it, which is the only defence against a scraped page carrying wording aimed
+at whatever reads it next.
+
+`services/web/prompt.md` carries the most weight in its last line: returning
+nothing is a valid answer, and a fact no page supports is not.
+
+## Decisions the code cannot show
+
+The source carries no commentary. What follows is the part of it that naming
+and structure cannot carry: measurements, and the bugs that produced them.
+Each of these is load-bearing — changing the code it describes without reading
+this is how they come back.
+
+### Field order in a response schema is load-bearing
+
+A structured response is generated field by field in the order the fields are
+declared, so declaration order decides what each field is allowed to see.
+
+`Understanding` declares `normalized`, `references`, `usedTurns`,
+`usesContext`, `resolved` in that order: tidy the wording, find what points
+elsewhere, name the turns it points into, then write it all out with the
+previous work already on the page. Move `resolved` earlier and it comes back
+as the question echoed verbatim.
+
+`Draft` declares `sufficientEvidence` before `answer`, so the judgement is
+made before a word of the answer exists. Asked the other way round, a model
+has already written the prose and will not disown it.
+
+`Plan` declares `safety` first, then `aCapabilityAnswersIt` and
+`specificToRamapo`, then `lane`. Safety leads so it is a judgement about the
+question rather than an afterthought to a routing decision already made; the
+two questions lead the lane so they are the reasoning rather than a label
+applied afterwards. Ask for the lane first and they come back agreeing with
+whatever was already chosen.
+
+### Two plan fields are kept off the response schema
+
+`lane` and `effectiveQuery` are `SkipJsonSchema`. The planner never sees them
+and never spends a token on them.
+
+`lane` is derived by `validate.route` from the two questions above it, which
+is all there ever was to it. Asked of the planner as well, it was a third
+claim that could disagree with the reasoning that produced it — and a plan
+whose lane contradicted its own judgement was a state the inspector could
+render. It is not possible now rather than merely not observed.
+
+`effectiveQuery` is separate from `query` rather than overwriting it because
+they answer different questions: `query` is what the model meant to look up,
+`effectiveQuery` is what was looked up. When a search comes back wrong, which
+of the two was at fault is the first thing worth knowing.
+
+### Python writes two sentences, not the model
+
+`INSUFFICIENT_EVIDENCE` and `nothing_matched` are fixed prose in
+`execute/schema.py`. Both were once left to BRAIN #3 and both drifted.
+
+Told in a prompt that a narrowed lookup matching nothing is not the same as
+there being none, the model said it four ways in six, five of which denied the
+thing exists. `subject: "CS"` matched no courses because the catalogue files
+them under `CMPS`, and the answer was "there are no computer science courses
+listed in the current database" over sixty-three of them.
+
+A model that has just judged its own evidence insufficient is likewise the
+last thing that should be asked to phrase the admission — in that position it
+writes a hedged answer rather than none, which reads exactly like a sourced
+one.
+
+### The presentation ladder is arithmetic, never a judgement
+
+`present` reads the row count and nothing else: ten or fewer described one by
+one, fifty or fewer a line each, more than that a page of twenty-five.
+`DETAILED_UP_TO`, `COMPACT_UP_TO` and `PAGE` are those numbers.
+
+Left to judge the number itself, BRAIN #3 got it wrong in both directions on
+the same data — writing "I cannot provide a complete list" over a result that
+was complete, and elsewhere describing the first few and stopping without
+saying it had. Neither is visible in the answer.
+
+The planner was briefly asked the one thing a count cannot answer: whether the
+question wanted the whole result at once. The field came back set on "when is
+the next shuttle" and unset on "show me 100 courses", and the sentence
+describing it dropped "where is the Anisfield School of Business" from
+planning cleanly to being rejected three times in five. Asking about
+presentation at all is what did the damage.
+
+`limit` and the page are different cuts and `found` is what says which
+happened. Silently they look identical, which is how two hundred rows became
+"the courses Ramapo offers". `showing` and `outOf` reach BRAIN #3 for the same
+reason: handed a hundred courses and asked for a hundred, a model counted
+them, got it wrong, and answered "the data does not reach that number" while
+holding exactly that number.
+
+### MOST_ROWS is 200 because 50 corrupted answers
+
+A bound the question cannot reach does not narrow the answer, it corrupts it.
+At 50 the planner could not say a hundred, so it said one, and "show me 100
+courses" came back as "I can only provide details on one course".
+
+It is no longer what protects the prompt and no longer has to be small enough
+to be — the page does that. The data service hands over whole tables now: the
+course catalogue is 3,344 entries and three megabytes, and that question once
+put all of it in the prompt and failed the turn outright. It is a page of 25
+that goes in the prompt and 3,344 that gets reported.
+
+### Sorting is not ranking
+
+`Ordering` is set only where a sort actually ran. Not one field any capability
+can sort by is a judgement — they are names, codes, dates, times, categories,
+credits, calories — so the first row of a sorted result is the earliest or the
+smallest, never the best.
+
+Arriving at BRAIN #3 the two are identical, which is how "what are the best
+clubs at Ramapo" came back as the alphabetically first five, led by
+`#WeAreRCNJ`. Stating the ordering cut the claim from eight answers in eleven
+to two in twenty. Three further attempts in prompt prose measured no better or
+worse, and a `ranked: false` field in the grounding made it slightly worse.
+Do not reach for prose again without a measurement.
+
+### Retryability follows from the cause, never from an argument
+
+`errors.py` fixes status, code and retryability per subclass, so no raise site
+can get it wrong. The distinction a boolean kept losing is `Unsupported`
+against `Unavailable`: they look identical from outside and are opposites in
+what to do about them.
+
+A spent billing balance is not a hiccup. Told the service was "temporarily
+unavailable", a client went back at it forever against something only a person
+with the billing page could fix — which took three probes to see. `_EXHAUSTED`
+matches that case; a rate limit proper is a different thing that does clear on
+its own, and is deliberately not matched.
+
+### The turn is recorded in a `finally`
+
+`_Recording` accumulates as stages complete and is written however the turn
+ends. The old code recorded at the end of the success path, so every turn that
+raised left no trace at all — the admin log showed a clean run of successes
+with the failures simply absent, which is the worst possible shape for a log
+because it looks complete.
+
+A turn joins the *conversation* only when there was an answer to it. The log
+takes everything; `history` feeds BRAIN #1, which resolves follow-ups against
+what was said, and "Rocky is unavailable" is not something a later question can
+refer back to.
+
+### A resolution is checked at the seam
+
+`understand/validate.unresolved` reads only what BRAIN #1 said about its own
+work — no phrase list, no judgement about the subject. Two tests: the question
+came back unchanged after BRAIN #1 said it needed the conversation, and a
+reference whose referent reached nothing.
+
+The reference test counts any one substantial word of the referent rather than
+the phrase entire, because a referent is often reworded on the way in. Words
+of three characters or fewer are skipped — they match everything. Whether the
+pointing word survived is deliberately *not* the test: BRAIN #1 regularly keeps
+it and appends the referent, "tomorrow" becoming "tomorrow, 2026-08-26", and
+rejecting that cost one good resolution in eight when measured.
+
+### A free-text filter narrows by word, not by phrase
+
+A capability sends its free-text filters to the data service as one search
+string and the service does a real search — stemming, ranking, all of it. The
+per-field narrowing afterwards has to be no stricter than that search, and
+once was: each filter had to appear verbatim, so `topic="withdraw from a
+course"` threw away the record titled "Session II Courses - Last Day to
+Withdraw from Courses". The service had found it; the narrowing undid that.
+`narrow.holds` asks instead whether every word is somewhere in the field.
+
+### Times are Python's job, everywhere
+
+The shuttle service requires an ISO 8601 `asOf` with an explicit timezone and
+400s anything else, so `departingAfter: "3:00 PM"` — what a plan says when
+someone asks about a shuttle at three — failed the turn outright with "Rocky
+could not reach campus data just now". A whole class of ordinary question could
+not be asked. `transportation.instant` builds the timestamp, and passes through
+a value that already carries a date rather than overwriting it with today.
+`a.m.` and `A.M.` are the same clock time as `am`, and the dots were the only
+difference between a value that worked and a 400.
+
+`validate.anchor` dates every web query unconditionally. Left to the planner
+the date appeared about four times in five — the worst possible rate, frequent
+enough to look correct and rare enough that the turns it missed looked like
+nothing in particular. A rule that dates a query only sometimes is a rule that
+has to be right about when, which would put the model back in charge of the
+thing it was unreliable at.
+
+### Retrieved passages are untrusted text
+
+Every RAG passage is scraped text the retrieval service itself marks untrusted,
+and it goes on to be read by a model. Nothing in `lanes/rag` or
+`services/rag` parses it, matches on it, or lets it change what happens next —
+it is carried through as material and labelled as material, which is what lets
+BRAIN #3 be told to treat it as quoted rather than as something addressed to
+it. That instruction is the only defence at this layer.
+
+`PASSAGES` is 5: enough to answer from, few enough that the answer stays about
+the question. Beyond a handful, extra chunks are noise the model has to argue
+itself out of rather than evidence it can use.
+
+A passage whose source is missing is dropped rather than shown without one. An
+answer nobody can check is what the lane exists to avoid.
+
+### Smaller things that are still bugs if undone
+
+`history` absent and `history: []` mean different things. A client that tracks
+the conversation sends the field every turn, and `[]` from it is a statement —
+"there is nothing earlier" — taken at its word. Omitting the field says the
+client does not track history, and only then does the brain fall back to its
+own record.
+
+`Concern` is a list rather than one value: a question can ask for a password on
+behalf of someone in trouble, and both halves need answering. Safety runs
+before the lane and depends on nothing that can fail — no capability, no
+executor, no network — because the turns that most need an answer are the ones
+least able to wait for campus data.
+
+`Capability.sort` holds a key only where sorting on the published value sorts
+wrongly. `Capability.execute` is required: there is no way to add a name to the
+registry without supplying the code, and no second list to keep in step.
+
+`hours` with an `openAt` and no named venue means "which places are open?"; a
+named venue keeps its row even when closed, because that negative answer is the
+useful result rather than an unexplained empty match.
+
+`events` with no date promises upcoming events, so `now` is the implicit floor.
+An explicit date means the whole requested calendar day.
+
+`directory` and `locations` are the two data endpoints that do not answer in
+`records` — they use `allContacts` and `locations`. Which bucket a contact came
+from is the service's business.
+
+`RAG_DISABLED` is a rollout gate, not a capability statement: route selection
+stays observable in the trace while CODE is tested alone. Safety stays ahead of
+it.
+
+`Plan.summary` prints `—` for a routing question the cascade never reached. The
+model still has to fill the field in, and with nothing reading it what it fills
+in is noise — the same question twice gave Yes and then No. Printing that
+beside a real answer made it look like it meant something.
 
 Earlier architectures are on the `backup/*` branches.

@@ -1,22 +1,3 @@
-"""Ask BRAIN #3 for the answer.
-
-Last, and never concurrent with the lane. It writes from what PYTHON produced:
-`grounding` carries `answerFrom` on every turn — campus rows, web results, the
-safety response, or the model's own knowledge — so it never has to infer what
-to do from a field that is not there.
-
-Retrieved passages reach this stage as untrusted text. The instruction tells
-the model to treat them as quoted material rather than as anything addressed
-to it, which is the only defence at this layer — scraped pages can carry
-wording aimed at whatever reads them next.
-
-Before editing `prompt.md`: `answerFrom` is an instruction, never a status. It
-says where this answer comes from, not that anything is missing or unbuilt. A
-lane with no executor must stay indistinguishable from a question that never
-needed one — told a lookup failed, the model apologises for a capability
-instead of answering the question.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Protocol
@@ -66,8 +47,6 @@ class OpenAIWrite:
                 "currentTime": current_time,
                 "styleMode": style_mode,
                 "responseMode": response_mode,
-                # Every lane grounds the answer, so this is spread in
-                # unconditionally rather than being a branch.
                 **grounding,
             },
             Draft,

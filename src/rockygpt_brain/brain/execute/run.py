@@ -1,10 +1,3 @@
-"""Act on a checked plan, or fail the turn.
-
-Nothing here degrades. A lane that cannot run raises rather than handing
-BRAIN #3 something to write around — the alternative is an answer invented to
-cover a lookup that never happened, which reads exactly like one that did.
-"""
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -21,12 +14,6 @@ from rockygpt_brain.services.web import WebPort
 async def run(
     checked: Plan, now: datetime, data: DataPort, web: WebPort, documents: RagPort
 ) -> Execution:
-    # Before the lane, and instead of it. Every concern the plan raises is
-    # acted on, not the first — a question can ask for a password on behalf of
-    # someone in trouble, and both halves need answering. This depends on
-    # nothing that can fail: no capability, no executor, no network. That is
-    # the point of doing it here, since the turns that most need an answer are
-    # the ones least able to wait for campus data to come back.
     if checked.safety:
         return Execution(SAFETY, results=required(checked.safety))
 

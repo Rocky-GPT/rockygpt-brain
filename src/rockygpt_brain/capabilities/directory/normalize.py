@@ -1,5 +1,3 @@
-"""Between public directory fields and the campus contact search."""
-
 from __future__ import annotations
 
 from datetime import datetime

@@ -1,5 +1,3 @@
-"""Between transportation-plan fields and the typed shuttle service."""
-
 from __future__ import annotations
 
 import re
@@ -9,14 +7,11 @@ from typing import Any
 from rockygpt_brain.capabilities.types import Reader
 
 _CLOCK = re.compile(r"^(\d{1,2}):(\d{2})\s*([AaPp])")
-#: A clock time on its own, with or without an am/pm and with or without the
-#: minutes: `15:00`, `3:00 PM`, `3pm`, `9:30 a.m.`.
 _TIME_OF_DAY = re.compile(r"^(\d{1,2})(?::(\d{2}))?\s*(?:([AaPp])M?)?$")
 _FETCH_LIMIT = 100
 
 
 def minutes(value: str) -> int:
-    """Return a display clock as minutes past midnight for chronological sorting."""
     match = _CLOCK.match(value.strip())
     if not match:
         return 0
@@ -39,21 +34,6 @@ SORT: dict[str, Reader] = {
 
 
 def instant(value: str, now: datetime) -> str:
-    """A clock time as a full timestamp on today's date, in the campus zone.
-
-    The service requires an ISO 8601 `asOf` with an explicit timezone and 400s
-    anything else, so `departingAfter: "3:00 PM"` — which is what a plan says
-    when someone asks about a shuttle at three — failed the turn outright with
-    "Rocky could not reach campus data just now". A whole class of ordinary
-    question could not be asked.
-
-    Python's job, not the model's: it is told what day it is rather than being
-    asked to write a timestamp, which is the same rule that keeps dates out of
-    the planner everywhere else. A value already carrying a date is passed
-    through, so a plan that did say one is not overwritten with today.
-    """
-    # `a.m.` and `A.M.` are the same clock time as `am`, and the dots are the
-    # only difference between a value that works and a 400.
     match = _TIME_OF_DAY.match(value.strip().replace(".", "").upper())
     if not match:
         return value
@@ -66,7 +46,6 @@ def instant(value: str, now: datetime) -> str:
 
 
 def query(filters: dict[str, str], now: datetime) -> dict[str, Any]:
-    """Translate public transportation filters to the typed shuttle request."""
     after = filters.get("departingAfter")
     request: dict[str, Any] = {
         "selection": "all",

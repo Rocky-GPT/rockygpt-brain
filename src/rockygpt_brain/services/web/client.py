@@ -1,15 +1,3 @@
-"""The web, as the brain sees it.
-
-The one outbound call that leaves campus. It answers a `current` GENERAL
-question — one whose answer changes between askings — and nothing else.
-
-Every fact comes back with the page it came from, because an answer built from
-the open web is only worth as much as what a reader can check.
-
-Before editing `prompt.md`: its last line carries the most weight. Returning
-nothing is a valid answer, and a fact no page supports is not.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Protocol
@@ -23,7 +11,7 @@ SEARCH = beside(__file__)
 
 
 class WebUnavailable(Exception):
-    """The search did not happen. The turn continues without it."""
+    pass
 
 
 class Fact(BaseModel):

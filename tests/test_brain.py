@@ -1,5 +1,3 @@
-"""A question goes in, a plan and an answer come out."""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -56,8 +54,6 @@ CLOCK = NOW.astimezone(TZ).isoformat()
 
 
 class FakeModel:
-    """BRAIN #3, faked. `supported` mirrors what a real one is asked to judge."""
-
     configured = True
 
     def __init__(self, sufficient_evidence: bool = True) -> None:
@@ -118,13 +114,6 @@ class FakePlanner:
 
 
 class FakeData:
-    """Every lookup, answering nothing.
-
-    These tests are about the lifecycle, not about any one capability, so each
-    method returns an empty list. `__getattr__` covers the registry as it grows:
-    a capability added tomorrow needs no edit here to be exercised.
-    """
-
     def __getattr__(self, capability: str) -> Any:
         async def looked_up(query: dict[str, Any]) -> list[dict[str, Any]]:
             return []
@@ -161,16 +150,12 @@ async def ask(
     planner: FakePlanner | None = None,
 ) -> tuple[ChatSuccess, FakeModel]:
     model = FakeModel()
-    # One fake satisfies both ports: it answers understand and plan alike.
     brains = planner or FakePlanner()
     brain = Brain(model, brains, brains, FakeData(), FakeWeb(), FakeRag(), memory or MemoryStore())
     response = await brain.answer(
         ChatRequest(message=message, now=NOW), TurnIdentity(rid, "s", None, "client")
     )
     return response, model
-
-
-# The answer half, unchanged
 
 
 async def test_the_question_reaches_the_model_unchanged() -> None:
@@ -205,7 +190,6 @@ async def test_a_follow_up_sees_the_earlier_turn() -> None:
 
 
 async def test_a_question_that_stands_alone_has_no_context_stage() -> None:
-    """Nothing was resolved, so `normalized` and `resolved` match."""
     plan = Plan(
         freshness="stable",
     )
@@ -214,7 +198,6 @@ async def test_a_question_that_stands_alone_has_no_context_stage() -> None:
 
 
 async def test_a_reworded_question_is_not_a_borrowed_one() -> None:
-    """BRAIN #1 said the question needed no conversation, so there is no stage."""
     plan = Plan(
         freshness="stable",
     )
@@ -246,7 +229,6 @@ async def test_the_context_stage_breaks_down_how_the_question_was_read() -> None
 
 
 async def test_a_turn_position_that_does_not_exist_is_dropped() -> None:
-    """A miscounted index is a wrong annotation, not a wrong answer."""
     read = Understanding(
         normalized="population of it",
         references=[Reference(text="it", refers_to="Paris")],
@@ -259,7 +241,6 @@ async def test_a_turn_position_that_does_not_exist_is_dropped() -> None:
 
 
 async def test_an_empty_history_is_taken_at_its_word() -> None:
-    """A client that says the conversation is empty is not overruled."""
     memory = MemoryStore()
     await ask("first", memory, "r1")
 
@@ -274,7 +255,6 @@ async def test_an_empty_history_is_taken_at_its_word() -> None:
 
 
 async def test_a_client_that_sends_no_history_still_gets_the_sessions() -> None:
-    """Omitting the field means "I do not track this", so the brain fills in."""
     memory = MemoryStore()
     await ask("first", memory, "r1")
     _, model = await ask("second", memory, "r2")
@@ -282,7 +262,6 @@ async def test_a_client_that_sends_no_history_still_gets_the_sessions() -> None:
 
 
 async def test_both_paths_see_the_same_distance_back() -> None:
-    """A client that sends history and one that omits it get the same depth."""
     memory = MemoryStore()
     for turn in range(HISTORY_EXCHANGES + 4):
         await ask(f"q{turn}", memory, f"r{turn}")
@@ -291,7 +270,7 @@ async def test_both_paths_see_the_same_distance_back() -> None:
     assert len(model.seen["context"]) == HISTORY_EXCHANGES, "the memory fallback"
 
     sent = [ChatTurn(role="user", content="x")] * (HISTORY_EXCHANGES * 2)
-    ChatRequest(message="m", history=sent)  # the contract accepts the same depth
+    ChatRequest(message="m", history=sent)
 
 
 async def test_the_modes_the_ui_asked_for_are_on_the_turn() -> None:
@@ -305,9 +284,6 @@ async def test_the_modes_the_ui_asked_for_are_on_the_turn() -> None:
     )
     assert response.brain_trace.memory["styleMode"] == "warm"
     assert response.brain_trace.memory["responseMode"] == "concise"
-
-
-# The planning half
 
 
 async def test_the_planner_is_told_the_same_question_and_time() -> None:
@@ -356,13 +332,11 @@ async def test_the_turn_reads_end_to_end_as_four_stages() -> None:
 
 
 async def test_brain_two_is_grounded_on_every_lane() -> None:
-    """Every turn hands BRAIN #3 an instruction, even when nothing was looked up."""
     _, model = await ask()
     assert model.seen["grounding"] == {"answerFrom": "ownKnowledge"}
 
 
 async def test_brain_two_never_runs_on_a_failed_lookup() -> None:
-    """No stage compensates for the one before it, so there is nothing to write."""
     model = FakeModel()
     unbuilt = FakePlanner(Plan(a_capability_answers_it=True, capability="menu"))
     brain = Brain(
@@ -382,12 +356,6 @@ async def test_brain_two_never_runs_on_a_failed_lookup() -> None:
 
 
 async def test_a_capability_with_no_code_is_caught_before_anything_runs() -> None:
-    """Every lane runs now, so what is left unbuilt is a capability.
-
-    The registry lists only what has code, so an unknown name is refused while
-    the plan is still being checked — a stage earlier than it used to fail, and
-    retryable because the next plan may name something Rocky can do.
-    """
     with pytest.raises(ServiceError) as raised:
         await ask(planner=FakePlanner(Plan(a_capability_answers_it=True, capability="menu")))
     assert raised.value.status_code == 503
@@ -402,14 +370,12 @@ async def test_the_route_is_the_lane() -> None:
 
 
 async def test_a_rejected_plan_ends_the_turn() -> None:
-    """The registry refusing a plan is a failure, not a cue to answer anyway."""
     with pytest.raises(ServiceError) as raised:
         await ask(planner=FakePlanner(Plan(a_capability_answers_it=True, capability="weather")))
     assert "weather" in str(raised.value.__cause__)
 
 
 async def test_a_planner_outage_ends_the_turn() -> None:
-    """Everything downstream is read against the plan, so there is nothing to run."""
     with pytest.raises(ServiceError):
         await ask(planner=FakePlanner(fails=True))
 
@@ -419,23 +385,20 @@ def _web(*rows: tuple[str, str]) -> Execution:
 
 
 def test_a_web_answer_carries_the_pages_it_came_from() -> None:
-    """The point of the lane: an answer off the open web is checkable."""
     found = _citations(_web(("Paris has 2.1m residents.", "https://www.insee.fr/en/stats/1")), NOW)
     assert len(found) == 1
-    assert found[0].title == "insee.fr"  # the host, and `www.` is not part of it
+    assert found[0].title == "insee.fr"
     assert str(found[0].url) == "https://www.insee.fr/en/stats/1"
     assert found[0].snippet == "Paris has 2.1m residents."
 
 
 def test_only_the_web_lane_cites() -> None:
-    """Campus rows are Rocky's own records — there is no page to point a reader at."""
     rows = [{"departureTime": "2:55 PM"}]
     assert _citations(Execution(CAMPUS_DATA, results=rows), NOW) == []
     assert _citations(Execution(OWN_KNOWLEDGE, note="stable"), NOW) == []
 
 
 def test_two_facts_from_one_page_cite_it_once() -> None:
-    """The client dedupes on `title|url`; deduping here keeps the two in step."""
     found = _citations(
         _web(("First.", "https://insee.fr/a"), ("Second.", "https://insee.fr/a")), NOW
     )
@@ -443,7 +406,6 @@ def test_two_facts_from_one_page_cite_it_once() -> None:
 
 
 def test_a_row_that_cannot_be_cited_is_dropped_not_raised_on() -> None:
-    """The answer is already written. Losing it to a bad URL is the worse outcome."""
     found = _citations(
         _web(
             ("No URL at all.", ""),
@@ -469,7 +431,6 @@ def test_a_resolution_that_carried_the_referent_through_is_planned_from() -> Non
 
 
 def test_a_referent_reworded_on_the_way_in_still_counts() -> None:
-    """BRAIN #1 keeps the word and appends the date. That is a resolution, not a failure."""
     assert not unresolved(
         _read(
             "What about tomorrow",
@@ -484,26 +445,17 @@ def test_a_question_that_needed_context_and_came_back_unchanged_is_refused() -> 
 
 
 def test_a_referent_that_never_reached_the_question_is_refused() -> None:
-    """The Italy case: `it` was found, and then dropped on the way in."""
     assert unresolved(
         _read("Population of it", "Population of the capital of France", [("it", "Paris")])
     )
 
 
 def test_a_self_contained_question_is_never_second_guessed() -> None:
-    """`usesContext` false means there was nothing to carry, so there is nothing to check."""
     read = Understanding(normalized="Capital of France?", resolved="Capital of France?")
     assert not unresolved(read)
 
 
 def test_retryability_is_a_property_of_the_cause_not_a_choice() -> None:
-    """The field a client acts on, and the one that used to be set by hand.
-
-    Told to retry a missing key or a spent account, a client retries forever
-    against something no attempt fixes. Told not to retry a model that
-    hiccuped, it abandons a turn that would have worked. Neither is a decision
-    a raise site should be able to get wrong.
-    """
     assert Unavailable("x").retryable, "a passing fault is worth another try"
     assert DatasetUnavailable("x").retryable, "campus data comes back"
     assert not Unsupported("x").retryable, "waiting does not build a capability"
@@ -513,13 +465,11 @@ def test_retryability_is_a_property_of_the_cause_not_a_choice() -> None:
 
 
 def test_no_raise_site_can_state_its_own_retryability() -> None:
-    """The constructor takes a message. There is no argument to get wrong."""
     with pytest.raises(TypeError):
         Unavailable("x", retryable=False)  # type: ignore[call-arg]
 
 
 def test_a_spent_account_is_not_advertised_as_retryable() -> None:
-    """The failure that hid behind "temporarily unavailable" for three probes."""
 
     class Spent(Exception):
         code = "credit_balance_exhausted"
@@ -534,11 +484,6 @@ def _logs(memory: MemoryStore) -> list[Any]:
 
 
 async def test_a_turn_that_failed_still_reaches_the_log() -> None:
-    """The bug this guards: the log showed only successes and looked complete.
-
-    A turn that raised was recorded nowhere, so an admin reading the log saw a
-    clean run and no sign of the questions Rocky could not answer.
-    """
     memory = MemoryStore()
     model = FakeModel()
     unbuilt = FakePlanner(Plan(a_capability_answers_it=True, capability="menu"))
@@ -557,12 +502,6 @@ async def test_a_turn_that_failed_still_reaches_the_log() -> None:
 
 
 async def test_a_failed_turn_is_not_offered_back_as_conversation() -> None:
-    """It goes in the log, not the history.
-
-    `history` feeds BRAIN #1, which resolves follow-ups against what was said.
-    An error message is not something a later question can refer back to, and
-    offering it as context is worse than the gap it leaves.
-    """
     memory = MemoryStore()
     unbuilt = FakePlanner(Plan(a_capability_answers_it=True, capability="menu"))
     brain = Brain(FakeModel(), unbuilt, unbuilt, FakeData(), FakeWeb(), FakeRag(), memory)
@@ -578,7 +517,6 @@ async def test_a_failed_turn_is_not_offered_back_as_conversation() -> None:
 
 
 async def test_a_failure_records_how_far_the_turn_got() -> None:
-    """A turn that reached a plan records it; the stage that failed is visible."""
     memory = MemoryStore()
     unbuilt = FakePlanner(Plan(a_capability_answers_it=True, capability="menu"))
     brain = Brain(FakeModel(), unbuilt, unbuilt, FakeData(), FakeWeb(), FakeRag(), memory)
@@ -595,7 +533,6 @@ async def test_a_failure_records_how_far_the_turn_got() -> None:
 
 
 async def test_a_successful_turn_is_recorded_exactly_once() -> None:
-    """The `finally` must not double-write what the success path already wrote."""
     memory = MemoryStore()
     await ask("hello", memory)
     assert len(_logs(memory)) == 1
@@ -603,7 +540,6 @@ async def test_a_successful_turn_is_recorded_exactly_once() -> None:
 
 
 async def _documents(model: FakeModel) -> ChatSuccess:
-    """A turn that reaches the RAG lane and retrieves something."""
     brains = FakePlanner(Plan(specific_to_ramapo=True, topic="guest policy"))
     rag = FakeRag(
         [Passage("Guests must carry ID.", "housing", "Residence Life", "https://x.edu/a")]
@@ -650,19 +586,12 @@ async def test_rag_is_gated_while_code_is_being_tested() -> None:
 
 
 async def test_passages_that_do_not_answer_the_question_produce_no_answer() -> None:
-    """The failure this exists to stop: a policy invented in the voice of a document.
-
-    Retrieval running is not evidence. When what came back does not answer the
-    question, the honest reply is that it does not — written by Python, because
-    a model that has just judged its evidence thin still writes something.
-    """
     response = await _documents(FakeModel(sufficient_evidence=False))
     assert response.answer == INSUFFICIENT_EVIDENCE
     assert response.brain_trace.answer["sufficientEvidence"] is False
 
 
 async def test_an_abstention_cites_nothing() -> None:
-    """A citation on an abstention points a reader at a page that does not say it."""
     response = await _documents(FakeModel(sufficient_evidence=False))
     assert response.citations == []
 
@@ -674,7 +603,6 @@ async def test_supported_passages_are_answered_and_cited_as_normal() -> None:
 
 
 async def test_only_the_documents_lane_is_held_to_this_yet() -> None:
-    """campusData and web could follow, but each needs its own measurement first."""
     model = FakeModel(sufficient_evidence=False)
     brains = FakePlanner(Plan())
     brain = Brain(model, brains, brains, FakeData(), FakeWeb(), FakeRag(), MemoryStore())
@@ -685,13 +613,6 @@ async def test_only_the_documents_lane_is_held_to_this_yet() -> None:
 
 
 async def test_a_narrowing_that_matched_nothing_is_not_reported_as_nothing_existing() -> None:
-    """The sentence is Python's, because told to write it BRAIN #3 denied the thing.
-
-    `subject: "CS"` matched no courses — the catalogue files them under CMPS —
-    and five answers in six came back saying there are no computer science
-    courses, over sixty-three of them. There are no rows to write about, so
-    taking the sentence away from BRAIN #3 costs nothing.
-    """
     narrowed = Plan(
         a_capability_answers_it=True,
         lane=Lane.CODE,
@@ -706,7 +627,6 @@ async def test_a_narrowing_that_matched_nothing_is_not_reported_as_nothing_exist
 
 
 async def test_an_unnarrowed_lookup_that_found_nothing_is_still_the_model_to_answer() -> None:
-    """ "There are none left today" is a real answer and must not be taken away."""
     whole = Plan(
         a_capability_answers_it=True,
         lane=Lane.CODE,

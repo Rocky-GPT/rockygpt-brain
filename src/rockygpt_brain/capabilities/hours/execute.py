@@ -1,5 +1,3 @@
-"""Look up structured campus or dining hours."""
-
 from __future__ import annotations
 
 import asyncio

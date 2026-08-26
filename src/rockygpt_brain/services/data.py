@@ -1,13 +1,3 @@
-"""The data service, as the brain sees it.
-
-The one outbound call BASE makes that is not a model call. It answers the CODE
-lane and nothing else; when it cannot, the turn is still answered, without it.
-
-One method per capability that has an executor. The method sends the data
-service's own request shape — translating a plan into that shape is the
-executor's job, not this file's.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Protocol
@@ -16,7 +6,7 @@ import httpx
 
 
 class DataUnavailable(Exception):
-    """The lookup did not happen. The turn continues without it."""
+    pass
 
 
 class DataPort(Protocol):
@@ -71,7 +61,6 @@ class HttpData:
         return self._records(await self._get("/v1/search/courses", query), "courses")
 
     async def transportation(self, query: dict[str, Any]) -> list[dict[str, Any]]:
-        """The same lookup `shuttle` makes. The capability was renamed, not the data."""
         return await self.shuttle(query)
 
     async def calendar(self, query: dict[str, str]) -> list[dict[str, Any]]:
@@ -84,22 +73,13 @@ class HttpData:
         return self._records(await self._get("/v1/search/programs", query), "programs")
 
     async def directory(self, query: dict[str, str]) -> list[dict[str, Any]]:
-        """Contacts, from the one endpoint that does not answer in `records`.
-
-        It answers in buckets — offices, faculty and staff, everyone else — and
-        `allContacts` is the three of them already merged. Which bucket a
-        contact came from is the service's business; a capability asked for
-        people and gets people.
-        """
         return self._under(await self._get("/v1/directory", query), "allContacts", "directory")
 
     async def locations(self, query: dict[str, str]) -> list[dict[str, Any]]:
-        """The campus map, which also answers in its own key rather than `records`."""
         return self._under(await self._get("/v1/map", query), "locations", "locations")
 
     @staticmethod
     def _under(body: dict[str, Any], key: str, capability: str) -> list[dict[str, Any]]:
-        """Rows from a response that names them something other than `records`."""
         rows = body.get(key)
         if not isinstance(rows, list):
             raise DataUnavailable(f"the {capability} response carried no {key}")

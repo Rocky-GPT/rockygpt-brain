@@ -1,33 +1,3 @@
-"""One request, start to finish.
-
-    the question
-        -> BRAIN #1  understand it — what is it actually asking?  (planner.py)
-        -> BRAIN #2  plan it — what should be done about that?    (planner.py)
-        -> PYTHON    run the lane the plan names, or fail         (execute.py)
-        -> BRAIN #3  translate what came back into an answer      (model.py)
-
-Three brains and a lane, in that order, and the trace carries one entry for
-each. Each takes the one before it and turns it into something else: words into
-an understanding, an understanding into a plan, a plan into rows, rows into
-prose.
-
-The order is the point. BRAIN #2 is given the resolved question and neither the
-conversation nor the words as typed, so it cannot plan around a bad reading.
-BRAIN #3 comes last because what the lane returned is what there is to write
-about.
-
-No stage compensates for the one before it. A planner that does not answer, a
-plan the registry rejects, a lookup that fails — each ends the turn rather than
-letting the stage after it paper over the gap. The alternative is an answer
-written around a lookup that never happened, which reads exactly like one that
-did, and only the trace would ever know the difference.
-
-The question stage holds the words the student typed and nothing else.
-Everything the turn is read against — the clock, the earlier turns, the modes
-the client asked for — is the context stage beside it, which leaves the plan
-stage as purely what BRAIN #1 decided.
-"""
-
 from __future__ import annotations
 
 import time
@@ -100,21 +70,12 @@ class Brain:
     async def answer(self, request: ChatRequest, identity: TurnIdentity) -> ChatSuccess:
         started = time.monotonic()
         now = (request.now or datetime.now(UTC)).astimezone(self._tz)
-        # The client is the authority on its own conversation when it says
-        # anything at all. `[]` means there is nothing earlier; only a missing
-        # field falls back to what this process remembers of the session.
         earlier = (
             [turn.model_dump() for turn in request.history]
             if request.history is not None
             else self._memory.history(identity.session_id)
         )
 
-        # 1. the question in the student's own words, and separately everything
-        # else the turn is read against. The clock is context too: Python sets
-        # it, both brains are handed it, and it is on every turn — including
-        # ones with nothing temporal in them, because a trace that hid a real
-        # input would cost an hour the first time a date came out wrong. Do not
-        # make it conditional.
         question = {"question": request.message}
         memory: dict[str, Any] = {
             "currentTime": now.isoformat(),
@@ -125,16 +86,13 @@ class Brain:
         if request.response_mode:
             memory["responseMode"] = request.response_mode
 
-        # Written in the `finally` below however this ends. Every stage adds
-        # to it as it completes, so a turn that fails halfway is recorded with
-        # exactly what it got through.
         recording = _Recording(identity, request.message, started)
         try:
             return await self._turn(request, identity, now, earlier, question, memory, recording)
         except ServiceError as exc:
             recording.failed = str(exc.__cause__ or exc)
             raise
-        except Exception as exc:  # noqa: BLE001 — recorded, then re-raised untouched
+        except Exception as exc:
             recording.failed = f"{type(exc).__name__}: {exc}"
             raise
         finally:
@@ -150,11 +108,6 @@ class Brain:
         memory: dict[str, Any],
         recording: _Recording,
     ) -> ChatSuccess:
-        """The four stages. Raises rather than degrading, and is recorded either way."""
-        # BRAIN #1 reads the question, then BRAIN #2 plans from what it read —
-        # and from nothing else. A brain that does not answer, or a plan the
-        # registry will not accept, ends the turn: nothing downstream is
-        # allowed to make up for it.
         read = await self._understand.understand(request.message, earlier, now.isoformat())
         if failure := unresolved(read):
             raise Unavailable("Rocky could not work out what that was asking.") from (
@@ -170,9 +123,6 @@ class Brain:
         recording.plan = checked.summary()
         recording.route = checked.lane.value.lower()
 
-        # Keep route selection observable while CODE is tested alone, but do
-        # not retrieve documents or ask BRAIN #3 to write a RAG answer. Safety
-        # remains ahead of every rollout gate.
         if checked.lane is Lane.RAG and not checked.safety and not self._rag_enabled:
             execution = Execution(
                 RAG_DISABLED,
@@ -207,11 +157,9 @@ class Brain:
             recording.answer = response.answer
             return response
 
-        # PYTHON — run the lane. Raises if it cannot.
         execution = await run(checked, now, self._data, self._web, self._documents)
         recording.execution = execution.summary()
 
-        # BRAIN #3 — turn what the lane returned into an answer
         draft = await self._model.answer(
             request.message,
             earlier,
@@ -221,24 +169,9 @@ class Brain:
             execution.grounding(),
         )
 
-        # The documents were searched and did not answer the question. That is
-        # an outcome, not a failure: retrieval ran and worked. What changes is
-        # who writes the last sentence — BRAIN #3 has just said its evidence was
-        # thin, and a model in that position writes a hedged answer rather than
-        # none, which reads exactly like a sourced one.
-        #
-        # Only the documents lane for now. `campusData` and `web` could be held
-        # to the same rule, but each needs its own measurement first.
         unsupported = execution.answer_from == DOCUMENTS and not draft.sufficient_evidence
         answer = INSUFFICIENT_EVIDENCE if unsupported else draft.answer
 
-        # A narrowing that matched nothing, said by Python for the same reason.
-        # There are no rows to write about, so nothing is lost by taking the
-        # sentence away from BRAIN #3 — and what it wrote instead was that the
-        # thing does not exist, over a catalogue that holds it under another
-        # name. An unnarrowed lookup is left alone: nothing coming back there
-        # really does mean there are none, and "there are none left today" is
-        # the answer worth having.
         if (
             execution.answer_from == CAMPUS_DATA
             and not execution.results
@@ -250,9 +183,6 @@ class Brain:
         trace = BrainTrace(
             question=question,
             memory=memory,
-            # What BRAIN #1 made of the question, and separately what it had
-            # to borrow to get there. Split because the first is produced on
-            # every turn and the second only when the conversation mattered.
             understanding={
                 "normalizedQuestion": read.normalized,
                 "usesContext": read.uses_context,
@@ -263,8 +193,6 @@ class Brain:
             execution=execution.summary(),
             answer={"answer": answer, "sufficientEvidence": draft.sufficient_evidence},
         )
-        # Nothing was answered from them, so nothing is cited. A citation on
-        # an abstention points a reader at a page that does not say it.
         citations = [] if unsupported else _citations(execution, now)
         response = ChatSuccess(
             request_id=identity.request_id,
@@ -281,19 +209,6 @@ class Brain:
 
 
 def _context(read: Understanding, earlier: list[dict[str, Any]]) -> dict[str, Any]:
-    """How the question was worked out, and empty when it needed no working out.
-
-    The gate is `usesContext`, which BRAIN #1 states outright. It is the only
-    stage that can see the conversation, so it is the only one in a position to
-    say whether this question needed it — and asking it beats every proxy tried
-    here: a diff against the question caught typo corrections, and `references`
-    flagged "you" and missed a subject left out altogether.
-
-    `contextUsed` is looked up here from the positions BRAIN #1 named, so what
-    is shown is what was actually said rather than its recollection of it.
-    Positions that do not exist are dropped — a miscounted index is a wrong
-    annotation, not a wrong answer, and should not cost the turn.
-    """
     if not read.uses_context:
         return {}
     used = [earlier[i] for i in read.used_turns if 0 <= i < len(earlier)]
@@ -304,23 +219,6 @@ def _context(read: Understanding, earlier: list[dict[str, Any]]) -> dict[str, An
 
 
 def _citations(execution: Execution, now: datetime) -> list[Citation]:
-    """The pages an answer came from, so a reader can check it.
-
-    The web and the documents both produce these; campus rows are Rocky's own
-    records and carry no page to point at, and a lane that looked nothing up
-    has nothing to cite.
-
-    A document passage brings its own title, because the retrieval service
-    knows what page it cut the passage out of. A web result does not, so its
-    title is the host, which is the part a reader recognises anyway — `insee.fr` says more about
-    whether to trust a number than a headline would. That also makes the title
-    a function of the URL, so the client deduplicating on `title|url` and this
-    deduplicating on the URL agree rather than disagreeing quietly.
-
-    A row Rocky cannot turn into a citation is dropped, never raised on. The
-    answer is already written by this point, and losing it over a malformed URL
-    would be the citation costing more than it is worth.
-    """
     if execution.answer_from not in (WEB, DOCUMENTS):
         return []
     out: list[Citation] = []
@@ -349,19 +247,6 @@ def _citations(execution: Execution, now: datetime) -> list[Citation]:
 
 @dataclass(slots=True)
 class _Recording:
-    """What is known about this turn so far, written however it ends.
-
-    The old code recorded at the end of the success path, so every turn that
-    raised — a resolution that failed, a plan the registry refused, a lookup
-    that could not run — left no trace at all. The admin log showed a clean
-    run of successes and the failures were simply absent, which is the worst
-    possible shape for a log: it looks complete.
-
-    This accumulates as the stages complete and is written in a `finally`, so
-    a new failure path cannot be added without being recorded. Nothing here
-    needs to be remembered by whoever adds one.
-    """
-
     identity: TurnIdentity
     question: str
     started: float
@@ -379,8 +264,6 @@ class _Recording:
             visitor_id=self.identity.visitor_id,
             question_origin=self.identity.question_origin,
             user_message=self.question,
-            # Empty when the turn failed, which is what keeps it out of the
-            # conversation and in the log.
             assistant_message=self.answer,
             route=self.route,
             tools=[],
@@ -391,11 +274,6 @@ class _Recording:
         )
 
     def _result(self) -> dict[str, Any]:
-        """What happened, for a person reading the log.
-
-        `failed` carries the reason and is present only when there was one, so
-        a failed turn cannot be mistaken for a quiet one.
-        """
         out: dict[str, Any] = {"execution": self.execution, "answer": {"answer": self.answer}}
         if self.failed:
             out["failed"] = self.failed
@@ -403,4 +281,4 @@ class _Recording:
 
 
 class PlanRejected(Exception):
-    """Why the registry would not accept a plan. The cause of the ServiceError."""
+    pass

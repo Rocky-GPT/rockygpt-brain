@@ -1,5 +1,3 @@
-"""Between event-plan fields and the structured event search service."""
-
 from __future__ import annotations
 
 import re
@@ -83,9 +81,6 @@ def matches(record: dict[str, Any], filters: dict[str, str], now: datetime) -> b
         if _date(record) != wanted_date:
             return False
     after = filters.get("startsAfter")
-    # With no date, this capability promises upcoming events, so `now` is the
-    # implicit floor. An explicit date means the whole requested calendar day;
-    # callers can combine it with startsAfter when they want only its remainder.
     if after or "date" not in filters:
         try:
             threshold = datetime.fromisoformat(after) if after else now

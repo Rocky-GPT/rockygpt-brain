@@ -1,5 +1,3 @@
-"""Small in-memory conversation history and UI log store."""
-
 from __future__ import annotations
 
 import asyncio
@@ -22,15 +20,12 @@ from rockygpt_brain.context.schema import Turn
 
 
 class MemoryStore:
-    """Process-local memory for the BASE implementation."""
-
     def __init__(self) -> None:
         self._turns: dict[str, list[Turn]] = defaultdict(list)
         self._logs: list[ChatLogItem] = []
         self._version = 0
 
     def history(self, session_id: str) -> list[dict[str, Any]]:
-        """The last `HISTORY_EXCHANGES` turns, for a client that tracks none."""
         return [turn.prompt_value() for turn in self._turns[session_id][-HISTORY_EXCHANGES:]]
 
     def record(
@@ -50,13 +45,6 @@ class MemoryStore:
         latency_ms: int,
     ) -> None:
         created_at = datetime.now(UTC)
-        # A turn joins the conversation only when there was an answer to it.
-        # The log takes everything — a turn that failed is exactly what an
-        # operator needs to see — but `history` feeds BRAIN #1, which resolves
-        # follow-ups against what was said. "Rocky is unavailable" is not
-        # something a later question can refer back to, and offering it as
-        # context is worse than the gap. Derived from the message rather than
-        # passed in, so no caller can record an answer that never happened.
         if assistant_message:
             self._turns[session_id].append(
                 Turn(request_id, user_message, assistant_message, route, created_at)

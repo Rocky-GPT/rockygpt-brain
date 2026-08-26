@@ -1,15 +1,3 @@
-"""Retrieving passages from campus documents.
-
-The RAG lane's one outbound call. It returns passages already paired with the
-page each came from, because an answer quoted out of a document is worth
-exactly what a reader can check — the same reason the web lane returns sources.
-
-Every passage is scraped text. The retrieval service says so itself, marking
-each chunk untrusted, and this file keeps that true: nothing here reads the
-content, matches on it, or lets it decide anything. It is carried onward as
-material to answer from and nothing more.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -19,13 +7,11 @@ import httpx
 
 
 class RagUnavailable(Exception):
-    """The retrieval did not happen. Different from finding nothing."""
+    pass
 
 
 @dataclass(frozen=True, slots=True)
 class Passage:
-    """One retrieved passage, and the page it came from."""
-
     content: str
     domain: str
     title: str
@@ -37,15 +23,6 @@ class RagPort(Protocol):
 
 
 class HttpRag:
-    """The retrieval service as it stands today.
-
-    The ranking behind this is early: a query and its close rewording return
-    different numbers of passages, and a low-scoring irrelevant chunk can come
-    back alongside a good one. That is a problem for the index, not for the
-    brain — everything above this class is written against `RagPort`, so a
-    better retriever replaces this and nothing else.
-    """
-
     def __init__(self, base_url: str, timeout: float, client: Any | None = None) -> None:
         self._base = base_url.rstrip("/")
         self._timeout = timeout
@@ -56,9 +33,6 @@ class HttpRag:
         records = body.get("records")
         if not isinstance(records, list):
             raise RagUnavailable("the retrieval response carried no records")
-        # Sources arrive in their own array, joined to a passage by id. A
-        # passage whose source is missing is dropped rather than shown without
-        # one: an answer nobody can check is what this lane exists to avoid.
         sources = {
             item["evidenceId"]: item
             for item in body.get("evidence", [])

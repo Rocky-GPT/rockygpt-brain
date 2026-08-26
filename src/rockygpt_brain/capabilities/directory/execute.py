@@ -1,5 +1,3 @@
-"""Look up public campus directory records."""
-
 from __future__ import annotations
 
 from datetime import datetime

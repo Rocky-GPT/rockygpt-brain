@@ -1,5 +1,3 @@
-"""Between hours-plan fields and the two structured hours searches."""
-
 from __future__ import annotations
 
 import re
@@ -82,9 +80,6 @@ def matches(record: dict[str, Any], filters: dict[str, str]) -> bool:
     if name := filters.get("name"):
         if not holds(_text(record, "name"), name):
             return False
-    # With no named venue, `openAt` means "which places are open?" A named
-    # venue keeps its row even when closed, because that negative answer is the
-    # useful result rather than an unexplained empty match.
     if filters.get("openAt") and not filters.get("name"):
         return record.get("openNow") is True
     return True

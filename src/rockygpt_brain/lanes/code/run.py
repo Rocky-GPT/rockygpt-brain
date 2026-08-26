@@ -1,11 +1,3 @@
-"""Run a capability, then apply the plan's operation to what came back.
-
-The split is deliberate. The capability knows how to fetch and how to read its
-own records; this knows `orderBy`, `limit` and `count`, which mean the same
-thing whatever was looked up. Neither has to learn the other's job, and the
-registry is what joins them.
-"""
-
 from __future__ import annotations
 
 from dataclasses import replace
@@ -25,7 +17,7 @@ from rockygpt_brain.services.data import DataPort, DataUnavailable
 
 
 class LaneFailed(Exception):
-    """Why a lane produced nothing. The cause of the ServiceError."""
+    pass
 
 
 async def run(checked: Plan, now: datetime, data: DataPort) -> Execution:
@@ -37,8 +29,6 @@ async def run(checked: Plan, now: datetime, data: DataPort) -> Execution:
         )
 
     try:
-        # The filters, not the plan. A capability has no business knowing what
-        # a lane is or which operations exist.
         records = await entry.execute(checked.filter_values, now, data)
     except DataUnavailable as exc:
         raise DatasetUnavailable("Rocky could not reach campus data just now.") from exc
@@ -50,20 +40,6 @@ async def run(checked: Plan, now: datetime, data: DataPort) -> Execution:
 
 
 def apply(records: list[dict[str, Any]], operation: Operation, capability: str) -> Execution:
-    """`orderBy`, `limit` and `count`, then one page of what is left.
-
-    Three cuts, and they are not the same kind of thing. `limit` is what the
-    question asked for, so a result cut to it is the answer. The page is what a
-    message holds, so a result cut to it is a page — and `found` is what says
-    which of the two happened. Silently they look identical, which is how two
-    hundred rows became "the courses Ramapo offers".
-
-    The page is also why nothing here needs a cap of its own any more. The data
-    service hands over its whole table now — the course catalogue is 3,344
-    entries and three megabytes, and a question like "what courses does Ramapo
-    offer" once put all of it in the prompt and failed the turn outright. It is
-    a page of 25 that goes in the prompt, and 3,344 that gets reported.
-    """
     rows = list(records)
     entry = capability_for(capability)
     if entry is None:
@@ -75,13 +51,8 @@ def apply(records: list[dict[str, Any]], operation: Operation, capability: str) 
         key = entry.sort.get(operation.order_by) or entry.read.get(operation.order_by)
         if key is not None:
             rows.sort(key=key, reverse=operation.direction == "descending")
-            # Recorded only where the sort actually happened. A plan naming a
-            # field nothing can sort by leaves the rows as the service returned
-            # them, and calling that an ordering would be inventing one.
             ordering = Ordering(operation.order_by, operation.direction)
     if operation.count:
-        # Counted before the limit: the answer is how many matched, not how
-        # many were kept.
         return Execution(CAMPUS_DATA, count=len(rows))
     if operation.limit is not None:
         rows = rows[: operation.limit]
@@ -97,7 +68,6 @@ def apply(records: list[dict[str, Any]], operation: Operation, capability: str) 
 
 
 def project(record: dict[str, Any], capability: str) -> dict[str, Any]:
-    """One record, cut down to the fields the capability publishes."""
     entry = capability_for(capability)
     if entry is None:
         raise Unsupported("Rocky cannot look that up yet.") from LaneFailed(
