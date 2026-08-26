@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from rockygpt_brain.brain.plan.schema import Filter, Lane, Plan
-from rockygpt_brain.capabilities.registry import CAPABILITIES
+from rockygpt_brain.capabilities.registry import capability_for
 
 _DAYS = {"today": 0, "tomorrow": 1, "yesterday": -1}
 
@@ -124,7 +124,7 @@ def anchor(query: str, now: datetime) -> str:
 
 
 def _check_code(plan: Plan, now: datetime) -> Plan | Rejected:
-    capability = CAPABILITIES.get(plan.capability or "")
+    capability = capability_for(plan.capability or "")
     if capability is None:
         return Rejected(f"no capability named {plan.capability!r}")
 

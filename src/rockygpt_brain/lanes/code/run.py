@@ -13,7 +13,7 @@ from typing import Any
 
 from rockygpt_brain.brain.execute.schema import CAMPUS_DATA, Execution
 from rockygpt_brain.brain.plan.schema import Operation, Plan
-from rockygpt_brain.capabilities.registry import CAPABILITIES
+from rockygpt_brain.capabilities.registry import capability_for
 from rockygpt_brain.errors import DatasetUnavailable, Unsupported
 from rockygpt_brain.services.data import DataPort, DataUnavailable
 
@@ -24,7 +24,7 @@ class LaneFailed(Exception):
 
 async def run(checked: Plan, now: datetime, data: DataPort) -> Execution:
     capability = checked.capability or ""
-    entry = CAPABILITIES.get(capability)
+    entry = capability_for(capability)
     if entry is None:
         raise Unsupported("Rocky cannot look that up yet.") from LaneFailed(
             f"no capability named {capability!r}"
@@ -46,7 +46,11 @@ def apply(
 ) -> tuple[list[dict[str, Any]], int | None]:
     """`orderBy`, `limit` and `count`, over whatever the lookup returned."""
     rows = list(records)
-    entry = CAPABILITIES[capability]
+    entry = capability_for(capability)
+    if entry is None:
+        raise Unsupported("Rocky cannot look that up yet.") from LaneFailed(
+            f"no capability named {capability!r}"
+        )
     if operation.order_by:
         key = entry.sort.get(operation.order_by) or entry.read.get(operation.order_by)
         if key is not None:
@@ -62,5 +66,9 @@ def apply(
 
 def project(record: dict[str, Any], capability: str) -> dict[str, Any]:
     """One record, cut down to the fields the capability publishes."""
-    entry = CAPABILITIES[capability]
+    entry = capability_for(capability)
+    if entry is None:
+        raise Unsupported("Rocky cannot look that up yet.") from LaneFailed(
+            f"no capability named {capability!r}"
+        )
     return {name: read(record) for name, read in entry.read.items() if name in entry.fields}

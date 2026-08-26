@@ -1,1 +1,1 @@
-"""Shuttle and bus departures."""
+"""Compatibility namespace for the transportation capability."""
