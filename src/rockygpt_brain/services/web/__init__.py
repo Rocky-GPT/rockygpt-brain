@@ -1,5 +1,3 @@
-"""The web, as the brain sees it."""
-
 from rockygpt_brain.services.web.client import (
     OpenAIWeb as OpenAIWeb,
 )

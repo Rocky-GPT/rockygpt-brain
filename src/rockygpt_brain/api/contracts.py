@@ -1,5 +1,3 @@
-"""Public HTTP contracts from ``spec/brain-api.openapi.yaml``."""
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -27,9 +25,6 @@ Identifier = Annotated[
 BoundedText = Annotated[str, StringConstraints(min_length=1, max_length=2000)]
 
 
-#: How far back a turn can see, in exchanges — a question and its answer.
-#: `MemoryStore` keeps this many, and a client may send the same depth, which
-#: on the wire is two entries each. One number, one unit, both paths.
 HISTORY_EXCHANGES = 10
 HISTORY_MESSAGES = HISTORY_EXCHANGES * 2
 
@@ -41,11 +36,6 @@ class ChatTurn(ContractModel):
 
 class ChatRequest(ContractModel):
     message: BoundedText
-    #: Absent and empty mean different things. A client that tracks the
-    #: conversation sends this every turn, and `[]` from it is a statement —
-    #: "there is nothing earlier" — which the brain takes at its word. Omitting
-    #: the field says the client does not track history, and only then does the
-    #: brain fall back to its own record of the session.
     history: Annotated[list[ChatTurn], Field(max_length=HISTORY_MESSAGES)] | None = None
     style_mode: Annotated[
         str | None, StringConstraints(min_length=1, max_length=32, pattern=r"^[A-Za-z0-9_-]+$")
@@ -97,23 +87,6 @@ class UiAction(ContractModel):
 
 
 class BrainTrace(ContractModel):
-    """A turn, entry by entry, in the order it ran.
-
-    ``question`` what was asked, in the student's own words
-    ``memory``   what was available to read it against — the earlier turns, the
-                 clock, and the modes the client asked for
-    ``understanding``
-                 BRAIN #1 — what the question turned out to be asking
-    ``context``  what it borrowed from the conversation to get there. Empty
-                 unless BRAIN #1 says the question needed it
-    ``plan``     BRAIN #2 — what to do about it, as a lane and operations
-    ``execution``PYTHON — what running that lane produced
-    ``answer``   BRAIN #3 — the prose
-
-    One box each in the dev inspector. A stage that did nothing says so rather
-    than going missing, so the pipeline always reads end to end.
-    """
-
     question: dict[str, Any]
     memory: dict[str, Any]
     understanding: dict[str, Any]
@@ -181,7 +154,6 @@ class ErrorResponse(ContractModel):
 
 
 class Health(ContractModel):
-    # Health intentionally permits additive process metadata in the public contract.
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     status: Literal["healthy", "ok"]

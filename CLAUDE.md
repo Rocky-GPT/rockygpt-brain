@@ -87,9 +87,9 @@ cannot quietly acquire an f-string, which is how a prompt starts behaving
 differently from what it appears to say. The file is the whole instruction
 and nothing else: what it reads as is what is sent, with nothing stripped on
 the way out.
-Notes for whoever edits one go in the docstring of the module that loads it,
-where they cannot be sent by construction. A test enforces this: inline an
-instruction as a Python string and the suite fails.
+Notes for whoever edits one go in DESIGN.md, where they cannot be sent by
+construction — the source itself carries no commentary at all. A test enforces
+the loading rule: inline an instruction as a Python string and the suite fails.
 
 Two things that look like lanes are not, and must not become lanes again. A
 lane says where an answer lives; neither of these is a place.

@@ -1,5 +1,3 @@
-"""Between academic-calendar fields and the academic-date search."""
-
 from __future__ import annotations
 
 import re

@@ -1,5 +1,3 @@
-"""Between program-plan fields and the academic-program search."""
-
 from __future__ import annotations
 
 import re

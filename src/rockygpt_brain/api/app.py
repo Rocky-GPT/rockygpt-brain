@@ -1,5 +1,3 @@
-"""FastAPI surface for the BASE hybrid brain."""
-
 from __future__ import annotations
 
 import time
@@ -214,26 +212,10 @@ def create_app(
 
     @app.get("/v1/capabilities")
     async def capabilities() -> Response:
-        """What Rocky can look up, exactly as the planner is shown it.
-
-        The same `catalogue()` that goes into BRAIN #2's payload, so what a
-        reader sees here is what the planner had to choose from — not a
-        description of it kept in step by hand. An entry exists only when
-        there is code behind it, so this is also the list of lookups that can
-        actually run.
-        """
         return _json({"capabilities": catalogue()}, 200)
 
     @app.get("/v1/capabilities/{name}/records")
     async def capability_records(name: str) -> Response:
-        """Everything a capability returns when nothing narrows it.
-
-        The same executor a turn would run, with no filters — so what a reader
-        sees is what Rocky would have to answer from, not a separate view of
-        the data that could disagree with it. Records are cut to the fields the
-        capability publishes, for the same reason: a field not listed there
-        never reaches an answer, so showing it would overstate what Rocky knows.
-        """
         entry = CAPABILITIES.get(name)
         if entry is None:
             raise BadRequest(f"There is no {name!r} capability.")
@@ -242,9 +224,6 @@ def create_app(
             records = await entry.execute({}, now, data_port)
         except DataUnavailable as exc:
             raise DatasetUnavailable("Rocky could not reach campus data just now.") from exc
-        # Everything the lookup returned, uncut. Something browsing the data
-        # wants all of it; the cap that matters is the one on what reaches a
-        # prompt, and that lives in the lane where the answer is written.
         return _json(
             {
                 "capability": name,

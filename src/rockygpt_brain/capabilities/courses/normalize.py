@@ -1,5 +1,3 @@
-"""Between course-plan fields and the structured catalog search."""
-
 from __future__ import annotations
 
 import re

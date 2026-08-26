@@ -1,5 +1,3 @@
-"""Between location-plan fields and the campus map resolver."""
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -42,7 +40,7 @@ SORT: dict[str, Reader] = {
 
 
 def query(filters: dict[str, str], now: datetime) -> dict[str, str]:
-    del now  # The campus map is not time-dependent.
+    del now
     terms = [filters[name] for name in ("name", "building", "room") if name in filters]
     return {"q": " ".join(terms)}
 

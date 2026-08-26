@@ -1,5 +1,3 @@
-"""Look up structured academic calendar records."""
-
 from __future__ import annotations
 
 from datetime import datetime

@@ -1,5 +1,3 @@
-"""Between club fields and the student-organization search."""
-
 from __future__ import annotations
 
 from datetime import datetime

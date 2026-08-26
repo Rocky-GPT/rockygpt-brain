@@ -1,5 +1,3 @@
-"""Resolve structured campus map locations."""
-
 from __future__ import annotations
 
 from datetime import datetime

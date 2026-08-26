@@ -1,10 +1,3 @@
-"""One recorded turn.
-
-`prompt_value` is the shape a later turn is shown. It is deliberately smaller
-than what is stored: a follow-up needs what was said, not the request id, the
-latency, or which tools ran.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

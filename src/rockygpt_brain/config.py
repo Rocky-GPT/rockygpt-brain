@@ -1,5 +1,3 @@
-"""Small environment configuration for the BASE brain."""
-
 from __future__ import annotations
 
 from functools import lru_cache
@@ -22,16 +20,11 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, ge=1, le=65535)
     openai_api_key: SecretStr | None = None
     openai_chat_model: str = "gpt-4.1-mini"
-    #: BRAIN #1, the planner. Its job is translation, not prose.
     openai_planner_model: str = "gpt-4.1-mini"
-    #: The model that searches the web for a `current` general question.
     openai_web_model: str = "gpt-4.1-mini"
-    #: The data service the CODE lane looks things up in. BASE reaches nothing else.
     data_url: str = "http://127.0.0.1:8100"
     data_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
-    #: The clock the model is given. All temporal resolution happens in this zone.
     campus_timezone: str = "America/New_York"
-    #: Temporary rollout gate: keep RAG visible in traces while testing CODE alone.
     rag_enabled: bool = False
     staging_service_token: SecretStr | None = None
     admin_api_token: SecretStr | None = None
