@@ -38,6 +38,18 @@ class Rejected:
     reason: str
 
 
+def route(plan: Plan) -> Lane:
+    """Where the answer comes from, from the two questions the planner answered.
+
+    The cascade, and the whole of it. It stops at the first hit, which is why
+    `specific_to_ramapo` is not consulted once a capability fits — the question
+    was never reached, and what the planner put there is noise.
+    """
+    if plan.a_capability_answers_it:
+        return Lane.CODE
+    return Lane.RAG if plan.specific_to_ramapo else Lane.GENERAL
+
+
 def check(plan: Plan, now: datetime) -> Plan | Rejected:
     """Return the plan Rocky will run, or why it will run nothing.
 
@@ -46,6 +58,7 @@ def check(plan: Plan, now: datetime) -> Plan | Rejected:
     behind the lane belong to none of them, so they are stamped back on here —
     once, where no new branch can forget.
     """
+    plan = plan.model_copy(update={"lane": route(plan)})
     checked = _lane(plan, now)
     if isinstance(checked, Rejected):
         return checked
