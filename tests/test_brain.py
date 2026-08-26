@@ -15,7 +15,13 @@ from rockygpt_brain.api.contracts import (
     ChatTurn,
 )
 from rockygpt_brain.brain.brain import Brain, PlanRejected, TurnIdentity, _citations
-from rockygpt_brain.brain.execute.schema import CAMPUS_DATA, OWN_KNOWLEDGE, WEB, Execution
+from rockygpt_brain.brain.execute.schema import (
+    CAMPUS_DATA,
+    INSUFFICIENT_EVIDENCE,
+    OWN_KNOWLEDGE,
+    WEB,
+    Execution,
+)
 from rockygpt_brain.brain.plan.schema import (
     Filter,
     Lane,
@@ -44,10 +50,13 @@ CLOCK = NOW.astimezone(TZ).isoformat()
 
 
 class FakeModel:
+    """BRAIN #3, faked. `supported` mirrors what a real one is asked to judge."""
+
     configured = True
 
-    def __init__(self) -> None:
+    def __init__(self, sufficient_evidence: bool = True) -> None:
         self.seen: dict[str, Any] = {}
+        self.sufficient_evidence = sufficient_evidence
 
     async def answer(
         self,
@@ -64,7 +73,11 @@ class FakeModel:
             "currentTime": current_time,
             "grounding": grounding,
         }
-        return Draft(answer="written", suggested_questions=["a"])
+        return Draft(
+            sufficient_evidence=self.sufficient_evidence,
+            answer="written",
+            suggested_questions=["a"],
+        )
 
 
 class FakePlanner:
@@ -106,8 +119,11 @@ class FakeData:
 
 
 class FakeRag:
+    def __init__(self, passages: list[Passage] | None = None) -> None:
+        self._passages = passages or []
+
     async def retrieve(self, topic: str, limit: int) -> list[Passage]:
-        return []
+        return self._passages[:limit]
 
 
 class FakeWeb:
@@ -296,7 +312,7 @@ async def test_the_plan_is_its_own_stage() -> None:
     )
     response, _ = await ask(planner=FakePlanner(plan))
     assert response.brain_trace.plan == {
-        "lane": "CODE",
+        "routing": {"CODE?": "No", "RAMAPO?": "No", "ROUTE": "CODE"},
         "capability": "shuttle",
         "filters": {"date": "2031-03-06"},
         "operation": {"orderBy": "departureTime", "direction": "descending", "limit": 1},
@@ -308,7 +324,10 @@ async def test_the_turn_reads_end_to_end_as_four_stages() -> None:
     trace = response.brain_trace
     assert trace.question == {"question": "a question"}, "the words, and nothing else"
     assert trace.memory == {"currentTime": CLOCK, "earlierTurns": []}
-    assert trace.plan == {"lane": "GENERAL", "freshness": "stable"}
+    assert trace.plan == {
+        "routing": {"CODE?": "No", "RAMAPO?": "No", "ROUTE": "GENERAL"},
+        "freshness": "stable",
+    }
     assert trace.context == {}, "BRAIN #1 said the question needed no conversation"
     assert trace.understanding == {
         "normalizedQuestion": "q",
@@ -319,7 +338,7 @@ async def test_the_turn_reads_end_to_end_as_four_stages() -> None:
         "answerFrom": "ownKnowledge",
         "note": "stable; answered from what the model knows",
     }
-    assert trace.answer == {"answer": "written"}
+    assert trace.answer == {"answer": "written", "sufficientEvidence": True}
 
 
 async def test_brain_two_is_grounded_on_every_lane() -> None:
@@ -567,3 +586,51 @@ async def test_a_successful_turn_is_recorded_exactly_once() -> None:
     await ask("hello", memory)
     assert len(_logs(memory)) == 1
     assert len(memory.history("s")) == 1
+
+
+async def _documents(model: FakeModel) -> ChatSuccess:
+    """A turn that reaches the RAG lane and retrieves something."""
+    brains = FakePlanner(Plan(lane=Lane.RAG, topic="guest policy"))
+    rag = FakeRag(
+        [Passage("Guests must carry ID.", "housing", "Residence Life", "https://x.edu/a")]
+    )
+    brain = Brain(model, brains, brains, FakeData(), FakeWeb(), rag, MemoryStore())
+    return await brain.answer(
+        ChatRequest(message="what is the guest policy", now=NOW),
+        TurnIdentity("r1", "s", None, "client"),
+    )
+
+
+async def test_passages_that_do_not_answer_the_question_produce_no_answer() -> None:
+    """The failure this exists to stop: a policy invented in the voice of a document.
+
+    Retrieval running is not evidence. When what came back does not answer the
+    question, the honest reply is that it does not — written by Python, because
+    a model that has just judged its evidence thin still writes something.
+    """
+    response = await _documents(FakeModel(sufficient_evidence=False))
+    assert response.answer == INSUFFICIENT_EVIDENCE
+    assert response.brain_trace.answer["sufficientEvidence"] is False
+
+
+async def test_an_abstention_cites_nothing() -> None:
+    """A citation on an abstention points a reader at a page that does not say it."""
+    response = await _documents(FakeModel(sufficient_evidence=False))
+    assert response.citations == []
+
+
+async def test_supported_passages_are_answered_and_cited_as_normal() -> None:
+    response = await _documents(FakeModel(sufficient_evidence=True))
+    assert response.answer == "written"
+    assert [str(c.url) for c in response.citations] == ["https://x.edu/a"]
+
+
+async def test_only_the_documents_lane_is_held_to_this_yet() -> None:
+    """campusData and web could follow, but each needs its own measurement first."""
+    model = FakeModel(sufficient_evidence=False)
+    brains = FakePlanner(Plan(lane=Lane.GENERAL))
+    brain = Brain(model, brains, brains, FakeData(), FakeWeb(), FakeRag(), MemoryStore())
+    response = await brain.answer(
+        ChatRequest(message="anything", now=NOW), TurnIdentity("r1", "s", None, "client")
+    )
+    assert response.answer == "written", "the general lane is unchanged for now"

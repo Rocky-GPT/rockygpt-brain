@@ -39,7 +39,26 @@ class Rejected:
 
 
 def check(plan: Plan, now: datetime) -> Plan | Rejected:
-    """Return the plan Rocky will run, or why it will run nothing."""
+    """Return the plan Rocky will run, or why it will run nothing.
+
+    Every branch below rebuilds the plan from the fields its lane uses, which
+    is how a field that belongs to no lane goes missing. The two judgements
+    behind the lane belong to none of them, so they are stamped back on here —
+    once, where no new branch can forget.
+    """
+    checked = _lane(plan, now)
+    if isinstance(checked, Rejected):
+        return checked
+    return checked.model_copy(
+        update={
+            "a_capability_answers_it": plan.a_capability_answers_it,
+            "specific_to_ramapo": plan.specific_to_ramapo,
+        }
+    )
+
+
+def _lane(plan: Plan, now: datetime) -> Plan | Rejected:
+    """What the lane itself needs, and whether it has it."""
     # Safety first, and alone. Every branch below rebuilds the plan from
     # scratch and would drop the flag; more than that, every branch below can
     # reject, and a rejected plan ends the turn. The one turn that must never

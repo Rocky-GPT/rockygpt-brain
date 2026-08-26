@@ -12,7 +12,14 @@ from openai.lib._pydantic import to_strict_json_schema
 import rockygpt_brain
 import rockygpt_brain.brain
 from rockygpt_brain.brain.plan.run import PLAN
-from rockygpt_brain.brain.plan.schema import TIME_WORDS, Filter, Lane, Operation, Plan
+from rockygpt_brain.brain.plan.schema import (
+    NOT_ASKED,
+    TIME_WORDS,
+    Filter,
+    Lane,
+    Operation,
+    Plan,
+)
 from rockygpt_brain.brain.plan.validate import Rejected, anchor, check, resolve
 from rockygpt_brain.brain.understand.run import UNDERSTAND
 from rockygpt_brain.brain.write.run import ANSWER
@@ -193,7 +200,7 @@ def test_the_summary_reads_as_the_plan_was_written() -> None:
     )
     assert isinstance(checked, Plan)
     assert checked.summary() == {
-        "lane": "CODE",
+        "routing": {"CODE?": "No", "RAMAPO?": "No", "ROUTE": "CODE"},
         "capability": "shuttle",
         "filters": {"destination": "Garden State Plaza", "date": "2031-03-06"},
         "operation": {"orderBy": "departureTime", "direction": "ascending", "limit": 1},
@@ -202,7 +209,19 @@ def test_the_summary_reads_as_the_plan_was_written() -> None:
 
 def test_an_unused_half_of_the_plan_is_not_in_the_summary() -> None:
     checked = check(Plan(lane=Lane.GENERAL), NOW)
-    assert checked.summary() == {"lane": "GENERAL", "freshness": "stable"}  # type: ignore[union-attr]
+    assert checked.summary() == {  # type: ignore[union-attr]
+        "routing": {"CODE?": "No", "RAMAPO?": "No", "ROUTE": "GENERAL"},
+        "freshness": "stable",
+    }
+
+
+def test_the_summary_shows_why_the_lane_was_chosen() -> None:
+    """The two judgements are the reasoning, so they are in the log beside it."""
+    checked = check(Plan(specific_to_ramapo=True, lane=Lane.RAG, topic="parking"), NOW)
+    assert isinstance(checked, Plan)
+    routing = checked.summary()["routing"]
+    assert list(routing) == ["CODE?", "RAMAPO?", "ROUTE"], "the questions, then the answer"
+    assert routing == {"CODE?": "No", "RAMAPO?": "Yes", "ROUTE": "RAG"}
 
 
 # The vocabulary stays a vocabulary
@@ -226,9 +245,16 @@ def test_the_plan_is_a_shape_the_model_can_be_held_to() -> None:
     assert schema["$defs"]["Lane"]["enum"] == [lane.value for lane in Lane]
 
 
-def test_the_instruction_carries_no_example_question() -> None:
-    """A worked example in the prompt is the first step back to an intent list."""
-    assert "?" not in PLAN
+def test_the_instruction_names_no_campus_thing() -> None:
+    """A worked example in the prompt is the first step back to an intent list.
+
+    This asserted the prompt held no `?` at all, which was a proxy for that and
+    is no longer one: the instruction now asks the model two questions outright,
+    and those are the opposite of a worked example. What it was always aiming at
+    is below — nothing a student would recognise as their own question.
+    """
+    for thing in ("shuttle", "menu", "registrar", "dining", "parking", "garden state"):
+        assert thing not in PLAN.lower(), f"the instruction names {thing!r}"
 
 
 def test_every_stage_loads_its_instruction_from_disk() -> None:
@@ -308,3 +334,32 @@ def test_a_current_plan_carries_both_the_meaning_and_the_dated_query() -> None:
     assert checked.query == "population of France", "the planner's meaning is kept as written"
     assert checked.effective_query == f"population of France as of {NOW:%Y-%m-%d}"
     assert checked.summary()["effectiveQuery"] == checked.effective_query
+
+
+def test_the_second_question_is_blank_when_the_cascade_never_reached_it() -> None:
+    """`RAMAPO?` sits on the `No` branch. When CODE wins it was never asked.
+
+    The model still has to fill the field — a structured response cannot leave
+    one unanswered — and with nothing reading it, what it fills in is noise:
+    the same question twice gave Yes and then No. Printing that beside a real
+    answer made it look like it meant something.
+    """
+    for stated in (True, False):
+        checked = check(
+            Plan(
+                a_capability_answers_it=True,
+                specific_to_ramapo=stated,
+                lane=Lane.CODE,
+                capability="shuttle",
+                operation=Operation(limit=1),
+            ),
+            NOW,
+        )
+        assert isinstance(checked, Plan)
+        assert checked.summary()["routing"]["RAMAPO?"] == NOT_ASKED
+
+
+def test_the_second_question_is_answered_when_the_cascade_reaches_it() -> None:
+    checked = check(Plan(specific_to_ramapo=True, lane=Lane.RAG, topic="parking"), NOW)
+    assert isinstance(checked, Plan)
+    assert checked.summary()["routing"] == {"CODE?": "No", "RAMAPO?": "Yes", "ROUTE": "RAG"}

@@ -400,3 +400,15 @@ async def test_the_web_is_searched_with_the_dated_query_not_the_planners() -> No
     assert isinstance(checked, Plan)
     await run(checked, NOW, _Unreachable(), web, FakeRag())
     assert web.searched == f"population of France as of {NOW:%Y-%m-%d}"
+
+
+async def test_the_fetch_asks_for_no_more_than_the_service_accepts() -> None:
+    """The data service caps `limit` at 100 and 400s the whole request above it.
+
+    Asking for 200 did not return 100 rows — it returned nothing and failed
+    every CODE turn. A ceiling on one side of a boundary has to be known on
+    the other.
+    """
+    data = FakeData()
+    await run(shuttle({}), NOW, data, FakeWeb(), FakeRag())
+    assert data.query["limit"] <= 100
