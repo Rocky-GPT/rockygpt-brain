@@ -38,6 +38,18 @@ is nothing", `{"answerFrom": "ownKnowledge", "note": ...}` is "Rocky never
 looked". Do not drop `results` when it is empty — the empty list is the
 message.
 
+**An empty result is a fact about the search until nothing was narrowed.** A
+lookup with no filters lists everything there is, so nothing coming back means
+there are none — `foundNoneOf`, and "there are none left today" is the answer
+worth having. A lookup with filters means nothing matched *those*, which is
+`matchedNothing` and says far less. Under one name BRAIN #3 read both the first
+way: `subject: "CS"` matched no courses because the catalogue files them under
+`CMPS`, and the answer was "there are no computer science courses listed in the
+current database" over sixty-three of them. **Python writes that sentence**, in
+`nothing_matched`, for the same reason it writes `INSUFFICIENT_EVIDENCE` — told
+the distinction in a prompt instead, the model denied the thing existed in five
+answers out of six.
+
 **Rocky's vocabulary describes what it can do, never what anyone may ask.**
 Three lanes, four safety concerns, a registry of capabilities, the fields each
 capability allows, and a few generic operations — filter, sort, limit, count,
@@ -122,6 +134,36 @@ neither knows anything about the subject.
 **Python decides what runs.** The model writes a plan; `validate.check` decides
 whether Rocky acts on it. A plan naming a field the capability does not list is
 rejected, not repaired — guessing what it meant is how a taxonomy starts.
+
+**BRAIN #2 says what data is needed; Python says how much of it is shown.**
+`limit` is what the question asked for, and a result cut to it is the answer.
+How much of that result fits in one message is a different question with a
+different answer, and `execute.present` decides it from the row count alone:
+ten or fewer described one by one, fifty or fewer a line each, more than that
+a page of twenty-five that says which page it is. BRAIN #3 is handed one page
+and told how to lay it out. Left to judge the number itself it got it wrong in
+both directions on the same data — writing "I cannot provide a complete list"
+over a result that was complete, and elsewhere describing the first few and
+stopping without saying it had. Neither is visible in the answer.
+
+**Sorting is not ranking.** Not one field any capability can sort by is a
+judgement — they are names, codes, dates, times, categories, credits, calories
+— so the first row of a sorted result is the earliest or the smallest, never
+the best. Arriving at BRAIN #3 the two are identical, which is how "what are
+the best clubs at Ramapo" came back as the alphabetically first five, led by
+`#WeAreRCNJ`. `Execution.ordering` is what says which, set only where a sort
+actually ran. It cut the claim from eight answers in eleven to two in twenty;
+what survives is a hedge, "notable" in place of "best", and three attempts to
+close that measured no better or worse. Do not reach for prompt prose again
+without a measurement — `sufficientEvidence` was `True` on every ranking
+question, and a `ranked: false` field in the grounding made it slightly worse.
+
+The planner is asked nothing about presentation, and the rule below about
+case-by-case behaviour is why. A single field asking whether the question
+wanted everything at once came back set on "when is the next shuttle" and
+unset on "show me 100 courses", and the sentence describing it dropped a
+question it had nothing to do with from 5/5 to 2/5. Measure the routing probe
+before and after any edit to `plan/prompt.md`.
 
 Three rules that survived every earlier version, because each was a real bug:
 

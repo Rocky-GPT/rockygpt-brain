@@ -42,11 +42,13 @@ from pydantic import ValidationError
 from rockygpt_brain.api.contracts import BrainTrace, ChatRequest, ChatSuccess, Citation
 from rockygpt_brain.brain.execute.run import run
 from rockygpt_brain.brain.execute.schema import (
+    CAMPUS_DATA,
     DOCUMENTS,
     INSUFFICIENT_EVIDENCE,
     RAG_DISABLED,
     WEB,
     Execution,
+    nothing_matched,
 )
 from rockygpt_brain.brain.plan.run import PlanPort
 from rockygpt_brain.brain.plan.schema import Lane
@@ -229,6 +231,21 @@ class Brain:
         # to the same rule, but each needs its own measurement first.
         unsupported = execution.answer_from == DOCUMENTS and not draft.sufficient_evidence
         answer = INSUFFICIENT_EVIDENCE if unsupported else draft.answer
+
+        # A narrowing that matched nothing, said by Python for the same reason.
+        # There are no rows to write about, so nothing is lost by taking the
+        # sentence away from BRAIN #3 — and what it wrote instead was that the
+        # thing does not exist, over a catalogue that holds it under another
+        # name. An unnarrowed lookup is left alone: nothing coming back there
+        # really does mean there are none, and "there are none left today" is
+        # the answer worth having.
+        if (
+            execution.answer_from == CAMPUS_DATA
+            and not execution.results
+            and execution.count is None
+            and execution.looked_for.get("filters")
+        ):
+            answer = nothing_matched(execution.looked_for)
 
         trace = BrainTrace(
             question=question,
