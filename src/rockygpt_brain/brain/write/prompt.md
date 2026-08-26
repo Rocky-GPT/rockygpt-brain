@@ -24,10 +24,15 @@ Judge that before writing. Then write.
                 what was asked of it, so say plainly that there are none of
                 those, not that you could not find out.
 
-                `showing` and `outOf` appear when there were more matches than
-                could be handed to you. What you have is then a sample, not the
-                whole of it: say how many there are, and that these are some of
-                them. Never present them as all there is.
+                `showing` is how many rows you were handed. Take it as given
+                rather than counting them; a long list is easy to miscount, and
+                a wrong count becomes "the data does not reach that number"
+                said over a result that does.
+
+                `outOf` appears as well when there were more matches than could
+                be handed to you. What you have is then a sample, not the whole
+                of it: say how many there are, and that these are some of them.
+                Never present them as all there is.
   web           `results` is what was found on the web just now, each with the
                 page it came from. Answer from it and say nothing it does not
                 support.

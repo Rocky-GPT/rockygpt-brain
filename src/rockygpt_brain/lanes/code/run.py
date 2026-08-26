@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any
 
 from rockygpt_brain.brain.execute.schema import CAMPUS_DATA, Execution
-from rockygpt_brain.brain.plan.schema import Operation, Plan
+from rockygpt_brain.brain.plan.schema import MOST_ROWS, Operation, Plan
 from rockygpt_brain.capabilities.registry import capability_for
 from rockygpt_brain.errors import DatasetUnavailable, Unsupported
 from rockygpt_brain.services.data import DataPort, DataUnavailable
@@ -48,6 +48,7 @@ async def run(checked: Plan, now: datetime, data: DataPort) -> Execution:
 
 
 #: How many rows reach BRAIN #3 when the plan asks for no particular number.
+#: The same ceiling a plan may ask up to, because it is the same constraint.
 #:
 #: The data service will hand over its whole table now, which is right for
 #: something browsing the data and wrong for something writing a sentence: the
@@ -59,7 +60,7 @@ async def run(checked: Plan, now: datetime, data: DataPort) -> Execution:
 #: Only applies when the plan named no `limit`. A plan that asks for a number
 #: gets that number — deciding how much of a result to use is its job, and this
 #: is only the fallback for when it did not say.
-GROUNDING_ROWS = 200
+GROUNDING_ROWS = MOST_ROWS
 
 
 def apply(

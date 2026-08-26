@@ -20,6 +20,10 @@ Where the answer comes from follows from them; that is not yours to choose.
     there are, `compare` to report fields side by side. Name only fields the
     capability lists.
 
+    `limit` is the number the question asked for. Set it only when one was
+    asked for, and if it is more than the field allows, ask for the most it
+    allows rather than a smaller number.
+
 `specificToRamapo`
     Asked only when the first answer is no.
 
