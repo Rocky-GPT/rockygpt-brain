@@ -27,6 +27,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from rockygpt_brain.capabilities.courses import execute as courses
+from rockygpt_brain.capabilities.courses import normalize as courses_normalize
+from rockygpt_brain.capabilities.dining import execute as dining
+from rockygpt_brain.capabilities.dining import normalize as dining_normalize
+from rockygpt_brain.capabilities.events import execute as events
+from rockygpt_brain.capabilities.events import normalize as events_normalize
+from rockygpt_brain.capabilities.hours import execute as hours
+from rockygpt_brain.capabilities.hours import normalize as hours_normalize
 from rockygpt_brain.capabilities.shuttle import execute as shuttle
 from rockygpt_brain.capabilities.shuttle import normalize
 from rockygpt_brain.capabilities.shuttle.normalize import Reader
@@ -49,6 +57,48 @@ class Capability:
 
 
 CAPABILITIES: dict[str, Capability] = {
+    "courses": Capability(
+        describes=(
+            "course catalog entries: course codes, titles, descriptions, credits, and attributes"
+        ),
+        filters=frozenset({"code", "subject", "name", "attribute"}),
+        fields=frozenset({"code", "name", "description", "credits", "attributes", "courseUrl"}),
+        execute=courses.run,
+        read=courses_normalize.FIELDS,
+        sort=courses_normalize.SORT,
+    ),
+    "dining": Capability(
+        describes="today's campus dining menu items, meals, stations, and dietary options",
+        filters=frozenset({"name", "meal", "station", "dietary"}),
+        fields=frozenset(
+            {"name", "meal", "station", "calories", "vegan", "vegetarian", "allergens"}
+        ),
+        execute=dining.run,
+        read=dining_normalize.FIELDS,
+        sort=dining_normalize.SORT,
+    ),
+    "events": Capability(
+        describes="upcoming campus events, their dates, times, organizers, and descriptions",
+        filters=frozenset({"topic", "title", "organizer", "date", "startsAfter"}),
+        fields=frozenset(
+            {"title", "date", "startTime", "endTime", "organizer", "description", "eventUrl"}
+        ),
+        execute=events.run,
+        read=events_normalize.FIELDS,
+        sort=events_normalize.SORT,
+    ),
+    "hours": Capability(
+        describes=(
+            "opening hours and open/closed status for campus facilities and dining venues"
+        ),
+        filters=frozenset({"name", "kind", "date", "day", "openAt"}),
+        fields=frozenset(
+            {"name", "kind", "day", "schedule", "openNow", "opensAt", "closesAt"}
+        ),
+        execute=hours.run,
+        read=hours_normalize.FIELDS,
+        sort=hours_normalize.SORT,
+    ),
     "shuttle": Capability(
         describes="shuttle and bus departures",
         filters=frozenset({"date", "departingAfter", "route", "origin", "destination"}),

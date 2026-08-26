@@ -81,9 +81,57 @@ def test_a_capability_with_no_code_behind_it_is_rejected_before_it_can_fail() ->
     It used to be listed and unbuilt, which failed a whole stage later — after
     the question was understood and a plan was made, where nothing recovers.
     """
-    rejected = check(code("dining", {}, order_by="opensAt"), NOW)
+    rejected = check(code("parking", {}, order_by="opensAt"), NOW)
     assert isinstance(rejected, Rejected)
-    assert "dining" in rejected.reason
+    assert "parking" in rejected.reason
+
+
+def test_dining_accepts_only_its_published_filters_and_fields() -> None:
+    checked = check(
+        code("dining", {"meal": "LUNCH", "dietary": "vegan"}, order_by="calories"), NOW
+    )
+    assert isinstance(checked, Plan)
+    assert checked.filter_values == {"meal": "LUNCH", "dietary": "vegan"}
+    assert isinstance(check(code("dining", {"date": "today"}), NOW), Rejected)
+
+
+def test_events_resolve_date_and_time_filters_before_execution() -> None:
+    checked = check(
+        code("events", {"date": "tomorrow", "startsAfter": "now"}, order_by="startTime"), NOW
+    )
+    assert isinstance(checked, Plan)
+    assert checked.filter_values == {
+        "date": "2031-03-07",
+        "startsAfter": NOW.isoformat(),
+    }
+
+
+def test_hours_accept_named_venues_dates_and_open_instants() -> None:
+    checked = check(
+        code(
+            "hours",
+            {"kind": "campus", "name": "Library", "date": "tomorrow", "openAt": "now"},
+            limit=1,
+        ),
+        NOW,
+    )
+    assert isinstance(checked, Plan)
+    assert checked.filter_values["date"] == "2031-03-07"
+    assert checked.filter_values["openAt"] == NOW.isoformat()
+
+
+def test_courses_publish_catalog_filters_and_fields() -> None:
+    checked = check(
+        code(
+            "courses",
+            {"subject": "COMP", "attribute": "Scientific Reasoning"},
+            order_by="code",
+        ),
+        NOW,
+    )
+    assert isinstance(checked, Plan)
+    assert checked.operation.order_by == "code"
+    assert isinstance(check(code("courses", {"instructor": "Ada"}), NOW), Rejected)
 
 
 def test_a_capability_without_an_operation_is_rejected() -> None:

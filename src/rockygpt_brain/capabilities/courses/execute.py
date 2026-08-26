@@ -1,0 +1,14 @@
+"""Look up structured course-catalog records."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+from rockygpt_brain.capabilities.courses.normalize import matches, query
+from rockygpt_brain.services.data import DataPort
+
+
+async def run(filters: dict[str, str], now: datetime, data: DataPort) -> list[dict[str, Any]]:
+    records = await data.courses(query(filters, now))
+    return [record for record in records if matches(record, filters)]

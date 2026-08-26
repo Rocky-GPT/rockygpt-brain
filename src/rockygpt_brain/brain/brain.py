@@ -44,10 +44,12 @@ from rockygpt_brain.brain.execute.run import run
 from rockygpt_brain.brain.execute.schema import (
     DOCUMENTS,
     INSUFFICIENT_EVIDENCE,
+    RAG_DISABLED,
     WEB,
     Execution,
 )
 from rockygpt_brain.brain.plan.run import PlanPort
+from rockygpt_brain.brain.plan.schema import Lane
 from rockygpt_brain.brain.plan.validate import Rejected, check
 from rockygpt_brain.brain.understand.run import UnderstandPort
 from rockygpt_brain.brain.understand.schema import Understanding
@@ -58,6 +60,8 @@ from rockygpt_brain.errors import ServiceError, Unavailable
 from rockygpt_brain.services.data import DataPort
 from rockygpt_brain.services.rag.client import RagPort
 from rockygpt_brain.services.web import WebPort
+
+RAG_WORK_IN_PROGRESS = "RAG is working progress"
 
 
 @dataclass(slots=True)
@@ -79,6 +83,7 @@ class Brain:
         documents: RagPort,
         memory: MemoryStore,
         timezone: str = "America/New_York",
+        rag_enabled: bool = False,
     ) -> None:
         self._model = model
         self._understand = understand
@@ -88,6 +93,7 @@ class Brain:
         self._documents = documents
         self._memory = memory
         self._tz = ZoneInfo(timezone)
+        self._rag_enabled = rag_enabled
 
     async def answer(self, request: ChatRequest, identity: TurnIdentity) -> ChatSuccess:
         started = time.monotonic()
@@ -161,6 +167,43 @@ class Brain:
 
         recording.plan = checked.summary()
         recording.route = checked.lane.value.lower()
+
+        # Keep route selection observable while CODE is tested alone, but do
+        # not retrieve documents or ask BRAIN #3 to write a RAG answer. Safety
+        # remains ahead of every rollout gate.
+        if checked.lane is Lane.RAG and not checked.safety and not self._rag_enabled:
+            execution = Execution(
+                RAG_DISABLED,
+                note="disabled while CODE is being tested",
+            )
+            recording.execution = execution.summary()
+            trace = BrainTrace(
+                question=question,
+                memory=memory,
+                understanding={
+                    "normalizedQuestion": read.normalized,
+                    "usesContext": read.uses_context,
+                    "resolvedQuestion": read.resolved,
+                },
+                context=_context(read, earlier),
+                plan=checked.summary(),
+                execution=execution.summary(),
+                answer={
+                    "answer": RAG_WORK_IN_PROGRESS,
+                    "sufficientEvidence": False,
+                },
+            )
+            response = ChatSuccess(
+                request_id=identity.request_id,
+                answer=RAG_WORK_IN_PROGRESS,
+                route=recording.route,
+                citations=[],
+                ui_actions=[],
+                suggested_questions=[],
+                brain_trace=trace,
+            )
+            recording.answer = response.answer
+            return response
 
         # PYTHON — run the lane. Raises if it cannot.
         execution = await run(checked, now, self._data, self._web, self._documents)

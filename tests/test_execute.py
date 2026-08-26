@@ -54,6 +54,24 @@ class FakeData:
             raise DataUnavailable("connection refused")
         return self._records
 
+    async def dining(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        self.query = query
+        if self._fails:
+            raise DataUnavailable("connection refused")
+        return self._records
+
+    async def events(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return await self.dining(query)
+
+    async def campus_hours(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return await self.dining(query)
+
+    async def dining_hours(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return await self.dining(query)
+
+    async def courses(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return await self.dining(query)
+
 
 class FakeRag:
     """Retrieval, faked. The real index is early; the lane must not care."""
@@ -110,7 +128,258 @@ def shuttle(filters: dict[str, str] | None = None, **operation: Any) -> Plan:
     )
 
 
+def code(capability: str, filters: dict[str, str] | None = None, **operation: Any) -> Plan:
+    return Plan(
+        a_capability_answers_it=True,
+        lane=Lane.CODE,
+        capability=capability,
+        filters=[Filter(field=k, value=v) for k, v in (filters or {}).items()],
+        operation=Operation(**operation),
+    )
+
+
 # The lookup happens
+
+
+async def test_a_dining_plan_queries_and_projects_menu_items() -> None:
+    data = FakeData(
+        [
+            {
+                "name": "Black Bean Burger",
+                "meal": "LUNCH",
+                "station": "EVERYDAY GRILL",
+                "calories": "260",
+                "vegan": True,
+                "vegetarian": True,
+                "allergens": ["Soy"],
+                "source": {"url": "https://example.edu/menu"},
+            }
+        ]
+    )
+    execution = await run(
+        code("dining", {"meal": "lunch", "dietary": "vegan"}, limit=5),
+        NOW,
+        data,
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert data.query == {"q": "vegan", "at": NOW.isoformat(), "meal": "LUNCH"}
+    assert execution.results == [
+        {
+            "name": "Black Bean Burger",
+            "meal": "LUNCH",
+            "station": "EVERYDAY GRILL",
+            "calories": "260",
+            "vegan": True,
+            "vegetarian": True,
+            "allergens": ["Soy"],
+        }
+    ]
+
+
+async def test_dining_calories_sort_as_numbers() -> None:
+    data = FakeData(
+        [
+            {"name": "A", "meal": "LUNCH", "station": "X", "calories": "90"},
+            {"name": "B", "meal": "LUNCH", "station": "X", "calories": "260"},
+        ]
+    )
+    execution = await run(
+        code("dining", {}, order_by="calories", direction="descending", limit=1),
+        NOW,
+        data,
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert execution.results[0]["name"] == "B"
+
+
+async def test_an_events_plan_filters_a_resolved_date_and_orders_by_time() -> None:
+    data = FakeData(
+        [
+            {
+                "title": "Late Event",
+                "date": "Thu, Mar 6, 2031",
+                "startTime": "7 PM",
+                "organizer": "CSI",
+                "eventUrl": "https://example.edu/late",
+            },
+            {
+                "title": "Early Event",
+                "date": "Thu, Mar 6, 2031",
+                "startTime": "9 AM",
+                "organizer": "CSI",
+                "eventUrl": "https://example.edu/early",
+            },
+            {
+                "title": "Tomorrow Event",
+                "date": "Fri, Mar 7, 2031",
+                "startTime": "8 AM",
+                "organizer": "CSI",
+            },
+        ]
+    )
+    execution = await run(
+        code("events", {"date": "2031-03-06"}, order_by="startTime", limit=1),
+        NOW,
+        data,
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert data.query == {"q": "", "at": NOW.isoformat()}
+    assert execution.results[0]["title"] == "Early Event"
+
+
+async def test_events_starting_before_the_requested_instant_are_removed() -> None:
+    data = FakeData(
+        [
+            {"title": "Past", "date": "Thu, Mar 6, 2031", "startTime": "1 PM"},
+            {"title": "Next", "date": "Thu, Mar 6, 2031", "startTime": "3 PM"},
+        ]
+    )
+    execution = await run(
+        code("events", {"startsAfter": NOW.isoformat()}, order_by="startTime", limit=5),
+        NOW,
+        data,
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert [row["title"] for row in execution.results] == ["Next"]
+
+
+async def test_events_without_a_date_are_upcoming_not_yesterdays_tail() -> None:
+    data = FakeData(
+        [
+            {"title": "Yesterday", "date": "Wed, Mar 5, 2031", "startTime": "7 PM"},
+            {"title": "Next", "date": "Thu, Mar 6, 2031", "startTime": "3 PM"},
+        ]
+    )
+    execution = await run(
+        code("events", {}, order_by="startTime", limit=5),
+        NOW,
+        data,
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert [row["title"] for row in execution.results] == ["Next"]
+
+
+async def test_hours_choose_the_requested_dataset_and_keep_a_closed_named_venue() -> None:
+    data = FakeData(
+        [
+            {
+                "name": "Library",
+                "day": "Thursday",
+                "schedule": "Closed",
+                "openNow": False,
+            }
+        ]
+    )
+    execution = await run(
+        code("hours", {"kind": "campus", "name": "Library", "openAt": "now"}, limit=1),
+        NOW,
+        data,
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert data.query == {"q": "Library", "day": "Thursday", "at": "now"}
+    assert execution.results == [
+        {
+            "name": "Library",
+            "kind": "campus",
+            "day": "Thursday",
+            "schedule": "Closed",
+            "openNow": False,
+            "opensAt": "",
+            "closesAt": "",
+        }
+    ]
+
+
+async def test_hours_without_a_kind_combine_campus_and_dining() -> None:
+    data = FakeData([{"name": "A", "day": "Thursday", "schedule": "9 AM-5 PM"}])
+    execution = await run(
+        code("hours", {"date": "2031-03-06"}, order_by="kind", limit=5),
+        NOW,
+        data,
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert [row["kind"] for row in execution.results] == ["campus", "dining"]
+
+
+async def test_asking_which_places_are_open_filters_on_service_status() -> None:
+    data = FakeData(
+        [
+            {"name": "Open", "day": "Thursday", "schedule": "9 AM-5 PM", "openNow": True},
+            {"name": "Closed", "day": "Thursday", "schedule": "Closed", "openNow": False},
+        ]
+    )
+    execution = await run(
+        code("hours", {"kind": "campus", "openAt": NOW.isoformat()}, limit=5),
+        NOW,
+        data,
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert [row["name"] for row in execution.results] == ["Open"]
+
+
+async def test_courses_match_codes_without_caring_about_spaces() -> None:
+    data = FakeData(
+        [
+            {
+                "code": "COMP 101",
+                "name": "Introduction to Computer Science",
+                "description": "Programming fundamentals",
+                "credits": "4",
+                "attributes": ["Scientific Reasoning"],
+                "courseUrl": "https://catalog.ramapo.edu/courses/COMP101",
+                "source": {"url": "https://catalog.ramapo.edu/"},
+            },
+            {"code": "COMP 201", "name": "Data Structures", "attributes": []},
+        ]
+    )
+    execution = await run(
+        code("courses", {"code": "COMP101"}, limit=1),
+        NOW,
+        data,
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert data.query == {"q": "COMP101", "at": NOW.isoformat()}
+    assert execution.results == [
+        {
+            "code": "COMP 101",
+            "name": "Introduction to Computer Science",
+            "description": "Programming fundamentals",
+            "credits": "4",
+            "attributes": ["Scientific Reasoning"],
+            "courseUrl": "https://catalog.ramapo.edu/courses/COMP101",
+        }
+    ]
+
+
+async def test_courses_sort_codes_naturally_and_filter_attributes() -> None:
+    data = FakeData(
+        [
+            {"code": "MATH 20", "name": "B", "attributes": ["Quantitative Reasoning"]},
+            {"code": "MATH 3", "name": "A", "attributes": ["Quantitative Reasoning"]},
+            {"code": "MATH 1", "name": "C", "attributes": []},
+        ]
+    )
+    execution = await run(
+        code(
+            "courses",
+            {"subject": "MATH", "attribute": "Quantitative Reasoning"},
+            order_by="code",
+        ),
+        NOW,
+        data,
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert [row["code"] for row in execution.results] == ["MATH 3", "MATH 20"]
 
 
 async def test_a_shuttle_plan_runs_and_says_so() -> None:

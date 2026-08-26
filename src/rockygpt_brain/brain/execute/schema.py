@@ -16,6 +16,7 @@ CAMPUS_DATA = "campusData"
 WEB = "web"
 DOCUMENTS = "documents"
 SAFETY = "safety"
+RAG_DISABLED = "ragDisabled"
 
 #: What Rocky says when the documents were searched and do not answer the
 #: question. Python's words, not the model's: a model that has just judged its

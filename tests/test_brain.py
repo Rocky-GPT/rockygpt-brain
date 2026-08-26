@@ -14,7 +14,13 @@ from rockygpt_brain.api.contracts import (
     ChatSuccess,
     ChatTurn,
 )
-from rockygpt_brain.brain.brain import Brain, PlanRejected, TurnIdentity, _citations
+from rockygpt_brain.brain.brain import (
+    RAG_WORK_IN_PROGRESS,
+    Brain,
+    PlanRejected,
+    TurnIdentity,
+    _citations,
+)
 from rockygpt_brain.brain.execute.schema import (
     CAMPUS_DATA,
     INSUFFICIENT_EVIDENCE,
@@ -120,8 +126,10 @@ class FakeData:
 class FakeRag:
     def __init__(self, passages: list[Passage] | None = None) -> None:
         self._passages = passages or []
+        self.asked: str | None = None
 
     async def retrieve(self, topic: str, limit: int) -> list[Passage]:
+        self.asked = topic
         return self._passages[:limit]
 
 
@@ -591,11 +599,45 @@ async def _documents(model: FakeModel) -> ChatSuccess:
     rag = FakeRag(
         [Passage("Guests must carry ID.", "housing", "Residence Life", "https://x.edu/a")]
     )
-    brain = Brain(model, brains, brains, FakeData(), FakeWeb(), rag, MemoryStore())
+    brain = Brain(
+        model,
+        brains,
+        brains,
+        FakeData(),
+        FakeWeb(),
+        rag,
+        MemoryStore(),
+        rag_enabled=True,
+    )
     return await brain.answer(
         ChatRequest(message="what is the guest policy", now=NOW),
         TurnIdentity("r1", "s", None, "client"),
     )
+
+
+async def test_rag_is_gated_while_code_is_being_tested() -> None:
+    model = FakeModel()
+    brains = FakePlanner(Plan(specific_to_ramapo=True, topic="guest policy"))
+    rag = FakeRag(
+        [Passage("Guests must carry ID.", "housing", "Residence Life", "https://x.edu/a")]
+    )
+    brain = Brain(model, brains, brains, FakeData(), FakeWeb(), rag, MemoryStore())
+
+    response = await brain.answer(
+        ChatRequest(message="what is the guest policy", now=NOW),
+        TurnIdentity("r1", "s", None, "client"),
+    )
+
+    assert response.route == "rag"
+    assert response.answer == RAG_WORK_IN_PROGRESS
+    assert response.citations == []
+    assert response.suggested_questions == []
+    assert response.brain_trace.execution == {
+        "answerFrom": "ragDisabled",
+        "note": "disabled while CODE is being tested",
+    }
+    assert rag.asked is None, "the disabled RAG lane retrieved documents"
+    assert model.seen == {}, "BRAIN #3 was asked to write a disabled RAG answer"
 
 
 async def test_passages_that_do_not_answer_the_question_produce_no_answer() -> None:
