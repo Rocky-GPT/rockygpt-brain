@@ -17,6 +17,16 @@ WEB = "web"
 DOCUMENTS = "documents"
 SAFETY = "safety"
 
+#: What Rocky says when the documents were searched and do not answer the
+#: question. Python's words, not the model's: a model that has just judged its
+#: evidence insufficient is the last thing that should be asked to phrase the
+#: admission, and this is the sentence that must not drift into a hedged
+#: half-answer.
+INSUFFICIENT_EVIDENCE = (
+    "Ramapo's documents do not cover that, so I cannot answer it from them. "
+    "The office that owns the subject will have it."
+)
+
 
 @dataclass(frozen=True, slots=True)
 class Execution:

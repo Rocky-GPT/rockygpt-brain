@@ -19,8 +19,11 @@ from typing import Any
 
 _CLOCK = re.compile(r"^(\d{1,2}):(\d{2})\s*([AaPp])")
 
-#: Enough rows that the operation decides the answer, not the fetch.
-_FETCH_LIMIT = 200
+#: Enough rows that the operation decides the answer, not the fetch — and no
+#: more than the data service will accept. It caps `limit` at 100 and rejects
+#: the whole request above that, so asking for 200 did not return 100 rows, it
+#: returned a 400 and failed every CODE turn.
+_FETCH_LIMIT = 100
 
 Reader = Callable[[dict[str, Any]], Any]
 

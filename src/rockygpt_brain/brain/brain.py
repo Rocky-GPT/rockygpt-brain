@@ -41,7 +41,12 @@ from pydantic import ValidationError
 
 from rockygpt_brain.api.contracts import BrainTrace, ChatRequest, ChatSuccess, Citation
 from rockygpt_brain.brain.execute.run import run
-from rockygpt_brain.brain.execute.schema import DOCUMENTS, WEB, Execution
+from rockygpt_brain.brain.execute.schema import (
+    DOCUMENTS,
+    INSUFFICIENT_EVIDENCE,
+    WEB,
+    Execution,
+)
 from rockygpt_brain.brain.plan.run import PlanPort
 from rockygpt_brain.brain.plan.validate import Rejected, check
 from rockygpt_brain.brain.understand.run import UnderstandPort
@@ -171,6 +176,17 @@ class Brain:
             execution.grounding(),
         )
 
+        # The documents were searched and did not answer the question. That is
+        # an outcome, not a failure: retrieval ran and worked. What changes is
+        # who writes the last sentence — BRAIN #3 has just said its evidence was
+        # thin, and a model in that position writes a hedged answer rather than
+        # none, which reads exactly like a sourced one.
+        #
+        # Only the documents lane for now. `campusData` and `web` could be held
+        # to the same rule, but each needs its own measurement first.
+        unsupported = execution.answer_from == DOCUMENTS and not draft.sufficient_evidence
+        answer = INSUFFICIENT_EVIDENCE if unsupported else draft.answer
+
         trace = BrainTrace(
             question=question,
             memory=memory,
@@ -185,12 +201,14 @@ class Brain:
             context=_context(read, earlier),
             plan=checked.summary(),
             execution=execution.summary(),
-            answer={"answer": draft.answer},
+            answer={"answer": answer, "sufficientEvidence": draft.sufficient_evidence},
         )
-        citations = _citations(execution, now)
+        # Nothing was answered from them, so nothing is cited. A citation on
+        # an abstention points a reader at a page that does not say it.
+        citations = [] if unsupported else _citations(execution, now)
         response = ChatSuccess(
             request_id=identity.request_id,
-            answer=draft.answer,
+            answer=answer,
             route=recording.route,
             citations=citations,
             ui_actions=[],

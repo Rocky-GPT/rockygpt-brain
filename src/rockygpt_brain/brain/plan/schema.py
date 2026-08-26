@@ -114,6 +114,17 @@ class Plan(BaseModel):
     #: capability and still be one Rocky must not answer as asked, so the lane
     #: is planned as normal and Python acts on this before running it.
     safety: list[Concern] = Field(default_factory=list, max_length=4)
+    #: The two questions the lane is the answer to, declared before it so they
+    #: are the reasoning rather than a label applied afterwards. A structured
+    #: response is generated in declaration order: asked for the lane first,
+    #: these come back agreeing with whatever was already chosen.
+    #:
+    #: Does one of the capabilities answer this?
+    a_capability_answers_it: bool = Field(default=False, alias="aCapabilityAnswersIt")
+    #: Does the answer depend on something true of Ramapo in particular? The
+    #: useful test is whether it would be the same at any other college — not
+    #: whether a document exists, which nothing at this stage can know.
+    specific_to_ramapo: bool = Field(default=False, alias="specificToRamapo")
     lane: Lane
     capability: FieldName | None = None
     filters: list[Filter] = Field(default_factory=list, max_length=8)
@@ -141,9 +152,28 @@ class Plan(BaseModel):
         """The filters as the map they stand for. A repeated field keeps the last."""
         return {item.field: item.value for item in self.filters}
 
-    def summary(self) -> dict[str, Any]:
+    def summary(self) -> dict[str, Any]:  # noqa: D401
         """The plan with its unused halves dropped — what a human reads in the log."""
-        out: dict[str, Any] = {"lane": self.lane.value}
+        # The two questions and the lane they produce, together and in order,
+        # so the log shows the reasoning rather than only its result. `?` is
+        # not a field name a schema could carry — which is the point: this is
+        # the shape a person reads, and the model's own fields keep the names
+        # the cascade needs.
+        out: dict[str, Any] = {
+            "routing": {
+                "CODE?": _yes(self.a_capability_answers_it),
+                # Reached only when the first answer is No: the cascade stops
+                # at the first hit. The model still has to fill the field in —
+                # a structured response has no way to leave one unanswered —
+                # and with nothing reading it, what it fills in is noise. The
+                # same question twice gave Yes and then No. Printing that beside
+                # a real answer made it look like it meant something.
+                "RAMAPO?": (
+                    NOT_ASKED if self.a_capability_answers_it else _yes(self.specific_to_ramapo)
+                ),
+                "ROUTE": self.lane.value,
+            }
+        }
         # Leads when set. It overrides the lane, so it reads above it.
         if self.safety:
             out = {"safety": [c.value for c in self.safety], **out}
@@ -174,3 +204,16 @@ class Plan(BaseModel):
         if self.effective_query and self.effective_query != self.query:
             out["effectiveQuery"] = self.effective_query
         return out
+
+
+#: A question the cascade never got to.
+NOT_ASKED = "—"
+
+
+def _yes(answered: bool) -> str:
+    """A judgement as it was asked, for a log a person reads.
+
+    `false` beside a name makes a reader reconstruct what the name asked. `No`
+    beside `CODE?` does not.
+    """
+    return "Yes" if answered else "No"
