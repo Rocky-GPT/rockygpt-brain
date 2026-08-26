@@ -33,12 +33,21 @@ Executor = Callable[[dict[str, str], datetime, DataPort], Awaitable[list[dict[st
 
 @dataclass(frozen=True, slots=True)
 class Capability:
-    describes: str
-    filters: frozenset[str]
-    fields: frozenset[str]
-    execute: Executor
-    read: dict[str, Reader]
-    sort: dict[str, Reader]
+    describes: str  # one line, handed to the planner as written
+    filters: frozenset[str]  # fields a plan may narrow on
+    fields: frozenset[str]  # fields a plan may sort by, compare, or read
+    execute: Executor  # required: no entry without the code to run it
+    read: dict[str, Reader]  # how each published field comes off a record
+    sort: dict[str, Reader]  # where sorting on the published value sorts wrongly
+    #: Which of this capability's filter fields hold a moment in time.
+    #: `validate.resolve` turns `today` into a date for these and nothing else.
+    #:
+    #: It used to do it for every field, which is how `meal` — a field holding
+    #: BREAKFAST, LUNCH or DINNER — came to hold `2026-08-26`, and how "What's
+    #: on the menu today?" returned nothing three times out of three. A value
+    #: the field cannot hold is far easier to catch before it is dated than
+    #: after: `meal: "today"` is visibly wrong, `meal: "2026-08-26"` is not.
+    temporal: frozenset[str] = frozenset()
 
 
 CAPABILITIES: dict[str, Capability] = {
@@ -49,6 +58,7 @@ CAPABILITIES: dict[str, Capability] = {
         execute=transportation.run,
         read=transportation_normalize.FIELDS,
         sort=transportation_normalize.SORT,
+        temporal=frozenset({"date", "departingAfter"}),
     ),
     "dining": Capability(
         describes="today's campus dining menu items, meals, stations, and dietary options",
@@ -69,6 +79,7 @@ CAPABILITIES: dict[str, Capability] = {
         execute=events.run,
         read=events_normalize.FIELDS,
         sort=events_normalize.SORT,
+        temporal=frozenset({"date", "startsAfter"}),
     ),
     "hours": Capability(
         describes=("opening hours and open/closed status for campus facilities and dining venues"),
@@ -77,6 +88,7 @@ CAPABILITIES: dict[str, Capability] = {
         execute=hours.run,
         read=hours_normalize.FIELDS,
         sort=hours_normalize.SORT,
+        temporal=frozenset({"date", "day", "openAt"}),
     ),
     "courses": Capability(
         describes=(
@@ -109,6 +121,7 @@ CAPABILITIES: dict[str, Capability] = {
         execute=calendar.run,
         read=calendar_normalize.FIELDS,
         sort=calendar_normalize.SORT,
+        temporal=frozenset({"date", "startsAfter"}),
     ),
     "clubs": Capability(
         describes="student organizations, clubs, organization categories, and Greek life",

@@ -81,7 +81,38 @@ def test_dining_accepts_only_its_published_filters_and_fields() -> None:
     checked = check(code("dining", {"meal": "LUNCH", "dietary": "vegan"}, order_by="calories"), NOW)
     assert isinstance(checked, Plan)
     assert checked.filter_values == {"meal": "LUNCH", "dietary": "vegan"}
-    assert isinstance(check(code("dining", {"date": "today"}), NOW), Rejected)
+    # A narrowing dining cannot do, whatever the wording: it holds one day's
+    # menu and no date at all, so asking for another day has to fail rather
+    # than quietly answer about this one.
+    assert isinstance(check(code("dining", {"date": "tomorrow"}, order_by="name"), NOW), Rejected)
+
+
+def test_a_filter_asking_for_now_narrows_nothing_and_is_dropped() -> None:
+    """ "What's on the menu today?" put `today` in `meal` three times in three.
+
+    `meal` holds BREAKFAST, LUNCH or DINNER, and `resolve` used to date it,
+    which turned a visibly wrong plan into `meal: "2026-08-26"` — a filter that
+    matches nothing and reads like it should. Every lookup is handed the clock
+    already, so a filter asking for now narrows nothing and can go; what is
+    left is the plan the question deserved.
+    """
+    dated = check(code("dining", {"meal": "today"}, order_by="name"), NOW)
+    assert isinstance(dated, Plan)
+    assert dated.filter_values == {}, "the menu is today's without being told so"
+
+    # And the same word on a field dining does not publish at all, which was
+    # rejected outright — losing "what's for lunch today?" two times in three.
+    both = check(code("dining", {"meal": "lunch", "date": "today"}, order_by="name"), NOW)
+    assert isinstance(both, Plan)
+    assert both.filter_values == {"meal": "lunch"}
+
+
+def test_asking_for_another_day_is_never_answered_with_this_one() -> None:
+    """`tomorrow` narrows, so it can never be dropped the way `today` is."""
+    assert isinstance(check(code("dining", {"meal": "tomorrow"}, order_by="name"), NOW), Plan)
+    kept = check(code("dining", {"meal": "tomorrow"}, order_by="name"), NOW)
+    assert isinstance(kept, Plan)
+    assert kept.filter_values == {"meal": "tomorrow"}, "it stands, and matches nothing"
 
 
 def test_events_resolve_date_and_time_filters_before_execution() -> None:
