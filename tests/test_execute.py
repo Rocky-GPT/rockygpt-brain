@@ -160,6 +160,7 @@ async def test_a_dining_plan_queries_and_projects_menu_items() -> None:
     data = FakeData(
         [
             {
+                "date": "2031-03-06",
                 "name": "Black Bean Burger",
                 "meal": "LUNCH",
                 "station": "EVERYDAY GRILL",
@@ -181,6 +182,7 @@ async def test_a_dining_plan_queries_and_projects_menu_items() -> None:
     assert data.query == {"q": "vegan", "at": NOW.isoformat(), "meal": "LUNCH"}
     assert execution.results == [
         {
+            "date": "2031-03-06",
             "name": "Black Bean Burger",
             "meal": "LUNCH",
             "station": "EVERYDAY GRILL",
@@ -395,6 +397,56 @@ async def test_courses_sort_codes_naturally_and_filter_attributes() -> None:
         FakeRag(),
     )
     assert [row["code"] for row in execution.results] == ["MATH 3", "MATH 20"]
+
+
+async def test_registration_deadline_uses_the_calendars_add_drop_wording() -> None:
+    data = FakeData(
+        [
+            {
+                "term": "Spring 2031",
+                "date": "Mar. 6",
+                "title": "Spring 2032 Registration",
+                "description": "Registration opens",
+            },
+            {
+                "term": "Spring 2031",
+                "date": "Mar. 10",
+                "title": "Full Semester Courses - Last Day to Add/Drop for 100% Tuition Refund",
+                "description": "12:00 am - 11:59 pm",
+            },
+            {
+                "term": "Spring 2031",
+                "date": "Mar. 7",
+                "title": "Session I Courses - Last Day of Add/Drop for 100% Tuition Refund",
+                "description": "12:00 am - 11:59 pm",
+            },
+        ]
+    )
+
+    execution = await run(
+        code(
+            "calendar",
+            {"topic": "registration deadline", "startsAfter": NOW.isoformat()},
+            order_by="date",
+            direction="ascending",
+            limit=1,
+        ),
+        NOW,
+        data,
+        FakeWeb(),
+        FakeRag(),
+    )
+
+    assert data.query == {"q": "add drop", "at": NOW.isoformat()}
+    assert execution.results == [
+        {
+            "term": "Spring 2031",
+            "date": "Mar. 7",
+            "startsAt": "2031-03-07",
+            "title": "Session I Courses - Last Day of Add/Drop for 100% Tuition Refund",
+            "description": "12:00 am - 11:59 pm",
+        }
+    ]
 
 
 async def test_a_shuttle_plan_runs_and_says_so() -> None:

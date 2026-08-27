@@ -62,13 +62,14 @@ CAPABILITIES: dict[str, Capability] = {
     ),
     "dining": Capability(
         describes="today's campus dining menu items, meals, stations, and dietary options",
-        filters=frozenset({"name", "meal", "station", "dietary"}),
+        filters=frozenset({"name", "meal", "station", "dietary", "date"}),
         fields=frozenset(
-            {"name", "meal", "station", "calories", "vegan", "vegetarian", "allergens"}
+            {"date", "name", "meal", "station", "calories", "vegan", "vegetarian", "allergens"}
         ),
         execute=dining.run,
         read=dining_normalize.FIELDS,
         sort=dining_normalize.SORT,
+        temporal=frozenset({"date"}),
     ),
     "events": Capability(
         describes="upcoming campus events, their dates, times, organizers, and descriptions",
@@ -113,7 +114,8 @@ CAPABILITIES: dict[str, Capability] = {
     ),
     "calendar": Capability(
         describes=(
-            "academic calendar dates, term milestones, breaks, finals, and registration deadlines; "
+            "academic calendar dates, term milestones, breaks, finals, and registration/add-drop "
+            "deadlines; an unqualified deadline means startsAfter now, date ascending, limit one; "
             "not campus activities"
         ),
         filters=frozenset({"topic", "title", "term", "date", "startsAfter"}),

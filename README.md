@@ -11,9 +11,12 @@ A plan answers two routing questions, then supplies the fields its derived
 lane needs. CODE names a capability, filters, and a generic operation — never
 an intent. Python checks it against the capability registry before running it.
 
-The implemented CODE capabilities are `shuttle`, `dining`, `events`, `hours`,
-and `courses`. RAG retrieves cited campus-document passages. GENERAL answers
-stable questions from model knowledge and searches the web for current ones.
+The implemented CODE capabilities are `transportation`, `dining`, `events`,
+`hours`, `courses`, `directory`, `calendar`, `clubs`, `locations`, and
+`programs`. `shuttle` remains an accepted compatibility alias for
+`transportation`. RAG retrieves cited campus-document passages. GENERAL
+answers stable questions from model knowledge and searches the web for current
+ones.
 
 RAG is temporarily gated off by default while CODE is tested. A RAG-routed
 turn returns `RAG is working progress` without document retrieval or an answer

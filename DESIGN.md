@@ -106,7 +106,7 @@ subtracting part of a file is one more difference between what it says and what
 it does. Notes for whoever edits one are under "Before editing a prompt" below,
 where they cannot be sent by construction.
 
-A directory exists only when there is code for it. The RAG lane and the five
+A directory exists only when there is code for it. The RAG lane and the ten
 current CODE capability directories therefore correspond to implementations,
 not roadmap placeholders. This is exactly the failure the registry rule below
 exists to prevent.
@@ -473,6 +473,12 @@ useful result rather than an unexplained empty match.
 
 `events` with no date promises upcoming events, so `now` is the implicit floor.
 An explicit date means the whole requested calendar day.
+
+`calendar` translates student deadline language into the calendar's published
+labels before searching and narrowing. In particular, a registration deadline
+is usually written as a last day to add/drop. A phrase naming the "last day to"
+do something names the deadline itself; unless the question explicitly asks
+about the past, the planner selects the next matching date in ascending order.
 
 `directory` and `locations` are the two data endpoints that do not answer in
 `records` — they use `allContacts` and `locations`. Which bucket a contact came
