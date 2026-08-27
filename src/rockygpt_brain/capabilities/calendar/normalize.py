@@ -104,6 +104,16 @@ async def resolve_filters(
 ) -> dict[str, str]:
     """Resolve planner-facing entity mentions into calendar dataset identity."""
     resolved = dict(filters)
+
+    # Every kind belongs to exactly one family, so a plan carrying both has
+    # either said the same thing twice or picked a subtype the question did
+    # not. Asked for the last day to register it answered `registration` and
+    # then guessed `add_drop_deadline` beside it, which reads as precision and
+    # is what drops the independent-study deadline from the same term. The
+    # broad concept is the one the question named; the subtype beside it goes.
+    if resolved.get("family") and resolved.get("kind"):
+        resolved.pop("kind")
+
     term = resolved.pop("term", None)
     session = resolved.pop("session", None)
     if term or session:
