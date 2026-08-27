@@ -22,6 +22,8 @@ class DataPort(Protocol):
 
     async def courses(self, query: dict[str, str]) -> list[dict[str, Any]]: ...
 
+    async def course_subjects(self, query: dict[str, str]) -> list[dict[str, Any]]: ...
+
     async def transportation(self, query: dict[str, Any]) -> list[dict[str, Any]]: ...
 
     async def calendar(self, query: dict[str, str]) -> list[dict[str, Any]]: ...
@@ -59,6 +61,11 @@ class HttpData:
 
     async def courses(self, query: dict[str, str]) -> list[dict[str, Any]]:
         return self._records(await self._get("/v1/search/courses", query), "courses")
+
+    async def course_subjects(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return self._records(
+            await self._get("/v1/search/course-subjects", query), "course subjects"
+        )
 
     async def transportation(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         return await self.shuttle(query)

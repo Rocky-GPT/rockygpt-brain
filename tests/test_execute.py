@@ -62,6 +62,12 @@ class FakeData:
             raise DataUnavailable("connection refused")
         return self._records
 
+    subjects: list[dict[str, Any]] = [
+        {"code": "CMPS", "name": "Computer Science", "aliases": ["CS", "Comp Sci"]},
+        {"code": "CNST", "name": "Contemplative Studies", "aliases": []},
+        {"code": "MATH", "name": "Mathematics", "aliases": []},
+    ]
+
     async def events(self, query: dict[str, str]) -> list[dict[str, Any]]:
         return await self.dining(query)
 
@@ -73,6 +79,9 @@ class FakeData:
 
     async def courses(self, query: dict[str, str]) -> list[dict[str, Any]]:
         return await self.dining(query)
+
+    async def course_subjects(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return list(self.subjects)
 
     async def transportation(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         return await self.shuttle(query)
@@ -699,6 +708,78 @@ async def test_a_question_that_names_a_session_needs_no_count_to_get_one_row() -
         FakeRag(),
     )
     assert [row["startsAt"] for row in execution.results] == ["2031-03-07"]
+
+
+async def test_a_subject_alias_the_data_owns_becomes_its_code() -> None:
+    """The headline failure: `CS` matched nothing over sixty-three CMPS courses.
+
+    `CS` is not a code and not a name; it is a short form the dataset records,
+    and resolving it is the data's job rather than a phrase the planner or a
+    prompt has to know.
+    """
+    records = [
+        {"code": "CMPS 147", "name": "COMPUTER SCIENCE I"},
+        {"code": "CNST 210", "name": "MEDITATION"},
+    ]
+    data = FakeData(records)
+    execution = await run(
+        code("courses", {"subject": "CS"}, order_by="code"), NOW, data, FakeWeb(), FakeRag()
+    )
+    assert [row["code"] for row in execution.results] == ["CMPS 147"]
+
+
+async def test_a_subject_name_and_code_reach_the_same_place() -> None:
+    records = [
+        {"code": "CMPS 147", "name": "COMPUTER SCIENCE I"},
+        {"code": "MATH 101", "name": "CALCULUS"},
+    ]
+    for mention in ("CMPS", "cmps", "Computer Science", "comp sci"):
+        execution = await run(
+            code("courses", {"subject": mention}, order_by="code"),
+            NOW,
+            FakeData(records),
+            FakeWeb(),
+            FakeRag(),
+        )
+        assert [row["code"] for row in execution.results] == ["CMPS 147"], mention
+
+
+async def test_a_subject_the_catalogue_does_not_name_still_narrows_by_code() -> None:
+    """Upstream files no department for the language prefixes; the code is the handle."""
+    records = [{"code": "JAPN 101", "name": "JAPANESE I"}, {"code": "CMPS 147", "name": "CS I"}]
+    execution = await run(
+        code("courses", {"subject": "JAPN"}, order_by="code"),
+        NOW,
+        FakeData(records),
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert [row["code"] for row in execution.results] == ["JAPN 101"]
+
+
+async def test_a_subject_matching_nothing_is_refused_rather_than_guessed() -> None:
+    with pytest.raises(ServiceError) as raised:
+        await run(
+            code("courses", {"subject": "underwater basket weaving"}, order_by="code"),
+            NOW,
+            FakeData([]),
+            FakeWeb(),
+            FakeRag(),
+        )
+    assert str(raised.value) == "Rocky could not resolve that campus name."
+
+
+async def test_a_subject_no_longer_matches_a_course_by_its_title() -> None:
+    """`subject` narrowed on course titles, so it hit whatever the word appeared in."""
+    records = [{"code": "PHYS 101", "name": "INTRODUCTION TO PHYSICS"}]
+    execution = await run(
+        code("courses", {"subject": "CMPS"}, order_by="code"),
+        NOW,
+        FakeData(records),
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert execution.results == []
 
 
 async def test_an_ambiguous_calendar_entity_is_refused_before_the_real_query() -> None:
