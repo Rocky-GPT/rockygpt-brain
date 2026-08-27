@@ -123,7 +123,7 @@ lane        CODE | RAG | GENERAL
 capability  CODE: which lookup, from the registry
 filters     CODE: field/value pairs, each checked against that field's
             enum | entity | date | instant | text FilterSpec
-operation   CODE: orderBy + direction, limit, count, compare
+operation   CODE: orderBy + direction, select, limit, count, compare
 topic       RAG: what to find in the documents
 freshness   GENERAL: `stable` answers from what the model knows, `current`
             searches the web
@@ -236,11 +236,80 @@ and one method on `DataPort`. The registry cannot advertise a capability
 without executable code.
 
 Every executor translates the plan's published filter names into the data
-service's request, then the CODE lane applies `orderBy`, `limit`, and `count`
-over the records that came back. `shuttle` is the clearest example: the data
-service has its own selection vocabulary — `first`, `next`, `current` — while
-the executor asks for the full bounded set and leaves selection to the generic
-operation. That keeps service-specific verbs out of a plan.
+service's request, then the CODE lane applies `orderBy`, `select`, `limit`, and
+`count` over the records that came back. `shuttle` is the clearest example: the
+data service has its own selection vocabulary — `first`, `next`, `current` —
+while the executor asks for the full bounded set and leaves selection to the
+generic operation. That keeps service-specific verbs out of a plan.
+
+## Mentions in, canonical ids out
+
+BRAIN #2 writes what the question said — `subject: "CS"`, `term: "Fall 2026"` —
+and never a dataset identifier. `capabilities/entities.py` turns one mention
+into identity, the same way for every capability, strongest evidence first:
+
+    1. the canonical id or code, exactly
+    2. the canonical name, exactly
+    3. an alias the data gives the entity
+    4. an abbreviation of the name, where only one entity claims it
+    5. anything else, or several matches at the deciding step: refuse
+
+The first step that matches anything decides, so weaker evidence never
+overrules stronger. Two entities matching equally well raise `EntityAmbiguous`
+and the turn stops; nothing weighs how many rows an entity has, because the
+more popular reading of an abbreviation is a guess wearing a statistic.
+`EntityNotFound` is the separate case a caller may still handle — a code the
+catalogue has no name for is a weaker handle, not a wrong one.
+
+**Aliases belong to the data.** `CS` means `CMPS` because
+`src/reference/course-subject-aliases.json` in rockygpt-data says so, merged
+into the subject catalogue at ingestion and served from
+`/v1/search/course-subjects`. It is not in a prompt, not in the planner, and
+not in the capability: a short form is known where the names are known, and one
+buried in a capability is invisible to every other capability needing it.
+`CS` and `CNST` both abbreviate to CS, so without that alias the mention is
+ambiguous and correctly refused — the alias is what makes it answerable.
+
+BRAIN #1 stays out of this. It normalizes language — spelling, punctuation,
+phrasing — and knows nothing about Ramapo's vocabulary, so no campus alias
+reaches it and none of this moves when its prompt does.
+
+`courses` is the first consumer. The catalogue names 66 of the 100 subject
+codes courses actually use; upstream files no department for the language and
+interprofessional prefixes. A mention matching nothing that is shaped like a
+code is kept as one, so `JAPN` still narrows. Free-text subject matching is
+gone: `subject` used to be compared against course *titles*, which is why
+"computer science" worked at all and why it also matched whatever else had the
+words in its name.
+
+Calendar's session aliases are still declared in `capabilities/calendar/
+normalize.py`. They are the exception this section argues against and should
+move to the data beside the term and session metadata.
+
+## `select` and `limit` are different questions
+
+`limit` is a count the question named. `select` takes the single row an
+ordering already picks out, and needs the `orderBy` that decides it — the first
+and the last of something are one selection over two directions, never two
+operations.
+
+They were one field, and it meant `limit` did both jobs. A question reading as
+singular got `limit: 1`, which is a count of one and the first row of an order
+at the same time, so "last day to reg for class" came back as the Session I
+add/drop deadline described as the last day to register, with two later
+deadlines dropped in silence. A wrong date is visible; a missing one is not.
+
+Splitting the field is most of the fix and not all of it: told a count of one
+was refused, BRAIN #2 planned `select` instead, and the same row came back. So
+a capability may name `parallel` fields — what tells its otherwise-equal rows
+apart. Where the lookup narrowed on none of them the question did not tell those
+rows apart, and `select` does not either; a count the question actually asked
+for still applies. `calendar` names `kind` and `sessionId`: a term runs several
+sessions and files several kinds of deadline in each.
+
+Do not reach for the prompt here. It was told twice — once that a limit is only
+a requested count, once that singular wording asks for neither — and planned
+around it both times.
 
 ## Before editing a prompt
 
@@ -492,8 +561,15 @@ An explicit date means the whole requested calendar day.
 stable `family`, `kind`, `termId`, `sessionId`, and `startsAt` metadata while
 preserving the published title. BRAIN #2 chooses a family or kind, never a
 guessed title phrase. Python applies the current/upcoming-term rule and keeps
-every matching session in that term rather than hiding variants with
-`limit = 1`.
+every matching session in that term rather than hiding variants behind a
+selection.
+
+Every kind belongs to exactly one family, so a plan carrying both has either
+said the same thing twice or guessed a subtype the question did not name —
+`registration` with `add_drop_deadline` beside it reads as precision and is
+what drops the independent-study deadline from the same term. `resolve_filters`
+keeps the broad concept and drops the subtype; a kind named on its own still
+narrows.
 
 `directory` and `locations` are the two data endpoints that do not answer in
 `records` — they use `allContacts` and `locations`. Which bucket a contact came

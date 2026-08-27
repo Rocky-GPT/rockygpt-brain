@@ -121,6 +121,7 @@ CAPABILITIES: dict[str, Capability] = {
         execute=courses.run,
         read=courses_normalize.FIELDS,
         sort=courses_normalize.SORT,
+        normalize=courses_normalize.resolve_filters,
     ),
     "directory": Capability(
         describes=(
