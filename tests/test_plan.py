@@ -22,7 +22,7 @@ from rockygpt_brain.brain.plan.schema import (
 from rockygpt_brain.brain.plan.validate import Rejected, anchor, check, resolve
 from rockygpt_brain.brain.understand.run import UNDERSTAND
 from rockygpt_brain.brain.write.run import ANSWER
-from rockygpt_brain.capabilities.registry import CAPABILITIES
+from rockygpt_brain.capabilities.registry import CAPABILITIES, catalogue
 from rockygpt_brain.safety.schema import Concern
 
 SOURCE = Path(rockygpt_brain.__file__).parent
@@ -41,12 +41,67 @@ def code(capability: str, filters: dict[str, str], **operation: Any) -> Plan:
 
 def test_a_capability_keeps_the_fields_it_lists() -> None:
     plan = code(
-        "shuttle", {"date": "today"}, order_by="departureTime", direction="descending", limit=1
+        "shuttle", {"date": "today"}, order_by="departureTime", direction="descending", limit=5
     )
     checked = check(plan, NOW)
     assert isinstance(checked, Plan)
     assert checked.operation.order_by == "departureTime"
-    assert checked.operation.limit == 1
+    assert checked.operation.limit == 5
+
+
+def test_a_count_the_question_named_is_kept() -> None:
+    checked = check(code("shuttle", {}, order_by="departureTime", limit=3), NOW)
+    assert isinstance(checked, Plan)
+    assert checked.operation.limit == 3
+    assert checked.operation.select is None
+
+
+def test_a_limit_of_one_is_not_a_way_to_select_one_row() -> None:
+    """The planner reaches for `limit: 1` whenever a question reads as singular.
+
+    A count of one and the first row of an order are the same rows and
+    different questions, so the one value where they collide is dropped rather
+    than honoured: rows the question never divided stay undivided, and a plan
+    that meant to take one ordered row has `select` to say so.
+    """
+    checked = check(
+        code("calendar", {"family": "registration"}, order_by="startsAt", limit=1), NOW
+    )
+    assert isinstance(checked, Plan)
+    assert checked.operation.limit is None
+    assert checked.operation.select is None
+    assert checked.operation.order_by == "startsAt"
+
+
+def test_a_selection_survives_because_it_says_what_it_means() -> None:
+    checked = check(
+        code("shuttle", {}, order_by="departureTime", direction="ascending", select="first"), NOW
+    )
+    assert isinstance(checked, Plan)
+    assert checked.operation.select == "first"
+    assert checked.operation.limit is None
+
+
+def test_the_last_of_something_is_the_first_of_the_reverse_order() -> None:
+    checked = check(
+        code("shuttle", {}, order_by="departureTime", direction="descending", select="first"), NOW
+    )
+    assert isinstance(checked, Plan)
+    assert checked.operation.direction == "descending"
+    assert checked.operation.select == "first"
+
+
+def test_selecting_one_row_out_of_no_order_is_rejected() -> None:
+    rejected = check(code("shuttle", {}, select="first"), NOW)
+    assert isinstance(rejected, Rejected)
+    assert "no order" in rejected.reason
+
+
+def test_a_dropped_limit_still_leaves_an_operation_to_run() -> None:
+    """Dropping the count must not turn a stated operation into no operation."""
+    checked = check(code("calendar", {"family": "registration"}, order_by="date", limit=1), NOW)
+    assert isinstance(checked, Plan)
+    assert checked.operation.stated
 
 
 def test_an_unknown_capability_is_rejected() -> None:
@@ -80,36 +135,51 @@ def test_a_capability_with_no_code_behind_it_is_rejected_before_it_can_fail() ->
 def test_dining_accepts_only_its_published_filters_and_fields() -> None:
     checked = check(code("dining", {"meal": "LUNCH", "dietary": "vegan"}, order_by="calories"), NOW)
     assert isinstance(checked, Plan)
-    assert checked.filter_values == {"meal": "LUNCH", "dietary": "vegan"}
+    assert checked.filter_values == {"meal": "lunch", "dietary": "vegan"}
     # A narrowing dining cannot do, on an unpublished filter:
     assert isinstance(check(code("dining", {"route": "main"}, order_by="name"), NOW), Rejected)
 
 
-def test_a_filter_asking_for_now_narrows_nothing_and_is_dropped() -> None:
-    """ "What's on the menu today?" put `today` in `meal` three times in three.
-
-    `meal` holds BREAKFAST, LUNCH or DINNER, and `resolve` used to date it,
-    which turned a visibly wrong plan into `meal: "2026-08-26"` — a filter that
-    matches nothing and reads like it should. Every lookup is handed the clock
-    already, so a filter asking for now narrows nothing and can go; what is
-    left is the plan the question deserved.
-    """
-    dated = check(code("dining", {"meal": "today"}, order_by="name"), NOW)
-    assert isinstance(dated, Plan)
-    assert dated.filter_values == {}, "the menu is today's without being told so"
-
-    # And when date is specified as today, it resolves to current date.
-    both = check(code("dining", {"meal": "lunch", "date": "today"}, order_by="name"), NOW)
-    assert isinstance(both, Plan)
-    assert both.filter_values == {"meal": "lunch", "date": "2031-03-06"}
+def test_the_catalogue_tells_the_planner_each_filters_value_type() -> None:
+    dining = next(entry for entry in catalogue() if entry["capability"] == "dining")
+    filters = {entry["field"]: entry for entry in dining["filters"]}
+    assert filters["meal"] == {
+        "field": "meal",
+        "type": "enum",
+        "values": ["breakfast", "dinner", "late_night", "lunch"],
+    }
+    assert filters["station"] == {
+        "field": "station",
+        "type": "entity",
+        "entity": "dining_station",
+    }
+    assert filters["date"] == {"field": "date", "type": "date"}
 
 
-def test_asking_for_another_day_is_never_answered_with_this_one() -> None:
-    """`tomorrow` narrows, so it can never be dropped the way `today` is."""
-    assert isinstance(check(code("dining", {"meal": "tomorrow"}, order_by="name"), NOW), Plan)
-    kept = check(code("dining", {"meal": "tomorrow"}, order_by="name"), NOW)
-    assert isinstance(kept, Plan)
-    assert kept.filter_values == {"meal": "tomorrow"}, "it stands, and matches nothing"
+def test_an_enum_refuses_a_time_value_instead_of_repairing_it() -> None:
+    rejected = check(code("dining", {"meal": "today"}, order_by="name"), NOW)
+    assert isinstance(rejected, Rejected)
+    assert rejected.reason == (
+        "dining.meal expects one of breakfast, dinner, late_night, lunch, received 'today'"
+    )
+
+
+def test_an_enum_also_refuses_a_date_shaped_value() -> None:
+    rejected = check(code("dining", {"meal": "2026-08-27"}, order_by="name"), NOW)
+    assert isinstance(rejected, Rejected)
+    assert "dining.meal expects one of" in rejected.reason
+
+
+def test_a_date_word_is_only_resolved_on_a_date_filter() -> None:
+    checked = check(code("dining", {"meal": "lunch", "date": "today"}, order_by="name"), NOW)
+    assert isinstance(checked, Plan)
+    assert checked.filter_values == {"meal": "lunch", "date": "2031-03-06"}
+
+
+def test_asking_for_another_day_in_an_enum_is_also_rejected() -> None:
+    rejected = check(code("dining", {"meal": "tomorrow"}, order_by="name"), NOW)
+    assert isinstance(rejected, Rejected)
+    assert "dining.meal expects one of" in rejected.reason
 
 
 def test_events_resolve_date_and_time_filters_before_execution() -> None:
@@ -247,7 +317,7 @@ def test_the_summary_reads_as_the_plan_was_written() -> None:
             "shuttle",
             {"destination": "Garden State Plaza", "date": "today"},
             order_by="departureTime",
-            limit=1,
+            select="first",
         ),
         NOW,
     )
@@ -256,7 +326,11 @@ def test_the_summary_reads_as_the_plan_was_written() -> None:
         "routing": {"CODE?": "Yes", "RAMAPO?": "—", "ROUTE": "CODE"},
         "capability": "shuttle",
         "filters": {"destination": "Garden State Plaza", "date": "2031-03-06"},
-        "operation": {"orderBy": "departureTime", "direction": "ascending", "limit": 1},
+        "operation": {
+            "orderBy": "departureTime",
+            "direction": "ascending",
+            "select": "first",
+        },
     }
 
 

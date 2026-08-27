@@ -4,12 +4,14 @@ A question goes in, an answer comes out — and a trace saying how Rocky
 understood, routed, looked up, and wrote the answer.
 
 ```text
-the question -> BRAIN #1 understands -> BRAIN #2 plans -> PYTHON runs -> BRAIN #3 answers
+the question -> BRAIN #1 understands -> BRAIN #2 plans -> PYTHON normalizes + runs -> BRAIN #3 answers
 ```
 
 A plan answers two routing questions, then supplies the fields its derived
 lane needs. CODE names a capability, filters, and a generic operation — never
-an intent. Python checks it against the capability registry before running it.
+an intent. Every filter declares one shared value type — `enum`, `entity`,
+`date`, `instant`, or `text`. Python validates those semantics, resolves
+canonical execution values, and only then runs the capability.
 
 The implemented CODE capabilities are `transportation`, `dining`, `events`,
 `hours`, `courses`, `directory`, `calendar`, `clubs`, `locations`, and

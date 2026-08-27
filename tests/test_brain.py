@@ -148,10 +148,19 @@ async def ask(
     memory: MemoryStore | None = None,
     rid: str = "r",
     planner: FakePlanner | None = None,
+    data: Any | None = None,
 ) -> tuple[ChatSuccess, FakeModel]:
     model = FakeModel()
     brains = planner or FakePlanner()
-    brain = Brain(model, brains, brains, FakeData(), FakeWeb(), FakeRag(), memory or MemoryStore())
+    brain = Brain(
+        model,
+        brains,
+        brains,
+        data or FakeData(),
+        FakeWeb(),
+        FakeRag(),
+        memory or MemoryStore(),
+    )
     response = await brain.answer(
         ChatRequest(message=message, now=NOW), TurnIdentity(rid, "s", None, "client")
     )
@@ -294,6 +303,13 @@ async def test_the_planner_is_told_the_same_question_and_time() -> None:
 
 
 async def test_the_plan_is_its_own_stage() -> None:
+    """What BRAIN #2 asked for and what Python honoured are both readable.
+
+    The drafted plan carries the count of one the planner reached for; the
+    normalized plan is what actually ran, without it. A limit Python declined
+    to apply is visible as the difference between the two boxes rather than
+    disappearing from the trace.
+    """
     plan = Plan(
         a_capability_answers_it=True,
         capability="shuttle",
@@ -304,17 +320,61 @@ async def test_the_plan_is_its_own_stage() -> None:
     assert response.brain_trace.plan == {
         "routing": {"CODE?": "Yes", "RAMAPO?": "—", "ROUTE": "CODE"},
         "capability": "shuttle",
-        "filters": {"date": "2031-03-06"},
+        "filters": {"date": "today"},
         "operation": {"orderBy": "departureTime", "direction": "descending", "limit": 1},
+    }
+    assert response.brain_trace.normalized_plan == {
+        "routing": {"CODE?": "Yes", "RAMAPO?": "—", "ROUTE": "CODE"},
+        "capability": "shuttle",
+        "filters": {"date": "2031-03-06"},
+        "operation": {"orderBy": "departureTime", "direction": "descending"},
     }
 
 
-async def test_the_turn_reads_end_to_end_as_four_stages() -> None:
+async def test_entity_mentions_become_ids_only_in_the_normalized_plan() -> None:
+    plan = Plan(
+        a_capability_answers_it=True,
+        capability="calendar",
+        filters=[
+            Filter(field="family", value="registration"),
+            Filter(field="term", value="Fall 2031"),
+        ],
+        operation=Operation(compare=["date", "title"]),
+    )
+    class CalendarData(FakeData):
+        async def calendar(self, query: dict[str, Any]) -> list[dict[str, Any]]:
+            return [
+                {
+                    "family": "registration",
+                    "kind": "add_drop_deadline",
+                    "term": "Fall 2031",
+                    "termId": "fall-2031",
+                    "date": "Sep. 1",
+                    "startsAt": "2031-09-01T04:00:00Z",
+                    "title": "Last Day to Add/Drop",
+                }
+            ]
+
+    response, _ = await ask(planner=FakePlanner(plan), data=CalendarData())
+    assert response.brain_trace.plan["filters"] == {
+        "family": "registration",
+        "term": "Fall 2031",
+    }
+    assert response.brain_trace.normalized_plan["filters"] == {
+        "family": "registration",
+        "termId": "fall-2031",
+    }
+
+
+async def test_the_turn_exposes_semantic_and_normalized_plans_as_separate_stages() -> None:
     response, _ = await ask("a question")
     trace = response.brain_trace
     assert trace.question == {"question": "a question"}, "the words, and nothing else"
     assert trace.memory == {"currentTime": CLOCK, "earlierTurns": []}
     assert trace.plan == {
+        "routing": {"CODE?": "No", "RAMAPO?": "No", "ROUTE": "GENERAL"},
+    }
+    assert trace.normalized_plan == {
         "routing": {"CODE?": "No", "RAMAPO?": "No", "ROUTE": "GENERAL"},
         "freshness": "stable",
     }

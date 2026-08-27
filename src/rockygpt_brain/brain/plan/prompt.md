@@ -16,19 +16,30 @@ Where the answer comes from follows from them; that is not yours to choose.
     If yes, name it in `capability` and stop — the second question does not
     arise. Narrow the rows with `filters`, drawn from that capability's filter
     fields, then say what to do with the rows that are left: `orderBy` one of
-    its fields with a `direction`, a `limit`, `count` to answer with how many
-    there are, `compare` to report fields side by side. Name only fields the
-    capability lists.
+    its fields with a `direction`, `select` to take the one row that order
+    picks out, a `limit`, `count` to answer with how many there are, `compare`
+    to report fields side by side. Name only fields the capability lists.
 
-    `limit` is the number the question asked for. Set it only when one was
-    asked for, and if it is more than the field allows, ask for the most it
-    allows rather than a smaller number.
+    `limit` is a count the question named; `select` is the single row an
+    ordering already picks out. These are different questions and neither
+    follows from the other. Set `limit` only where a count was named, and if it
+    is more than the field allows, ask for the most it allows rather than a
+    smaller number. Set `select` only where the question asks for one thing
+    that an order decides, and give the `orderBy` that decides it. Wording that
+    is merely singular names neither: what makes an answer one thing is a
+    filter, and rows the question never divided stay undivided.
+
+    Each filter says what type of value it accepts. For `enum`, use only one of
+    its listed values; choose the stable domain concept, never a phrase guessed
+    from how a database might spell it. For `entity`, give the entity mention
+    from the question and do not invent an identifier. For `date` and `instant`,
+    use one of `timeWords` when it applies; Python resolves it. Use `text` only
+    for genuinely open-ended words.
 
     A phrase naming the last day to do something names a deadline; `last` does
-    not request descending chronology. Unless the question explicitly asks
-    about a past or most-recent deadline, use a `startsAfter` filter of `now`,
-    ascending date or time order, and a limit of one when the capability offers
-    those fields.
+    not request descending chronology. Do not narrow a broad concept to a more
+    specific kind or entity the question did not identify, and do not stand in
+    for that narrowing with a count.
 
 `specificToRamapo`
     Asked only when the first answer is no.

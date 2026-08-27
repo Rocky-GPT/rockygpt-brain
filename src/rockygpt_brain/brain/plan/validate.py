@@ -2,19 +2,16 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 
-from rockygpt_brain.brain.plan.schema import Filter, Lane, Plan
+from rockygpt_brain.brain.plan.schema import Filter, Lane, Operation, Plan
+from rockygpt_brain.capabilities.filters import FilterKind, FilterSpec
 from rockygpt_brain.capabilities.registry import capability_for
 
 _DAYS = {"today": 0, "tomorrow": 1, "yesterday": -1}
-#: The time words that name the moment every lookup already runs at. A filter
-#: asking for now, on a lookup that is already now, narrows nothing — which is
-#: the only reason one can be dropped instead of honoured. `tomorrow` is not
-#: here and must never be: dropping it would answer about today.
-_ALREADY = frozenset({"now", "today"})
 
 _STATED = re.compile(r"\s*\bas of\b.*$", re.IGNORECASE)
+_CLOCK = re.compile(r"^(\d{1,2})(?::(\d{2}))?\s*(?:([AaPp])\.?[Mm]\.?)?$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,10 +70,9 @@ def _check_code(plan: Plan, now: datetime) -> Plan | Rejected:
     if capability is None:
         return Rejected(f"no capability named {plan.capability!r}")
 
-    for item in plan.filters:
-        if item.field in capability.filters or _asks_for_now(item):
-            continue
-        return Rejected(f"{plan.capability} cannot be filtered by {item.field!r}")
+    normalized = _normalize_filters(plan, capability.filters, now)
+    if isinstance(normalized, Rejected):
+        return normalized
 
     operation = plan.operation
     if operation.order_by and operation.order_by not in capability.fields:
@@ -88,45 +84,105 @@ def _check_code(plan: Plan, now: datetime) -> Plan | Rejected:
     if not operation.stated:
         return Rejected(f"a {plan.capability} plan needs an operation")
 
+    if operation.select and not operation.order_by:
+        return Rejected(f"a {plan.capability} plan cannot select one row out of no order")
+
     return Plan(
         lane=Lane.CODE,
         capability=plan.capability,
-        filters=dated(plan.filters, capability.temporal, now),
-        operation=operation,
+        filters=normalized,
+        operation=selective(operation),
     )
 
 
-def dated(filters: list[Filter], temporal: frozenset[str], now: datetime) -> list[Filter]:
-    """Time words turned into dates, but only on fields that hold a time.
+def selective(operation: Operation) -> Operation:
+    """A limit of one asked for a quantity of one; drop it.
 
-    A filter value is read against the clock where the field can hold a time,
-    and where it cannot, a filter asking for *now* is dropped.
+    `limit` is how many rows the question asked for and `select` takes the one
+    row an ordering already names, so a limit of one is the single value where
+    the two are indistinguishable — and it is the one the planner reaches for
+    when the question merely reads as singular. "Last day to reg for class"
+    planned `limit: 1`, and the answer named the Session I add/drop deadline as
+    the last day to register while dropping the two later deadlines that had an
+    equal claim to the question.
 
-    Dropping is the only repair `validate` makes, and it is narrow on purpose.
-    Every lookup is handed the clock whether or not the question mentions it,
-    so `today` on a field that holds no time asks for exactly what is already
-    happening: it narrows nothing, and a filter that narrows nothing can go.
-    What the planner is doing there is looking for somewhere to put a word, and
-    "What's on the menu today?" planned `meal: "today"` three times in three —
-    `meal` holds BREAKFAST, LUNCH or DINNER. Dating it produced
-    `meal: "2026-08-26"`, a filter matching nothing that reads like it should.
-
-    `tomorrow` is never dropped, because it does narrow: dropping it would
-    answer about today under tomorrow's question. It stays, matches nothing,
-    and is reported as having matched nothing.
+    Dropping rather than rejecting is the conservative direction: the rows the
+    question did not distinguish between all survive, and BRAIN #3 explains the
+    distinction it now has the evidence for. A plan that meant to take one
+    ordered row says `select`, which is honoured, and both the asked-for and
+    the honoured operation stay visible in the trace.
     """
-    kept: list[Filter] = []
-    for f in filters:
-        if f.field in temporal:
-            kept.append(Filter(field=f.field, value=resolve(f.value, now)))
-        elif not _asks_for_now(f):
-            kept.append(f)
-    return kept
+    if operation.limit != 1:
+        return operation
+    return operation.model_copy(update={"limit": None})
 
 
-def _asks_for_now(item: Filter) -> bool:
-    """Whether this filter asks for the moment the lookup already runs at."""
-    return item.value.strip().casefold() in _ALREADY
+def _normalize_filters(
+    plan: Plan, specs: dict[str, FilterSpec], now: datetime
+) -> list[Filter] | Rejected:
+    """Validate values against their field types and return canonical scalars."""
+    seen: set[str] = set()
+    normalized: list[Filter] = []
+    for item in plan.filters:
+        if item.field in seen:
+            return Rejected(f"{plan.capability} repeats filter {item.field!r}")
+        seen.add(item.field)
+        spec = specs.get(item.field)
+        if spec is None:
+            return Rejected(f"{plan.capability} cannot be filtered by {item.field!r}")
+        value = _normalize_value(item.value, spec, now)
+        if value is None:
+            expected = spec.kind.value
+            if spec.values:
+                expected = f"one of {', '.join(sorted(spec.values))}"
+            return Rejected(
+                f"{plan.capability}.{item.field} expects {expected}, received {item.value!r}"
+            )
+        normalized.append(Filter(field=item.field, value=value))
+    return normalized
+
+
+def _normalize_value(value: str, spec: FilterSpec, now: datetime) -> str | None:
+    stripped = value.strip()
+    if not stripped:
+        return None
+    if spec.kind is FilterKind.ENUM:
+        return spec.enum_value(stripped)
+    if spec.kind is FilterKind.DATE:
+        resolved = resolve(stripped, now)
+        try:
+            return date.fromisoformat(resolved).isoformat()
+        except ValueError:
+            return None
+    if spec.kind is FilterKind.INSTANT:
+        return _instant(stripped, now)
+    return stripped
+
+
+def _instant(value: str, now: datetime) -> str | None:
+    resolved = resolve(value, now)
+    try:
+        parsed = datetime.fromisoformat(resolved.replace("Z", "+00:00"))
+    except ValueError:
+        parsed = None
+    if parsed is not None:
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=now.tzinfo)
+        return parsed.isoformat()
+
+    match = _CLOCK.fullmatch(value)
+    if not match:
+        return None
+    hour = int(match.group(1))
+    minute = int(match.group(2) or 0)
+    half = match.group(3)
+    if half:
+        if not 1 <= hour <= 12:
+            return None
+        hour = hour % 12 + (12 if half.casefold() == "p" else 0)
+    if not 0 <= hour <= 23 or not 0 <= minute <= 59:
+        return None
+    return datetime.combine(now.date(), time(hour, minute), tzinfo=now.tzinfo).isoformat()
 
 
 def resolve(value: str, now: datetime) -> str:

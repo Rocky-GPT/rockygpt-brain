@@ -92,6 +92,7 @@ class BrainTrace(ContractModel):
     understanding: dict[str, Any]
     context: dict[str, Any]
     plan: dict[str, Any]
+    normalized_plan: dict[str, Any] = Field(alias="normalizedPlan")
     execution: dict[str, Any]
     answer: dict[str, Any]
 
