@@ -543,6 +543,82 @@ async def test_deadlines_the_question_never_divided_all_reach_the_answer() -> No
         ], f"one row survived {asked_as}"
 
 
+async def test_a_subtype_guessed_beside_a_broad_concept_is_dropped() -> None:
+    """Every kind belongs to one family, so naming both narrows on a guess."""
+    records = [
+        {
+            "family": "registration",
+            "kind": "add_drop_deadline",
+            "term": "Spring 2031",
+            "termId": "spring-2031",
+            "sessionId": "session-i",
+            "date": "Mar. 7",
+            "startsAt": "2031-03-07",
+            "title": "Session I Courses - Last Day of Add/Drop",
+        },
+        {
+            "family": "registration",
+            "kind": "independent_study_registration_deadline",
+            "term": "Spring 2031",
+            "termId": "spring-2031",
+            "sessionId": "full-semester",
+            "date": "Mar. 12",
+            "startsAt": "2031-03-12",
+            "title": "Last Day to Register for an Independent Study",
+        },
+    ]
+    data = FakeData(records)
+    execution = await run(
+        code(
+            "calendar",
+            {"family": "registration", "kind": "add_drop_deadline"},
+            order_by="startsAt",
+            select="first",
+        ),
+        NOW,
+        data,
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert "kind" not in data.query
+    assert [row["startsAt"] for row in execution.results] == ["2031-03-07", "2031-03-12"]
+
+
+async def test_a_subtype_named_on_its_own_still_narrows() -> None:
+    records = [
+        {
+            "family": "registration",
+            "kind": "add_drop_deadline",
+            "term": "Spring 2031",
+            "termId": "spring-2031",
+            "sessionId": "session-i",
+            "date": "Mar. 7",
+            "startsAt": "2031-03-07",
+            "title": "Session I Courses - Last Day of Add/Drop",
+        },
+        {
+            "family": "registration",
+            "kind": "independent_study_registration_deadline",
+            "term": "Spring 2031",
+            "termId": "spring-2031",
+            "sessionId": "full-semester",
+            "date": "Mar. 12",
+            "startsAt": "2031-03-12",
+            "title": "Last Day to Register for an Independent Study",
+        },
+    ]
+    data = FakeData(records)
+    execution = await run(
+        code("calendar", {"kind": "add_drop_deadline"}, order_by="startsAt"),
+        NOW,
+        data,
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert data.query["kind"] == "add_drop_deadline"
+    assert [row["startsAt"] for row in execution.results] == ["2031-03-07"]
+
+
 async def test_a_count_the_question_asked_for_applies_to_parallel_rows_too() -> None:
     """Refusing a faked selection must not refuse a real quantity."""
     records = [
