@@ -24,6 +24,12 @@ Where the answer comes from follows from them; that is not yours to choose.
     asked for, and if it is more than the field allows, ask for the most it
     allows rather than a smaller number.
 
+    A phrase naming the last day to do something names a deadline; `last` does
+    not request descending chronology. Unless the question explicitly asks
+    about a past or most-recent deadline, use a `startsAfter` filter of `now`,
+    ascending date or time order, and a limit of one when the capability offers
+    those fields.
+
 `specificToRamapo`
     Asked only when the first answer is no.
 

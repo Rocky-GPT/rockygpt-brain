@@ -20,6 +20,7 @@ def _calories(record: dict[str, Any]) -> int:
 
 
 FIELDS = {
+    "date": lambda r: _text(r, "date"),
     "name": lambda r: _text(r, "name"),
     "meal": lambda r: _text(r, "meal"),
     "station": lambda r: _text(r, "station"),
@@ -30,6 +31,7 @@ FIELDS = {
 }
 
 SORT = {
+    "date": lambda r: _text(r, "date"),
     "name": lambda r: _text(r, "name").casefold(),
     "meal": lambda r: _text(r, "meal").casefold(),
     "station": lambda r: _text(r, "station").casefold(),
@@ -48,6 +50,10 @@ def query(filters: dict[str, str], now: datetime) -> dict[str, str]:
 
 
 def matches(record: dict[str, Any], filters: dict[str, str]) -> bool:
+    if date := filters.get("date"):
+        record_date = _text(record, "date")
+        if record_date and record_date != date:
+            return False
     if meal := filters.get("meal"):
         if _text(record, "meal").casefold() != meal.casefold():
             return False

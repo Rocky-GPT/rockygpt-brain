@@ -27,6 +27,15 @@ _MONTH_DAY = re.compile(
     re.IGNORECASE,
 )
 _YEAR = re.compile(r"\b(20\d{2})\b")
+_TOPIC_WORD = re.compile(r"[a-z0-9]+")
+_TOPIC_NOISE = frozenset(
+    {"academic", "calendar", "date", "dates", "deadline", "deadlines"}
+)
+_REGISTRATION = frozenset(
+    {"enroll", "enrollment", "enrol", "enrolment", "reg", "register", "registration"}
+)
+_DEADLINE = frozenset({"deadline", "deadlines", "last"})
+_TOPIC_ALIASES = {"withdrawal": "withdraw"}
 
 
 def _text(record: dict[str, Any], name: str) -> str:
@@ -72,6 +81,28 @@ def _date_sort(record: dict[str, Any]) -> tuple[int, str]:
     return (parsed.toordinal() if parsed else 0, _text(record, "title").casefold())
 
 
+def _topic_terms(topic: str) -> tuple[str, ...]:
+    """Translate student wording to the vocabulary the calendar publishes.
+
+    Registration cutoffs are published as "Last Day to Add/Drop", not as a
+    "registration deadline". Keeping the alias here makes the same terms drive
+    both the DATA query and the fail-closed local match.
+    """
+    words = _TOPIC_WORD.findall(topic.casefold())
+    vocabulary = set(words)
+    if vocabulary & _REGISTRATION and vocabulary & _DEADLINE:
+        return ("add", "drop")
+
+    terms = tuple(
+        _TOPIC_ALIASES.get(word, word) for word in words if word not in _TOPIC_NOISE
+    )
+    if terms:
+        return terms
+    if vocabulary & _DEADLINE:
+        return ("last", "day")
+    return ()
+
+
 FIELDS: dict[str, Reader] = {
     "term": lambda r: _text(r, "term"),
     "date": lambda r: _text(r, "date"),
@@ -89,7 +120,10 @@ SORT: dict[str, Reader] = {
 
 
 def query(filters: dict[str, str], now: datetime) -> dict[str, str]:
-    terms = [filters[name] for name in ("topic", "title", "term") if name in filters]
+    terms: list[str] = []
+    if topic := filters.get("topic"):
+        terms.extend(_topic_terms(topic))
+    terms.extend(filters[name] for name in ("title", "term") if name in filters)
     return {"q": " ".join(terms), "at": now.isoformat()}
 
 
@@ -105,7 +139,7 @@ def matches(record: dict[str, Any], filters: dict[str, str]) -> bool:
         searchable = " ".join(
             (_text(record, "term"), _text(record, "title"), _text(record, "description"))
         )
-        if not holds(searchable, topic):
+        if not holds(searchable, " ".join(_topic_terms(topic))):
             return False
     for name in ("title", "term"):
         wanted = filters.get(name)

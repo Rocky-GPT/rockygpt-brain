@@ -81,10 +81,8 @@ def test_dining_accepts_only_its_published_filters_and_fields() -> None:
     checked = check(code("dining", {"meal": "LUNCH", "dietary": "vegan"}, order_by="calories"), NOW)
     assert isinstance(checked, Plan)
     assert checked.filter_values == {"meal": "LUNCH", "dietary": "vegan"}
-    # A narrowing dining cannot do, whatever the wording: it holds one day's
-    # menu and no date at all, so asking for another day has to fail rather
-    # than quietly answer about this one.
-    assert isinstance(check(code("dining", {"date": "tomorrow"}, order_by="name"), NOW), Rejected)
+    # A narrowing dining cannot do, on an unpublished filter:
+    assert isinstance(check(code("dining", {"route": "main"}, order_by="name"), NOW), Rejected)
 
 
 def test_a_filter_asking_for_now_narrows_nothing_and_is_dropped() -> None:
@@ -100,11 +98,10 @@ def test_a_filter_asking_for_now_narrows_nothing_and_is_dropped() -> None:
     assert isinstance(dated, Plan)
     assert dated.filter_values == {}, "the menu is today's without being told so"
 
-    # And the same word on a field dining does not publish at all, which was
-    # rejected outright — losing "what's for lunch today?" two times in three.
+    # And when date is specified as today, it resolves to current date.
     both = check(code("dining", {"meal": "lunch", "date": "today"}, order_by="name"), NOW)
     assert isinstance(both, Plan)
-    assert both.filter_values == {"meal": "lunch"}
+    assert both.filter_values == {"meal": "lunch", "date": "2031-03-06"}
 
 
 def test_asking_for_another_day_is_never_answered_with_this_one() -> None:
@@ -152,6 +149,11 @@ def test_courses_publish_catalog_filters_and_fields() -> None:
     assert isinstance(checked, Plan)
     assert checked.operation.order_by == "code"
     assert isinstance(check(code("courses", {"instructor": "Ada"}), NOW), Rejected)
+
+
+def test_a_last_day_phrase_is_not_treated_as_descending_chronology() -> None:
+    assert "names a deadline" in PLAN
+    assert "not request descending chronology" in PLAN
 
 
 def test_a_capability_without_an_operation_is_rejected() -> None:
