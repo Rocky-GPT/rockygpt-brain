@@ -399,23 +399,36 @@ async def test_courses_sort_codes_naturally_and_filter_attributes() -> None:
     assert [row["code"] for row in execution.results] == ["MATH 3", "MATH 20"]
 
 
-async def test_registration_deadline_uses_the_calendars_add_drop_wording() -> None:
+async def test_registration_family_uses_canonical_metadata_and_keeps_sessions() -> None:
     data = FakeData(
         [
             {
+                "family": "other",
+                "kind": "other",
                 "term": "Spring 2031",
+                "termId": "spring-2031",
                 "date": "Mar. 6",
                 "title": "Spring 2032 Registration",
                 "description": "Registration opens",
             },
             {
+                "family": "registration",
+                "kind": "add_drop_deadline",
                 "term": "Spring 2031",
+                "termId": "spring-2031",
+                "session": "Full Semester",
+                "sessionId": "full-semester",
                 "date": "Mar. 10",
                 "title": "Full Semester Courses - Last Day to Add/Drop for 100% Tuition Refund",
                 "description": "12:00 am - 11:59 pm",
             },
             {
+                "family": "registration",
+                "kind": "add_drop_deadline",
                 "term": "Spring 2031",
+                "termId": "spring-2031",
+                "session": "Session I",
+                "sessionId": "session-i",
                 "date": "Mar. 7",
                 "title": "Session I Courses - Last Day of Add/Drop for 100% Tuition Refund",
                 "description": "12:00 am - 11:59 pm",
@@ -426,10 +439,9 @@ async def test_registration_deadline_uses_the_calendars_add_drop_wording() -> No
     execution = await run(
         code(
             "calendar",
-            {"topic": "registration deadline", "startsAfter": NOW.isoformat()},
+            {"family": "registration", "startsAfter": NOW.isoformat()},
             order_by="date",
             direction="ascending",
-            limit=1,
         ),
         NOW,
         data,
@@ -437,16 +449,198 @@ async def test_registration_deadline_uses_the_calendars_add_drop_wording() -> No
         FakeRag(),
     )
 
-    assert data.query == {"q": "add drop", "at": NOW.isoformat()}
+    assert data.query == {
+        "family": "registration",
+        "startsAfter": NOW.isoformat(),
+        "at": NOW.isoformat(),
+    }
     assert execution.results == [
         {
+            "family": "registration",
+            "kind": "add_drop_deadline",
             "term": "Spring 2031",
+            "termId": "spring-2031",
+            "session": "Session I",
+            "sessionId": "session-i",
             "date": "Mar. 7",
             "startsAt": "2031-03-07",
             "title": "Session I Courses - Last Day of Add/Drop for 100% Tuition Refund",
             "description": "12:00 am - 11:59 pm",
-        }
+        },
+        {
+            "family": "registration",
+            "kind": "add_drop_deadline",
+            "term": "Spring 2031",
+            "termId": "spring-2031",
+            "session": "Full Semester",
+            "sessionId": "full-semester",
+            "date": "Mar. 10",
+            "startsAt": "2031-03-10",
+            "title": "Full Semester Courses - Last Day to Add/Drop for 100% Tuition Refund",
+            "description": "12:00 am - 11:59 pm",
+        },
     ]
+
+
+async def test_deadlines_the_question_never_divided_all_reach_the_answer() -> None:
+    """The regression: one deadline named as the deadline, two dropped in silence.
+
+    Three registration deadlines in the nearest term differ by session, and the
+    question named no session. Planned with a count of one they collapsed to
+    the earliest, and the answer called an add/drop deadline the last day to
+    register. Validation drops that count, so BRAIN #3 sees all three.
+    """
+    records = [
+        {
+            "family": "registration",
+            "kind": "add_drop_deadline",
+            "term": "Spring 2031",
+            "termId": "spring-2031",
+            "session": "Session I",
+            "sessionId": "session-i",
+            "date": "Mar. 7",
+            "startsAt": "2031-03-07",
+            "title": "Session I Courses - Last Day of Add/Drop",
+        },
+        {
+            "family": "registration",
+            "kind": "add_drop_deadline",
+            "term": "Spring 2031",
+            "termId": "spring-2031",
+            "session": "Full Semester",
+            "sessionId": "full-semester",
+            "date": "Mar. 10",
+            "startsAt": "2031-03-10",
+            "title": "Full Semester Courses - Last Day of Add/Drop",
+        },
+        {
+            "family": "registration",
+            "kind": "independent_study_registration_deadline",
+            "term": "Spring 2031",
+            "termId": "spring-2031",
+            "session": "Full Semester",
+            "sessionId": "full-semester",
+            "date": "Mar. 12",
+            "startsAt": "2031-03-12",
+            "title": "Full Semester Courses - Last Day to Register for an Independent Study",
+        },
+    ]
+    for asked_as in ({"limit": 1}, {"select": "first"}):
+        drafted = code(
+            "calendar",
+            {"family": "registration", "startsAfter": NOW.isoformat()},
+            order_by="startsAt",
+            direction="ascending",
+            **asked_as,
+        )
+        checked = check(drafted, NOW)
+        assert isinstance(checked, Plan)
+        execution = await run(checked, NOW, FakeData(records), FakeWeb(), FakeRag())
+        assert [row["startsAt"] for row in execution.results] == [
+            "2031-03-07",
+            "2031-03-10",
+            "2031-03-12",
+        ], f"one row survived {asked_as}"
+
+
+async def test_a_count_the_question_asked_for_applies_to_parallel_rows_too() -> None:
+    """Refusing a faked selection must not refuse a real quantity."""
+    records = [
+        {
+            "family": "registration",
+            "kind": "add_drop_deadline",
+            "term": "Spring 2031",
+            "termId": "spring-2031",
+            "sessionId": f"session-{n}",
+            "date": f"Mar. {n}",
+            "startsAt": f"2031-03-0{n}",
+            "title": f"Deadline {n}",
+        }
+        for n in (7, 8, 9)
+    ]
+    execution = await run(
+        code(
+            "calendar",
+            {"family": "registration"},
+            order_by="startsAt",
+            limit=2,
+        ),
+        NOW,
+        FakeData(records),
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert [row["startsAt"] for row in execution.results] == ["2031-03-07", "2031-03-08"]
+
+
+async def test_a_capability_with_no_parallel_rows_still_selects_one() -> None:
+    """The rule is calendar's structure, not a ban on selection everywhere."""
+    execution = await run(
+        shuttle({}, order_by="departureTime", direction="ascending", select="first"),
+        NOW,
+        FakeData(),
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert len(execution.results) == 1
+
+
+async def test_a_question_that_names_a_session_needs_no_count_to_get_one_row() -> None:
+    records = [
+        {
+            "family": "registration",
+            "kind": "add_drop_deadline",
+            "term": "Spring 2031",
+            "termId": "spring-2031",
+            "session": "Session I",
+            "sessionId": "session-i",
+            "date": "Mar. 7",
+            "startsAt": "2031-03-07",
+            "title": "Session I Courses - Last Day of Add/Drop",
+        },
+        {
+            "family": "registration",
+            "kind": "add_drop_deadline",
+            "term": "Spring 2031",
+            "termId": "spring-2031",
+            "session": "Full Semester",
+            "sessionId": "full-semester",
+            "date": "Mar. 10",
+            "startsAt": "2031-03-10",
+            "title": "Full Semester Courses - Last Day of Add/Drop",
+        },
+    ]
+    execution = await run(
+        code(
+            "calendar",
+            {"family": "registration", "sessionId": "session-i"},
+            order_by="startsAt",
+            select="first",
+        ),
+        NOW,
+        FakeData(records),
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert [row["startsAt"] for row in execution.results] == ["2031-03-07"]
+
+
+async def test_an_ambiguous_calendar_entity_is_refused_before_the_real_query() -> None:
+    data = FakeData(
+        [
+            {"term": "Fall 2031", "termId": "fall-2031"},
+            {"term": "Fall 2032", "termId": "fall-2032"},
+        ]
+    )
+    with pytest.raises(ServiceError) as raised:
+        await run(
+            code("calendar", {"term": "Fall"}, compare=["date"]),
+            NOW,
+            data,
+            FakeWeb(),
+            FakeRag(),
+        )
+    assert str(raised.value) == "Rocky could not resolve that campus name."
 
 
 async def test_a_shuttle_plan_runs_and_says_so() -> None:
@@ -465,7 +659,7 @@ async def test_the_plans_filters_become_the_services_query() -> None:
 
 async def test_the_service_is_never_asked_to_choose() -> None:
     data = FakeData()
-    plan = shuttle({"date": "2031-03-06"}, order_by="departureTime", limit=1)
+    plan = shuttle({"date": "2031-03-06"}, order_by="departureTime", select="first")
     await run(plan, NOW, data, FakeWeb(), FakeRag())
     assert data.query["selection"] == "all"
 
@@ -479,9 +673,9 @@ async def test_a_time_filter_asks_only_for_what_is_left() -> None:
     assert data.query["asOf"] == "2031-03-06T13:30:00-05:00"
 
 
-async def test_descending_with_a_limit_of_one_is_the_last_trip() -> None:
+async def test_descending_with_a_selection_is_the_last_trip() -> None:
     execution = await run(
-        shuttle({}, order_by="departureTime", direction="descending", limit=1),
+        shuttle({}, order_by="departureTime", direction="descending", select="first"),
         NOW,
         FakeData(),
         FakeWeb(),
@@ -498,9 +692,9 @@ async def test_descending_with_a_limit_of_one_is_the_last_trip() -> None:
     ]
 
 
-async def test_ascending_with_a_limit_of_one_is_the_first_trip() -> None:
+async def test_ascending_with_a_selection_is_the_first_trip() -> None:
     execution = await run(
-        shuttle({}, order_by="departureTime", direction="ascending", limit=1),
+        shuttle({}, order_by="departureTime", direction="ascending", select="first"),
         NOW,
         FakeData(),
         FakeWeb(),

@@ -4,8 +4,9 @@ import re
 from datetime import date, datetime
 from typing import Any
 
-from rockygpt_brain.capabilities.narrow import holds
+from rockygpt_brain.capabilities.entities import EntityCandidate, resolve_entity
 from rockygpt_brain.capabilities.types import Reader
+from rockygpt_brain.services.data import DataPort
 
 _MONTHS = {
     "jan": 1,
@@ -27,15 +28,6 @@ _MONTH_DAY = re.compile(
     re.IGNORECASE,
 )
 _YEAR = re.compile(r"\b(20\d{2})\b")
-_TOPIC_WORD = re.compile(r"[a-z0-9]+")
-_TOPIC_NOISE = frozenset(
-    {"academic", "calendar", "date", "dates", "deadline", "deadlines"}
-)
-_REGISTRATION = frozenset(
-    {"enroll", "enrollment", "enrol", "enrolment", "reg", "register", "registration"}
-)
-_DEADLINE = frozenset({"deadline", "deadlines", "last"})
-_TOPIC_ALIASES = {"withdrawal": "withdraw"}
 
 
 def _text(record: dict[str, Any], name: str) -> str:
@@ -43,7 +35,7 @@ def _text(record: dict[str, Any], name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
-def _record_date(record: dict[str, Any]) -> date | None:
+def record_date(record: dict[str, Any]) -> date | None:
     instant = _text(record, "startsAt").strip()
     if instant:
         try:
@@ -72,39 +64,22 @@ def _starts_at(record: dict[str, Any]) -> str:
     explicit = _text(record, "startsAt")
     if explicit:
         return explicit
-    parsed = _record_date(record)
+    parsed = record_date(record)
     return parsed.isoformat() if parsed else ""
 
 
 def _date_sort(record: dict[str, Any]) -> tuple[int, str]:
-    parsed = _record_date(record)
+    parsed = record_date(record)
     return (parsed.toordinal() if parsed else 0, _text(record, "title").casefold())
 
 
-def _topic_terms(topic: str) -> tuple[str, ...]:
-    """Translate student wording to the vocabulary the calendar publishes.
-
-    Registration cutoffs are published as "Last Day to Add/Drop", not as a
-    "registration deadline". Keeping the alias here makes the same terms drive
-    both the DATA query and the fail-closed local match.
-    """
-    words = _TOPIC_WORD.findall(topic.casefold())
-    vocabulary = set(words)
-    if vocabulary & _REGISTRATION and vocabulary & _DEADLINE:
-        return ("add", "drop")
-
-    terms = tuple(
-        _TOPIC_ALIASES.get(word, word) for word in words if word not in _TOPIC_NOISE
-    )
-    if terms:
-        return terms
-    if vocabulary & _DEADLINE:
-        return ("last", "day")
-    return ()
-
-
 FIELDS: dict[str, Reader] = {
+    "family": lambda r: _text(r, "family"),
+    "kind": lambda r: _text(r, "kind"),
     "term": lambda r: _text(r, "term"),
+    "termId": lambda r: _text(r, "termId"),
+    "session": lambda r: _text(r, "session"),
+    "sessionId": lambda r: _text(r, "sessionId"),
     "date": lambda r: _text(r, "date"),
     "startsAt": _starts_at,
     "title": lambda r: _text(r, "title"),
@@ -112,19 +87,91 @@ FIELDS: dict[str, Reader] = {
 }
 
 SORT: dict[str, Reader] = {
+    "family": lambda r: _text(r, "family").casefold(),
+    "kind": lambda r: _text(r, "kind").casefold(),
     "term": lambda r: _text(r, "term").casefold(),
+    "termId": lambda r: _text(r, "termId"),
+    "session": lambda r: _text(r, "session").casefold(),
+    "sessionId": lambda r: _text(r, "sessionId"),
     "date": _date_sort,
     "startsAt": _date_sort,
     "title": lambda r: _text(r, "title").casefold(),
 }
 
 
+async def resolve_filters(
+    filters: dict[str, str], now: datetime, data: DataPort
+) -> dict[str, str]:
+    """Resolve planner-facing entity mentions into calendar dataset identity."""
+    resolved = dict(filters)
+    term = resolved.pop("term", None)
+    session = resolved.pop("session", None)
+    if term or session:
+        records = await data.calendar({"at": now.isoformat()})
+        if term and term.casefold() not in {"current", "upcoming"}:
+            terms = {
+                (_text(record, "termId"), _text(record, "term")) for record in records
+            }
+            resolved["termId"] = resolve_entity(
+                "academic_term",
+                term,
+                [EntityCandidate(id, label) for id, label in terms if id and label],
+            )
+        if session:
+            sessions = {
+                (_text(record, "sessionId"), _text(record, "session")) for record in records
+            }
+            aliases = {
+                "session-i": ("session 1",),
+                "session-ii": ("session 2",),
+                "session-iii": ("session 3",),
+                "session-iv": ("session 4",),
+                "mini-session-i": ("mini 1", "mini i"),
+                "mini-session-ii": ("mini 2", "mini ii"),
+                "full-semester": ("full", "full session", "full summer"),
+            }
+            resolved["sessionId"] = resolve_entity(
+                "academic_session",
+                session,
+                [
+                    EntityCandidate(id, label, aliases.get(id, ()))
+                    for id, label in sessions
+                    if id and label
+                ],
+            )
+
+    deadline_kinds = {
+        "add_drop_deadline",
+        "application_deadline",
+        "grading_option_deadline",
+        "independent_study_registration_deadline",
+        "tuition_refund_deadline",
+        "withdrawal_deadline",
+    }
+    if (
+        (resolved.get("kind") in deadline_kinds or resolved.get("family") == "registration")
+        and "date" not in resolved
+        and "startsAfter" not in resolved
+        and "termId" not in resolved
+    ):
+        resolved["startsAfter"] = now.isoformat()
+    return resolved
+
+
 def query(filters: dict[str, str], now: datetime) -> dict[str, str]:
-    terms: list[str] = []
-    if topic := filters.get("topic"):
-        terms.extend(_topic_terms(topic))
-    terms.extend(filters[name] for name in ("title", "term") if name in filters)
-    return {"q": " ".join(terms), "at": now.isoformat()}
+    out = {"at": now.isoformat()}
+    for name in (
+        "family",
+        "kind",
+        "termId",
+        "sessionId",
+        "date",
+        "startsAfter",
+        "startsBefore",
+    ):
+        if value := filters.get(name):
+            out[name] = value
+    return out
 
 
 def _wanted_date(value: str) -> date | None:
@@ -135,20 +182,14 @@ def _wanted_date(value: str) -> date | None:
 
 
 def matches(record: dict[str, Any], filters: dict[str, str]) -> bool:
-    if topic := filters.get("topic"):
-        searchable = " ".join(
-            (_text(record, "term"), _text(record, "title"), _text(record, "description"))
-        )
-        if not holds(searchable, " ".join(_topic_terms(topic))):
-            return False
-    for name in ("title", "term"):
+    for name in ("family", "kind", "termId", "sessionId"):
         wanted = filters.get(name)
-        if wanted and not holds(_text(record, name), wanted):
+        if wanted and _text(record, name).casefold() != wanted.casefold():
             return False
     if wanted := filters.get("date"):
         parsed = _wanted_date(wanted)
         if parsed is not None:
-            if _record_date(record) != parsed:
+            if record_date(record) != parsed:
                 return False
         elif wanted.casefold() not in _text(record, "date").casefold():
             return False
@@ -157,7 +198,15 @@ def matches(record: dict[str, Any], filters: dict[str, str]) -> bool:
             threshold = datetime.fromisoformat(after.replace("Z", "+00:00")).date()
         except ValueError:
             return False
-        record_date = _record_date(record)
-        if record_date is None or record_date < threshold:
+        actual_date = record_date(record)
+        if actual_date is None or actual_date < threshold:
+            return False
+    if before := filters.get("startsBefore"):
+        try:
+            threshold = datetime.fromisoformat(before.replace("Z", "+00:00")).date()
+        except ValueError:
+            return False
+        actual_date = record_date(record)
+        if actual_date is None or actual_date >= threshold:
             return False
     return True

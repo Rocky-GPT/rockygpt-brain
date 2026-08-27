@@ -499,7 +499,7 @@ components:
         A turn, entry by entry, in the order it ran. A stage that did
         nothing reports that it did nothing rather than being omitted, so the
         pipeline always reads end to end.
-      required: [question, memory, understanding, context, plan, execution, answer]
+      required: [question, memory, understanding, context, plan, normalizedPlan, execution, answer]
       properties:
         question:
           type: object
@@ -526,7 +526,13 @@ components:
         plan:
           type: object
           additionalProperties: true
-          description: BRAIN #2 — what to do about the question, as operations.
+          description: BRAIN #2 — semantic filters and operations chosen for the question.
+        normalizedPlan:
+          type: object
+          additionalProperties: true
+          description: >-
+            PYTHON — the validated execution plan after enum canonicalization,
+            time resolution, and capability entity resolution.
         execution:
           type: object
           additionalProperties: true

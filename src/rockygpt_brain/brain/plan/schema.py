@@ -33,13 +33,14 @@ class Operation(BaseModel):
 
     order_by: FieldName | None = Field(default=None, alias="orderBy")
     direction: Literal["ascending", "descending"] = "ascending"
+    select: Literal["first"] | None = None
     limit: int | None = Field(default=None, ge=1, le=MOST_ROWS)
     count: bool = False
     compare: list[FieldName] = Field(default_factory=list, max_length=4)
 
     @property
     def stated(self) -> bool:
-        return bool(self.order_by or self.limit or self.count or self.compare)
+        return bool(self.order_by or self.select or self.limit or self.count or self.compare)
 
 
 class Plan(BaseModel):
@@ -83,6 +84,8 @@ class Plan(BaseModel):
         if self.operation.order_by:
             operation["orderBy"] = self.operation.order_by
             operation["direction"] = self.operation.direction
+        if self.operation.select:
+            operation["select"] = self.operation.select
         if self.operation.limit is not None:
             operation["limit"] = self.operation.limit
         if self.operation.count:

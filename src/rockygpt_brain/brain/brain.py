@@ -22,7 +22,7 @@ from rockygpt_brain.brain.execute.schema import (
 )
 from rockygpt_brain.brain.plan.run import PlanPort
 from rockygpt_brain.brain.plan.schema import Lane
-from rockygpt_brain.brain.plan.validate import Rejected, check
+from rockygpt_brain.brain.plan.validate import Rejected, check, route
 from rockygpt_brain.brain.understand.run import UnderstandPort
 from rockygpt_brain.brain.understand.schema import Understanding
 from rockygpt_brain.brain.understand.validate import ResolutionFailed, unresolved
@@ -114,13 +114,14 @@ class Brain:
                 ResolutionFailed(failure)
             )
         drafted = await self._planner.plan(read.resolved, now.isoformat())
+        semantic_plan = drafted.model_copy(update={"lane": route(drafted)}).summary()
         checked = check(drafted, now)
         if isinstance(checked, Rejected):
             raise Unavailable("Rocky could not work out how to answer that.") from PlanRejected(
                 checked.reason
             )
 
-        recording.plan = checked.summary()
+        recording.plan = semantic_plan
         recording.route = checked.lane.value.lower()
 
         if checked.lane is Lane.RAG and not checked.safety and not self._rag_enabled:
@@ -138,7 +139,8 @@ class Brain:
                     "resolvedQuestion": read.resolved,
                 },
                 context=_context(read, earlier),
-                plan=checked.summary(),
+                plan=semantic_plan,
+                normalized_plan=checked.summary(),
                 execution=execution.summary(),
                 answer={
                     "answer": RAG_WORK_IN_PROGRESS,
@@ -189,7 +191,8 @@ class Brain:
                 "resolvedQuestion": read.resolved,
             },
             context=_context(read, earlier),
-            plan=checked.summary(),
+            plan=semantic_plan,
+            normalized_plan=execution.normalized_plan or checked.summary(),
             execution=execution.summary(),
             answer={"answer": answer, "sufficientEvidence": draft.sufficient_evidence},
         )

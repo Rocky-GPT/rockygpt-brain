@@ -11,7 +11,7 @@
          │          given the resolved question and nothing else, and
          │          checked against the registry before it goes on
          ▼
-    PYTHON          run the lane the plan names
+    PYTHON          normalize the plan, then run the lane it names
          │          GENERAL answers from what the model knows, or from the
          │          web when the answer has a shelf life; CODE looks it up,
          │          using one of the registry's implemented capabilities
@@ -62,6 +62,7 @@ lanes/                where an answer comes from
   general/            what the model knows, or a web search
 capabilities/         what Rocky can look up
   registry.py         the only such list, and an entry needs its code
+  filters.py          enum | entity | date | instant | text contracts
   narrow.py           keeping the rows a free-text filter actually meant
   transportation/     shuttle and bus departures, and temporal ordering
   dining/             today's menu items and dietary facts
@@ -120,7 +121,8 @@ safety      what is wrong with the question, and empty when nothing is:
             emergency | privacy | secret | harmful
 lane        CODE | RAG | GENERAL
 capability  CODE: which lookup, from the registry
-filters     CODE: field/value pairs, drawn from that capability's filter fields
+filters     CODE: field/value pairs, each checked against that field's
+            enum | entity | date | instant | text FilterSpec
 operation   CODE: orderBy + direction, limit, count, compare
 topic       RAG: what to find in the documents
 freshness   GENERAL: `stable` answers from what the model knows, `current`
@@ -155,12 +157,20 @@ capability with different filters and a different sort.
 
 Filters are a list of pairs rather than a map because a strict response schema
 cannot describe an object with arbitrary keys. `Plan.filter_values` gives back
-the map, and `Plan.summary` is the shape a human reads in the log.
+the map, and `Plan.summary` is the shape a human reads in the log. The generic
+wire shape does not make the values generic: `Capability.filters` maps every
+published name to a `FilterSpec`, and Python rejects a value that cannot belong
+to that type before any campus lookup runs.
+
+Finite domain concepts are enums. Open-world things are entities: BRAIN #2
+keeps the mention a student used, then the capability's normalization hook
+resolves it to dataset identity. The model is never asked to invent an ID.
+Only genuinely open-ended language is `text`.
 
 ## The trace
 
-`brainTrace` carries seven entries: `question`, `memory`, `understanding`,
-`context`, `plan`, `execution`, `answer`.
+`brainTrace` carries eight entries: `question`, `memory`, `understanding`,
+`context`, `plan`, `normalizedPlan`, `execution`, `answer`.
 
 `question` is what was asked and nothing else. Everything it was read against
 is `memory` beside it — the clock, the earlier turns, the modes the client
@@ -171,6 +181,11 @@ nothing until an instant fixes it.
 `understanding` is what BRAIN #1 made of the question; `context` is what it had
 to borrow from the conversation to get there, and is empty unless BRAIN #1 says
 the question needed it.
+
+`plan` is exactly BRAIN #2's semantic output. `normalizedPlan` is what Python
+actually executes after enum canonicalization, time resolution, and any
+capability entity resolution. Keeping both is what makes a bad model choice
+different from a bad resolver visible in the inspector.
 
 The dev inspector orders them for reading rather than for the wire: `context`,
 BRAIN #1, BRAIN #2, PYTHON, then `memory` and the leftovers shut by default,
@@ -207,8 +222,9 @@ records and carry no page to point at.
 
 Then the decision about whether a plan runs at all. The registry is the whole
 authority: a plan naming a capability, a filter, a sort field, or a comparison
-field that is not listed is rejected with a reason, and the turn is answered
-without it.
+field that is not listed is rejected with a reason. A listed filter whose value
+has the wrong type is rejected at the same seam; `meal="tomorrow"` is not
+silently dated, dropped, or sent to DATA.
 
 ## Where it grows
 
@@ -405,15 +421,13 @@ pointing word survived is deliberately *not* the test: BRAIN #1 regularly keeps
 it and appends the referent, "tomorrow" becoming "tomorrow, 2026-08-26", and
 rejecting that cost one good resolution in eight when measured.
 
-### A free-text filter narrows by word, not by phrase
+### Text is one filter type, not the universal boundary
 
-A capability sends its free-text filters to the data service as one search
-string and the service does a real search — stemming, ranking, all of it. The
-per-field narrowing afterwards has to be no stricter than that search, and
-once was: each filter had to appear verbatim, so `topic="withdraw from a
-course"` threw away the record titled "Session II Courses - Last Day to
-Withdraw from Courses". The service had found it; the narrowing undid that.
-`narrow.holds` asks instead whether every word is somewhere in the field.
+An enum is a stable domain concept; an entity is resolved against a closed
+dataset; dates and instants are parsed by Python. Free text remains available
+only where arbitrary words are the real input. When a capability does use it,
+the service search and local narrowing must agree: `narrow.holds` asks whether
+every word is somewhere in the field instead of requiring a phrase verbatim.
 
 ### Times are Python's job, everywhere
 
@@ -474,11 +488,12 @@ useful result rather than an unexplained empty match.
 `events` with no date promises upcoming events, so `now` is the implicit floor.
 An explicit date means the whole requested calendar day.
 
-`calendar` translates student deadline language into the calendar's published
-labels before searching and narrowing. In particular, a registration deadline
-is usually written as a last day to add/drop. A phrase naming the "last day to"
-do something names the deadline itself; unless the question explicitly asks
-about the past, the planner selects the next matching date in ascending order.
+`calendar` is the first fully migrated typed capability. Ingestion assigns
+stable `family`, `kind`, `termId`, `sessionId`, and `startsAt` metadata while
+preserving the published title. BRAIN #2 chooses a family or kind, never a
+guessed title phrase. Python applies the current/upcoming-term rule and keeps
+every matching session in that term rather than hiding variants with
+`limit = 1`.
 
 `directory` and `locations` are the two data endpoints that do not answer in
 `records` — they use `allContacts` and `locations`. Which bucket a contact came

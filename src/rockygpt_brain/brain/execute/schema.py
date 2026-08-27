@@ -77,6 +77,7 @@ class Execution:
     found: int | None = None
     shown: Presentation | None = None
     ordering: Ordering | None = None
+    normalized_plan: dict[str, Any] = field(default_factory=dict)
 
     @property
     def ran(self) -> bool:

@@ -45,7 +45,7 @@ def query(filters: dict[str, str], now: datetime) -> dict[str, str]:
     terms = [filters[name] for name in ("name", "station", "dietary") if name in filters]
     out = {"q": " ".join(terms), "at": now.isoformat()}
     if meal := filters.get("meal"):
-        out["meal"] = meal.upper()
+        out["meal"] = meal.replace("_", " ").upper()
     return out
 
 
@@ -55,7 +55,7 @@ def matches(record: dict[str, Any], filters: dict[str, str]) -> bool:
         if record_date and record_date != date:
             return False
     if meal := filters.get("meal"):
-        if _text(record, "meal").casefold() != meal.casefold():
+        if _text(record, "meal").casefold() != meal.replace("_", " ").casefold():
             return False
     if name := filters.get("name"):
         if not _contains(_text(record, "name"), name):
