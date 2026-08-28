@@ -31,12 +31,12 @@
         "/Users/danielrajakumar"
       ],
       "allowRead": [
-        "/Users/danielrajakumar/code/RockyGPT/rockygpt-brain-python"
+        "/Users/danielrajakumar/code/RockyGPT/rockygpt-brain"
       ],
       "denyWrite": [
-        "/Users/danielrajakumar/code/RockyGPT/rockygpt-brain-python/.claude",
-        "/Users/danielrajakumar/code/RockyGPT/rockygpt-brain-python/CLAUDE.md",
-        "/Users/danielrajakumar/code/RockyGPT/rockygpt-brain-python/spec"
+        "/Users/danielrajakumar/code/RockyGPT/rockygpt-brain/.claude",
+        "/Users/danielrajakumar/code/RockyGPT/rockygpt-brain/CLAUDE.md",
+        "/Users/danielrajakumar/code/RockyGPT/rockygpt-brain/spec"
       ]
     },
     "network": {
