@@ -36,12 +36,10 @@ services:
         sync: false
       - key: OPENAI_CHAT_MODEL
         sync: false
-      # Present in the dashboard but not read by this service: ABUSE_HASH_KEY
-      # matches nothing in src/, and NODE_ENV is inert in a Python service
-      # (Settings uses extra="ignore", so both are silently swallowed).
-      # Declared so applying the blueprint does not prune them; drop them
-      # here and in Render once you have confirmed nothing depends on them.
+      # Nothing in src/ reads this today, but it is deliberately kept: the
+      # UI HMACs each visitor's network address with it to rate-limit abuse
+      # without storing raw IPs, and rockygpt-infra's README requires the
+      # same value in both services. Grepping this repo alone makes it look
+      # unused, which is very nearly how it got deleted. Leave it.
       - key: ABUSE_HASH_KEY
-        sync: false
-      - key: NODE_ENV
         sync: false
