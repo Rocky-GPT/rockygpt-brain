@@ -1,8 +1,7 @@
 """The differential harness: record a baseline, compare against it, or A/B two ports.
 
-    python -m tools.differential.run record  --port http --out baselines/node.json
     python -m tools.differential.run compare --port postgres --baseline baselines/node.json
-    python -m tools.differential.run ab      --left http --right postgres
+    python -m tools.differential.run record  --port postgres --out baselines/postgres.json
 
 `record` freezes what an implementation answers today. That is worth doing
 before anything is ported: the baseline is the contract, and the Node service
@@ -35,7 +34,7 @@ from tools.differential.capture import Capture, capture  # noqa: E402
 from tools.differential.diff import Divergence, Severity, compare  # noqa: E402
 
 from rockygpt_brain.config import get_settings  # noqa: E402
-from rockygpt_brain.services.data import DataPort, HttpData  # noqa: E402
+from rockygpt_brain.services.data import DataPort  # noqa: E402
 
 
 class HarnessError(Exception):
@@ -44,27 +43,19 @@ class HarnessError(Exception):
 
 def port(name: str) -> DataPort:
     settings = get_settings()
-    if name == "http":
-        return HttpData(settings.data_url, settings.data_timeout_seconds)
     if name == "postgres":
         try:
             from rockygpt_brain.services.postgres_data import PostgresData
         except ImportError as exc:
             raise HarnessError(
-                "There is no PostgresData yet — it is the next phase's work. "
-                "Record an `http` baseline now; this harness is what will "
-                "hold PostgresData to it when it lands."
+                "The PostgreSQL data adapter is unavailable in this environment."
             ) from exc
         url = settings.secret_value(settings.database_url)
         if not url:
             raise HarnessError("DATABASE_URL is unset, so the postgres port has nothing to read.")
-        # fallback_http MUST stay None here. With a fallback the port answers
-        # from the Node service whenever its own SQL fails, and every such
-        # failure compares equal — the harness would certify a method it never
-        # actually exercised.
-        candidate: DataPort = PostgresData(url, fallback_http=None)
+        candidate: DataPort = PostgresData(url)
         return candidate
-    raise HarnessError(f"unknown port {name!r} — expected 'http' or 'postgres'")
+    raise HarnessError(f"unknown port {name!r} — expected 'postgres'")
 
 
 async def run_all(
@@ -139,8 +130,8 @@ def report(found: list[Divergence], left: str, right: str, cases: int, strict: b
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="tools.differential.run", description=__doc__)
     parser.add_argument("mode", choices=("record", "compare", "ab"))
-    parser.add_argument("--port", default="http", help="implementation for record/compare")
-    parser.add_argument("--left", default="http", help="ab mode: the reference implementation")
+    parser.add_argument("--port", default="postgres", help="implementation for record/compare")
+    parser.add_argument("--left", default="postgres", help="ab mode: the reference implementation")
     parser.add_argument("--right", default="postgres", help="ab mode: the candidate")
     parser.add_argument("--baseline", type=Path, help="baseline file for record/compare")
     parser.add_argument("--out", type=Path, help="alias for --baseline in record mode")

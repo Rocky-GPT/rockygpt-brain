@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-import httpx
-
 
 class DataUnavailable(Exception):
     pass
 
 
 class DataPort(Protocol):
+    async def ready(self) -> None: ...
+
     async def shuttle(self, query: dict[str, Any]) -> list[dict[str, Any]]: ...
 
     async def dining(self, query: dict[str, str]) -> list[dict[str, Any]]: ...
@@ -37,94 +37,50 @@ class DataPort(Protocol):
     async def programs(self, query: dict[str, str]) -> list[dict[str, Any]]: ...
 
 
-class HttpData:
-    def __init__(self, base_url: str, timeout: float, client: Any | None = None) -> None:
-        self._base = base_url.rstrip("/")
-        self._timeout = timeout
-        self._client = client
+class UnavailableData:
+    """Development placeholder used when no database has been configured."""
+
+    async def _raise(self) -> list[dict[str, Any]]:
+        raise DataUnavailable("DATABASE_URL is not configured")
+
+    async def ready(self) -> None:
+        raise DataUnavailable("DATABASE_URL is not configured")
 
     async def shuttle(self, query: dict[str, Any]) -> list[dict[str, Any]]:
-        body = await self._post("/v2/capabilities/shuttle/query", query)
-        return self._records(body, "shuttle")
+        return await self._raise()
 
     async def dining(self, query: dict[str, str]) -> list[dict[str, Any]]:
-        return self._records(await self._get("/v1/search/menu", query), "dining")
+        return await self._raise()
 
     async def events(self, query: dict[str, str]) -> list[dict[str, Any]]:
-        return self._records(await self._get("/v1/search/events", query), "events")
+        return await self._raise()
 
     async def campus_hours(self, query: dict[str, str]) -> list[dict[str, Any]]:
-        return self._records(await self._get("/v1/search/campus-hours", query), "hours")
+        return await self._raise()
 
     async def dining_hours(self, query: dict[str, str]) -> list[dict[str, Any]]:
-        return self._records(await self._get("/v1/search/dining-hours", query), "dining hours")
+        return await self._raise()
 
     async def courses(self, query: dict[str, str]) -> list[dict[str, Any]]:
-        return self._records(await self._get("/v1/search/courses", query), "courses")
+        return await self._raise()
 
     async def course_subjects(self, query: dict[str, str]) -> list[dict[str, Any]]:
-        return self._records(
-            await self._get("/v1/search/course-subjects", query), "course subjects"
-        )
+        return await self._raise()
 
     async def transportation(self, query: dict[str, Any]) -> list[dict[str, Any]]:
-        return await self.shuttle(query)
+        return await self._raise()
 
     async def calendar(self, query: dict[str, str]) -> list[dict[str, Any]]:
-        return self._records(await self._get("/v1/search/academic-dates", query), "calendar")
+        return await self._raise()
 
     async def clubs(self, query: dict[str, str]) -> list[dict[str, Any]]:
-        return self._records(await self._get("/v1/search/clubs", query), "clubs")
-
-    async def programs(self, query: dict[str, str]) -> list[dict[str, Any]]:
-        return self._records(await self._get("/v1/search/programs", query), "programs")
+        return await self._raise()
 
     async def directory(self, query: dict[str, str]) -> list[dict[str, Any]]:
-        return self._under(await self._get("/v1/directory", query), "allContacts", "directory")
+        return await self._raise()
 
     async def locations(self, query: dict[str, str]) -> list[dict[str, Any]]:
-        return self._under(await self._get("/v1/map", query), "locations", "locations")
+        return await self._raise()
 
-    @staticmethod
-    def _under(body: dict[str, Any], key: str, capability: str) -> list[dict[str, Any]]:
-        rows = body.get(key)
-        if not isinstance(rows, list):
-            raise DataUnavailable(f"the {capability} response carried no {key}")
-        return [row for row in rows if isinstance(row, dict)]
-
-    @staticmethod
-    def _records(body: dict[str, Any], capability: str) -> list[dict[str, Any]]:
-        records = body.get("records")
-        if not isinstance(records, list):
-            raise DataUnavailable(f"the {capability} response carried no records")
-        return [record for record in records if isinstance(record, dict)]
-
-    async def _get(self, path: str, query: dict[str, str]) -> dict[str, Any]:
-        try:
-            if self._client is not None:
-                response = await self._client.get(f"{self._base}{path}", params=query)
-            else:
-                async with httpx.AsyncClient(timeout=self._timeout) as client:
-                    response = await client.get(f"{self._base}{path}", params=query)
-            response.raise_for_status()
-            body = response.json()
-        except Exception as exc:
-            raise DataUnavailable(str(exc)) from exc
-        if not isinstance(body, dict):
-            raise DataUnavailable("the data service returned an unexpected body")
-        return body
-
-    async def _post(self, path: str, query: dict[str, Any]) -> dict[str, Any]:
-        try:
-            if self._client is not None:
-                response = await self._client.post(f"{self._base}{path}", json=query)
-            else:
-                async with httpx.AsyncClient(timeout=self._timeout) as client:
-                    response = await client.post(f"{self._base}{path}", json=query)
-            response.raise_for_status()
-            body = response.json()
-        except Exception as exc:
-            raise DataUnavailable(str(exc)) from exc
-        if not isinstance(body, dict):
-            raise DataUnavailable("the data service returned an unexpected body")
-        return body
+    async def programs(self, query: dict[str, str]) -> list[dict[str, Any]]:
+        return await self._raise()

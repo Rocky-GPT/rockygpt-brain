@@ -7,7 +7,8 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Annotated, Literal
+from email.utils import format_datetime
+from typing import Annotated, Literal, cast
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Header, Query, Request
@@ -38,12 +39,15 @@ from rockygpt_brain.errors import (
     BadRequest,
     DatasetUnavailable,
     Internal,
+    NotFound,
     ServiceError,
     Unauthorized,
 )
 from rockygpt_brain.lanes.code.run import project
-from rockygpt_brain.services.data import DataPort, DataUnavailable, HttpData
-from rockygpt_brain.services.rag.client import HttpRag, RagPort
+from rockygpt_brain.services.artifacts import ArtifactPort, PublishedArtifact, UnavailableArtifacts
+from rockygpt_brain.services.data import DataPort, DataUnavailable, UnavailableData
+from rockygpt_brain.services.rag.client import RagPort, UnavailableRag
+from rockygpt_brain.services.ui_data import UiDataService
 from rockygpt_brain.services.web import OpenAIWeb, WebPort
 
 AuthorizationHeader = Annotated[str | None, Header(alias="authorization")]
@@ -55,6 +59,7 @@ OriginHeader = Annotated[
 logger = logging.getLogger(__name__)
 
 _DEVELOPMENT_LOG_HASH_KEY = "rockygpt-development-only-hash-key"
+_PUBLIC_DATA_CACHE = "public, s-maxage=300, stale-while-revalidate=3600"
 
 
 @dataclass(slots=True)
@@ -62,6 +67,8 @@ class AppServices:
     model: WritePort
     planner: PlanPort
     data: DataPort
+    artifacts: ArtifactPort
+    documents: RagPort
     web: WebPort
     memory: MemoryStore
     brain: Brain
@@ -94,6 +101,23 @@ def _error(request_id: str, error: ServiceError) -> JSONResponse:
     )
 
 
+def _artifact_headers(artifact: PublishedArtifact) -> dict[str, str]:
+    headers = {
+        "Cache-Control": _PUBLIC_DATA_CACHE,
+        "X-RockyGPT-Release": artifact.release_version,
+        "X-RockyGPT-Data-Source": artifact.source,
+    }
+    if artifact.content_hash:
+        headers["ETag"] = f'"{artifact.content_hash}"'
+    if artifact.activated_at:
+        try:
+            activated = datetime.fromisoformat(artifact.activated_at.replace("Z", "+00:00"))
+            headers["Last-Modified"] = format_datetime(activated.astimezone(UTC), usegmt=True)
+        except ValueError:
+            pass
+    return headers
+
+
 def create_app(
     *,
     settings: Settings | None = None,
@@ -101,6 +125,7 @@ def create_app(
     understand: UnderstandPort | None = None,
     planner: PlanPort | None = None,
     data: DataPort | None = None,
+    artifacts: ArtifactPort | None = None,
     web: WebPort | None = None,
     documents: RagPort | None = None,
     memory: MemoryStore | None = None,
@@ -119,17 +144,30 @@ def create_app(
         config.openai_planner_model,
     )
     database_url = config.secret_value(config.database_url)
+    postgres_data = None
     if data is not None:
         data_port = data
-    elif config.data_backend == "postgres" and database_url:
+    elif database_url:
         from rockygpt_brain.services.postgres_data import PostgresData
 
-        http_fallback = HttpData(config.data_url, config.data_timeout_seconds)
-        data_port = PostgresData(database_url, fallback_http=http_fallback)
+        postgres_data = PostgresData(database_url)
+        data_port = postgres_data
     else:
-        data_port = HttpData(config.data_url, config.data_timeout_seconds)
+        data_port = UnavailableData()
 
-    documents_port = documents or HttpRag(config.data_url, config.data_timeout_seconds)
+    if artifacts is not None:
+        artifact_port = artifacts
+    elif hasattr(data_port, "artifact"):
+        artifact_port = cast(ArtifactPort, data_port)
+    else:
+        artifact_port = UnavailableArtifacts()
+    if documents is not None:
+        documents_port = documents
+    elif hasattr(data_port, "retrieve"):
+        documents_port = cast(RagPort, data_port)
+    else:
+        documents_port = UnavailableRag()
+    ui_data = UiDataService(artifact_port)
     web_port = web or OpenAIWeb(
         config.secret_value(config.openai_api_key),
         config.openai_web_model,
@@ -160,7 +198,16 @@ def create_app(
         config.campus_timezone,
         config.rag_enabled,
     )
-    services = AppServices(model_port, planner_port, data_port, web_port, memory_store, brain)
+    services = AppServices(
+        model_port,
+        planner_port,
+        data_port,
+        artifact_port,
+        documents_port,
+        web_port,
+        memory_store,
+        brain,
+    )
     started = time.monotonic()
 
     @asynccontextmanager
@@ -178,6 +225,8 @@ def create_app(
             yield
         finally:
             await memory_store.close()
+            if postgres_data is not None:
+                await postgres_data.close()
 
     app = FastAPI(
         title="RockyGPT BASE",
@@ -242,6 +291,12 @@ def create_app(
             failing.append("model")
         if not planner_port.configured:
             failing.append("planner")
+        ready = getattr(data_port, "ready", None)
+        if ready is not None:
+            try:
+                await ready()
+            except Exception:
+                failing.append("data")
         degraded = ["chat-logs"] if chat_logs_degraded() else []
         result = Readiness(
             status="unready" if failing else "ready",
@@ -274,6 +329,73 @@ def create_app(
     @app.get("/v1/capabilities")
     async def capabilities() -> Response:
         return _json({"capabilities": catalogue()}, 200)
+
+    @app.get("/v1/data/{artifact_key}")
+    async def published_artifact(
+        artifact_key: str,
+        if_none_match: Annotated[str | None, Header(alias="If-None-Match")] = None,
+    ) -> Response:
+        try:
+            artifact = await ui_data.artifact(artifact_key)
+        except KeyError as exc:
+            raise NotFound(f"Unknown data artifact: {artifact_key}") from exc
+        except DataUnavailable as exc:
+            raise DatasetUnavailable("Data artifact unavailable.") from exc
+        headers = _artifact_headers(artifact)
+        if headers.get("ETag") == if_none_match:
+            return Response(status_code=304, headers=headers)
+        return _json(artifact.payload, headers=headers)
+
+    @app.get("/v1/directory")
+    async def directory_data() -> Response:
+        try:
+            payload, artifact = await ui_data.directory()
+        except (DataUnavailable, ValueError) as exc:
+            raise DatasetUnavailable("Directory data is unavailable.") from exc
+        return _json(payload, headers=_artifact_headers(artifact))
+
+    @app.get("/v1/map")
+    async def map_data(q: Annotated[str | None, Query()] = None) -> Response:
+        return _json(
+            await ui_data.map(q),
+            headers={"Cache-Control": _PUBLIC_DATA_CACHE},
+        )
+
+    @app.get("/v1/shuttle")
+    async def shuttle_data() -> Response:
+        try:
+            payload, artifact = await ui_data.shuttle()
+        except DataUnavailable as exc:
+            raise DatasetUnavailable("Shuttle data is unavailable.") from exc
+        return _json(payload, headers=_artifact_headers(artifact))
+
+    @app.get("/v1/menu")
+    async def menu_data() -> Response:
+        try:
+            payload, artifact = await ui_data.menu()
+        except (DataUnavailable, ValueError) as exc:
+            raise DatasetUnavailable("Menu data is unavailable.") from exc
+        return _json(payload, headers=_artifact_headers(artifact))
+
+    @app.get("/v1/menu/browse")
+    async def menu_browse_data(date: Annotated[str, Query()]) -> Response:
+        try:
+            payload, artifact = await ui_data.menu_browse(date)
+        except ValueError as exc:
+            raise BadRequest("date must use YYYY-MM-DD") from exc
+        except DataUnavailable as exc:
+            raise DatasetUnavailable("Menu data is unavailable.") from exc
+        return _json(payload, headers=_artifact_headers(artifact))
+
+    @app.get("/v1/dining-hours")
+    async def dining_hours_data(date: Annotated[str | None, Query()] = None) -> Response:
+        try:
+            payload, artifact = await ui_data.dining_hours(date)
+        except ValueError as exc:
+            raise BadRequest("date must use YYYY-MM-DD") from exc
+        except DataUnavailable as exc:
+            raise DatasetUnavailable("Dining hours are unavailable.") from exc
+        return _json(payload, headers=_artifact_headers(artifact))
 
     @app.get("/v1/capabilities/{name}/records")
     async def capability_records(name: str) -> Response:
