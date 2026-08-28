@@ -31,6 +31,12 @@ class Unauthorized(ServiceError):
     retryable = False
 
 
+class NotFound(ServiceError):
+    status_code = 404
+    code: ClassVar[ErrorCode] = "NOT_FOUND"
+    retryable = False
+
+
 class Internal(ServiceError):
     status_code = 500
     code: ClassVar[ErrorCode] = "INTERNAL_ERROR"

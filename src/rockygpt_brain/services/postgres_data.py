@@ -11,7 +11,8 @@ from zoneinfo import ZoneInfo
 
 import asyncpg
 
-from rockygpt_brain.services.data import DataPort, DataUnavailable
+from rockygpt_brain.services.artifacts import PublishedArtifact
+from rockygpt_brain.services.data import DataUnavailable
 from rockygpt_brain.services.directory_query import (
     build_directory_all_contacts,
     course_credits,
@@ -22,6 +23,7 @@ from rockygpt_brain.services.program_search import (
     parse_program_search,
     program_matches_criteria,
 )
+from rockygpt_brain.services.rag.client import Passage
 from rockygpt_brain.services.schedule_status import schedule_status_at
 from rockygpt_brain.services.search_terms import (
     TermFrequencies,
@@ -72,14 +74,12 @@ class PostgresData:
         self,
         database_url: str,
         *,
-        fallback_http: DataPort | None = None,
         pool_min_size: int = 1,
         pool_max_size: int = 5,
     ) -> None:
         if not database_url:
             raise ValueError("database_url must not be empty")
         self._database_url = database_url.strip().strip('"').strip("'")
-        self._fallback_http = fallback_http
         self._pool_min_size = pool_min_size
         self._pool_max_size = pool_max_size
         self._pool: asyncpg.Pool | None = None
@@ -123,6 +123,85 @@ class PostgresData:
         if not row:
             raise DataUnavailable("No active dataset version found in database")
         return str(row["id"])
+
+    async def ready(self) -> None:
+        await self._active_dataset_id()
+
+    async def artifact(self, key: str) -> PublishedArtifact:
+        pool = await self._ready_pool()
+        row = await pool.fetchrow(
+            """
+            SELECT v.version, v.activated_at::text, a.payload, a.content_hash
+              FROM rockygpt_v2.dataset_versions v
+              JOIN rockygpt_v2.release_artifacts a
+                ON a.dataset_version_id = v.id
+             WHERE v.status = 'active'
+               AND a.artifact_key = $1
+             ORDER BY v.activated_at DESC
+             LIMIT 1
+            """,
+            key,
+        )
+        if not row:
+            raise DataUnavailable(f"The active dataset has no {key!r} artifact")
+        return PublishedArtifact(
+            payload=row["payload"],
+            release_version=str(row["version"]),
+            activated_at=_format_iso(row["activated_at"]),
+            content_hash=str(row["content_hash"]) if row["content_hash"] else None,
+        )
+
+    async def retrieve(self, topic: str, limit: int) -> list[Passage]:
+        dataset_id = await self._active_dataset_id()
+        pool = await self._ready_pool()
+        rows = await pool.fetch(
+            """
+            WITH q AS (
+              SELECT replace(plainto_tsquery('english', $2)::text, '&', '|')::tsquery AS loose,
+                     string_to_array(
+                       replace(replace(plainto_tsquery('english', $2)::text, '''', ''),
+                               ' & ', ','),
+                       ','
+                     ) AS terms
+            ),
+            scored AS (
+              SELECT coalesce(c.metadata->>'headingPath', d.title) AS title,
+                     coalesce(c.metadata->>'canonicalUrl', s.canonical_url) AS url,
+                     c.content, s.domain,
+                     power(
+                       (SELECT count(*) FROM unnest(q.terms) AS t
+                         WHERE c.lexical_vector @@ plainto_tsquery('english', t))::float
+                       / greatest(array_length(q.terms, 1), 1),
+                       2
+                     ) * ts_rank_cd(c.lexical_vector, q.loose, 1) AS relevance,
+                     CASE s.trust_tier WHEN 'official_primary' THEN 1.05
+                                       WHEN 'official_secondary' THEN 1.02 ELSE 1 END AS trust
+                FROM rockygpt_v2.document_chunks c
+                JOIN rockygpt_v2.documents d ON d.id = c.document_id
+                JOIN rockygpt_v2.sources s ON s.id = d.source_id
+                CROSS JOIN q
+               WHERE d.dataset_version_id = $1::uuid
+                 AND c.lexical_vector @@ q.loose
+            )
+            SELECT title, url, content, domain, (relevance * trust) AS score
+              FROM scored
+             WHERE relevance >= 0.005
+             ORDER BY score DESC, url
+             LIMIT $3
+            """,
+            dataset_id,
+            topic,
+            limit,
+        )
+        return [
+            Passage(
+                content=str(row["content"]),
+                domain=str(row["domain"]),
+                title=str(row["title"]),
+                url=str(row["url"]),
+            )
+            for row in rows
+        ]
 
     async def list_shuttle_trips(
         self, dataset_id: str, service_day: str

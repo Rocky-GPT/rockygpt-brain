@@ -101,7 +101,7 @@ CASES: tuple[Case, ...] = (
     Case(
         name="hours/campus-by-venue",
         capability="hours",
-        filters={"name": "Library (Main Building)", "kind": "campus"},
+        filters={"name": "Bradley Center (Student & Recreation Lounge)", "kind": "campus"},
         covers="exact venue fetch, not word overlap",
     ),
     Case(
@@ -184,13 +184,13 @@ CASES: tuple[Case, ...] = (
     Case(
         name="events/organizer",
         capability="events",
-        filters={"organizer": "Center for Student Involvement"},
+        filters={"organizer": "Center for Reading and Writing"},
         covers="organizer entity filter",
     ),
     Case(
         name="events/topic",
         capability="events",
-        filters={"topic": "training"},
+        filters={"topic": "Reading"},
         covers="free-text topic search ranking",
     ),
     # --- directory ----------------------------------------------------------
@@ -237,11 +237,18 @@ CASES: tuple[Case, ...] = (
         covers="course code lookup",
     ),
     # --- programs -----------------------------------------------------------
+    # Currently empty on both implementations, and deliberately kept that way.
+    # `programs.normalize.query` folds `school` into the free-text `q`, which
+    # the data service matches against program *names* only — no program is
+    # named after its school, so the filter the registry advertises can never
+    # match. The record it would have filtered carries the right school all
+    # along. Both ports agree, so this is not a migration risk; it is here so
+    # the day one of them starts returning rows is a diff someone reads.
     Case(
         name="programs/school",
         capability="programs",
         filters={"school": "Anisfield School of Business"},
-        covers="school filter",
+        covers="school filter — known empty, see the note above",
     ),
     Case(
         name="programs/kind-level",

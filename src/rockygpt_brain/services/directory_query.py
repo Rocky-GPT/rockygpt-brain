@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -167,7 +168,9 @@ def slugify(value: str) -> str:
     return re.sub(r"^-+|-+$", "", cleaned)
 
 
-def build_directory_all_contacts(faculty_payload: Any) -> list[dict[str, Any]]:
+def _build_directory_parts(
+    faculty_payload: Any,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     contacts_file = RESOURCES_DIR / "directory-contacts.json"
     with open(contacts_file) as f:
         static_data = json.load(f)
@@ -278,7 +281,37 @@ def build_directory_all_contacts(faculty_payload: Any) -> list[dict[str, Any]]:
             }
         )
 
-    return [*normalized_offices, *normalized_faculty, *normalized_others]
+    all_contacts = [*normalized_offices, *normalized_faculty, *normalized_others]
+    return offices, faculty_staff, others, all_contacts
+
+
+def build_directory_all_contacts(faculty_payload: Any) -> list[dict[str, Any]]:
+    return _build_directory_parts(faculty_payload)[3]
+
+
+def build_directory_payload(
+    faculty_payload: Any,
+    *,
+    generated_at: str | None = None,
+    release_version: str | None = None,
+) -> dict[str, Any]:
+    offices, faculty_staff, others, all_contacts = _build_directory_parts(faculty_payload)
+    counts = {
+        "offices": len(offices),
+        "staffFaculty": len(faculty_staff),
+        "others": len(others),
+        "total": len(all_contacts),
+    }
+    return {
+        "offices": offices,
+        "facultyStaff": faculty_staff,
+        "others": others,
+        "allContacts": all_contacts,
+        "counts": counts,
+        "total": counts["total"],
+        "generatedAt": generated_at or datetime.now(UTC).isoformat(),
+        **({"releaseVersion": release_version} if release_version else {}),
+    }
 
 
 def load_map_locations() -> list[dict[str, Any]]:
@@ -339,6 +372,152 @@ def load_map_locations() -> list[dict[str, Any]]:
             }
         )
     return locations
+
+
+_MAP_QUERY_STOP_WORDS = {
+    "where",
+    "what",
+    "is",
+    "are",
+    "the",
+    "a",
+    "an",
+    "can",
+    "i",
+    "find",
+    "get",
+    "to",
+    "of",
+    "for",
+    "on",
+    "at",
+    "in",
+    "map",
+    "show",
+    "me",
+    "location",
+    "locations",
+    "directions",
+    "how",
+    "do",
+    "office",
+    "offices",
+    "room",
+    "rooms",
+    "building",
+    "center",
+    "hall",
+}
+
+
+def _normalize_map_query(value: str) -> str:
+    return normalize_whitespace(value.casefold())
+
+
+def _map_tokens(query: str) -> list[str]:
+    return [
+        token
+        for token in re.split(r"[^a-z0-9]+", query)
+        if token
+        and (token.isdigit() or (len(token) >= 3 and token not in _MAP_QUERY_STOP_WORDS))
+    ]
+
+
+def _map_alias_score(query: str, location: dict[str, Any]) -> int:
+    name = _normalize_map_query(str(location.get("name", "")))
+    if query == name:
+        return 500 + len(name)
+    if len(name) >= 3 and name in query:
+        return 350 + len(name)
+    best = 0
+    for value in location.get("aliases", []):
+        alias = _normalize_map_query(str(value))
+        if not alias:
+            continue
+        if query == alias:
+            best = max(best, 450 + len(alias))
+        elif len(alias) >= 3 and alias in query:
+            best = max(best, 300 + len(alias))
+    return best
+
+
+def _map_token_hits(tokens: list[str], location: dict[str, Any]) -> int:
+    searchable = _normalize_map_query(
+        " ".join(
+            [
+                str(location.get("name", "")),
+                str(location.get("buildingName", "")),
+                str(location.get("room", "")),
+                *(str(value) for value in location.get("aliases", [])),
+            ]
+        )
+    )
+    hits = 0
+    for token in tokens:
+        if re.search(rf"\b{re.escape(token)}\b", searchable, re.IGNORECASE):
+            hits += 1
+        elif token.endswith("ing") and len(token) >= 6:
+            if re.search(rf"\b{re.escape(token[:-3])}", searchable, re.IGNORECASE):
+                hits += 1
+    return hits
+
+
+def resolve_map_location(
+    query_or_key: str | None,
+    locations: list[dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
+    """Resolve a key, room, name, or natural-language campus map query."""
+
+    if not query_or_key or not query_or_key.strip():
+        return None
+    raw = query_or_key.strip()
+    candidates = locations if locations is not None else load_map_locations()
+    by_key = {str(location.get("key")): location for location in candidates}
+    if raw in by_key:
+        return by_key[raw]
+
+    clean_code = re.sub(r"\s+", "", raw.upper())
+    for location in candidates:
+        if location.get("type") != "office" or not location.get("room"):
+            continue
+        room = re.sub(r"\s+", "", str(location["room"]).upper())
+        if clean_code in room or raw.upper() in room:
+            return location
+
+    room_match = re.fullmatch(r"([A-Z]{1,4})-?(\d{2,4}[A-Z]?)", raw, re.IGNORECASE)
+    if room_match:
+        prefix = room_match.group(1).upper()
+        for location in candidates:
+            if location.get("type") == "building" and prefix in {
+                str(value).upper() for value in location.get("roomPrefixes", [])
+            }:
+                return location
+
+    normalized = _normalize_map_query(raw)
+    for location in candidates:
+        if _normalize_map_query(str(location.get("name", ""))) == normalized or any(
+            _normalize_map_query(str(alias)) == normalized
+            for alias in location.get("aliases", [])
+        ):
+            return location
+
+    tokens = _map_tokens(normalized)
+    ranked: list[tuple[int, str, dict[str, Any]]] = []
+    for location in candidates:
+        alias_score = _map_alias_score(normalized, location)
+        token_hits = _map_token_hits(tokens, location)
+        if len(tokens) >= 2 and token_hits < 2 and alias_score == 0:
+            continue
+        score = alias_score + token_hits * 95
+        if tokens and token_hits == len(tokens):
+            score += 110
+        building_name = _normalize_map_query(str(location.get("buildingName", "")))
+        if building_name and building_name in normalized:
+            score += 80
+        if score > 0:
+            ranked.append((score, str(location.get("name", "")), location))
+    ranked.sort(key=lambda entry: (-entry[0], entry[1]))
+    return ranked[0][2] if ranked else None
 
 
 def course_credits(value: Any) -> str | None:

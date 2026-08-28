@@ -30,8 +30,6 @@ services:
         sync: false
       - key: ADMIN_API_TOKEN
         sync: false
-      - key: DATA_URL
-        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_CHAT_MODEL
