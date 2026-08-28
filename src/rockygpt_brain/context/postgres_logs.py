@@ -156,8 +156,8 @@ class PostgresLogStore:
             raise ValueError("database_url must not be empty")
         if not hash_key:
             raise ValueError("hash_key must not be empty")
-        self._database_url = database_url
-        self._hash_key = hash_key.encode()
+        self._database_url = database_url.strip().strip('"').strip("'")
+        self._hash_key = hash_key.strip().strip('"').strip("'").encode()
         self._pool_min_size = pool_min_size
         self._pool_max_size = pool_max_size
         self._pool: asyncpg.Pool | None = None
