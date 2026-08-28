@@ -65,4 +65,7 @@ ruff check src tests && mypy src/rockygpt_brain && pytest
 an evaluation suite would only prove that a case had been special-cased.
 
 The UI surface remains `/v1/chat`, `/v1/feedback`, and the three
-`/v1/admin/logs*` endpoints. Logs and memory reset when the process restarts.
+`/v1/admin/logs*` endpoints. Conversation memory remains process-local, while
+chat logs use the existing `rockygpt_brain.chat_logs` PostgreSQL schema whenever
+`DATABASE_URL` is configured. Without a database, logs fall back to process
+memory for isolated development and reset when the process restarts.

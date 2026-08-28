@@ -32,6 +32,7 @@ from rockygpt_brain.brain.write.run import OpenAIWrite, WritePort
 from rockygpt_brain.capabilities.registry import CAPABILITIES, catalogue
 from rockygpt_brain.config import Settings, get_settings
 from rockygpt_brain.context.memory import MemoryStore
+from rockygpt_brain.context.postgres_logs import PostgresLogStore
 from rockygpt_brain.errors import (
     BadRequest,
     DatasetUnavailable,
@@ -53,6 +54,8 @@ OriginHeader = Annotated[
     Literal["client", "dev", "bot"] | None,
     Header(alias="x-rockygpt-origin"),
 ]
+
+_DEVELOPMENT_LOG_HASH_KEY = "rockygpt-development-only-hash-key"
 
 
 @dataclass(slots=True)
@@ -122,7 +125,21 @@ def create_app(
         config.secret_value(config.openai_api_key),
         config.openai_web_model,
     )
-    memory_store = memory or MemoryStore()
+    if memory is not None:
+        memory_store = memory
+    else:
+        database_url = config.secret_value(config.database_url)
+        durable_logs = (
+            PostgresLogStore(
+                database_url,
+                hash_key=(
+                    config.secret_value(config.chat_log_hash_key) or _DEVELOPMENT_LOG_HASH_KEY
+                ),
+            )
+            if database_url
+            else None
+        )
+        memory_store = MemoryStore(durable_logs)
     brain = Brain(
         model_port,
         understand_port,
@@ -139,7 +156,10 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        yield
+        try:
+            yield
+        finally:
+            await memory_store.close()
 
     app = FastAPI(
         title="RockyGPT BASE",
@@ -258,7 +278,7 @@ def create_app(
         environment_token: EnvironmentHeader = None,
     ) -> FeedbackSuccess:
         check_environment(environment_token)
-        memory_store.save_feedback(body)
+        await memory_store.save_feedback_persisted(body)
         return FeedbackSuccess()
 
     if config.admin_enabled:
@@ -276,17 +296,18 @@ def create_app(
         ) -> Response:
             check_environment(environment_token)
             check_admin(authorization)
-            current = memory_store.version
-            if if_none_match and if_none_match.strip('"') == current:
-                return Response(status_code=304, headers={"ETag": f'"{current}"'})
-            if version == current:
-                return _json(UnmodifiedResponse(), headers={"ETag": f'"{current}"'})
-            result = memory_store.list_logs(
+            requested_version = version or (if_none_match or "").strip('"') or None
+            result = await memory_store.read_logs(
                 search=search,
                 routes=set(filter(None, (route or "").split(","))),
                 origins=set(filter(None, (origin or "").split(","))),
                 limit=limit,
+                version=requested_version,
             )
+            if isinstance(result, UnmodifiedResponse):
+                if if_none_match:
+                    return Response(status_code=304)
+                return _json(result)
             return _json(result, headers={"ETag": f'"{result.version}"'})
 
         @app.post("/v1/admin/logs/feedback", response_model=FeedbackSuccess)
@@ -297,7 +318,7 @@ def create_app(
         ) -> FeedbackSuccess:
             check_environment(environment_token)
             check_admin(authorization)
-            memory_store.set_operator_feedback(body.log_id, body.feedback)
+            await memory_store.set_operator_feedback_persisted(body.log_id, body.feedback)
             return FeedbackSuccess()
 
         @app.get("/v1/admin/logs/stream")

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections import defaultdict
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Coroutine
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -15,15 +16,21 @@ from rockygpt_brain.api.contracts import (
     LogCitation,
     LogListResponse,
     LogMetrics,
+    UnmodifiedResponse,
 )
+from rockygpt_brain.context.postgres_logs import PostgresLogStore
 from rockygpt_brain.context.schema import Turn
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryStore:
-    def __init__(self) -> None:
+    def __init__(self, durable_logs: PostgresLogStore | None = None) -> None:
         self._turns: dict[str, list[Turn]] = defaultdict(list)
         self._logs: list[ChatLogItem] = []
         self._version = 0
+        self._durable_logs = durable_logs
+        self._pending: set[asyncio.Task[None]] = set()
 
     def history(self, session_id: str) -> list[dict[str, Any]]:
         return [turn.prompt_value() for turn in self._turns[session_id][-HISTORY_EXCHANGES:]]
@@ -49,29 +56,46 @@ class MemoryStore:
             self._turns[session_id].append(
                 Turn(request_id, user_message, assistant_message, route, created_at)
             )
-        self._logs.append(
-            ChatLogItem(
-                id=request_id,
-                session_id=session_id,
-                visitor_id=visitor_id,
-                user_message=user_message,
-                assistant_message=assistant_message,
-                route=route,
-                question_origin=question_origin,
-                tools_invoked=tools,
-                tool_arguments=tool_arguments,
-                citations=[LogCitation(title=item.title, url=item.url) for item in citations],
-                facts_extracted=[],
-                debug_info={"result": result},
-                latency_ms=latency_ms,
-                feedback=None,
-                feedback_rating=None,
-                feedback_category=None,
-                feedback_comment=None,
-                created_at=created_at,
-            )
+        item = ChatLogItem(
+            id=request_id,
+            session_id=session_id,
+            visitor_id=visitor_id,
+            user_message=user_message,
+            assistant_message=assistant_message,
+            route=route,
+            question_origin=question_origin,
+            tools_invoked=tools,
+            tool_arguments=tool_arguments,
+            citations=[LogCitation(title=value.title, url=value.url) for value in citations],
+            facts_extracted=[],
+            debug_info={"result": result},
+            latency_ms=latency_ms,
+            feedback=None,
+            feedback_rating=None,
+            feedback_category=None,
+            feedback_comment=None,
+            created_at=created_at,
         )
+        self._logs.append(item)
         self._version += 1
+        if self._durable_logs is not None:
+            self._schedule(self._durable_logs.record(item), "persist chat turn")
+
+    def _schedule(self, work: Coroutine[Any, Any, None], operation: str) -> None:
+        async def guarded() -> None:
+            try:
+                await work
+            except Exception:
+                logger.exception("Failed to %s", operation)
+
+        try:
+            task = asyncio.get_running_loop().create_task(guarded())
+        except RuntimeError:
+            work.close()
+            logger.warning("Skipped durable log operation outside an async runtime: %s", operation)
+            return
+        self._pending.add(task)
+        task.add_done_callback(self._pending.discard)
 
     def save_feedback(self, feedback: FeedbackRequest) -> None:
         for index, item in enumerate(self._logs):
@@ -93,6 +117,17 @@ class MemoryStore:
                 self._version += 1
                 return True
         return False
+
+    async def save_feedback_persisted(self, feedback: FeedbackRequest) -> None:
+        self.save_feedback(feedback)
+        if self._durable_logs is not None:
+            await self._durable_logs.save_feedback(feedback)
+
+    async def set_operator_feedback_persisted(self, log_id: str, feedback: str | None) -> bool:
+        memory_updated = self.set_operator_feedback(log_id, feedback)
+        if self._durable_logs is None:
+            return memory_updated
+        return await self._durable_logs.set_operator_feedback(log_id, feedback)
 
     def list_logs(
         self,
@@ -136,14 +171,50 @@ class MemoryStore:
             version=self.version,
         )
 
+    async def read_logs(
+        self,
+        *,
+        search: str | None,
+        routes: set[str],
+        origins: set[str],
+        limit: int,
+        version: str | None,
+    ) -> LogListResponse | UnmodifiedResponse:
+        if self._durable_logs is not None:
+            try:
+                return await self._durable_logs.list_logs(
+                    search=search,
+                    routes=routes,
+                    origins=origins,
+                    limit=limit,
+                    version=version,
+                )
+            except Exception:
+                logger.exception("Failed to read durable chat logs; using process memory")
+        result = self.list_logs(search=search, routes=routes, origins=origins, limit=limit)
+        return UnmodifiedResponse() if version == result.version else result
+
     @property
     def version(self) -> str:
         return str(self._version)
 
     async def changes(self) -> AsyncIterator[str]:
+        if self._durable_logs is not None:
+            try:
+                async for event in self._durable_logs.changes():
+                    yield event
+                return
+            except Exception:
+                logger.exception("Durable log stream failed; using process memory")
         last = ""
         while True:
             if self.version != last:
                 last = self.version
                 yield f"data: {json.dumps({'type': 'change', 'version': last})}\n\n"
             await asyncio.sleep(1)
+
+    async def close(self) -> None:
+        if self._pending:
+            await asyncio.gather(*tuple(self._pending), return_exceptions=True)
+        if self._durable_logs is not None:
+            await self._durable_logs.close()
