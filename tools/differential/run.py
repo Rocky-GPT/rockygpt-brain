@@ -58,7 +58,11 @@ def port(name: str) -> DataPort:
         url = settings.secret_value(settings.database_url)
         if not url:
             raise HarnessError("DATABASE_URL is unset, so the postgres port has nothing to read.")
-        candidate: DataPort = PostgresData(url)
+        # fallback_http MUST stay None here. With a fallback the port answers
+        # from the Node service whenever its own SQL fails, and every such
+        # failure compares equal — the harness would certify a method it never
+        # actually exercised.
+        candidate: DataPort = PostgresData(url, fallback_http=None)
         return candidate
     raise HarnessError(f"unknown port {name!r} — expected 'http' or 'postgres'")
 
@@ -72,7 +76,12 @@ async def run_all(
         async with gate:
             return await capture(case, implementation)
 
-    return list(await asyncio.gather(*(one(case) for case in cases)))
+    try:
+        return list(await asyncio.gather(*(one(case) for case in cases)))
+    finally:
+        closer = getattr(implementation, "close", None)
+        if closer is not None:
+            await closer()
 
 
 def write_baseline(path: Path, name: str, captures: list[Capture]) -> None:

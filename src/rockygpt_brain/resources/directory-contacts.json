@@ -1,0 +1,225 @@
+{
+  "office": [
+    {
+      "name": "Public Safety (Emergency)",
+      "phone": "201-684-6666",
+      "category": "Emergency",
+      "email": "publicsafety@ramapo.edu",
+      "department": "Public Safety",
+      "office": "C-102",
+      "helpsWith": [
+        "Emergencies",
+        "Safety escorts",
+        "Incident reports"
+      ]
+    },
+    {
+      "name": "Public Safety (Non-Emergency)",
+      "phone": "201-684-7432",
+      "category": "Emergency",
+      "email": "secdesk@ramapo.edu",
+      "department": "Public Safety",
+      "office": "C-102",
+      "helpsWith": [
+        "Safety escorts",
+        "Lost & found",
+        "General safety questions"
+      ]
+    },
+    {
+      "name": "Birch Tree Inn",
+      "phone": "201-684-7592",
+      "category": "Dining",
+      "email": "jeff.dannhardt@sodexo.com",
+      "department": "Dining Services",
+      "helpsWith": [
+        "Meal service info",
+        "Dining questions"
+      ]
+    },
+    {
+      "name": "Registrar",
+      "phone": "201-684-7695",
+      "category": "Academic",
+      "email": "registrar@ramapo.edu",
+      "department": "Office of the Registrar",
+      "office": "D-224",
+      "helpsWith": [
+        "Registration",
+        "Transcripts",
+        "Graduation records"
+      ]
+    },
+    {
+      "name": "Center for Student Success (Academic Advising)",
+      "phone": "201-684-7441",
+      "category": "Academic",
+      "email": "success@ramapo.edu",
+      "department": "Center for Student Success",
+      "office": "D-207",
+      "helpsWith": [
+        "Academic Advising",
+        "Degree planning",
+        "Course withdrawal guidance",
+        "Academic support"
+      ]
+    },
+    {
+      "name": "Anisfield School of Business",
+      "phone": "201-684-7378",
+      "category": "Academic",
+      "email": "asb@ramapo.edu",
+      "department": "Anisfield School of Business",
+      "office": "ASB-333",
+      "helpsWith": [
+        "Business programs",
+        "School contacts",
+        "Academic questions"
+      ]
+    },
+    {
+      "name": "Financial Aid",
+      "phone": "201-684-7549",
+      "category": "Financial",
+      "email": "finaid@ramapo.edu",
+      "department": "Financial Aid",
+      "office": "E-210",
+      "helpsWith": [
+        "FAFSA",
+        "Aid packages",
+        "Funding questions"
+      ]
+    },
+    {
+      "name": "IT Help Desk",
+      "phone": "201-684-7777",
+      "category": "Services",
+      "email": "helpdesk@ramapo.edu",
+      "department": "Information Technology Services",
+      "helpsWith": [
+        "Password reset",
+        "Wi-Fi help",
+        "Account access",
+        "Canvas help",
+        "Account lockout"
+      ]
+    },
+    {
+      "name": "Health Services",
+      "phone": "201-684-7536",
+      "category": "Health",
+      "email": "immunize@ramapo.edu",
+      "department": "Health Services",
+      "office": "D-216C",
+      "helpsWith": [
+        "Appointments",
+        "Immunization records",
+        "Medical forms"
+      ]
+    },
+    {
+      "name": "Counseling Center",
+      "phone": "201-684-7522",
+      "category": "Health",
+      "email": "studentwellness@ramapo.edu",
+      "department": "Counseling Services",
+      "office": "D-216",
+      "helpsWith": [
+        "Mental health support",
+        "Crisis support",
+        "Wellness resources"
+      ]
+    },
+    {
+      "name": "Housing & Residence Life",
+      "phone": "201-684-7453",
+      "category": "Housing",
+      "email": "reslife@ramapo.edu",
+      "department": "Residence Life",
+      "office": "The Lodge",
+      "helpsWith": [
+        "Housing assignments",
+        "Room changes",
+        "Residence policies"
+      ]
+    },
+    {
+      "name": "Center for Student Involvement",
+      "phone": "201-684-7593",
+      "category": "Student Life",
+      "email": "csi@ramapo.edu",
+      "department": "Center for Student Involvement",
+      "office": "SC-202",
+      "helpsWith": [
+        "Student clubs",
+        "Campus events",
+        "Leadership opportunities"
+      ]
+    },
+    {
+      "name": "Athletics",
+      "phone": "201-684-7095",
+      "category": "Athletics",
+      "email": "information@ramapo.edu",
+      "department": "Athletics",
+      "helpsWith": [
+        "Varsity athletics",
+        "Team contacts"
+      ]
+    },
+    {
+      "name": "Library",
+      "phone": "201-684-7578",
+      "category": "Academic",
+      "email": "refdesk@ramapo.edu",
+      "department": "Potter Library",
+      "helpsWith": [
+        "Research help",
+        "Citation support",
+        "Borrowing services"
+      ]
+    }
+  ],
+  "other": [
+    {
+      "name": "Cindy R. Jebb, Ph.D.",
+      "title": "President",
+      "unit": "Office of the President",
+      "phone": "201-684-7500",
+      "email": "information@ramapo.edu",
+      "profileUrl": "https://www.ramapo.edu/president/biography/"
+    },
+    {
+      "name": "Michael Middleton, Ph.D.",
+      "title": "Provost/Vice President for Teaching, Learning, and Growth",
+      "unit": "Office of the Provost",
+      "phone": "(201) 684-7330",
+      "email": "provost@ramapo.edu",
+      "profileUrl": "https://www.ramapo.edu/provost/"
+    },
+    {
+      "name": "Joyce Shim, Ph.D., MIA, MSW",
+      "title": "Vice Provost for Academic and Faculty Affairs",
+      "unit": "Office of the Provost",
+      "phone": "(201) 684-7585",
+      "email": "viceprovost@ramapo.edu",
+      "profileUrl": "https://www.ramapo.edu/provost/"
+    },
+    {
+      "name": "Stasi Papandreou Webber",
+      "title": "Special Assistant to the President",
+      "unit": "Office of the President",
+      "phone": "Ext. 7537",
+      "email": "apapandr@ramapo.edu",
+      "profileUrl": "https://www.ramapo.edu/president/advancing-requests-to-the-office-of-the-president/"
+    },
+    {
+      "name": "Brittany A. Williams-Goldstein",
+      "title": "Chief of Staff and Board Liaison",
+      "unit": "Office of the President",
+      "phone": "Ext. 7609",
+      "email": "bwillia1@ramapo.edu",
+      "profileUrl": "https://www.ramapo.edu/president/advancing-requests-to-the-office-of-the-president/"
+    }
+  ]
+}

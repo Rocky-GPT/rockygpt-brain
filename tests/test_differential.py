@@ -163,3 +163,34 @@ def test_only_filter_selects_by_name_or_capability() -> None:
     assert all(c.capability == "hours" for c in cases("hours"))
     assert {c.name for c in cases("transportation/route")} == {"transportation/route"}
     assert cases(None) == CASES
+
+
+def test_resource_loaders_and_helpers() -> None:
+    from rockygpt_brain.services.directory_query import (
+        build_directory_all_contacts,
+        course_credits,
+        load_course_subjects,
+        load_map_locations,
+    )
+    from rockygpt_brain.services.schedule_status import schedule_status_at
+
+    # Map locations
+    locs = load_map_locations()
+    assert len(locs) > 0
+
+    # Course subjects
+    subjects = load_course_subjects()
+    assert len(subjects) > 0
+
+    # Contacts
+    contacts = build_directory_all_contacts([])
+    assert len(contacts) > 0
+
+    # Course credits helper
+    assert course_credits({"min": 0, "max": 4}) == "4"
+    assert course_credits({"min": 1, "max": 4}) == "1-4"
+    assert course_credits(4) == "4"
+
+    # Schedule status
+    status = schedule_status_at("8:00 AM - 5:00 PM", 600)
+    assert status.open_now is True

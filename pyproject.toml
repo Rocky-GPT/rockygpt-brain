@@ -46,6 +46,7 @@ ignore = ["S101"]
 "tests/**" = ["S101", "S105", "S106"]
 "tools/**" = ["S101", "S105", "S106"]
 "src/rockygpt_brain/context/postgres_logs.py" = ["S608"]
+"src/rockygpt_brain/services/postgres_data.py" = ["S608", "E501"]
 
 [tool.mypy]
 python_version = "3.11"

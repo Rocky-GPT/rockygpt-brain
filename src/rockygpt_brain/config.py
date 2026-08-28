@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     chat_log_hash_key: SecretStr | None = None
     data_url: str = "http://127.0.0.1:8100"
     data_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
-    data_backend: Literal["http", "postgres"] = "http"
+    data_backend: Literal["http", "postgres"] = "postgres"
     campus_timezone: str = "America/New_York"
     rag_enabled: bool = False
     admin_api_token: SecretStr | None = None
