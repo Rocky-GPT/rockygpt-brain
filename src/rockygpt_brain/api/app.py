@@ -270,7 +270,17 @@ def create_app(
         if expected and authorization != f"Bearer {expected}":
             raise Unauthorized("Unauthorized.")
 
-    @app.get("/health", response_model=Health, response_model_exclude_none=True)
+    # GET and HEAD both. Every uptime monitor's free tier sends HEAD by
+    # default and cannot be switched off it without paying, while FastAPI
+    # answers 405 to HEAD on a GET-only route — so a monitor pointed here
+    # reports the service permanently down while the service is entirely
+    # healthy. Starlette drops the body for HEAD, so one handler serves both.
+    @app.api_route(
+        "/health",
+        methods=["GET", "HEAD"],
+        response_model=Health,
+        response_model_exclude_none=True,
+    )
     async def health() -> Health:
         return Health(
             status="healthy",
