@@ -25,7 +25,7 @@ class FakeDurableLogs:
         self.result = result or _result(client_count=6)
 
     async def record(self, item: ChatLogItem) -> None:
-        self.records.append(str(item.id))
+        self.records.append(item.id)
 
     async def save_feedback(self, feedback: FeedbackRequest) -> None:
         del feedback
@@ -73,7 +73,7 @@ def _result(*, client_count: int) -> LogListResponse:
 async def test_turns_are_flushed_to_the_durable_log_store() -> None:
     durable = FakeDurableLogs()
     memory = MemoryStore(cast(PostgresLogStore, durable))
-    memory.record(
+    await memory.record(
         request_id="3dbac48b8b0545a89c85f2e6981c807c",
         session_id="session",
         visitor_id="visitor",
