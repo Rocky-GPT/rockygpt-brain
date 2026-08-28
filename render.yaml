@@ -1,0 +1,47 @@
+# Blueprint for the production brain (https://rockygpt-brain.onrender.com).
+#
+# Render stores secret values in the dashboard, never here, so every entry
+# below is `sync: false` — the key is declared and version-controlled, the
+# value stays where it already is. Applying this blueprint therefore does
+# not overwrite live credentials.
+#
+# Note what that does and does not buy: a var going *missing* now shows up
+# as a diff, but a var holding a *stale* value still does not. The
+# 2026-08-27 outage — production answering normally while every chat turn
+# failed to persist against Neon — was a stale password, and this file
+# would not have caught it. Rotations still have to be applied by hand in
+# both Render and the local .env files.
+services:
+  - type: web
+    name: rockygpt-brain
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      # Render injects PORT; the container reads it via Settings at startup.
+      - key: APP_ENV
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: CHAT_LOG_HASH_KEY
+        sync: false
+      - key: ADMIN_API_TOKEN
+        sync: false
+      - key: DATA_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_CHAT_MODEL
+        sync: false
+      # Present in the dashboard but not read by this service: ABUSE_HASH_KEY
+      # matches nothing in src/, and NODE_ENV is inert in a Python service
+      # (Settings uses extra="ignore", so both are silently swallowed).
+      # Declared so applying the blueprint does not prune them; drop them
+      # here and in Render once you have confirmed nothing depends on them.
+      - key: ABUSE_HASH_KEY
+        sync: false
+      - key: NODE_ENV
+        sync: false
