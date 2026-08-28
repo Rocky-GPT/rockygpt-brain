@@ -121,6 +121,11 @@ def test_sensitive_text_is_redacted_before_database_storage() -> None:
 
 
 def test_strict_database_tls_uses_the_system_ca_store() -> None:
-    assert _use_system_ca_store("postgresql://db/example?sslmode=verify-full") is True
-    assert _use_system_ca_store("postgresql://db/example?sslmode=require") is None
+    import ssl
+
+    full_ssl = _use_system_ca_store("postgresql://db/example?sslmode=verify-full")
+    require_ssl = _use_system_ca_store("postgresql://db/example?sslmode=require")
+    assert isinstance(full_ssl, ssl.SSLContext)
+    assert isinstance(require_ssl, ssl.SSLContext)
+    assert _use_system_ca_store("postgresql://db/example?sslmode=disable") is False
     assert _use_system_ca_store("postgresql://db/example") is None
