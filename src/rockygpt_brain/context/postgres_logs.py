@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import re
+import ssl
 import time
 from collections.abc import AsyncIterator, Mapping, Sequence
 from datetime import UTC, datetime
@@ -110,14 +111,20 @@ def _decoded(value: object, fallback: Any) -> Any:
     return value
 
 
-def _use_system_ca_store(database_url: str) -> bool | None:
+def _use_system_ca_store(database_url: str) -> ssl.SSLContext | bool | None:
     """Use Python's trusted CA store for strict libpq-style TLS modes.
 
     asyncpg otherwise expects a PostgreSQL-specific ``~/.postgresql/root.crt``
     file for these modes, even when the operating system already trusts the CA.
     """
-    ssl_mode = parse_qs(urlsplit(database_url).query).get("sslmode", [""])[-1]
-    return True if ssl_mode.casefold() in {"verify-ca", "verify-full"} else None
+    ssl_mode = parse_qs(urlsplit(database_url).query).get("sslmode", [""])[-1].casefold()
+    if ssl_mode in {"verify-ca", "verify-full", "require"}:
+        return ssl.create_default_context()
+    if ssl_mode == "disable":
+        return False
+    if "ssl=true" in database_url.lower() or "sslmode=" in database_url.lower():
+        return ssl.create_default_context()
+    return None
 
 
 def _mapping(value: object) -> dict[str, Any]:
@@ -257,7 +264,7 @@ class PostgresLogStore:
             feedback,
             log_id,
         )
-        return cast(str, result) == "UPDATE 1"
+        return str(result) == "UPDATE 1"
 
     async def current_version(self) -> str:
         pool = await self._ready_pool()
