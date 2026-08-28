@@ -237,13 +237,9 @@ def compare(left: Capture, right: Capture, left_name: str, right_name: str) -> l
     # questions. That is normalize diverging, upstream of any record.
     left_keys, right_keys = set(left.port_calls), set(right.port_calls)
     for key in sorted(left_keys - right_keys):
-        found.append(
-            flag(key, "unasked", Severity.BLOCKING, f"only {left_name} made this call")
-        )
+        found.append(flag(key, "unasked", Severity.BLOCKING, f"only {left_name} made this call"))
     for key in sorted(right_keys - left_keys):
-        found.append(
-            flag(key, "unasked", Severity.BLOCKING, f"only {right_name} made this call")
-        )
+        found.append(flag(key, "unasked", Severity.BLOCKING, f"only {right_name} made this call"))
 
     for key in sorted(left_keys & right_keys):
         a, b = left.port_calls[key], right.port_calls[key]

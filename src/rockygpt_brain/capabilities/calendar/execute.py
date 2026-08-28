@@ -23,8 +23,7 @@ async def run(filters: dict[str, str], now: datetime, data: DataPort) -> list[di
     nearest = min(
         by_term,
         key=lambda key: min(
-            (record_date(record) or datetime.max.date()).toordinal()
-            for record in by_term[key]
+            (record_date(record) or datetime.max.date()).toordinal() for record in by_term[key]
         ),
     )
     return by_term[nearest]

@@ -341,6 +341,7 @@ async def test_entity_mentions_become_ids_only_in_the_normalized_plan() -> None:
         ],
         operation=Operation(compare=["date", "title"]),
     )
+
     class CalendarData(FakeData):
         async def calendar(self, query: dict[str, Any]) -> list[dict[str, Any]]:
             return [

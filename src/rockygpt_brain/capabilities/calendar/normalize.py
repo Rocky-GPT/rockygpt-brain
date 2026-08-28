@@ -99,9 +99,7 @@ SORT: dict[str, Reader] = {
 }
 
 
-async def resolve_filters(
-    filters: dict[str, str], now: datetime, data: DataPort
-) -> dict[str, str]:
+async def resolve_filters(filters: dict[str, str], now: datetime, data: DataPort) -> dict[str, str]:
     """Resolve planner-facing entity mentions into calendar dataset identity."""
     resolved = dict(filters)
 
@@ -119,9 +117,7 @@ async def resolve_filters(
     if term or session:
         records = await data.calendar({"at": now.isoformat()})
         if term and term.casefold() not in {"current", "upcoming"}:
-            terms = {
-                (_text(record, "termId"), _text(record, "term")) for record in records
-            }
+            terms = {(_text(record, "termId"), _text(record, "term")) for record in records}
             resolved["termId"] = resolve_entity(
                 "academic_term",
                 term,

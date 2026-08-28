@@ -58,9 +58,7 @@ SORT = {
 }
 
 
-async def resolve_filters(
-    filters: dict[str, str], now: datetime, data: DataPort
-) -> dict[str, str]:
+async def resolve_filters(filters: dict[str, str], now: datetime, data: DataPort) -> dict[str, str]:
     """Turn a subject mention into the catalogue's own code.
 
     The catalogue names two thirds of the codes courses actually use; the rest
