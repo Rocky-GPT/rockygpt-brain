@@ -1,0 +1,472 @@
+[
+  {
+    "code": "ACCT",
+    "name": "Accounting",
+    "aliases": []
+  },
+  {
+    "code": "AFST",
+    "name": "Africana Studies",
+    "aliases": []
+  },
+  {
+    "code": "AH",
+    "name": "Arts, Humanities and Education",
+    "aliases": []
+  },
+  {
+    "code": "AIID",
+    "name": "Interdisciplinary Studies",
+    "aliases": []
+  },
+  {
+    "code": "AMER",
+    "name": "American Studies",
+    "aliases": []
+  },
+  {
+    "code": "AMSL",
+    "name": "Language/American Sign Lang",
+    "aliases": []
+  },
+  {
+    "code": "ANTH",
+    "name": "Anthropology",
+    "aliases": [
+      "Anthro"
+    ]
+  },
+  {
+    "code": "ARHT",
+    "name": "Art History",
+    "aliases": []
+  },
+  {
+    "code": "ARTS",
+    "name": "Art",
+    "aliases": []
+  },
+  {
+    "code": "BADM",
+    "name": "Business Administration",
+    "aliases": [
+      "Business",
+      "Business Admin"
+    ]
+  },
+  {
+    "code": "BCHM",
+    "name": "Biochemistry",
+    "aliases": []
+  },
+  {
+    "code": "BIIN",
+    "name": "Bioinformatics",
+    "aliases": []
+  },
+  {
+    "code": "BIOL",
+    "name": "Biology",
+    "aliases": [
+      "Bio"
+    ]
+  },
+  {
+    "code": "CHEM",
+    "name": "Chemistry",
+    "aliases": [
+      "Chem"
+    ]
+  },
+  {
+    "code": "CIVL",
+    "name": "Civic and Community Leadership",
+    "aliases": []
+  },
+  {
+    "code": "CLLS",
+    "name": "Clinical Lab Sciences",
+    "aliases": []
+  },
+  {
+    "code": "CMPS",
+    "name": "Computer Science",
+    "aliases": [
+      "CS",
+      "Comp Sci",
+      "Computer Sci"
+    ]
+  },
+  {
+    "code": "CNST",
+    "name": "Contemplative Studies",
+    "aliases": []
+  },
+  {
+    "code": "CNTP",
+    "name": "Contemporary Arts",
+    "aliases": []
+  },
+  {
+    "code": "COMM",
+    "name": "Communications",
+    "aliases": []
+  },
+  {
+    "code": "COND",
+    "name": "Conditioning",
+    "aliases": []
+  },
+  {
+    "code": "CRWT",
+    "name": "Critical Reading and Writing",
+    "aliases": [
+      "Critical Reading",
+      "Crit Writing"
+    ]
+  },
+  {
+    "code": "CYBR",
+    "name": "Cybersecurity",
+    "aliases": []
+  },
+  {
+    "code": "DATA",
+    "name": "Data Science",
+    "aliases": []
+  },
+  {
+    "code": "DSCI",
+    "name": "Data Science",
+    "aliases": []
+  },
+  {
+    "code": "DSGN",
+    "name": "Design",
+    "aliases": []
+  },
+  {
+    "code": "ECON",
+    "name": "Economics",
+    "aliases": [
+      "Econ"
+    ]
+  },
+  {
+    "code": "EDLD",
+    "name": "Educational Leadership",
+    "aliases": []
+  },
+  {
+    "code": "EDSP",
+    "name": "Special Education",
+    "aliases": []
+  },
+  {
+    "code": "EDTC",
+    "name": "Educational Technology",
+    "aliases": []
+  },
+  {
+    "code": "EDUC",
+    "name": "Education",
+    "aliases": []
+  },
+  {
+    "code": "ENGL",
+    "name": "",
+    "aliases": [
+      "English"
+    ]
+  },
+  {
+    "code": "ENLS",
+    "name": "English and Literary Studies",
+    "aliases": []
+  },
+  {
+    "code": "ENSC",
+    "name": "Environmental Science",
+    "aliases": []
+  },
+  {
+    "code": "ENST",
+    "name": "Environmental Studies",
+    "aliases": []
+  },
+  {
+    "code": "EXSS",
+    "name": "Exercise and Sports Science",
+    "aliases": []
+  },
+  {
+    "code": "FILM",
+    "name": "",
+    "aliases": [
+      "Film Studies"
+    ]
+  },
+  {
+    "code": "FINC",
+    "name": "Finance",
+    "aliases": []
+  },
+  {
+    "code": "FREN",
+    "name": "French",
+    "aliases": []
+  },
+  {
+    "code": "GEOG",
+    "name": "Geography",
+    "aliases": []
+  },
+  {
+    "code": "GEOL",
+    "name": "Geology",
+    "aliases": []
+  },
+  {
+    "code": "GRMN",
+    "name": "Language/German",
+    "aliases": []
+  },
+  {
+    "code": "HCAD",
+    "name": "Healthcare Administration",
+    "aliases": []
+  },
+  {
+    "code": "HIST",
+    "name": "History",
+    "aliases": [
+      "History"
+    ]
+  },
+  {
+    "code": "HNRS",
+    "name": "Honors Interdisciplinary",
+    "aliases": []
+  },
+  {
+    "code": "IBUS",
+    "name": "International Business",
+    "aliases": []
+  },
+  {
+    "code": "INFO",
+    "name": "Info Systems",
+    "aliases": [
+      "Info Sys",
+      "Information Systems"
+    ]
+  },
+  {
+    "code": "INSS",
+    "name": "Integrated Science Studies",
+    "aliases": []
+  },
+  {
+    "code": "INTD",
+    "name": "Interdisciplinary Studies",
+    "aliases": []
+  },
+  {
+    "code": "INTL",
+    "name": "International Studies",
+    "aliases": []
+  },
+  {
+    "code": "ITAL",
+    "name": "Language/Italian",
+    "aliases": []
+  },
+  {
+    "code": "KORE",
+    "name": "Korean",
+    "aliases": []
+  },
+  {
+    "code": "LANG",
+    "name": "Language",
+    "aliases": []
+  },
+  {
+    "code": "LAWS",
+    "name": "Law and Society",
+    "aliases": []
+  },
+  {
+    "code": "LITR",
+    "name": "",
+    "aliases": [
+      "Literature",
+      "Lit"
+    ]
+  },
+  {
+    "code": "LLAS",
+    "name": "Latino&Latin American Studies",
+    "aliases": []
+  },
+  {
+    "code": "MATH",
+    "name": "Mathematics",
+    "aliases": [
+      "Maths"
+    ]
+  },
+  {
+    "code": "MBAD",
+    "name": "Business Administration",
+    "aliases": []
+  },
+  {
+    "code": "MDIS",
+    "name": "Medical Imaging Sciences",
+    "aliases": []
+  },
+  {
+    "code": "MGMT",
+    "name": "Management",
+    "aliases": []
+  },
+  {
+    "code": "MKTG",
+    "name": "Marketing",
+    "aliases": []
+  },
+  {
+    "code": "MSWK",
+    "name": "Grad Social Work",
+    "aliases": []
+  },
+  {
+    "code": "MUSI",
+    "name": "Music",
+    "aliases": []
+  },
+  {
+    "code": "NASC",
+    "name": "Natural Sciences",
+    "aliases": []
+  },
+  {
+    "code": "NEUR",
+    "name": "Neuroscience",
+    "aliases": []
+  },
+  {
+    "code": "NURS",
+    "name": "Nursing",
+    "aliases": []
+  },
+  {
+    "code": "PATH",
+    "name": "Pathways",
+    "aliases": []
+  },
+  {
+    "code": "PHIL",
+    "name": "Philosophy",
+    "aliases": []
+  },
+  {
+    "code": "PHLT",
+    "name": "Public Health",
+    "aliases": []
+  },
+  {
+    "code": "PHYS",
+    "name": "Physics",
+    "aliases": []
+  },
+  {
+    "code": "POLI",
+    "name": "Political Science",
+    "aliases": [
+      "Poli Sci",
+      "PoliSci"
+    ]
+  },
+  {
+    "code": "PSYC",
+    "name": "Psychology",
+    "aliases": [
+      "Psych"
+    ]
+  },
+  {
+    "code": "PUBL",
+    "name": "Public Policy",
+    "aliases": []
+  },
+  {
+    "code": "SCIN",
+    "name": "Interdisciplinary Studies",
+    "aliases": []
+  },
+  {
+    "code": "SN",
+    "name": "Science, Nursing and Health",
+    "aliases": []
+  },
+  {
+    "code": "SO",
+    "name": "Social Sciences and Social Work",
+    "aliases": []
+  },
+  {
+    "code": "SOCI",
+    "name": "Sociology",
+    "aliases": [
+      "Soc",
+      "Sociol"
+    ]
+  },
+  {
+    "code": "SOSC",
+    "name": "Social Science",
+    "aliases": []
+  },
+  {
+    "code": "SPAN",
+    "name": "Spanish",
+    "aliases": [
+      "Spanish"
+    ]
+  },
+  {
+    "code": "SUST",
+    "name": "Sustainability",
+    "aliases": []
+  },
+  {
+    "code": "SWRK",
+    "name": "Social Work",
+    "aliases": []
+  },
+  {
+    "code": "THEA",
+    "name": "",
+    "aliases": [
+      "Theatre",
+      "Theater"
+    ]
+  },
+  {
+    "code": "THFL",
+    "name": "Theater and Film",
+    "aliases": []
+  },
+  {
+    "code": "UH",
+    "name": "Undergraduate Studies and Honors",
+    "aliases": []
+  },
+  {
+    "code": "WRIT",
+    "name": "Writing",
+    "aliases": []
+  }
+]
