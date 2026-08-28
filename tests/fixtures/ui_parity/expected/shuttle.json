@@ -1,0 +1,965 @@
+{
+  "saturday": [
+    {
+      "arrival": "9:30 AM",
+      "departure": "9:00 AM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "9:15 AM"
+        },
+        {
+          "location": "City MD Ramsey",
+          "time": "9:20 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "10:45 AM",
+      "departure": "9:55 AM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "10:10 AM"
+        },
+        {
+          "location": "City MD Ramsey",
+          "time": "10:15 AM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "10:25 AM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "10:35 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "12:25 PM",
+      "departure": "11:00 AM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "11:15 AM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "11:35 AM"
+        },
+        {
+          "location": "Barnes & Noble",
+          "time": "11:45 AM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "12:00 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "12:15 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "1:30 PM",
+      "departure": "12:50 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "1:05 PM"
+        },
+        {
+          "location": "City MD Ramsey",
+          "time": "1:10 PM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "1:20 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "3:00 PM",
+      "departure": "1:40 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "1:55 PM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "2:15 PM"
+        },
+        {
+          "location": "Barnes & Noble",
+          "time": "2:25 PM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "2:40 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "2:50 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "3:40 PM",
+      "departure": "3:00 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "3:15 PM"
+        },
+        {
+          "location": "City MD Ramsey",
+          "time": "3:20 PM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "3:30 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "5:20 PM",
+      "departure": "4:40 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "4:55 PM"
+        },
+        {
+          "location": "City MD Ramsey",
+          "time": "5:00 PM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "5:10 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "6:35 PM",
+      "departure": "5:25 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "5:35 PM"
+        },
+        {
+          "location": "City MD Ramsey",
+          "time": "5:40 PM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "6:00 PM"
+        },
+        {
+          "location": "Barnes & Noble",
+          "time": "6:10 PM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "6:25 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "7:25 PM",
+      "departure": "6:50 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "7:05 PM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "7:15 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "8:45 PM",
+      "departure": "7:30 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "7:40 PM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "8:00 PM"
+        },
+        {
+          "location": "Barnes & Noble",
+          "time": "8:10 PM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "8:25 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "8:35 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "9:42 PM",
+      "departure": "8:55 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "9:10 PM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "9:20 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "9:32 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "11:00 PM",
+      "departure": "9:55 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "10:10 PM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "10:30 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "10:50 PM"
+        }
+      ]
+    }
+  ],
+  "shortline": {
+    "fromNYC": {
+      "saturday": [
+        "07:15",
+        "08:15",
+        "13:45",
+        "16:45",
+        "17:00",
+        "17:15",
+        "17:30",
+        "18:00",
+        "18:25",
+        "19:45",
+        "21:15"
+      ],
+      "sunday": [
+        "14:15",
+        "17:15",
+        "19:15",
+        "20:30",
+        "22:45"
+      ],
+      "weekday": [
+        "07:15",
+        "08:15",
+        "13:45",
+        "15:30",
+        "16:45",
+        "17:00",
+        "17:15",
+        "17:30",
+        "18:00"
+      ]
+    },
+    "toNYC": {
+      "saturday": [
+        "05:44",
+        "06:04",
+        "06:14",
+        "06:34",
+        "06:54",
+        "08:25",
+        "13:05",
+        "13:50",
+        "18:30"
+      ],
+      "sunday": [
+        "08:50",
+        "11:05",
+        "12:50"
+      ],
+      "weekday": [
+        "05:44",
+        "06:04",
+        "06:14",
+        "06:34",
+        "06:54",
+        "08:25",
+        "13:05",
+        "13:50",
+        "16:55",
+        "18:30"
+      ]
+    }
+  },
+  "sunday": [
+    {
+      "arrival": "10:45 AM",
+      "departure": "10:00 AM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "10:15 AM"
+        },
+        {
+          "location": "Ramsey Farmers Market",
+          "time": "10:25 AM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "10:35 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "11:45 AM",
+      "departure": "11:00 AM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "11:15 AM"
+        },
+        {
+          "location": "Ramsey Farmers Market",
+          "time": "11:25 AM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "11:35 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "12:40 PM",
+      "departure": "12:00 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "12:15 PM"
+        },
+        {
+          "location": "Ramsey Farmers Market",
+          "time": "12:25 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "1:45 PM",
+      "departure": "1:00 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "1:15 PM"
+        },
+        {
+          "location": "Ramsey Farmers Market",
+          "time": "1:25 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "1:35 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "3:05 PM",
+      "departure": "2:00 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "2:15 PM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "2:35 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "2:55 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "3:50 PM",
+      "departure": "3:15 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "3:25 PM"
+        },
+        {
+          "location": "City MD Ramsey",
+          "time": "3:30 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "3:40 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "5:00 PM",
+      "departure": "3:50 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "4:05 PM"
+        },
+        {
+          "location": "City MD Ramsey",
+          "time": "4:10 PM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "4:30 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "4:50 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "6:55 PM",
+      "departure": "5:45 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "6:00 PM"
+        },
+        {
+          "location": "City MD Ramsey",
+          "time": "6:05 PM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "6:25 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "6:45 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "8:00 PM",
+      "departure": "6:55 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "7:10 PM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "7:30 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "7:50 PM"
+        }
+      ]
+    }
+  ],
+  "trainLoop": [
+    {
+      "arrival": "7:20 AM",
+      "departure": "7:00 AM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "7:10 AM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "7:10 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "7:45 AM",
+      "departure": "7:25 AM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "7:35 AM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "7:35 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "8:17 AM",
+      "departure": "7:50 AM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "8:00 AM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "8:07 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "8:40 AM",
+      "departure": "8:20 AM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "8:30 AM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "8:30 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "9:00 AM",
+      "departure": "8:40 AM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "8:50 AM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "8:50 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "9:30 AM",
+      "departure": "9:05 AM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "9:15 AM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "9:20 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "10:05 AM",
+      "departure": "9:45 AM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "9:55 AM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "9:55 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "11:00 AM",
+      "departure": "10:40 AM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "10:50 AM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "10:50 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "12:05 PM",
+      "departure": "11:45 AM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "11:55 AM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "11:55 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "1:05 PM",
+      "departure": "12:45 PM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "12:55 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "12:55 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "2:00 PM",
+      "departure": "1:40 PM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "1:50 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "1:50 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "2:55 PM",
+      "departure": "2:35 PM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "2:45 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "2:45 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "3:15 PM",
+      "departure": "2:55 PM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "3:05 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "3:05 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "3:50 PM",
+      "departure": "3:25 PM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "3:35 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "3:40 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "4:10 PM",
+      "departure": "3:50 PM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "4:00 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "4:00 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "4:40 PM",
+      "departure": "4:10 PM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "4:20 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "4:30 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "5:27 PM",
+      "departure": "4:45 PM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "4:55 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Station (Pick-up)",
+          "time": "5:17 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "End of Service",
+      "departure": "5:30 PM",
+      "stops": [
+        {
+          "location": "Ramsey Rt 17 Station (Drop-off)",
+          "time": "5:40 PM"
+        }
+      ]
+    }
+  ],
+  "weekday": [
+    {
+      "arrival": "7:55 AM",
+      "departure": "7:00 AM",
+      "stops": [
+        {
+          "location": "Garden State Plaza",
+          "time": "7:30 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "9:25 AM",
+      "departure": "8:25 AM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "8:35 AM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "8:55 AM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "9:15 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "11:20 AM",
+      "departure": "10:15 AM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "10:25 AM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "10:45 AM"
+        },
+        {
+          "location": "Barnes & Noble",
+          "time": "10:55 AM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "11:10 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "12:05 PM",
+      "departure": "11:35 AM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "11:45 AM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "11:55 AM"
+        }
+      ]
+    },
+    {
+      "arrival": "1:25 PM",
+      "departure": "12:20 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "12:30 PM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "12:50 PM"
+        },
+        {
+          "location": "Barnes & Noble",
+          "time": "1:00 PM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "1:15 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "3:05 PM",
+      "departure": "2:05 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "2:15 PM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "2:35 PM"
+        },
+        {
+          "location": "Barnes & Noble",
+          "time": "2:45 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "3:40 PM",
+      "departure": "3:10 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "3:20 PM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "3:30 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "4:20 PM",
+      "departure": "3:50 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "4:00 PM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "4:10 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "6:10 PM",
+      "departure": "4:40 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "4:55 PM"
+        },
+        {
+          "location": "City MD Ramsey",
+          "time": "5:00 PM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "5:25 PM"
+        },
+        {
+          "location": "Barnes & Noble",
+          "time": "5:40 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "6:00 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "7:35 PM",
+      "departure": "6:10 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "6:25 PM"
+        },
+        {
+          "location": "City MD Ramsey",
+          "time": "6:30 PM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "6:50 PM"
+        },
+        {
+          "location": "Barnes & Noble",
+          "time": "7:00 PM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "7:15 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "7:25 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "9:35 PM",
+      "departure": "8:20 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "8:35 PM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "8:55 PM"
+        },
+        {
+          "location": "Barnes & Noble",
+          "time": "9:10 PM"
+        },
+        {
+          "location": "Ramsey Square",
+          "time": "9:20 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "9:25 PM"
+        }
+      ]
+    },
+    {
+      "arrival": "10:45 PM",
+      "departure": "9:40 PM",
+      "stops": [
+        {
+          "location": "Interstate Plaza",
+          "time": "9:55 PM"
+        },
+        {
+          "location": "Garden State Plaza",
+          "time": "10:15 PM"
+        },
+        {
+          "location": "Ramsey Rt 17 Train",
+          "time": "10:35 PM"
+        }
+      ]
+    }
+  ]
+}

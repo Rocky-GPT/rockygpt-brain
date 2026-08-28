@@ -1,0 +1,4657 @@
+{
+  "collectedAt": "2026-08-27T20:58:01.210Z",
+  "dates": [
+    {
+      "date": "2026-08-27",
+      "sections": [
+        {
+          "groups": [
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "111",
+                  "description": "Shredded Cheddar Cheese",
+                  "formalName": "Shredded Cheddar Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "205",
+                  "description": "10\" Flour Tortilla",
+                  "formalName": "10\" Flour Tortilla",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "50",
+                  "description": "Canadian Style Bacon",
+                  "formalName": "Canadian Style Bacon",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Soy"
+                    }
+                  ],
+                  "calories": "199",
+                  "description": "Scrambled Vegan Egg Substitute",
+                  "formalName": "Scrambled Vegan Egg Substitute",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    }
+                  ],
+                  "calories": "189",
+                  "description": "Scrambled Eggs",
+                  "formalName": "Scrambled Eggs",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "79",
+                  "description": "Roasted diced potatoes with salt free seasoning and pepper",
+                  "formalName": "Hash Browned Diced Potatoes",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "442",
+                  "description": "Crispy french toast sticks",
+                  "formalName": "French Toast Sticks",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "64",
+                  "description": "Vegetarian Breakfast Sausage Patty",
+                  "formalName": "Vegetarian Breakfast Sausage Patty",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Savory"
+            },
+            {
+              "items": [
+                {
+                  "calories": "115",
+                  "description": "A hearty bowl of oatmeal",
+                  "formalName": "Oatmeal",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "FISH"
+                    },
+                    {
+                      "name": "SHELLFISH"
+                    },
+                    {
+                      "name": "TREE_NUTS"
+                    }
+                  ],
+                  "description": "Have a Nice Day",
+                  "formalName": "Have a Nice Day",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Spoonful"
+            }
+          ],
+          "name": "Breakfast"
+        },
+        {
+          "groups": [
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "227",
+                  "description": "Just baked chewy cookies with chocolate chips galore",
+                  "formalName": "Two Chocolate Chip Cookies",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "220",
+                  "description": "Just baked melt-in-your-mouth sugar cookies",
+                  "formalName": "Two Butter Sugar Cookies",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Bliss"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "527",
+                  "description": "Flavorful bulgur pilaf with couscous, Turkish beans, pickled vegetables and roasted tomato relish",
+                  "formalName": "Turkish Style Veggie Bowl",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Grown"
+            },
+            {
+              "items": [
+                {
+                  "calories": "48",
+                  "description": "Cucumber, tomato, red onion, kalamata olives, extra virgin olive oil, white wine vinegar and fresh parsley",
+                  "formalName": "Cucumber, Tomato & Onion Salad",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "111",
+                  "description": "Cannellini beans, caramelized onions, fresh basil and salt and pepper",
+                  "formalName": "White Bean and Caramelized Onion Salad",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Mix"
+            },
+            {
+              "items": [
+                {
+                  "calories": "105",
+                  "description": "Smashed Yukon gold potatoes seasoned with olive oil, salt & black pepper",
+                  "formalName": "Simply Smashed Yukon Gold Potatoes",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "174",
+                  "description": "Chicken marinated in buttermilk and seasonings then deep fried",
+                  "formalName": "Buttermilk Fried Chicken",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "2",
+                  "description": "Diced Red Pepper",
+                  "formalName": "Diced Red Pepper",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "173",
+                  "description": "Traditional cornbread",
+                  "formalName": "Old-Fashioned Cornbread",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    }
+                  ],
+                  "calories": "172",
+                  "description": "Traditional sweet & sour creamy coleslaw",
+                  "formalName": "Creamy Coleslaw",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "157",
+                  "description": "Fried Portobello",
+                  "formalName": "Fried Portobello",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Savory"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "140",
+                  "description": "Chicken breast marinated in sesame dressing and ginger then baked",
+                  "formalName": "Sesame Ginger Chicken Breast",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Soy"
+                    }
+                  ],
+                  "calories": "66",
+                  "description": "Crispy fried extra firm tofu",
+                  "formalName": "Fried Tofu",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "3",
+                  "description": "Broccoli Florets",
+                  "formalName": "Broccoli Florets",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "4",
+                  "description": "Ginger",
+                  "formalName": "Ginger",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "23",
+                  "description": "Blend of teriyaki, sriracha, fresh ginger & garlic",
+                  "formalName": "Spicy Teriyaki Glaze",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "36",
+                  "description": "Chile pepper, garlic, ginger, sugar, rice wine vinegar, lime juice",
+                  "formalName": "Sweet Thai Chile Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "140",
+                  "description": "Steamed White Rice",
+                  "formalName": "Steamed White Rice",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "12",
+                  "description": "Julienne Carrots",
+                  "formalName": "Julienne Carrots",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "3",
+                  "description": "Fresh Green Onions",
+                  "formalName": "Fresh Green Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "151",
+                  "description": "Lo Mein Noodles",
+                  "formalName": "Lo Mein Noodles",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "72",
+                  "description": "Ketchup, sugar and red wine vinegar",
+                  "formalName": "Sweet and Sour Dipping Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "119",
+                  "description": "Savory teriyaki glaze",
+                  "formalName": "Teriyaki Glaze",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Showcase"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "450",
+                  "description": "A hamburger patty With American cheese, lettuce and tomato on a bun",
+                  "formalName": "Cheeseburger On Bun",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "2",
+                  "description": "Shredded Lettuce",
+                  "formalName": "Shredded Lettuce",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "6",
+                  "description": "Sliced Fresh Red Onions",
+                  "formalName": "Sliced Fresh Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "4",
+                  "description": "Sliced Tomato",
+                  "formalName": "Sliced Tomato",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "551",
+                  "description": "Hand Cut French Fries",
+                  "formalName": "Hand Cut French Fries",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "description": "Dill Pickle Chip",
+                  "formalName": "Dill Pickle Chip",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "209",
+                  "description": "Grilled shaved beef with onions, peppers and cheese sauce on a sub roll",
+                  "formalName": "Classic Philly Cheesesteak Sandwich",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "259",
+                  "description": "Black Bean Burger",
+                  "formalName": "Black Bean Burger",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Sizzle"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "43",
+                  "description": "Baked Breadstick",
+                  "formalName": "Baked Breadsticks",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "284",
+                  "description": "Grilled chicken, shredded mozzarella cheese, chipotle pepper sauce and pico de gallo drizzled with ranch dressing",
+                  "formalName": "Chipolte Chicken Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "216",
+                  "description": "Scratch pizza dough topped with house made pizza sauce and shredded mozzarella",
+                  "formalName": "Cheese Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "244",
+                  "description": "Scratch pizza dough topped with house made pizza sauce, shredded mozzarella and pepperoni",
+                  "formalName": "Pepperoni Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Slices"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "104",
+                  "description": "Chicken, carrot and celery with egg noodles and chicken broth",
+                  "formalName": "Homestyle Chicken Noodle Soup",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "153",
+                  "description": "Creamy soup with potatoes, carrots, celery, dill and thyme",
+                  "formalName": "Cream of Potato Soup",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "FISH"
+                    },
+                    {
+                      "name": "SHELLFISH"
+                    },
+                    {
+                      "name": "TREE_NUTS"
+                    }
+                  ],
+                  "description": "Have a Nice Day",
+                  "formalName": "Have a Nice Day",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Spoonful"
+            },
+            {
+              "items": [
+                {
+                  "calories": "234",
+                  "description": "Genoa Salami",
+                  "formalName": "Genoa Salami",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Sesame"
+                    }
+                  ],
+                  "calories": "39",
+                  "description": "Pureed garbanzo beans and tahini with olive oil, garlic, lemon and cumin",
+                  "formalName": "Hummus",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "6",
+                  "description": "Sliced Fresh Red Onions",
+                  "formalName": "Sliced Fresh Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "47",
+                  "description": "American Cheese",
+                  "formalName": "American Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "1",
+                  "description": "Dill Pickle Chip",
+                  "formalName": "Dill Pickle Chip",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "2",
+                  "description": "Shredded Lettuce",
+                  "formalName": "Shredded Lettuce",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "114",
+                  "description": "Cheddar Cheese",
+                  "formalName": "Cheddar Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "99",
+                  "description": "Garlic and pepper seasoned grilled chicken",
+                  "formalName": "Garlic Grilled Chicken",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "4",
+                  "description": "Sliced Tomato",
+                  "formalName": "Sliced Tomato",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "59",
+                  "description": "Ham, Smoked Low Sodium, Shaved, 2 oz",
+                  "formalName": "Ham, Smoked Low Sodium, Shaved, 2 oz",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "112",
+                  "description": "Swiss Cheese",
+                  "formalName": "Swiss Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "50",
+                  "description": "Provolone Cheese",
+                  "formalName": "Provolone Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "58",
+                  "description": "Sliced Deli Turkey",
+                  "formalName": "Sliced Deli Turkey",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Fish"
+                    }
+                  ],
+                  "calories": "238",
+                  "description": "Tuna, celery, mayonnaise, kosher salt and black pepper",
+                  "formalName": "Tuna Salad",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Stacked"
+            },
+            {
+              "items": [
+                {
+                  "calories": "59",
+                  "description": "Marinara Sauce",
+                  "formalName": "Marinara Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "85",
+                  "description": "Roasted Garlic Cloves",
+                  "formalName": "Roasted Garlic Cloves",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "86",
+                  "description": "Baked Garlic Breadstick",
+                  "formalName": "Baked Garlic Breadstick",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "197",
+                  "description": "Cavatappi Pasta",
+                  "formalName": "Cavatappi Pasta",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "146",
+                  "description": "Alfredo sauce blended with basil pesto",
+                  "formalName": "Pesto Cream Sauce",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Twists"
+            }
+          ],
+          "name": "Lunch"
+        },
+        {
+          "groups": [
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Soy"
+                    }
+                  ],
+                  "calories": "66",
+                  "description": "Char-grilled tofu steak seasoned with canola oil and black pepper",
+                  "formalName": "Grilled BBQ Tofu",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "119",
+                  "description": "Steamed Plain Basmati Rice",
+                  "formalName": "Steamed Plain Basmati Rice",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Grown"
+            },
+            {
+              "items": [
+                {
+                  "calories": "48",
+                  "description": "Cucumber, tomato, red onion, kalamata olives, extra virgin olive oil, white wine vinegar and fresh parsley",
+                  "formalName": "Cucumber, Tomato & Onion Salad",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "111",
+                  "description": "Cannellini beans, caramelized onions, fresh basil and salt and pepper",
+                  "formalName": "White Bean and Caramelized Onion Salad",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Mix"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "39",
+                  "description": "Crsipy onions coated with seasoned flour",
+                  "formalName": "Onion Strings",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "48",
+                  "description": "BBQ Sauce",
+                  "formalName": "BBQ Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "2",
+                  "description": "Diced Red Pepper",
+                  "formalName": "Diced Red Pepper",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "84",
+                  "description": "Leaf spinach baked with parmesan cream sauce, onions and a hint of cinnamon and nutmeg",
+                  "formalName": "Creamed Spinach",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "162",
+                  "description": "Pulled beef brisket, smoky BBQ sauce",
+                  "formalName": "BBQ Beef Brisket",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "198",
+                  "description": "Macaroni baked with creamy mild cheddar sauce",
+                  "formalName": "Creamy Macaroni & Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Savory"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "140",
+                  "description": "Chicken breast marinated in sesame dressing and ginger then baked",
+                  "formalName": "Sesame Ginger Chicken Breast",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Soy"
+                    }
+                  ],
+                  "calories": "66",
+                  "description": "Crispy fried extra firm tofu",
+                  "formalName": "Fried Tofu",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "140",
+                  "description": "Steamed White Rice",
+                  "formalName": "Steamed White Rice",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "3",
+                  "description": "Broccoli Florets",
+                  "formalName": "Broccoli Florets",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "4",
+                  "description": "Ginger",
+                  "formalName": "Ginger",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "12",
+                  "description": "Julienne Carrots",
+                  "formalName": "Julienne Carrots",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "151",
+                  "description": "Lo Mein Noodles",
+                  "formalName": "Lo Mein Noodles",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "23",
+                  "description": "Blend of teriyaki, sriracha, fresh ginger & garlic",
+                  "formalName": "Spicy Teriyaki Glaze",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "72",
+                  "description": "Ketchup, sugar and red wine vinegar",
+                  "formalName": "Sweet and Sour Dipping Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "36",
+                  "description": "Chile pepper, garlic, ginger, sugar, rice wine vinegar, lime juice",
+                  "formalName": "Sweet Thai Chile Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "119",
+                  "description": "Savory teriyaki glaze",
+                  "formalName": "Teriyaki Glaze",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "3",
+                  "description": "Fresh Green Onions",
+                  "formalName": "Fresh Green Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Showcase"
+            },
+            {
+              "items": [
+                {
+                  "calories": "2",
+                  "description": "Shredded Lettuce",
+                  "formalName": "Shredded Lettuce",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "6",
+                  "description": "Sliced Fresh Red Onions",
+                  "formalName": "Sliced Fresh Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "290",
+                  "description": "Classic all beef hot dog",
+                  "formalName": "All Beef Hot Dog",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "4",
+                  "description": "Sliced Tomato",
+                  "formalName": "Sliced Tomato",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "551",
+                  "description": "Hand Cut French Fries",
+                  "formalName": "Hand Cut French Fries",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "description": "Dill Pickle Chip",
+                  "formalName": "Dill Pickle Chip",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "299",
+                  "description": "Grilled Garlic Chicken Sandwich",
+                  "formalName": "Grilled Garlic Chicken Sandwich",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Sizzle"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "284",
+                  "description": "Grilled chicken, shredded mozzarella cheese, chipotle pepper sauce and pico de gallo drizzled with ranch dressing",
+                  "formalName": "Chipolte Chicken Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "43",
+                  "description": "Baked Breadstick",
+                  "formalName": "Baked Breadsticks",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "216",
+                  "description": "Scratch pizza dough topped with house made pizza sauce and shredded mozzarella",
+                  "formalName": "Cheese Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "244",
+                  "description": "Scratch pizza dough topped with house made pizza sauce, shredded mozzarella and pepperoni",
+                  "formalName": "Pepperoni Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Slices"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "104",
+                  "description": "Chicken, carrot and celery with egg noodles and chicken broth",
+                  "formalName": "Homestyle Chicken Noodle Soup",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "153",
+                  "description": "Creamy soup with potatoes, carrots, celery, dill and thyme",
+                  "formalName": "Cream of Potato Soup",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "FISH"
+                    },
+                    {
+                      "name": "SHELLFISH"
+                    },
+                    {
+                      "name": "TREE_NUTS"
+                    }
+                  ],
+                  "description": "Have a Nice Day",
+                  "formalName": "Have a Nice Day",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Spoonful"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "120",
+                  "description": "Roasted eggplant, red peppers and red onions with kalamata olive spread, black beans, spring mix, whole wheat tortilla",
+                  "formalName": "Ham & Swiss on Wheat",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "47",
+                  "description": "American Cheese",
+                  "formalName": "American Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "114",
+                  "description": "Cheddar Cheese",
+                  "formalName": "Cheddar Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "58",
+                  "description": "Sliced Deli Turkey",
+                  "formalName": "Sliced Deli Turkey",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "1",
+                  "description": "Dill Pickle Chip",
+                  "formalName": "Dill Pickle Chip",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "99",
+                  "description": "Garlic and pepper seasoned grilled chicken",
+                  "formalName": "Garlic Grilled Chicken",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "234",
+                  "description": "Genoa Salami",
+                  "formalName": "Genoa Salami",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Sesame"
+                    }
+                  ],
+                  "calories": "39",
+                  "description": "Pureed garbanzo beans and tahini with olive oil, garlic, lemon and cumin",
+                  "formalName": "Hummus",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "50",
+                  "description": "Provolone Cheese",
+                  "formalName": "Provolone Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "2",
+                  "description": "Shredded Lettuce",
+                  "formalName": "Shredded Lettuce",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "6",
+                  "description": "Sliced Fresh Red Onions",
+                  "formalName": "Sliced Fresh Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "4",
+                  "description": "Sliced Tomato",
+                  "formalName": "Sliced Tomato",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "112",
+                  "description": "Swiss Cheese",
+                  "formalName": "Swiss Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Fish"
+                    }
+                  ],
+                  "calories": "238",
+                  "description": "Tuna, celery, mayonnaise, kosher salt and black pepper",
+                  "formalName": "Tuna Salad",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Stacked"
+            },
+            {
+              "items": [
+                {
+                  "calories": "59",
+                  "description": "Marinara Sauce",
+                  "formalName": "Marinara Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "85",
+                  "description": "Roasted Garlic Cloves",
+                  "formalName": "Roasted Garlic Cloves",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "197",
+                  "description": "Cavatappi Pasta",
+                  "formalName": "Cavatappi Pasta",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "146",
+                  "description": "Alfredo sauce blended with basil pesto",
+                  "formalName": "Pesto Cream Sauce",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "7",
+                  "description": "Parsley Parmesan Topping",
+                  "formalName": "Parsley Parmesan Topping",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Twists"
+            }
+          ],
+          "name": "Dinner"
+        },
+        {
+          "groups": [
+            {
+              "items": [
+                {
+                  "calories": "551",
+                  "description": "Hand Cut French Fries",
+                  "formalName": "Hand Cut French Fries",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "6",
+                  "description": "Sliced Fresh Red Onions",
+                  "formalName": "Sliced Fresh Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "4",
+                  "description": "Sliced Tomato",
+                  "formalName": "Sliced Tomato",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "2",
+                  "description": "Shredded Iceberg Lettuce",
+                  "formalName": "Shredded Iceberg Lettuce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "259",
+                  "description": "Black Bean Burger",
+                  "formalName": "Black Bean Burger",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "description": "Dill Pickle Chip",
+                  "formalName": "Dill Pickle Chip",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "97",
+                  "description": "Classic smokey tomato based BBQ sauce",
+                  "formalName": "BBQ Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "451",
+                  "description": "A hamburger patty With American cheese, lettuce and tomato on a bun",
+                  "formalName": "Cheeseburger On Bun",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "351",
+                  "description": "Deep-fried chicken wings tossed with hot pepper sauce",
+                  "formalName": "Buffalo Wings",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Sizzle"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "220",
+                  "description": "Scratch Cheese Pizza",
+                  "formalName": "Scratch Cheese Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "43",
+                  "description": "Baked Breadstick",
+                  "formalName": "Baked Breadsticks",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "244",
+                  "description": "Scratch pizza dough topped with house made pizza sauce, shredded mozzarella and pepperoni",
+                  "formalName": "Pepperoni Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "284",
+                  "description": "Grilled chicken, shredded mozzarella cheese, chipotle pepper sauce and pico de gallo drizzled with ranch dressing",
+                  "formalName": "Chipolte Chicken Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Slices"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "47",
+                  "description": "American Cheese",
+                  "formalName": "American Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "114",
+                  "description": "Cheddar Cheese",
+                  "formalName": "Cheddar Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "58",
+                  "description": "Sliced Deli Turkey",
+                  "formalName": "Sliced Deli Turkey",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "1",
+                  "description": "Dill Pickle Chip",
+                  "formalName": "Dill Pickle Chip",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "99",
+                  "description": "Garlic and pepper seasoned grilled chicken",
+                  "formalName": "Garlic Grilled Chicken",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "234",
+                  "description": "Genoa Salami",
+                  "formalName": "Genoa Salami",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Sesame"
+                    }
+                  ],
+                  "calories": "39",
+                  "description": "Pureed garbanzo beans and tahini with olive oil, garlic, lemon and cumin",
+                  "formalName": "Hummus",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "50",
+                  "description": "Provolone Cheese",
+                  "formalName": "Provolone Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "2",
+                  "description": "Shredded Lettuce",
+                  "formalName": "Shredded Lettuce",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "6",
+                  "description": "Sliced Fresh Red Onions",
+                  "formalName": "Sliced Fresh Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "4",
+                  "description": "Sliced Tomato",
+                  "formalName": "Sliced Tomato",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "59",
+                  "description": "Ham, Smoked Low Sodium, Shaved, 2 oz",
+                  "formalName": "Ham, Smoked Low Sodium, Shaved, 2 oz",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "112",
+                  "description": "Swiss Cheese",
+                  "formalName": "Swiss Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Fish"
+                    }
+                  ],
+                  "calories": "238",
+                  "description": "Tuna, celery, mayonnaise, kosher salt and black pepper",
+                  "formalName": "Tuna Salad",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Stacked"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "197",
+                  "description": "Cavatappi Pasta",
+                  "formalName": "Cavatappi Pasta",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "59",
+                  "description": "Marinara Sauce",
+                  "formalName": "Marinara Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "56",
+                  "description": "Shredded Cheddar Cheese",
+                  "formalName": "Shredded Cheddar Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "85",
+                  "description": "Roasted Garlic Cloves",
+                  "formalName": "Roasted Garlic Cloves",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "146",
+                  "description": "Alfredo sauce blended with basil pesto",
+                  "formalName": "Pesto Cream Sauce",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Twists"
+            }
+          ],
+          "name": "Late Night"
+        }
+      ]
+    },
+    {
+      "date": "2026-08-28",
+      "sections": [
+        {
+          "groups": [
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "111",
+                  "description": "Shredded Cheddar Cheese",
+                  "formalName": "Shredded Cheddar Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "70",
+                  "description": "Bacon Slices",
+                  "formalName": "Bacon Slices",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "205",
+                  "description": "10\" Flour Tortilla",
+                  "formalName": "10\" Flour Tortilla",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "182",
+                  "description": "Diced hash browned potatoes grilled with caramelized onions and red peppers",
+                  "formalName": "Home Fries with Caramelized Onions",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Soy"
+                    }
+                  ],
+                  "calories": "199",
+                  "description": "Scrambled Vegan Egg Substitute",
+                  "formalName": "Scrambled Vegan Egg Substitute",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    }
+                  ],
+                  "calories": "189",
+                  "description": "Scrambled Eggs",
+                  "formalName": "Scrambled Eggs",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "305",
+                  "description": "Buttermilk pancakes with chocolate chips and coconu",
+                  "formalName": "Griddled Chocolate Coconut Pancakes",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "64",
+                  "description": "Vegetarian Breakfast Sausage Patty",
+                  "formalName": "Vegetarian Breakfast Sausage Patty",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Savory"
+            },
+            {
+              "items": [
+                {
+                  "calories": "115",
+                  "description": "A hearty bowl of oatmeal",
+                  "formalName": "Oatmeal",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "FISH"
+                    },
+                    {
+                      "name": "SHELLFISH"
+                    },
+                    {
+                      "name": "TREE_NUTS"
+                    }
+                  ],
+                  "description": "Have a Nice Day",
+                  "formalName": "Have a Nice Day",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Spoonful"
+            }
+          ],
+          "name": "Breakfast"
+        },
+        {
+          "groups": [
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "227",
+                  "description": "Just baked chewy cookies with chocolate chips galore",
+                  "formalName": "Two Chocolate Chip Cookies",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "273",
+                  "description": "Freshly baked butter sugar cookies topped with cinnamon sugar",
+                  "formalName": "Two Snickerdoodle Cookies",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Bliss"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "340",
+                  "description": "House made chickpea cutlet with sauteed spinach, sweet potato wedges and stir fry dipping sauce. With crispy chickpeas",
+                  "formalName": "Moroccan Couscous & Chickpea Bowl",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Grown"
+            },
+            {
+              "items": [
+                {
+                  "calories": "89",
+                  "description": "Kidney, wax & green beans, red peppers, onions, garlic, Italian parsley, red wine vinaigrette",
+                  "formalName": "Three Bean Salad",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    }
+                  ],
+                  "calories": "110",
+                  "description": "Chef potatoes, hard cooked egg, celery, onion, red bell pepper, creamy mayonnaise mustard dressing",
+                  "formalName": "Country-Style Potato Salad",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Mix"
+            },
+            {
+              "items": [
+                {
+                  "calories": "43",
+                  "description": "Sauteed spinach with caramelized shallots",
+                  "formalName": "Spinach & Caramelized Shallots",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "60",
+                  "description": "Breadstick dough knots topped with parmesan herb topping",
+                  "formalName": "Garlic Knot",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "588",
+                  "description": "Shell pasta in a creamy alfredo sauce garnished with basil",
+                  "formalName": "Alfredo Pasta Bowl",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Shellfish"
+                    }
+                  ],
+                  "calories": "67",
+                  "description": "Grilled shrimp seasoned with salt and pepper",
+                  "formalName": "Grilled Shrimp",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "7",
+                  "description": "Parsley Parmesan Topping",
+                  "formalName": "Parsley Parmesan Topping",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "174",
+                  "description": "Alfredo Sauce",
+                  "formalName": "Alfredo Sauce",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Savory"
+            },
+            {
+              "items": [
+                {
+                  "calories": "4",
+                  "description": "Ginger",
+                  "formalName": "Ginger",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "23",
+                  "description": "Blend of teriyaki, sriracha, fresh ginger & garlic",
+                  "formalName": "Spicy Teriyaki Glaze",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "72",
+                  "description": "Ketchup, sugar and red wine vinegar",
+                  "formalName": "Sweet and Sour Dipping Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "36",
+                  "description": "Chile pepper, garlic, ginger, sugar, rice wine vinegar, lime juice",
+                  "formalName": "Sweet Thai Chile Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "140",
+                  "description": "Steamed White Rice",
+                  "formalName": "Steamed White Rice",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "3",
+                  "description": "Broccoli Florets",
+                  "formalName": "Broccoli Florets",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "151",
+                  "description": "Lo Mein Noodles",
+                  "formalName": "Lo Mein Noodles",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "140",
+                  "description": "Chicken breast marinated in sesame dressing and ginger then baked",
+                  "formalName": "Sesame Ginger Chicken Breast",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Soy"
+                    }
+                  ],
+                  "calories": "66",
+                  "description": "Crispy fried extra firm tofu",
+                  "formalName": "Fried Tofu",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "12",
+                  "description": "Julienne Carrots",
+                  "formalName": "Julienne Carrots",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "3",
+                  "description": "Fresh Green Onions",
+                  "formalName": "Fresh Green Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "119",
+                  "description": "Savory teriyaki glaze",
+                  "formalName": "Teriyaki Glaze",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Showcase"
+            },
+            {
+              "items": [
+                {
+                  "calories": "2",
+                  "description": "Shredded Lettuce",
+                  "formalName": "Shredded Lettuce",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "6",
+                  "description": "Sliced Fresh Red Onions",
+                  "formalName": "Sliced Fresh Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "4",
+                  "description": "Sliced Tomato",
+                  "formalName": "Sliced Tomato",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "405",
+                  "description": "Breaded and fried chicken served on a soft roll with pickles",
+                  "formalName": "Fried Chicken Patty Sandwich",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "551",
+                  "description": "Hand Cut French Fries",
+                  "formalName": "Hand Cut French Fries",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "description": "Dill Pickle Chip",
+                  "formalName": "Dill Pickle Chip",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "451",
+                  "description": "A hamburger patty With American cheese, lettuce and tomato on a bun",
+                  "formalName": "Cheeseburger On Bun",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "259",
+                  "description": "Black Bean Burger",
+                  "formalName": "Black Bean Burger",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Sizzle"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "362",
+                  "description": "Baked pizza crust topped with Montreal seasoned ground beef, bacon, mozzarella, tomato, red onion, pickles and BBQ sauce",
+                  "formalName": "BBQ Bacon Cheeseburger Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "43",
+                  "description": "Baked Breadstick",
+                  "formalName": "Baked Breadsticks",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "216",
+                  "description": "Scratch pizza dough topped with house made pizza sauce and shredded mozzarella",
+                  "formalName": "Cheese Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "244",
+                  "description": "Scratch pizza dough topped with house made pizza sauce, shredded mozzarella and pepperoni",
+                  "formalName": "Pepperoni Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Slices"
+            },
+            {
+              "items": [
+                {
+                  "calories": "78",
+                  "description": "Chorizo sausage, Idaho potatoes, red and green peppers, corn, plum tomatoes, chicken broth, fresh oregano and cilantro",
+                  "formalName": "Spanish Chorizo & Potato Soup",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "52",
+                  "description": "Tomato soup enhanced with garlic, basil, jalapeno, thyme, oregano and white wine",
+                  "formalName": "Tomato Basil Soup",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "FISH"
+                    },
+                    {
+                      "name": "SHELLFISH"
+                    },
+                    {
+                      "name": "TREE_NUTS"
+                    }
+                  ],
+                  "description": "Have a Nice Day",
+                  "formalName": "Have a Nice Day",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Spoonful"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Sesame"
+                    }
+                  ],
+                  "calories": "39",
+                  "description": "Pureed garbanzo beans and tahini with olive oil, garlic, lemon and cumin",
+                  "formalName": "Hummus",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "50",
+                  "description": "Provolone Cheese",
+                  "formalName": "Provolone Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "4",
+                  "description": "Sliced Tomato",
+                  "formalName": "Sliced Tomato",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "114",
+                  "description": "Cheddar Cheese",
+                  "formalName": "Cheddar Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "99",
+                  "description": "Garlic and pepper seasoned grilled chicken",
+                  "formalName": "Garlic Grilled Chicken",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "59",
+                  "description": "Ham, Smoked Low Sodium, Shaved, 2 oz",
+                  "formalName": "Ham, Smoked Low Sodium, Shaved, 2 oz",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "112",
+                  "description": "Swiss Cheese",
+                  "formalName": "Swiss Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Fish"
+                    }
+                  ],
+                  "calories": "238",
+                  "description": "Tuna, celery, mayonnaise, kosher salt and black pepper",
+                  "formalName": "Tuna Salad",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "1",
+                  "description": "Dill Pickle Chip",
+                  "formalName": "Dill Pickle Chip",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "47",
+                  "description": "American Cheese",
+                  "formalName": "American Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "58",
+                  "description": "Sliced Deli Turkey",
+                  "formalName": "Sliced Deli Turkey",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "234",
+                  "description": "Genoa Salami",
+                  "formalName": "Genoa Salami",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "6",
+                  "description": "Sliced Fresh Red Onions",
+                  "formalName": "Sliced Fresh Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "2",
+                  "description": "Shredded Lettuce",
+                  "formalName": "Shredded Lettuce",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Stacked"
+            },
+            {
+              "items": [
+                {
+                  "calories": "59",
+                  "description": "Marinara Sauce",
+                  "formalName": "Marinara Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "41",
+                  "description": "Italian tomato sauce simmered with bacon, hot pepper flakes and fresh basil",
+                  "formalName": "Arrabiata Sauce",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "24",
+                  "description": "Red onions roasted with balsamic vinegar, olive oil, kosher salt and black pepper",
+                  "formalName": "Balsamic Roasted Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "197",
+                  "description": "Cavatappi Pasta",
+                  "formalName": "Cavatappi Pasta",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "7",
+                  "description": "Parsley Parmesan Topping",
+                  "formalName": "Parsley Parmesan Topping",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Twists"
+            }
+          ],
+          "name": "Lunch"
+        },
+        {
+          "groups": [
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "126",
+                  "description": "Green beans, cauliflower, peas, carrots, mushrooms, basmati rice, cinnamon, cloves & cilantro",
+                  "formalName": "Vegetarian Biryani",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Grown"
+            },
+            {
+              "items": [
+                {
+                  "calories": "89",
+                  "description": "Kidney, wax & green beans, red peppers, onions, garlic, Italian parsley, red wine vinaigrette",
+                  "formalName": "Three Bean Salad",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    }
+                  ],
+                  "calories": "110",
+                  "description": "Chef potatoes, hard cooked egg, celery, onion, red bell pepper, creamy mayonnaise mustard dressing",
+                  "formalName": "Country-Style Potato Salad",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Mix"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "146",
+                  "description": "House baked Indian flatbread",
+                  "formalName": "Naan Bread",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "1",
+                  "description": "Sliced Green Onions",
+                  "formalName": "Sliced Green Onions",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "30",
+                  "description": "Cauliflower roasted with oil and Tandoori spices",
+                  "formalName": "Roasted Tandoori Cauliflower",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "196",
+                  "description": "Roasted chicken marinated in yogurt, ginger, garlic, lemon juice and aromatic spices",
+                  "formalName": "Chicken Thigh Tikka",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "137",
+                  "description": "Steamed basmati rice",
+                  "formalName": "Basmati Rice",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Savory"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "140",
+                  "description": "Chicken breast marinated in sesame dressing and ginger then baked",
+                  "formalName": "Sesame Ginger Chicken Breast",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Soy"
+                    }
+                  ],
+                  "calories": "66",
+                  "description": "Crispy fried extra firm tofu",
+                  "formalName": "Fried Tofu",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "140",
+                  "description": "Steamed White Rice",
+                  "formalName": "Steamed White Rice",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "3",
+                  "description": "Broccoli Florets",
+                  "formalName": "Broccoli Florets",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "4",
+                  "description": "Ginger",
+                  "formalName": "Ginger",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "12",
+                  "description": "Julienne Carrots",
+                  "formalName": "Julienne Carrots",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "151",
+                  "description": "Lo Mein Noodles",
+                  "formalName": "Lo Mein Noodles",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "23",
+                  "description": "Blend of teriyaki, sriracha, fresh ginger & garlic",
+                  "formalName": "Spicy Teriyaki Glaze",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "72",
+                  "description": "Ketchup, sugar and red wine vinegar",
+                  "formalName": "Sweet and Sour Dipping Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "36",
+                  "description": "Chile pepper, garlic, ginger, sugar, rice wine vinegar, lime juice",
+                  "formalName": "Sweet Thai Chile Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "119",
+                  "description": "Savory teriyaki glaze",
+                  "formalName": "Teriyaki Glaze",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "3",
+                  "description": "Fresh Green Onions",
+                  "formalName": "Fresh Green Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Showcase"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "115",
+                  "description": "Cheddar Cheese",
+                  "formalName": "Cheddar Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "2",
+                  "description": "Shredded Iceberg Lettuce",
+                  "formalName": "Shredded Iceberg Lettuce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "48",
+                  "description": "Cabbage, carrots, scallion, jalapeno, fresh cilantro, cider lime dressing",
+                  "formalName": "Carnitas Coleslaw",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "202",
+                  "description": "Buttermilk, buffalo sauce and jalapeno fried chicken",
+                  "formalName": "Buffalo Jalapeno Fried Chicken",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "39",
+                  "description": "Crsipy onions coated with seasoned flour",
+                  "formalName": "Onion Strings",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "148",
+                  "description": "Hamburger Bun",
+                  "formalName": "Hamburger Bun",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "12",
+                  "description": "Onions Yellow, Sauteed, Pan Spray, Julienne 1/4\", 1 oz",
+                  "formalName": "Sauteed Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "551",
+                  "description": "Hand Cut French Fries",
+                  "formalName": "Hand Cut French Fries",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "description": "Dill Pickle Chip",
+                  "formalName": "Dill Pickle Chip",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "4",
+                  "description": "Sliced Tomato",
+                  "formalName": "Sliced Tomato",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "299",
+                  "description": "Grilled Garlic Chicken Sandwich",
+                  "formalName": "Grilled Garlic Chicken Sandwich",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "6",
+                  "description": "Sliced Fresh Red Onions",
+                  "formalName": "Sliced Fresh Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Sizzle"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "43",
+                  "description": "Baked Breadstick",
+                  "formalName": "Baked Breadsticks",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "362",
+                  "description": "Baked pizza crust topped with Montreal seasoned ground beef, bacon, mozzarella, tomato, red onion, pickles and BBQ sauce",
+                  "formalName": "BBQ Bacon Cheeseburger Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "216",
+                  "description": "Scratch pizza dough topped with house made pizza sauce and shredded mozzarella",
+                  "formalName": "Cheese Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "244",
+                  "description": "Scratch pizza dough topped with house made pizza sauce, shredded mozzarella and pepperoni",
+                  "formalName": "Pepperoni Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Slices"
+            },
+            {
+              "items": [
+                {
+                  "calories": "78",
+                  "description": "Chorizo sausage, Idaho potatoes, red and green peppers, corn, plum tomatoes, chicken broth, fresh oregano and cilantro",
+                  "formalName": "Spanish Chorizo & Potato Soup",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "52",
+                  "description": "Tomato soup enhanced with garlic, basil, jalapeno, thyme, oregano and white wine",
+                  "formalName": "Tomato Basil Soup",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "FISH"
+                    },
+                    {
+                      "name": "SHELLFISH"
+                    },
+                    {
+                      "name": "TREE_NUTS"
+                    }
+                  ],
+                  "description": "Have a Nice Day",
+                  "formalName": "Have a Nice Day",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Spoonful"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "47",
+                  "description": "American Cheese",
+                  "formalName": "American Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "114",
+                  "description": "Cheddar Cheese",
+                  "formalName": "Cheddar Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "58",
+                  "description": "Sliced Deli Turkey",
+                  "formalName": "Sliced Deli Turkey",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "1",
+                  "description": "Dill Pickle Chip",
+                  "formalName": "Dill Pickle Chip",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "99",
+                  "description": "Garlic and pepper seasoned grilled chicken",
+                  "formalName": "Garlic Grilled Chicken",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "234",
+                  "description": "Genoa Salami",
+                  "formalName": "Genoa Salami",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Sesame"
+                    }
+                  ],
+                  "calories": "39",
+                  "description": "Pureed garbanzo beans and tahini with olive oil, garlic, lemon and cumin",
+                  "formalName": "Hummus",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "50",
+                  "description": "Provolone Cheese",
+                  "formalName": "Provolone Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "2",
+                  "description": "Shredded Lettuce",
+                  "formalName": "Shredded Lettuce",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "6",
+                  "description": "Sliced Fresh Red Onions",
+                  "formalName": "Sliced Fresh Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "4",
+                  "description": "Sliced Tomato",
+                  "formalName": "Sliced Tomato",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "112",
+                  "description": "Swiss Cheese",
+                  "formalName": "Swiss Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Fish"
+                    }
+                  ],
+                  "calories": "238",
+                  "description": "Tuna, celery, mayonnaise, kosher salt and black pepper",
+                  "formalName": "Tuna Salad",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "59",
+                  "description": "Ham, Smoked Low Sodium, Shaved, 2 oz",
+                  "formalName": "Ham, Smoked Low Sodium, Shaved, 2 oz",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Stacked"
+            },
+            {
+              "items": [
+                {
+                  "calories": "59",
+                  "description": "Marinara Sauce",
+                  "formalName": "Marinara Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "41",
+                  "description": "Italian tomato sauce simmered with bacon, hot pepper flakes and fresh basil",
+                  "formalName": "Arrabiata Sauce",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "24",
+                  "description": "Red onions roasted with balsamic vinegar, olive oil, kosher salt and black pepper",
+                  "formalName": "Balsamic Roasted Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "197",
+                  "description": "Cavatappi Pasta",
+                  "formalName": "Cavatappi Pasta",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "7",
+                  "description": "Parsley Parmesan Topping",
+                  "formalName": "Parsley Parmesan Topping",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                }
+              ],
+              "name": "Twists"
+            }
+          ],
+          "name": "Dinner"
+        },
+        {
+          "groups": [
+            {
+              "items": [
+                {
+                  "calories": "551",
+                  "description": "Hand Cut French Fries",
+                  "formalName": "Hand Cut French Fries",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "6",
+                  "description": "Sliced Fresh Red Onions",
+                  "formalName": "Sliced Fresh Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "4",
+                  "description": "Sliced Tomato",
+                  "formalName": "Sliced Tomato",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "2",
+                  "description": "Shredded Iceberg Lettuce",
+                  "formalName": "Shredded Iceberg Lettuce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "259",
+                  "description": "Black Bean Burger",
+                  "formalName": "Black Bean Burger",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "description": "Dill Pickle Chip",
+                  "formalName": "Dill Pickle Chip",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Sesame"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "405",
+                  "description": "Breaded and fried chicken served on a soft roll with pickles",
+                  "formalName": "Fried Chicken Patty Sandwich",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Sizzle"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "220",
+                  "description": "Scratch Cheese Pizza",
+                  "formalName": "Scratch Cheese Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Soy"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "43",
+                  "description": "Baked Breadstick",
+                  "formalName": "Baked Breadsticks",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "244",
+                  "description": "Scratch pizza dough topped with house made pizza sauce, shredded mozzarella and pepperoni",
+                  "formalName": "Pepperoni Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Milk"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "362",
+                  "description": "Baked pizza crust topped with Montreal seasoned ground beef, bacon, mozzarella, tomato, red onion, pickles and BBQ sauce",
+                  "formalName": "BBQ Bacon Cheeseburger Pizza",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Slices"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "47",
+                  "description": "American Cheese",
+                  "formalName": "American Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "114",
+                  "description": "Cheddar Cheese",
+                  "formalName": "Cheddar Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "58",
+                  "description": "Sliced Deli Turkey",
+                  "formalName": "Sliced Deli Turkey",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "1",
+                  "description": "Dill Pickle Chip",
+                  "formalName": "Dill Pickle Chip",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "99",
+                  "description": "Garlic and pepper seasoned grilled chicken",
+                  "formalName": "Garlic Grilled Chicken",
+                  "isMindful": true,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "calories": "234",
+                  "description": "Genoa Salami",
+                  "formalName": "Genoa Salami",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Sesame"
+                    }
+                  ],
+                  "calories": "39",
+                  "description": "Pureed garbanzo beans and tahini with olive oil, garlic, lemon and cumin",
+                  "formalName": "Hummus",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "50",
+                  "description": "Provolone Cheese",
+                  "formalName": "Provolone Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "2",
+                  "description": "Shredded Lettuce",
+                  "formalName": "Shredded Lettuce",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "6",
+                  "description": "Sliced Fresh Red Onions",
+                  "formalName": "Sliced Fresh Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "4",
+                  "description": "Sliced Tomato",
+                  "formalName": "Sliced Tomato",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "59",
+                  "description": "Ham, Smoked Low Sodium, Shaved, 2 oz",
+                  "formalName": "Ham, Smoked Low Sodium, Shaved, 2 oz",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "112",
+                  "description": "Swiss Cheese",
+                  "formalName": "Swiss Cheese",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Egg"
+                    },
+                    {
+                      "name": "Fish"
+                    }
+                  ],
+                  "calories": "238",
+                  "description": "Tuna, celery, mayonnaise, kosher salt and black pepper",
+                  "formalName": "Tuna Salad",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Stacked"
+            },
+            {
+              "items": [
+                {
+                  "allergens": [
+                    {
+                      "name": "Milk"
+                    }
+                  ],
+                  "calories": "7",
+                  "description": "Parsley Parmesan Topping",
+                  "formalName": "Parsley Parmesan Topping",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "59",
+                  "description": "Marinara Sauce",
+                  "formalName": "Marinara Sauce",
+                  "isMindful": false,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "24",
+                  "description": "Red onions roasted with balsamic vinegar, olive oil, kosher salt and black pepper",
+                  "formalName": "Balsamic Roasted Red Onions",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "allergens": [
+                    {
+                      "name": "Gluten"
+                    },
+                    {
+                      "name": "Wheat"
+                    }
+                  ],
+                  "calories": "197",
+                  "description": "Cavatappi Pasta",
+                  "formalName": "Cavatappi Pasta",
+                  "isMindful": true,
+                  "isPlantBased": true,
+                  "isVegan": true,
+                  "isVegetarian": true
+                },
+                {
+                  "calories": "41",
+                  "description": "Italian tomato sauce simmered with bacon, hot pepper flakes and fresh basil",
+                  "formalName": "Arrabiata Sauce",
+                  "isMindful": false,
+                  "isPlantBased": false,
+                  "isVegan": false,
+                  "isVegetarian": false
+                }
+              ],
+              "name": "Twists"
+            }
+          ],
+          "name": "Late Night"
+        }
+      ]
+    },
+    {
+      "date": "2026-08-29",
+      "sections": []
+    },
+    {
+      "date": "2026-08-30",
+      "sections": []
+    },
+    {
+      "date": "2026-08-31",
+      "sections": []
+    },
+    {
+      "date": "2026-09-01",
+      "sections": []
+    },
+    {
+      "date": "2026-09-02",
+      "sections": []
+    }
+  ],
+  "version": 1
+}
