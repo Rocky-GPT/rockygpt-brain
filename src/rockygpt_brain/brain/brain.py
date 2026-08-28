@@ -96,7 +96,7 @@ class Brain:
             recording.failed = f"{type(exc).__name__}: {exc}"
             raise
         finally:
-            recording.write(self._memory)
+            await recording.write(self._memory)
 
     async def _turn(
         self,
@@ -260,8 +260,8 @@ class _Recording:
     citations: list[Citation] = field(default_factory=list)
     failed: str = ""
 
-    def write(self, memory: MemoryStore) -> None:
-        memory.record(
+    async def write(self, memory: MemoryStore) -> None:
+        await memory.record(
             request_id=self.identity.request_id,
             session_id=self.identity.session_id,
             visitor_id=self.identity.visitor_id,

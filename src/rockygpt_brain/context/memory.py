@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 from collections import defaultdict
-from collections.abc import AsyncIterator, Coroutine
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -23,6 +23,16 @@ from rockygpt_brain.context.schema import Turn
 
 logger = logging.getLogger(__name__)
 
+# How long a turn may wait on its own recording.
+#
+# The write is awaited, so the answer is not sent until the turn is on disk;
+# that is what makes the log trustworthy rather than probabilistic. A bound is
+# what keeps the guarantee from turning into a hostage situation: a database
+# that is unreachable, or asleep and slow to wake, must cost a logged failure
+# and a few seconds, never the answer itself. Long enough for a cold Neon
+# instance to wake, short enough that nobody sits watching a spinner for it.
+PERSIST_TIMEOUT_SECONDS = 5.0
+
 
 class MemoryStore:
     def __init__(self, durable_logs: PostgresLogStore | None = None) -> None:
@@ -30,12 +40,11 @@ class MemoryStore:
         self._logs: list[ChatLogItem] = []
         self._version = 0
         self._durable_logs = durable_logs
-        self._pending: set[asyncio.Task[None]] = set()
 
     def history(self, session_id: str) -> list[dict[str, Any]]:
         return [turn.prompt_value() for turn in self._turns[session_id][-HISTORY_EXCHANGES:]]
 
-    def record(
+    async def record(
         self,
         *,
         request_id: str,
@@ -78,24 +87,24 @@ class MemoryStore:
         )
         self._logs.append(item)
         self._version += 1
-        if self._durable_logs is not None:
-            self._schedule(self._durable_logs.record(item), "persist chat turn")
-
-    def _schedule(self, work: Coroutine[Any, Any, None], operation: str) -> None:
-        async def guarded() -> None:
-            try:
-                await work
-            except Exception:
-                logger.exception("Failed to %s", operation)
-
-        try:
-            task = asyncio.get_running_loop().create_task(guarded())
-        except RuntimeError:
-            work.close()
-            logger.warning("Skipped durable log operation outside an async runtime: %s", operation)
+        if self._durable_logs is None:
             return
-        self._pending.add(task)
-        task.add_done_callback(self._pending.discard)
+        # Awaited, not scheduled. A turn that was answered but not recorded is
+        # indistinguishable from one that never happened, and a detached task
+        # is only as durable as the process that outlives it — which, for a
+        # container that suspends when idle, is not a guarantee at all.
+        try:
+            await asyncio.wait_for(self._durable_logs.record(item), PERSIST_TIMEOUT_SECONDS)
+        except TimeoutError:
+            logger.error(
+                "Timed out after %ss persisting chat turn %s; the answer was still sent",
+                PERSIST_TIMEOUT_SECONDS,
+                request_id,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to persist chat turn %s; the answer was still sent", request_id
+            )
 
     def save_feedback(self, feedback: FeedbackRequest) -> None:
         for index, item in enumerate(self._logs):
@@ -214,7 +223,5 @@ class MemoryStore:
             await asyncio.sleep(1)
 
     async def close(self) -> None:
-        if self._pending:
-            await asyncio.gather(*tuple(self._pending), return_exceptions=True)
         if self._durable_logs is not None:
             await self._durable_logs.close()

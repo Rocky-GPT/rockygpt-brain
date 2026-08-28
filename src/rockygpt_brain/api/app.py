@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
@@ -50,6 +51,8 @@ OriginHeader = Annotated[
     Literal["client", "dev", "bot"] | None,
     Header(alias="x-rockygpt-origin"),
 ]
+
+logger = logging.getLogger(__name__)
 
 _DEVELOPMENT_LOG_HASH_KEY = "rockygpt-development-only-hash-key"
 
@@ -121,6 +124,7 @@ def create_app(
         config.secret_value(config.openai_api_key),
         config.openai_web_model,
     )
+    durable_logs: PostgresLogStore | None = None
     if memory is not None:
         memory_store = memory
     else:
@@ -152,6 +156,15 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
+        # Open the log pool before serving, not on the first turn that needs it.
+        # Lazily, the first write also pays for a TLS handshake to Neon and the
+        # schema DDL — seconds of work, on the one write most likely to be
+        # interrupted, since a cold container is a container about to idle out.
+        if durable_logs is not None:
+            try:
+                await durable_logs.initialize()
+            except Exception:
+                logger.exception("Chat logs are unavailable; answers will not be recorded")
         try:
             yield
         finally:
