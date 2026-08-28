@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -45,10 +45,6 @@ from rockygpt_brain.services.data import DataPort, DataUnavailable, HttpData
 from rockygpt_brain.services.rag.client import HttpRag, RagPort
 from rockygpt_brain.services.web import OpenAIWeb, WebPort
 
-EnvironmentHeader = Annotated[
-    str | None,
-    Header(alias="x-rockygpt-environment-token"),
-]
 AuthorizationHeader = Annotated[str | None, Header(alias="authorization")]
 OriginHeader = Annotated[
     Literal["client", "dev", "bot"] | None,
@@ -155,7 +151,7 @@ def create_app(
     started = time.monotonic()
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
         try:
             yield
         finally:
@@ -197,11 +193,6 @@ def create_app(
             request.state.request_id,
             Internal("An unexpected error occurred."),
         )
-
-    def check_environment(token: str | None) -> None:
-        expected = config.secret_value(config.staging_service_token)
-        if expected and token != expected:
-            raise Unauthorized("Unauthorized.")
 
     def check_admin(authorization: str | None) -> None:
         expected = config.secret_value(config.admin_api_token)
@@ -257,10 +248,8 @@ def create_app(
     async def chat(
         request: Request,
         body: ChatRequest,
-        environment_token: EnvironmentHeader = None,
         origin_header: OriginHeader = None,
     ) -> ChatSuccess:
-        check_environment(environment_token)
         session_id = body.conversation_id or body.visitor_id or request.state.request_id
         return await brain.answer(
             body,
@@ -275,9 +264,7 @@ def create_app(
     @app.post("/v1/feedback", response_model=FeedbackSuccess)
     async def feedback(
         body: FeedbackRequest,
-        environment_token: EnvironmentHeader = None,
     ) -> FeedbackSuccess:
-        check_environment(environment_token)
         await memory_store.save_feedback_persisted(body)
         return FeedbackSuccess()
 
@@ -286,7 +273,6 @@ def create_app(
         @app.get("/v1/admin/logs")
         async def list_logs(
             authorization: AuthorizationHeader = None,
-            environment_token: EnvironmentHeader = None,
             search: Annotated[str | None, Query()] = None,
             route: Annotated[str | None, Query()] = None,
             origin: Annotated[str | None, Query()] = None,
@@ -294,7 +280,6 @@ def create_app(
             limit: Annotated[int, Query(ge=1, le=100)] = 100,
             if_none_match: Annotated[str | None, Header(alias="If-None-Match")] = None,
         ) -> Response:
-            check_environment(environment_token)
             check_admin(authorization)
             requested_version = version or (if_none_match or "").strip('"') or None
             result = await memory_store.read_logs(
@@ -314,9 +299,7 @@ def create_app(
         async def operator_feedback(
             body: OperatorFeedbackRequest,
             authorization: AuthorizationHeader = None,
-            environment_token: EnvironmentHeader = None,
         ) -> FeedbackSuccess:
-            check_environment(environment_token)
             check_admin(authorization)
             await memory_store.set_operator_feedback_persisted(body.log_id, body.feedback)
             return FeedbackSuccess()
@@ -324,9 +307,7 @@ def create_app(
         @app.get("/v1/admin/logs/stream")
         async def log_stream(
             authorization: AuthorizationHeader = None,
-            environment_token: EnvironmentHeader = None,
         ) -> StreamingResponse:
-            check_environment(environment_token)
             check_admin(authorization)
             return StreamingResponse(memory_store.changes(), media_type="text/event-stream")
 
