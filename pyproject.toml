@@ -36,7 +36,7 @@ packages = ["src/rockygpt_brain"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["src", "tests"]
+src = ["src", "tests", "tools"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "S", "ASYNC"]
@@ -44,12 +44,13 @@ ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]
+"tools/**" = ["S101", "S105", "S106"]
 "src/rockygpt_brain/context/postgres_logs.py" = ["S608"]
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
-mypy_path = ["src", "tests"]
+mypy_path = ["src", "tests", "."]
 explicit_package_bases = true
 plugins = ["pydantic.mypy"]
 
@@ -60,7 +61,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 
 [tool.coverage.run]
 source = ["src/rockygpt_brain"]
