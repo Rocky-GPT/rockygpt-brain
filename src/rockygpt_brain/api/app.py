@@ -118,7 +118,17 @@ def create_app(
         config.secret_value(config.openai_api_key),
         config.openai_planner_model,
     )
-    data_port = data or HttpData(config.data_url, config.data_timeout_seconds)
+    database_url = config.secret_value(config.database_url)
+    if data is not None:
+        data_port = data
+    elif config.data_backend == "postgres" and database_url:
+        from rockygpt_brain.services.postgres_data import PostgresData
+
+        http_fallback = HttpData(config.data_url, config.data_timeout_seconds)
+        data_port = PostgresData(database_url, fallback_http=http_fallback)
+    else:
+        data_port = HttpData(config.data_url, config.data_timeout_seconds)
+
     documents_port = documents or HttpRag(config.data_url, config.data_timeout_seconds)
     web_port = web or OpenAIWeb(
         config.secret_value(config.openai_api_key),
@@ -128,7 +138,6 @@ def create_app(
     if memory is not None:
         memory_store = memory
     else:
-        database_url = config.secret_value(config.database_url)
         durable_logs = (
             PostgresLogStore(
                 database_url,
