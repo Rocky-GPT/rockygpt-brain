@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import subprocess
+
 import uvicorn
 
 from rockygpt_brain.api.app import app as app
@@ -8,12 +10,17 @@ from rockygpt_brain.config import get_settings
 
 
 def _free_port(port: int) -> None:
-    try:
-        pids = subprocess.check_output(["lsof", "-ti", f":{port}"], text=True).strip().split()
+    with contextlib.suppress(Exception):
+        pids = (
+            subprocess.check_output(  # noqa: S603
+                ["lsof", "-ti", f":{port}"],  # noqa: S607
+                text=True,
+            )
+            .strip()
+            .split()
+        )
         if pids:
-            subprocess.run(["kill", "-9", *pids], check=False)
-    except Exception:
-        pass
+            subprocess.run(["kill", "-9", *pids], check=False)  # noqa: S603, S607
 
 
 def run() -> None:
