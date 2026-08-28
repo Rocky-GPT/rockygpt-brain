@@ -47,7 +47,7 @@ from rockygpt_brain.lanes.code.run import project
 from rockygpt_brain.services.artifacts import ArtifactPort, PublishedArtifact, UnavailableArtifacts
 from rockygpt_brain.services.data import DataPort, DataUnavailable, UnavailableData
 from rockygpt_brain.services.rag.client import RagPort, UnavailableRag
-from rockygpt_brain.services.ui_data import UiDataService
+from rockygpt_brain.services.ui_data import InvalidDate, UiDataService
 from rockygpt_brain.services.web import OpenAIWeb, WebPort
 
 AuthorizationHeader = Annotated[str | None, Header(alias="authorization")]
@@ -363,11 +363,10 @@ def create_app(
 
     @app.get("/v1/shuttle")
     async def shuttle_data() -> Response:
-        try:
-            payload, artifact = await ui_data.shuttle()
-        except DataUnavailable as exc:
-            raise DatasetUnavailable("Shuttle data is unavailable.") from exc
-        return _json(payload, headers=_artifact_headers(artifact))
+        return _json(
+            await ui_data.shuttle(),
+            headers={"Cache-Control": _PUBLIC_DATA_CACHE},
+        )
 
     @app.get("/v1/menu")
     async def menu_data() -> Response:
@@ -381,9 +380,9 @@ def create_app(
     async def menu_browse_data(date: Annotated[str, Query()]) -> Response:
         try:
             payload, artifact = await ui_data.menu_browse(date)
-        except ValueError as exc:
-            raise BadRequest("date must use YYYY-MM-DD") from exc
-        except DataUnavailable as exc:
+        except InvalidDate as exc:
+            raise BadRequest(str(exc)) from exc
+        except (DataUnavailable, ValueError) as exc:
             raise DatasetUnavailable("Menu data is unavailable.") from exc
         return _json(payload, headers=_artifact_headers(artifact))
 
@@ -391,9 +390,9 @@ def create_app(
     async def dining_hours_data(date: Annotated[str | None, Query()] = None) -> Response:
         try:
             payload, artifact = await ui_data.dining_hours(date)
-        except ValueError as exc:
-            raise BadRequest("date must use YYYY-MM-DD") from exc
-        except DataUnavailable as exc:
+        except InvalidDate as exc:
+            raise BadRequest(str(exc)) from exc
+        except (DataUnavailable, ValueError) as exc:
             raise DatasetUnavailable("Dining hours are unavailable.") from exc
         return _json(payload, headers=_artifact_headers(artifact))
 

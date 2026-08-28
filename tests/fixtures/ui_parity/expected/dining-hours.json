@@ -1,0 +1,207 @@
+{
+  "dateFormatted": "Friday, August 28, 2026",
+  "generalHours": [
+    {
+      "emoji": "🍽️",
+      "name": "Birch Tree Inn",
+      "schedule": [
+        {
+          "days": "Monday, Tuesday, Wednesday, Thursday, Friday",
+          "hours": [
+            {
+              "label": "Breakfast",
+              "time": "08:00 AM - 10:30 AM"
+            },
+            {
+              "label": "Continental",
+              "time": "10:30 AM - 11:00 AM"
+            },
+            {
+              "label": "Lunch",
+              "time": "11:00 AM - 02:00 PM"
+            },
+            {
+              "label": "Lite Lunch",
+              "time": "02:00 PM - 05:00 PM"
+            },
+            {
+              "label": "Dinner",
+              "time": "05:00 PM - 08:00 PM"
+            },
+            {
+              "label": "Late Night",
+              "time": "09:00 PM - 11:00 PM"
+            }
+          ]
+        },
+        {
+          "days": "Saturday, Sunday",
+          "hours": [
+            {
+              "label": "Brunch",
+              "time": "10:30 AM - 03:00 PM"
+            },
+            {
+              "label": "Lite Lunch",
+              "time": "03:00 PM - 05:00 PM"
+            },
+            {
+              "label": "Dinner",
+              "time": "05:00 PM - 07:00 PM"
+            },
+            {
+              "label": "Late Night",
+              "time": "08:00 PM - 10:00 PM"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "emoji": "☕",
+      "name": "Dunkin'",
+      "schedule": [
+        {
+          "days": "Monday, Tuesday, Wednesday, Thursday, Friday",
+          "hours": [
+            {
+              "time": "07:30 AM - 03:00 PM"
+            }
+          ]
+        },
+        {
+          "days": "Saturday, Sunday",
+          "hours": [
+            {
+              "label": "Closed",
+              "time": "Closed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "emoji": "🥗",
+      "name": "The Atrium",
+      "schedule": [
+        {
+          "days": "Monday, Tuesday, Wednesday, Thursday, Friday",
+          "hours": [
+            {
+              "time": "07:30 AM - 07:00 PM"
+            }
+          ]
+        },
+        {
+          "days": "Saturday, Sunday",
+          "hours": [
+            {
+              "time": "Closed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "emoji": "☕",
+      "name": "We Proudly Serve Starbucks at Common Grounds",
+      "schedule": [
+        {
+          "days": "Monday, Tuesday, Wednesday, Thursday",
+          "hours": [
+            {
+              "time": "10:00 AM - 08:00 PM"
+            }
+          ]
+        },
+        {
+          "days": "Friday",
+          "hours": [
+            {
+              "time": "12:00 PM - 05:00 PM"
+            }
+          ]
+        },
+        {
+          "days": "Saturday, Sunday",
+          "hours": [
+            {
+              "label": "Closed",
+              "time": "Closed"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "locations": [
+    {
+      "emoji": "🍽️",
+      "hours": [
+        {
+          "label": "Breakfast",
+          "time": "Breakfast: 08:00 AM - 10:30 AM"
+        },
+        {
+          "label": "Continental",
+          "time": "Continental: 10:30 AM - 11:00 AM"
+        },
+        {
+          "label": "Lunch",
+          "time": "Lunch: 11:00 AM - 02:00 PM"
+        },
+        {
+          "label": "Lite Lunch",
+          "time": "Lite Lunch: 02:00 PM - 05:00 PM"
+        },
+        {
+          "label": "Dinner",
+          "time": "Dinner: 05:00 PM - 08:00 PM"
+        },
+        {
+          "label": "Late Night",
+          "time": "Late Night: 09:00 PM - 11:00 PM"
+        }
+      ],
+      "isOverride": false,
+      "name": "Birch Tree Inn",
+      "todayLabel": "Friday"
+    },
+    {
+      "emoji": "☕",
+      "hours": [
+        {
+          "time": "07:30 AM - 03:00 PM"
+        }
+      ],
+      "isOverride": false,
+      "name": "Dunkin'",
+      "todayLabel": "Friday"
+    },
+    {
+      "emoji": "🥗",
+      "hours": [
+        {
+          "time": "07:30 AM - 07:00 PM"
+        }
+      ],
+      "isOverride": false,
+      "name": "The Atrium",
+      "todayLabel": "Friday"
+    },
+    {
+      "emoji": "☕",
+      "hours": [
+        {
+          "time": "12:00 PM - 05:00 PM"
+        }
+      ],
+      "isOverride": false,
+      "name": "We Proudly Serve Starbucks at Common Grounds",
+      "todayLabel": "Friday"
+    }
+  ],
+  "releaseVersion": "v2-20260827205853",
+  "success": true,
+  "today": "Friday"
+}

@@ -1,0 +1,1155 @@
+{
+  "allContacts": [
+    {
+      "bucket": "Offices",
+      "category": "Emergency",
+      "department": "Public Safety",
+      "email": "publicsafety@ramapo.edu",
+      "helpsWith": [
+        "Emergencies",
+        "Safety escorts",
+        "Incident reports"
+      ],
+      "id": "office-1-public-safety-emergency",
+      "kind": "office",
+      "name": "Public Safety (Emergency)",
+      "office": "C-102",
+      "phone": "201-684-6666",
+      "searchText": "public safety (emergency) 201-684-6666 emergency publicsafety@ramapo.edu public safety c-102 emergencies safety escorts incident reports",
+      "source": "office-static"
+    },
+    {
+      "bucket": "Offices",
+      "category": "Emergency",
+      "department": "Public Safety",
+      "email": "secdesk@ramapo.edu",
+      "helpsWith": [
+        "Safety escorts",
+        "Lost & found",
+        "General safety questions"
+      ],
+      "id": "office-2-public-safety-non-emergency",
+      "kind": "office",
+      "name": "Public Safety (Non-Emergency)",
+      "office": "C-102",
+      "phone": "201-684-7432",
+      "searchText": "public safety (non-emergency) 201-684-7432 emergency secdesk@ramapo.edu public safety c-102 safety escorts lost & found general safety questions",
+      "source": "office-static"
+    },
+    {
+      "bucket": "Offices",
+      "category": "Dining",
+      "department": "Dining Services",
+      "email": "jeff.dannhardt@sodexo.com",
+      "helpsWith": [
+        "Meal service info",
+        "Dining questions"
+      ],
+      "id": "office-3-birch-tree-inn",
+      "kind": "office",
+      "name": "Birch Tree Inn",
+      "phone": "201-684-7592",
+      "searchText": "birch tree inn 201-684-7592 dining jeff.dannhardt@sodexo.com dining services meal service info dining questions",
+      "source": "office-static"
+    },
+    {
+      "bucket": "Offices",
+      "category": "Academic",
+      "department": "Office of the Registrar",
+      "email": "registrar@ramapo.edu",
+      "helpsWith": [
+        "Registration",
+        "Transcripts",
+        "Graduation records"
+      ],
+      "id": "office-4-registrar",
+      "kind": "office",
+      "name": "Registrar",
+      "office": "D-224",
+      "phone": "201-684-7695",
+      "searchText": "registrar 201-684-7695 academic registrar@ramapo.edu office of the registrar d-224 registration transcripts graduation records",
+      "source": "office-static"
+    },
+    {
+      "bucket": "Offices",
+      "category": "Academic",
+      "department": "Center for Student Success",
+      "email": "success@ramapo.edu",
+      "helpsWith": [
+        "Academic Advising",
+        "Degree planning",
+        "Course withdrawal guidance",
+        "Academic support"
+      ],
+      "id": "office-5-center-for-student-success-academic-advising",
+      "kind": "office",
+      "name": "Center for Student Success (Academic Advising)",
+      "office": "D-207",
+      "phone": "201-684-7441",
+      "searchText": "center for student success (academic advising) 201-684-7441 academic success@ramapo.edu center for student success d-207 academic advising degree planning course withdrawal guidance academic support",
+      "source": "office-static"
+    },
+    {
+      "bucket": "Offices",
+      "category": "Academic",
+      "department": "Anisfield School of Business",
+      "email": "asb@ramapo.edu",
+      "helpsWith": [
+        "Business programs",
+        "School contacts",
+        "Academic questions"
+      ],
+      "id": "office-6-anisfield-school-of-business",
+      "kind": "office",
+      "name": "Anisfield School of Business",
+      "office": "ASB-333",
+      "phone": "201-684-7378",
+      "searchText": "anisfield school of business 201-684-7378 academic asb@ramapo.edu anisfield school of business asb-333 business programs school contacts academic questions",
+      "source": "office-static"
+    },
+    {
+      "bucket": "Offices",
+      "category": "Financial",
+      "department": "Financial Aid",
+      "email": "finaid@ramapo.edu",
+      "helpsWith": [
+        "FAFSA",
+        "Aid packages",
+        "Funding questions"
+      ],
+      "id": "office-7-financial-aid",
+      "kind": "office",
+      "name": "Financial Aid",
+      "office": "E-210",
+      "phone": "201-684-7549",
+      "searchText": "financial aid 201-684-7549 financial finaid@ramapo.edu financial aid e-210 fafsa aid packages funding questions",
+      "source": "office-static"
+    },
+    {
+      "bucket": "Offices",
+      "category": "Services",
+      "department": "Information Technology Services",
+      "email": "helpdesk@ramapo.edu",
+      "helpsWith": [
+        "Password reset",
+        "Wi-Fi help",
+        "Account access",
+        "Canvas help",
+        "Account lockout"
+      ],
+      "id": "office-8-it-help-desk",
+      "kind": "office",
+      "name": "IT Help Desk",
+      "phone": "201-684-7777",
+      "searchText": "it help desk 201-684-7777 services helpdesk@ramapo.edu information technology services password reset wi-fi help account access canvas help account lockout",
+      "source": "office-static"
+    },
+    {
+      "bucket": "Offices",
+      "category": "Health",
+      "department": "Health Services",
+      "email": "immunize@ramapo.edu",
+      "helpsWith": [
+        "Appointments",
+        "Immunization records",
+        "Medical forms"
+      ],
+      "id": "office-9-health-services",
+      "kind": "office",
+      "name": "Health Services",
+      "office": "D-216C",
+      "phone": "201-684-7536",
+      "searchText": "health services 201-684-7536 health immunize@ramapo.edu health services d-216c appointments immunization records medical forms",
+      "source": "office-static"
+    },
+    {
+      "bucket": "Offices",
+      "category": "Health",
+      "department": "Counseling Services",
+      "email": "studentwellness@ramapo.edu",
+      "helpsWith": [
+        "Mental health support",
+        "Crisis support",
+        "Wellness resources"
+      ],
+      "id": "office-10-counseling-center",
+      "kind": "office",
+      "name": "Counseling Center",
+      "office": "D-216",
+      "phone": "201-684-7522",
+      "searchText": "counseling center 201-684-7522 health studentwellness@ramapo.edu counseling services d-216 mental health support crisis support wellness resources",
+      "source": "office-static"
+    },
+    {
+      "bucket": "Offices",
+      "category": "Housing",
+      "department": "Residence Life",
+      "email": "reslife@ramapo.edu",
+      "helpsWith": [
+        "Housing assignments",
+        "Room changes",
+        "Residence policies"
+      ],
+      "id": "office-11-housing-residence-life",
+      "kind": "office",
+      "name": "Housing & Residence Life",
+      "office": "The Lodge",
+      "phone": "201-684-7453",
+      "searchText": "housing & residence life 201-684-7453 housing reslife@ramapo.edu residence life the lodge housing assignments room changes residence policies",
+      "source": "office-static"
+    },
+    {
+      "bucket": "Offices",
+      "category": "Student Life",
+      "department": "Center for Student Involvement",
+      "email": "csi@ramapo.edu",
+      "helpsWith": [
+        "Student clubs",
+        "Campus events",
+        "Leadership opportunities"
+      ],
+      "id": "office-12-center-for-student-involvement",
+      "kind": "office",
+      "name": "Center for Student Involvement",
+      "office": "SC-202",
+      "phone": "201-684-7593",
+      "searchText": "center for student involvement 201-684-7593 student life csi@ramapo.edu center for student involvement sc-202 student clubs campus events leadership opportunities",
+      "source": "office-static"
+    },
+    {
+      "bucket": "Offices",
+      "category": "Athletics",
+      "department": "Athletics",
+      "email": "information@ramapo.edu",
+      "helpsWith": [
+        "Varsity athletics",
+        "Team contacts"
+      ],
+      "id": "office-13-athletics",
+      "kind": "office",
+      "name": "Athletics",
+      "phone": "201-684-7095",
+      "searchText": "athletics 201-684-7095 athletics information@ramapo.edu athletics varsity athletics team contacts",
+      "source": "office-static"
+    },
+    {
+      "bucket": "Offices",
+      "category": "Academic",
+      "department": "Potter Library",
+      "email": "refdesk@ramapo.edu",
+      "helpsWith": [
+        "Research help",
+        "Citation support",
+        "Borrowing services"
+      ],
+      "id": "office-14-library",
+      "kind": "office",
+      "name": "Library",
+      "phone": "201-684-7578",
+      "searchText": "library 201-684-7578 academic refdesk@ramapo.edu potter library research help citation support borrowing services",
+      "source": "office-static"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "id": "faculty-1-aaron-r-s-lorenz",
+      "imageUrl": "https://www.ramapo.edu/sssw/wp-content/uploads/sites/16/2013/02/Lorenz-Aaron-Web-146x182.jpg",
+      "kind": "person",
+      "name": "Aaron R. S. Lorenz",
+      "office": "ASB-431",
+      "phone": "(201) 684-7624",
+      "profileUrl": "https://www.ramapo.edu/sssw/faculty/aaron-r-s-lorenz/",
+      "school": "School of Social Sciences and Social Work (Retired)",
+      "searchText": "aaron r. s. lorenz school of social sciences and social work - retired school of social sciences and social work (retired) (201) 684-7624 asb-431",
+      "source": "faculty-dataset",
+      "title": "School of Social Sciences and Social Work - Retired"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "afried1@ramapo.edu",
+      "id": "faculty-2-adam-fried",
+      "imageUrl": "https://www.ramapo.edu/ahe/wp-content/themes/rcnjrd/images/archBig.jpg",
+      "kind": "person",
+      "name": "Adam Fried",
+      "office": "E-231",
+      "phone": "(201) 684-7613",
+      "profileUrl": "https://www.ramapo.edu/ahe/faculty/adam-fried/",
+      "school": "School of Arts, Humanities, and Education",
+      "searchText": "adam fried assistant dean, teachers education school of arts, humanities, and education afried1@ramapo.edu (201) 684-7613 e-231",
+      "source": "faculty-dataset",
+      "title": "Assistant Dean, Teachers Education"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "id": "faculty-3-alexander-urbiel",
+      "imageUrl": "https://www.ramapo.edu/sssw/wp-content/uploads/sites/16/2013/02/Urbiel-Alexander.jpg",
+      "kind": "person",
+      "name": "Alexander Urbiel",
+      "office": "E-226",
+      "phone": "(201) 684-7794",
+      "profileUrl": "https://www.ramapo.edu/sssw/faculty/alexander-urbiel/",
+      "school": "School of Social Sciences and Social Work (Retired)",
+      "searchText": "alexander urbiel professor of history - retired school of social sciences and social work (retired) (201) 684-7794 e-226",
+      "source": "faculty-dataset",
+      "title": "Professor of History - Retired"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "aolbrech@ramapo.edu",
+      "id": "faculty-4-alexandre-olbrecht",
+      "imageUrl": "https://www.ramapo.edu/asb/wp-content/uploads/sites/9/2016/10/Olbrecht_Alex_10.4.16_02-121x182.jpg",
+      "kind": "person",
+      "name": "Alexandre Olbrecht",
+      "office": "ASB-205",
+      "phone": "(201) 684-7346",
+      "profileUrl": "https://www.ramapo.edu/asb/faculty/alexandre-olbrecht/",
+      "school": "Anisfield School of Business",
+      "searchText": "alexandre olbrecht professor of economics executive director, eastern economic association anisfield school of business aolbrech@ramapo.edu (201) 684-7346 asb-205",
+      "source": "faculty-dataset",
+      "title": "Professor of Economics Executive Director, Eastern Economic Association"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "aaljuboo@ramapo.edu",
+      "id": "faculty-5-ali-al-juboori",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2022/01/Al-Juboori-Ali-10.7.21-02.jpg",
+      "kind": "person",
+      "name": "Ali Al-Juboori",
+      "office": "ASB405",
+      "phone": "(201) 684-6232",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/ali-al-juboori/",
+      "school": "School of Science, Nursing, and Health",
+      "searchText": "ali al-juboori associate professor of computer science school of science, nursing, and health aaljuboo@ramapo.edu (201) 684-6232 asb405",
+      "source": "faculty-dataset",
+      "title": "Associate Professor of Computer Science"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "apark7@ramapo.edu",
+      "id": "faculty-6-alice-park",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2024/06/Alice-Park_faculty-profile-152x152.jpg",
+      "kind": "person",
+      "name": "Alice Park",
+      "office": "AC-210Q",
+      "phone": "(201) 684-7746",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/alice-park/",
+      "school": "School of Science, Nursing, and Health",
+      "searchText": "alice park assistant professor of nursing school of science, nursing, and health apark7@ramapo.edu (201) 684-7746 ac-210q",
+      "source": "faculty-dataset",
+      "title": "Assistant Professor of Nursing"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "amruth@ramapo.edu",
+      "id": "faculty-7-amruth-kumar",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2013/02/Kumar-Amruth.jpeg",
+      "kind": "person",
+      "name": "Amruth Kumar",
+      "office": "ASB 408",
+      "phone": "(201) 684-7712",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/amruth-kumar/",
+      "school": "School of Science, Nursing, and Health",
+      "searchText": "amruth kumar professor of computer science school of science, nursing, and health amruth@ramapo.edu (201) 684-7712 asb 408",
+      "source": "faculty-dataset",
+      "title": "Professor of Computer Science"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "asailer@ramapo.edu",
+      "id": "faculty-8-amy-sailer",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2022/09/Picture1-120x182.jpg",
+      "kind": "person",
+      "name": "Amy Sailer",
+      "office": "AC-210A",
+      "phone": "(201) 684-7753",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/amy-sailer/",
+      "school": "School of Science, Nursing, and Health",
+      "searchText": "amy sailer assistant professor of nursing school of science, nursing, and health asailer@ramapo.edu (201) 684-7753 ac-210a",
+      "source": "faculty-dataset",
+      "title": "Assistant Professor of Nursing"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "acappell@ramapo.edu",
+      "id": "faculty-9-anita-cappello",
+      "kind": "person",
+      "name": "Anita Cappello",
+      "profileUrl": "https://www.ramapo.edu/library/staff/",
+      "school": "Library Faculty & Staff",
+      "searchText": "anita cappello monograph purchasing library faculty & staff acappell@ramapo.edu",
+      "source": "faculty-dataset",
+      "title": "Monograph Purchasing"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "alepore@ramapo.edu",
+      "id": "faculty-10-ann-lepore",
+      "imageUrl": "https://www.ramapo.edu/ahe/wp-content/uploads/sites/12/2013/02/LePore-head-shot-1.jpg",
+      "kind": "person",
+      "name": "Ann LePore",
+      "office": "BC-147",
+      "phone": "(201) 684-6288",
+      "profileUrl": "https://www.ramapo.edu/ahe/faculty/ann-lepore/",
+      "school": "School of Arts, Humanities, and Education",
+      "searchText": "ann lepore associate professor of 3d design and animation school of arts, humanities, and education alepore@ramapo.edu (201) 684-6288 bc-147",
+      "source": "faculty-dataset",
+      "title": "Associate Professor of 3D Design and Animation"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "id": "faculty-11-anne-degroot",
+      "imageUrl": "https://www.ramapo.edu/sssw/wp-content/uploads/sites/16/2013/02/DeGroot-Anne.jpg",
+      "kind": "person",
+      "name": "Anne DeGroot",
+      "office": "E-225",
+      "phone": "(201) 684-7857",
+      "profileUrl": "https://www.ramapo.edu/sssw/faculty/anne-degroot/",
+      "school": "School of Social Sciences and Social Work (Retired)",
+      "searchText": "anne degroot assistant professor of teacher education - retired school of social sciences and social work (retired) (201) 684-7857 e-225",
+      "source": "faculty-dataset",
+      "title": "Assistant Professor of Teacher Education - Retired"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "aflatekv@ramapo.edu",
+      "id": "faculty-12-anne-marie-flatekval",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2017/09/Flatekval-Anne-Marie-9.6.17-15.jpg",
+      "kind": "person",
+      "name": "Anne Marie Flatekval",
+      "office": "AC-210B",
+      "phone": "(201) 684-7716",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/anne-marie-flatekval/",
+      "school": "School of Science, Nursing, and Health",
+      "searchText": "anne marie flatekval associate professor of nursing school of science, nursing, and health aflatekv@ramapo.edu (201) 684-7716 ac-210b",
+      "source": "faculty-dataset",
+      "title": "Associate Professor of Nursing"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "acanatay@ramapo.edu",
+      "id": "faculty-13-arman-canatay",
+      "imageUrl": "https://www.ramapo.edu/asb/wp-content/uploads/sites/9/2023/10/Canatay-Arman-8.30.23-01-e1696950892194-147x182.jpg",
+      "kind": "person",
+      "name": "Arman Canatay",
+      "office": "ASB 311",
+      "phone": "(201) 684-7335",
+      "profileUrl": "https://www.ramapo.edu/asb/faculty/arman-canatay/",
+      "school": "Anisfield School of Business",
+      "searchText": "arman canatay assistant professor of international business anisfield school of business acanatay@ramapo.edu (201) 684-7335 asb 311",
+      "source": "faculty-dataset",
+      "title": "Assistant Professor of International Business"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "astuart@ramapo.edu",
+      "id": "faculty-14-ashley-stuart",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2013/02/Stuart-Ash.jpeg",
+      "kind": "person",
+      "name": "Ashley Stuart",
+      "office": "G-313",
+      "phone": "(201) 684-6222",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/ashley-stuart/",
+      "school": "School of Science, Nursing, and Health",
+      "searchText": "ashley stuart associate professor of biochemistry school of science, nursing, and health astuart@ramapo.edu (201) 684-6222 g-313",
+      "source": "faculty-dataset",
+      "title": "Associate Professor of Biochemistry"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "id": "faculty-15-ashwani-vasishth",
+      "imageUrl": "https://www.ramapo.edu/sssw/wp-content/uploads/sites/16/2025/02/Vasishth-Ashwani-Web-146x182.jpg",
+      "kind": "person",
+      "name": "Ashwani Vasishth",
+      "office": "G-202A",
+      "phone": "(201) 684-6616",
+      "profileUrl": "https://www.ramapo.edu/sssw/faculty/ashwani-vasishth/",
+      "school": "School of Social Sciences and Social Work (Retired)",
+      "searchText": "ashwani vasishth professor of sustainability - retired school of social sciences and social work (retired) (201) 684-6616 g-202a",
+      "source": "faculty-dataset",
+      "title": "Professor of Sustainability - Retired"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "ababakha@ramapo.edu",
+      "id": "faculty-16-atieh-babakhani",
+      "imageUrl": "https://www.ramapo.edu/sssw/wp-content/uploads/sites/16/2023/08/IMG_0123-4-149x182.jpeg",
+      "kind": "person",
+      "name": "Atieh Babakhani",
+      "office": "G228",
+      "phone": "(201) 684-7060",
+      "profileUrl": "https://www.ramapo.edu/sssw/faculty/atieh-babakhani/",
+      "school": "School of Social Sciences and Social Work",
+      "searchText": "atieh babakhani assistant professor of law and society school of social sciences and social work ababakha@ramapo.edu (201) 684-7060 g228",
+      "source": "faculty-dataset",
+      "title": "Assistant Professor of Law and Society"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "aconlee@ramapo.edu",
+      "id": "faculty-17-austin-blake-conlee",
+      "imageUrl": "https://www.ramapo.edu/ahe/wp-content/uploads/sites/12/2022/07/ABC-1-138x182.jpg",
+      "kind": "person",
+      "name": "Austin Blake Conlee",
+      "office": "BC-152",
+      "phone": "(201) 684-7596",
+      "profileUrl": "https://www.ramapo.edu/ahe/faculty/austin-blake-conlee/",
+      "school": "School of Arts, Humanities, and Education",
+      "searchText": "austin blake conlee assistant professor of theater (costume design) school of arts, humanities, and education aconlee@ramapo.edu (201) 684-7596 bc-152",
+      "source": "faculty-dataset",
+      "title": "Assistant Professor of Theater (Costume Design)"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "id": "faculty-18-behzad-yaghmaian",
+      "imageUrl": "https://www.ramapo.edu/sssw/wp-content/themes/rcnjrd/images/archBig.jpg",
+      "kind": "person",
+      "name": "Behzad Yaghmaian",
+      "office": "G-245",
+      "phone": "(201) 684-7576",
+      "profileUrl": "https://www.ramapo.edu/sssw/faculty/behzad-yaghmaian/",
+      "school": "School of Social Sciences and Social Work (Retired)",
+      "searchText": "behzad yaghmaian professor of political economy - retired school of social sciences and social work (retired) (201) 684-7576 g-245",
+      "source": "faculty-dataset",
+      "title": "Professor of Political Economy - Retired"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "bchan2@ramapo.edu",
+      "id": "faculty-19-benny-chan",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/themes/rcnjrd/images/archBig.jpg",
+      "kind": "person",
+      "name": "Benny Chan",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/benny-chan/",
+      "school": "School of Science, Nursing, and Health",
+      "searchText": "benny chan dean of snh / professor of chemistry school of science, nursing, and health bchan2@ramapo.edu",
+      "source": "faculty-dataset",
+      "title": "Dean of SNH / Professor of Chemistry"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "bblake@ramapo.edu",
+      "id": "faculty-20-bonnie-blake",
+      "imageUrl": "https://www.ramapo.edu/ahe/wp-content/uploads/sites/12/2013/02/Blake-Bonnie1-1.jpeg",
+      "kind": "person",
+      "name": "Bonnie Blake",
+      "office": "A-207",
+      "phone": "(201) 684-7597",
+      "profileUrl": "https://www.ramapo.edu/ahe/faculty/bonnie-blake/",
+      "school": "School of Arts, Humanities, and Education",
+      "searchText": "bonnie blake professor, graphic design & interactive media school of arts, humanities, and education bblake@ramapo.edu (201) 684-7597 a-207",
+      "source": "faculty-dataset",
+      "title": "Professor, Graphic Design & Interactive Media"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "bmcsher1@ramapo.edu",
+      "id": "faculty-21-brian-mcsherry",
+      "imageUrl": "https://www.ramapo.edu/ahe/wp-content/themes/rcnjrd/images/archBig.jpg",
+      "kind": "person",
+      "name": "Brian McSherry",
+      "office": "BC 324",
+      "profileUrl": "https://www.ramapo.edu/ahe/faculty/brian-mcsherry/",
+      "school": "School of Arts, Humanities, and Education",
+      "searchText": "brian mcsherry assistant professor of visual communication design school of arts, humanities, and education bmcsher1@ramapo.edu bc 324",
+      "source": "faculty-dataset",
+      "title": "Assistant Professor of Visual Communication Design"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "cbowman@ramapo.edu",
+      "id": "faculty-22-carol-bonilla-bowman",
+      "imageUrl": "https://www.ramapo.edu/ahe/wp-content/uploads/sites/12/2026/07/Bonilla-Bowman-Carol.jpg",
+      "kind": "person",
+      "name": "Carol Bonilla-Bowman",
+      "office": "E-228",
+      "phone": "(201) 684-7764",
+      "profileUrl": "https://www.ramapo.edu/ahe/faculty/carol-bonilla-bowman/",
+      "school": "School of Arts, Humanities, and Education",
+      "searchText": "carol bonilla-bowman associate professor of education school of arts, humanities, and education cbowman@ramapo.edu (201) 684-7764 e-228",
+      "source": "faculty-dataset",
+      "title": "Associate Professor of Education"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "cbrisson@ramapo.edu",
+      "id": "faculty-23-caroline-brisson",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2013/02/Brisson-Caroline.jpg",
+      "kind": "person",
+      "name": "Caroline Brisson",
+      "office": "G-114",
+      "phone": "(201) 684-7129",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/caroline-brisson/",
+      "school": "School of Science, Nursing, and Health",
+      "searchText": "caroline brisson associate professor of physics school of science, nursing, and health cbrisson@ramapo.edu (201) 684-7129 g-114",
+      "source": "faculty-dataset",
+      "title": "Associate Professor of Physics"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "cmiller7@ramapo.edu",
+      "id": "faculty-24-carrie-miller",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2019/07/Miller-Carrie-10.30.19-.jpg",
+      "kind": "person",
+      "name": "Carrie Miller",
+      "office": "G-414",
+      "phone": "(201) 684-7752",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/carrie-miller/",
+      "school": "School of Science, Nursing, and Health",
+      "searchText": "carrie miller associate professor of environmental chemistry school of science, nursing, and health cmiller7@ramapo.edu (201) 684-7752 g-414",
+      "source": "faculty-dataset",
+      "title": "Associate Professor of Environmental Chemistry"
+    },
+    {
+      "bucket": "Staff & Faculty",
+      "email": "cmartin7@ramapo.edu",
+      "id": "faculty-25-catalin-martin",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2013/10/Martin-Catalin-Web-146x182.jpg",
+      "kind": "person",
+      "name": "Catalin Martin",
+      "office": "G-113",
+      "phone": "(201) 684-7153",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/catalin-martin/",
+      "school": "School of Science, Nursing, and Health",
+      "searchText": "catalin martin professor of physics school of science, nursing, and health cmartin7@ramapo.edu (201) 684-7153 g-113",
+      "source": "faculty-dataset",
+      "title": "Professor of Physics"
+    },
+    {
+      "bucket": "Others",
+      "email": "information@ramapo.edu",
+      "id": "other-1-cindy-r-jebb-ph-d",
+      "kind": "person",
+      "name": "Cindy R. Jebb, Ph.D.",
+      "phone": "201-684-7500",
+      "profileUrl": "https://www.ramapo.edu/president/biography/",
+      "searchText": "cindy r. jebb, ph.d. president office of the president information@ramapo.edu 201-684-7500",
+      "source": "other-static",
+      "title": "President",
+      "unit": "Office of the President"
+    },
+    {
+      "bucket": "Others",
+      "email": "provost@ramapo.edu",
+      "id": "other-2-michael-middleton-ph-d",
+      "kind": "person",
+      "name": "Michael Middleton, Ph.D.",
+      "phone": "(201) 684-7330",
+      "profileUrl": "https://www.ramapo.edu/provost/",
+      "searchText": "michael middleton, ph.d. provost/vice president for teaching, learning, and growth office of the provost provost@ramapo.edu (201) 684-7330",
+      "source": "other-static",
+      "title": "Provost/Vice President for Teaching, Learning, and Growth",
+      "unit": "Office of the Provost"
+    },
+    {
+      "bucket": "Others",
+      "email": "viceprovost@ramapo.edu",
+      "id": "other-3-joyce-shim-ph-d-mia-msw",
+      "kind": "person",
+      "name": "Joyce Shim, Ph.D., MIA, MSW",
+      "phone": "(201) 684-7585",
+      "profileUrl": "https://www.ramapo.edu/provost/",
+      "searchText": "joyce shim, ph.d., mia, msw vice provost for academic and faculty affairs office of the provost viceprovost@ramapo.edu (201) 684-7585",
+      "source": "other-static",
+      "title": "Vice Provost for Academic and Faculty Affairs",
+      "unit": "Office of the Provost"
+    },
+    {
+      "bucket": "Others",
+      "email": "apapandr@ramapo.edu",
+      "id": "other-4-stasi-papandreou-webber",
+      "kind": "person",
+      "name": "Stasi Papandreou Webber",
+      "phone": "Ext. 7537",
+      "profileUrl": "https://www.ramapo.edu/president/advancing-requests-to-the-office-of-the-president/",
+      "searchText": "stasi papandreou webber special assistant to the president office of the president apapandr@ramapo.edu ext. 7537",
+      "source": "other-static",
+      "title": "Special Assistant to the President",
+      "unit": "Office of the President"
+    },
+    {
+      "bucket": "Others",
+      "email": "bwillia1@ramapo.edu",
+      "id": "other-5-brittany-a-williams-goldstein",
+      "kind": "person",
+      "name": "Brittany A. Williams-Goldstein",
+      "phone": "Ext. 7609",
+      "profileUrl": "https://www.ramapo.edu/president/advancing-requests-to-the-office-of-the-president/",
+      "searchText": "brittany a. williams-goldstein chief of staff and board liaison office of the president bwillia1@ramapo.edu ext. 7609",
+      "source": "other-static",
+      "title": "Chief of Staff and Board Liaison",
+      "unit": "Office of the President"
+    }
+  ],
+  "counts": {
+    "offices": 14,
+    "others": 5,
+    "staffFaculty": 25,
+    "total": 44
+  },
+  "facultyStaff": [
+    {
+      "imageUrl": "https://www.ramapo.edu/sssw/wp-content/uploads/sites/16/2013/02/Lorenz-Aaron-Web-146x182.jpg",
+      "name": "Aaron R. S. Lorenz",
+      "office": "ASB-431",
+      "phone": "(201) 684-7624",
+      "profileUrl": "https://www.ramapo.edu/sssw/faculty/aaron-r-s-lorenz/",
+      "school": "School of Social Sciences and Social Work (Retired)",
+      "title": "School of Social Sciences and Social Work - Retired"
+    },
+    {
+      "email": "afried1@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/ahe/wp-content/themes/rcnjrd/images/archBig.jpg",
+      "name": "Adam Fried",
+      "office": "E-231",
+      "phone": "(201) 684-7613",
+      "profileUrl": "https://www.ramapo.edu/ahe/faculty/adam-fried/",
+      "school": "School of Arts, Humanities, and Education",
+      "title": "Assistant Dean, Teachers Education"
+    },
+    {
+      "imageUrl": "https://www.ramapo.edu/sssw/wp-content/uploads/sites/16/2013/02/Urbiel-Alexander.jpg",
+      "name": "Alexander Urbiel",
+      "office": "E-226",
+      "phone": "(201) 684-7794",
+      "profileUrl": "https://www.ramapo.edu/sssw/faculty/alexander-urbiel/",
+      "school": "School of Social Sciences and Social Work (Retired)",
+      "title": "Professor of History - Retired"
+    },
+    {
+      "email": "aolbrech@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/asb/wp-content/uploads/sites/9/2016/10/Olbrecht_Alex_10.4.16_02-121x182.jpg",
+      "name": "Alexandre Olbrecht",
+      "office": "ASB-205",
+      "phone": "(201) 684-7346",
+      "profileUrl": "https://www.ramapo.edu/asb/faculty/alexandre-olbrecht/",
+      "school": "Anisfield School of Business",
+      "title": "Professor of Economics Executive Director, Eastern Economic Association"
+    },
+    {
+      "email": "aaljuboo@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2022/01/Al-Juboori-Ali-10.7.21-02.jpg",
+      "name": "Ali Al-Juboori",
+      "office": "ASB405",
+      "phone": "(201) 684-6232",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/ali-al-juboori/",
+      "school": "School of Science, Nursing, and Health",
+      "title": "Associate Professor of Computer Science"
+    },
+    {
+      "email": "apark7@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2024/06/Alice-Park_faculty-profile-152x152.jpg",
+      "name": "Alice Park",
+      "office": "AC-210Q",
+      "phone": "(201) 684-7746",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/alice-park/",
+      "school": "School of Science, Nursing, and Health",
+      "title": "Assistant Professor of Nursing"
+    },
+    {
+      "email": "amruth@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2013/02/Kumar-Amruth.jpeg",
+      "name": "Amruth Kumar",
+      "office": "ASB 408",
+      "phone": "(201) 684-7712",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/amruth-kumar/",
+      "school": "School of Science, Nursing, and Health",
+      "title": "Professor of Computer Science"
+    },
+    {
+      "email": "asailer@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2022/09/Picture1-120x182.jpg",
+      "name": "Amy Sailer",
+      "office": "AC-210A",
+      "phone": "(201) 684-7753",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/amy-sailer/",
+      "school": "School of Science, Nursing, and Health",
+      "title": "Assistant Professor of Nursing"
+    },
+    {
+      "email": "acappell@ramapo.edu",
+      "name": "Anita Cappello",
+      "profileUrl": "https://www.ramapo.edu/library/staff/",
+      "school": "Library Faculty & Staff",
+      "title": "Monograph Purchasing"
+    },
+    {
+      "email": "alepore@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/ahe/wp-content/uploads/sites/12/2013/02/LePore-head-shot-1.jpg",
+      "name": "Ann LePore",
+      "office": "BC-147",
+      "phone": "(201) 684-6288",
+      "profileUrl": "https://www.ramapo.edu/ahe/faculty/ann-lepore/",
+      "school": "School of Arts, Humanities, and Education",
+      "title": "Associate Professor of 3D Design and Animation"
+    },
+    {
+      "imageUrl": "https://www.ramapo.edu/sssw/wp-content/uploads/sites/16/2013/02/DeGroot-Anne.jpg",
+      "name": "Anne DeGroot",
+      "office": "E-225",
+      "phone": "(201) 684-7857",
+      "profileUrl": "https://www.ramapo.edu/sssw/faculty/anne-degroot/",
+      "school": "School of Social Sciences and Social Work (Retired)",
+      "title": "Assistant Professor of Teacher Education - Retired"
+    },
+    {
+      "email": "aflatekv@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2017/09/Flatekval-Anne-Marie-9.6.17-15.jpg",
+      "name": "Anne Marie Flatekval",
+      "office": "AC-210B",
+      "phone": "(201) 684-7716",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/anne-marie-flatekval/",
+      "school": "School of Science, Nursing, and Health",
+      "title": "Associate Professor of Nursing"
+    },
+    {
+      "email": "acanatay@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/asb/wp-content/uploads/sites/9/2023/10/Canatay-Arman-8.30.23-01-e1696950892194-147x182.jpg",
+      "name": "Arman Canatay",
+      "office": "ASB 311",
+      "phone": "(201) 684-7335",
+      "profileUrl": "https://www.ramapo.edu/asb/faculty/arman-canatay/",
+      "school": "Anisfield School of Business",
+      "title": "Assistant Professor of International Business"
+    },
+    {
+      "email": "astuart@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2013/02/Stuart-Ash.jpeg",
+      "name": "Ashley Stuart",
+      "office": "G-313",
+      "phone": "(201) 684-6222",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/ashley-stuart/",
+      "school": "School of Science, Nursing, and Health",
+      "title": "Associate Professor of Biochemistry"
+    },
+    {
+      "imageUrl": "https://www.ramapo.edu/sssw/wp-content/uploads/sites/16/2025/02/Vasishth-Ashwani-Web-146x182.jpg",
+      "name": "Ashwani Vasishth",
+      "office": "G-202A",
+      "phone": "(201) 684-6616",
+      "profileUrl": "https://www.ramapo.edu/sssw/faculty/ashwani-vasishth/",
+      "school": "School of Social Sciences and Social Work (Retired)",
+      "title": "Professor of Sustainability - Retired"
+    },
+    {
+      "email": "ababakha@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/sssw/wp-content/uploads/sites/16/2023/08/IMG_0123-4-149x182.jpeg",
+      "name": "Atieh Babakhani",
+      "office": "G228",
+      "phone": "(201) 684-7060",
+      "profileUrl": "https://www.ramapo.edu/sssw/faculty/atieh-babakhani/",
+      "school": "School of Social Sciences and Social Work",
+      "title": "Assistant Professor of Law and Society"
+    },
+    {
+      "email": "aconlee@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/ahe/wp-content/uploads/sites/12/2022/07/ABC-1-138x182.jpg",
+      "name": "Austin Blake Conlee",
+      "office": "BC-152",
+      "phone": "(201) 684-7596",
+      "profileUrl": "https://www.ramapo.edu/ahe/faculty/austin-blake-conlee/",
+      "school": "School of Arts, Humanities, and Education",
+      "title": "Assistant Professor of Theater (Costume Design)"
+    },
+    {
+      "imageUrl": "https://www.ramapo.edu/sssw/wp-content/themes/rcnjrd/images/archBig.jpg",
+      "name": "Behzad Yaghmaian",
+      "office": "G-245",
+      "phone": "(201) 684-7576",
+      "profileUrl": "https://www.ramapo.edu/sssw/faculty/behzad-yaghmaian/",
+      "school": "School of Social Sciences and Social Work (Retired)",
+      "title": "Professor of Political Economy - Retired"
+    },
+    {
+      "email": "bchan2@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/themes/rcnjrd/images/archBig.jpg",
+      "name": "Benny Chan",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/benny-chan/",
+      "school": "School of Science, Nursing, and Health",
+      "title": "Dean of SNH / Professor of Chemistry"
+    },
+    {
+      "email": "bblake@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/ahe/wp-content/uploads/sites/12/2013/02/Blake-Bonnie1-1.jpeg",
+      "name": "Bonnie Blake",
+      "office": "A-207",
+      "phone": "(201) 684-7597",
+      "profileUrl": "https://www.ramapo.edu/ahe/faculty/bonnie-blake/",
+      "school": "School of Arts, Humanities, and Education",
+      "title": "Professor, Graphic Design & Interactive Media"
+    },
+    {
+      "email": "bmcsher1@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/ahe/wp-content/themes/rcnjrd/images/archBig.jpg",
+      "name": "Brian McSherry",
+      "office": "BC 324",
+      "profileUrl": "https://www.ramapo.edu/ahe/faculty/brian-mcsherry/",
+      "school": "School of Arts, Humanities, and Education",
+      "title": "Assistant Professor of Visual Communication Design"
+    },
+    {
+      "email": "cbowman@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/ahe/wp-content/uploads/sites/12/2026/07/Bonilla-Bowman-Carol.jpg",
+      "name": "Carol Bonilla-Bowman",
+      "office": "E-228",
+      "phone": "(201) 684-7764",
+      "profileUrl": "https://www.ramapo.edu/ahe/faculty/carol-bonilla-bowman/",
+      "school": "School of Arts, Humanities, and Education",
+      "title": "Associate Professor of Education"
+    },
+    {
+      "email": "cbrisson@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2013/02/Brisson-Caroline.jpg",
+      "name": "Caroline Brisson",
+      "office": "G-114",
+      "phone": "(201) 684-7129",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/caroline-brisson/",
+      "school": "School of Science, Nursing, and Health",
+      "title": "Associate Professor of Physics"
+    },
+    {
+      "email": "cmiller7@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2019/07/Miller-Carrie-10.30.19-.jpg",
+      "name": "Carrie Miller",
+      "office": "G-414",
+      "phone": "(201) 684-7752",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/carrie-miller/",
+      "school": "School of Science, Nursing, and Health",
+      "title": "Associate Professor of Environmental Chemistry"
+    },
+    {
+      "email": "cmartin7@ramapo.edu",
+      "imageUrl": "https://www.ramapo.edu/snh/wp-content/uploads/sites/13/2013/10/Martin-Catalin-Web-146x182.jpg",
+      "name": "Catalin Martin",
+      "office": "G-113",
+      "phone": "(201) 684-7153",
+      "profileUrl": "https://www.ramapo.edu/snh/faculty/catalin-martin/",
+      "school": "School of Science, Nursing, and Health",
+      "title": "Professor of Physics"
+    }
+  ],
+  "generatedAt": "2026-08-27 21:05:42.447898+00",
+  "offices": [
+    {
+      "category": "Emergency",
+      "department": "Public Safety",
+      "email": "publicsafety@ramapo.edu",
+      "helpsWith": [
+        "Emergencies",
+        "Safety escorts",
+        "Incident reports"
+      ],
+      "name": "Public Safety (Emergency)",
+      "office": "C-102",
+      "phone": "201-684-6666"
+    },
+    {
+      "category": "Emergency",
+      "department": "Public Safety",
+      "email": "secdesk@ramapo.edu",
+      "helpsWith": [
+        "Safety escorts",
+        "Lost & found",
+        "General safety questions"
+      ],
+      "name": "Public Safety (Non-Emergency)",
+      "office": "C-102",
+      "phone": "201-684-7432"
+    },
+    {
+      "category": "Dining",
+      "department": "Dining Services",
+      "email": "jeff.dannhardt@sodexo.com",
+      "helpsWith": [
+        "Meal service info",
+        "Dining questions"
+      ],
+      "name": "Birch Tree Inn",
+      "phone": "201-684-7592"
+    },
+    {
+      "category": "Academic",
+      "department": "Office of the Registrar",
+      "email": "registrar@ramapo.edu",
+      "helpsWith": [
+        "Registration",
+        "Transcripts",
+        "Graduation records"
+      ],
+      "name": "Registrar",
+      "office": "D-224",
+      "phone": "201-684-7695"
+    },
+    {
+      "category": "Academic",
+      "department": "Center for Student Success",
+      "email": "success@ramapo.edu",
+      "helpsWith": [
+        "Academic Advising",
+        "Degree planning",
+        "Course withdrawal guidance",
+        "Academic support"
+      ],
+      "name": "Center for Student Success (Academic Advising)",
+      "office": "D-207",
+      "phone": "201-684-7441"
+    },
+    {
+      "category": "Academic",
+      "department": "Anisfield School of Business",
+      "email": "asb@ramapo.edu",
+      "helpsWith": [
+        "Business programs",
+        "School contacts",
+        "Academic questions"
+      ],
+      "name": "Anisfield School of Business",
+      "office": "ASB-333",
+      "phone": "201-684-7378"
+    },
+    {
+      "category": "Financial",
+      "department": "Financial Aid",
+      "email": "finaid@ramapo.edu",
+      "helpsWith": [
+        "FAFSA",
+        "Aid packages",
+        "Funding questions"
+      ],
+      "name": "Financial Aid",
+      "office": "E-210",
+      "phone": "201-684-7549"
+    },
+    {
+      "category": "Services",
+      "department": "Information Technology Services",
+      "email": "helpdesk@ramapo.edu",
+      "helpsWith": [
+        "Password reset",
+        "Wi-Fi help",
+        "Account access",
+        "Canvas help",
+        "Account lockout"
+      ],
+      "name": "IT Help Desk",
+      "phone": "201-684-7777"
+    },
+    {
+      "category": "Health",
+      "department": "Health Services",
+      "email": "immunize@ramapo.edu",
+      "helpsWith": [
+        "Appointments",
+        "Immunization records",
+        "Medical forms"
+      ],
+      "name": "Health Services",
+      "office": "D-216C",
+      "phone": "201-684-7536"
+    },
+    {
+      "category": "Health",
+      "department": "Counseling Services",
+      "email": "studentwellness@ramapo.edu",
+      "helpsWith": [
+        "Mental health support",
+        "Crisis support",
+        "Wellness resources"
+      ],
+      "name": "Counseling Center",
+      "office": "D-216",
+      "phone": "201-684-7522"
+    },
+    {
+      "category": "Housing",
+      "department": "Residence Life",
+      "email": "reslife@ramapo.edu",
+      "helpsWith": [
+        "Housing assignments",
+        "Room changes",
+        "Residence policies"
+      ],
+      "name": "Housing & Residence Life",
+      "office": "The Lodge",
+      "phone": "201-684-7453"
+    },
+    {
+      "category": "Student Life",
+      "department": "Center for Student Involvement",
+      "email": "csi@ramapo.edu",
+      "helpsWith": [
+        "Student clubs",
+        "Campus events",
+        "Leadership opportunities"
+      ],
+      "name": "Center for Student Involvement",
+      "office": "SC-202",
+      "phone": "201-684-7593"
+    },
+    {
+      "category": "Athletics",
+      "department": "Athletics",
+      "email": "information@ramapo.edu",
+      "helpsWith": [
+        "Varsity athletics",
+        "Team contacts"
+      ],
+      "name": "Athletics",
+      "phone": "201-684-7095"
+    },
+    {
+      "category": "Academic",
+      "department": "Potter Library",
+      "email": "refdesk@ramapo.edu",
+      "helpsWith": [
+        "Research help",
+        "Citation support",
+        "Borrowing services"
+      ],
+      "name": "Library",
+      "phone": "201-684-7578"
+    }
+  ],
+  "others": [
+    {
+      "email": "information@ramapo.edu",
+      "name": "Cindy R. Jebb, Ph.D.",
+      "phone": "201-684-7500",
+      "profileUrl": "https://www.ramapo.edu/president/biography/",
+      "title": "President",
+      "unit": "Office of the President"
+    },
+    {
+      "email": "provost@ramapo.edu",
+      "name": "Michael Middleton, Ph.D.",
+      "phone": "(201) 684-7330",
+      "profileUrl": "https://www.ramapo.edu/provost/",
+      "title": "Provost/Vice President for Teaching, Learning, and Growth",
+      "unit": "Office of the Provost"
+    },
+    {
+      "email": "viceprovost@ramapo.edu",
+      "name": "Joyce Shim, Ph.D., MIA, MSW",
+      "phone": "(201) 684-7585",
+      "profileUrl": "https://www.ramapo.edu/provost/",
+      "title": "Vice Provost for Academic and Faculty Affairs",
+      "unit": "Office of the Provost"
+    },
+    {
+      "email": "apapandr@ramapo.edu",
+      "name": "Stasi Papandreou Webber",
+      "phone": "Ext. 7537",
+      "profileUrl": "https://www.ramapo.edu/president/advancing-requests-to-the-office-of-the-president/",
+      "title": "Special Assistant to the President",
+      "unit": "Office of the President"
+    },
+    {
+      "email": "bwillia1@ramapo.edu",
+      "name": "Brittany A. Williams-Goldstein",
+      "phone": "Ext. 7609",
+      "profileUrl": "https://www.ramapo.edu/president/advancing-requests-to-the-office-of-the-president/",
+      "title": "Chief of Staff and Board Liaison",
+      "unit": "Office of the President"
+    }
+  ],
+  "releaseVersion": "v2-20260827205853",
+  "total": 44
+}

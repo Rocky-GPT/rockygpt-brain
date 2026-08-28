@@ -1,0 +1,27 @@
+{
+  "dining-hours": {
+    "activated_at": "2026-08-27T21:05:42.447898Z",
+    "content_hash": "3f205e3b68c2f8007875a4f3e0fa1d706d7c92bb8b3fe1523eb41b864e54cdd0",
+    "release_version": "v2-20260827205853"
+  },
+  "faculty": {
+    "activated_at": "2026-08-27T21:05:42.447898Z",
+    "content_hash": "191f44ea8002e0924b848daac71c1a7033ed14cd26615866699ab2f3337464b5",
+    "release_version": "v2-20260827205853"
+  },
+  "hours": {
+    "activated_at": "2026-08-27T21:05:42.447898Z",
+    "content_hash": "51940c7c63e4d06770b07d50b13d60ffb4a62a72b5da63b05570de72b9415f7d",
+    "release_version": "v2-20260827205853"
+  },
+  "menu-context": {
+    "activated_at": "2026-08-27T21:05:42.447898Z",
+    "content_hash": "b33971918d37294138f4e50d4ab4584f1ac4d0672ac6e88c240633cf1a823b8a",
+    "release_version": "v2-20260827205853"
+  },
+  "menu-week": {
+    "activated_at": "2026-08-27T21:05:42.447898Z",
+    "content_hash": "305ce6df53a754bbb25e27aa2d8a9e02ed141004d4dface45ea27c66dc7d3350",
+    "release_version": "v2-20260827205853"
+  }
+}

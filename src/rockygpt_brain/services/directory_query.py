@@ -204,9 +204,12 @@ def _build_directory_parts(
                 "name": name,
                 "category": entry["category"],
                 "department": entry["department"],
-                "email": entry.get("email"),
-                "phone": entry.get("phone"),
-                "office": entry.get("office"),
+                # An absent key is omitted rather than sent as null: these
+                # fields reached the client through `JSON.stringify`, which
+                # drops `undefined`, and four of the offices carry no `office`.
+                **({"email": entry["email"]} if "email" in entry else {}),
+                **({"phone": entry["phone"]} if "phone" in entry else {}),
+                **({"office": entry["office"]} if "office" in entry else {}),
                 "helpsWith": entry.get("helpsWith", []),
                 "searchText": to_search_text(
                     [
@@ -312,6 +315,21 @@ def build_directory_payload(
         "generatedAt": generated_at or datetime.now(UTC).isoformat(),
         **({"releaseVersion": release_version} if release_version else {}),
     }
+
+
+def load_shuttle_schedule() -> dict[str, Any]:
+    """The shuttle and bus timetables, as `/v1/shuttle` has always served them.
+
+    These are static campus facts, not published artifacts: the data service
+    answered this route from a TypeScript constant, and the `transportation`
+    artifact holds prose about the routes rather than the timetable. Reading
+    the artifact therefore could not reproduce the response, so the schedule
+    lives here as a resource, alongside the campus map it most resembles.
+    """
+    schedule_file = RESOURCES_DIR / "shuttle-schedule.json"
+    with open(schedule_file) as f:
+        schedule: dict[str, Any] = json.load(f)
+    return schedule
 
 
 def load_map_locations() -> list[dict[str, Any]]:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import ssl
 from collections.abc import Awaitable, Callable
@@ -67,6 +68,28 @@ def _format_iso(val: Any) -> str | None:
     return s.replace(" ", "T")
 
 
+async def _register_json_codecs(connection: asyncpg.Connection) -> None:
+    """Decode json/jsonb into Python objects instead of leaving them as text.
+
+    asyncpg hands back both types as `str` unless a codec says otherwise. Four
+    query methods used to work around that with a local `json.loads` and an
+    `isinstance(..., str)` guard, but `artifact()` did not — so every
+    artifact-backed endpoint received a JSON string where it expected an object.
+    The published payload then serialised a second time on the way out, which is
+    why `/v1/data/programs` answered 2.5MB against the data service's 2.16MB.
+
+    Registering the codec once per pooled connection fixes both directions, and
+    is the reason the call sites below no longer decode by hand.
+    """
+    for type_name in ("json", "jsonb"):
+        await connection.set_type_codec(
+            type_name,
+            encoder=json.dumps,
+            decoder=json.loads,
+            schema="pg_catalog",
+        )
+
+
 class PostgresData:
     """Direct PostgreSQL reader implementing the DataPort protocol."""
 
@@ -95,6 +118,7 @@ class PostgresData:
                 max_size=self._pool_max_size,
                 command_timeout=15,
                 ssl=_use_system_ca_store(self._database_url),
+                init=_register_json_codecs,
             )
 
     async def close(self) -> None:
@@ -237,15 +261,6 @@ class PostgresData:
         for row in rows:
             raw_stops = row["stops"]
             stops_list: list[dict[str, str]] = []
-            if isinstance(raw_stops, str):
-                import json
-
-                try:
-                    loaded = json.loads(raw_stops)
-                    if isinstance(loaded, list):
-                        raw_stops = loaded
-                except Exception:
-                    raw_stops = []
             if isinstance(raw_stops, list):
                 for s in raw_stops:
                     if isinstance(s, dict) and "location" in s and "time" in s:
@@ -405,13 +420,6 @@ class PostgresData:
         records: list[dict[str, Any]] = []
         for r in rows:
             allergens = r["allergens"]
-            if isinstance(allergens, str):
-                import json
-
-                try:
-                    allergens = json.loads(allergens)
-                except Exception:
-                    allergens = []
             rec: dict[str, Any] = {
                 "meal": str(r["meal"]),
                 "station": str(r["station"]),
@@ -585,13 +593,6 @@ class PostgresData:
             if credits_str is not None:
                 rec["credits"] = credits_str
             attrs = r["attributes"]
-            if isinstance(attrs, str):
-                import json
-
-                try:
-                    attrs = json.loads(attrs)
-                except Exception:
-                    attrs = []
             rec["attributes"] = attrs if isinstance(attrs, list) else []
             records.append(rec)
         return records
@@ -741,16 +742,7 @@ class PostgresData:
         )
         faculty_payload: Any = []
         if row and row["payload"]:
-            raw_payload = row["payload"]
-            if isinstance(raw_payload, str):
-                import json
-
-                try:
-                    faculty_payload = json.loads(raw_payload)
-                except (ValueError, TypeError):
-                    faculty_payload = []
-            else:
-                faculty_payload = raw_payload
+            faculty_payload = row["payload"]
         return build_directory_all_contacts(faculty_payload)
 
     async def locations(self, query: dict[str, str]) -> list[dict[str, Any]]:

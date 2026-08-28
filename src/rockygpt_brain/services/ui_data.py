@@ -9,6 +9,7 @@ from rockygpt_brain.services.artifacts import ArtifactPort, PublishedArtifact
 from rockygpt_brain.services.directory_query import (
     build_directory_payload,
     load_map_locations,
+    load_shuttle_schedule,
     resolve_map_location,
 )
 
@@ -24,10 +25,26 @@ def _array(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
+class InvalidDate(ValueError):
+    """A `date` parameter that is not YYYY-MM-DD.
+
+    Its own type because the routes used to answer any `ValueError` from this
+    module with "date must use YYYY-MM-DD". A missing artifact key raises one
+    too, so a perfectly valid date was reported back as malformed and the real
+    fault — `dining-hours artifact has no locations` — never reached the caller.
+    """
+
+
 def _iso_date(value: str) -> date:
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
-        raise ValueError("date must use YYYY-MM-DD")
-    return date.fromisoformat(value)
+        raise InvalidDate("date must use YYYY-MM-DD")
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        # Shaped like a date but not one — "2026-13-99" clears the pattern and
+        # fails here. It is still the caller's mistake, so it must not escape as
+        # a bare ValueError and be reported as unavailable data.
+        raise InvalidDate("date must be a real date in YYYY-MM-DD form") from exc
 
 
 def _target_instant(value: date) -> datetime:
@@ -69,6 +86,28 @@ def _format_range(value: Any) -> dict[str, str]:
         return {**({"label": label} if label else {}), "time": "Closed"}
     formatted = f"{start} - {finish}"
     return {**({"label": label} if label else {}), "time": formatted}
+
+
+def _location_hours(values: list[Any]) -> list[dict[str, str]]:
+    """Today's hours as `/v1/dining-hours` has always presented them.
+
+    Two things separate this from the general weekly schedule, and both come
+    from the data service this replaced: a labelled range repeats its label
+    inside `time` ("Lunch: 11:00 AM - 02:00 PM"), and a closed range is dropped
+    unless it is the only one its group has. A closed range never takes the
+    prefix. `generalHours` keeps the unprefixed form, which is why the shared
+    `_format_range` stays as it is.
+    """
+    entries = [_format_range(value) for value in values]
+    labelled: list[dict[str, str]] = []
+    for entry in entries:
+        label = entry.get("label")
+        if label and entry["time"] != "Closed":
+            entry = {**entry, "time": f"{label}: {entry['time']}"}
+        labelled.append(entry)
+    if len(labelled) == 1:
+        return labelled
+    return [entry for entry in labelled if entry["time"] != "Closed"]
 
 
 def _emoji(name: str) -> str:
@@ -113,8 +152,7 @@ def _today_hours(fragment: dict[str, Any], target: datetime) -> dict[str, Any]:
             ]
             if weekday not in days:
                 continue
-            hours = [_format_range(value) for value in _array(group.get("hours"))]
-            hours = hours or [{"time": "Closed"}]
+            hours = _location_hours(_array(group.get("hours"))) or [{"time": "Closed"}]
             first_label = hours[0].get("label")
             closed = all(entry["time"] == "Closed" for entry in hours)
             return {
@@ -143,8 +181,7 @@ def _today_hours(fragment: dict[str, Any], target: datetime) -> dict[str, Any]:
         days = [_object(day_value).get("value") for day_value in _array(group.get("days"))]
         if weekday not in days:
             continue
-        hours = [_format_range(value) for value in _array(group.get("hours"))]
-        hours = hours or [{"time": "Closed"}]
+        hours = _location_hours(_array(group.get("hours"))) or [{"time": "Closed"}]
         closed = all(entry["time"] == "Closed" for entry in hours)
         has_seasonal = bool(seasonal)
         return {
@@ -300,9 +337,8 @@ class UiDataService:
             result["resolved"] = resolve_map_location(query, locations)
         return result
 
-    async def shuttle(self) -> tuple[Any, PublishedArtifact]:
-        artifact = await self._artifacts.artifact("shuttle-schedule")
-        return artifact.payload, artifact
+    async def shuttle(self) -> dict[str, Any]:
+        return load_shuttle_schedule()
 
     async def menu(self) -> tuple[dict[str, Any], PublishedArtifact]:
         target = datetime.now(CAMPUS_TIMEZONE)
