@@ -17,3 +17,4 @@ build/
 dist/
 .idea/
 .vscode/
+/run-local.sh
