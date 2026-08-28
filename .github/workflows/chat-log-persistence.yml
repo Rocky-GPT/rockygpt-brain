@@ -1,0 +1,84 @@
+# Watches the one failure that hides itself.
+#
+# The brain catches persistence errors on purpose so a database problem never
+# costs a student their answer. That means a broken log store changes nothing
+# anyone can see: on 2026-08-27 a stale Neon password meant every production
+# turn went unrecorded for hours while the site, /health and /readiness all
+# looked fine. /readiness/chat-logs exists to fail loudly instead, and this
+# workflow is what actually looks at it.
+#
+# Alerting is GitHub's own: a failed scheduled run notifies the repository
+# owner by email. There are no secrets here — the endpoint is public and
+# returns no data beyond a status.
+name: Chat Log Persistence
+
+on:
+  schedule:
+    # Every 15 minutes. GitHub schedules are best-effort and often run late,
+    # so treat this as "within the hour", not a hard SLA. Note the side
+    # effect: the free Render instance sleeps after ~15 minutes idle, so this
+    # cadence also keeps it warm and spares students the ~50s cold start.
+    # Lengthen the interval if you would rather let it sleep.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-log-persistence
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check that the brain can still reach its log store
+        env:
+          ENDPOINT: https://rockygpt-brain.onrender.com/readiness/chat-logs
+        run: |
+          set -uo pipefail
+
+          for attempt in 1 2 3; do
+            # Long timeout on purpose: a sleeping free instance takes ~50s to
+            # answer its first request, and a cold start is not an outage.
+            # curl already reports 000 on a connection failure, and leaves
+            # the output file untouched -- so clear it first, or a failed
+            # attempt prints the previous attempt's body and reads as though
+            # the service answered.
+            rm -f response.json
+            code=$(curl -sS -m 150 -o response.json -w '%{http_code}' "$ENDPOINT")
+            code=${code:-000}
+            body=$(cat response.json 2>/dev/null || true)
+            echo "attempt $attempt: HTTP $code ${body}"
+
+            case "$code" in
+              200)
+                echo "Chat log persistence is healthy."
+                exit 0
+                ;;
+              503)
+                # The service is up and telling us the log store is broken.
+                # Retry once in case of a brief Neon blip, then fail.
+                if [ "$attempt" -eq 3 ]; then
+                  echo "::error::The brain cannot reach its chat log store. Answers are still being served, but nothing is being recorded. Check Render logs for rockygpt-brain filtered on 'Error' (not 'chat'), and compare DATABASE_URL against Neon."
+                  exit 1
+                fi
+                ;;
+              404)
+                echo "::error::$ENDPOINT does not exist on the deployed brain. Production is running code older than the readiness endpoint — check that main is deployed."
+                exit 1
+                ;;
+              *)
+                # 000 is a connection failure, 5xx a crash or a deploy in
+                # flight. Either is worth retrying before calling it.
+                if [ "$attempt" -eq 3 ]; then
+                  echo "::error::The brain did not answer after 3 attempts (last status $code). This is a service outage, not just a logging one."
+                  exit 1
+                fi
+                ;;
+            esac
+
+            sleep 30
+          done
