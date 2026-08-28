@@ -162,6 +162,7 @@ class PostgresLogStore:
         self._pool_max_size = pool_max_size
         self._pool: asyncpg.Pool | None = None
         self._initialize_lock = asyncio.Lock()
+        self._write_failed = False
 
     async def initialize(self) -> None:
         async with self._initialize_lock:
@@ -181,6 +182,20 @@ class PostgresLogStore:
                 await pool.close()
                 raise
             self._pool = pool
+            self._write_failed = False
+
+    @property
+    def connected(self) -> bool:
+        """Whether Postgres is actually usable, not merely configured.
+
+        Two different outages have to answer here. A credential that no
+        longer authenticates makes `initialize` raise, so the pool is never
+        assigned. A database that fails after a healthy start leaves the pool
+        in place, and only a write reveals it. Reporting just the first is
+        what let production answer normally for hours while recording
+        nothing.
+        """
+        return self._pool is not None and not self._write_failed
 
     async def close(self) -> None:
         if self._pool is not None:
@@ -199,6 +214,17 @@ class PostgresLogStore:
         return f"v1_{digest}"
 
     async def record(self, item: ChatLogItem) -> None:
+        # The caller deliberately swallows persistence errors so a database
+        # problem never costs a student their answer. That is why the failure
+        # has to be remembered here instead: nothing downstream sees it.
+        try:
+            await self._record(item)
+        except BaseException:
+            self._write_failed = True
+            raise
+        self._write_failed = False
+
+    async def _record(self, item: ChatLogItem) -> None:
         pool = await self._ready_pool()
         citations = [citation.model_dump(mode="json") for citation in item.citations]
         facts = [fact.model_dump(mode="json") for fact in item.facts_extracted]

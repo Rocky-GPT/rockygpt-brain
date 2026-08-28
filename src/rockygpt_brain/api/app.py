@@ -220,6 +220,12 @@ def create_app(
             uptimeSeconds=time.monotonic() - started,
         )
 
+    def chat_logs_degraded() -> bool:
+        # Only meaningful where durable logs were asked for. With no
+        # DATABASE_URL the service is keeping logs in memory by choice, which
+        # is not a fault to report.
+        return durable_logs is not None and not durable_logs.connected
+
     @app.get("/readiness")
     async def readiness() -> Response:
         failing: list[str] = []
@@ -227,12 +233,34 @@ def create_app(
             failing.append("model")
         if not planner_port.configured:
             failing.append("planner")
+        degraded = ["chat-logs"] if chat_logs_degraded() else []
         result = Readiness(
             status="unready" if failing else "ready",
             failing=failing or None,
+            degraded=degraded or None,
             timestamp=datetime.now(UTC),
         )
+        # Degradation deliberately does not change the status code. Rocky can
+        # still answer every question with its log store down, and the UI
+        # reads a non-2xx here as the whole deployment being unavailable.
         return _json(result, 503 if failing else 200)
+
+    @app.get("/readiness/chat-logs")
+    async def chat_logs_readiness() -> Response:
+        """A 503 an uptime monitor can be pointed at.
+
+        Nothing else consumes this endpoint, so it can fail loudly without
+        taking the site down with it. Watch it externally: persistence
+        failures are swallowed by design, so a silent log store is otherwise
+        invisible until someone opens the dashboard and notices the gap.
+        """
+        broken = chat_logs_degraded()
+        result = Readiness(
+            status="unready" if broken else "ready",
+            failing=["chat-logs"] if broken else None,
+            timestamp=datetime.now(UTC),
+        )
+        return _json(result, 503 if broken else 200)
 
     @app.get("/v1/capabilities")
     async def capabilities() -> Response:
