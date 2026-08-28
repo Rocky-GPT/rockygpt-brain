@@ -180,9 +180,7 @@ def main(argv: list[str] | None = None) -> int:
             right_caps = asyncio.run(run_all(right_port, cases, args.concurrency))
             paired = zip(left_caps, right_caps, strict=True)
             found = [
-                d
-                for before, after in paired
-                for d in compare(before, after, args.left, args.right)
+                d for before, after in paired for d in compare(before, after, args.left, args.right)
             ]
             code = report(found, args.left, args.right, len(cases), args.strict)
     except HarnessError as exc:

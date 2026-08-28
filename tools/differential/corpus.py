@@ -298,8 +298,7 @@ def cases(only: str | None = None) -> tuple[Case, ...]:
     return tuple(
         case
         for case in CASES
-        if case.name.casefold().startswith(prefix)
-        or case.capability.casefold().startswith(prefix)
+        if case.name.casefold().startswith(prefix) or case.capability.casefold().startswith(prefix)
     )
 
 

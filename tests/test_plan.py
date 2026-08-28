@@ -64,9 +64,7 @@ def test_a_limit_of_one_is_not_a_way_to_select_one_row() -> None:
     than honoured: rows the question never divided stay undivided, and a plan
     that meant to take one ordered row has `select` to say so.
     """
-    checked = check(
-        code("calendar", {"family": "registration"}, order_by="startsAt", limit=1), NOW
-    )
+    checked = check(code("calendar", {"family": "registration"}, order_by="startsAt", limit=1), NOW)
     assert isinstance(checked, Plan)
     assert checked.operation.limit is None
     assert checked.operation.select is None

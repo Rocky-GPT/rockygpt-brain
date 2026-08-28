@@ -255,9 +255,7 @@ CAPABILITIES: dict[str, Capability] = {
         filters={
             "name": entity("academic_program"),
             "subject": entity("academic_subject"),
-            "programKind": enum(
-                "major", "minor", "certificate", "undeclared", "other", "special"
-            ),
+            "programKind": enum("major", "minor", "certificate", "undeclared", "other", "special"),
             "degree": entity("academic_degree"),
             "school": entity("academic_school"),
             "level": enum("undergraduate", "graduate"),
