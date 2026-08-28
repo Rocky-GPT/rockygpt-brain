@@ -5,6 +5,7 @@ import logging
 from collections.abc import AsyncIterator
 from typing import cast
 
+import asyncpg
 import pytest
 
 from rockygpt_brain.api.contracts import (
@@ -193,3 +194,47 @@ async def test_a_refused_write_is_logged_rather_than_swallowed(
 
     assert "Failed to persist chat turn" in caplog.text
     assert durable.records == []
+
+
+def _store() -> PostgresLogStore:
+    return PostgresLogStore("postgresql://user:pw@example.invalid/db", hash_key="k" * 32)
+
+
+def test_a_log_store_that_never_opened_a_pool_is_not_connected() -> None:
+    # The shape of the 2026-08-27 outage: a stale password made `initialize`
+    # raise, so the pool was never assigned. The service answered normally
+    # throughout, which is exactly why this needs its own signal.
+    assert _store().connected is False
+
+
+async def test_a_failed_write_marks_the_store_disconnected() -> None:
+    store = _store()
+    store._pool = object()
+    assert store.connected is True
+
+    async def refuse(_: ChatLogItem) -> None:
+        raise asyncpg.exceptions.InvalidPasswordError("password authentication failed")
+
+    store._record = refuse  # type: ignore[assignment]
+    with pytest.raises(asyncpg.exceptions.InvalidPasswordError):
+        await store.record(cast(ChatLogItem, object()))
+
+    # A pool can outlive the credential that opened it, so pool presence
+    # alone would still report healthy here.
+    assert store.connected is False
+
+
+async def test_a_later_successful_write_clears_the_failure() -> None:
+    store = _store()
+    store._pool = object()
+    store._write_failed = True
+
+    async def accept(_: ChatLogItem) -> None:
+        return None
+
+    store._record = accept  # type: ignore[assignment]
+    await store.record(cast(ChatLogItem, object()))
+
+    # Recovery has to be observable too, or the monitor stays red after the
+    # credential is fixed and everyone learns to ignore it.
+    assert store.connected is True

@@ -165,6 +165,11 @@ class Health(ContractModel):
 class Readiness(ContractModel):
     status: Literal["ready", "unready"]
     failing: list[str] | None = None
+    # Subsystems that are broken without stopping the service from serving.
+    # Kept apart from `failing` on purpose: the UI treats a non-2xx readiness
+    # as the whole deployment being down, so putting chat-log storage in
+    # `failing` would take the site off the air over a logging outage.
+    degraded: list[str] | None = None
     timestamp: datetime | None = None
 
 
