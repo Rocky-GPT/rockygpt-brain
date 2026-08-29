@@ -99,6 +99,71 @@ SORT: dict[str, Reader] = {
 }
 
 
+_SEASONS = ("fall", "spring", "winter", "summer")
+
+# Words that qualify a season without naming a different thing. "Fall break" is
+# not the fall term, so the set is closed rather than "anything else".
+_TERM_WORDS = frozenset({"semester", "term", "the", "this", "academic", "year"})
+
+
+def _bare_season(mention: str) -> str | None:
+    """The season a term mention names, when it names one and gives no year.
+
+    A term mention carrying a year — `Fall 2026` — is an exact name and belongs
+    to `resolve_entity`, which matches it against the dataset's own spelling. A
+    mention with no year is not a weaker version of that; it is a different kind
+    of thing. "The fall semester" names a season and leaves the year to the
+    clock, exactly as "today" leaves the date to it.
+
+    Returns None for anything else, so the strict resolver still sees every
+    mention this cannot account for.
+    """
+    if _YEAR.search(mention):
+        return None
+    words: list[str] = re.findall(r"[a-z]+", mention.casefold())
+    seasons = [word for word in words if word in _SEASONS]
+    if len(seasons) != 1:
+        return None
+    if any(word not in _TERM_WORDS for word in words if word not in _SEASONS):
+        return None
+    return seasons[0]
+
+
+def _term_for_season(season: str, records: list[dict[str, Any]], today: date) -> str | None:
+    """The term of that season the college is in, or heading into.
+
+    Resolved from the calendar's own dates rather than guessed: among the terms
+    whose name begins with the season, the earliest one that has not finished.
+    A season names a recurring thing, so an unqualified mention of it means the
+    current instance and then the next — never the one three years out that
+    happens to sort first, and never a coin toss between them.
+
+    Falls back to the most recent past term when every instance has finished,
+    which is the only remaining reading of "the fall semester" once no fall is
+    still to come.
+    """
+    spans: dict[str, tuple[date, date]] = {}
+    for record in records:
+        term_id, label = _text(record, "termId"), _text(record, "term")
+        if not term_id or not label.casefold().startswith(season):
+            continue
+        parsed = record_date(record)
+        if parsed is None:
+            continue
+        low, high = spans.get(term_id, (parsed, parsed))
+        spans[term_id] = (min(low, parsed), max(high, parsed))
+
+    if not spans:
+        return None
+    unfinished = {name: span for name, span in spans.items() if span[1] >= today}
+    if unfinished:
+        # The one being lived through, then the one after it.
+        return min(unfinished, key=lambda name: unfinished[name][0])
+    # Every instance has finished, so the only remaining reading is the most
+    # recent — not the earliest, which would name a term years gone.
+    return max(spans, key=lambda name: spans[name][0])
+
+
 async def resolve_filters(filters: dict[str, str], now: datetime, data: DataPort) -> dict[str, str]:
     """Resolve planner-facing entity mentions into calendar dataset identity."""
     resolved = dict(filters)
@@ -117,12 +182,24 @@ async def resolve_filters(filters: dict[str, str], now: datetime, data: DataPort
     if term or session:
         records = await data.calendar({"at": now.isoformat()})
         if term and term.casefold() not in {"current", "upcoming"}:
-            terms = {(_text(record, "termId"), _text(record, "term")) for record in records}
-            resolved["termId"] = resolve_entity(
-                "academic_term",
-                term,
-                [EntityCandidate(id, label) for id, label in terms if id and label],
-            )
+            # A season with no year is resolved from the clock, not matched
+            # against the dataset's names. `resolve_entity` is deliberately
+            # strict — it refuses rather than picks the more popular reading —
+            # and "fall" against `Fall 2026`, `Fall 2027` and `Fall 2028` is
+            # exactly the coin toss it declines to make. It is not a coin toss
+            # once the calendar's own dates are read: one of those three is the
+            # fall the college is in.
+            season = _bare_season(term)
+            chosen = _term_for_season(season, records, now.date()) if season else None
+            if chosen:
+                resolved["termId"] = chosen
+            else:
+                terms = {(_text(record, "termId"), _text(record, "term")) for record in records}
+                resolved["termId"] = resolve_entity(
+                    "academic_term",
+                    term,
+                    [EntityCandidate(id, label) for id, label in terms if id and label],
+                )
         if session:
             sessions = {
                 (_text(record, "sessionId"), _text(record, "session")) for record in records
