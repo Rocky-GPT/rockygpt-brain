@@ -12,7 +12,7 @@ class DataPort(Protocol):
 
     async def shuttle(self, query: dict[str, Any]) -> list[dict[str, Any]]: ...
 
-    async def dining(self, query: dict[str, str]) -> list[dict[str, Any]]: ...
+    async def dining(self, query: dict[str, Any]) -> list[dict[str, Any]]: ...
 
     async def events(self, query: dict[str, str]) -> list[dict[str, Any]]: ...
 
@@ -49,7 +49,7 @@ class UnavailableData:
     async def shuttle(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         return await self._raise()
 
-    async def dining(self, query: dict[str, str]) -> list[dict[str, Any]]:
+    async def dining(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         return await self._raise()
 
     async def events(self, query: dict[str, str]) -> list[dict[str, Any]]:

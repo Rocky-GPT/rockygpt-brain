@@ -50,6 +50,38 @@ class Presentation:
         return {"mode": self.mode.value, "page": self.page, "totalPages": self.total_pages}
 
 
+def represented(groups: list[list[int]], capacity: int) -> list[int]:
+    """Which rows a page keeps when every group the question named must appear.
+
+    A page is a prefix, and a prefix answers a compound question with whichever
+    part sorts first. Asked for breakfast and dinner, the lookup returned 87
+    rows across both and the first 25 were every one of them brunch, so the
+    dinner half of the question disappeared between the rows and the answer —
+    the same thing going missing that the plural filter existed to prevent, one
+    stage later.
+
+    Capacity is dealt a row at a time, group by group, so the smallest group is
+    represented before the largest fills the page and a group with fewer rows
+    than its turn gives the remainder back. Indices come back in their original
+    order, which keeps whatever ordering produced them a true description of the
+    page: what changes is which rows are on it, never how they are arranged.
+    """
+    taken = [0] * len(groups)
+    remaining = max(capacity, 0)
+    dealing = True
+    while remaining > 0 and dealing:
+        dealing = False
+        for position, group in enumerate(groups):
+            if remaining == 0:
+                break
+            if taken[position] < len(group):
+                taken[position] += 1
+                remaining -= 1
+                dealing = True
+    kept = {index for position, group in enumerate(groups) for index in group[: taken[position]]}
+    return sorted(kept)
+
+
 def present(rows: int) -> Presentation:
     if rows <= DETAILED_UP_TO:
         return Presentation(Mode.DETAILED, rows)

@@ -390,10 +390,13 @@ class PostgresData:
         q = query.get("q", "")
         return await self._find_hours("dining_hours", q, day, at)
 
-    async def dining(self, query: dict[str, str]) -> list[dict[str, Any]]:
+    async def dining(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         dataset_id = await self._active_dataset_id()
         q = query.get("q", "")
-        meal = query.get("meal")
+        # A list, because one asked-for meal can be served under more than one
+        # name and a question can ask about more than one meal. None means the
+        # question named none, which is every meal rather than no meal.
+        meals = query.get("meals") or None
         pool = await self._ready_pool()
         rows = await pool.fetch(
             """
@@ -404,7 +407,7 @@ class PostgresData:
               FROM rockygpt_v2.menu_items m
               JOIN rockygpt_v2.sources s ON s.id = m.source_id
              WHERE m.dataset_version_id = $1::uuid
-               AND ($2::text IS NULL OR lower(m.meal) = lower($2))
+               AND ($2::text[] IS NULL OR lower(m.meal) = ANY($2::text[]))
                AND ($3::text = '' OR to_tsvector('english',
                       m.meal || ' ' || m.station || ' ' || m.name
                       || CASE WHEN m.vegan THEN ' vegan' ELSE '' END
@@ -414,7 +417,7 @@ class PostgresData:
              LIMIT 5000
             """,
             dataset_id,
-            meal,
+            meals,
             q,
         )
         records: list[dict[str, Any]] = []

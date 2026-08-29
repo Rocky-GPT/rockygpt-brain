@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from dataclasses import field as dc_field
 from datetime import datetime
 from typing import Any
 
@@ -43,6 +44,10 @@ class Capability:
     sort: dict[str, Reader]  # where sorting on the published value sorts wrongly
     normalize: Normalizer | None = None  # semantic mentions -> canonical execution filters
     parallel: frozenset[str] = frozenset()  # what tells otherwise-equal answers apart
+    # execution filter -> the record field its values sort rows into. Named by a
+    # capability whose filter takes several values, so a page can keep every
+    # group the question asked about rather than whichever one sorts first.
+    groups: dict[str, str] = dc_field(default_factory=dict)
 
 
 CAPABILITIES: dict[str, Capability] = {
@@ -64,7 +69,13 @@ CAPABILITIES: dict[str, Capability] = {
         describes="today's campus dining menu items, meals, stations, and dietary options",
         filters={
             "name": text(),
-            "meal": enum("breakfast", "lunch", "dinner", "late_night"),
+            # `brunch` is here because the records use it: it is the whole of
+            # a weekend morning, and the second largest meal in the dataset.
+            # Without it a question could name only meals a Saturday does not
+            # serve. `multiple` because a question may ask about more than one
+            # sitting at once. Which services actually answer a question is
+            # settled in `resolve_filters`, not here.
+            "meal": enum("breakfast", "brunch", "lunch", "dinner", "late_night", multiple=True),
             "station": entity("dining_station"),
             "dietary": enum("vegan", "vegetarian"),
             "date": date(),
@@ -75,6 +86,8 @@ CAPABILITIES: dict[str, Capability] = {
         execute=dining.run,
         read=dining_normalize.FIELDS,
         sort=dining_normalize.SORT,
+        normalize=dining_normalize.resolve_filters,
+        groups={"mealServed": "meal"},
     ),
     "events": Capability(
         describes="upcoming campus events, their dates, times, organizers, and descriptions",
