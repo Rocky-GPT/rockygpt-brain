@@ -1,13 +1,16 @@
-"""The differential harness: record a baseline, compare against it, or A/B two ports.
+"""The differential harness: record a baseline, or compare an implementation against one.
 
     python -m tools.differential.run compare --port postgres --baseline baselines/node.json
     python -m tools.differential.run record  --port postgres --out baselines/postgres.json
 
-`record` freezes what an implementation answers today. That is worth doing
-before anything is ported: the baseline is the contract, and the Node service
-is the only thing that currently knows what it is. `compare` holds a new
-implementation to a recorded baseline. `ab` runs two live ports side by side,
-which is what a cutover rehearsal looks like once both exist.
+`record` freezes what an implementation answers today. `compare` holds an
+implementation to a recorded baseline. `baselines/node.json` is the contract the
+retired Node data service defined; the port to PostgreSQL was verified against
+it, and comparing against it still catches drift in `PostgresData`.
+
+There was a third mode, `ab`, which ran two live ports side by side for a
+cutover rehearsal. It was removed on 2026-08-28: `port()` resolves only
+`postgres`, so there is no second implementation left to put on the other side.
 
 Exit status is meant for CI: 0 when nothing blocking was found, 1 when
 something was, 2 when the harness itself could not run. `--strict` promotes
@@ -129,10 +132,8 @@ def report(found: list[Divergence], left: str, right: str, cases: int, strict: b
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="tools.differential.run", description=__doc__)
-    parser.add_argument("mode", choices=("record", "compare", "ab"))
+    parser.add_argument("mode", choices=("record", "compare"))
     parser.add_argument("--port", default="postgres", help="implementation for record/compare")
-    parser.add_argument("--left", default="postgres", help="ab mode: the reference implementation")
-    parser.add_argument("--right", default="postgres", help="ab mode: the candidate")
     parser.add_argument("--baseline", type=Path, help="baseline file for record/compare")
     parser.add_argument("--out", type=Path, help="alias for --baseline in record mode")
     parser.add_argument("--only", help="run cases whose name or capability starts with this")
@@ -161,28 +162,19 @@ def main(argv: list[str] | None = None) -> int:
                 print("  A baseline holding failures freezes them as expected behaviour.")
             return 0
 
-        if args.mode == "compare":
-            if args.baseline is None:
-                raise HarnessError("compare needs --baseline")
-            name, recorded = read_baseline(args.baseline)
-            captures = asyncio.run(run_all(port(args.port), cases, args.concurrency))
-            found: list[Divergence] = []
-            for current in captures:
-                before = recorded.get(current.case)
-                if before is None:
-                    print(f"  (new case not in baseline, skipped: {current.case})")
-                    continue
-                found.extend(compare(before, current, name, args.port))
-            code = report(found, name, args.port, len(captures), args.strict)
-        else:
-            left_port, right_port = port(args.left), port(args.right)
-            left_caps = asyncio.run(run_all(left_port, cases, args.concurrency))
-            right_caps = asyncio.run(run_all(right_port, cases, args.concurrency))
-            paired = zip(left_caps, right_caps, strict=True)
-            found = [
-                d for before, after in paired for d in compare(before, after, args.left, args.right)
-            ]
-            code = report(found, args.left, args.right, len(cases), args.strict)
+        # Only `compare` is left; argparse has already rejected anything else.
+        if args.baseline is None:
+            raise HarnessError("compare needs --baseline")
+        name, recorded = read_baseline(args.baseline)
+        captures = asyncio.run(run_all(port(args.port), cases, args.concurrency))
+        found: list[Divergence] = []
+        for current in captures:
+            before = recorded.get(current.case)
+            if before is None:
+                print(f"  (new case not in baseline, skipped: {current.case})")
+                continue
+            found.extend(compare(before, current, name, args.port))
+        code = report(found, name, args.port, len(captures), args.strict)
     except HarnessError as exc:
         print(f"{exc}", file=sys.stderr)
         return 2

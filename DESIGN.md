@@ -78,7 +78,8 @@ safety/               the concerns, what to do about each, and applying them
 context/              the conversation, and the record of it
 services/             the outbound calls
   openai.py           the one way this brain talks to a model
-  data.py             the campus data service
+  data.py             the campus data port — the Protocol every lookup uses
+  postgres_data.py    the implementation: Neon reads for every capability
   web/                client and prompt.md — a search is a model call too
   rag/                the campus document retriever
 api/                  the HTTP surface
@@ -236,11 +237,11 @@ and one method on `DataPort`. The registry cannot advertise a capability
 without executable code.
 
 Every executor translates the plan's published filter names into the data
-service's request, then the CODE lane applies `orderBy`, `select`, `limit`, and
+port's request, then the CODE lane applies `orderBy`, `select`, `limit`, and
 `count` over the records that came back. `shuttle` is the clearest example: the
-data service has its own selection vocabulary — `first`, `next`, `current` —
+data port has its own selection vocabulary — `first`, `next`, `current` —
 while the executor asks for the full bounded set and leaves selection to the
-generic operation. That keeps service-specific verbs out of a plan.
+generic operation. That keeps port-specific verbs out of a plan.
 
 ## Mentions in, canonical ids out
 
@@ -431,7 +432,7 @@ At 50 the planner could not say a hundred, so it said one, and "show me 100
 courses" came back as "I can only provide details on one course".
 
 It is no longer what protects the prompt and no longer has to be small enough
-to be — the page does that. The data service hands over whole tables now: the
+to be — the page does that. The data port hands over whole tables now: the
 course catalogue is 3,344 entries and three megabytes, and that question once
 put all of it in the prompt and failed the turn outright. It is a page of 25
 that goes in the prompt and 3,344 that gets reported.
