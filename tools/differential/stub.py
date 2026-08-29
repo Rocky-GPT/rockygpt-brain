@@ -19,10 +19,13 @@ class StubData:
     def _for(self, method: str) -> list[dict[str, Any]]:
         return [dict(record) for record in self._records.get(method, [])]
 
+    async def ready(self) -> None:
+        return None
+
     async def shuttle(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         return self._for("shuttle")
 
-    async def dining(self, query: dict[str, str]) -> list[dict[str, Any]]:
+    async def dining(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         return self._for("dining")
 
     async def events(self, query: dict[str, str]) -> list[dict[str, Any]]:

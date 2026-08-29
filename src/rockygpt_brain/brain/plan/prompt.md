@@ -35,12 +35,15 @@ Where the answer comes from follows from them; that is not yours to choose.
     is merely singular names neither: what makes an answer one thing is a
     filter, and rows the question never divided stay undivided.
 
-    Each filter says what type of value it accepts. For `enum`, use only one of
-    its listed values; choose the stable domain concept, never a phrase guessed
-    from how a database might spell it. For `entity`, give the entity mention
-    from the question and do not invent an identifier. For `date` and `instant`,
-    use one of `timeWords` when it applies; Python resolves it. Use `text` only
-    for genuinely open-ended words.
+    Each filter says what type of value it accepts. For `enum`, use its listed
+    values and nothing else; choose the stable domain concept, never a phrase
+    guessed from how a database might spell it. One value, unless the filter
+    says `multiple` — where it does and the question named several, give all of
+    them separated by commas, because naming fewer answers a narrower question
+    than the one asked. For `entity`, give the entity mention from the question
+    and do not invent an identifier. For `date` and `instant`, use one of
+    `timeWords` when it applies; Python resolves it. Use `text` only for
+    genuinely open-ended words.
 
     A phrase naming the last day to do something names a deadline; `last` does
     not request descending chronology. Do not narrow a broad concept to a more

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime
 from typing import Any
@@ -9,6 +10,7 @@ from rockygpt_brain.brain.execute.schema import (
     Execution,
     Ordering,
     present,
+    represented,
 )
 from rockygpt_brain.brain.plan.schema import Filter, Operation, Plan
 from rockygpt_brain.capabilities.entities import EntityResolutionFailed
@@ -43,7 +45,7 @@ async def run(checked: Plan, now: datetime, data: DataPort) -> Execution:
         raise DatasetUnavailable("Rocky could not reach campus data just now.") from exc
 
     return replace(
-        apply(records, checked.operation, capability, frozenset(execution_filters)),
+        apply(records, checked.operation, capability, execution_filters),
         looked_for={"capability": capability, "filters": semantic_filters},
         normalized_plan=checked.model_copy(
             update={
@@ -59,9 +61,10 @@ def apply(
     records: list[dict[str, Any]],
     operation: Operation,
     capability: str,
-    narrowed: frozenset[str] = frozenset(),
+    narrowed: Mapping[str, str] | None = None,
 ) -> Execution:
     rows = list(records)
+    filters = narrowed or {}
     entry = capability_for(capability)
     if entry is None:
         raise Unsupported("Rocky cannot look that up yet.") from LaneFailed(
@@ -77,12 +80,13 @@ def apply(
         return Execution(CAMPUS_DATA, count=len(rows))
     # `select` takes the one row the ordering names; `limit` takes the number
     # the question asked for. Only a plan that said which gets fewer rows.
-    if operation.select and selects_one(entry, narrowed, rows):
+    if operation.select and selects_one(entry, frozenset(filters), rows):
         rows = rows[:1]
     elif operation.limit is not None:
         rows = rows[: operation.limit]
     shown = present(len(rows))
-    page = [project(row, capability) for row in rows[: shown.page_size]]
+    kept = paged(rows, entry, filters, shown.page_size)
+    page = [project(rows[index], capability) for index in kept]
     return Execution(
         CAMPUS_DATA,
         results=page,
@@ -92,9 +96,44 @@ def apply(
     )
 
 
-def selects_one(
-    entry: Capability, narrowed: frozenset[str], rows: list[dict[str, Any]]
-) -> bool:
+def paged(
+    rows: list[dict[str, Any]],
+    entry: Capability,
+    narrowed: Mapping[str, str],
+    capacity: int,
+) -> list[int]:
+    """Which rows go on the page.
+
+    The first `capacity` of them, unless the question named several values of a
+    grouping filter and more than one of those values actually matched — then
+    every one of them gets a place, because a compound question stays compound
+    all the way to the answer or it was not answered. `represented` says how the
+    capacity is shared; this decides only whether it applies.
+    """
+    for name, field_name in entry.groups.items():
+        wanted = [value.strip() for value in narrowed.get(name, "").split(",") if value.strip()]
+        if len(wanted) < 2:
+            continue
+        read = entry.read.get(field_name) or entry.sort.get(field_name)
+        if read is None:
+            continue
+        groups = []
+        for value in wanted:
+            group = [
+                index
+                for index, row in enumerate(rows)
+                if str(read(row)).casefold() == value.casefold()
+            ]
+            if group:
+                groups.append(group)
+        # One group present is the ordinary case wearing a plural filter: a page
+        # of it is already a page of everything there was.
+        if len(groups) > 1:
+            return represented(groups, capacity)
+    return list(range(min(capacity, len(rows))))
+
+
+def selects_one(entry: Capability, narrowed: frozenset[str], rows: list[dict[str, Any]]) -> bool:
     """Whether taking the first row leaves an answer out.
 
     A capability naming `parallel` fields is saying its rows can be several

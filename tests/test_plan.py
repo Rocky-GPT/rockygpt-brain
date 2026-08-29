@@ -168,7 +168,8 @@ def test_the_catalogue_tells_the_planner_each_filters_value_type() -> None:
     assert filters["meal"] == {
         "field": "meal",
         "type": "enum",
-        "values": ["breakfast", "dinner", "late_night", "lunch"],
+        "values": ["breakfast", "brunch", "dinner", "late_night", "lunch"],
+        "multiple": True,
     }
     assert filters["station"] == {
         "field": "station",
@@ -182,8 +183,32 @@ def test_an_enum_refuses_a_time_value_instead_of_repairing_it() -> None:
     rejected = check(code("dining", {"meal": "today"}, order_by="name"), NOW)
     assert isinstance(rejected, Rejected)
     assert rejected.reason == (
-        "dining.meal expects one of breakfast, dinner, late_night, lunch, received 'today'"
+        "dining.meal expects one of breakfast, brunch, dinner, late_night, lunch, received 'today'"
     )
+
+
+def test_a_question_naming_two_meals_keeps_both() -> None:
+    checked = check(code("dining", {"meal": "breakfast, dinner"}, order_by="name"), NOW)
+    assert isinstance(checked, Plan)
+    assert checked.filter_values == {"meal": "breakfast,dinner"}
+
+
+def test_naming_the_same_meal_twice_asks_for_it_once() -> None:
+    checked = check(code("dining", {"meal": "dinner, DINNER"}, order_by="name"), NOW)
+    assert isinstance(checked, Plan)
+    assert checked.filter_values == {"meal": "dinner"}
+
+
+def test_one_unknown_meal_refuses_the_whole_filter() -> None:
+    rejected = check(code("dining", {"meal": "breakfast, elevenses"}, order_by="name"), NOW)
+    assert isinstance(rejected, Rejected)
+    assert "dining.meal expects one of" in rejected.reason
+
+
+def test_a_filter_that_takes_one_value_still_refuses_two() -> None:
+    rejected = check(code("dining", {"dietary": "vegan, vegetarian"}, order_by="name"), NOW)
+    assert isinstance(rejected, Rejected)
+    assert "dining.dietary expects one of" in rejected.reason
 
 
 def test_an_enum_also_refuses_a_date_shaped_value() -> None:

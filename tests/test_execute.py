@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from rockygpt_brain.brain.execute.run import run
-from rockygpt_brain.brain.execute.schema import PAGE, Mode, present
+from rockygpt_brain.brain.execute.schema import PAGE, Mode, present, represented
 from rockygpt_brain.brain.plan.run import PLAN
 from rockygpt_brain.brain.plan.schema import Filter, Lane, Operation, Plan
 from rockygpt_brain.brain.plan.validate import check
@@ -50,13 +50,19 @@ class FakeData:
         self._fails = fails
         self.query: dict[str, Any] = {}
 
+    async def ready(self) -> None:
+        # A port that cannot answer is not ready either, so the fake fails the
+        # same way in both places rather than half-claiming health.
+        if self._fails:
+            raise DataUnavailable("connection refused")
+
     async def shuttle(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         self.query = query
         if self._fails:
             raise DataUnavailable("connection refused")
         return self._records
 
-    async def dining(self, query: dict[str, str]) -> list[dict[str, Any]]:
+    async def dining(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         self.query = query
         if self._fails:
             raise DataUnavailable("connection refused")
@@ -188,7 +194,7 @@ async def test_a_dining_plan_queries_and_projects_menu_items() -> None:
         FakeWeb(),
         FakeRag(),
     )
-    assert data.query == {"q": "vegan", "at": NOW.isoformat(), "meal": "LUNCH"}
+    assert data.query == {"q": "vegan", "at": NOW.isoformat(), "meals": ["lunch"]}
     assert execution.results == [
         {
             "date": "2031-03-06",
@@ -201,6 +207,129 @@ async def test_a_dining_plan_queries_and_projects_menu_items() -> None:
             "allergens": ["Soy"],
         }
     ]
+
+
+async def test_a_breakfast_question_finds_the_brunch_it_was_served_as() -> None:
+    """The bug this fixes: a Saturday serves brunch, and breakfast found nothing.
+
+    The records file a weekend morning as Brunch, so a plan narrowing on
+    breakfast matched no rows on the one day of the week the question is most
+    likely to be asked about, and the turn reported an empty menu.
+    """
+    data = FakeData([{"name": "Waffles", "meal": "Brunch", "station": "Bliss", "calories": "300"}])
+    execution = await run(
+        code("dining", {"meal": "breakfast"}, order_by="name"), NOW, data, FakeWeb(), FakeRag()
+    )
+    assert data.query["meals"] == ["brunch"]
+    assert [row["name"] for row in execution.results] == ["Waffles"]
+    # What was asked and what ran are both on the record, and they differ.
+    assert execution.looked_for["filters"] == {"meal": "breakfast"}
+    assert execution.normalized_plan["filters"] == {"mealServed": "brunch"}
+
+
+async def test_a_day_that_serves_breakfast_is_answered_with_breakfast() -> None:
+    """The guard on the substitution: it fires on absence, never on the word."""
+    data = FakeData(
+        [
+            {"name": "Oatmeal", "meal": "Breakfast", "station": "Bliss", "calories": "150"},
+            {"name": "Waffles", "meal": "Brunch", "station": "Bliss", "calories": "300"},
+        ]
+    )
+    execution = await run(
+        code("dining", {"meal": "breakfast"}, order_by="name"), NOW, data, FakeWeb(), FakeRag()
+    )
+    assert data.query["meals"] == ["breakfast"]
+    assert [row["name"] for row in execution.results] == ["Oatmeal"]
+
+
+async def test_asking_for_brunch_by_name_does_not_widen_to_breakfast() -> None:
+    data = FakeData(
+        [
+            {"name": "Waffles", "meal": "Brunch", "station": "Bliss", "calories": "300"},
+            {"name": "Oatmeal", "meal": "Breakfast", "station": "Bliss", "calories": "150"},
+        ]
+    )
+    execution = await run(
+        code("dining", {"meal": "brunch"}, order_by="name"), NOW, data, FakeWeb(), FakeRag()
+    )
+    assert data.query["meals"] == ["brunch"]
+    assert [row["name"] for row in execution.results] == ["Waffles"]
+
+
+async def test_two_meals_in_one_question_return_both() -> None:
+    data = FakeData(
+        [
+            {"name": "Oatmeal", "meal": "Breakfast", "station": "Bliss", "calories": "150"},
+            {"name": "Meatloaf", "meal": "Dinner", "station": "Bliss", "calories": "186"},
+            {"name": "Nachos", "meal": "Late Night", "station": "Bliss", "calories": "400"},
+        ]
+    )
+    execution = await run(
+        code("dining", {"meal": "breakfast,dinner"}, order_by="name"),
+        NOW,
+        data,
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert data.query["meals"] == ["breakfast", "dinner"]
+    assert [row["name"] for row in execution.results] == ["Meatloaf", "Oatmeal"]
+
+
+async def test_a_page_keeps_every_meal_the_question_named() -> None:
+    """The second half of the same bug: 87 rows matched and the page showed one.
+
+    Execution returning both meals is not the same as both meals reaching the
+    answer. The page is what BRAIN #3 writes from, and a prefix of a
+    meal-ordered result is entirely whichever meal sorts first — so the dinner
+    half of the question went missing one stage after the filter was fixed.
+    """
+    data = FakeData(
+        [
+            {"name": f"Brunch {n:02}", "meal": "Brunch", "station": "Bliss", "calories": "100"}
+            for n in range(40)
+        ]
+        + [
+            {"name": f"Dinner {n:02}", "meal": "Dinner", "station": "Bliss", "calories": "200"}
+            for n in range(40)
+        ]
+    )
+    execution = await run(
+        code("dining", {"meal": "breakfast,dinner"}), NOW, data, FakeWeb(), FakeRag()
+    )
+    assert execution.found == 80
+    on_page = [row["meal"] for row in execution.results]
+    assert len(on_page) == PAGE
+    assert set(on_page) == {"Brunch", "Dinner"}
+    # Shared, not merely present: neither meal is reduced to a token row.
+    assert min(on_page.count("Brunch"), on_page.count("Dinner")) >= PAGE // 2
+
+
+async def test_one_meal_is_still_paged_as_a_plain_prefix() -> None:
+    data = FakeData(
+        [
+            {"name": f"Dinner {n:02}", "meal": "Dinner", "station": "Bliss", "calories": "200"}
+            for n in range(60)
+        ]
+    )
+    execution = await run(code("dining", {"meal": "dinner"}), NOW, data, FakeWeb(), FakeRag())
+    assert [row["name"] for row in execution.results] == [f"Dinner {n:02}" for n in range(PAGE)]
+
+
+def test_a_page_is_shared_between_the_groups_on_it() -> None:
+    assert represented([[0, 1, 2, 3], [4, 5, 6, 7]], 4) == [0, 1, 4, 5]
+
+
+def test_a_group_with_less_than_its_share_gives_the_rest_back() -> None:
+    assert represented([[0], [1, 2, 3, 4, 5]], 4) == [0, 1, 2, 3]
+
+
+def test_representation_keeps_the_order_it_was_given() -> None:
+    """Indices come back ascending, so the ordering that produced them survives."""
+    assert represented([[5, 6], [0, 1]], 4) == [0, 1, 5, 6]
+
+
+def test_a_page_with_no_room_keeps_nothing() -> None:
+    assert represented([[0, 1], [2, 3]], 0) == []
 
 
 async def test_dining_calories_sort_as_numbers() -> None:

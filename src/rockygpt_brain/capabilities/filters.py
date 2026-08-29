@@ -36,6 +36,7 @@ class FilterSpec:
     entity: str | None = None
     aliases: Mapping[str, str] = field(default_factory=dict)
     description: str = ""
+    multiple: bool = False
 
     def __post_init__(self) -> None:
         if self.kind is FilterKind.ENUM and not self.values:
@@ -44,6 +45,8 @@ class FilterSpec:
             raise ValueError("an entity filter needs an entity kind")
         if self.kind is not FilterKind.ENUM and (self.values or self.aliases):
             raise ValueError("only enum filters may declare values or aliases")
+        if self.multiple and self.kind is not FilterKind.ENUM:
+            raise ValueError("only enum filters may accept several values")
         canonical = {_key(value): value for value in self.values}
         for alias, value in self.aliases.items():
             if value not in self.values:
@@ -52,14 +55,37 @@ class FilterSpec:
         object.__setattr__(self, "aliases", MappingProxyType(canonical))
 
     def enum_value(self, value: str) -> str | None:
+        """The canonical value for a mention, or None if this filter cannot take it.
+
+        A `multiple` filter accepts several values separated by commas and
+        answers with them joined the same way, because a question may name more
+        than one and dropping the rest is not a smaller answer — it is a
+        different one. "Breakfast and dinner" reached a scalar `meal` as
+        `breakfast` alone, and the day it was asked about served no breakfast
+        at all, so a menu with forty-three dinner items answered "nothing
+        matched". Duplicates collapse and order is kept, so the filter reads
+        back the way it was asked.
+        """
         if self.kind is not FilterKind.ENUM:
             return None
-        return self.aliases.get(_key(value))
+        mentions = [part.strip() for part in value.split(",") if part.strip()]
+        if not mentions or (len(mentions) > 1 and not self.multiple):
+            return None
+        canonical: list[str] = []
+        for mention in mentions:
+            resolved = self.aliases.get(_key(mention))
+            if resolved is None:
+                return None
+            if resolved not in canonical:
+                canonical.append(resolved)
+        return ",".join(canonical)
 
     def catalogue(self, name: str) -> dict[str, Any]:
         out: dict[str, Any] = {"field": name, "type": self.kind.value}
         if self.values:
             out["values"] = sorted(self.values)
+        if self.multiple:
+            out["multiple"] = True
         if self.entity:
             out["entity"] = self.entity
         if self.description:
@@ -71,12 +97,14 @@ def enum(
     *values: str,
     aliases: dict[str, str] | None = None,
     description: str = "",
+    multiple: bool = False,
 ) -> FilterSpec:
     return FilterSpec(
         FilterKind.ENUM,
         frozenset(values),
         aliases=aliases or {},
         description=description,
+        multiple=multiple,
     )
 
 
