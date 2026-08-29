@@ -25,7 +25,11 @@ from rockygpt_brain.brain.plan.schema import Lane
 from rockygpt_brain.brain.plan.validate import Rejected, check, route
 from rockygpt_brain.brain.understand.run import UnderstandPort
 from rockygpt_brain.brain.understand.schema import Understanding
-from rockygpt_brain.brain.understand.validate import ResolutionFailed, unresolved
+from rockygpt_brain.brain.understand.validate import (
+    ResolutionFailed,
+    inconsistent,
+    unresolved,
+)
 from rockygpt_brain.brain.write.run import WritePort
 from rockygpt_brain.context.memory import MemoryStore
 from rockygpt_brain.errors import ServiceError, Unavailable
@@ -109,6 +113,21 @@ class Brain:
         recording: _Recording,
     ) -> ChatSuccess:
         read = await self._understand.understand(request.message, earlier, now.isoformat())
+        if inconsistent(read):
+            # Once, and only once. A second reading settles the ordinary case —
+            # a self-contained question asked mid-thread, which comes back
+            # saying so — without spending a turn on a reading that was merely
+            # unlucky. A loop here would spend the student's wait on a model
+            # that has already answered the same way twice, so a second
+            # inconsistent reading is taken as the answer and refused.
+            read = await self._understand.understand(request.message, earlier, now.isoformat())
+            if inconsistent(read):
+                raise Unavailable("Rocky could not work out what that was asking.") from (
+                    ResolutionFailed(
+                        "BRAIN #1 twice said the question needed the conversation "
+                        "and twice pointed at nothing in it"
+                    )
+                )
         if failure := unresolved(read):
             raise Unavailable("Rocky could not work out what that was asking.") from (
                 ResolutionFailed(failure)
