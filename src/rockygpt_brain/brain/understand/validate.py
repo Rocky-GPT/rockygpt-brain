@@ -11,6 +11,33 @@ class ResolutionFailed(Exception):
     pass
 
 
+def inconsistent(read: Understanding) -> bool:
+    """BRAIN #1 contradicting itself: context was needed, and nothing shows it.
+
+    `usesContext` with no references and a resolution identical to the
+    normalized question proves neither reading. A self-contained question asked
+    mid-thread lands here — there was nothing to resolve, and coming back
+    unchanged is the correct answer. So does a real follow-up whose referent
+    BRAIN #1 never found, where continuing plans a question nobody asked.
+
+    Refusing the state outright made the first case a stochastic 503: on a
+    measured ten reads of one self-contained question with a conversation
+    present, `usesContext` was true every time, and the turn survived only
+    because the resolution happened to differ. Passing it instead would let the
+    second case through, which is the failure the guard exists to prevent.
+
+    So it is neither, on one reading. `brain` reads the question once more and
+    refuses if the second reading says the same thing — the states that *are*
+    decisive stay with `unresolved`, where a reference named and left
+    unresolved is a failure however many times it is read.
+    """
+    return (
+        read.uses_context
+        and not read.references
+        and read.resolved.strip().casefold() == read.normalized.strip().casefold()
+    )
+
+
 def unresolved(read: Understanding) -> str:
     if not read.uses_context:
         return ""

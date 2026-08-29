@@ -33,7 +33,7 @@ from rockygpt_brain.brain.plan.schema import (
     Plan,
 )
 from rockygpt_brain.brain.understand.schema import Reference, Understanding
-from rockygpt_brain.brain.understand.validate import unresolved
+from rockygpt_brain.brain.understand.validate import inconsistent, unresolved
 from rockygpt_brain.brain.write.schema import Draft
 from rockygpt_brain.context.memory import MemoryStore
 from rockygpt_brain.errors import (
@@ -90,12 +90,18 @@ class FakePlanner:
         plan: Plan | None = None,
         fails: bool = False,
         read: Understanding | None = None,
+        reads: list[Understanding] | None = None,
     ) -> None:
         self._plan = plan or Plan()
         self._read = read or Understanding(normalized="q", resolved="q")
+        # Successive readings of the same question, for the re-read path. The
+        # last one repeats, so a test can say "it never settles" without
+        # guessing how many times it will be asked.
+        self._reads = list(reads) if reads is not None else None
         self._fails = fails
         self.seen: dict[str, Any] = {}
         self.planned_from: str | None = None
+        self.understand_calls = 0
 
     async def understand(
         self,
@@ -104,8 +110,11 @@ class FakePlanner:
         current_time: str,
     ) -> Understanding:
         self.seen = {"question": question, "context": context, "currentTime": current_time}
+        self.understand_calls += 1
         if self._fails:
             raise Unavailable("down")
+        if self._reads is not None:
+            return self._reads[min(self.understand_calls - 1, len(self._reads) - 1)]
         return self._read
 
     async def plan(self, resolved: str, current_time: str) -> Plan:
@@ -141,6 +150,9 @@ class FakeWeb:
     async def search(self, query: str) -> list[dict[str, Any]]:
         self.searched = query
         return self.results
+
+
+MENU = "What is on the menu today for breakfast and lunch?"
 
 
 async def ask(
@@ -524,6 +536,90 @@ def test_a_self_contained_question_mid_thread_is_not_refused_when_no_references(
         references=[],
     )
     assert not unresolved(read)
+
+
+def _unsettled(question: str) -> Understanding:
+    """What BRAIN #1 returns when it cannot say whether context mattered."""
+    return Understanding(normalized=question, resolved=question, uses_context=True, references=[])
+
+
+def test_an_inconsistent_reading_is_neither_passed_nor_refused() -> None:
+    assert inconsistent(_unsettled(MENU))
+    # Decisive states are not this one, and must not be re-read.
+    assert not inconsistent(
+        Understanding(
+            normalized=MENU,
+            resolved=MENU,
+            uses_context=True,
+            references=[Reference(text="that one", refers_to="the Route 17 shuttle")],
+        )
+    )
+    assert not inconsistent(Understanding(normalized=MENU, resolved=MENU))
+
+
+async def test_a_self_contained_question_mid_thread_survives_a_second_reading() -> None:
+    """The false 503 this fixes: history exists, so BRAIN #1 claims context.
+
+    Measured on the model that serves the stage, a self-contained question with
+    one earlier turn present came back `usesContext: true` ten times out of ten.
+    The turn survived only where the resolution happened to differ, which made
+    refusal a coin toss rather than a judgement.
+    """
+    brains = FakePlanner(
+        reads=[
+            _unsettled(MENU),
+            Understanding(normalized=MENU, resolved=MENU, uses_context=False),
+        ]
+    )
+    response, _ = await ask(MENU, planner=brains)
+    assert response.answer == "written"
+    assert brains.understand_calls == 2
+
+
+async def test_a_follow_up_that_never_settles_fails_closed_after_one_re_read() -> None:
+    brains = FakePlanner(reads=[_unsettled("What about that one?")])
+    with pytest.raises(Unavailable):
+        await ask("What about that one?", planner=brains)
+    # Bounded: read, re-read, refuse. Never a third.
+    assert brains.understand_calls == 2
+
+
+async def test_a_named_reference_left_unresolved_is_refused_without_a_re_read() -> None:
+    """A decisive failure is decisive on the first reading.
+
+    BRAIN #1 named something to resolve and did not resolve it. Reading again
+    cannot change what that means, and the re-read is reserved for the state
+    that genuinely says nothing either way.
+    """
+    brains = FakePlanner(
+        reads=[
+            Understanding(
+                normalized="What about that one?",
+                resolved="What about that one?",
+                uses_context=True,
+                references=[Reference(text="that one", refers_to="the Route 17 shuttle")],
+            )
+        ]
+    )
+    with pytest.raises(Unavailable):
+        await ask("What about that one?", planner=brains)
+    assert brains.understand_calls == 1
+
+
+async def test_a_resolvable_follow_up_continues_normally() -> None:
+    brains = FakePlanner(
+        reads=[
+            Understanding(
+                normalized="What about that one?",
+                resolved="When does the Route 17 shuttle leave?",
+                uses_context=True,
+                references=[Reference(text="that one", refers_to="the Route 17 shuttle")],
+            )
+        ]
+    )
+    response, _ = await ask("What about that one?", planner=brains)
+    assert response.answer == "written"
+    assert brains.understand_calls == 1
 
 
 def test_retryability_is_a_property_of_the_cause_not_a_choice() -> None:
