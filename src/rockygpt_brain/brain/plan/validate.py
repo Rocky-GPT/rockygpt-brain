@@ -81,8 +81,24 @@ def _check_code(plan: Plan, now: datetime) -> Plan | Rejected:
         if name not in capability.fields:
             return Rejected(f"{plan.capability} has no field {name!r} to compare")
 
-    if not operation.stated:
-        return Rejected(f"a {plan.capability} plan needs an operation")
+    # An operation is not required. The rule that once stood here read "a
+    # capability says what to look in; the operation says what to do with what
+    # is found. A plan with one and not the other is half-written, and running
+    # it means guessing the missing half." That holds wherever the question
+    # asks for something to be done to the rows — but not every question does.
+    #
+    # "What is on the menu" asks for the rows themselves. There is no missing
+    # half to guess: what to do with what is found is show it. The schema had
+    # no way to say that, so the planner had to invent an operation it was
+    # never asked for, and roughly one dining question in three arrived with
+    # none and was refused outright — a student got nothing where the honest
+    # answer was sitting in the filtered rows.
+    #
+    # Accepting is the conservative direction here, for the same reason
+    # `selective` gives for dropping a limit of one: every row the question did
+    # not narrow survives, and BRAIN #3 writes up the evidence it now has.
+    # `apply` already handles an operation that asks for nothing — no sort, no
+    # truncation, and presentation still paginates.
 
     if operation.select and not operation.order_by:
         return Rejected(f"a {plan.capability} plan cannot select one row out of no order")
