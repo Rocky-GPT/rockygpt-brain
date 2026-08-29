@@ -20,6 +20,12 @@ Where the answer comes from follows from them; that is not yours to choose.
     picks out, a `limit`, `count` to answer with how many there are, `compare`
     to report fields side by side. Name only fields the capability lists.
 
+    Leaving all five out is also an answer. Where the question asks what there
+    is and nothing more, the rows the filters left are the whole of it: no
+    order was named, no quantity, nothing to count or set side by side. Say
+    none of them rather than reaching for one to fill the space, which decides
+    something about the answer that the question did not.
+
     `limit` is a count the question named; `select` is the single row an
     ordering already picks out. These are different questions and neither
     follows from the other. Set `limit` only where a count was named, and if it

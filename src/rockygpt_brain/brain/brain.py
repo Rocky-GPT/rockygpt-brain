@@ -115,13 +115,20 @@ class Brain:
             )
         drafted = await self._planner.plan(read.resolved, now.isoformat())
         semantic_plan = drafted.model_copy(update={"lane": route(drafted)}).summary()
+        # Recorded before the plan is judged, so a rejected turn logs the plan
+        # that was rejected rather than an empty one. The reason alone says what
+        # rule fired; only the plan beside it says what the model actually wrote,
+        # and that is the difference between reading a rejection and reproducing
+        # it. Diagnosing one such rejection meant querying the log and finding
+        # the column blank.
+        recording.plan = semantic_plan
+
         checked = check(drafted, now)
         if isinstance(checked, Rejected):
             raise Unavailable("Rocky could not work out how to answer that.") from PlanRejected(
                 checked.reason
             )
 
-        recording.plan = semantic_plan
         recording.route = checked.lane.value.lower()
 
         if checked.lane is Lane.RAG and not checked.safety and not self._rag_enabled:

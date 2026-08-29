@@ -23,6 +23,7 @@ from rockygpt_brain.brain.plan.validate import Rejected, anchor, check, resolve
 from rockygpt_brain.brain.understand.run import UNDERSTAND
 from rockygpt_brain.brain.write.run import ANSWER
 from rockygpt_brain.capabilities.registry import CAPABILITIES, catalogue
+from rockygpt_brain.lanes.code.run import apply
 from rockygpt_brain.safety.schema import Concern
 
 SOURCE = Path(rockygpt_brain.__file__).parent
@@ -100,6 +101,29 @@ def test_a_dropped_limit_still_leaves_an_operation_to_run() -> None:
     checked = check(code("calendar", {"family": "registration"}, order_by="date", limit=1), NOW)
     assert isinstance(checked, Plan)
     assert checked.operation.stated
+
+
+def test_a_plan_that_asks_for_nothing_to_be_done_is_run_not_refused() -> None:
+    """Asking what there is names no operation, and that is a plan, not a gap.
+
+    `direction` has a default, so an operation carrying only that is the shape
+    the planner produces when the question asked for nothing to be done to the
+    rows. It was refused outright until 2026-08-29, which made roughly one
+    dining question in three return a 503 instead of the menu.
+    """
+    checked = check(code("dining", {"date": "today"}, direction="ascending"), NOW)
+    assert isinstance(checked, Plan)
+    assert not checked.operation.stated
+    assert checked.capability == "dining"
+    assert [(f.field, f.value) for f in checked.filters] == [("date", NOW.date().isoformat())]
+
+
+def test_nothing_asked_for_leaves_every_row_in_its_original_order() -> None:
+    """An operation that asks for nothing must not quietly sort or truncate."""
+    rows = [{"name": n} for n in ("Waffles", "Apples", "Bagels")]
+    execution = apply(rows, Operation(), "dining")
+    assert execution.ordering is None
+    assert [row["name"] for row in execution.results] == ["Waffles", "Apples", "Bagels"]
 
 
 def test_an_unknown_capability_is_rejected() -> None:
@@ -224,20 +248,35 @@ def test_a_last_day_phrase_is_not_treated_as_descending_chronology() -> None:
     assert "not request descending chronology" in PLAN
 
 
-def test_a_capability_without_an_operation_is_rejected() -> None:
+def test_a_capability_without_an_operation_is_run() -> None:
+    """Naming no operation asks for the rows themselves, which is a plan.
+
+    This asserted a rejection until 2026-08-29, on the reasoning that a
+    capability without an operation is half a plan. It is not: a question can
+    ask what there is and nothing more, and then the filtered rows are the
+    whole answer. Refusing them returned a 503 to roughly one dining question
+    in three, where the rows were sitting there ready to be written up.
+    """
     plan = Plan(a_capability_answers_it=True, capability="shuttle", operation=Operation())
-    rejected = check(plan, NOW)
-    assert isinstance(rejected, Rejected)
-    assert "operation" in rejected.reason
+    checked = check(plan, NOW)
+    assert isinstance(checked, Plan)
+    assert checked.capability == "shuttle"
 
 
 def test_a_direction_alone_is_not_an_operation() -> None:
+    """`direction` has a default, so it is set whether or not one was meant.
+
+    Still true, and still worth holding — `selective` relies on it to tell a
+    dropped limit from an operation that never asked for anything. It no longer
+    decides whether the plan runs.
+    """
+    assert not Operation(direction="descending").stated
     plan = Plan(
         a_capability_answers_it=True,
         capability="shuttle",
         operation=Operation(direction="descending"),
     )
-    assert isinstance(check(plan, NOW), Rejected)
+    assert isinstance(check(plan, NOW), Plan)
 
 
 def test_counting_needs_no_field_and_so_is_always_allowed() -> None:

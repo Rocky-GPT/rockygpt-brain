@@ -589,7 +589,12 @@ async def test_a_failure_records_how_far_the_turn_got() -> None:
         )
 
     logged = _logs(memory)[0]
-    assert logged.tool_arguments == {}, "the plan was refused, so none was recorded"
+    # The refused plan is recorded, not withheld. This asserted the opposite
+    # until 2026-08-29 — "the plan was refused, so none was recorded" — which
+    # left the one column that says what the model actually wrote blank on
+    # exactly the turns someone reads the log to understand. The reason names
+    # the rule that fired; only the plan beside it says what tripped the rule.
+    assert logged.tool_arguments["capability"] == "menu"
     assert "capability" in logged.debug_info["result"]["failed"]
 
 
