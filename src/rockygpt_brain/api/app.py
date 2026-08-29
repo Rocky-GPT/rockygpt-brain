@@ -258,14 +258,23 @@ def create_app(
         #
         # 4xx is the caller being told no, which is ordinary; 5xx is Rocky
         # failing, which is not.
+        #
+        # The cause goes on the line too. Every public message is deliberately
+        # vague — it is written for a student — so the log had "Rocky could not
+        # work out how to answer that" and nothing about which rule fired.
+        # `PlanRejected` and `ResolutionFailed` carry the sentence that says
+        # which, and they are raised as `__cause__` precisely so the two can be
+        # separated: the student reads one, whoever is debugging reads both.
+        cause = exc.__cause__
         logger.log(
             logging.WARNING if exc.status_code >= 500 else logging.INFO,
-            "%s %s -> %d %s: %s [%s]",
+            "%s %s -> %d %s: %s%s [%s]",
             request.method,
             request.url.path,
             exc.status_code,
             exc.code,
             exc.public_message,
+            f" — {type(cause).__name__}: {cause}" if cause is not None else "",
             request.state.request_id,
         )
         return _error(request.state.request_id, exc)
