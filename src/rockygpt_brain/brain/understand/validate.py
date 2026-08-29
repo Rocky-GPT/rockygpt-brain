@@ -15,7 +15,7 @@ def unresolved(read: Understanding) -> str:
     if not read.uses_context:
         return ""
 
-    if read.resolved.strip().casefold() == read.normalized.strip().casefold():
+    if read.references and read.resolved.strip().casefold() == read.normalized.strip().casefold():
         return "the question needed the conversation and came back unchanged"
 
     for reference in read.references:

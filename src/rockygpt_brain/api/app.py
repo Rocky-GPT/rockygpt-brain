@@ -249,6 +249,25 @@ def create_app(
 
     @app.exception_handler(ServiceError)
     async def service_error(request: Request, exc: ServiceError) -> JSONResponse:
+        # A refusal the access log records only as a status code is a refusal
+        # nobody can diagnose. Three 503s on one dining question read
+        # identically in the log whether campus data was unreachable, an entity
+        # failed to resolve, or the plan named nothing runnable — and the turn
+        # they produced carries no `brainTrace` either, so the dev inspector has
+        # nothing to show and the cause exists nowhere at all.
+        #
+        # 4xx is the caller being told no, which is ordinary; 5xx is Rocky
+        # failing, which is not.
+        logger.log(
+            logging.WARNING if exc.status_code >= 500 else logging.INFO,
+            "%s %s -> %d %s: %s [%s]",
+            request.method,
+            request.url.path,
+            exc.status_code,
+            exc.code,
+            exc.public_message,
+            request.state.request_id,
+        )
         return _error(request.state.request_id, exc)
 
     @app.exception_handler(RequestValidationError)
@@ -259,7 +278,17 @@ def create_app(
         )
 
     @app.exception_handler(Exception)
-    async def unexpected_error(request: Request, _: Exception) -> JSONResponse:
+    async def unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+        # The public message says nothing on purpose. The traceback has to go
+        # somewhere, or an unhandled error is indistinguishable from a handled
+        # one and neither can be found afterwards.
+        logger.exception(
+            "Unhandled %s on %s %s [%s]",
+            type(exc).__name__,
+            request.method,
+            request.url.path,
+            request.state.request_id,
+        )
         return _error(
             request.state.request_id,
             Internal("An unexpected error occurred."),
