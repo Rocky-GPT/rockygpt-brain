@@ -141,7 +141,7 @@ class RecordingPort:
     """A DataPort that answers from `inner` and writes down every exchange.
 
     Each method is spelled out rather than generated, for the same reason
-    `HttpData`'s are: the Protocol is the contract, and a port that silently
+    `PostgresData`'s are: the Protocol is the contract, and a port that silently
     grew a method the Protocol does not name should fail to type-check here
     too.
     """
@@ -166,6 +166,11 @@ class RecordingPort:
         entry.records = records
         self.calls[entry.key] = entry
         return records
+
+    async def ready(self) -> None:
+        # Not recorded: readiness is a precondition of the run, not an exchange
+        # the corpus compares. It is spelled out because the Protocol names it.
+        await self._inner.ready()
 
     async def shuttle(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         return await self._record("shuttle", query, self._inner.shuttle(query))
