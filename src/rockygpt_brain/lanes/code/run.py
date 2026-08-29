@@ -77,7 +77,7 @@ def apply(
         return Execution(CAMPUS_DATA, count=len(rows))
     # `select` takes the one row the ordering names; `limit` takes the number
     # the question asked for. Only a plan that said which gets fewer rows.
-    if operation.select and selects_one(entry, narrowed):
+    if operation.select and selects_one(entry, narrowed, rows):
         rows = rows[:1]
     elif operation.limit is not None:
         rows = rows[: operation.limit]
@@ -92,21 +92,45 @@ def apply(
     )
 
 
-def selects_one(entry: Capability, narrowed: frozenset[str]) -> bool:
+def selects_one(
+    entry: Capability, narrowed: frozenset[str], rows: list[dict[str, Any]]
+) -> bool:
     """Whether taking the first row leaves an answer out.
 
     A capability naming `parallel` fields is saying its rows can be several
     answers to one question rather than several candidates for one answer. Where
-    the lookup narrowed on none of them, the question did not tell those rows
-    apart and neither may an ordering: "the last day to register" reached the
-    planner as one ordered thing twice — as `limit: 1`, then as `select` once
-    the count was refused — and both times named a Session I add/drop deadline
-    as the answer while dropping two later deadlines with an equal claim to it.
+    the question did not tell those rows apart, neither may an ordering: "the
+    last day to register" reached the planner as one ordered thing twice — as
+    `limit: 1`, then as `select` once the count was refused — and both times
+    named a Session I add/drop deadline as the answer while dropping two later
+    deadlines with an equal claim to it.
+
+    The test is the rows, not the filter names. This asked only whether the
+    lookup narrowed on *any* parallel field, which reads as "the question was
+    specific enough" and is not the same thing: `calendar` is parallel along two
+    axes at once — a term runs several sessions and files several kinds of
+    deadline in each — so narrowing on `kind` says nothing about whether what
+    matched still spans sessions. Asked when grades are due, a plan naming the
+    kind and the term but no session matched both the Session I deadline in
+    October and the full-semester one in December, and `select` dropped
+    December. That is the same answer going missing that `parallel` was added
+    to prevent, one axis over.
+
+    So: look at what actually matched. Rows that agree on every parallel field
+    the question left open are candidates for one answer, and an ordering picks
+    it. Rows that differ on one are answers to different questions the asker
+    asked at once, and all of them survive.
 
     A count the question actually asked for is honoured either way. Asking for
     five of something says how many were wanted; being singular does not.
     """
-    return not entry.parallel or bool(entry.parallel & narrowed)
+    for name in entry.parallel - narrowed:
+        read = entry.read.get(name) or entry.sort.get(name)
+        if read is None:
+            continue
+        if len({str(read(row)) for row in rows}) > 1:
+            return False
+    return True
 
 
 def project(record: dict[str, Any], capability: str) -> dict[str, Any]:

@@ -710,6 +710,62 @@ async def test_a_question_that_names_a_session_needs_no_count_to_get_one_row() -
     assert [row["startsAt"] for row in execution.results] == ["2031-03-07"]
 
 
+def _grades_due(session: str, session_id: str, day: str, title: str) -> dict[str, str]:
+    return {
+        "family": "grading",
+        "kind": "grades_due",
+        "term": "Fall 2031",
+        "termId": "fall-2031",
+        "session": session,
+        "sessionId": session_id,
+        "date": day,
+        "startsAt": day,
+        "title": title,
+    }
+
+
+async def test_narrowing_one_parallel_field_does_not_licence_dropping_the_other() -> None:
+    """The reported bug: grades are due twice and only October was answered.
+
+    `calendar` is parallel along two axes — a term runs several sessions and
+    files several kinds of deadline in each. Naming the kind says nothing about
+    whether what matched still spans sessions, so `select` must not reduce here.
+    """
+    records = [
+        _grades_due("Session I", "session-i", "2031-10-19", "Session I Courses - Grades Due"),
+        _grades_due("", "", "2031-12-21", "Full and Session II Courses - Grades Due"),
+    ]
+    execution = await run(
+        code("calendar", {"kind": "grades_due"}, order_by="startsAt", select="first"),
+        NOW,
+        FakeData(records),
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert [row["startsAt"] for row in execution.results] == ["2031-10-19", "2031-12-21"]
+
+
+async def test_rows_agreeing_on_every_open_parallel_field_still_select_one() -> None:
+    """Duplicates of one event are candidates for one answer, not two answers.
+
+    The dataset carries each calendar entry more than once. Refusing to select
+    across rows that agree on every axis the question left open would turn a
+    single answer into a list of identical ones.
+    """
+    records = [
+        _grades_due("Session I", "session-i", "2031-10-19", "Session I Courses - Grades Due"),
+        _grades_due("Session I", "session-i", "2031-10-20", "Session I Courses - Grades Due"),
+    ]
+    execution = await run(
+        code("calendar", {"kind": "grades_due"}, order_by="startsAt", select="first"),
+        NOW,
+        FakeData(records),
+        FakeWeb(),
+        FakeRag(),
+    )
+    assert [row["startsAt"] for row in execution.results] == ["2031-10-19"]
+
+
 async def test_a_subject_alias_the_data_owns_becomes_its_code() -> None:
     """The headline failure: `CS` matched nothing over sixty-three CMPS courses.
 
