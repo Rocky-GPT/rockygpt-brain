@@ -481,7 +481,7 @@ refer back to.
 
 `understand/validate.unresolved` reads only what BRAIN #1 said about its own
 work — no phrase list, no judgement about the subject. Two tests: the question
-came back unchanged after BRAIN #1 said it needed the conversation, and a
+came back unchanged after BRAIN #1 named references to borrow, and a
 reference whose referent reached nothing.
 
 The reference test counts any one substantial word of the referent rather than

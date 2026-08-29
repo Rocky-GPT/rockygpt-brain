@@ -516,6 +516,16 @@ def test_a_self_contained_question_is_never_second_guessed() -> None:
     assert not unresolved(read)
 
 
+def test_a_self_contained_question_mid_thread_is_not_refused_when_no_references() -> None:
+    read = Understanding(
+        normalized="What is on the menu today for breakfast and lunch?",
+        resolved="What is on the menu today for breakfast and lunch?",
+        uses_context=True,
+        references=[],
+    )
+    assert not unresolved(read)
+
+
 def test_retryability_is_a_property_of_the_cause_not_a_choice() -> None:
     assert Unavailable("x").retryable, "a passing fault is worth another try"
     assert DatasetUnavailable("x").retryable, "campus data comes back"
