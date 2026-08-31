@@ -1,4 +1,4 @@
-"""Proves the package imports and the minimal HTTP shell runs."""
+"""Proves the package imports and the ordered chat shell runs."""
 
 from unittest.mock import Mock, patch
 
@@ -6,6 +6,10 @@ from pydantic import ValidationError
 
 import rockygpt_brain
 from rockygpt_brain.api.app import MODEL, ChatRequest, chat, health, readiness
+from rockygpt_brain.transportation_interpretation import (
+    INTERPRETATION_INSTRUCTIONS,
+    SHUTTLE_TOOLS,
+)
 
 
 def test_package_imports() -> None:
@@ -58,16 +62,26 @@ def test_chat_passes_messages_to_openai_in_order() -> None:
         {"role": "assistant", "content": "Hello, Sam."},
         {"role": "user", "content": "What is my name?"},
     ]
-    response = Mock(output_text="Hello from the model.", model="gpt-test")
-    with patch("rockygpt_brain.api.app.OpenAI") as client:
+    response = Mock(output=[], output_text="Hello from the model.", model="gpt-test")
+    with patch("rockygpt_brain.transportation_interpretation.OpenAI") as client:
         client.return_value.responses.create.return_value = response
         assert chat(ChatRequest.model_validate({"messages": messages})) == {
             "answer": "Hello from the model.",
             "model": "gpt-test",
+            "transportationInterpretation": {
+                "selected": False,
+                "request": None,
+                "model": "gpt-test",
+            },
         }
 
     client.return_value.responses.create.assert_called_once_with(
         model=MODEL,
         input=messages,
+        instructions=INTERPRETATION_INSTRUCTIONS,
+        tools=SHUTTLE_TOOLS,
+        tool_choice="auto",
+        parallel_tool_calls=False,
         store=False,
+        temperature=0,
     )
