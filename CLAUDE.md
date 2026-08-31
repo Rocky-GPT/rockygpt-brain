@@ -1,208 +1,128 @@
-# RockyGPT brain implementation rule
+# RockyGPT brain — rewrite in progress
 
-Keep it minimal. The whole request lifecycle is `brain/brain.py`, and it should
-stay readable in a minute.
+`src/rockygpt_brain/` holds an empty package and nothing else. That is
+deliberate, not an unfinished checkout. The previous implementation was
+deleted in full on this branch and the replacement is being built one step at
+a time.
 
-```text
-the question
-  -> BRAIN #1  read it alone — what is it asking?      (brain/understand/)
-  ->           fill what it pointed at, if it did      (brain/resolve/)
-  -> BRAIN #2  plan it — what to do about that?        (brain/plan/)
-  -> PYTHON    run the lane the plan names, or fail    (brain/execute/)
-  -> BRAIN #3  turn what came back into an answer      (brain/write/)
+**Nothing about the architecture has been decided.** There are no stages, no
+lanes, no capability registry, no HTTP surface, no chosen model client. If you
+are about to add one because the code seems to be missing it, stop and ask.
+The brief for this branch is to build deliberately and in order; filling in a
+plausible skeleton ahead of that decision is the one way to get it wrong.
+
+## Do not reconstruct the old implementation
+
+The prior version is preserved at tag `v1.0.0-pre-rewrite`, and on branches
+`dev` and `main`. It is there to be *read*, not copied:
+
+```bash
+git show v1.0.0-pre-rewrite:src/rockygpt_brain/brain/brain.py
+git log v1.0.0-pre-rewrite
 ```
 
-**The first reading never sees the conversation.** It is handed the question
-and the clock, and answers with the spans it cannot account for on its own.
-Only when it names one does the conversation open, and then only to fill those
-spans. Two calls rather than one for the same reason the planning call is
-separate: a question that can be read alone cannot be coloured by an earlier
-turn when there is no earlier turn to read. Asked about breakfast and dinner
-after a turn about breakfast and lunch, the single call came back naming all
-three, and the lookup answered a question nobody asked.
+Read it to learn what already failed and why. Do not port its module layout,
+its stage split, its schemas, or its prompts into this branch. If some piece
+of it turns out to be genuinely right, it gets rebuilt as a decision made
+here, with that reasoning written down — not restored because it existed.
 
-The rule the split enforces: **history resolves ambiguity and never creates
-intent.** `understand/validate.py` holds one half — a reading that needs the
-conversation must name what for, and one that names a gap may not also claim
-to stand alone, because either way round there is nothing to act on.
-`resolve/validate.py` holds the other — what the question stated survives, and
-nothing an earlier turn named enters the question except as the filling of a
-named span. The second call has no box of its own in the trace; what it
-produced is `context`, beside the `understanding` the two compose into.
+## What is actually fixed
 
-**The planning call never sees the question as typed.** It is given the
-resolved question and nothing else — no conversation, no original wording. Two
-calls rather than one so that is a fact about what the model can read rather
-than a line in an instruction it may or may not heed. A plan that would have
-needed the conversation is a plan built on a resolution that failed, and this
-is where that shows instead of being quietly patched over.
+Two things constrain the rewrite from outside. Neither is architecture.
 
-Four stages, in that order. The order is the point: what the lane returned is
-handed to BRAIN #3 as `campusData` and is what it answers from. Do not make the
-two calls concurrent to save latency — BRAIN #3 depends on what PYTHON
-produced.
+**The API contract.** `spec/brain-api.openapi.yaml` describes `/health`,
+`/readiness`, `/v1/chat`, `/v1/feedback` and the three `/v1/admin/logs*`
+endpoints. Two separate front ends consume it — the student UI and the dev
+control room — and neither is being rewritten. Changing a response shape here
+breaks a product that is running.
 
-**Every lane grounds BRAIN #3.** PYTHON hands it `answerFrom` on every turn —
-`campusData` with the rows, or `ownKnowledge` — so it never infers what to do
-from a missing field. `answerFrom` is an instruction, never a status: a lane
-with no executor is indistinguishable from a question that needed no lookup,
-because told a lookup failed BRAIN #3 apologises for the capability instead of
-answering the question.
+**One endpoint the spec does not document.** The monitoring workflow polls
+`https://rockygpt-brain.onrender.com/readiness/chat-logs`, which appears
+nowhere in the OpenAPI file. Rebuild the surface from the spec alone and this
+one goes missing; once deployed the monitor fails and reports "production is
+running code older than the readiness endpoint", which is not what went wrong.
+It is part of the contract regardless of the spec being silent on it.
 
-**A lookup that did not happen must never look like one that did.** `campusData`
-is present only when a lookup ran, so an empty list means it ran and matched
-nothing — an answer in itself. The execution stage draws the same line for a
-human: `{"answerFrom": "campusData", "results": []}` is "Rocky looked and there
-is nothing", `{"answerFrom": "ownKnowledge", "note": ...}` is "Rocky never
-looked". Do not drop `results` when it is empty — the empty list is the
-message.
+**The system boundaries.** `spec/system-boundaries.md` — the brain talks to
+OpenAI and to Neon/PostgreSQL directly. There is no campus-data service to
+proxy to; it was retired on 2026-08-28.
 
-**An empty result is a fact about the search until nothing was narrowed.** A
-lookup with no filters lists everything there is, so nothing coming back means
-there are none — `foundNoneOf`, and "there are none left today" is the answer
-worth having. A lookup with filters means nothing matched *those*, which is
-`matchedNothing` and says far less. Under one name BRAIN #3 read both the first
-way: `subject: "CS"` matched no courses because the catalogue files them under
-`CMPS`, and the answer was "there are no computer science courses listed in the
-current database" over sixty-three of them. **Python writes that sentence**, in
-`nothing_matched`, for the same reason it writes `INSUFFICIENT_EVIDENCE` — told
-the distinction in a prompt instead, the model denied the thing existed in five
-answers out of six.
+Both files are the contract the rewrite must still satisfy. They survived the
+clear for that reason.
 
-**Rocky's vocabulary describes what it can do, never what anyone may ask.**
-Three lanes, four safety concerns, a registry of capabilities, the fields each
-capability allows, and a few generic operations — filter, sort, limit, count,
-compare. That is all of it. There is no list of intents and there must never be
-one: no `next_shuttle`, no `menu_lookup`, no enum whose members are questions.
-"The first shuttle" and "the last shuttle" are one
-capability with a different sort, and a new question
-should need no code at all. `brain/plan/schema.py` holds the vocabulary,
-`capabilities/registry.py` the registry.
+## Checks
 
-**The registry lists only what can run.** An entry requires its executor, so a
-capability cannot be declared without the code behind it. The planner is shown
-this list, so anything on it is something it may plan — and a plan Rocky
-cannot run fails at execution, after the question was understood and a plan
-was made, where nothing recovers. A declared-but-unbuilt capability is not a
-smaller product, it is a broken one. Never add a second list beside this one.
+```bash
+source .venv/bin/activate && pytest && ruff check . && mypy src tests
+```
 
-**Capability executors take the filters, not the plan.** Nothing under
-`capabilities/` imports `Plan`: a lookup has no business knowing what a lane
-is or which operations exist. An entry also carries how to read and sort its
-own records, so adding a capability never means editing the lane.
+All three pass on the empty skeleton. Keep it that way — a red baseline on a
+branch this young hides whatever you add next.
 
-**A directory exists when there is code for it.** No `lanes/rag/`, no
-`capabilities/dining/`. An empty package claims the product does something it
-does not, and that claim is what the registry rule above exists to prevent.
+**There is no CI.** `.github/workflows/chat-log-persistence.yml` is not a test
+workflow; it polls the *live production* `/readiness/chat-logs` every 15
+minutes and mails the repo owner when it fails. Nothing runs on push. That
+local command above is the only gate before a Render deploy, so run it.
 
-**Each stage keeps the same four files** — `run.py`, `prompt.py`, `schema.py`,
-`validate.py` — so the same question is always asked in the same place. A
-stage missing one does not have the file rather than an empty one. **Every
-instruction sent to a model lives in a `prompt.md`** — the three stages
-and the web search alike, loaded with `beside(__file__)`. A paragraph added to
-the planning instruction has twice moved lane routing on questions it was not
-about, and that belongs in a diff you read as sentences; a markdown file also
-cannot quietly acquire an f-string, which is how a prompt starts behaving
-differently from what it appears to say. The file is the whole instruction
-and nothing else: what it reads as is what is sent, with nothing stripped on
-the way out.
-Notes for whoever edits one go in DESIGN.md, where they cannot be sent by
-construction — the source itself carries no commentary at all. A test enforces
-the loading rule: inline an instruction as a Python string and the suite fails.
+`pyproject.toml` carries no runtime dependencies. FastAPI, the OpenAI SDK and
+asyncpg were the old version's choices and were removed with it; whatever this
+version needs gets added when it is chosen, not before.
 
-Two things that look like lanes are not, and must not become lanes again. A
-lane says where an answer lives; neither of these is a place.
+## Findings carried over from v1
 
-Recalling what was already said. A question about the conversation is answered
-from the conversation, and routing to a MEMORY lane meant deciding to route
-there from BRAIN #2 — the one stage deliberately denied sight of the
-conversation. It is `usesContext` on BRAIN #1 instead.
+These are not a design. They are things that were measured on this product and
+cost real answers to discover, and they constrain *how* you build whatever
+gets built, not *what* gets built.
 
-Something being wrong with the question. As a lane, SAFETY had no executor, so
-the one turn that must never fail was the only one guaranteed to. It is
-`Plan.safety` instead — a list of `emergency`, `privacy`, `secret`, `harmful`,
-because a question can be several at once. **Python acts on every entry before
-the lane runs, and a plan carrying one is never rejected**: what Rocky does
-about a concern depends on no capability, no executor, and no network, so it
-still happens when campus data is down. `CONCERNS` in `execute.py` says what
-each one does, in Python, because that is the part that must not vary with
-phrasing.
+**Anything deterministic belongs in Python.** Dates and times above all — the
+model is told what time it is rather than working it out, because left to
+derive it a Monday once became a Sunday. The same held for the date on a web
+search: written by the model it was wrong or years stale often enough to
+matter, and nothing downstream could see it.
 
-Four concerns, and they stay four. This is a list of things Rocky must handle,
-not a taxonomy of things people ask; it grows only when Rocky learns to handle
-something new.
+**Never declare a capability with no code behind it.** A feature announced to
+the model but unimplemented fails after the question was understood and a plan
+was made, which is the point where nothing recovers. An empty package makes
+the same false claim.
 
-**The trace is the whole pipeline, not two halves.** `question`, `memory`,
-`understanding`, `context`, `plan`, `execution`, `answer` — one box each in
-the dev inspector. `question` holds what was asked and nothing else;
-everything the turn was read against — the clock, the earlier turns, the modes
-the client asked for — is `memory` beside it, which leaves `understanding` and
-`plan` as purely what the brains decided.
-A stage that did nothing says so rather than going missing: `answerFrom` leads
-the execution entry on every turn, so a turn answered from the model's own
-knowledge can never be mistaken for one answered from campus data. The shape
-that follows it is the flag; there is no `ran` field to read.
+**No enum of intents, ever.** A vocabulary describes what the system can do —
+never what a person may ask. The moment there is a `next_shuttle` or a
+`menu_lookup`, every new question needs new code, and the list becomes a
+taxonomy of phrasings nobody can keep complete.
 
-**A stage that failed is not planned around.** BRAIN #2 is shown `resolved`
-alone, so it cannot tell a resolution that failed from a question that is
-merely vague — it plans something plausible either way, and the turn returns a
-confident answer to a question nobody asked. `_unresolved` ends the turn at
-that seam instead. Both its tests read what BRAIN #1 said about its own work;
-neither knows anything about the subject.
-
-**Python decides what runs.** The model writes a plan; `validate.check` decides
-whether Rocky acts on it. A plan naming a field the capability does not list is
-rejected, not repaired — guessing what it meant is how a taxonomy starts.
-
-**BRAIN #2 says what data is needed; Python says how much of it is shown.**
-`limit` is what the question asked for, and a result cut to it is the answer.
-How much of that result fits in one message is a different question with a
-different answer, and `execute.present` decides it from the row count alone:
-ten or fewer described one by one, fifty or fewer a line each, more than that
-a page of twenty-five that says which page it is. BRAIN #3 is handed one page
-and told how to lay it out. Left to judge the number itself it got it wrong in
-both directions on the same data — writing "I cannot provide a complete list"
-over a result that was complete, and elsewhere describing the first few and
-stopping without saying it had. Neither is visible in the answer.
-
-**Sorting is not ranking.** Not one field any capability can sort by is a
-judgement — they are names, codes, dates, times, categories, credits, calories
-— so the first row of a sorted result is the earliest or the smallest, never
-the best. Arriving at BRAIN #3 the two are identical, which is how "what are
-the best clubs at Ramapo" came back as the alphabetically first five, led by
-`#WeAreRCNJ`. `Execution.ordering` is what says which, set only where a sort
-actually ran. It cut the claim from eight answers in eleven to two in twenty;
-what survives is a hedge, "notable" in place of "best", and three attempts to
-close that measured no better or worse. Do not reach for prompt prose again
-without a measurement — `sufficientEvidence` was `True` on every ranking
-question, and a `ranked: false` field in the grounding made it slightly worse.
-
-The planner is asked nothing about presentation, and the rule below about
-case-by-case behaviour is why. A single field asking whether the question
-wanted everything at once came back set on "when is the next shuttle" and
-unset on "show me 100 courses", and the sentence describing it dropped a
-question it had nothing to do with from 5/5 to 2/5. Measure the routing probe
-before and after any edit to `plan/prompt.md`.
-
-Three rules that survived every earlier version, because each was a real bug:
-
-**Anything deterministic belongs in Python.** Dates and times especially — the
-model is told what time it is rather than working it out, which is how a Monday
-once became a Sunday. Time words in a plan (`today`, `now`) are resolved by
-`validate`, never by the model. So is the date on a web search: BRAIN #2 writes
-what the search means, `validate.anchor` adds the clock's date unconditionally
-and removes any the planner wrote. Left to the model that date appeared four
-times in five, and the missing fifth came back years stale in a way nothing
-downstream could see.
-
-**Don't tell the model what it cannot do.** A prompt describing missing
-capabilities makes the model apologise for them, which reads as a broken
-product
-rather than a small one. Say what it should do and stop.
+**Don't tell the model what it cannot do.** A prompt that lists missing
+capabilities produces apologies for them, and a small product reads as a
+broken one. Say what to do and stop.
 
 **No case-by-case behaviour.** No phrase, entity, or expected answer from any
-test suite belongs in production code or prompts. The planner instruction in
-particular contains no example question, and a test holds it to that — prose
-added there to fix one question reliably breaks three others.
+evaluation suite belongs in production code or in a prompt. Prose added to fix
+one question reliably broke three others; this was measured repeatedly, in
+both directions.
 
-Preserve the existing `/v1` UI response shape.
+**Sorting is not ranking.** No field worth sorting by is a judgement — names,
+codes, dates, times, credits, calories. The first row of a sorted list is the
+earliest or the smallest, never the best. Handed a sorted list with nothing
+saying which, the model answered "the best clubs at Ramapo" with the
+alphabetically first five.
+
+**An empty result is two different facts.** Nothing found when nothing was
+narrowed means there are none. Nothing found when filters were applied means
+nothing matched *those* — far weaker. Under one name the model read both the
+first way and denied that sixty-three courses existed, because the filter said
+`CS` and the catalogue says `CMPS`. Whatever draws that distinction, Python
+writes the sentence, not the model.
+
+**Every instruction sent to a model lives in its own `.md` file, loaded
+verbatim.** A prompt built by f-string starts behaving differently from how it
+reads, and a prompt change should be reviewable as sentences in a diff.
+
+**Measure prompt edits before and after.** Every instinct about prompt prose
+recorded in the old version was wrong at least once, including the confident
+ones. A change that looks obviously good has moved unrelated behaviour.
+
+## Known stale
+
+`README.md` still describes the deleted implementation — its package layout,
+capabilities and run instructions are all wrong on this branch. Do not trust
+it, and rewrite it when the shape of the new version is real enough to
+describe.
