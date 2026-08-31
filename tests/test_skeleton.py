@@ -131,7 +131,7 @@ def test_next_shuttle_chooses_earliest_trip_from_active_database_rows() -> None:
     ("now", "departure_at", "minutes_until", "departure_day"),
     [
         (
-            datetime(2026, 9, 4, 14, 54, 59, tzinfo=CAMPUS_TIME_ZONE),
+            datetime(2026, 9, 4, 14, 54, tzinfo=CAMPUS_TIME_ZONE),
             "2026-09-04T14:55-04:00",
             1,
             "today",
@@ -143,15 +143,15 @@ def test_next_shuttle_chooses_earliest_trip_from_active_database_rows() -> None:
             "today",
         ),
         (
-            datetime(2026, 9, 4, 14, 55, 1, tzinfo=CAMPUS_TIME_ZONE),
+            datetime(2026, 9, 4, 14, 56, tzinfo=CAMPUS_TIME_ZONE),
             "2026-09-04T15:25-04:00",
-            30,
+            29,
             "today",
         ),
         (
-            datetime(2026, 9, 4, 21, 40, 1, tzinfo=CAMPUS_TIME_ZONE),
+            datetime(2026, 9, 4, 21, 41, tzinfo=CAMPUS_TIME_ZONE),
             "2026-09-05T09:00-04:00",
-            680,
+            679,
             "tomorrow",
         ),
     ],
@@ -189,6 +189,8 @@ def test_next_shuttle_time_boundaries_use_controlled_current_time(
         "Is there another shuttle soon?",
         "Is a shuttle coming up?",
         "How soon is the next shuttle?",
+        "When is the next shuttle from campus?",
+        "Is the next shuttle from here coming soon?",
     ],
 )
 def test_immediate_next_shuttle_variants_are_in_scope(question: str) -> None:
@@ -210,6 +212,8 @@ def test_immediate_next_shuttle_variants_are_in_scope(question: str) -> None:
         "What are the next shuttle times?",
         "When is the next shuttle at 5 PM?",
         "When do the shuttles run?",
+        "When is the next shuttle from Ridgewood?",
+        "When is the first shuttle today?",
     ],
 )
 def test_other_transportation_questions_do_not_receive_next_shuttle_fact(question: str) -> None:
@@ -261,6 +265,61 @@ def test_trusted_fact_overrides_user_time_assumptions_without_model_rephrasing()
     client.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    ("now", "departure_at", "minutes_until"),
+    [
+        (
+            datetime(2026, 9, 4, 14, 54, tzinfo=CAMPUS_TIME_ZONE),
+            "2026-09-04T14:55-04:00",
+            1,
+        ),
+        (
+            datetime(2026, 9, 4, 14, 55, tzinfo=CAMPUS_TIME_ZONE),
+            "2026-09-04T14:55-04:00",
+            0,
+        ),
+        (
+            datetime(2026, 9, 4, 14, 56, tzinfo=CAMPUS_TIME_ZONE),
+            "2026-09-04T15:25-04:00",
+            29,
+        ),
+        (
+            datetime(2026, 9, 4, 21, 41, tzinfo=CAMPUS_TIME_ZONE),
+            "2026-09-05T09:00-04:00",
+            679,
+        ),
+    ],
+)
+def test_chat_time_boundaries_inject_clock_without_encoding_conditions_in_question(
+    now: datetime, departure_at: str, minutes_until: int
+) -> None:
+    trips = [
+        trip("2:55 PM", "weekday", "Ramsey Route 17", trip_id="current"),
+        trip("3:25 PM", "weekday", "Ramsey Route 17", trip_id="after"),
+        trip("9:40 PM", "weekday", "Weekday Roadrunner Express", trip_id="final"),
+        trip("9:00 AM", "saturday", "Saturday Roadrunner Express", trip_id="tomorrow"),
+    ]
+    messages = [{"role": "user", "content": "When is the next shuttle?"}]
+
+    with (
+        patch("rockygpt_brain.api.app.campus_now", return_value=now),
+        patch(
+            "rockygpt_brain.shuttle.load_shuttle_trips",
+            new=AsyncMock(return_value=trips),
+        ),
+        patch("rockygpt_brain.api.app.OpenAI") as client,
+    ):
+        result = run_chat(messages)
+
+    fact = result["shuttleFact"]
+    assert isinstance(fact, dict)
+    assert fact["currentTime"] == now.isoformat(timespec="seconds")
+    assert fact["departureAt"] == departure_at
+    assert fact["minutesUntil"] == minutes_until
+    assert result["answer"] == render_next_shuttle_answer(fact)
+    client.assert_not_called()
+
+
 def test_natural_follow_up_uses_actual_multi_turn_conversation() -> None:
     messages = [
         {"role": "user", "content": "Please remember I prefer concise answers."},
@@ -271,8 +330,10 @@ def test_natural_follow_up_uses_actual_multi_turn_conversation() -> None:
         [trip("1:40 PM", "weekday", "Ramsey Route 17", trip_id="express")],
         datetime(2026, 8, 31, 13, 37, tzinfo=CAMPUS_TIME_ZONE),
     )
+    now = datetime(2026, 8, 31, 13, 37, tzinfo=CAMPUS_TIME_ZONE)
 
     with (
+        patch("rockygpt_brain.api.app.campus_now", return_value=now),
         patch(
             "rockygpt_brain.api.app.next_shuttle_from_database",
             new=AsyncMock(return_value=fact),
@@ -290,7 +351,7 @@ def test_natural_follow_up_uses_actual_multi_turn_conversation() -> None:
         "model": "deterministic",
         "shuttleFact": fact,
     }
-    database_lookup.assert_awaited_once_with()
+    database_lookup.assert_awaited_once_with(now)
     client.assert_not_called()
 
 
