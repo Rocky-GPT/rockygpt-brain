@@ -425,7 +425,7 @@ components:
     ChatSuccess:
       type: object
       additionalProperties: false
-      required: [answer, model]
+      required: [answer, model, transportationInterpretation]
       properties:
         answer:
           type: string
@@ -434,6 +434,28 @@ components:
           type: string
           minLength: 1
           description: Model identifier returned by the provider.
+        transportationInterpretation:
+          $ref: '#/components/schemas/TransportationInterpretation'
+    TransportationInterpretation:
+      type: object
+      additionalProperties: false
+      required: [selected, request, model]
+      description: >-
+        Step 5B model selection. A selected request is validated against the
+        Step 5A ShuttleRequest union but is not executed in this step.
+      properties:
+        selected:
+          type: boolean
+        request:
+          oneOf:
+            - type: 'null'
+            - type: object
+              description: Exact JSON serialization of the validated Step 5A ShuttleRequest.
+              additionalProperties: true
+        model:
+          type: string
+          minLength: 1
+          description: Model used only for transportation interpretation.
     BrainTrace:
       type: object
       additionalProperties: false

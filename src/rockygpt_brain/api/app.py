@@ -3,10 +3,14 @@
 import os
 from typing import Literal
 
-from fastapi import FastAPI
-from openai import OpenAI
-from openai.types.responses import ResponseInputParam
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
+
+from rockygpt_brain.transportation_interpretation import (
+    ConversationMessage,
+    InvalidTransportationInterpretation,
+    interpret_transportation,
+)
 
 app = FastAPI(title="RockyGPT Brain", version="0.0.0")
 MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
@@ -42,10 +46,23 @@ def readiness() -> dict[str, str]:
 
 
 @app.post("/v1/chat")
-def chat(request: ChatRequest) -> dict[str, str]:
-    """Send the ordered conversation to one model and return its answer."""
-    messages: ResponseInputParam = [
+def chat(request: ChatRequest) -> dict[str, object]:
+    """Interpret transportation or return the model's normal chat answer."""
+    messages: list[ConversationMessage] = [
         {"role": message.role, "content": message.content} for message in request.messages
     ]
-    response = OpenAI().responses.create(model=MODEL, input=messages, store=False)
-    return {"answer": response.output_text, "model": response.model}
+    try:
+        answer, interpretation = interpret_transportation(messages, MODEL)
+    except InvalidTransportationInterpretation as error:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "The model returned an invalid transportation interpretation.",
+                "reason": str(error),
+            },
+        ) from error
+    return {
+        "answer": answer,
+        "model": interpretation.model,
+        "transportationInterpretation": interpretation.model_dump(mode="json"),
+    }
