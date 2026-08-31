@@ -1,9 +1,13 @@
 """Minimal HTTP shell for RockyGPT Brain."""
 
+import os
+
 from fastapi import FastAPI
+from openai import OpenAI
 from pydantic import BaseModel
 
 app = FastAPI(title="RockyGPT Brain", version="0.0.0")
+MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
 
 
 class ChatRequest(BaseModel):
@@ -25,6 +29,7 @@ def readiness() -> dict[str, str]:
 
 
 @app.post("/v1/chat")
-def chat(_: ChatRequest) -> dict[str, str]:
-    """Return the fixed response used to verify the chat connection."""
-    return {"answer": "RockyGPT chat is connected."}
+def chat(request: ChatRequest) -> dict[str, str]:
+    """Send one message to one model and return its answer."""
+    response = OpenAI().responses.create(model=MODEL, input=request.message, store=False)
+    return {"answer": response.output_text, "model": response.model}
