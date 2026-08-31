@@ -1,7 +1,9 @@
 """Proves the package imports and the minimal HTTP shell runs."""
 
+from unittest.mock import Mock, patch
+
 import rockygpt_brain
-from rockygpt_brain.api.app import ChatRequest, chat, health, readiness
+from rockygpt_brain.api.app import MODEL, ChatRequest, chat, health, readiness
 
 
 def test_package_imports() -> None:
@@ -17,4 +19,16 @@ def test_readiness() -> None:
 
 
 def test_chat() -> None:
-    assert chat(ChatRequest(message="Hello")) == {"answer": "RockyGPT chat is connected."}
+    response = Mock(output_text="Hello from the model.", model="gpt-test")
+    with patch("rockygpt_brain.api.app.OpenAI") as client:
+        client.return_value.responses.create.return_value = response
+        assert chat(ChatRequest(message="Hello")) == {
+            "answer": "Hello from the model.",
+            "model": "gpt-test",
+        }
+
+    client.return_value.responses.create.assert_called_once_with(
+        model=MODEL,
+        input="Hello",
+        store=False,
+    )
