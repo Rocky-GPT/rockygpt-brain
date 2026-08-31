@@ -32,8 +32,10 @@ from rockygpt_brain.brain.plan.schema import (
     Operation,
     Plan,
 )
-from rockygpt_brain.brain.understand.schema import Reference, Understanding
-from rockygpt_brain.brain.understand.validate import inconsistent, unresolved
+from rockygpt_brain.brain.resolve.schema import Filled, Resolution
+from rockygpt_brain.brain.resolve.validate import contaminated
+from rockygpt_brain.brain.understand.schema import Reading, Unresolved
+from rockygpt_brain.brain.understand.validate import incoherent, narrowed
 from rockygpt_brain.brain.write.schema import Draft
 from rockygpt_brain.context.memory import MemoryStore
 from rockygpt_brain.errors import (
@@ -89,33 +91,39 @@ class FakePlanner:
         self,
         plan: Plan | None = None,
         fails: bool = False,
-        read: Understanding | None = None,
-        reads: list[Understanding] | None = None,
+        read: Reading | None = None,
+        resolution: Resolution | None = None,
     ) -> None:
         self._plan = plan or Plan()
-        self._read = read or Understanding(normalized="q", resolved="q")
-        # Successive readings of the same question, for the re-read path. The
-        # last one repeats, so a test can say "it never settles" without
-        # guessing how many times it will be asked.
-        self._reads = list(reads) if reads is not None else None
+        self._read = read or Reading(normalized="q")
+        self._resolution = resolution
         self._fails = fails
         self.seen: dict[str, Any] = {}
         self.planned_from: str | None = None
         self.understand_calls = 0
+        # The conversation only reaches the second reading, so counting it is
+        # how a test says "history never touched this question".
+        self.resolve_calls = 0
+        self.resolved_spans: list[str] | None = None
 
-    async def understand(
-        self,
-        question: str,
-        context: list[dict[str, Any]],
-        current_time: str,
-    ) -> Understanding:
-        self.seen = {"question": question, "context": context, "currentTime": current_time}
+    async def understand(self, question: str, current_time: str) -> Reading:
+        self.seen = {"question": question, "currentTime": current_time}
         self.understand_calls += 1
         if self._fails:
             raise Unavailable("down")
-        if self._reads is not None:
-            return self._reads[min(self.understand_calls - 1, len(self._reads) - 1)]
         return self._read
+
+    async def resolve(
+        self,
+        question: str,
+        spans: list[str],
+        context: list[dict[str, Any]],
+        current_time: str,
+    ) -> Resolution:
+        self.resolve_calls += 1
+        self.resolved_spans = list(spans)
+        self.seen = {**self.seen, "context": context}
+        return self._resolution or Resolution(resolved=question)
 
     async def plan(self, resolved: str, current_time: str) -> Plan:
         self.planned_from = resolved
@@ -227,16 +235,21 @@ async def test_a_reworded_question_is_not_a_borrowed_one() -> None:
 
 
 async def test_the_context_stage_breaks_down_how_the_question_was_read() -> None:
-    read = Understanding(
-        normalized="population of it",
-        references=[Reference(text="it", refers_to="Paris")],
-        used_turns=[0],
-        uses_context=True,
-        resolved="population of Paris",
-    )
     memory = MemoryStore()
     await ask("Capital of france", memory, "r1")
-    planner = FakePlanner(Plan(freshness="stable"), read=read)
+    planner = FakePlanner(
+        Plan(freshness="stable"),
+        read=Reading(
+            normalized="population of it",
+            unresolved=[Unresolved(text="it")],
+            needs_context=True,
+        ),
+        resolution=Resolution(
+            references=[Filled(text="it", refers_to="Paris")],
+            used_turns=[0],
+            resolved="population of Paris",
+        ),
+    )
     response, _ = await ask("population of it", memory, "r2", planner=planner)
     context = response.brain_trace.context
     assert context["references"] == [{"text": "it", "refersTo": "Paris"}]
@@ -250,14 +263,19 @@ async def test_the_context_stage_breaks_down_how_the_question_was_read() -> None
 
 
 async def test_a_turn_position_that_does_not_exist_is_dropped() -> None:
-    read = Understanding(
-        normalized="population of it",
-        references=[Reference(text="it", refers_to="Paris")],
-        used_turns=[7],
-        uses_context=True,
-        resolved="population of Paris",
+    planner = FakePlanner(
+        read=Reading(
+            normalized="population of it",
+            unresolved=[Unresolved(text="it")],
+            needs_context=True,
+        ),
+        resolution=Resolution(
+            references=[Filled(text="it", refers_to="Paris")],
+            used_turns=[7],
+            resolved="population of Paris",
+        ),
     )
-    response, _ = await ask("population of it", planner=FakePlanner(read=read))
+    response, _ = await ask("population of it", planner=planner)
     assert response.brain_trace.context["contextUsed"] == []
 
 
@@ -490,136 +508,174 @@ def test_a_row_that_cannot_be_cited_is_dropped_not_raised_on() -> None:
     assert [c.title for c in found] == ["insee.fr"]
 
 
-def _read(normalized: str, resolved: str, refs: list[tuple[str, str]]) -> Understanding:
-    return Understanding(
-        normalized=normalized,
-        resolved=resolved,
-        uses_context=True,
-        references=[Reference(text=t, refers_to=r) for t, r in refs],
+# What an earlier turn said, for the checks about what may cross from it.
+EARLIER = [
+    {"user": "What is on the menu today for breakfast and lunch?", "assistant": "Lunch is served."}
+]
+
+
+def test_a_reading_that_needs_the_conversation_must_name_what_for() -> None:
+    assert incoherent(Reading(normalized="Where is it?", needs_context=True))
+
+
+def test_a_reading_that_names_a_gap_cannot_also_stand_alone() -> None:
+    assert incoherent(
+        Reading(normalized="Where is it?", unresolved=[Unresolved(text="it")], needs_context=False)
     )
 
 
-def test_a_resolution_that_carried_the_referent_through_is_planned_from() -> None:
-    assert not unresolved(_read("Population of it", "Population of Paris?", [("it", "Paris")]))
+def test_the_two_agreeing_is_what_a_coherent_reading_looks_like() -> None:
+    assert not incoherent(Reading(normalized="Capital of France?"))
+    assert not incoherent(
+        Reading(normalized="Where is it?", unresolved=[Unresolved(text="it")], needs_context=True)
+    )
 
 
-def test_a_referent_reworded_on_the_way_in_still_counts() -> None:
-    assert not unresolved(
-        _read(
-            "What about tomorrow",
-            "What is the first shuttle for tomorrow, 2026-08-26?",
-            [("tomorrow", "the day after today, 2026-08-26")],
+def test_a_clock_word_is_not_a_gap_the_conversation_fills() -> None:
+    """The rewrite this prevents: "tonight" resolved to an earlier dinner answer.
+
+    A question about events kept its subject only because the planner ignored
+    the resolution. The span was never a gap — the hour is known without asking
+    anyone — so it is dropped and the question freezes where it stands.
+    """
+    read = narrowed(
+        Reading(
+            normalized="What events are happening tonight?",
+            unresolved=[Unresolved(text="tonight")],
+            needs_context=True,
         )
     )
+    assert read.unresolved == []
+    assert read.needs_context is False
+    assert not incoherent(read)
 
 
-def test_a_question_that_needed_context_and_came_back_unchanged_is_refused() -> None:
-    assert unresolved(_read("Population of it", "Population of it", [("it", "Paris")]))
-
-
-def test_a_referent_that_never_reached_the_question_is_refused() -> None:
-    assert unresolved(
-        _read("Population of it", "Population of the capital of France", [("it", "Paris")])
-    )
-
-
-def test_a_self_contained_question_is_never_second_guessed() -> None:
-    read = Understanding(normalized="Capital of France?", resolved="Capital of France?")
-    assert not unresolved(read)
-
-
-def test_a_self_contained_question_mid_thread_is_not_refused_when_no_references() -> None:
-    read = Understanding(
-        normalized="What is on the menu today for breakfast and lunch?",
-        resolved="What is on the menu today for breakfast and lunch?",
-        uses_context=True,
-        references=[],
-    )
-    assert not unresolved(read)
-
-
-def _unsettled(question: str) -> Understanding:
-    """What BRAIN #1 returns when it cannot say whether context mattered."""
-    return Understanding(normalized=question, resolved=question, uses_context=True, references=[])
-
-
-def test_an_inconsistent_reading_is_neither_passed_nor_refused() -> None:
-    assert inconsistent(_unsettled(MENU))
-    # Decisive states are not this one, and must not be re-read.
-    assert not inconsistent(
-        Understanding(
-            normalized=MENU,
-            resolved=MENU,
-            uses_context=True,
-            references=[Reference(text="that one", refers_to="the Route 17 shuttle")],
+def test_a_real_gap_beside_a_clock_word_survives() -> None:
+    read = narrowed(
+        Reading(
+            normalized="What about the one after that tonight?",
+            unresolved=[Unresolved(text="tonight"), Unresolved(text="the one after that")],
+            needs_context=True,
         )
     )
-    assert not inconsistent(Understanding(normalized=MENU, resolved=MENU))
+    assert [span.text for span in read.unresolved] == ["the one after that"]
+    assert read.needs_context is True
 
 
-async def test_a_self_contained_question_mid_thread_survives_a_second_reading() -> None:
-    """The false 503 this fixes: history exists, so BRAIN #1 claims context.
+def test_a_span_the_question_does_not_contain_is_refused() -> None:
+    problem = incoherent(
+        Reading(
+            normalized="When is the next shuttle?",
+            unresolved=[Unresolved(text="the one after that")],
+            needs_context=True,
+        )
+    )
+    assert "not a span of the question" in problem
 
-    Measured on the model that serves the stage, a self-contained question with
-    one earlier turn present came back `usesContext: true` ten times out of ten.
-    The turn survived only where the resolution happened to differ, which made
-    refusal a coin toss rather than a judgement.
+
+def test_a_resolution_that_fills_only_its_span_is_kept() -> None:
+    assert not contaminated(
+        "What about the one after that?",
+        ["the one after that"],
+        Resolution(
+            references=[Filled(text="the one after that", refers_to="the shuttle after 11:00 AM")],
+            resolved="When does the shuttle after 11:00 AM depart?",
+        ),
+        EARLIER,
+    )
+
+
+def test_a_resolution_that_drops_what_the_question_stated_is_refused() -> None:
+    problem = contaminated(
+        "What about breakfast and dinner there?",
+        ["there"],
+        Resolution(
+            references=[Filled(text="there", refers_to="Birch")],
+            resolved="What is on the menu for breakfast at Birch?",
+        ),
+        EARLIER,
+    )
+    assert "dinner" in problem
+
+
+def test_a_meal_only_the_conversation_named_may_not_join_the_question() -> None:
+    """The contamination this design exists to make impossible.
+
+    Asked about breakfast and dinner after a turn about breakfast and lunch,
+    the resolution came back naming all three, and the lookup answered a
+    question nobody asked.
     """
-    brains = FakePlanner(
-        reads=[
-            _unsettled(MENU),
-            Understanding(normalized=MENU, resolved=MENU, uses_context=False),
-        ]
+    problem = contaminated(
+        "What about breakfast and dinner there?",
+        ["there"],
+        Resolution(
+            references=[Filled(text="there", refers_to="Birch")],
+            resolved="What is on the menu for breakfast, lunch and dinner at Birch?",
+        ),
+        EARLIER,
     )
-    response, _ = await ask(MENU, planner=brains)
-    assert response.answer == "written"
-    assert brains.understand_calls == 2
+    assert "lunch" in problem
 
 
-async def test_a_follow_up_that_never_settles_fails_closed_after_one_re_read() -> None:
-    brains = FakePlanner(reads=[_unsettled("What about that one?")])
-    with pytest.raises(Unavailable):
-        await ask("What about that one?", planner=brains)
-    # Bounded: read, re-read, refuse. Never a third.
-    assert brains.understand_calls == 2
+async def test_a_self_contained_question_never_reaches_the_conversation() -> None:
+    """The invariant, end to end: history cannot reach a question that stands alone.
 
-
-async def test_a_named_reference_left_unresolved_is_refused_without_a_re_read() -> None:
-    """A decisive failure is decisive on the first reading.
-
-    BRAIN #1 named something to resolve and did not resolve it. Reading again
-    cannot change what that means, and the re-read is reserved for the state
-    that genuinely says nothing either way.
+    Not because the reading decided to ignore it — because the reading that
+    decided the meaning was never shown it, and the second reading did not run.
     """
+    memory = MemoryStore()
+    await ask("What is on the menu today for breakfast and lunch?", memory, "r1")
+
+    brains = FakePlanner(read=Reading(normalized=MENU))
+    _, _ = await ask(MENU, memory, "r2", planner=brains)
+    assert brains.understand_calls == 1
+    assert brains.resolve_calls == 0, "the conversation was never opened"
+    assert brains.planned_from == MENU, "planned from the question exactly as asked"
+
+
+async def test_a_pointing_question_is_filled_from_the_conversation() -> None:
     brains = FakePlanner(
-        reads=[
-            Understanding(
-                normalized="What about that one?",
-                resolved="What about that one?",
-                uses_context=True,
-                references=[Reference(text="that one", refers_to="the Route 17 shuttle")],
-            )
-        ]
+        read=Reading(
+            normalized="What about that one?",
+            unresolved=[Unresolved(text="that one")],
+            needs_context=True,
+        ),
+        resolution=Resolution(
+            references=[Filled(text="that one", refers_to="the Route 17 shuttle")],
+            used_turns=[0],
+            resolved="When does the Route 17 shuttle leave?",
+        ),
+    )
+    await ask("What about that one?", planner=brains)
+    assert brains.resolve_calls == 1
+    assert brains.resolved_spans == ["that one"]
+    assert brains.planned_from == "When does the Route 17 shuttle leave?"
+
+
+async def test_a_reading_that_contradicts_itself_is_refused_before_the_conversation() -> None:
+    brains = FakePlanner(read=Reading(normalized="Where is it?", needs_context=True))
+    with pytest.raises(Unavailable):
+        await ask("Where is it?", planner=brains)
+    assert brains.resolve_calls == 0, "nothing to fill, so nothing was opened"
+
+
+async def test_a_resolution_that_imports_from_the_conversation_is_refused() -> None:
+    memory = MemoryStore()
+    await ask("What is on the menu today for breakfast and lunch?", memory, "r1")
+
+    brains = FakePlanner(
+        read=Reading(
+            normalized="What about breakfast and dinner there?",
+            unresolved=[Unresolved(text="there")],
+            needs_context=True,
+        ),
+        resolution=Resolution(
+            references=[Filled(text="there", refers_to="Birch")],
+            resolved="What is on the menu for breakfast, lunch and dinner at Birch?",
+        ),
     )
     with pytest.raises(Unavailable):
-        await ask("What about that one?", planner=brains)
-    assert brains.understand_calls == 1
-
-
-async def test_a_resolvable_follow_up_continues_normally() -> None:
-    brains = FakePlanner(
-        reads=[
-            Understanding(
-                normalized="What about that one?",
-                resolved="When does the Route 17 shuttle leave?",
-                uses_context=True,
-                references=[Reference(text="that one", refers_to="the Route 17 shuttle")],
-            )
-        ]
-    )
-    response, _ = await ask("What about that one?", planner=brains)
-    assert response.answer == "written"
-    assert brains.understand_calls == 1
+        await ask("What about breakfast and dinner there?", memory, "r2", planner=brains)
 
 
 def test_retryability_is_a_property_of_the_cause_not_a_choice() -> None:

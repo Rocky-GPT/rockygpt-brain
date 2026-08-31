@@ -23,13 +23,10 @@ from rockygpt_brain.brain.execute.schema import (
 from rockygpt_brain.brain.plan.run import PlanPort
 from rockygpt_brain.brain.plan.schema import Lane
 from rockygpt_brain.brain.plan.validate import Rejected, check, route
+from rockygpt_brain.brain.resolve.validate import contaminated
 from rockygpt_brain.brain.understand.run import UnderstandPort
-from rockygpt_brain.brain.understand.schema import Understanding
-from rockygpt_brain.brain.understand.validate import (
-    ResolutionFailed,
-    inconsistent,
-    unresolved,
-)
+from rockygpt_brain.brain.understand.schema import Reading, Reference, Understanding
+from rockygpt_brain.brain.understand.validate import ResolutionFailed, incoherent, narrowed
 from rockygpt_brain.brain.write.run import WritePort
 from rockygpt_brain.context.memory import MemoryStore
 from rockygpt_brain.errors import ServiceError, Unavailable
@@ -102,6 +99,42 @@ class Brain:
         finally:
             await recording.write(self._memory)
 
+    async def _fill(
+        self, reading: Reading, earlier: list[dict[str, Any]], current_time: str
+    ) -> Understanding:
+        """The second reading, and only where the first one asked for it.
+
+        A question that stands on its own never reaches the conversation at
+        all: `resolved` is what was asked, because there was nothing in it to
+        fill. That is the invariant the split exists for — an earlier turn
+        cannot change the meaning of a question that did not point at one,
+        since the reading that decided the meaning never saw it.
+        """
+        if not reading.needs_context:
+            return Understanding(
+                normalized=reading.normalized,
+                uses_context=False,
+                resolved=reading.normalized,
+            )
+        spans = [span.text for span in reading.unresolved]
+        resolution = await self._understand.resolve(
+            reading.normalized, spans, earlier, current_time
+        )
+        if problem := contaminated(reading.normalized, spans, resolution, earlier):
+            raise Unavailable("Rocky could not work out what that was asking.") from (
+                ResolutionFailed(problem)
+            )
+        return Understanding(
+            normalized=reading.normalized,
+            references=[
+                Reference(text=filled.text, refers_to=filled.refers_to)
+                for filled in resolution.references
+            ],
+            used_turns=resolution.used_turns,
+            uses_context=True,
+            resolved=resolution.resolved,
+        )
+
     async def _turn(
         self,
         request: ChatRequest,
@@ -112,26 +145,12 @@ class Brain:
         memory: dict[str, Any],
         recording: _Recording,
     ) -> ChatSuccess:
-        read = await self._understand.understand(request.message, earlier, now.isoformat())
-        if inconsistent(read):
-            # Once, and only once. A second reading settles the ordinary case —
-            # a self-contained question asked mid-thread, which comes back
-            # saying so — without spending a turn on a reading that was merely
-            # unlucky. A loop here would spend the student's wait on a model
-            # that has already answered the same way twice, so a second
-            # inconsistent reading is taken as the answer and refused.
-            read = await self._understand.understand(request.message, earlier, now.isoformat())
-            if inconsistent(read):
-                raise Unavailable("Rocky could not work out what that was asking.") from (
-                    ResolutionFailed(
-                        "BRAIN #1 twice said the question needed the conversation "
-                        "and twice pointed at nothing in it"
-                    )
-                )
-        if failure := unresolved(read):
+        reading = narrowed(await self._understand.understand(request.message, now.isoformat()))
+        if problem := incoherent(reading):
             raise Unavailable("Rocky could not work out what that was asking.") from (
-                ResolutionFailed(failure)
+                ResolutionFailed(problem)
             )
+        read = await self._fill(reading, earlier, now.isoformat())
         drafted = await self._planner.plan(read.resolved, now.isoformat())
         semantic_plan = drafted.model_copy(update={"lane": route(drafted)}).summary()
         # Recorded before the plan is judged, so a rejected turn logs the plan

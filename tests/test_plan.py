@@ -20,6 +20,7 @@ from rockygpt_brain.brain.plan.schema import (
     Plan,
 )
 from rockygpt_brain.brain.plan.validate import Rejected, anchor, check, resolve
+from rockygpt_brain.brain.resolve.run import RESOLVE
 from rockygpt_brain.brain.understand.run import UNDERSTAND
 from rockygpt_brain.brain.write.run import ANSWER
 from rockygpt_brain.capabilities.registry import CAPABILITIES, catalogue
@@ -439,7 +440,7 @@ def test_the_instruction_names_no_campus_thing() -> None:
 
 
 def test_every_stage_loads_its_instruction_from_disk() -> None:
-    for instruction in (UNDERSTAND, PLAN, ANSWER):
+    for instruction in (UNDERSTAND, RESOLVE, PLAN, ANSWER):
         assert instruction and not instruction.startswith("#")
 
 
@@ -458,6 +459,7 @@ def test_every_model_instruction_is_a_prompt_md() -> None:
 def test_a_prompt_file_is_the_whole_instruction() -> None:
     for stage, instruction in (
         ("brain/understand", UNDERSTAND),
+        ("brain/resolve", RESOLVE),
         ("brain/plan", PLAN),
         ("brain/write", ANSWER),
     ):

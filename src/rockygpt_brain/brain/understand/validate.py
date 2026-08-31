@@ -2,62 +2,81 @@ from __future__ import annotations
 
 import re
 
-from rockygpt_brain.brain.understand.schema import Understanding
-
-_MATCHES_EVERYTHING = 3
+from rockygpt_brain.brain.plan.schema import TIME_WORDS
+from rockygpt_brain.brain.understand.schema import Reading
 
 
 class ResolutionFailed(Exception):
     pass
 
 
-def inconsistent(read: Understanding) -> bool:
-    """BRAIN #1 contradicting itself: context was needed, and nothing shows it.
+_WORD = re.compile(r"[\w'-]+")
 
-    `usesContext` with no references and a resolution identical to the
-    normalized question proves neither reading. A self-contained question asked
-    mid-thread lands here — there was nothing to resolve, and coming back
-    unchanged is the correct answer. So does a real follow-up whose referent
-    BRAIN #1 never found, where continuing plans a question nobody asked.
+# Words the clock answers, so no conversation can be needed to read them: the
+# planner's own list, plus the times of day that resolve to a date the same way.
+_THE_CLOCK_ANSWERS = frozenset(TIME_WORDS) | {
+    "tonight",
+    "today's",
+    "tonight's",
+    "morning",
+    "afternoon",
+    "evening",
+    "night",
+    "this",
+}
 
-    Refusing the state outright made the first case a stochastic 503: on a
-    measured ten reads of one self-contained question with a conversation
-    present, `usesContext` was true every time, and the turn survived only
-    because the resolution happened to differ. Passing it instead would let the
-    second case through, which is the failure the guard exists to prevent.
 
-    So it is neither, on one reading. `brain` reads the question once more and
-    refuses if the second reading says the same thing — the states that *are*
-    decisive stay with `unresolved`, where a reference named and left
-    unresolved is a failure however many times it is read.
+def narrowed(reading: Reading) -> Reading:
+    """Drops the spans that were never gaps, and re-derives what is left.
+
+    A span made only of clock words is not something the conversation holds:
+    the hour is known without asking anyone. Sending it to be resolved is how a
+    self-contained question reaches history at all, and history fills it with
+    whatever was last said — "tonight" came back as an earlier answer about
+    dinner, and a question about events stopped being about events.
+
+    Dropped rather than refused, the direction `selective` gives for a limit of
+    one: the question is good and answerable, and the only thing wrong with the
+    reading is that it reached somewhere it did not need to. What survives
+    decides `needsContext`, so a reading with nothing left is frozen exactly as
+    a reading that never reached at all.
     """
-    return (
-        read.uses_context
-        and not read.references
-        and read.resolved.strip().casefold() == read.normalized.strip().casefold()
-    )
+    kept = [
+        span
+        for span in reading.unresolved
+        if not (
+            (words := {word.casefold() for word in _WORD.findall(span.text)})
+            and words <= _THE_CLOCK_ANSWERS
+        )
+    ]
+    if len(kept) == len(reading.unresolved):
+        return reading
+    return reading.model_copy(update={"unresolved": kept, "needs_context": bool(kept)})
 
 
-def unresolved(read: Understanding) -> str:
-    if not read.uses_context:
-        return ""
+def incoherent(reading: Reading) -> str:
+    """Whether the reading contradicts itself about needing the conversation.
 
-    if read.references and read.resolved.strip().casefold() == read.normalized.strip().casefold():
-        return "the question needed the conversation and came back unchanged"
+    `needsContext` and `unresolvedReferences` are one fact stated twice, so
+    disagreement is not a judgement to interpret — it is a reading that cannot
+    be acted on either way. Claiming the conversation while naming nothing
+    leaves the second reading with nothing to fill; naming a span while
+    claiming the question stands alone leaves the span unfilled, and a question
+    still full of pointing words reaches the planner, which answers it
+    confidently against whatever it happens to match.
 
-    for reference in read.references:
-        substantial = [
-            w for w in re.findall(r"[\w'-]+", reference.refers_to) if len(w) > _MATCHES_EVERYTHING
-        ]
-        if substantial:
-            if not any(
-                re.search(rf"\b{re.escape(w)}", read.resolved, re.IGNORECASE) for w in substantial
-            ):
-                return f"nothing of {reference.refers_to!r} reached the question"
-            continue
-        pointing_word = reference.text.strip()
-        if pointing_word and re.search(
-            rf"\b{re.escape(pointing_word)}\b", read.resolved, re.IGNORECASE
-        ):
-            return f"{pointing_word!r} still stands unresolved in the question"
+    A span also has to be words the question contains. One that is not is text
+    the second reading is asked to find and cannot, so it substitutes where it
+    likes — and what it substitutes into is the whole sentence.
+    """
+    if reading.needs_context and not reading.unresolved:
+        return "the reading needed the conversation and named nothing in the question to fill"
+    if reading.unresolved and not reading.needs_context:
+        spans = ", ".join(repr(span.text) for span in reading.unresolved)
+        return f"the reading left {spans} unresolved while saying the question stands alone"
+
+    asked = reading.normalized.casefold()
+    for span in reading.unresolved:
+        if span.text.strip().casefold() not in asked:
+            return f"{span.text!r} is not a span of the question"
     return ""
