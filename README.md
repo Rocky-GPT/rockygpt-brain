@@ -7,9 +7,13 @@ The current clean-room Brain exposes three endpoints:
 - `POST /v1/chat`
 
 Chat accepts one ordered `messages` array whose entries contain only `role` and
-`content`. It passes that array to one OpenAI model call and returns
-`{"answer":"...","model":"..."}`. It has no server memory, prompts, safety,
-routing, tools, data, capabilities, or other Brain logic yet.
+`content`. Normal chat passes that array to one OpenAI model call. A direct
+next-shuttle question adds one deterministic fact calculated from Ramapo
+College's official Fall 2026 schedules in the campus time zone, then lets that
+same model call phrase it. The response remains `{"answer":"...","model":"..."}`
+for normal chat and includes `shuttleFact` for a shuttle answer so its source
+and calculation can be inspected. There is no server memory or generic
+capability, routing, tool, or data framework.
 
 ## Run
 

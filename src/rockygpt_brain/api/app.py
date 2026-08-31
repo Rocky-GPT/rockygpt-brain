@@ -1,5 +1,6 @@
 """Minimal HTTP shell for RockyGPT Brain."""
 
+import json
 import os
 from typing import Literal
 
@@ -7,6 +8,8 @@ from fastapi import FastAPI
 from openai import OpenAI
 from openai.types.responses import ResponseInputParam
 from pydantic import BaseModel, ConfigDict, Field
+
+from rockygpt_brain.shuttle import asks_for_next_shuttle, next_shuttle
 
 app = FastAPI(title="RockyGPT Brain", version="0.0.0")
 MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
@@ -42,10 +45,28 @@ def readiness() -> dict[str, str]:
 
 
 @app.post("/v1/chat")
-def chat(request: ChatRequest) -> dict[str, str]:
+def chat(request: ChatRequest) -> dict[str, object]:
     """Send the ordered conversation to one model and return its answer."""
     messages: ResponseInputParam = [
         {"role": message.role, "content": message.content} for message in request.messages
     ]
-    response = OpenAI().responses.create(model=MODEL, input=messages, store=False)
-    return {"answer": response.output_text, "model": response.model}
+    shuttle_fact = next_shuttle() if asks_for_next_shuttle(request.messages) else None
+    model_input: ResponseInputParam = messages
+    if shuttle_fact:
+        model_input = [
+            {
+                "role": "developer",
+                "content": (
+                    "Answer the latest shuttle question using only this deterministic fact. "
+                    "Phrase it naturally, say the time is scheduled and approximate, and do not "
+                    "invent other shuttle details.\n"
+                    + json.dumps(shuttle_fact, separators=(",", ":"))
+                ),
+            },
+            *messages,
+        ]
+    response = OpenAI().responses.create(model=MODEL, input=model_input, store=False)
+    result: dict[str, object] = {"answer": response.output_text, "model": response.model}
+    if shuttle_fact:
+        result["shuttleFact"] = shuttle_fact
+    return result

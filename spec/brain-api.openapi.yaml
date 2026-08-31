@@ -434,6 +434,59 @@ components:
           type: string
           minLength: 1
           description: Model identifier returned by the provider.
+        shuttleFact:
+          $ref: '#/components/schemas/ShuttleFact'
+    ShuttleFact:
+      type: object
+      additionalProperties: false
+      description: >-
+        The deterministic official-schedule result used to ground a
+        next-shuttle answer. Present only for that narrowly supported question.
+      required:
+        - kind
+        - method
+        - currentTime
+        - departureAt
+        - departureTime
+        - minutesUntil
+        - origin
+        - service
+        - sourceTitle
+        - sourceUrl
+        - sourceCheckedAt
+        - note
+      properties:
+        kind:
+          type: string
+          const: next_shuttle
+        method:
+          type: string
+          const: deterministic_schedule_lookup
+        currentTime:
+          type: string
+          format: date-time
+        departureAt:
+          type: string
+          format: date-time
+        departureTime:
+          type: string
+        minutesUntil:
+          type: integer
+          minimum: 0
+        origin:
+          type: string
+        service:
+          type: string
+        sourceTitle:
+          type: string
+        sourceUrl:
+          type: string
+          format: uri
+        sourceCheckedAt:
+          type: string
+          format: date
+        note:
+          type: string
     BrainTrace:
       type: object
       additionalProperties: false
