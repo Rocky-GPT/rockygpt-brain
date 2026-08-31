@@ -9,7 +9,10 @@ description = "RockyGPT brain"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Proprietary" }
-dependencies = []
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn>=0.30.0",
+]
 
 [project.optional-dependencies]
 dev = [
