@@ -449,19 +449,24 @@ components:
         - departureAt
         - departureTime
         - minutesUntil
-        - origin
-        - service
+        - route
+        - arrival
+        - datasetVersion
+        - datasetActivatedAt
+        - tripId
+        - sourceRecordKey
+        - contentHash
+        - collectedAt
         - sourceTitle
         - sourceUrl
-        - sourceCheckedAt
-        - note
+        - sourceTrustTier
       properties:
         kind:
           type: string
           const: next_shuttle
         method:
           type: string
-          const: deterministic_schedule_lookup
+          const: deterministic_database_schedule_lookup
         currentTime:
           type: string
           format: date-time
@@ -473,20 +478,31 @@ components:
         minutesUntil:
           type: integer
           minimum: 0
-        origin:
-          type: string
-        service:
-          type: string
+        route:
+          type: [string, 'null']
+        arrival:
+          type: [string, 'null']
+        datasetVersion:
+          type: [string, 'null']
+        datasetActivatedAt:
+          type: [string, 'null']
+          format: date-time
+        tripId:
+          type: [string, 'null']
+        sourceRecordKey:
+          type: [string, 'null']
+        contentHash:
+          type: [string, 'null']
+        collectedAt:
+          type: [string, 'null']
+          format: date-time
         sourceTitle:
-          type: string
+          type: [string, 'null']
         sourceUrl:
-          type: string
+          type: [string, 'null']
           format: uri
-        sourceCheckedAt:
-          type: string
-          format: date
-        note:
-          type: string
+        sourceTrustTier:
+          type: [string, 'null']
     BrainTrace:
       type: object
       additionalProperties: false

@@ -4,12 +4,12 @@ import json
 import os
 from typing import Literal
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from openai import OpenAI
 from openai.types.responses import ResponseInputParam
 from pydantic import BaseModel, ConfigDict, Field
 
-from rockygpt_brain.shuttle import asks_for_next_shuttle, next_shuttle
+from rockygpt_brain.shuttle import asks_for_next_shuttle, next_shuttle_from_database
 
 app = FastAPI(title="RockyGPT Brain", version="0.0.0")
 MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
@@ -45,12 +45,17 @@ def readiness() -> dict[str, str]:
 
 
 @app.post("/v1/chat")
-def chat(request: ChatRequest) -> dict[str, object]:
+async def chat(request: ChatRequest) -> dict[str, object]:
     """Send the ordered conversation to one model and return its answer."""
     messages: ResponseInputParam = [
         {"role": message.role, "content": message.content} for message in request.messages
     ]
-    shuttle_fact = next_shuttle() if asks_for_next_shuttle(request.messages) else None
+    shuttle_fact = None
+    if asks_for_next_shuttle(request.messages):
+        try:
+            shuttle_fact = await next_shuttle_from_database()
+        except Exception as error:
+            raise HTTPException(503, "Trusted shuttle data is unavailable") from error
     model_input: ResponseInputParam = messages
     if shuttle_fact:
         model_input = [
@@ -58,8 +63,8 @@ def chat(request: ChatRequest) -> dict[str, object]:
                 "role": "developer",
                 "content": (
                     "Answer the latest shuttle question using only this deterministic fact. "
-                    "Phrase it naturally, say the time is scheduled and approximate, and do not "
-                    "invent other shuttle details.\n"
+                    "Phrase it naturally, say the time is scheduled, and do not invent other "
+                    "shuttle details.\n"
                     + json.dumps(shuttle_fact, separators=(",", ":"))
                 ),
             },
