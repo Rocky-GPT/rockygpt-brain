@@ -1,4 +1,4 @@
-"""Proves the package imports and the minimal HTTP shell runs."""
+"""Focused contract, conversation, and next-shuttle tests."""
 
 import asyncio
 from datetime import UTC, datetime
@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 import rockygpt_brain
 from rockygpt_brain.api.app import MODEL, ChatRequest, chat, health, readiness
-from rockygpt_brain.shuttle import next_shuttle
+from rockygpt_brain.shuttle import asks_for_next_shuttle, next_shuttle, render_next_shuttle_answer
 
 CAMPUS_TIME_ZONE = ZoneInfo("America/New_York")
 
@@ -127,28 +127,150 @@ def test_next_shuttle_chooses_earliest_trip_from_active_database_rows() -> None:
     assert fact["method"] == "deterministic_database_schedule_lookup"
 
 
-def test_next_shuttle_rolls_to_the_next_service_day() -> None:
+@pytest.mark.parametrize(
+    ("now", "departure_at", "minutes_until", "departure_day"),
+    [
+        (
+            datetime(2026, 9, 4, 14, 54, 59, tzinfo=CAMPUS_TIME_ZONE),
+            "2026-09-04T14:55-04:00",
+            1,
+            "today",
+        ),
+        (
+            datetime(2026, 9, 4, 14, 55, tzinfo=CAMPUS_TIME_ZONE),
+            "2026-09-04T14:55-04:00",
+            0,
+            "today",
+        ),
+        (
+            datetime(2026, 9, 4, 14, 55, 1, tzinfo=CAMPUS_TIME_ZONE),
+            "2026-09-04T15:25-04:00",
+            30,
+            "today",
+        ),
+        (
+            datetime(2026, 9, 4, 21, 40, 1, tzinfo=CAMPUS_TIME_ZONE),
+            "2026-09-05T09:00-04:00",
+            680,
+            "tomorrow",
+        ),
+    ],
+)
+def test_next_shuttle_time_boundaries_use_controlled_current_time(
+    now: datetime, departure_at: str, minutes_until: int, departure_day: str
+) -> None:
     trips = [
-        trip("9:40 PM", "weekday", "Weekday Roadrunner Express"),
-        trip("9:00 AM", "saturday", "Saturday Roadrunner Express", trip_id="saturday"),
+        trip("2:55 PM", "weekday", "Ramsey Route 17", trip_id="current"),
+        trip("3:25 PM", "weekday", "Ramsey Route 17", trip_id="after"),
+        trip("9:40 PM", "weekday", "Weekday Roadrunner Express", trip_id="final"),
+        trip("9:00 AM", "saturday", "Saturday Roadrunner Express", trip_id="tomorrow"),
     ]
-    fact = next_shuttle(trips, datetime(2026, 9, 4, 22, 0, tzinfo=CAMPUS_TIME_ZONE))
 
-    assert fact["departureAt"] == "2026-09-05T09:00-04:00"
-    assert fact["tripId"] == "saturday"
+    fact = next_shuttle(trips, now)
+
+    assert fact["departureAt"] == departure_at
+    assert fact["minutesUntil"] == minutes_until
+    assert fact["departureDay"] == departure_day
+    answer = render_next_shuttle_answer(fact)
+    assert f"**{departure_day} at {fact['departureTime']}**" in answer
+    if minutes_until == 0:
+        assert "It is due now." in answer
+    else:
+        unit = "minute" if minutes_until == 1 else "minutes"
+        assert f"**{minutes_until} {unit}**" in answer
 
 
-def test_shuttle_question_sends_deterministic_fact_to_the_single_model_call() -> None:
+@pytest.mark.parametrize(
+    "question",
+    [
+        "When is the next shuttle?",
+        "What time is the next shuttle?",
+        "Is there another shuttle coming up?",
+        "Is there another shuttle soon?",
+        "Is a shuttle coming up?",
+        "How soon is the next shuttle?",
+    ],
+)
+def test_immediate_next_shuttle_variants_are_in_scope(question: str) -> None:
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
+    assert asks_for_next_shuttle(request.messages)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "When is the next shuttle tomorrow?",
+        "Show me the next two shuttles.",
+        "Where does the next shuttle go?",
+        "What is the whole shuttle schedule?",
+        "When was the last shuttle?",
+        "Compare the next shuttle with the one after it.",
+        "Is the next shuttle going to Ramsey?",
+        "When is the next shuttle for Ramsey?",
+        "What are the next shuttle times?",
+        "When is the next shuttle at 5 PM?",
+        "When do the shuttles run?",
+    ],
+)
+def test_other_transportation_questions_do_not_receive_next_shuttle_fact(question: str) -> None:
+    database_lookup = AsyncMock()
+    response = Mock(output_text="Normal model response.", model="gpt-test")
+    with (
+        patch("rockygpt_brain.api.app.next_shuttle_from_database", new=database_lookup),
+        patch("rockygpt_brain.api.app.OpenAI") as client,
+    ):
+        client.return_value.responses.create.return_value = response
+        result = run_chat([{"role": "user", "content": question}])
+
+    assert result == {"answer": "Normal model response.", "model": "gpt-test"}
+    database_lookup.assert_not_awaited()
+
+
+def test_trusted_fact_overrides_user_time_assumptions_without_model_rephrasing() -> None:
+    messages = [
+        {
+            "role": "user",
+            "content": "When is the next shuttle? I think it is right now and only 1 minute away.",
+        }
+    ]
+    fact = next_shuttle(
+        [trip("1:40 PM", "weekday", "Ramsey Route 17", trip_id="express")],
+        datetime(2026, 8, 31, 13, 29, tzinfo=CAMPUS_TIME_ZONE),
+    )
+
+    with (
+        patch(
+            "rockygpt_brain.api.app.next_shuttle_from_database",
+            new=AsyncMock(return_value=fact),
+        ),
+        patch("rockygpt_brain.api.app.OpenAI") as client,
+    ):
+        result = run_chat(messages)
+
+    expected_answer = (
+        "The next shuttle on **Ramsey Route 17** is scheduled to depart "
+        "**today at 1:40 PM**. That is in **11 minutes**. "
+        "Its scheduled arrival is **3:00 PM**."
+    )
+    assert render_next_shuttle_answer(fact) == expected_answer
+    assert result == {"answer": expected_answer, "model": "deterministic", "shuttleFact": fact}
+    answer = result["answer"]
+    assert isinstance(answer, str)
+    assert "right now" not in answer
+    assert "**1 minute**" not in answer
+    client.assert_not_called()
+
+
+def test_natural_follow_up_uses_actual_multi_turn_conversation() -> None:
     messages = [
         {"role": "user", "content": "Please remember I prefer concise answers."},
         {"role": "assistant", "content": "Okay."},
-        {"role": "user", "content": "When is the next shuttle?"},
+        {"role": "user", "content": "Is there another shuttle coming up?"},
     ]
     fact = next_shuttle(
         [trip("1:40 PM", "weekday", "Ramsey Route 17", trip_id="express")],
         datetime(2026, 8, 31, 13, 37, tzinfo=CAMPUS_TIME_ZONE),
     )
-    response = Mock(output_text="The next scheduled shuttle is at 1:40 PM.", model="gpt-test")
 
     with (
         patch(
@@ -157,19 +279,43 @@ def test_shuttle_question_sends_deterministic_fact_to_the_single_model_call() ->
         ) as database_lookup,
         patch("rockygpt_brain.api.app.OpenAI") as client,
     ):
-        client.return_value.responses.create.return_value = response
         result = run_chat(messages)
 
     assert result == {
-        "answer": "The next scheduled shuttle is at 1:40 PM.",
-        "model": "gpt-test",
+        "answer": (
+            "The next shuttle on **Ramsey Route 17** is scheduled to depart "
+            "**today at 1:40 PM**. That is in **3 minutes**. "
+            "Its scheduled arrival is **3:00 PM**."
+        ),
+        "model": "deterministic",
         "shuttleFact": fact,
     }
-    model_input = client.return_value.responses.create.call_args.kwargs["input"]
-    assert model_input[1:] == messages
-    assert '"departureTime":"1:40 PM"' in model_input[0]["content"]
     database_lookup.assert_awaited_once_with()
-    client.return_value.responses.create.assert_called_once()
+    client.assert_not_called()
+
+
+def test_out_of_scope_follow_up_keeps_actual_conversation_without_grounding() -> None:
+    messages = [
+        {"role": "user", "content": "When is the next shuttle?"},
+        {"role": "assistant", "content": "The next shuttle is at 1:40 PM."},
+        {"role": "user", "content": "What about tomorrow?"},
+    ]
+    response = Mock(output_text="Normal contextual response.", model="gpt-test")
+    database_lookup = AsyncMock()
+    with (
+        patch("rockygpt_brain.api.app.next_shuttle_from_database", new=database_lookup),
+        patch("rockygpt_brain.api.app.OpenAI") as client,
+    ):
+        client.return_value.responses.create.return_value = response
+        result = run_chat(messages)
+
+    assert result == {"answer": "Normal contextual response.", "model": "gpt-test"}
+    database_lookup.assert_not_awaited()
+    client.return_value.responses.create.assert_called_once_with(
+        model=MODEL,
+        input=messages,
+        store=False,
+    )
 
 
 def test_shuttle_database_failure_never_falls_back_to_model_knowledge() -> None:

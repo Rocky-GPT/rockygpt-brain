@@ -1,6 +1,5 @@
 """Minimal HTTP shell for RockyGPT Brain."""
 
-import json
 import os
 from typing import Literal
 
@@ -9,7 +8,11 @@ from openai import OpenAI
 from openai.types.responses import ResponseInputParam
 from pydantic import BaseModel, ConfigDict, Field
 
-from rockygpt_brain.shuttle import asks_for_next_shuttle, next_shuttle_from_database
+from rockygpt_brain.shuttle import (
+    asks_for_next_shuttle,
+    next_shuttle_from_database,
+    render_next_shuttle_answer,
+)
 
 app = FastAPI(title="RockyGPT Brain", version="0.0.0")
 MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
@@ -46,7 +49,7 @@ def readiness() -> dict[str, str]:
 
 @app.post("/v1/chat")
 async def chat(request: ChatRequest) -> dict[str, object]:
-    """Send the ordered conversation to one model and return its answer."""
+    """Answer one ordered conversation turn."""
     messages: ResponseInputParam = [
         {"role": message.role, "content": message.content} for message in request.messages
     ]
@@ -56,22 +59,11 @@ async def chat(request: ChatRequest) -> dict[str, object]:
             shuttle_fact = await next_shuttle_from_database()
         except Exception as error:
             raise HTTPException(503, "Trusted shuttle data is unavailable") from error
-    model_input: ResponseInputParam = messages
     if shuttle_fact:
-        model_input = [
-            {
-                "role": "developer",
-                "content": (
-                    "Answer the latest shuttle question using only this deterministic fact. "
-                    "Phrase it naturally, say the time is scheduled, and do not invent other "
-                    "shuttle details.\n"
-                    + json.dumps(shuttle_fact, separators=(",", ":"))
-                ),
-            },
-            *messages,
-        ]
-    response = OpenAI().responses.create(model=MODEL, input=model_input, store=False)
-    result: dict[str, object] = {"answer": response.output_text, "model": response.model}
-    if shuttle_fact:
-        result["shuttleFact"] = shuttle_fact
-    return result
+        return {
+            "answer": render_next_shuttle_answer(shuttle_fact),
+            "model": "deterministic",
+            "shuttleFact": shuttle_fact,
+        }
+    response = OpenAI().responses.create(model=MODEL, input=messages, store=False)
+    return {"answer": response.output_text, "model": response.model}
