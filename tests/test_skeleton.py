@@ -1,7 +1,7 @@
 """Proves the package imports and the minimal HTTP shell runs."""
 
 import rockygpt_brain
-from rockygpt_brain.api.app import health, readiness
+from rockygpt_brain.api.app import ChatRequest, chat, health, readiness
 
 
 def test_package_imports() -> None:
@@ -14,3 +14,7 @@ def test_health() -> None:
 
 def test_readiness() -> None:
     assert readiness() == {"status": "ready"}
+
+
+def test_chat() -> None:
+    assert chat(ChatRequest(message="Hello")) == {"answer": "RockyGPT chat is connected."}
