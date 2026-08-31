@@ -10,7 +10,8 @@ Chat accepts one ordered `messages` array whose entries contain only `role` and
 `content`. Normal chat passes that array to one OpenAI model call. A direct
 next-shuttle question adds one deterministic fact calculated from Ramapo
 College's active trusted database dataset in the campus time zone, then lets
-that same model call phrase it. The response remains
+deterministic code render the final answer so user wording or model output
+cannot contradict the selected trip. The response remains
 `{"answer":"...","model":"..."}` for normal chat and includes `shuttleFact`
 for a shuttle answer so the selected trip, dataset version, source, and
 calculation can be inspected. If trusted data is unavailable, the Brain does

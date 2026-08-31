@@ -1,6 +1,7 @@
 """The one trusted database lookup needed for a next-shuttle answer."""
 
 import os
+import re
 import ssl
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime, time, timedelta
@@ -115,12 +116,27 @@ def next_shuttle(
         if not candidates:
             continue
 
-        departure, trip = min(candidates, key=lambda candidate: candidate[0])
+        departure, trip = min(
+            candidates,
+            key=lambda candidate: (
+                candidate[0],
+                str(candidate[1].get("route_name", "")),
+                str(candidate[1].get("trip_id", "")),
+            ),
+        )
+        if service_date == current.date():
+            departure_day = "today"
+        elif service_date == current.date() + timedelta(days=1):
+            departure_day = "tomorrow"
+        else:
+            departure_day = departure.strftime("%A")
         return {
             "kind": "next_shuttle",
             "method": "deterministic_database_schedule_lookup",
             "currentTime": current.isoformat(timespec="seconds"),
             "departureAt": departure.isoformat(timespec="minutes"),
+            "departureDate": service_date.isoformat(),
+            "departureDay": departure_day,
             "departureTime": departure.strftime("%I:%M %p").lstrip("0"),
             "minutesUntil": ceil((departure - current).total_seconds() / 60),
             "route": _text(trip.get("route_name")),
@@ -142,12 +158,66 @@ async def next_shuttle_from_database(now: datetime | None = None) -> dict[str, o
     return next_shuttle(await load_shuttle_trips(), now)
 
 
+def render_next_shuttle_answer(fact: Mapping[str, object]) -> str:
+    """Render only trusted values, leaving no factual fields for a model to alter."""
+    departure_time = str(fact["departureTime"])
+    departure_day = str(fact["departureDay"])
+    minutes_until = fact["minutesUntil"]
+    if not isinstance(minutes_until, int):
+        raise ValueError("minutesUntil must be an integer")
+    route = _text(fact.get("route"))
+    arrival = _text(fact.get("arrival"))
+
+    route_text = f" on **{route}**" if route else ""
+    answer = (
+        f"The next shuttle{route_text} is scheduled to depart **{departure_day} at "
+        f"{departure_time}**."
+    )
+    if minutes_until == 0:
+        answer += " It is due now."
+    elif minutes_until == 1:
+        answer += " That is in **1 minute**."
+    else:
+        answer += f" That is in **{minutes_until} minutes**."
+    if arrival:
+        answer += f" Its scheduled arrival is **{arrival}**."
+    return answer
+
+
+_OUT_OF_SCOPE_SHUTTLE_PATTERNS = (
+    r"\b(?:tomorrow|yesterday|tonight)\b",
+    r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+    r"\b(?:schedule|timetable|times|all|every|list|multiple|departures|trips)\b",
+    r"\bshuttles\b",
+    r"\bnext\s+(?:two|three|four|\d+)\b",
+    r"\b(?:last|previous|earlier|past|already)\b",
+    r"\b(?:compare|comparison|versus|vs|faster|sooner)\b",
+    r"\b(?:destination|where|which route|what route|stop)\b",
+    r"\b(?:going|headed)\s+to\b",
+    r"\bshuttle\s+to\s+(?!leave\b|depart\b)",
+    r"\b(?:to|from|toward|towards|for)\s+(?!leave\b|depart\b)",
+    r"\b(?:arrive|arrival)\b",
+    r"\b(?:after|before|between)\b",
+    r"\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b",
+)
+
+
 def asks_for_next_shuttle(messages: Sequence[object]) -> bool:
-    """Recognize only a direct next-shuttle question in the latest user message."""
+    """Recognize only an immediate, singular next-shuttle question."""
     for message in reversed(messages):
         role = getattr(message, "role", None)
         content = getattr(message, "content", "")
         if role == "user":
-            normalized = str(content).casefold()
-            return "shuttle" in normalized and ("next" in normalized or "when" in normalized)
+            normalized = " ".join(re.findall(r"[a-z0-9']+", str(content).casefold()))
+            if "shuttle" not in normalized:
+                return False
+            if any(re.search(pattern, normalized) for pattern in _OUT_OF_SCOPE_SHUTTLE_PATTERNS):
+                return False
+            if "next shuttle" in normalized:
+                return True
+            if "another shuttle" in normalized:
+                return bool(
+                    re.search(r"\b(?:coming|soon|due|when|is there|what time)\b", normalized)
+                )
+            return bool(re.search(r"\bshuttle (?:coming|due)(?: up| soon)?\b", normalized))
     return False
