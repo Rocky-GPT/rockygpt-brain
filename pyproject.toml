@@ -4,31 +4,19 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rockygpt-brain"
-version = "1.0.0"
-description = "RockyGPT BASE hybrid brain"
+version = "0.0.0"
+description = "RockyGPT brain"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Proprietary" }
-dependencies = [
-  "fastapi>=0.115,<1.0",
-  "uvicorn[standard]>=0.30,<1.0",
-  "pydantic>=2.7,<3.0",
-  "pydantic-settings>=2.3,<3.0",
-  "openai>=1.40,<2.0",
-  "httpx>=0.27,<1.0",
-  "asyncpg>=0.29,<1.0",
-]
+dependencies = []
 
 [project.optional-dependencies]
 dev = [
   "ruff>=0.6,<1.0",
   "mypy>=1.11,<2.0",
   "pytest>=8.2,<9.0",
-  "pytest-asyncio>=0.23,<1.0",
 ]
-
-[project.scripts]
-rockygpt-brain = "rockygpt_brain.main:run"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rockygpt_brain"]
@@ -36,33 +24,21 @@ packages = ["src/rockygpt_brain"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["src", "tests", "tools"]
+src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "S", "ASYNC"]
 ignore = ["S101"]
 
-[tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106"]
-"tools/**" = ["S101", "S105", "S106"]
-"src/rockygpt_brain/context/postgres_logs.py" = ["S608"]
-"src/rockygpt_brain/services/postgres_data.py" = ["S608", "E501"]
-
 [tool.mypy]
 python_version = "3.11"
 strict = true
-mypy_path = ["src", "tests", "."]
+mypy_path = ["src", "tests"]
 explicit_package_bases = true
-plugins = ["pydantic.mypy"]
-
-[[tool.mypy.overrides]]
-module = "asyncpg.*"
-ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["src", "."]
+pythonpath = ["src"]
 
 [tool.coverage.run]
 source = ["src/rockygpt_brain"]
