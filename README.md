@@ -6,9 +6,10 @@ The current clean-room Brain exposes three endpoints:
 - `GET /readiness`
 - `POST /v1/chat`
 
-Chat accepts `{"message":"..."}`, sends that message to one OpenAI model call,
-and returns `{"answer":"...","model":"..."}`. It has no prompts, memory,
-safety, routing, tools, data, capabilities, or other Brain logic yet.
+Chat accepts one ordered `messages` array whose entries contain only `role` and
+`content`. It passes that array to one OpenAI model call and returns
+`{"answer":"...","model":"..."}`. It has no server memory, prompts, safety,
+routing, tools, data, capabilities, or other Brain logic yet.
 
 ## Run
 
