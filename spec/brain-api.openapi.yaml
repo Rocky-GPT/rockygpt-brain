@@ -394,7 +394,7 @@ components:
         timestamp:
           type: string
           format: date-time
-    ChatTurn:
+    ChatMessage:
       type: object
       additionalProperties: false
       required: [role, content]
@@ -404,56 +404,19 @@ components:
           enum: [user, assistant]
         content:
           type: string
-          minLength: 1
-          maxLength: 2000
     ChatRequest:
       type: object
       additionalProperties: false
-      required: [message]
+      required: [messages]
       properties:
-        message:
-          type: string
-          minLength: 1
-          maxLength: 2000
-        history:
+        messages:
           type: array
-          maxItems: 20
+          minItems: 1
           description: >-
-            Earlier turns, newest last, one entry per speaker — so 20 entries
-            is 10 exchanges, the same depth the brain's own memory keeps.
-            Absent and empty differ: a client that tracks the conversation
-            sends this every turn, and `[]` is taken at its word as "nothing
-            earlier". Omit the field to have the brain use its own record of
-            the session instead.
+            The complete client-owned conversation in chronological order.
+            The service preserves this order and does not add stored context.
           items:
-            $ref: '#/components/schemas/ChatTurn'
-        styleMode:
-          type: string
-          minLength: 1
-          maxLength: 32
-          pattern: '^[A-Za-z0-9_-]+$'
-          examples: [standard, rocky]
-        responseMode:
-          type: string
-          minLength: 1
-          maxLength: 32
-          pattern: '^[A-Za-z0-9_-]+$'
-          examples: [concise]
-        timezone:
-          type: string
-          minLength: 1
-          maxLength: 100
-          examples: [America/New_York]
-        conversationId:
-          $ref: '#/components/schemas/Identifier'
-        visitorId:
-          $ref: '#/components/schemas/Identifier'
-        now:
-          type: string
-          format: date-time
-        questionOrigin:
-          type: string
-          enum: [client, dev, bot]
+            $ref: '#/components/schemas/ChatMessage'
     Identifier:
       type: string
       minLength: 1
@@ -462,36 +425,15 @@ components:
     ChatSuccess:
       type: object
       additionalProperties: false
-      required: [requestId, answer, route, citations, uiActions, suggestedQuestions, brainTrace]
+      required: [answer, model]
       properties:
-        requestId:
-          $ref: '#/components/schemas/Identifier'
         answer:
           type: string
-          minLength: 1
           description: Markdown answer text.
-        route:
+        model:
           type: string
           minLength: 1
-          maxLength: 64
-          description: Opaque label for how the answer was produced.
-        citations:
-          type: array
-          items:
-            $ref: '#/components/schemas/Citation'
-        uiActions:
-          type: array
-          items:
-            $ref: '#/components/schemas/UiAction'
-        suggestedQuestions:
-          type: array
-          maxItems: 10
-          items:
-            type: string
-            minLength: 1
-            maxLength: 120
-        brainTrace:
-          $ref: '#/components/schemas/BrainTrace'
+          description: Model identifier returned by the provider.
     BrainTrace:
       type: object
       additionalProperties: false
