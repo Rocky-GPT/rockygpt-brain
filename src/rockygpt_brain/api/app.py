@@ -15,9 +15,3 @@ def health() -> dict[str, str]:
 def readiness() -> dict[str, str]:
     """Service readiness probe."""
     return {"status": "ready"}
-
-
-@app.get("/readiness/chat-logs")
-def readiness_chat_logs() -> dict[str, str]:
-    """Chat logs readiness probe."""
-    return {"status": "ready"}
