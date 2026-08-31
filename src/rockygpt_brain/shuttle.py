@@ -184,22 +184,70 @@ def render_next_shuttle_answer(fact: Mapping[str, object]) -> str:
     return answer
 
 
-_OUT_OF_SCOPE_SHUTTLE_PATTERNS = (
-    r"\b(?:tomorrow|yesterday|tonight)\b",
-    r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
-    r"\b(?:schedule|timetable|times|all|every|list|multiple|departures|trips)\b",
-    r"\bshuttles\b",
-    r"\bnext\s+(?:two|three|four|\d+)\b",
-    r"\b(?:last|previous|earlier|past|already)\b",
-    r"\b(?:compare|comparison|versus|vs|faster|sooner)\b",
-    r"\b(?:destination|where|which route|what route|stop)\b",
-    r"\b(?:going|headed)\s+to\b",
-    r"\bshuttle\s+to\s+(?!leave\b|depart\b)",
-    r"\b(?:to|from|toward|towards|for)\s+(?!leave\b|depart\b)",
-    r"\b(?:arrive|arrival)\b",
-    r"\b(?:after|before|between)\b",
-    r"\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b",
-)
+_NON_CURRENT_TIME_WORDS = {
+    "tomorrow",
+    "yesterday",
+    "tonight",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+    "after",
+    "before",
+    "between",
+}
+_MULTI_TRIP_WORDS = {
+    "schedule",
+    "timetable",
+    "times",
+    "all",
+    "every",
+    "list",
+    "multiple",
+    "departures",
+    "trips",
+    "shuttles",
+}
+_NON_NEXT_WORDS = {
+    "first",
+    "last",
+    "previous",
+    "earlier",
+    "past",
+    "already",
+    "compare",
+    "comparison",
+    "versus",
+    "vs",
+    "faster",
+    "sooner",
+}
+_ROUTE_DETAIL_WORDS = {"destination", "where", "route", "stop", "arrive", "arrival"}
+_COUNT_WORDS = {"two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"}
+_DEFAULT_ORIGINS = {"campus", "here"}
+_IMMINENCE_WORDS = {"coming", "soon", "due", "when"}
+
+
+def _contains_pair(words: Sequence[str], first: str, second: str) -> bool:
+    return any(
+        left == first and right == second for left, right in zip(words, words[1:], strict=False)
+    )
+
+
+def _asks_for_route_detail(words: Sequence[str]) -> bool:
+    for index, word in enumerate(words[:-1]):
+        following = words[index + 1]
+        if word in {"to", "toward", "towards", "for"} and following not in {
+            "leave",
+            "depart",
+        }:
+            return True
+        if word == "from" and following not in _DEFAULT_ORIGINS:
+            return True
+    return False
 
 
 def asks_for_next_shuttle(messages: Sequence[object]) -> bool:
@@ -208,16 +256,34 @@ def asks_for_next_shuttle(messages: Sequence[object]) -> bool:
         role = getattr(message, "role", None)
         content = getattr(message, "content", "")
         if role == "user":
-            normalized = " ".join(re.findall(r"[a-z0-9']+", str(content).casefold()))
-            if "shuttle" not in normalized:
+            words = re.findall(r"[a-z0-9']+", str(content).casefold())
+            word_set = set(words)
+            normalized = " ".join(words)
+            if "shuttle" not in word_set:
                 return False
-            if any(re.search(pattern, normalized) for pattern in _OUT_OF_SCOPE_SHUTTLE_PATTERNS):
+            if word_set & (
+                _NON_CURRENT_TIME_WORDS
+                | _MULTI_TRIP_WORDS
+                | _NON_NEXT_WORDS
+                | _ROUTE_DETAIL_WORDS
+            ):
                 return False
-            if "next shuttle" in normalized:
+            if re.search(r"\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b", normalized):
+                return False
+            if any(
+                word == "next"
+                and index + 1 < len(words)
+                and (words[index + 1] in _COUNT_WORDS or words[index + 1].isdigit())
+                for index, word in enumerate(words)
+            ):
+                return False
+            if _asks_for_route_detail(words):
+                return False
+            if _contains_pair(words, "next", "shuttle"):
                 return True
-            if "another shuttle" in normalized:
-                return bool(
-                    re.search(r"\b(?:coming|soon|due|when|is there|what time)\b", normalized)
-                )
-            return bool(re.search(r"\bshuttle (?:coming|due)(?: up| soon)?\b", normalized))
+            if _contains_pair(words, "another", "shuttle"):
+                return bool(word_set & _IMMINENCE_WORDS) or _contains_pair(words, "is", "there")
+            return _contains_pair(words, "shuttle", "coming") or _contains_pair(
+                words, "shuttle", "due"
+            )
     return False

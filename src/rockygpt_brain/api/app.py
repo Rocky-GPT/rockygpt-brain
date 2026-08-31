@@ -1,6 +1,7 @@
 """Minimal HTTP shell for RockyGPT Brain."""
 
 import os
+from datetime import datetime
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
@@ -9,6 +10,7 @@ from openai.types.responses import ResponseInputParam
 from pydantic import BaseModel, ConfigDict, Field
 
 from rockygpt_brain.shuttle import (
+    CAMPUS_TIME_ZONE,
     asks_for_next_shuttle,
     next_shuttle_from_database,
     render_next_shuttle_answer,
@@ -35,6 +37,11 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1)
 
 
+def campus_now() -> datetime:
+    """The injectable clock used by deterministic campus-time capabilities."""
+    return datetime.now(CAMPUS_TIME_ZONE)
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     """Process liveness probe."""
@@ -56,7 +63,7 @@ async def chat(request: ChatRequest) -> dict[str, object]:
     shuttle_fact = None
     if asks_for_next_shuttle(request.messages):
         try:
-            shuttle_fact = await next_shuttle_from_database()
+            shuttle_fact = await next_shuttle_from_database(campus_now())
         except Exception as error:
             raise HTTPException(503, "Trusted shuttle data is unavailable") from error
     if shuttle_fact:
