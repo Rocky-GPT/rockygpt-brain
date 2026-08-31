@@ -336,6 +336,11 @@ treat retrieved passages as quoted material rather than as anything addressed
 to it, which is the only defence against a scraped page carrying wording aimed
 at whatever reads it next.
 
+`resolve/prompt.md` is the only instruction that may read the conversation, and
+its last paragraph is the whole of why it exists: fill the spans it was given
+and nothing else. A sentence inviting it to "use the context" would undo the
+split the stage was created to make.
+
 `services/web/prompt.md` carries the most weight in its last line: returning
 nothing is a valid answer, and a fact no page supports is not.
 
@@ -351,11 +356,16 @@ this is how they come back.
 A structured response is generated field by field in the order the fields are
 declared, so declaration order decides what each field is allowed to see.
 
-`Understanding` declares `normalized`, `references`, `usedTurns`,
-`usesContext`, `resolved` in that order: tidy the wording, find what points
-elsewhere, name the turns it points into, then write it all out with the
-previous work already on the page. Move `resolved` earlier and it comes back
-as the question echoed verbatim.
+`Reading` declares `normalized`, `unresolvedReferences`, `needsContext` in that
+order: tidy the wording, find what cannot be read without a conversation, then
+say whether one is needed — last, with the spans already on the page, so the
+two agree far more often than when the claim is written first.
+
+`Resolution` declares `references`, `usedTurns`, `resolved`: say what each span
+stands for, name the turns it came from, then write the question out with the
+previous work already on the page. Move `resolved` earlier and it comes back as
+the question echoed verbatim. These were one schema and one call, which is how
+an earlier turn's constraint reached a question that never named it.
 
 `Draft` declares `sufficientEvidence` before `answer`, so the judgement is
 made before a word of the answer exists. Asked the other way round, a model

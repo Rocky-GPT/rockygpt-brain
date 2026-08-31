@@ -5,11 +5,30 @@ stay readable in a minute.
 
 ```text
 the question
-  -> BRAIN #1  understand it — what is it asking?    (brain/understand/)
-  -> BRAIN #2  plan it — what to do about that?      (brain/plan/)
-  -> PYTHON    run the lane the plan names, or fail  (brain/execute/)
-  -> BRAIN #3  turn what came back into an answer    (brain/write/)
+  -> BRAIN #1  read it alone — what is it asking?      (brain/understand/)
+  ->           fill what it pointed at, if it did      (brain/resolve/)
+  -> BRAIN #2  plan it — what to do about that?        (brain/plan/)
+  -> PYTHON    run the lane the plan names, or fail    (brain/execute/)
+  -> BRAIN #3  turn what came back into an answer      (brain/write/)
 ```
+
+**The first reading never sees the conversation.** It is handed the question
+and the clock, and answers with the spans it cannot account for on its own.
+Only when it names one does the conversation open, and then only to fill those
+spans. Two calls rather than one for the same reason the planning call is
+separate: a question that can be read alone cannot be coloured by an earlier
+turn when there is no earlier turn to read. Asked about breakfast and dinner
+after a turn about breakfast and lunch, the single call came back naming all
+three, and the lookup answered a question nobody asked.
+
+The rule the split enforces: **history resolves ambiguity and never creates
+intent.** `understand/validate.py` holds one half — a reading that needs the
+conversation must name what for, and one that names a gap may not also claim
+to stand alone, because either way round there is nothing to act on.
+`resolve/validate.py` holds the other — what the question stated survives, and
+nothing an earlier turn named enters the question except as the filling of a
+named span. The second call has no box of its own in the trace; what it
+produced is `context`, beside the `understanding` the two compose into.
 
 **The planning call never sees the question as typed.** It is given the
 resolved question and nothing else — no conversation, no original wording. Two
