@@ -18,7 +18,7 @@ Select:
 - `academic_calendar` for academic dates and deadlines.
 - `campus_documents` only when the requested output is an official campus policy, form, handbook, or document rather than a process that may happen to use one.
 - `student_services` for general student-facing processes and support such as registration, financial aid, housing, counseling, accessibility, or public safety when the request is not about a private account.
-- `it_support` for campus technical services, including how or where to get technical help and help using or troubleshooting campus technology, accounts, networks, software, or devices.
+- `it_support` for campus technical services, including how or where to get technical help and help using or troubleshooting campus technology, accounts, networks, software, or devices. A physical or online location requested as part of obtaining technical support remains owned by `it_support`; do not also select `locations`.
 - `personal_account` for private, student-specific records, status, balances, schedules, grades, holds, or account actions that require the student's identity or sign-in.
 - `general` for every understandable request outside those specialized campus capabilities, including non-campus questions.
 - `clarification` only when the latest request remains incomplete or genuinely ambiguous after considering the conversation.
