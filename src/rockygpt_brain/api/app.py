@@ -3,9 +3,13 @@
 import os
 from typing import Literal
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from rockygpt_brain.transportation_execution import (
+    answer_transportation,
+    execute_transportation,
+)
 from rockygpt_brain.transportation_interpretation import (
     ConversationMessage,
     interpret_transportation,
@@ -46,13 +50,36 @@ def readiness() -> dict[str, str]:
 
 @app.post("/v1/chat")
 def chat(request: ChatRequest) -> dict[str, object]:
-    """Interpret transportation or return the model's normal chat answer."""
+    """Run normal chat or deterministically execute a selected shuttle request."""
     messages: list[ConversationMessage] = [
         {"role": message.role, "content": message.content} for message in request.messages
     ]
     answer, interpretation = interpret_transportation(messages, MODEL)
+    transportation_result = None
+    transportation_provenance = None
+    if interpretation.selected:
+        assert interpretation.request is not None
+        try:
+            transportation_result = execute_transportation(interpretation.request)
+        except RuntimeError as error:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Trusted shuttle data is unavailable: {error}",
+            ) from error
+        transportation_provenance = transportation_result.provenance
+        answer = answer_transportation(transportation_result)
     return {
         "answer": answer,
         "model": interpretation.model,
         "transportationInterpretation": interpretation.model_dump(mode="json"),
+        "transportationResult": (
+            transportation_result.model_dump(mode="json")
+            if transportation_result is not None
+            else None
+        ),
+        "transportationProvenance": (
+            transportation_provenance.model_dump(mode="json")
+            if transportation_provenance is not None
+            else None
+        ),
     }
