@@ -1,4 +1,4 @@
-"""Typed contract for RockyGPT's bounded shuttle capability.
+"""Typed contracts for RockyGPT's bounded transportation capability.
 
 This module defines data shapes only. It does not interpret language, read the
 database, calculate schedules, or generate answers.
@@ -162,6 +162,7 @@ class UnsupportedShuttleRequest(ContractModel):
         "accessibility",
         "booking",
         "unpublished_schedule",
+        "capability_unavailable",
         "other_missing_data",
     ]
 

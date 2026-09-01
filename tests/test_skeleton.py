@@ -11,14 +11,20 @@ from pydantic import ValidationError
 
 import rockygpt_brain
 from rockygpt_brain.api.app import MODEL, ChatRequest, app, chat, health, readiness
-from rockygpt_brain.transportation import (
+from rockygpt_brain.capabilities.transportation.contracts import (
     ShuttleClarificationRequest,
     ShuttleQuery,
     ShuttleQueryRequest,
     ShuttleResult,
     UpcomingDay,
 )
-from rockygpt_brain.transportation_interpretation import (
+from rockygpt_brain.capabilities.runtime import (
+    TRANSPORTATION_UNAVAILABLE_ANSWER,
+    TRANSPORTATION_UNAVAILABLE_INSTRUCTIONS,
+    TRANSPORTATION_UNAVAILABLE_TOOL,
+    load_transportation_modules,
+)
+from rockygpt_brain.capabilities.transportation.interpretation import (
     INTERPRETATION_INSTRUCTIONS,
     SHUTTLE_TOOLS,
     TransportationInterpretation,
@@ -35,6 +41,124 @@ def test_health() -> None:
 
 def test_readiness() -> None:
     assert readiness() == {"status": "ready"}
+
+
+def test_transportation_request_gets_safe_200_when_capability_is_absent() -> None:
+    model_response = Mock(
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name="campus_transportation",
+                arguments="{}",
+            )
+        ],
+        output_text="",
+        model="gpt-test",
+    )
+    messages = [{"role": "user", "content": "When is the next shuttle?"}]
+
+    with (
+        patch(
+            "rockygpt_brain.capabilities.runtime.load_transportation_modules",
+            return_value=None,
+        ),
+        patch("rockygpt_brain.capabilities.runtime.OpenAI") as openai,
+    ):
+        openai.return_value.responses.create.return_value = model_response
+        response = TestClient(app).post("/v1/chat", json={"messages": messages})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "answer": TRANSPORTATION_UNAVAILABLE_ANSWER,
+        "model": "gpt-test",
+        "transportationInterpretation": {
+            "selected": True,
+            "request": {
+                "kind": "unsupported",
+                "reason": "capability_unavailable",
+            },
+            "model": "gpt-test",
+        },
+        "transportationResult": {
+            "outcome": "unsupported",
+            "request": {
+                "kind": "unsupported",
+                "reason": "capability_unavailable",
+            },
+            "evaluated_at": response.json()["transportationResult"]["evaluated_at"],
+            "query_results": [],
+            "comparison": None,
+            "candidates": [],
+            "provenance": None,
+        },
+        "transportationProvenance": None,
+    }
+    openai.return_value.responses.create.assert_called_once_with(
+        model=MODEL,
+        input=messages,
+        instructions=TRANSPORTATION_UNAVAILABLE_INSTRUCTIONS,
+        tools=[TRANSPORTATION_UNAVAILABLE_TOOL],
+        tool_choice="auto",
+        parallel_tool_calls=False,
+        store=False,
+        temperature=0,
+    )
+
+
+def test_normal_chat_still_works_when_transportation_capability_is_absent() -> None:
+    model_response = Mock(
+        output=[],
+        output_text="Four.",
+        model="gpt-test",
+    )
+
+    with (
+        patch(
+            "rockygpt_brain.capabilities.runtime.load_transportation_modules",
+            return_value=None,
+        ),
+        patch("rockygpt_brain.capabilities.runtime.OpenAI") as openai,
+    ):
+        openai.return_value.responses.create.return_value = model_response
+        response = TestClient(app).post(
+            "/v1/chat",
+            json={"messages": [{"role": "user", "content": "What is 2 + 2?"}]},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "answer": "Four.",
+        "model": "gpt-test",
+        "transportationInterpretation": {
+            "selected": False,
+            "request": None,
+            "model": "gpt-test",
+        },
+        "transportationResult": None,
+        "transportationProvenance": None,
+    }
+
+
+def test_only_missing_transportation_source_activates_the_fallback() -> None:
+    missing_transportation = ModuleNotFoundError("transportation module is absent")
+    missing_transportation.name = "rockygpt_brain.capabilities.transportation.execution"
+
+    with patch(
+        "rockygpt_brain.capabilities.runtime.import_module",
+        side_effect=missing_transportation,
+    ):
+        assert load_transportation_modules() is None
+
+    missing_dependency = ModuleNotFoundError("psycopg is absent")
+    missing_dependency.name = "psycopg"
+    with (
+        patch(
+            "rockygpt_brain.capabilities.runtime.import_module",
+            side_effect=missing_dependency,
+        ),
+        pytest.raises(ModuleNotFoundError, match="psycopg"),
+    ):
+        load_transportation_modules()
 
 
 def test_chat_request_has_only_ordered_role_content_messages() -> None:
@@ -76,7 +200,7 @@ def test_chat_passes_messages_to_openai_in_order() -> None:
         {"role": "user", "content": "What is my name?"},
     ]
     response = Mock(output=[], output_text="Hello from the model.", model="gpt-test")
-    with patch("rockygpt_brain.transportation_interpretation.OpenAI") as client:
+    with patch("rockygpt_brain.capabilities.transportation.interpretation.OpenAI") as client:
         client.return_value.responses.create.return_value = response
         assert chat(ChatRequest.model_validate({"messages": messages})) == {
             "answer": "Hello from the model.",
@@ -174,7 +298,7 @@ def test_malformed_model_interpretation_never_causes_chat_5xx(
         model="gpt-test",
     )
 
-    with patch("rockygpt_brain.transportation_interpretation.OpenAI") as openai:
+    with patch("rockygpt_brain.capabilities.transportation.interpretation.OpenAI") as openai:
         openai.return_value.responses.create.return_value = response
         result = TestClient(app).post(
             "/v1/chat",
@@ -225,20 +349,29 @@ def test_unmatched_route_interpretation_is_repaired_before_execution() -> None:
 
     with (
         patch(
-            "rockygpt_brain.api.app.interpret_transportation",
+            "rockygpt_brain.capabilities.transportation.interpretation.interpret_transportation",
             return_value=("", initial),
         ),
         patch(
-            "rockygpt_brain.api.app.repair_transportation_interpretation",
+            "rockygpt_brain.capabilities.transportation.interpretation.repair_transportation_interpretation",
             return_value=("", repaired),
         ) as repair,
-        patch("rockygpt_brain.api.app.load_trusted_shuttle_data", return_value=Mock()) as load,
         patch(
-            "rockygpt_brain.api.app.route_mentions_match_trusted_data",
+            "rockygpt_brain.capabilities.transportation.execution.load_trusted_shuttle_data",
+            return_value=Mock(),
+        ) as load,
+        patch(
+            "rockygpt_brain.capabilities.transportation.execution.route_mentions_match_trusted_data",
             side_effect=[False, True],
         ),
-        patch("rockygpt_brain.api.app.execute_transportation", return_value=result) as execute,
-        patch("rockygpt_brain.api.app.answer_transportation", return_value="Grounded answer"),
+        patch(
+            "rockygpt_brain.capabilities.transportation.execution.execute_transportation",
+            return_value=result,
+        ) as execute,
+        patch(
+            "rockygpt_brain.capabilities.transportation.execution.answer_transportation",
+            return_value="Grounded answer",
+        ),
     ):
         response = chat(
             ChatRequest.model_validate(
@@ -287,20 +420,23 @@ def test_failed_route_repair_becomes_typed_clarification_not_5xx() -> None:
 
     with (
         patch(
-            "rockygpt_brain.api.app.interpret_transportation",
+            "rockygpt_brain.capabilities.transportation.interpretation.interpret_transportation",
             return_value=("", initial),
         ),
         patch(
-            "rockygpt_brain.api.app.repair_transportation_interpretation",
+            "rockygpt_brain.capabilities.transportation.interpretation.repair_transportation_interpretation",
             return_value=("", clarification),
         ),
-        patch("rockygpt_brain.api.app.load_trusted_shuttle_data", return_value=Mock()),
         patch(
-            "rockygpt_brain.api.app.route_mentions_match_trusted_data",
+            "rockygpt_brain.capabilities.transportation.execution.load_trusted_shuttle_data",
+            return_value=Mock(),
+        ),
+        patch(
+            "rockygpt_brain.capabilities.transportation.execution.route_mentions_match_trusted_data",
             return_value=False,
         ),
         patch(
-            "rockygpt_brain.api.app.execute_transportation",
+            "rockygpt_brain.capabilities.transportation.execution.execute_transportation",
             return_value=clarification_result,
         ),
     ):
