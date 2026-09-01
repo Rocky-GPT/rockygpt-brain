@@ -34,11 +34,16 @@ UNSUPPORTED_TOOL_NAME = "unsupported_shuttle_request"
 INTERPRETATION_ONLY_ANSWER = (
     "Shuttle request interpreted. Trusted schedule execution is not implemented in Step 5B."
 )
+INTERPRETATION_FAILURE_ANSWER = (
+    "I couldn't reliably interpret that shuttle request. Please rephrase it."
+)
 INTERPRETATION_INSTRUCTIONS = """Interpret the complete ordered conversation. For every campus
 shuttle request, call exactly one available shuttle tool; do not answer or ask a shuttle
 clarifying question in text. For a non-shuttle request, call no tool and respond normally. Keep
-arrival and departure intent exact. Supply only requested operation arguments, never shuttle
-facts."""
+arrival and departure intent exact. Classify each user-authored filter by its semantic role: a
+route is the explicitly named or numbered service itself, an origin is where the rider leaves,
+and a destination is where the rider wants to arrive. Do not treat a place or generic transport
+category as a route identity. Supply only requested operation arguments, never shuttle facts."""
 SCOPE_DESCRIPTION = """Use only for RockyGPT campus shuttle transportation, understood from the
 latest request and ordered conversation. Do not call any shuttle tool for a non-shuttle request.
 For every campus shuttle request, call exactly one shuttle tool; never answer or ask a shuttle
@@ -46,7 +51,11 @@ clarifying question in plain text. Route, origin, and destination are optional f
 absence does not make an otherwise complete request ambiguous.
 Arguments are interpretation only: never invent route IDs, canonical route or stop names, trip
 records, schedule facts, sources, or calculated dates. Mentions must be copied verbatim from
-user-authored text or be null."""
+user-authored text or be null. Classify a mention by its role in the rider's request, even when
+the place is unfamiliar: a place the rider wants to reach is a destination, and a place they
+want to leave is an origin. A route mention must be a proper or numbered identity that
+distinguishes one shuttle service from another; a generic transportation category is not a
+route mention."""
 ClockText = Annotated[
     str,
     StringConstraints(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$"),
@@ -60,8 +69,8 @@ class ConversationMessage(TypedDict):
     content: str
 
 
-class ShuttleDayToolArguments(ContractModel):
-    """Strict-schema-compatible model wire shape for a Step 5A day."""
+class ShuttleNextDayToolArguments(ContractModel):
+    """A day shape that permits an unbounded upcoming lookup."""
 
     day_kind: Literal[
         "upcoming", "relative", "named_weekday", "service_day", "calendar_date"
@@ -114,27 +123,95 @@ class ShuttleDayToolArguments(ContractModel):
         return self
 
 
-class ShuttleFilters(ContractModel):
-    """Optional user-authored shuttle filters."""
+class ShuttleBoundedDayToolArguments(ContractModel):
+    """A day shape that always resolves to one bounded schedule."""
 
-    route_mention: str | None = Field(
+    day_kind: Literal[
+        "relative", "named_weekday", "service_day", "calendar_date"
+    ] = Field(
         description=(
-            "Explicit identifying route label copied from user text; never the generic "
-            "transportation mode; otherwise null"
+            "relative for today/tomorrow; named_weekday for a named day; "
+            "service_day for a recurring template; calendar_date only when the user "
+            "supplies a date"
         )
     )
-    origin_mention: str | None = Field(
-        description="Exact origin wording copied from user text, or null"
+    days_from_today: Literal[0, 1] | None = Field(
+        description="0 for today or 1 for tomorrow when day_kind is relative; otherwise null"
     )
-    destination_mention: str | None = Field(
-        description="Exact destination wording copied from user text, or null"
+    weekday: Literal[
+        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"
+    ] | None = Field(
+        description="Named weekday only when day_kind is named_weekday; otherwise null"
     )
+    service_day: Literal["weekday", "saturday", "sunday"] | None = Field(
+        description="Recurring template only when day_kind is service_day; otherwise null"
+    )
+    calendar_date: date | None = Field(
+        description=(
+            "User-supplied calendar date only when day_kind is calendar_date; otherwise null"
+        )
+    )
+
+    def to_contract(self) -> ShuttleDay:
+        if self.day_kind == "relative":
+            if self.days_from_today is None:
+                raise ValueError("relative day requires days_from_today")
+            return RelativeDay(kind="relative", days_from_today=self.days_from_today)
+        if self.day_kind == "named_weekday":
+            if self.weekday is None:
+                raise ValueError("named weekday requires weekday")
+            return NamedWeekday(kind="named_weekday", weekday=self.weekday)
+        if self.day_kind == "service_day":
+            if self.service_day is None:
+                raise ValueError("service day requires service_day")
+            return ServiceDayTemplate(kind="service_day", service_day=self.service_day)
+        if self.calendar_date is None:
+            raise ValueError("calendar date requires calendar_date")
+        return CalendarDay(kind="calendar_date", date=self.calendar_date)
+
+    @model_validator(mode="after")
+    def validate_contract(self) -> Self:
+        self.to_contract()
+        return self
+
+
+class ShuttleMentionToolArguments(ContractModel):
+    """One user-authored filter with its requested travel role."""
+
+    text: str = Field(description="Exact mention copied from user-authored text")
+    role: Literal["route", "origin", "destination"] = Field(
+        description=(
+            "route only for a proper or numbered service identity; origin for the place the "
+            "rider leaves; destination for the place the rider wants to reach, even if unfamiliar"
+        )
+    )
+
+
+class ShuttleFilters(ContractModel):
+    """Optional user-authored shuttle filters classified by semantic role."""
+
+    mentions: list[ShuttleMentionToolArguments] = Field(
+        max_length=3,
+        description=(
+            "User-authored route, origin, or destination filters; empty when none are requested"
+        ),
+    )
+
+    def mention(self, role: Literal["route", "origin", "destination"]) -> str | None:
+        return next((mention.text for mention in self.mentions if mention.role == role), None)
+
+    @model_validator(mode="after")
+    def require_unique_roles(self) -> Self:
+        roles = [mention.role for mention in self.mentions]
+        if len(roles) != len(set(roles)):
+            raise ValueError("each filter role may appear at most once")
+        return self
 
 
 class ShuttleNextTripsCall(ShuttleFilters):
     """One or more ordered trips starting with the immediate next match."""
 
-    day: ShuttleDayToolArguments
+    day: ShuttleNextDayToolArguments
     count: int = Field(
         ge=1,
         le=10,
@@ -158,9 +235,9 @@ class ShuttleNextTripsCall(ShuttleFilters):
                 selection="next",
                 count=self.count,
                 offset=self.offset,
-                route_mention=self.route_mention,
-                origin_mention=self.origin_mention,
-                destination_mention=self.destination_mention,
+                route_mention=self.mention("route"),
+                origin_mention=self.mention("origin"),
+                destination_mention=self.mention("destination"),
             ),
             show=self.show,
         )
@@ -174,15 +251,15 @@ class ShuttleNextTripsCall(ShuttleFilters):
 class ShuttleScheduleLookup(ShuttleFilters):
     """One bounded full-schedule lookup."""
 
-    day: ShuttleDayToolArguments
+    day: ShuttleBoundedDayToolArguments
 
     def to_query(self) -> ShuttleQuery:
         return ShuttleQuery(
             day=self.day.to_contract(),
             selection="all",
-            route_mention=self.route_mention,
-            origin_mention=self.origin_mention,
-            destination_mention=self.destination_mention,
+            route_mention=self.mention("route"),
+            origin_mention=self.mention("origin"),
+            destination_mention=self.mention("destination"),
         )
 
     @model_validator(mode="after")
@@ -213,7 +290,12 @@ class ShuttleScheduleCall(ShuttleScheduleLookup):
 class ShuttleAvailabilityCall(ShuttleFilters):
     """One bounded clock-time shuttle availability check."""
 
-    day: ShuttleDayToolArguments
+    day: ShuttleBoundedDayToolArguments | None = Field(
+        description=(
+            "The explicitly requested bounded day, or null when no day is stated. A null day "
+            "is deterministically interpreted as today."
+        )
+    )
     relation: Literal["at", "around"]
     clock: ClockText = Field(description="Campus clock time as 24-hour HH:MM with no timezone")
     basis: Literal["departure", "arrival"] = Field(
@@ -221,15 +303,20 @@ class ShuttleAvailabilityCall(ShuttleFilters):
     )
 
     def to_contract(self) -> ShuttleQueryRequest:
+        day = (
+            self.day.to_contract()
+            if self.day is not None
+            else RelativeDay(kind="relative", days_from_today=0)
+        )
         return ShuttleQueryRequest(
             kind="query",
             answer_kind="availability",
             query=ShuttleQuery(
-                day=self.day.to_contract(),
+                day=day,
                 selection="all",
-                route_mention=self.route_mention,
-                origin_mention=self.origin_mention,
-                destination_mention=self.destination_mention,
+                route_mention=self.mention("route"),
+                origin_mention=self.mention("origin"),
+                destination_mention=self.mention("destination"),
                 time=ShuttleTimeConstraint(
                     relation=self.relation,
                     clock=time.fromisoformat(self.clock),
@@ -373,7 +460,18 @@ SHUTTLE_TOOLS = [
 
 
 class InvalidTransportationInterpretation(RuntimeError):
-    """The model selected transportation but did not satisfy its exact contract."""
+    """Internal validation failure for one model-produced interpretation call."""
+
+
+def _interpretation_failure(model: str) -> tuple[str, TransportationInterpretation]:
+    return INTERPRETATION_FAILURE_ANSWER, TransportationInterpretation(
+        selected=True,
+        request=ShuttleClarificationRequest(
+            kind="clarification",
+            reason="interpretation_failure",
+        ),
+        model=model,
+    )
 
 
 def _queries(request: ShuttleRequestValue) -> tuple[ShuttleQuery, ...]:
@@ -448,11 +546,12 @@ def interpret_transportation(
             model=response.model,
         )
     if len(calls) != 1:
-        raise InvalidTransportationInterpretation(
-            "the model must return exactly one transportation interpretation call"
-        )
+        return _interpretation_failure(response.model)
 
-    request = validate_tool_arguments(calls[0].name, calls[0].arguments, messages)
+    try:
+        request = validate_tool_arguments(calls[0].name, calls[0].arguments, messages)
+    except InvalidTransportationInterpretation:
+        return _interpretation_failure(response.model)
     return INTERPRETATION_ONLY_ANSWER, TransportationInterpretation(
         selected=True,
         request=request,

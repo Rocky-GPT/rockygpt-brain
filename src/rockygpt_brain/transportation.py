@@ -136,7 +136,11 @@ class ShuttleClarificationRequest(ContractModel):
     """A shuttle request that cannot yet be resolved to one deterministic query."""
 
     kind: Literal["clarification"]
-    reason: Literal["ambiguous_request", "ambiguous_reference"]
+    reason: Literal[
+        "ambiguous_request",
+        "ambiguous_reference",
+        "interpretation_failure",
+    ]
 
 
 class UnsupportedShuttleRequest(ContractModel):
