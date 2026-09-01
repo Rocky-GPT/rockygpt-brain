@@ -3,10 +3,10 @@
 import os
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel, ConfigDict, Field
 
-from rockygpt_brain.capabilities import ConversationMessage, run_chat
+from rockygpt_brain.capabilities import ConversationMessage, classify
 
 app = FastAPI(title="RockyGPT Brain", version="0.0.0")
 MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
@@ -43,14 +43,9 @@ def readiness() -> dict[str, str]:
 
 @app.post("/v1/chat")
 def chat(request: ChatRequest) -> dict[str, object]:
-    """Run normal chat or a dynamically discovered campus capability."""
+    """Classify the current conversation into one bounded capability label."""
     messages: list[ConversationMessage] = [
         {"role": message.role, "content": message.content} for message in request.messages
     ]
-    try:
-        return run_chat(messages, MODEL)
-    except RuntimeError as error:
-        raise HTTPException(
-            status_code=503,
-            detail=f"A required campus capability is unavailable: {error}",
-        ) from error
+    capability, model = classify(messages, MODEL)
+    return {"answer": capability, "model": model}

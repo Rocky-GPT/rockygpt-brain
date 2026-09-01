@@ -1,6 +1,15 @@
-"""Dynamic composition boundary for optional RockyGPT capabilities."""
+"""Public boundary for RockyGPT capability classification."""
 
-from rockygpt_brain.capabilities.base import ConversationMessage
-from rockygpt_brain.capabilities.runtime import run_chat
+from rockygpt_brain.capabilities.classifier import (
+    CAPABILITY_LABELS,
+    CapabilityLabel,
+    ConversationMessage,
+    classify,
+)
 
-__all__ = ["ConversationMessage", "run_chat"]
+__all__ = [
+    "CAPABILITY_LABELS",
+    "CapabilityLabel",
+    "ConversationMessage",
+    "classify",
+]

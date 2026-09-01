@@ -1,0 +1,231 @@
+[
+  {
+    "name": "ordinary_transportation",
+    "messages": [{"role": "user", "content": "When is the next campus shuttle?"}],
+    "expected": "transportation"
+  },
+  {
+    "name": "ordinary_dining",
+    "messages": [{"role": "user", "content": "What is being served for lunch on campus today?"}],
+    "expected": "dining"
+  },
+  {
+    "name": "ordinary_events",
+    "messages": [{"role": "user", "content": "What campus events are happening this weekend?"}],
+    "expected": "events"
+  },
+  {
+    "name": "ordinary_hours",
+    "messages": [{"role": "user", "content": "What time does the library close tonight?"}],
+    "expected": "hours"
+  },
+  {
+    "name": "ordinary_directory",
+    "messages": [{"role": "user", "content": "What is the Registrar's phone number?"}],
+    "expected": "directory"
+  },
+  {
+    "name": "ordinary_locations",
+    "messages": [{"role": "user", "content": "Where is the Registrar's Office?"}],
+    "expected": "locations"
+  },
+  {
+    "name": "ordinary_courses",
+    "messages": [{"role": "user", "content": "What are the prerequisites for CS 450?"}],
+    "expected": "courses"
+  },
+  {
+    "name": "ordinary_programs",
+    "messages": [{"role": "user", "content": "What does the computer science major require?"}],
+    "expected": "programs"
+  },
+  {
+    "name": "ordinary_clubs",
+    "messages": [{"role": "user", "content": "How do I join the Computer Science Club?"}],
+    "expected": "clubs"
+  },
+  {
+    "name": "ordinary_academic_calendar",
+    "messages": [{"role": "user", "content": "When is fall break?"}],
+    "expected": "academic_calendar"
+  },
+  {
+    "name": "ordinary_campus_documents",
+    "messages": [{"role": "user", "content": "Where can I read the official student handbook?"}],
+    "expected": "campus_documents"
+  },
+  {
+    "name": "ordinary_student_services",
+    "messages": [{"role": "user", "content": "How do I apply for financial aid?"}],
+    "expected": "student_services"
+  },
+  {
+    "name": "ordinary_it_support",
+    "messages": [{"role": "user", "content": "How do I reset my campus password?"}],
+    "expected": "it_support"
+  },
+  {
+    "name": "ordinary_personal_account",
+    "messages": [{"role": "user", "content": "How much do I owe on my tuition account?"}],
+    "expected": "personal_account"
+  },
+  {
+    "name": "ordinary_general",
+    "messages": [{"role": "user", "content": "Explain photosynthesis."}],
+    "expected": "general"
+  },
+  {
+    "name": "ordinary_clarification",
+    "messages": [{"role": "user", "content": "What about it?"}],
+    "expected": "clarification"
+  },
+  {
+    "name": "boundary_dining_not_hours",
+    "messages": [{"role": "user", "content": "What can I eat at Birch Tree Inn?"}],
+    "expected": "dining"
+  },
+  {
+    "name": "boundary_hours_not_dining",
+    "messages": [{"role": "user", "content": "When does Birch Tree Inn close?"}],
+    "expected": "hours"
+  },
+  {
+    "name": "boundary_event_not_club",
+    "messages": [{"role": "user", "content": "When is the Computer Science Club's next meeting?"}],
+    "expected": "events"
+  },
+  {
+    "name": "boundary_club_not_event",
+    "messages": [{"role": "user", "content": "Who leads the Computer Science Club?"}],
+    "expected": "clubs"
+  },
+  {
+    "name": "boundary_directory_not_location",
+    "messages": [{"role": "user", "content": "How do I contact the bursar?"}],
+    "expected": "directory"
+  },
+  {
+    "name": "boundary_location_not_directory",
+    "messages": [{"role": "user", "content": "Which building is the bursar in?"}],
+    "expected": "locations"
+  },
+  {
+    "name": "boundary_course_not_program",
+    "messages": [{"role": "user", "content": "What topics does DATA 101 cover?"}],
+    "expected": "courses"
+  },
+  {
+    "name": "boundary_program_not_course",
+    "messages": [{"role": "user", "content": "Which courses are required for the data science major?"}],
+    "expected": "programs"
+  },
+  {
+    "name": "boundary_calendar_not_services",
+    "messages": [{"role": "user", "content": "What is the add/drop deadline?"}],
+    "expected": "academic_calendar"
+  },
+  {
+    "name": "boundary_services_not_calendar",
+    "messages": [{"role": "user", "content": "How do I drop a class?"}],
+    "expected": "student_services"
+  },
+  {
+    "name": "boundary_services_not_account",
+    "messages": [{"role": "user", "content": "How do I request an official transcript?"}],
+    "expected": "student_services"
+  },
+  {
+    "name": "boundary_account_not_services",
+    "messages": [{"role": "user", "content": "Is there a hold on my account?"}],
+    "expected": "personal_account"
+  },
+  {
+    "name": "boundary_location_not_it",
+    "messages": [{"role": "user", "content": "Where is the campus help desk?"}],
+    "expected": "locations"
+  },
+  {
+    "name": "boundary_it_not_location",
+    "messages": [{"role": "user", "content": "Why can't I connect to campus Wi-Fi?"}],
+    "expected": "it_support"
+  },
+  {
+    "name": "boundary_general_not_clarification",
+    "messages": [{"role": "user", "content": "What is the capital of France?"}],
+    "expected": "general"
+  },
+  {
+    "name": "topic_switch_to_calendar",
+    "messages": [
+      {"role": "user", "content": "What is for lunch today?"},
+      {"role": "assistant", "content": "dining"},
+      {"role": "user", "content": "Actually, when is fall break?"}
+    ],
+    "expected": "academic_calendar"
+  },
+  {
+    "name": "topic_switch_to_it_support",
+    "messages": [
+      {"role": "user", "content": "When is the next shuttle?"},
+      {"role": "assistant", "content": "transportation"},
+      {"role": "user", "content": "Forget that. How do I reset my campus password?"}
+    ],
+    "expected": "it_support"
+  },
+  {
+    "name": "follow_up_dining_to_hours",
+    "messages": [
+      {"role": "user", "content": "Can I get pizza at the campus cafe?"},
+      {"role": "assistant", "content": "dining"},
+      {"role": "user", "content": "When does it close?"}
+    ],
+    "expected": "hours"
+  },
+  {
+    "name": "follow_up_directory_to_location",
+    "messages": [
+      {"role": "user", "content": "How do I contact the Registrar's Office?"},
+      {"role": "assistant", "content": "directory"},
+      {"role": "user", "content": "Where is that office?"}
+    ],
+    "expected": "locations"
+  },
+  {
+    "name": "follow_up_calendar_to_services",
+    "messages": [
+      {"role": "user", "content": "When is the withdrawal deadline?"},
+      {"role": "assistant", "content": "academic_calendar"},
+      {"role": "user", "content": "How do I withdraw?"}
+    ],
+    "expected": "student_services"
+  },
+  {
+    "name": "follow_up_services_to_account",
+    "messages": [
+      {"role": "user", "content": "How do I request a transcript?"},
+      {"role": "assistant", "content": "student_services"},
+      {"role": "user", "content": "Did my request go through?"}
+    ],
+    "expected": "personal_account"
+  },
+  {
+    "name": "ambiguous_campus_request",
+    "messages": [{"role": "user", "content": "Can you help me with the campus thing?"}],
+    "expected": "clarification"
+  },
+  {
+    "name": "multi_capability_dining_and_transportation",
+    "messages": [{"role": "user", "content": "What is for lunch and when is the next shuttle?"}],
+    "expected": "clarification"
+  },
+  {
+    "name": "multi_capability_directory_and_location",
+    "messages": [{"role": "user", "content": "Where is the Registrar and what is their phone number?"}],
+    "expected": "clarification"
+  },
+  {
+    "name": "multi_capability_course_and_program",
+    "messages": [{"role": "user", "content": "What does the CS major require and what are the prerequisites for CS 450?"}],
+    "expected": "clarification"
+  }
+]
