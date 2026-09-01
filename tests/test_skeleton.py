@@ -1,6 +1,7 @@
 """Proves the package imports and the ordered chat shell runs."""
 
 import json
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -10,9 +11,17 @@ from pydantic import ValidationError
 
 import rockygpt_brain
 from rockygpt_brain.api.app import MODEL, ChatRequest, app, chat, health, readiness
+from rockygpt_brain.transportation import (
+    ShuttleClarificationRequest,
+    ShuttleQuery,
+    ShuttleQueryRequest,
+    ShuttleResult,
+    UpcomingDay,
+)
 from rockygpt_brain.transportation_interpretation import (
     INTERPRETATION_INSTRUCTIONS,
     SHUTTLE_TOOLS,
+    TransportationInterpretation,
 )
 
 
@@ -180,4 +189,128 @@ def test_malformed_model_interpretation_never_causes_chat_5xx(
             "reason": "interpretation_failure",
         },
         "model": "gpt-test",
+    }
+
+
+def test_unmatched_route_interpretation_is_repaired_before_execution() -> None:
+    initial_request = ShuttleQueryRequest(
+        kind="query",
+        answer_kind="trips",
+        query=ShuttleQuery(
+            day=UpcomingDay(kind="upcoming"),
+            selection="next",
+            count=1,
+            route_mention="shuttle",
+        ),
+        show="departure",
+    )
+    repaired_request = initial_request.model_copy(
+        update={"query": initial_request.query.model_copy(update={"route_mention": None})}
+    )
+    initial = TransportationInterpretation(
+        selected=True,
+        request=initial_request,
+        model="gpt-test",
+    )
+    repaired = TransportationInterpretation(
+        selected=True,
+        request=repaired_request,
+        model="gpt-test",
+    )
+    result = Mock(
+        request=repaired_request,
+        provenance=None,
+        model_dump=Mock(return_value={"outcome": "success"}),
+    )
+
+    with (
+        patch(
+            "rockygpt_brain.api.app.interpret_transportation",
+            return_value=("", initial),
+        ),
+        patch(
+            "rockygpt_brain.api.app.repair_transportation_interpretation",
+            return_value=("", repaired),
+        ) as repair,
+        patch("rockygpt_brain.api.app.load_trusted_shuttle_data", return_value=Mock()) as load,
+        patch(
+            "rockygpt_brain.api.app.route_mentions_match_trusted_data",
+            side_effect=[False, True],
+        ),
+        patch("rockygpt_brain.api.app.execute_transportation", return_value=result) as execute,
+        patch("rockygpt_brain.api.app.answer_transportation", return_value="Grounded answer"),
+    ):
+        response = chat(
+            ChatRequest.model_validate(
+                {"messages": [{"role": "user", "content": "What time is the next shuttle?"}]}
+            )
+        )
+
+    repair.assert_called_once()
+    load.assert_called_once()
+    execute.assert_called_once_with(repaired_request, data=load.return_value)
+    assert response["answer"] == "Grounded answer"
+    assert response["transportationInterpretation"] == repaired.model_dump(mode="json")
+
+
+def test_failed_route_repair_becomes_typed_clarification_not_5xx() -> None:
+    initial_request = ShuttleQueryRequest(
+        kind="query",
+        answer_kind="trips",
+        query=ShuttleQuery(
+            day=UpcomingDay(kind="upcoming"),
+            selection="next",
+            count=1,
+            route_mention="shuttle",
+        ),
+        show="departure",
+    )
+    initial = TransportationInterpretation(
+        selected=True,
+        request=initial_request,
+        model="gpt-test",
+    )
+    clarification = TransportationInterpretation(
+        selected=True,
+        request=ShuttleClarificationRequest(
+            kind="clarification",
+            reason="interpretation_failure",
+        ),
+        model="gpt-test",
+    )
+    assert isinstance(clarification.request, ShuttleClarificationRequest)
+    clarification_result = ShuttleResult(
+        outcome="needs_clarification",
+        request=clarification.request,
+        evaluated_at=datetime.fromisoformat("2026-08-31T12:00:00-04:00"),
+    )
+
+    with (
+        patch(
+            "rockygpt_brain.api.app.interpret_transportation",
+            return_value=("", initial),
+        ),
+        patch(
+            "rockygpt_brain.api.app.repair_transportation_interpretation",
+            return_value=("", clarification),
+        ),
+        patch("rockygpt_brain.api.app.load_trusted_shuttle_data", return_value=Mock()),
+        patch(
+            "rockygpt_brain.api.app.route_mentions_match_trusted_data",
+            return_value=False,
+        ),
+        patch(
+            "rockygpt_brain.api.app.execute_transportation",
+            return_value=clarification_result,
+        ),
+    ):
+        response = TestClient(app).post(
+            "/v1/chat",
+            json={"messages": [{"role": "user", "content": "Next shuttle?"}]},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["transportationInterpretation"]["request"] == {
+        "kind": "clarification",
+        "reason": "interpretation_failure",
     }

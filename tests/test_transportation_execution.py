@@ -22,6 +22,7 @@ from rockygpt_brain.transportation_execution import (
     TrustedTripData,
     answer_transportation,
     execute_transportation,
+    route_mentions_match_trusted_data,
 )
 
 
@@ -295,3 +296,51 @@ def test_full_schedule_does_not_publish_meaningless_relative_waits(
     )
 
     assert all(record.minutes_until is None for record in result.query_results[0].records)
+
+
+def test_last_shuttle_uses_the_final_bounded_trip(
+    trusted_data: TrustedShuttleData,
+) -> None:
+    request = ShuttleQueryRequest(
+        kind="query",
+        answer_kind="trips",
+        query=ShuttleQuery(
+            day=RelativeDay(kind="relative", days_from_today=0),
+            selection="last",
+            count=1,
+        ),
+        show="departure",
+    )
+
+    result = execute_transportation(
+        request,
+        evaluated_at=datetime(2026, 8, 31, 22, 0, tzinfo=CAMPUS_TIME_ZONE),
+        data=trusted_data,
+    )
+
+    assert result.outcome == "success"
+    assert result.query_results[0].records[0].trip_id == "weekday-3"
+    assert result.query_results[0].records[0].minutes_until is None
+    assert "11:00 AM" in answer_transportation(result)
+
+
+def test_generic_transport_word_is_not_a_trusted_route_identity(
+    trusted_data: TrustedShuttleData,
+) -> None:
+    generic = next_request().model_copy(
+        update={
+            "query": next_request().query.model_copy(
+                update={"route_mention": "shuttle"}
+            )
+        }
+    )
+    canonical = next_request().model_copy(
+        update={
+            "query": next_request().query.model_copy(
+                update={"route_mention": "Test Campus Shuttle"}
+            )
+        }
+    )
+
+    assert route_mentions_match_trusted_data(generic, trusted_data) is False
+    assert route_mentions_match_trusted_data(canonical, trusted_data) is True

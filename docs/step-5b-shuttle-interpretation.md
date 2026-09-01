@@ -7,9 +7,9 @@ execution and a grounded final answer.
 ## Boundary
 
 The Responses API receives the original `messages` in their original order and
-six optional transportation-only strict function tools: `shuttle_next_trips`,
-`shuttle_schedule`, `shuttle_availability`, `shuttle_comparison`,
-`shuttle_clarification`, and `unsupported_shuttle_request`.
+transportation-only strict function tools for one next trip, next N trips, one
+bounded last trip, a full schedule, availability with or without an explicit
+day, comparison, clarification, and unsupported shuttle requests.
 
 - A function call means transportation was selected. Its arguments are
   immediately converted into the matching Step 5A variant and validated again
@@ -27,6 +27,8 @@ six optional transportation-only strict function tools: `shuttle_next_trips`,
   shape, so the model cannot express an `all` + `upcoming` combination.
   Availability without an explicit day is converted deterministically to
   `today`, matching the Step 5A default-day rule.
+- A bounded last-trip operation exists separately from next-trip and full-schedule
+  lookups, so the model cannot encode “last” as the immediate next trip.
 - If the model still emits malformed JSON, an unknown operation, multiple
   calls, an invented mention, or any locally invalid argument combination, the
   API returns a typed `clarification` with reason `interpretation_failure`.
@@ -37,6 +39,12 @@ data. The tool schema contains no fields for trip facts. Any route, origin, or
 destination mention must occur verbatim in user-authored conversation text;
 otherwise local validation rejects the interpretation. This prevents the model
 from introducing a campus entity through tool arguments.
+
+After selection, deterministic code verifies that a proposed route mention
+actually identifies a route in the trusted dataset. A mismatch gets one
+constrained reinterpretation without exposing route names or schedule facts;
+a repeated mismatch becomes a typed interpretation clarification rather than a
+false route result or server error.
 
 `route_mention` is reserved for a route/service name. A requested place is an
 `origin_mention` or `destination_mention`; for example, `to Ridgewood` is a
