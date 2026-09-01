@@ -1,8 +1,8 @@
-# Step 5B: model-based shuttle interpretation
+# Step 5B checkpoint: model-based shuttle interpretation
 
-Step 5B connects the existing ordered conversation to the preserved Step 5A
-`ShuttleRequest` contract. It does not read the database, calculate a schedule,
-or generate a final shuttle answer.
+This document records the completed Step 5B checkpoint. The completed Step 5
+runtime now continues from this interpretation into deterministic trusted-data
+execution and a grounded final answer.
 
 ## Boundary
 
@@ -78,6 +78,7 @@ Every successful chat response now includes:
 }
 ```
 
-For a selected shuttle request, `answer` is only an interpretation-stage status
-message. Step 5B deliberately does not produce schedule facts or a student-facing
-shuttle answer.
+The completed Step 5 response also includes `transportationResult` and
+`transportationProvenance`; `answer` is rendered only from those deterministic
+facts. Non-transportation responses retain the model's normal answer and expose
+null execution fields.

@@ -22,7 +22,6 @@ from rockygpt_brain.transportation_interpretation import (
     COMPARISON_TOOL_NAME,
     INTERPRETATION_FAILURE_ANSWER,
     INTERPRETATION_INSTRUCTIONS,
-    INTERPRETATION_ONLY_ANSWER,
     NEXT_TRIPS_TOOL_NAME,
     SCHEDULE_TOOL_NAME,
     SHUTTLE_TOOLS,
@@ -267,7 +266,7 @@ def test_natural_wording_variations_validate_as_exact_step_5a_requests(
     answer, interpretation, client = interpret(messages, tool_response(request_payload))
     expected = ShuttleRequest.model_validate(request_payload).root
 
-    assert answer == INTERPRETATION_ONLY_ANSWER
+    assert answer == ""
     assert interpretation.selected is True
     assert interpretation.request == expected
     client.return_value.responses.create.assert_called_once_with(

@@ -31,9 +31,6 @@ AVAILABILITY_TOOL_NAME = "shuttle_availability"
 COMPARISON_TOOL_NAME = "shuttle_comparison"
 CLARIFICATION_TOOL_NAME = "shuttle_clarification"
 UNSUPPORTED_TOOL_NAME = "unsupported_shuttle_request"
-INTERPRETATION_ONLY_ANSWER = (
-    "Shuttle request interpreted. Trusted schedule execution is not implemented in Step 5B."
-)
 INTERPRETATION_FAILURE_ANSWER = (
     "I couldn't reliably interpret that shuttle request. Please rephrase it."
 )
@@ -527,7 +524,7 @@ def validate_tool_arguments(
 def interpret_transportation(
     messages: Sequence[ConversationMessage], model: str
 ) -> tuple[str, TransportationInterpretation]:
-    """Run one transportation-specific interpretation without executing it."""
+    """Interpret one conversation as normal chat or a typed shuttle request."""
     response = OpenAI().responses.create(
         model=model,
         input=cast(ResponseInputParam, list(messages)),
@@ -552,7 +549,7 @@ def interpret_transportation(
         request = validate_tool_arguments(calls[0].name, calls[0].arguments, messages)
     except InvalidTransportationInterpretation:
         return _interpretation_failure(response.model)
-    return INTERPRETATION_ONLY_ANSWER, TransportationInterpretation(
+    return "", TransportationInterpretation(
         selected=True,
         request=request,
         model=response.model,

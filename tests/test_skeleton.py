@@ -77,6 +77,8 @@ def test_chat_passes_messages_to_openai_in_order() -> None:
                 "request": None,
                 "model": "gpt-test",
             },
+            "transportationResult": None,
+            "transportationProvenance": None,
         }
 
     client.return_value.responses.create.assert_called_once_with(
