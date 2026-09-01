@@ -278,6 +278,21 @@ def execute_transportation(
     )
 
 
+def route_mentions_match_trusted_data(
+    request: ShuttleRequestValue,
+    data: TrustedShuttleData,
+) -> bool:
+    """Reject model-assigned route filters that identify no trusted route."""
+    route_names = {trip.route for trip in data.trips}
+    for query in _request_queries(request):
+        mention = query.route_mention
+        if mention is not None and not any(
+            _is_route_identity_match(route_name, mention) for route_name in route_names
+        ):
+            return False
+    return True
+
+
 def answer_transportation(result: ShuttleResult) -> str:
     """Render a grounded answer without giving a model room to alter trusted facts."""
     if result.outcome == "needs_clarification":
@@ -323,7 +338,7 @@ def answer_transportation(result: ShuttleResult) -> str:
             if sentences
             else f"No scheduled shuttle matches that time. {SCHEDULE_NOTICE}"
         )
-    if query_request.query.selection == "next":
+    if query_request.query.selection in {"next", "last"}:
         if len(records) == 1:
             sentence = _trip_sentence(records[0], query_request.show, result.evaluated_at)
             return f"{sentence} {SCHEDULE_NOTICE}"
@@ -547,6 +562,8 @@ def _apply_time_and_selection(
         if resolved.service_date == now.date():
             selected = [fact for fact in selected if _selection_time(fact) >= now]
         selected = selected[query.offset : query.offset + (query.count or 1)]
+    elif query.selection == "last":
+        selected = selected[-1:]
     return selected
 
 
@@ -560,7 +577,7 @@ def _query_result(
         resolved_day=resolved,
         records=records,
         matched_count=max(matched_count, len(records)),
-        truncated=query.selection == "next" and matched_count > len(records),
+        truncated=query.selection in {"next", "last"} and matched_count > len(records),
         around_window_minutes=(
             15 if query.time is not None and query.time.relation == "around" else None
         ),
@@ -609,6 +626,17 @@ def _match_score(candidate: str, requested: str) -> float:
     return len(requested_words & candidate_words) / len(requested_words)
 
 
+def _is_route_identity_match(candidate: str, requested: str) -> bool:
+    candidate_text = _normalize(candidate)
+    requested_text = _normalize(requested)
+    if candidate_text == requested_text:
+        return True
+    requested_words = requested_text.split()
+    if len(requested_words) < 2 and not any(character.isdigit() for character in requested_text):
+        return False
+    return _match_score(candidate, requested) >= 0.5
+
+
 def _normalize(value: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", value.casefold())).strip()
 
@@ -652,6 +680,14 @@ def _basis_time(fact: ShuttleTripFact, basis: str) -> datetime | None:
 
 def _has_mentions(query: ShuttleQuery) -> bool:
     return any((query.route_mention, query.origin_mention, query.destination_mention))
+
+
+def _request_queries(request: ShuttleRequestValue) -> tuple[ShuttleQuery, ...]:
+    if isinstance(request, ShuttleQueryRequest):
+        return (request.query,)
+    if isinstance(request, ShuttleComparisonRequest):
+        return request.queries
+    return ()
 
 
 def _candidates(data: TrustedShuttleData) -> list[str]:

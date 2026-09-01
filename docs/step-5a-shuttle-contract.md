@@ -73,7 +73,7 @@ Each `ShuttleQuery` carries only interpretation, never campus facts:
 
 - a typed day scope (`upcoming`, today/tomorrow offset, named weekday,
   service-day template, or calendar date);
-- `next` or `all`, plus a bounded count/offset for next-trip questions;
+- `next`, bounded `last`, or `all`, plus a bounded count/offset for next-trip questions;
 - optional route, origin, and destination mentions copied from the
   conversation for later database-only entity resolution;
 - an optional exact/around departure-or-arrival time constraint.

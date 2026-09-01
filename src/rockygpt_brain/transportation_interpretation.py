@@ -28,6 +28,7 @@ from rockygpt_brain.transportation import (
 
 NEXT_TRIP_TOOL_NAME = "shuttle_next_trip"
 NEXT_TRIPS_TOOL_NAME = "shuttle_next_trips"
+LAST_TRIP_TOOL_NAME = "shuttle_last_trip"
 SCHEDULE_TOOL_NAME = "shuttle_schedule"
 AVAILABILITY_TOOL_NAME = "shuttle_availability"
 DATED_AVAILABILITY_TOOL_NAME = "shuttle_availability_on_day"
@@ -50,6 +51,11 @@ Availability requires an explicit user-authored clock value and verbatim clock e
 request asking for a clock value is not itself a clock constraint; select the chronologically
 earliest trip instead. Every day, count, clock, offset, and filter evidence value must be copied
 verbatim from user-authored text. Do not invent a value to satisfy a tool shape."""
+ROUTE_REPAIR_INSTRUCTIONS = """
+The previous interpretation assigned a route filter that did not identify any route in the
+official schedule. Reinterpret the same ordered conversation exactly once. Do not repeat an
+unmatched route filter. Preserve a requested place as an origin or destination by meaning, or
+omit the mention when it is only the generic transportation category. Do not provide facts."""
 SCOPE_DESCRIPTION = """Use only for RockyGPT campus shuttle transportation, understood from the
 latest request and ordered conversation. Do not call any shuttle tool for a non-shuttle request.
 For every campus shuttle request, call exactly one shuttle tool; never answer or ask a shuttle
@@ -294,6 +300,28 @@ class ShuttleNextTripsCall(ShuttleNextCallBase):
         return self.to_contract_with_count(self.count)
 
 
+class ShuttleLastTripCall(ShuttleFilters):
+    """The final trip on one bounded requested day."""
+
+    day: ShuttleBoundedDayToolArguments
+    show: Literal["departure", "arrival", "both"]
+
+    def to_contract(self) -> ShuttleQueryRequest:
+        return ShuttleQueryRequest(
+            kind="query",
+            answer_kind="trips",
+            query=ShuttleQuery(
+                day=self.day.to_contract(),
+                selection="last",
+                count=1,
+                route_mention=self.mention("route"),
+                origin_mention=self.mention("origin"),
+                destination_mention=self.mention("destination"),
+            ),
+            show=self.show,
+        )
+
+
 class ShuttleScheduleLookup(ShuttleFilters):
     """One bounded full-schedule lookup."""
 
@@ -480,6 +508,15 @@ SHUTTLE_TOOLS = [
         ),
     ),
     _tool(
+        ShuttleLastTripCall,
+        LAST_TRIP_TOOL_NAME,
+        (
+            f"{SCOPE_DESCRIPTION}\n"
+            "Select only for exactly one chronologically final trip on an explicitly bounded "
+            "day. This is not an immediate-next lookup and not a full-schedule lookup."
+        ),
+    ),
+    _tool(
         ShuttleScheduleCall,
         SCHEDULE_TOOL_NAME,
         (
@@ -537,7 +574,7 @@ class InvalidTransportationInterpretation(RuntimeError):
     """Internal validation failure for one model-produced interpretation call."""
 
 
-def _interpretation_failure(model: str) -> tuple[str, TransportationInterpretation]:
+def interpretation_failure(model: str) -> tuple[str, TransportationInterpretation]:
     return INTERPRETATION_FAILURE_ANSWER, TransportationInterpretation(
         selected=True,
         request=ShuttleClarificationRequest(
@@ -610,7 +647,7 @@ def _validate_model_evidence(
     call: ContractModel, messages: Sequence[ConversationMessage]
 ) -> None:
     days: list[ShuttleNextDayToolArguments | ShuttleBoundedDayToolArguments] = []
-    if isinstance(call, (ShuttleNextCallBase, ShuttleScheduleLookup)):
+    if isinstance(call, (ShuttleNextCallBase, ShuttleLastTripCall, ShuttleScheduleLookup)):
         days.append(call.day)
     elif isinstance(call, ShuttleDatedAvailabilityCall):
         days.append(call.day)
@@ -644,6 +681,9 @@ def validate_tool_arguments(
             request = call.to_contract()
         elif name == NEXT_TRIPS_TOOL_NAME:
             call = ShuttleNextTripsCall.model_validate_json(arguments)
+            request = call.to_contract()
+        elif name == LAST_TRIP_TOOL_NAME:
+            call = ShuttleLastTripCall.model_validate_json(arguments)
             request = call.to_contract()
         elif name == SCHEDULE_TOOL_NAME:
             call = ShuttleScheduleCall.model_validate_json(arguments)
@@ -696,7 +736,7 @@ def interpret_transportation(
         calls = [item for item in response.output if item.type == "function_call"]
         if not calls:
             if attempt == 1:
-                return _interpretation_failure(response.model)
+                return interpretation_failure(response.model)
             return response.output_text, TransportationInterpretation(
                 selected=False,
                 request=None,
@@ -723,5 +763,33 @@ def interpret_transportation(
                     model=response.model,
                 )
         if attempt == 1:
-            return _interpretation_failure(response.model)
+            return interpretation_failure(response.model)
     raise AssertionError("transportation interpretation retry loop did not return")
+
+
+def repair_transportation_interpretation(
+    messages: Sequence[ConversationMessage], model: str
+) -> tuple[str, TransportationInterpretation]:
+    """Retry one trusted-route semantic mismatch without exposing route facts."""
+    response = OpenAI().responses.create(
+        model=model,
+        input=cast(ResponseInputParam, list(messages)),
+        instructions=INTERPRETATION_INSTRUCTIONS + ROUTE_REPAIR_INSTRUCTIONS,
+        tools=SHUTTLE_TOOLS,
+        tool_choice="auto",
+        parallel_tool_calls=False,
+        store=False,
+        temperature=0,
+    )
+    calls = [item for item in response.output if item.type == "function_call"]
+    if len(calls) != 1:
+        return interpretation_failure(response.model)
+    try:
+        request = validate_tool_arguments(calls[0].name, calls[0].arguments, messages)
+    except InvalidTransportationInterpretation:
+        return interpretation_failure(response.model)
+    return "", TransportationInterpretation(
+        selected=True,
+        request=request,
+        model=response.model,
+    )

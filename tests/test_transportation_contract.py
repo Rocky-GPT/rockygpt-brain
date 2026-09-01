@@ -258,6 +258,31 @@ def test_request_rejects_unknown_fields_and_second_precision() -> None:
         )
 
 
+def test_last_trip_is_bounded_and_singular() -> None:
+    request = ShuttleQuery(
+        day=RelativeDay(kind="relative", days_from_today=0),
+        selection="last",
+        count=1,
+    )
+
+    assert request.selection == "last"
+    assert request.count == 1
+
+    with pytest.raises(ValidationError):
+        ShuttleQuery(
+            day=UpcomingDay(kind="upcoming"),
+            selection="last",
+            count=1,
+        )
+
+    with pytest.raises(ValidationError):
+        ShuttleQuery(
+            day=RelativeDay(kind="relative", days_from_today=0),
+            selection="last",
+            count=2,
+        )
+
+
 def test_success_result_requires_trusted_records_and_provenance() -> None:
     result = ShuttleResult(
         outcome="success",

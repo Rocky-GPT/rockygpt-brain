@@ -23,6 +23,7 @@ from rockygpt_brain.transportation_interpretation import (
     DATED_AVAILABILITY_TOOL_NAME,
     INTERPRETATION_FAILURE_ANSWER,
     INTERPRETATION_INSTRUCTIONS,
+    LAST_TRIP_TOOL_NAME,
     NEXT_TRIP_TOOL_NAME,
     NEXT_TRIPS_TOOL_NAME,
     RETRY_INSTRUCTIONS,
@@ -571,6 +572,42 @@ def test_comparison_output_is_the_preserved_step_5a_variant() -> None:
 
     assert isinstance(interpretation.request, ShuttleComparisonRequest)
     assert len(interpretation.request.queries) == 2
+
+
+def test_last_shuttle_has_a_distinct_bounded_operation() -> None:
+    messages: list[ConversationMessage] = [
+        {"role": "user", "content": "What is the last shuttle tonight?"}
+    ]
+    response = Mock(
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name=LAST_TRIP_TOOL_NAME,
+                arguments=json.dumps(
+                    {
+                        "day": {
+                            "day_kind": "relative",
+                            "days_from_today": 0,
+                            "weekday": None,
+                            "service_day": None,
+                            "calendar_date": None,
+                            "day_mention": "tonight",
+                        },
+                        "mentions": [],
+                        "show": "departure",
+                    }
+                ),
+            )
+        ],
+        output_text="",
+        model="gpt-test",
+    )
+
+    _, interpretation, _ = interpret(messages, response)
+
+    assert isinstance(interpretation.request, ShuttleQueryRequest)
+    assert interpretation.request.query.selection == "last"
+    assert interpretation.request.query.count == 1
 
 
 @pytest.mark.parametrize(

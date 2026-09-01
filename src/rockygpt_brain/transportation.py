@@ -80,7 +80,7 @@ class ShuttleQuery(ContractModel):
     """One deterministic schedule lookup, before any database values are attached."""
 
     day: ShuttleDay
-    selection: Literal["next", "all"]
+    selection: Literal["next", "last", "all"]
     count: int | None = Field(default=None, ge=1, le=10)
     offset: int = Field(default=0, ge=0, le=10)
     route_mention: ShortText | None = None
@@ -90,8 +90,13 @@ class ShuttleQuery(ContractModel):
 
     @model_validator(mode="after")
     def validate_selection(self) -> Self:
-        if self.selection == "next" and self.count is None:
-            raise ValueError("next selection requires count")
+        if self.selection in {"next", "last"} and self.count is None:
+            raise ValueError("ordered selection requires count")
+        if self.selection == "last":
+            if self.count != 1 or self.offset != 0:
+                raise ValueError("last selection is singular and cannot use an offset")
+            if isinstance(self.day, UpcomingDay):
+                raise ValueError("last selection requires a bounded day")
         if self.selection == "all":
             if self.count is not None or self.offset != 0:
                 raise ValueError("all selection cannot use count or offset")
