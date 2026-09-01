@@ -43,7 +43,7 @@ def readiness() -> dict[str, str]:
 
 @app.post("/v1/chat")
 def chat(request: ChatRequest) -> dict[str, object]:
-    """Run normal chat or deterministically execute a selected shuttle request."""
+    """Run normal chat or a dynamically discovered campus capability."""
     messages: list[ConversationMessage] = [
         {"role": message.role, "content": message.content} for message in request.messages
     ]
@@ -52,5 +52,5 @@ def chat(request: ChatRequest) -> dict[str, object]:
     except RuntimeError as error:
         raise HTTPException(
             status_code=503,
-            detail=f"Trusted shuttle data is unavailable: {error}",
+            detail=f"A required campus capability is unavailable: {error}",
         ) from error

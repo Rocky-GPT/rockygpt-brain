@@ -1,15 +1,17 @@
-"""Model interpretation for the bounded Step 5A shuttle contract."""
+"""Model interpretation for the bounded transportation capability."""
 
 from collections.abc import Sequence
 from datetime import date, datetime, time
-from typing import Annotated, Literal, Self, TypedDict, cast
+from importlib.resources import files
+from typing import Annotated, Literal, Self, cast
 
 from openai import OpenAI, pydantic_function_tool
 from openai.types.responses import FunctionToolParam, ResponseInputParam
 from pydantic import Field, StringConstraints, ValidationError, model_validator
 from word2number import w2n  # type: ignore[import-untyped]
 
-from rockygpt_brain.capabilities.transportation.contracts import (
+from rockygpt_brain.capabilities.base import ConversationMessage as ConversationMessage
+from rockygpt_brain.capabilities.transportation.models import (
     CalendarDay,
     ContractModel,
     NamedWeekday,
@@ -26,48 +28,23 @@ from rockygpt_brain.capabilities.transportation.contracts import (
     UpcomingDay,
 )
 
-NEXT_TRIP_TOOL_NAME = "shuttle_next_trip"
-NEXT_TRIPS_TOOL_NAME = "shuttle_next_trips"
-LAST_TRIP_TOOL_NAME = "shuttle_last_trip"
-SCHEDULE_TOOL_NAME = "shuttle_schedule"
-AVAILABILITY_TOOL_NAME = "shuttle_availability"
-DATED_AVAILABILITY_TOOL_NAME = "shuttle_availability_on_day"
-COMPARISON_TOOL_NAME = "shuttle_comparison"
-CLARIFICATION_TOOL_NAME = "shuttle_clarification"
-UNSUPPORTED_TOOL_NAME = "unsupported_shuttle_request"
-INTERPRETATION_FAILURE_ANSWER = (
-    "I couldn't reliably interpret that shuttle request. Please rephrase it."
-)
-INTERPRETATION_INSTRUCTIONS = """Interpret the complete ordered conversation. For every campus
-shuttle request, call exactly one available shuttle tool; do not answer or ask a shuttle
-clarifying question in text. For a non-shuttle request, call no tool and respond normally. Keep
-arrival and departure intent exact. Classify each user-authored filter by its semantic role: a
-route is the explicitly named or numbered service itself, an origin is where the rider leaves,
-and a destination is where the rider wants to arrive. Do not treat a place or generic transport
-category as a route identity. Supply only requested operation arguments, never shuttle facts."""
-RETRY_INSTRUCTIONS = """
-A previous structured call was rejected by deterministic validation. Retry exactly once.
-Availability requires an explicit user-authored clock value and verbatim clock evidence. An open
-request asking for a clock value is not itself a clock constraint; select the chronologically
-earliest trip instead. Every day, count, clock, offset, and filter evidence value must be copied
-verbatim from user-authored text. Do not invent a value to satisfy a tool shape."""
-ROUTE_REPAIR_INSTRUCTIONS = """
-The previous interpretation assigned a route filter that did not identify any route in the
-official schedule. Reinterpret the same ordered conversation exactly once. Do not repeat an
-unmatched route filter. Preserve a requested place as an origin or destination by meaning, or
-omit the mention when it is only the generic transportation category. Do not provide facts."""
-SCOPE_DESCRIPTION = """Use only for RockyGPT campus shuttle transportation, understood from the
-latest request and ordered conversation. Do not call any shuttle tool for a non-shuttle request.
-For every campus shuttle request, call exactly one shuttle tool; never answer or ask a shuttle
-clarifying question in plain text. Route, origin, and destination are optional filters, so their
-absence does not make an otherwise complete request ambiguous.
-Arguments are interpretation only: never invent route IDs, canonical route or stop names, trip
-records, schedule facts, sources, or calculated dates. Mentions must be copied verbatim from
-user-authored text or be null. Classify a mention by its role in the rider's request, even when
-the place is unfamiliar: a place the rider wants to reach is a destination, and a place they
-want to leave is an origin. A route mention must be a proper or numbered identity that
-distinguishes one shuttle service from another; a generic transportation category is not a
-route mention."""
+
+def _prompt(section: str) -> str:
+    text = files(__package__).joinpath("prompt.md").read_text(encoding="utf-8")
+    marker = f"## {section}\n"
+    if marker not in text:
+        raise RuntimeError(f"transportation prompt section is missing: {section}")
+    value = text.split(marker, 1)[1].split("\n## ", 1)[0].strip()
+    if not value:
+        raise RuntimeError(f"transportation prompt section is empty: {section}")
+    return value
+
+
+INTERPRETATION_INSTRUCTIONS = _prompt("interpretation")
+RETRY_INSTRUCTIONS = _prompt("retry")
+ROUTE_REPAIR_INSTRUCTIONS = _prompt("route_repair")
+SCOPE_DESCRIPTION = _prompt("scope")
+
 ClockText = Annotated[
     str,
     StringConstraints(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$"),
@@ -76,13 +53,6 @@ EvidenceText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=120),
 ]
-
-
-class ConversationMessage(TypedDict):
-    """One original ordered chat message."""
-
-    role: Literal["user", "assistant"]
-    content: str
 
 
 class ShuttleNextDayToolArguments(ContractModel):
@@ -471,6 +441,16 @@ class TransportationInterpretation(ContractModel):
         return self
 
 
+NEXT_TRIP_TOOL_NAME = "shuttle_next_trip"
+NEXT_TRIPS_TOOL_NAME = "shuttle_next_trips"
+LAST_TRIP_TOOL_NAME = "shuttle_last_trip"
+SCHEDULE_TOOL_NAME = "shuttle_schedule"
+AVAILABILITY_TOOL_NAME = "shuttle_availability"
+DATED_AVAILABILITY_TOOL_NAME = "shuttle_availability_on_day"
+COMPARISON_TOOL_NAME = "shuttle_comparison"
+CLARIFICATION_TOOL_NAME = "shuttle_clarification"
+UNSUPPORTED_TOOL_NAME = "unsupported_shuttle_request"
+
 def _tool(model: type[ContractModel], name: str, description: str) -> FunctionToolParam:
     pydantic_tool = pydantic_function_tool(model, name=name, description=description)
     function = pydantic_tool["function"]
@@ -569,6 +549,10 @@ SHUTTLE_TOOLS = [
     ),
 ]
 
+
+INTERPRETATION_FAILURE_ANSWER = (
+    "I couldn't reliably interpret that shuttle request. Please rephrase it."
+)
 
 class InvalidTransportationInterpretation(RuntimeError):
     """Internal validation failure for one model-produced interpretation call."""
@@ -725,7 +709,7 @@ def interpret_transportation(
             instructions=(
                 INTERPRETATION_INSTRUCTIONS
                 if attempt == 0
-                else INTERPRETATION_INSTRUCTIONS + RETRY_INSTRUCTIONS
+                else f"{INTERPRETATION_INSTRUCTIONS}\n\n{RETRY_INSTRUCTIONS}"
             ),
             tools=SHUTTLE_TOOLS if attempt == 0 else retry_tools,
             tool_choice="auto",
@@ -774,7 +758,7 @@ def repair_transportation_interpretation(
     response = OpenAI().responses.create(
         model=model,
         input=cast(ResponseInputParam, list(messages)),
-        instructions=INTERPRETATION_INSTRUCTIONS + ROUTE_REPAIR_INSTRUCTIONS,
+        instructions=f"{INTERPRETATION_INSTRUCTIONS}\n\n{ROUTE_REPAIR_INSTRUCTIONS}",
         tools=SHUTTLE_TOOLS,
         tool_choice="auto",
         parallel_tool_calls=False,

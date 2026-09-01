@@ -5,7 +5,12 @@ from typing import cast
 
 import pytest
 
-from rockygpt_brain.capabilities.transportation.contracts import (
+from rockygpt_brain.capabilities.transportation.execution import (
+    CAMPUS_TIME_ZONE,
+    execute_transportation,
+    route_mentions_match_trusted_data,
+)
+from rockygpt_brain.capabilities.transportation.models import (
     RelativeDay,
     ServiceDay,
     ServiceDayTemplate,
@@ -14,15 +19,14 @@ from rockygpt_brain.capabilities.transportation.contracts import (
     ShuttleQueryRequest,
     UpcomingDay,
 )
-from rockygpt_brain.capabilities.transportation.execution import (
-    CAMPUS_TIME_ZONE,
+from rockygpt_brain.capabilities.transportation.renderer import (
     SCHEDULE_NOTICE,
+    answer_transportation,
+)
+from rockygpt_brain.capabilities.transportation.repository import (
     TrustedShuttleData,
     TrustedSourceData,
     TrustedTripData,
-    answer_transportation,
-    execute_transportation,
-    route_mentions_match_trusted_data,
 )
 
 

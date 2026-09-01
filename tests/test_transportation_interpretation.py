@@ -7,15 +7,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from rockygpt_brain.capabilities.transportation.contracts import (
-    RelativeDay,
-    ServiceDayTemplate,
-    ShuttleClarificationRequest,
-    ShuttleComparisonRequest,
-    ShuttleQueryRequest,
-    ShuttleRequest,
-    UnsupportedShuttleRequest,
-)
 from rockygpt_brain.capabilities.transportation.interpretation import (
     AVAILABILITY_TOOL_NAME,
     CLARIFICATION_TOOL_NAME,
@@ -35,6 +26,15 @@ from rockygpt_brain.capabilities.transportation.interpretation import (
     TransportationInterpretation,
     interpret_transportation,
     validate_tool_arguments,
+)
+from rockygpt_brain.capabilities.transportation.models import (
+    RelativeDay,
+    ServiceDayTemplate,
+    ShuttleClarificationRequest,
+    ShuttleComparisonRequest,
+    ShuttleQueryRequest,
+    ShuttleRequest,
+    UnsupportedShuttleRequest,
 )
 
 
@@ -169,7 +169,9 @@ def text_response(answer: str = "Normal chat answer.") -> Mock:
 def interpret(
     messages: list[ConversationMessage], response: Mock
 ) -> tuple[str, TransportationInterpretation, Mock]:
-    with patch("rockygpt_brain.capabilities.transportation.interpretation.OpenAI") as client:
+    with patch(
+        "rockygpt_brain.capabilities.transportation.interpretation.OpenAI"
+    ) as client:
         client.return_value.responses.create.return_value = response
         answer, interpretation = interpret_transportation(messages, "gpt-test")
     return answer, interpretation, client
@@ -784,7 +786,9 @@ def test_invalid_arrival_interpretation_retries_once_without_invented_clock() ->
         }
     ]
 
-    with patch("rockygpt_brain.capabilities.transportation.interpretation.OpenAI") as client:
+    with patch(
+        "rockygpt_brain.capabilities.transportation.interpretation.OpenAI"
+    ) as client:
         client.return_value.responses.create.side_effect = [invalid, valid]
         answer, interpretation = interpret_transportation(messages, "gpt-test")
 
@@ -796,7 +800,7 @@ def test_invalid_arrival_interpretation_retries_once_without_invented_clock() ->
     assert client.return_value.responses.create.call_count == 2
     assert (
         client.return_value.responses.create.call_args_list[1].kwargs["instructions"]
-        == INTERPRETATION_INSTRUCTIONS + RETRY_INSTRUCTIONS
+        == f"{INTERPRETATION_INSTRUCTIONS}\n\n{RETRY_INSTRUCTIONS}"
     )
     retry_tool_names = {
         tool["name"]

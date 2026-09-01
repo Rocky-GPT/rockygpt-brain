@@ -11,23 +11,18 @@ from pydantic import ValidationError
 
 import rockygpt_brain
 from rockygpt_brain.api.app import MODEL, ChatRequest, app, chat, health, readiness
-from rockygpt_brain.capabilities.transportation.contracts import (
+from rockygpt_brain.capabilities.runtime import discover_capabilities
+from rockygpt_brain.capabilities.transportation.interpretation import (
+    INTERPRETATION_INSTRUCTIONS,
+    SHUTTLE_TOOLS,
+    TransportationInterpretation,
+)
+from rockygpt_brain.capabilities.transportation.models import (
     ShuttleClarificationRequest,
     ShuttleQuery,
     ShuttleQueryRequest,
     ShuttleResult,
     UpcomingDay,
-)
-from rockygpt_brain.capabilities.runtime import (
-    TRANSPORTATION_UNAVAILABLE_ANSWER,
-    TRANSPORTATION_UNAVAILABLE_INSTRUCTIONS,
-    TRANSPORTATION_UNAVAILABLE_TOOL,
-    load_transportation_modules,
-)
-from rockygpt_brain.capabilities.transportation.interpretation import (
-    INTERPRETATION_INSTRUCTIONS,
-    SHUTTLE_TOOLS,
-    TransportationInterpretation,
 )
 
 
@@ -59,8 +54,8 @@ def test_transportation_request_gets_safe_200_when_capability_is_absent() -> Non
 
     with (
         patch(
-            "rockygpt_brain.capabilities.runtime.load_transportation_modules",
-            return_value=None,
+            "rockygpt_brain.capabilities.runtime.discover_capabilities",
+            return_value=([], ["transportation"]),
         ),
         patch("rockygpt_brain.capabilities.runtime.OpenAI") as openai,
     ):
@@ -69,7 +64,7 @@ def test_transportation_request_gets_safe_200_when_capability_is_absent() -> Non
 
     assert response.status_code == 200
     assert response.json() == {
-        "answer": TRANSPORTATION_UNAVAILABLE_ANSWER,
+        "answer": "Campus transportation is temporarily unavailable.",
         "model": "gpt-test",
         "transportationInterpretation": {
             "selected": True,
@@ -93,16 +88,27 @@ def test_transportation_request_gets_safe_200_when_capability_is_absent() -> Non
         },
         "transportationProvenance": None,
     }
-    openai.return_value.responses.create.assert_called_once_with(
-        model=MODEL,
-        input=messages,
-        instructions=TRANSPORTATION_UNAVAILABLE_INSTRUCTIONS,
-        tools=[TRANSPORTATION_UNAVAILABLE_TOOL],
-        tool_choice="auto",
-        parallel_tool_calls=False,
-        store=False,
-        temperature=0,
-    )
+    call = openai.return_value.responses.create.call_args.kwargs
+    assert call["model"] == MODEL
+    assert call["input"] == messages
+    assert call["tools"] == [
+        {
+            "type": "function",
+            "name": "campus_transportation",
+            "description": (
+                "Select for a request about the unavailable RockyGPT campus transportation "
+                "capability."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        }
+    ]
+    assert "transportation" not in call["instructions"].casefold()
 
 
 def test_normal_chat_still_works_when_transportation_capability_is_absent() -> None:
@@ -114,8 +120,8 @@ def test_normal_chat_still_works_when_transportation_capability_is_absent() -> N
 
     with (
         patch(
-            "rockygpt_brain.capabilities.runtime.load_transportation_modules",
-            return_value=None,
+            "rockygpt_brain.capabilities.runtime.discover_capabilities",
+            return_value=([], ["transportation"]),
         ),
         patch("rockygpt_brain.capabilities.runtime.OpenAI") as openai,
     ):
@@ -139,26 +145,36 @@ def test_normal_chat_still_works_when_transportation_capability_is_absent() -> N
     }
 
 
-def test_only_missing_transportation_source_activates_the_fallback() -> None:
-    missing_transportation = ModuleNotFoundError("transportation module is absent")
-    missing_transportation.name = "rockygpt_brain.capabilities.transportation.execution"
-
-    with patch(
-        "rockygpt_brain.capabilities.runtime.import_module",
-        side_effect=missing_transportation,
-    ):
-        assert load_transportation_modules() is None
-
-    missing_dependency = ModuleNotFoundError("psycopg is absent")
-    missing_dependency.name = "psycopg"
+def test_capabilities_are_discovered_without_runtime_names() -> None:
+    capability = SimpleNamespace(name="dining", run=Mock())
+    package = SimpleNamespace(CAPABILITY=capability)
     with (
+        patch.dict("os.environ", {"ROCKYGPT_EXPECTED_CAPABILITIES": ""}),
+        patch(
+            "rockygpt_brain.capabilities.runtime.iter_modules",
+            return_value=[SimpleNamespace(name="dining", ispkg=True)],
+        ),
         patch(
             "rockygpt_brain.capabilities.runtime.import_module",
-            side_effect=missing_dependency,
+            return_value=package,
         ),
-        pytest.raises(ModuleNotFoundError, match="psycopg"),
     ):
-        load_transportation_modules()
+        assert discover_capabilities() == ([capability], [])
+
+
+def test_configured_capability_that_cannot_load_is_unavailable() -> None:
+    with (
+        patch.dict(
+            "os.environ",
+            {"ROCKYGPT_EXPECTED_CAPABILITIES": "transportation"},
+        ),
+        patch("rockygpt_brain.capabilities.runtime.iter_modules", return_value=[]),
+        patch(
+            "rockygpt_brain.capabilities.runtime.import_module",
+            side_effect=ModuleNotFoundError("capability source is absent"),
+        ),
+    ):
+        assert discover_capabilities() == ([], ["transportation"])
 
 
 def test_chat_request_has_only_ordered_role_content_messages() -> None:
@@ -200,7 +216,9 @@ def test_chat_passes_messages_to_openai_in_order() -> None:
         {"role": "user", "content": "What is my name?"},
     ]
     response = Mock(output=[], output_text="Hello from the model.", model="gpt-test")
-    with patch("rockygpt_brain.capabilities.transportation.interpretation.OpenAI") as client:
+    with patch(
+        "rockygpt_brain.capabilities.transportation.interpretation.OpenAI"
+    ) as client:
         client.return_value.responses.create.return_value = response
         assert chat(ChatRequest.model_validate({"messages": messages})) == {
             "answer": "Hello from the model.",
@@ -298,7 +316,9 @@ def test_malformed_model_interpretation_never_causes_chat_5xx(
         model="gpt-test",
     )
 
-    with patch("rockygpt_brain.capabilities.transportation.interpretation.OpenAI") as openai:
+    with patch(
+        "rockygpt_brain.capabilities.transportation.interpretation.OpenAI"
+    ) as openai:
         openai.return_value.responses.create.return_value = response
         result = TestClient(app).post(
             "/v1/chat",
@@ -357,7 +377,7 @@ def test_unmatched_route_interpretation_is_repaired_before_execution() -> None:
             return_value=("", repaired),
         ) as repair,
         patch(
-            "rockygpt_brain.capabilities.transportation.execution.load_trusted_shuttle_data",
+            "rockygpt_brain.capabilities.transportation.repository.load_trusted_shuttle_data",
             return_value=Mock(),
         ) as load,
         patch(
@@ -369,7 +389,7 @@ def test_unmatched_route_interpretation_is_repaired_before_execution() -> None:
             return_value=result,
         ) as execute,
         patch(
-            "rockygpt_brain.capabilities.transportation.execution.answer_transportation",
+            "rockygpt_brain.capabilities.transportation.renderer.answer_transportation",
             return_value="Grounded answer",
         ),
     ):
@@ -428,7 +448,7 @@ def test_failed_route_repair_becomes_typed_clarification_not_5xx() -> None:
             return_value=("", clarification),
         ),
         patch(
-            "rockygpt_brain.capabilities.transportation.execution.load_trusted_shuttle_data",
+            "rockygpt_brain.capabilities.transportation.repository.load_trusted_shuttle_data",
             return_value=Mock(),
         ),
         patch(

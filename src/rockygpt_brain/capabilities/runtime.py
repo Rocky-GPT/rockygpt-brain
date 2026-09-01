@@ -1,245 +1,219 @@
-"""Optional composition boundary for RockyGPT's installed capabilities."""
+"""Discover and run optional Brain capabilities without naming any one of them."""
 
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+import os
+from collections.abc import Iterable, Sequence
 from datetime import datetime
 from importlib import import_module
-from types import ModuleType
-from typing import Literal, Protocol, TypedDict, cast
+from pathlib import Path
+from pkgutil import iter_modules
+from typing import cast
 from zoneinfo import ZoneInfo
 
 from openai import OpenAI
 from openai.types.responses import FunctionToolParam, ResponseInputParam
 
-TRANSPORTATION_UNAVAILABLE_ANSWER = "Campus transportation is temporarily unavailable."
-TRANSPORTATION_TOOL_NAME = "campus_transportation"
-TRANSPORTATION_UNAVAILABLE_INSTRUCTIONS = """For a RockyGPT campus transportation request,
-call the campus_transportation tool instead of answering. For any other request, answer normally.
-Do not provide campus transportation facts."""
-TRANSPORTATION_UNAVAILABLE_TOOL = cast(
-    FunctionToolParam,
-    {
-        "type": "function",
-        "name": TRANSPORTATION_TOOL_NAME,
-        "description": (
-            "Select for any request about RockyGPT campus shuttle transportation. "
-            "The transportation capability is currently unavailable."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-            "additionalProperties": False,
-        },
-        "strict": True,
-    },
+from rockygpt_brain.capabilities.base import (
+    Capability,
+    CapabilityRun,
+    ConversationMessage,
 )
+
+EXPECTED_CAPABILITIES_ENV = "ROCKYGPT_EXPECTED_CAPABILITIES"
 _CAMPUS_TIME_ZONE = ZoneInfo("America/New_York")
-_TRANSPORTATION_MODULE_NAMES = frozenset(
-    {
-        "rockygpt_brain.capabilities.transportation",
-        "rockygpt_brain.capabilities.transportation.contracts",
-        "rockygpt_brain.capabilities.transportation.execution",
-        "rockygpt_brain.capabilities.transportation.interpretation",
+_PACKAGE_DIRECTORY = Path(__file__).parent
+_NON_CAPABILITY_MODULES = frozenset({"base", "runtime"})
+
+
+def discover_capabilities() -> tuple[list[Capability], list[str]]:
+    """Discover capability packages and report configured packages that cannot load."""
+    discovered = {
+        module.name
+        for module in iter_modules([str(_PACKAGE_DIRECTORY)])
+        if module.ispkg and module.name not in _NON_CAPABILITY_MODULES
     }
-)
-
-
-class ConversationMessage(TypedDict):
-    """One original ordered chat message."""
-
-    role: Literal["user", "assistant"]
-    content: str
-
-
-class _Dumpable(Protocol):
-    def model_dump(self, *, mode: Literal["json"]) -> dict[str, object]: ...
-
-
-class _Interpretation(_Dumpable, Protocol):
-    selected: bool
-    request: object | None
-    model: str
-
-
-class _Result(_Dumpable, Protocol):
-    provenance: _Dumpable | None
-
-
-class _Execute(Protocol):
-    def __call__(self, request: object, *, data: object | None) -> _Result: ...
-
-
-@dataclass(frozen=True)
-class _TransportationModules:
-    interpret: Callable[
-        [Sequence[ConversationMessage], str], tuple[str, _Interpretation]
-    ]
-    repair: Callable[
-        [Sequence[ConversationMessage], str], tuple[str, _Interpretation]
-    ]
-    interpretation_failure: Callable[[str], tuple[str, _Interpretation]]
-    load_data: Callable[[], object]
-    route_mentions_match: Callable[[object, object], bool]
-    execute: _Execute
-    answer: Callable[[_Result], str]
-
-
-def load_transportation_modules() -> _TransportationModules | None:
-    """Load only this capability; its deliberate absence does not break the Brain shell."""
-    try:
-        import_module("rockygpt_brain.capabilities.transportation.contracts")
-        execution = import_module("rockygpt_brain.capabilities.transportation.execution")
-        interpretation = import_module("rockygpt_brain.capabilities.transportation.interpretation")
-    except ModuleNotFoundError as error:
-        if error.name in _TRANSPORTATION_MODULE_NAMES:
-            return None
-        raise
-    return _modules(execution, interpretation)
+    expected = _expected_capabilities(os.getenv(EXPECTED_CAPABILITIES_ENV, ""))
+    available: list[Capability] = []
+    unavailable: list[str] = []
+    for name in sorted(discovered | expected):
+        try:
+            package = import_module(f"rockygpt_brain.capabilities.{name}")
+        except ModuleNotFoundError:
+            unavailable.append(name)
+            continue
+        capability = cast(Capability | None, getattr(package, "CAPABILITY", None))
+        if capability is None or capability.name != name:
+            unavailable.append(name)
+            continue
+        available.append(capability)
+    return available, unavailable
 
 
 def run_chat(
     messages: Sequence[ConversationMessage], model: str
 ) -> dict[str, object]:
-    """Run chat with transportation when installed and a safe fallback when absent."""
-    modules = load_transportation_modules()
-    if modules is None:
-        return _run_without_transportation(messages, model)
-    return _run_with_transportation(messages, model, modules)
+    """Run dynamically discovered capabilities, then fall back to normal chat."""
+    capabilities, unavailable = discover_capabilities()
+    inspections: dict[str, object] = {}
+    normal: CapabilityRun | None = None
+
+    for capability in capabilities:
+        result = capability.run(messages, model)
+        inspections.update(result.inspection)
+        if result.selected:
+            return _response(result.answer, result.model, inspections)
+        normal = normal or result
+
+    if unavailable:
+        result = _run_unavailable_selector(messages, model, unavailable)
+        inspections.update(result.inspection)
+        if result.selected:
+            return _response(result.answer, result.model, inspections)
+        normal = normal or result
+
+    if normal is None:
+        normal = _run_normal_chat(messages, model)
+    return _response(normal.answer, normal.model, inspections)
 
 
-def _modules(execution: ModuleType, interpretation: ModuleType) -> _TransportationModules:
-    return _TransportationModules(
-        interpret=cast(
-            Callable[[Sequence[ConversationMessage], str], tuple[str, _Interpretation]],
-            interpretation.interpret_transportation,
-        ),
-        repair=cast(
-            Callable[[Sequence[ConversationMessage], str], tuple[str, _Interpretation]],
-            interpretation.repair_transportation_interpretation,
-        ),
-        interpretation_failure=cast(
-            Callable[[str], tuple[str, _Interpretation]],
-            interpretation.interpretation_failure,
-        ),
-        load_data=cast(Callable[[], object], execution.load_trusted_shuttle_data),
-        route_mentions_match=cast(
-            Callable[[object, object], bool],
-            execution.route_mentions_match_trusted_data,
-        ),
-        execute=cast(_Execute, execution.execute_transportation),
-        answer=cast(Callable[[_Result], str], execution.answer_transportation),
-    )
-
-
-def _run_with_transportation(
-    messages: Sequence[ConversationMessage],
-    model: str,
-    modules: _TransportationModules,
-) -> dict[str, object]:
-    answer, interpretation = modules.interpret(messages, model)
-    transportation_result: _Result | None = None
-    transportation_provenance: _Dumpable | None = None
-    if interpretation.selected:
-        transportation_request = interpretation.request
-        assert transportation_request is not None
-        trusted_data = None
-        if _request_kind(transportation_request) in {"query", "comparison"}:
-            trusted_data = modules.load_data()
-            if not modules.route_mentions_match(transportation_request, trusted_data):
-                _, interpretation = modules.repair(messages, model)
-                transportation_request = interpretation.request
-                assert transportation_request is not None
-                if (
-                    _request_kind(transportation_request) in {"query", "comparison"}
-                    and not modules.route_mentions_match(transportation_request, trusted_data)
-                ):
-                    _, interpretation = modules.interpretation_failure(interpretation.model)
-                    transportation_request = interpretation.request
-                    assert transportation_request is not None
-        transportation_result = modules.execute(
-            transportation_request,
-            data=trusted_data,
+def _expected_capabilities(value: str) -> set[str]:
+    names = {name.strip() for name in value.split(",") if name.strip()}
+    invalid = sorted(name for name in names if not name.isidentifier())
+    if invalid:
+        raise RuntimeError(
+            f"{EXPECTED_CAPABILITIES_ENV} contains invalid names: {', '.join(invalid)}"
         )
-        transportation_provenance = transportation_result.provenance
-        answer = modules.answer(transportation_result)
-    return _response(
-        answer=answer,
-        model=interpretation.model,
-        interpretation=interpretation.model_dump(mode="json"),
-        result=(
-            transportation_result.model_dump(mode="json")
-            if transportation_result is not None
-            else None
-        ),
-        provenance=(
-            transportation_provenance.model_dump(mode="json")
-            if transportation_provenance is not None
-            else None
-        ),
-    )
+    return names
 
 
-def _run_without_transportation(
-    messages: Sequence[ConversationMessage], model: str
-) -> dict[str, object]:
+def _run_unavailable_selector(
+    messages: Sequence[ConversationMessage], model: str, names: Sequence[str]
+) -> CapabilityRun:
+    tools = [_unavailable_tool(name) for name in names]
     response = OpenAI().responses.create(
         model=model,
         input=cast(ResponseInputParam, list(messages)),
-        instructions=TRANSPORTATION_UNAVAILABLE_INSTRUCTIONS,
-        tools=[TRANSPORTATION_UNAVAILABLE_TOOL],
+        instructions=(
+            "For a request belonging to an unavailable RockyGPT campus capability, call the "
+            "matching tool instead of answering. For any other request, answer normally. "
+            "Do not invent facts for unavailable capabilities."
+        ),
+        tools=tools,
         tool_choice="auto",
         parallel_tool_calls=False,
         store=False,
         temperature=0,
     )
-    selected = any(
-        item.type == "function_call" and item.name == TRANSPORTATION_TOOL_NAME
-        for item in response.output
+    calls = [item for item in response.output if item.type == "function_call"]
+    selected_name = next(
+        (
+            name
+            for name in names
+            if any(call.name == _tool_name(name) for call in calls)
+        ),
+        None,
     )
-    if not selected:
-        return _response(
+    inspection = _unavailable_inspection(names, selected_name, response.model)
+    if selected_name is None:
+        return CapabilityRun(
+            selected=False,
             answer=response.output_text,
             model=response.model,
-            interpretation={"selected": False, "request": None, "model": response.model},
-            result=None,
-            provenance=None,
+            inspection=inspection,
         )
-
-    request = {"kind": "unsupported", "reason": "capability_unavailable"}
-    return _response(
-        answer=TRANSPORTATION_UNAVAILABLE_ANSWER,
+    return CapabilityRun(
+        selected=True,
+        answer=f"Campus {_display_name(selected_name)} is temporarily unavailable.",
         model=response.model,
-        interpretation={"selected": True, "request": request, "model": response.model},
-        result={
-            "outcome": "unsupported",
-            "request": request,
-            "evaluated_at": datetime.now(_CAMPUS_TIME_ZONE).isoformat(),
-            "query_results": [],
-            "comparison": None,
-            "candidates": [],
-            "provenance": None,
-        },
-        provenance=None,
+        inspection=inspection,
     )
 
 
-def _request_kind(request: object) -> object:
-    return getattr(request, "kind", None)
+def _run_normal_chat(
+    messages: Sequence[ConversationMessage], model: str
+) -> CapabilityRun:
+    response = OpenAI().responses.create(
+        model=model,
+        input=cast(ResponseInputParam, list(messages)),
+        store=False,
+    )
+    return CapabilityRun(
+        selected=False,
+        answer=response.output_text,
+        model=response.model,
+        inspection={},
+    )
+
+
+def _unavailable_tool(name: str) -> FunctionToolParam:
+    display_name = _display_name(name)
+    return cast(
+        FunctionToolParam,
+        {
+            "type": "function",
+            "name": _tool_name(name),
+            "description": (
+                f"Select for a request about the unavailable RockyGPT campus {display_name} "
+                "capability."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    )
+
+
+def _unavailable_inspection(
+    names: Iterable[str], selected_name: str | None, model: str
+) -> dict[str, object]:
+    inspection: dict[str, object] = {}
+    for name in names:
+        selected = name == selected_name
+        request = (
+            {"kind": "unsupported", "reason": "capability_unavailable"}
+            if selected
+            else None
+        )
+        prefix = _lower_camel(name)
+        inspection[f"{prefix}Interpretation"] = {
+            "selected": selected,
+            "request": request,
+            "model": model,
+        }
+        inspection[f"{prefix}Result"] = (
+            {
+                "outcome": "unsupported",
+                "request": request,
+                "evaluated_at": datetime.now(_CAMPUS_TIME_ZONE).isoformat(),
+                "query_results": [],
+                "comparison": None,
+                "candidates": [],
+                "provenance": None,
+            }
+            if selected
+            else None
+        )
+        inspection[f"{prefix}Provenance"] = None
+    return inspection
+
+
+def _tool_name(name: str) -> str:
+    return f"campus_{name}"
+
+
+def _display_name(name: str) -> str:
+    return name.replace("_", " ")
+
+
+def _lower_camel(name: str) -> str:
+    first, *rest = name.split("_")
+    return first + "".join(part.capitalize() for part in rest)
 
 
 def _response(
-    *,
-    answer: str,
-    model: str,
-    interpretation: dict[str, object],
-    result: dict[str, object] | None,
-    provenance: dict[str, object] | None,
+    answer: str, model: str, inspection: dict[str, object]
 ) -> dict[str, object]:
-    return {
-        "answer": answer,
-        "model": model,
-        "transportationInterpretation": interpretation,
-        "transportationResult": result,
-        "transportationProvenance": provenance,
-    }
+    return {"answer": answer, "model": model, **inspection}

@@ -31,6 +31,13 @@ uvicorn rockygpt_brain.api.app:app --host 127.0.0.1 --port 8000
 Set `OPENAI_API_KEY` and `DATABASE_URL` in `.env`. `OPENAI_CHAT_MODEL` is
 optional and defaults to `gpt-4o-mini`.
 
+Capability packages are discovered automatically under
+`rockygpt_brain/capabilities/`. Set `ROCKYGPT_EXPECTED_CAPABILITIES` to a
+comma-separated list so a configured package that is absent or cannot load is
+reported safely as temporarily unavailable. The current value is
+`transportation`; adding another capability package does not require changing
+the runtime.
+
 ## Checks
 
 ```bash
