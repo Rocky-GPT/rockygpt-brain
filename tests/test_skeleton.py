@@ -106,6 +106,7 @@ def test_chat_passes_messages_to_openai_in_order() -> None:
                         "weekday": None,
                         "service_day": None,
                         "calendar_date": None,
+                        "day_mention": None,
                     },
                     "mentions": [],
                     "show": "both",
@@ -113,6 +114,39 @@ def test_chat_passes_messages_to_openai_in_order() -> None:
             ),
         ),
         ("shuttle_next_trips", "{not valid json"),
+        (
+            "shuttle_next_trips",
+            json.dumps(
+                {
+                    "day": {
+                        "day_kind": "upcoming",
+                        "days_from_today": None,
+                        "weekday": None,
+                        "service_day": None,
+                        "calendar_date": None,
+                        "day_mention": None,
+                    },
+                    "mentions": [],
+                    "count": 3,
+                    "count_mention": "shuttle",
+                    "offset": 0,
+                    "offset_mention": "no_offset",
+                    "show": "departure",
+                }
+            ),
+        ),
+        (
+            "shuttle_availability",
+            json.dumps(
+                {
+                    "mentions": [],
+                    "relation": "at",
+                    "clock": "00:00",
+                    "clock_mention": "shuttle",
+                    "basis": "arrival",
+                }
+            ),
+        ),
         ("not_a_transportation_operation", "{}"),
     ],
 )
