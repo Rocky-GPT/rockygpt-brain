@@ -1,13 +1,16 @@
-"""Typed contracts for RockyGPT's bounded transportation capability.
-
-This module defines data shapes only. It does not interpret language, read the
-database, calculate schedules, or generate answers.
-"""
+"""Typed requests and deterministic results for transportation."""
 
 from datetime import date, datetime, time
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    StringConstraints,
+    model_validator,
+)
 
 AROUND_WINDOW_MINUTES = 15
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
