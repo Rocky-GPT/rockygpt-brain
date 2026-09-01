@@ -1,7 +1,8 @@
-"""Proves the package imports and the ordered chat shell runs."""
+"""Proves the HTTP shell and bounded capability classifier."""
 
 import json
-from datetime import datetime
+from importlib.resources import files
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -10,19 +11,12 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 import rockygpt_brain
-from rockygpt_brain.api.app import MODEL, ChatRequest, app, chat, health, readiness
-from rockygpt_brain.capabilities.runtime import discover_capabilities
-from rockygpt_brain.capabilities.transportation.interpretation import (
-    INTERPRETATION_INSTRUCTIONS,
-    SHUTTLE_TOOLS,
-    TransportationInterpretation,
-)
-from rockygpt_brain.capabilities.transportation.models import (
-    ShuttleClarificationRequest,
-    ShuttleQuery,
-    ShuttleQueryRequest,
-    ShuttleResult,
-    UpcomingDay,
+from rockygpt_brain.api.app import MODEL, ChatRequest, app, health, readiness
+from rockygpt_brain.capabilities.classifier import (
+    CAPABILITY_LABELS,
+    CLASSIFIER_INSTRUCTIONS,
+    CLASSIFIER_TOOL,
+    CLASSIFIER_TOOL_NAME,
 )
 
 
@@ -38,143 +32,58 @@ def test_readiness() -> None:
     assert readiness() == {"status": "ready"}
 
 
-def test_transportation_request_gets_safe_200_when_capability_is_absent() -> None:
-    model_response = Mock(
-        output=[
-            SimpleNamespace(
-                type="function_call",
-                name="campus_transportation",
-                arguments="{}",
-            )
-        ],
-        output_text="",
-        model="gpt-test",
-    )
-    messages = [{"role": "user", "content": "When is the next shuttle?"}]
-
-    with (
-        patch(
-            "rockygpt_brain.capabilities.runtime.discover_capabilities",
-            return_value=([], ["transportation"]),
-        ),
-        patch("rockygpt_brain.capabilities.runtime.OpenAI") as openai,
-    ):
-        openai.return_value.responses.create.return_value = model_response
-        response = TestClient(app).post("/v1/chat", json={"messages": messages})
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "answer": "Campus transportation is temporarily unavailable.",
-        "model": "gpt-test",
-        "transportationInterpretation": {
-            "selected": True,
-            "request": {
-                "kind": "unsupported",
-                "reason": "capability_unavailable",
-            },
-            "model": "gpt-test",
-        },
-        "transportationResult": {
-            "outcome": "unsupported",
-            "request": {
-                "kind": "unsupported",
-                "reason": "capability_unavailable",
-            },
-            "evaluated_at": response.json()["transportationResult"]["evaluated_at"],
-            "query_results": [],
-            "comparison": None,
-            "candidates": [],
-            "provenance": None,
-        },
-        "transportationProvenance": None,
-    }
-    call = openai.return_value.responses.create.call_args.kwargs
-    assert call["model"] == MODEL
-    assert call["input"] == messages
-    assert call["tools"] == [
-        {
-            "type": "function",
-            "name": "campus_transportation",
-            "description": (
-                "Select for a request about the unavailable RockyGPT campus transportation "
-                "capability."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": [],
-                "additionalProperties": False,
-            },
-            "strict": True,
-        }
-    ]
-    assert "transportation" not in call["instructions"].casefold()
-
-
-def test_normal_chat_still_works_when_transportation_capability_is_absent() -> None:
-    model_response = Mock(
-        output=[],
-        output_text="Four.",
-        model="gpt-test",
+def test_complete_initial_label_set_is_exact() -> None:
+    assert CAPABILITY_LABELS == (
+        "transportation",
+        "dining",
+        "events",
+        "hours",
+        "directory",
+        "locations",
+        "courses",
+        "programs",
+        "clubs",
+        "academic_calendar",
+        "campus_documents",
+        "student_services",
+        "it_support",
+        "personal_account",
+        "general",
+        "clarification",
     )
 
-    with (
-        patch(
-            "rockygpt_brain.capabilities.runtime.discover_capabilities",
-            return_value=([], ["transportation"]),
-        ),
-        patch("rockygpt_brain.capabilities.runtime.OpenAI") as openai,
-    ):
-        openai.return_value.responses.create.return_value = model_response
-        response = TestClient(app).post(
-            "/v1/chat",
-            json={"messages": [{"role": "user", "content": "What is 2 + 2?"}]},
-        )
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "answer": "Four.",
-        "model": "gpt-test",
-        "transportationInterpretation": {
-            "selected": False,
-            "request": None,
-            "model": "gpt-test",
-        },
-        "transportationResult": None,
-        "transportationProvenance": None,
-    }
+def test_classifier_prompt_is_loaded_from_its_own_file() -> None:
+    prompt = (
+        files("rockygpt_brain.capabilities")
+        .joinpath("prompt.md")
+        .read_text(encoding="utf-8")
+        .strip()
+    )
+    assert CLASSIFIER_INSTRUCTIONS == prompt
+    assert "select_capability" in prompt
 
 
-def test_capabilities_are_discovered_without_runtime_names() -> None:
-    capability = SimpleNamespace(name="dining", run=Mock())
-    package = SimpleNamespace(CAPABILITY=capability)
-    with (
-        patch.dict("os.environ", {"ROCKYGPT_EXPECTED_CAPABILITIES": ""}),
-        patch(
-            "rockygpt_brain.capabilities.runtime.iter_modules",
-            return_value=[SimpleNamespace(name="dining", ispkg=True)],
-        ),
-        patch(
-            "rockygpt_brain.capabilities.runtime.import_module",
-            return_value=package,
-        ),
-    ):
-        assert discover_capabilities() == ([capability], [])
+def test_fixed_evaluation_dataset_is_isolated_and_complete() -> None:
+    dataset_path = Path(__file__).parents[1] / "evals" / "capability_classifier.json"
+    cases = json.loads(dataset_path.read_text(encoding="utf-8"))
 
+    assert len(cases) == len({case["name"] for case in cases})
+    assert {case["expected"] for case in cases} == set(CAPABILITY_LABELS)
+    assert any(case["name"].startswith("boundary_") for case in cases)
+    assert any(case["name"].startswith("topic_switch_") for case in cases)
+    assert any(case["name"].startswith("follow_up_") for case in cases)
+    assert any(case["name"].startswith("ambiguous_") for case in cases)
+    assert any(case["name"].startswith("multi_capability_") for case in cases)
 
-def test_configured_capability_that_cannot_load_is_unavailable() -> None:
-    with (
-        patch.dict(
-            "os.environ",
-            {"ROCKYGPT_EXPECTED_CAPABILITIES": "transportation"},
-        ),
-        patch("rockygpt_brain.capabilities.runtime.iter_modules", return_value=[]),
-        patch(
-            "rockygpt_brain.capabilities.runtime.import_module",
-            side_effect=ModuleNotFoundError("capability source is absent"),
-        ),
-    ):
-        assert discover_capabilities() == ([], ["transportation"])
+    for case in cases:
+        assert set(case) == {"name", "messages", "expected"}
+        assert case["messages"]
+        assert case["messages"][-1]["role"] == "user"
+        for message in case["messages"]:
+            assert set(message) == {"role", "content"}
+            assert message["role"] in {"user", "assistant"}
+            assert isinstance(message["content"], str) and message["content"]
 
 
 def test_chat_request_has_only_ordered_role_content_messages() -> None:
@@ -187,7 +96,6 @@ def test_chat_request_has_only_ordered_role_content_messages() -> None:
             ]
         }
     )
-
     assert request.model_dump() == {
         "messages": [
             {"role": "user", "content": "First"},
@@ -202,42 +110,60 @@ def test_chat_rejects_legacy_or_extra_request_fields() -> None:
         {"message": "legacy"},
         {"messages": [{"role": "user", "content": "Hello", "extra": True}]},
     ):
-        try:
+        with pytest.raises(ValidationError):
             ChatRequest.model_validate(payload)
-        except ValidationError:
-            continue
-        raise AssertionError(f"request should have been rejected: {payload}")
 
 
-def test_chat_passes_messages_to_openai_in_order() -> None:
+@pytest.mark.parametrize("label", CAPABILITY_LABELS)
+def test_chat_returns_only_selected_label_as_answer(label: str) -> None:
+    response = Mock(
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name=CLASSIFIER_TOOL_NAME,
+                arguments=json.dumps({"capability": label}),
+            )
+        ],
+        model="gpt-test",
+    )
+    with patch("rockygpt_brain.capabilities.classifier.OpenAI") as openai:
+        openai.return_value.responses.create.return_value = response
+        result = TestClient(app).post(
+            "/v1/chat",
+            json={"messages": [{"role": "user", "content": "Classify this"}]},
+        )
+
+    assert result.status_code == 200
+    assert result.json() == {"answer": label, "model": "gpt-test"}
+
+
+def test_chat_passes_complete_conversation_to_one_constrained_model_call() -> None:
     messages = [
-        {"role": "user", "content": "My name is Sam."},
-        {"role": "assistant", "content": "Hello, Sam."},
-        {"role": "user", "content": "What is my name?"},
+        {"role": "user", "content": "Where is the registrar?"},
+        {"role": "assistant", "content": "directory"},
+        {"role": "user", "content": "What room is it in?"},
     ]
-    response = Mock(output=[], output_text="Hello from the model.", model="gpt-test")
-    with patch(
-        "rockygpt_brain.capabilities.transportation.interpretation.OpenAI"
-    ) as client:
-        client.return_value.responses.create.return_value = response
-        assert chat(ChatRequest.model_validate({"messages": messages})) == {
-            "answer": "Hello from the model.",
-            "model": "gpt-test",
-            "transportationInterpretation": {
-                "selected": False,
-                "request": None,
-                "model": "gpt-test",
-            },
-            "transportationResult": None,
-            "transportationProvenance": None,
-        }
+    response = Mock(
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name=CLASSIFIER_TOOL_NAME,
+                arguments=json.dumps({"capability": "directory"}),
+            )
+        ],
+        model="gpt-test",
+    )
+    with patch("rockygpt_brain.capabilities.classifier.OpenAI") as openai:
+        openai.return_value.responses.create.return_value = response
+        result = TestClient(app).post("/v1/chat", json={"messages": messages})
 
-    client.return_value.responses.create.assert_called_once_with(
+    assert result.json() == {"answer": "directory", "model": "gpt-test"}
+    openai.return_value.responses.create.assert_called_once_with(
         model=MODEL,
         input=messages,
-        instructions=INTERPRETATION_INSTRUCTIONS,
-        tools=SHUTTLE_TOOLS,
-        tool_choice="auto",
+        instructions=CLASSIFIER_INSTRUCTIONS,
+        tools=[CLASSIFIER_TOOL],
+        tool_choice={"type": "function", "name": CLASSIFIER_TOOL_NAME},
         parallel_tool_calls=False,
         store=False,
         temperature=0,
@@ -245,228 +171,45 @@ def test_chat_passes_messages_to_openai_in_order() -> None:
 
 
 @pytest.mark.parametrize(
-    ("tool_name", "arguments"),
+    "output",
     [
-        (
-            "shuttle_schedule",
-            json.dumps(
-                {
-                    "day": {
-                        "day_kind": "upcoming",
-                        "days_from_today": None,
-                        "weekday": None,
-                        "service_day": None,
-                        "calendar_date": None,
-                        "day_mention": None,
-                    },
-                    "mentions": [],
-                    "show": "both",
-                }
-            ),
-        ),
-        ("shuttle_next_trips", "{not valid json"),
-        (
-            "shuttle_next_trips",
-            json.dumps(
-                {
-                    "day": {
-                        "day_kind": "upcoming",
-                        "days_from_today": None,
-                        "weekday": None,
-                        "service_day": None,
-                        "calendar_date": None,
-                        "day_mention": None,
-                    },
-                    "mentions": [],
-                    "count": 3,
-                    "count_mention": "shuttle",
-                    "offset": 0,
-                    "offset_mention": "no_offset",
-                    "show": "departure",
-                }
-            ),
-        ),
-        (
-            "shuttle_availability",
-            json.dumps(
-                {
-                    "mentions": [],
-                    "relation": "at",
-                    "clock": "00:00",
-                    "clock_mention": "shuttle",
-                    "basis": "arrival",
-                }
-            ),
-        ),
-        ("not_a_transportation_operation", "{}"),
-    ],
-)
-def test_malformed_model_interpretation_never_causes_chat_5xx(
-    tool_name: str, arguments: str
-) -> None:
-    response = Mock(
-        output=[
+        [],
+        [
             SimpleNamespace(
                 type="function_call",
-                name=tool_name,
-                arguments=arguments,
+                name=CLASSIFIER_TOOL_NAME,
+                arguments="{not json",
             )
         ],
-        output_text="",
-        model="gpt-test",
-    )
-
-    with patch(
-        "rockygpt_brain.capabilities.transportation.interpretation.OpenAI"
-    ) as openai:
+        [
+            SimpleNamespace(
+                type="function_call",
+                name=CLASSIFIER_TOOL_NAME,
+                arguments=json.dumps({"capability": "unknown"}),
+            )
+        ],
+        [
+            SimpleNamespace(
+                type="function_call",
+                name=CLASSIFIER_TOOL_NAME,
+                arguments=json.dumps({"capability": "dining"}),
+            ),
+            SimpleNamespace(
+                type="function_call",
+                name=CLASSIFIER_TOOL_NAME,
+                arguments=json.dumps({"capability": "hours"}),
+            ),
+        ],
+    ],
+)
+def test_malformed_model_output_safely_becomes_clarification(output: list[object]) -> None:
+    response = Mock(output=output, model="gpt-test")
+    with patch("rockygpt_brain.capabilities.classifier.OpenAI") as openai:
         openai.return_value.responses.create.return_value = response
         result = TestClient(app).post(
             "/v1/chat",
-            json={"messages": [{"role": "user", "content": "Tell me about the shuttle."}]},
+            json={"messages": [{"role": "user", "content": "What?"}]},
         )
 
     assert result.status_code == 200
-    assert result.json()["transportationInterpretation"] == {
-        "selected": True,
-        "request": {
-            "kind": "clarification",
-            "reason": "interpretation_failure",
-        },
-        "model": "gpt-test",
-    }
-
-
-def test_unmatched_route_interpretation_is_repaired_before_execution() -> None:
-    initial_request = ShuttleQueryRequest(
-        kind="query",
-        answer_kind="trips",
-        query=ShuttleQuery(
-            day=UpcomingDay(kind="upcoming"),
-            selection="next",
-            count=1,
-            route_mention="shuttle",
-        ),
-        show="departure",
-    )
-    repaired_request = initial_request.model_copy(
-        update={"query": initial_request.query.model_copy(update={"route_mention": None})}
-    )
-    initial = TransportationInterpretation(
-        selected=True,
-        request=initial_request,
-        model="gpt-test",
-    )
-    repaired = TransportationInterpretation(
-        selected=True,
-        request=repaired_request,
-        model="gpt-test",
-    )
-    result = Mock(
-        request=repaired_request,
-        provenance=None,
-        model_dump=Mock(return_value={"outcome": "success"}),
-    )
-
-    with (
-        patch(
-            "rockygpt_brain.capabilities.transportation.interpretation.interpret_transportation",
-            return_value=("", initial),
-        ),
-        patch(
-            "rockygpt_brain.capabilities.transportation.interpretation.repair_transportation_interpretation",
-            return_value=("", repaired),
-        ) as repair,
-        patch(
-            "rockygpt_brain.capabilities.transportation.repository.load_trusted_shuttle_data",
-            return_value=Mock(),
-        ) as load,
-        patch(
-            "rockygpt_brain.capabilities.transportation.execution.route_mentions_match_trusted_data",
-            side_effect=[False, True],
-        ),
-        patch(
-            "rockygpt_brain.capabilities.transportation.execution.execute_transportation",
-            return_value=result,
-        ) as execute,
-        patch(
-            "rockygpt_brain.capabilities.transportation.renderer.answer_transportation",
-            return_value="Grounded answer",
-        ),
-    ):
-        response = chat(
-            ChatRequest.model_validate(
-                {"messages": [{"role": "user", "content": "What time is the next shuttle?"}]}
-            )
-        )
-
-    repair.assert_called_once()
-    load.assert_called_once()
-    execute.assert_called_once_with(repaired_request, data=load.return_value)
-    assert response["answer"] == "Grounded answer"
-    assert response["transportationInterpretation"] == repaired.model_dump(mode="json")
-
-
-def test_failed_route_repair_becomes_typed_clarification_not_5xx() -> None:
-    initial_request = ShuttleQueryRequest(
-        kind="query",
-        answer_kind="trips",
-        query=ShuttleQuery(
-            day=UpcomingDay(kind="upcoming"),
-            selection="next",
-            count=1,
-            route_mention="shuttle",
-        ),
-        show="departure",
-    )
-    initial = TransportationInterpretation(
-        selected=True,
-        request=initial_request,
-        model="gpt-test",
-    )
-    clarification = TransportationInterpretation(
-        selected=True,
-        request=ShuttleClarificationRequest(
-            kind="clarification",
-            reason="interpretation_failure",
-        ),
-        model="gpt-test",
-    )
-    assert isinstance(clarification.request, ShuttleClarificationRequest)
-    clarification_result = ShuttleResult(
-        outcome="needs_clarification",
-        request=clarification.request,
-        evaluated_at=datetime.fromisoformat("2026-08-31T12:00:00-04:00"),
-    )
-
-    with (
-        patch(
-            "rockygpt_brain.capabilities.transportation.interpretation.interpret_transportation",
-            return_value=("", initial),
-        ),
-        patch(
-            "rockygpt_brain.capabilities.transportation.interpretation.repair_transportation_interpretation",
-            return_value=("", clarification),
-        ),
-        patch(
-            "rockygpt_brain.capabilities.transportation.repository.load_trusted_shuttle_data",
-            return_value=Mock(),
-        ),
-        patch(
-            "rockygpt_brain.capabilities.transportation.execution.route_mentions_match_trusted_data",
-            return_value=False,
-        ),
-        patch(
-            "rockygpt_brain.capabilities.transportation.execution.execute_transportation",
-            return_value=clarification_result,
-        ),
-    ):
-        response = TestClient(app).post(
-            "/v1/chat",
-            json={"messages": [{"role": "user", "content": "Next shuttle?"}]},
-        )
-
-    assert response.status_code == 200
-    assert response.json()["transportationInterpretation"]["request"] == {
-        "kind": "clarification",
-        "reason": "interpretation_failure",
-    }
+    assert result.json() == {"answer": "clarification", "model": "gpt-test"}

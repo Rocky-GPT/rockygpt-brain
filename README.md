@@ -1,22 +1,28 @@
 # RockyGPT Brain
 
-The current clean-room Brain exposes three endpoints:
+The clean-room Brain currently acts only as a capability classifier. It exposes:
 
 - `GET /health`
 - `GET /readiness`
 - `POST /v1/chat`
 
 Chat accepts one ordered `messages` array whose entries contain only `role` and
-`content`. It passes that exact ordered conversation to one OpenAI model call
-with six transportation-only strict operations covering next trips, schedules,
-clock-time availability, comparisons, clarification, and unsupported shuttle
-requests. A selected operation is validated against the Step 5A contract and
-executed deterministically against the active trusted shuttle rows in the
-RockyGPT database. The API returns the interpretation, structured result,
-source provenance, and a grounded answer that is explicitly labeled as
-scheduled timetable data rather than live GPS or ETA data. No operation call
-keeps the model's normal chat answer. There is no server memory or generic
-routing/tool framework.
+`content`. One constrained OpenAI Responses API call assigns the latest request,
+using its conversation context, to exactly one label:
+
+`transportation`, `dining`, `events`, `hours`, `directory`, `locations`,
+`courses`, `programs`, `clubs`, `academic_calendar`, `campus_documents`,
+`student_services`, `it_support`, `personal_account`, `general`, or
+`clarification`.
+
+The selected label is returned in the existing `answer` field. The Brain does
+not execute capabilities, query campus data, or answer the underlying question.
+Model instructions live in `src/rockygpt_brain/capabilities/prompt.md`; runtime
+Python contains no embedded prompt text.
+
+The reusable labeled classifier evaluation lives at
+`evals/capability_classifier.json`. Every case owns its ordered conversation,
+so independent questions never inherit history from another case.
 
 ## Run
 
@@ -28,15 +34,8 @@ cp .env.example .env
 uvicorn rockygpt_brain.api.app:app --host 127.0.0.1 --port 8000
 ```
 
-Set `OPENAI_API_KEY` and `DATABASE_URL` in `.env`. `OPENAI_CHAT_MODEL` is
-optional and defaults to `gpt-4o-mini`.
-
-Capability packages are discovered automatically under
-`rockygpt_brain/capabilities/`. Set `ROCKYGPT_EXPECTED_CAPABILITIES` to a
-comma-separated list so a configured package that is absent or cannot load is
-reported safely as temporarily unavailable. The current value is
-`transportation`; adding another capability package does not require changing
-the runtime.
+Set `OPENAI_API_KEY` in `.env`. `OPENAI_CHAT_MODEL` is optional and defaults to
+`gpt-4o-mini`.
 
 ## Checks
 
@@ -44,4 +43,10 @@ the runtime.
 ruff check .
 mypy src tests
 pytest
+```
+
+Run the fixed live-model evaluation once with:
+
+```bash
+python scripts/evaluate_classifier.py
 ```
