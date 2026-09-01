@@ -9,7 +9,7 @@ from openai.types.responses import FunctionToolParam, ResponseInputParam
 from pydantic import Field, StringConstraints, ValidationError, model_validator
 from word2number import w2n  # type: ignore[import-untyped]
 
-from rockygpt_brain.transportation import (
+from rockygpt_brain.capabilities.transportation.contracts import (
     CalendarDay,
     ContractModel,
     NamedWeekday,

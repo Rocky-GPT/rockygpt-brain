@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from rockygpt_brain.transportation import (
+from rockygpt_brain.capabilities.transportation.contracts import (
     RelativeDay,
     ServiceDayTemplate,
     ShuttleClarificationRequest,
@@ -16,7 +16,7 @@ from rockygpt_brain.transportation import (
     ShuttleRequest,
     UnsupportedShuttleRequest,
 )
-from rockygpt_brain.transportation_interpretation import (
+from rockygpt_brain.capabilities.transportation.interpretation import (
     AVAILABILITY_TOOL_NAME,
     CLARIFICATION_TOOL_NAME,
     COMPARISON_TOOL_NAME,
@@ -169,7 +169,7 @@ def text_response(answer: str = "Normal chat answer.") -> Mock:
 def interpret(
     messages: list[ConversationMessage], response: Mock
 ) -> tuple[str, TransportationInterpretation, Mock]:
-    with patch("rockygpt_brain.transportation_interpretation.OpenAI") as client:
+    with patch("rockygpt_brain.capabilities.transportation.interpretation.OpenAI") as client:
         client.return_value.responses.create.return_value = response
         answer, interpretation = interpret_transportation(messages, "gpt-test")
     return answer, interpretation, client
@@ -784,7 +784,7 @@ def test_invalid_arrival_interpretation_retries_once_without_invented_clock() ->
         }
     ]
 
-    with patch("rockygpt_brain.transportation_interpretation.OpenAI") as client:
+    with patch("rockygpt_brain.capabilities.transportation.interpretation.OpenAI") as client:
         client.return_value.responses.create.side_effect = [invalid, valid]
         answer, interpretation = interpret_transportation(messages, "gpt-test")
 

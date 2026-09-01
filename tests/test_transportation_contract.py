@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime, time
 import pytest
 from pydantic import ValidationError
 
-from rockygpt_brain.transportation import (
+from rockygpt_brain.capabilities.transportation.contracts import (
     AROUND_WINDOW_MINUTES,
     CalendarDay,
     NamedWeekday,

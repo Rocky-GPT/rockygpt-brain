@@ -13,7 +13,7 @@ import certifi
 from psycopg import Connection, OperationalError, connect
 from psycopg.rows import dict_row
 
-from rockygpt_brain.transportation import (
+from rockygpt_brain.capabilities.transportation.contracts import (
     AROUND_WINDOW_MINUTES,
     CalendarDay,
     NamedWeekday,
@@ -299,6 +299,8 @@ def answer_transportation(result: ShuttleResult) -> str:
         return "I couldn't reliably determine the shuttle request. Please rephrase it."
     if result.outcome == "unsupported":
         unsupported_request = cast(UnsupportedShuttleRequest, result.request)
+        if unsupported_request.reason == "capability_unavailable":
+            return "Campus transportation is temporarily unavailable."
         if unsupported_request.reason == "live_status":
             return (
                 "I have the official scheduled shuttle timetable, but not live GPS, delay, "
