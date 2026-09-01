@@ -85,9 +85,9 @@
     "expected": ["dining"]
   },
   {
-    "name": "boundary_hours_not_dining",
+    "name": "boundary_dining_hours_not_general_hours",
     "messages": [{"role": "user", "content": "When does Birch Tree Inn close?"}],
-    "expected": ["hours"]
+    "expected": ["dining"]
   },
   {
     "name": "boundary_event_not_club",
@@ -140,9 +140,9 @@
     "expected": ["personal_account"]
   },
   {
-    "name": "boundary_location_not_it",
+    "name": "boundary_it_service_location",
     "messages": [{"role": "user", "content": "Where is the campus help desk?"}],
-    "expected": ["locations"]
+    "expected": ["it_support"]
   },
   {
     "name": "boundary_it_not_location",
@@ -153,6 +153,21 @@
     "name": "boundary_general_not_clarification",
     "messages": [{"role": "user", "content": "What is the capital of France?"}],
     "expected": ["general"]
+  },
+  {
+    "name": "ownership_shuttle_stops",
+    "messages": [{"role": "user", "content": "Where does the campus shuttle stop?"}],
+    "expected": ["transportation"]
+  },
+  {
+    "name": "ownership_event_location",
+    "messages": [{"role": "user", "content": "Where is the career fair being held?"}],
+    "expected": ["events"]
+  },
+  {
+    "name": "ownership_technical_help_location",
+    "messages": [{"role": "user", "content": "Where can I get help connecting my laptop to campus Wi-Fi?"}],
+    "expected": ["it_support"]
   },
   {
     "name": "topic_switch_to_calendar",
@@ -173,13 +188,13 @@
     "expected": ["it_support"]
   },
   {
-    "name": "follow_up_dining_to_hours",
+    "name": "follow_up_dining_place_hours",
     "messages": [
       {"role": "user", "content": "Can I get pizza at the campus cafe?"},
       {"role": "assistant", "content": "dining"},
       {"role": "user", "content": "When does it close?"}
     ],
-    "expected": ["hours"]
+    "expected": ["dining"]
   },
   {
     "name": "follow_up_directory_to_location",
@@ -207,6 +222,33 @@
       {"role": "user", "content": "Did my request go through?"}
     ],
     "expected": ["personal_account"]
+  },
+  {
+    "name": "follow_up_shuttle_stop",
+    "messages": [
+      {"role": "user", "content": "When is the next shuttle?"},
+      {"role": "assistant", "content": "transportation"},
+      {"role": "user", "content": "Where does it stop?"}
+    ],
+    "expected": ["transportation"]
+  },
+  {
+    "name": "follow_up_event_location",
+    "messages": [
+      {"role": "user", "content": "When is the career fair?"},
+      {"role": "assistant", "content": "events"},
+      {"role": "user", "content": "Where is it being held?"}
+    ],
+    "expected": ["events"]
+  },
+  {
+    "name": "follow_up_it_help_location",
+    "messages": [
+      {"role": "user", "content": "My campus password is not working."},
+      {"role": "assistant", "content": "it_support"},
+      {"role": "user", "content": "Where can I get help?"}
+    ],
+    "expected": ["it_support"]
   },
   {
     "name": "ambiguous_campus_request",
@@ -250,7 +292,17 @@
       {"role": "assistant", "content": "dining"},
       {"role": "user", "content": "When does it close, and when is the next shuttle?"}
     ],
-    "expected": ["hours", "transportation"]
+    "expected": ["dining", "transportation"]
+  },
+  {
+    "name": "multi_capability_transportation_and_directory",
+    "messages": [{"role": "user", "content": "Where does the shuttle stop, and what is the Registrar's phone number?"}],
+    "expected": ["transportation", "directory"]
+  },
+  {
+    "name": "multi_capability_events_and_locations",
+    "messages": [{"role": "user", "content": "Where is the career fair, and where is the Registrar's Office?"}],
+    "expected": ["events", "locations"]
   },
   {
     "name": "ambiguous_multiple_parts",
