@@ -43,9 +43,13 @@ def readiness() -> dict[str, str]:
 
 @app.post("/v1/chat")
 def chat(request: ChatRequest) -> dict[str, object]:
-    """Classify the current conversation into one bounded capability label."""
+    """Classify the conversation into ordered unique capability labels."""
     messages: list[ConversationMessage] = [
         {"role": message.role, "content": message.content} for message in request.messages
     ]
-    capability, model = classify(messages, MODEL)
-    return {"answer": capability, "model": model}
+    capabilities, model = classify(messages, MODEL)
+    return {
+        "answer": "\n\n".join(capabilities),
+        "capabilities": list(capabilities),
+        "model": model,
+    }

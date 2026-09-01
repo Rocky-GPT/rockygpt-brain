@@ -10,7 +10,7 @@ from openai.types.responses import (
     ResponseInputParam,
     ToolChoiceFunctionParam,
 )
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 CapabilityLabel = Literal[
     "transportation",
@@ -71,7 +71,18 @@ class CapabilitySelection(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    capability: CapabilityLabel
+    capabilities: list[CapabilityLabel] = Field(min_length=1)
+
+    @field_validator("capabilities")
+    @classmethod
+    def ordered_unique_capabilities(
+        cls, capabilities: list[CapabilityLabel]
+    ) -> list[CapabilityLabel]:
+        """Preserve first-seen order and keep clarification exclusive."""
+        unique = list(dict.fromkeys(capabilities))
+        if "clarification" in unique:
+            return ["clarification"]
+        return unique
 
 
 CLASSIFIER_TOOL = cast(
@@ -79,16 +90,20 @@ CLASSIFIER_TOOL = cast(
     {
         "type": "function",
         "name": CLASSIFIER_TOOL_NAME,
-        "description": "Select the one RockyGPT capability that owns the latest request.",
+        "description": "Select the ordered RockyGPT capabilities required by the latest request.",
         "parameters": {
             "type": "object",
             "properties": {
-                "capability": {
-                    "type": "string",
-                    "enum": list(CAPABILITY_LABELS),
+                "capabilities": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": list(CAPABILITY_LABELS),
+                    },
+                    "minItems": 1,
                 }
             },
-            "required": ["capability"],
+            "required": ["capabilities"],
             "additionalProperties": False,
         },
         "strict": True,
@@ -98,8 +113,8 @@ CLASSIFIER_TOOL = cast(
 
 def classify(
     messages: Sequence[ConversationMessage], model: str
-) -> tuple[CapabilityLabel, str]:
-    """Return one bounded capability label while preserving message order."""
+) -> tuple[tuple[CapabilityLabel, ...], str]:
+    """Return ordered unique capability labels while preserving message order."""
     response = OpenAI().responses.create(
         model=model,
         input=cast(ResponseInputParam, list(messages)),
@@ -119,9 +134,9 @@ def classify(
         if item.type == "function_call" and item.name == CLASSIFIER_TOOL_NAME
     ]
     if len(calls) != 1:
-        return "clarification", response.model
+        return ("clarification",), response.model
     try:
         selection = CapabilitySelection.model_validate_json(calls[0].arguments)
     except (ValidationError, ValueError):
-        return "clarification", response.model
-    return selection.capability, response.model
+        return ("clarification",), response.model
+    return tuple(selection.capabilities), response.model

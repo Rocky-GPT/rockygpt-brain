@@ -23,11 +23,12 @@ def main() -> int:
     arguments = parser.parse_args()
 
     cases = json.loads(arguments.dataset.read_text(encoding="utf-8"))
-    failures: list[dict[str, str]] = []
+    failures: list[dict[str, object]] = []
     for case in cases:
-        expected = cast(CapabilityLabel, case["expected"])
-        if expected not in CAPABILITY_LABELS:
-            raise ValueError(f"Unknown expected label in {case['name']}: {expected}")
+        expected = tuple(cast(list[CapabilityLabel], case["expected"]))
+        invalid = [label for label in expected if label not in CAPABILITY_LABELS]
+        if invalid:
+            raise ValueError(f"Unknown expected labels in {case['name']}: {invalid}")
         messages = cast(list[ConversationMessage], case["messages"])
         actual, _ = classify(messages, arguments.model)
         if actual != expected:

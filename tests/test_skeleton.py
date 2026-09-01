@@ -69,7 +69,10 @@ def test_fixed_evaluation_dataset_is_isolated_and_complete() -> None:
     cases = json.loads(dataset_path.read_text(encoding="utf-8"))
 
     assert len(cases) == len({case["name"] for case in cases})
-    assert {case["expected"] for case in cases} == set(CAPABILITY_LABELS)
+    represented = {
+        capability for case in cases for capability in case["expected"]
+    }
+    assert represented == set(CAPABILITY_LABELS)
     assert any(case["name"].startswith("boundary_") for case in cases)
     assert any(case["name"].startswith("topic_switch_") for case in cases)
     assert any(case["name"].startswith("follow_up_") for case in cases)
@@ -79,6 +82,11 @@ def test_fixed_evaluation_dataset_is_isolated_and_complete() -> None:
     for case in cases:
         assert set(case) == {"name", "messages", "expected"}
         assert case["messages"]
+        assert case["expected"]
+        assert len(case["expected"]) == len(set(case["expected"]))
+        assert all(label in CAPABILITY_LABELS for label in case["expected"])
+        if "clarification" in case["expected"]:
+            assert case["expected"] == ["clarification"]
         assert case["messages"][-1]["role"] == "user"
         for message in case["messages"]:
             assert set(message) == {"role", "content"}
@@ -115,13 +123,13 @@ def test_chat_rejects_legacy_or_extra_request_fields() -> None:
 
 
 @pytest.mark.parametrize("label", CAPABILITY_LABELS)
-def test_chat_returns_only_selected_label_as_answer(label: str) -> None:
+def test_chat_returns_one_selected_label(label: str) -> None:
     response = Mock(
         output=[
             SimpleNamespace(
                 type="function_call",
                 name=CLASSIFIER_TOOL_NAME,
-                arguments=json.dumps({"capability": label}),
+                arguments=json.dumps({"capabilities": [label]}),
             )
         ],
         model="gpt-test",
@@ -134,7 +142,95 @@ def test_chat_returns_only_selected_label_as_answer(label: str) -> None:
         )
 
     assert result.status_code == 200
-    assert result.json() == {"answer": label, "model": "gpt-test"}
+    assert result.json() == {
+        "answer": label,
+        "capabilities": [label],
+        "model": "gpt-test",
+    }
+
+
+def test_chat_returns_multiple_labels_in_requested_order() -> None:
+    response = Mock(
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name=CLASSIFIER_TOOL_NAME,
+                arguments=json.dumps(
+                    {"capabilities": ["transportation", "dining"]}
+                ),
+            )
+        ],
+        model="gpt-test",
+    )
+    with patch("rockygpt_brain.capabilities.classifier.OpenAI") as openai:
+        openai.return_value.responses.create.return_value = response
+        result = TestClient(app).post(
+            "/v1/chat",
+            json={
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "When is the next shuttle and what is for lunch?",
+                    }
+                ]
+            },
+        )
+
+    assert result.json() == {
+        "answer": "transportation\n\ndining",
+        "capabilities": ["transportation", "dining"],
+        "model": "gpt-test",
+    }
+
+
+def test_duplicate_labels_are_removed_without_reordering() -> None:
+    response = Mock(
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name=CLASSIFIER_TOOL_NAME,
+                arguments=json.dumps(
+                    {"capabilities": ["locations", "directory", "locations"]}
+                ),
+            )
+        ],
+        model="gpt-test",
+    )
+    with patch("rockygpt_brain.capabilities.classifier.OpenAI") as openai:
+        openai.return_value.responses.create.return_value = response
+        result = TestClient(app).post(
+            "/v1/chat",
+            json={"messages": [{"role": "user", "content": "Classify this"}]},
+        )
+
+    assert result.json()["capabilities"] == ["locations", "directory"]
+
+
+def test_clarification_is_never_combined_with_another_label() -> None:
+    response = Mock(
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name=CLASSIFIER_TOOL_NAME,
+                arguments=json.dumps(
+                    {"capabilities": ["dining", "clarification"]}
+                ),
+            )
+        ],
+        model="gpt-test",
+    )
+    with patch("rockygpt_brain.capabilities.classifier.OpenAI") as openai:
+        openai.return_value.responses.create.return_value = response
+        result = TestClient(app).post(
+            "/v1/chat",
+            json={"messages": [{"role": "user", "content": "Classify this"}]},
+        )
+
+    assert result.json() == {
+        "answer": "clarification",
+        "capabilities": ["clarification"],
+        "model": "gpt-test",
+    }
 
 
 def test_chat_passes_complete_conversation_to_one_constrained_model_call() -> None:
@@ -148,7 +244,7 @@ def test_chat_passes_complete_conversation_to_one_constrained_model_call() -> No
             SimpleNamespace(
                 type="function_call",
                 name=CLASSIFIER_TOOL_NAME,
-                arguments=json.dumps({"capability": "directory"}),
+                arguments=json.dumps({"capabilities": ["directory"]}),
             )
         ],
         model="gpt-test",
@@ -157,7 +253,11 @@ def test_chat_passes_complete_conversation_to_one_constrained_model_call() -> No
         openai.return_value.responses.create.return_value = response
         result = TestClient(app).post("/v1/chat", json={"messages": messages})
 
-    assert result.json() == {"answer": "directory", "model": "gpt-test"}
+    assert result.json() == {
+        "answer": "directory",
+        "capabilities": ["directory"],
+        "model": "gpt-test",
+    }
     openai.return_value.responses.create.assert_called_once_with(
         model=MODEL,
         input=messages,
@@ -185,19 +285,19 @@ def test_chat_passes_complete_conversation_to_one_constrained_model_call() -> No
             SimpleNamespace(
                 type="function_call",
                 name=CLASSIFIER_TOOL_NAME,
-                arguments=json.dumps({"capability": "unknown"}),
+                arguments=json.dumps({"capabilities": ["unknown"]}),
             )
         ],
         [
             SimpleNamespace(
                 type="function_call",
                 name=CLASSIFIER_TOOL_NAME,
-                arguments=json.dumps({"capability": "dining"}),
+                arguments=json.dumps({"capabilities": ["dining"]}),
             ),
             SimpleNamespace(
                 type="function_call",
                 name=CLASSIFIER_TOOL_NAME,
-                arguments=json.dumps({"capability": "hours"}),
+                arguments=json.dumps({"capabilities": ["hours"]}),
             ),
         ],
     ],
@@ -212,4 +312,8 @@ def test_malformed_model_output_safely_becomes_clarification(output: list[object
         )
 
     assert result.status_code == 200
-    assert result.json() == {"answer": "clarification", "model": "gpt-test"}
+    assert result.json() == {
+        "answer": "clarification",
+        "capabilities": ["clarification"],
+        "model": "gpt-test",
+    }
