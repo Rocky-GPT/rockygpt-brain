@@ -1,11 +1,15 @@
 """Proves the package imports and the ordered chat shell runs."""
 
+import json
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import pytest
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 import rockygpt_brain
-from rockygpt_brain.api.app import MODEL, ChatRequest, chat, health, readiness
+from rockygpt_brain.api.app import MODEL, ChatRequest, app, chat, health, readiness
 from rockygpt_brain.transportation_interpretation import (
     INTERPRETATION_INSTRUCTIONS,
     SHUTTLE_TOOLS,
@@ -85,3 +89,59 @@ def test_chat_passes_messages_to_openai_in_order() -> None:
         store=False,
         temperature=0,
     )
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "arguments"),
+    [
+        (
+            "shuttle_schedule",
+            json.dumps(
+                {
+                    "day": {
+                        "day_kind": "upcoming",
+                        "days_from_today": None,
+                        "weekday": None,
+                        "service_day": None,
+                        "calendar_date": None,
+                    },
+                    "mentions": [],
+                    "show": "both",
+                }
+            ),
+        ),
+        ("shuttle_next_trips", "{not valid json"),
+        ("not_a_transportation_operation", "{}"),
+    ],
+)
+def test_malformed_model_interpretation_never_causes_chat_5xx(
+    tool_name: str, arguments: str
+) -> None:
+    response = Mock(
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name=tool_name,
+                arguments=arguments,
+            )
+        ],
+        output_text="",
+        model="gpt-test",
+    )
+
+    with patch("rockygpt_brain.transportation_interpretation.OpenAI") as openai:
+        openai.return_value.responses.create.return_value = response
+        result = TestClient(app).post(
+            "/v1/chat",
+            json={"messages": [{"role": "user", "content": "Tell me about the shuttle."}]},
+        )
+
+    assert result.status_code == 200
+    assert result.json()["transportationInterpretation"] == {
+        "selected": True,
+        "request": {
+            "kind": "clarification",
+            "reason": "interpretation_failure",
+        },
+        "model": "gpt-test",
+    }

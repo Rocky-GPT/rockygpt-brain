@@ -65,7 +65,8 @@ encoded.
 
 - `query`: one trip listing or availability check;
 - `comparison`: exactly two full-schedule queries;
-- `clarification`: an ambiguous shuttle request that needs user input;
+- `clarification`: an ambiguous shuttle request, unresolved reference, or safe
+  interpretation failure that needs user input;
 - `unsupported`: a shuttle request that requires facts absent from the data.
 
 Each `ShuttleQuery` carries only interpretation, never campus facts:

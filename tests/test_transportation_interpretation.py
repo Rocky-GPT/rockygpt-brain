@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from rockygpt_brain.transportation import (
+    RelativeDay,
     ServiceDayTemplate,
     ShuttleClarificationRequest,
     ShuttleComparisonRequest,
@@ -19,6 +20,7 @@ from rockygpt_brain.transportation_interpretation import (
     AVAILABILITY_TOOL_NAME,
     CLARIFICATION_TOOL_NAME,
     COMPARISON_TOOL_NAME,
+    INTERPRETATION_FAILURE_ANSWER,
     INTERPRETATION_INSTRUCTIONS,
     INTERPRETATION_ONLY_ANSWER,
     NEXT_TRIPS_TOOL_NAME,
@@ -46,11 +48,18 @@ def day_to_wire(day_value: object) -> dict[str, object]:
 
 def lookup_to_wire(query_value: object) -> dict[str, object]:
     query = cast(dict[str, Any], query_value)
+    mentions = [
+        {"role": role, "text": query[field]}
+        for role, field in (
+            ("route", "route_mention"),
+            ("origin", "origin_mention"),
+            ("destination", "destination_mention"),
+        )
+        if query.get(field) is not None
+    ]
     return {
         "day": day_to_wire(query["day"]),
-        "route_mention": query.get("route_mention"),
-        "origin_mention": query.get("origin_mention"),
-        "destination_mention": query.get("destination_mention"),
+        "mentions": mentions,
     }
 
 
@@ -113,9 +122,7 @@ def next_wire_arguments(count: int | None) -> dict[str, object]:
         },
         "count": count,
         "offset": 0,
-        "route_mention": None,
-        "origin_mention": None,
-        "destination_mention": None,
+        "mentions": [],
         "show": "both",
     }
 
@@ -315,6 +322,96 @@ def test_supported_route_origin_destination_and_offset_arguments_are_preserved()
     assert interpretation.request.query.destination_mention == "the station"
 
 
+def test_requested_place_is_a_destination_not_a_route() -> None:
+    messages: list[ConversationMessage] = [
+        {"role": "user", "content": "When is the next shuttle to Ridgewood?"}
+    ]
+    request: dict[str, object] = {
+        "kind": "query",
+        "answer_kind": "trips",
+        "query": {
+            "day": {"kind": "upcoming"},
+            "selection": "next",
+            "count": 1,
+            "offset": 0,
+            "route_mention": None,
+            "origin_mention": None,
+            "destination_mention": "Ridgewood",
+            "time": None,
+        },
+        "show": "both",
+    }
+
+    _, interpretation, _ = interpret(messages, tool_response(request))
+
+    assert isinstance(interpretation.request, ShuttleQueryRequest)
+    assert interpretation.request.query.route_mention is None
+    assert interpretation.request.query.destination_mention == "Ridgewood"
+
+
+def test_station_arrival_question_produces_a_valid_arrival_request() -> None:
+    messages: list[ConversationMessage] = [
+        {
+            "role": "user",
+            "content": "What time does the next shuttle arrive at the train station?",
+        }
+    ]
+    request: dict[str, object] = {
+        "kind": "query",
+        "answer_kind": "trips",
+        "query": {
+            "day": {"kind": "upcoming"},
+            "selection": "next",
+            "count": 1,
+            "offset": 0,
+            "route_mention": None,
+            "origin_mention": None,
+            "destination_mention": "the train station",
+            "time": None,
+        },
+        "show": "arrival",
+    }
+
+    _, interpretation, _ = interpret(messages, tool_response(request))
+
+    assert isinstance(interpretation.request, ShuttleQueryRequest)
+    assert interpretation.request.show == "arrival"
+    assert interpretation.request.query.destination_mention == "the train station"
+
+
+def test_availability_without_explicit_day_defaults_to_today() -> None:
+    messages: list[ConversationMessage] = [
+        {"role": "user", "content": "Is there a shuttle at 1 PM?"}
+    ]
+    response = Mock(
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name=AVAILABILITY_TOOL_NAME,
+                arguments=json.dumps(
+                    {
+                        "day": None,
+                        "mentions": [],
+                        "relation": "at",
+                        "clock": "13:00",
+                        "basis": "departure",
+                    }
+                ),
+            )
+        ],
+        output_text="",
+        model="gpt-test",
+    )
+
+    _, interpretation, _ = interpret(messages, response)
+
+    assert isinstance(interpretation.request, ShuttleQueryRequest)
+    assert interpretation.request.answer_kind == "availability"
+    assert interpretation.request.query.day == RelativeDay(
+        kind="relative", days_from_today=0
+    )
+
+
 @pytest.mark.parametrize(
     ("question", "reason"),
     [
@@ -401,9 +498,7 @@ def test_comparison_output_is_the_preserved_step_5a_variant() -> None:
             AVAILABILITY_TOOL_NAME,
             {
                 "day": cast(dict[str, object], next_wire_arguments(1)["day"]),
-                "route_mention": None,
-                "origin_mention": None,
-                "destination_mention": None,
+                "mentions": [],
                 "relation": "around",
                 "clock": "17:00Z",
                 "basis": "arrival",
@@ -461,12 +556,28 @@ def test_tool_schema_is_strict_and_contains_no_shuttle_fact_fields() -> None:
     assert "prefixItems" not in serialized_schema
 
 
-def test_multiple_tool_calls_are_rejected() -> None:
+def test_bounded_tools_cannot_represent_an_upcoming_full_schedule() -> None:
+    bounded_tool_names = {
+        SCHEDULE_TOOL_NAME,
+        AVAILABILITY_TOOL_NAME,
+        COMPARISON_TOOL_NAME,
+    }
+
+    for tool in SHUTTLE_TOOLS:
+        if tool["name"] in bounded_tool_names:
+            assert "upcoming" not in json.dumps(tool["parameters"])
+
+
+def test_multiple_tool_calls_produce_a_safe_interpretation_failure() -> None:
     response = tool_response({"kind": "clarification", "reason": "ambiguous_request"})
     response.output.append(response.output[0])
     messages: list[ConversationMessage] = [
         {"role": "user", "content": "Tell me about the shuttle."}
     ]
 
-    with pytest.raises(InvalidTransportationInterpretation, match="exactly one"):
-        interpret(messages, response)
+    answer, interpretation, _ = interpret(messages, response)
+
+    assert answer == INTERPRETATION_FAILURE_ANSWER
+    assert interpretation.request == ShuttleClarificationRequest(
+        kind="clarification", reason="interpretation_failure"
+    )

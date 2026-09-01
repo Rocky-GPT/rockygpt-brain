@@ -348,7 +348,11 @@ def test_unsupported_and_ambiguous_requests_are_explicit_non_answers() -> None:
         ),
         evaluated_at=EVALUATED_AT,
     )
+    interpretation_failure = ShuttleClarificationRequest(
+        kind="clarification", reason="interpretation_failure"
+    )
 
     assert unsupported.query_results == []
     assert unsupported.provenance is None
     assert clarification.query_results == []
+    assert interpretation_failure.reason == "interpretation_failure"

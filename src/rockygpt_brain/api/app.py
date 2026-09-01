@@ -3,12 +3,11 @@
 import os
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel, ConfigDict, Field
 
 from rockygpt_brain.transportation_interpretation import (
     ConversationMessage,
-    InvalidTransportationInterpretation,
     interpret_transportation,
 )
 
@@ -51,16 +50,7 @@ def chat(request: ChatRequest) -> dict[str, object]:
     messages: list[ConversationMessage] = [
         {"role": message.role, "content": message.content} for message in request.messages
     ]
-    try:
-        answer, interpretation = interpret_transportation(messages, MODEL)
-    except InvalidTransportationInterpretation as error:
-        raise HTTPException(
-            status_code=502,
-            detail={
-                "error": "The model returned an invalid transportation interpretation.",
-                "reason": str(error),
-            },
-        ) from error
+    answer, interpretation = interpret_transportation(messages, MODEL)
     return {
         "answer": answer,
         "model": interpretation.model,
