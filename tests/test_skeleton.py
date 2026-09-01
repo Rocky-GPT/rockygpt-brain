@@ -79,6 +79,27 @@ def test_fixed_evaluation_dataset_is_isolated_and_complete() -> None:
     assert any(case["name"].startswith("ambiguous_") for case in cases)
     assert any(case["name"].startswith("multi_capability_") for case in cases)
 
+    by_name = {case["name"]: case for case in cases}
+    independent_ownership = {
+        "ownership_shuttle_stops": ["transportation"],
+        "ownership_event_location": ["events"],
+        "boundary_dining_hours_not_general_hours": ["dining"],
+        "boundary_location_not_directory": ["locations"],
+        "boundary_directory_not_location": ["directory"],
+        "ownership_technical_help_location": ["it_support"],
+    }
+    for name, expected in independent_ownership.items():
+        assert len(by_name[name]["messages"]) == 1
+        assert by_name[name]["expected"] == expected
+
+    assert by_name["multi_capability_transportation_and_directory"]["expected"] == [
+        "transportation",
+        "directory",
+    ]
+    assert by_name["follow_up_event_location"]["expected"] == ["events"]
+    assert by_name["follow_up_dining_place_hours"]["expected"] == ["dining"]
+    assert by_name["follow_up_it_help_location"]["expected"] == ["it_support"]
+
     for case in cases:
         assert set(case) == {"name", "messages", "expected"}
         assert case["messages"]

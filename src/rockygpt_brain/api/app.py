@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from rockygpt_brain.capabilities import ConversationMessage, classify
 
 app = FastAPI(title="RockyGPT Brain", version="0.0.0")
-MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o")
 
 
 class ChatMessage(BaseModel):
