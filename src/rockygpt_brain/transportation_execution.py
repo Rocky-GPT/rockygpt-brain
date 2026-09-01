@@ -368,6 +368,7 @@ def _execute_upcoming(
 ) -> tuple[list[ShuttleQueryResult], int]:
     needed = (query.count or 1) + query.offset
     candidates: list[tuple[ResolvedShuttleDay, ShuttleTripFact]] = []
+    eligible_counts: dict[date, int] = {}
     filter_matches = 0
     first_resolved: ResolvedShuttleDay | None = None
     for days_ahead in range(8):
@@ -382,6 +383,7 @@ def _execute_upcoming(
         filter_matches += len(facts)
         if days_ahead == 0:
             facts = [fact for fact in facts if _selection_time(fact) >= now]
+        eligible_counts[service_date] = len(facts)
         candidates.extend((resolved, fact) for fact in facts)
         if len(candidates) >= needed:
             break
@@ -393,7 +395,8 @@ def _execute_upcoming(
         assert resolved.service_date is not None
         grouped.setdefault(resolved.service_date, (resolved, []))[1].append(fact)
     results = [
-        _query_result(query, resolved, facts, len(facts)) for resolved, facts in grouped.values()
+        _query_result(query, resolved, facts, eligible_counts[service_date])
+        for service_date, (resolved, facts) in grouped.items()
     ]
     if not results:
         assert first_resolved is not None
@@ -504,7 +507,9 @@ def _trip_fact(
     if selection_at is None:
         return None
     delta_minutes = int((selection_at - now).total_seconds() // 60)
-    minutes_until = delta_minutes if delta_minutes >= 0 else None
+    minutes_until = (
+        delta_minutes if query.selection == "next" and delta_minutes >= 0 else None
+    )
     return ShuttleTripFact(
         trip_id=trip.trip_id,
         source_record_key=trip.source_record_key,
@@ -696,7 +701,15 @@ def _summary_range(summary: ShuttleScheduleSummary) -> str:
 def _trip_sentence(record: ShuttleTripFact, show: str, now: datetime) -> str:
     day = _date_label(record.service_date, now)
     departure = f"**{day} at {record.departure.label}**"
-    if record.matched_destination is not None:
+    if show == "relative":
+        if record.minutes_until == 0:
+            detail = "—**right now**"
+        elif record.minutes_until is not None:
+            unit = "minute" if record.minutes_until == 1 else "minutes"
+            detail = f"—in **{record.minutes_until} {unit}**"
+        else:
+            detail = ""
+    elif record.matched_destination is not None:
         destination = record.matched_destination
         detail = f" and reach **{destination.location} at {destination.time.label}**"
     elif show in {"arrival", "both"}:

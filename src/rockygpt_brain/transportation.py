@@ -106,7 +106,7 @@ class ShuttleQueryRequest(ContractModel):
     kind: Literal["query"]
     answer_kind: Literal["trips", "availability"]
     query: ShuttleQuery
-    show: Literal["departure", "arrival", "both"]
+    show: Literal["departure", "arrival", "both", "relative"]
 
     @model_validator(mode="after")
     def validate_answer_kind(self) -> Self:
@@ -115,6 +115,8 @@ class ShuttleQueryRequest(ContractModel):
                 raise ValueError("availability requires a timed all-trips query")
         elif self.query.time is not None:
             raise ValueError("trip listings cannot carry an availability time")
+        if self.show == "relative" and self.query.selection != "next":
+            raise ValueError("relative time is only available for next-trip queries")
         return self
 
 

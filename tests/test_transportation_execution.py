@@ -149,6 +149,25 @@ def test_next_three_preserves_deterministic_order_and_provenance(
     assert result.provenance.sources[0].trust_tier == "official_primary"
 
 
+def test_cross_day_next_results_report_complete_candidate_metadata(
+    trusted_data: TrustedShuttleData,
+) -> None:
+    result = execute_transportation(
+        next_request(3),
+        evaluated_at=datetime(2026, 8, 31, 10, 45, tzinfo=CAMPUS_TIME_ZONE),
+        data=trusted_data,
+    )
+
+    assert len(result.query_results) == 2
+    today, tomorrow = result.query_results
+    assert [record.trip_id for record in today.records] == ["weekday-3"]
+    assert today.matched_count == 1
+    assert today.truncated is False
+    assert [record.trip_id for record in tomorrow.records] == ["weekday-1", "weekday-2"]
+    assert tomorrow.matched_count == 3
+    assert tomorrow.truncated is True
+
+
 def test_unparseable_trusted_time_is_preserved_without_inventing_midnight(
     trusted_data: TrustedShuttleData,
 ) -> None:
@@ -237,3 +256,42 @@ def test_grounded_answer_is_explicitly_scheduled_not_live(
     assert "scheduled" in answer.casefold()
     assert SCHEDULE_NOTICE in answer
     assert "Step 5B" not in answer
+
+
+def test_relative_time_answer_uses_the_deterministic_countdown(
+    trusted_data: TrustedShuttleData,
+) -> None:
+    request = next_request().model_copy(update={"show": "relative"})
+    result = execute_transportation(
+        request,
+        evaluated_at=datetime(2026, 8, 31, 9, 15, tzinfo=CAMPUS_TIME_ZONE),
+        data=trusted_data,
+    )
+
+    answer = answer_transportation(result)
+
+    assert result.query_results[0].records[0].minutes_until == 45
+    assert "**45 minutes**" in answer
+    assert "right now" not in answer.casefold()
+
+
+def test_full_schedule_does_not_publish_meaningless_relative_waits(
+    trusted_data: TrustedShuttleData,
+) -> None:
+    request = ShuttleQueryRequest(
+        kind="query",
+        answer_kind="trips",
+        query=ShuttleQuery(
+            day=RelativeDay(kind="relative", days_from_today=1),
+            selection="all",
+        ),
+        show="both",
+    )
+
+    result = execute_transportation(
+        request,
+        evaluated_at=datetime(2026, 8, 31, 9, 0, tzinfo=CAMPUS_TIME_ZONE),
+        data=trusted_data,
+    )
+
+    assert all(record.minutes_until is None for record in result.query_results[0].records)
