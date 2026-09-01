@@ -8,15 +8,16 @@ The clean-room Brain currently acts only as a capability classifier. It exposes:
 
 Chat accepts one ordered `messages` array whose entries contain only `role` and
 `content`. One constrained OpenAI Responses API call assigns the latest request,
-using its conversation context, to exactly one label:
+using its conversation context, to an ordered unique list of labels:
 
 `transportation`, `dining`, `events`, `hours`, `directory`, `locations`,
 `courses`, `programs`, `clubs`, `academic_calendar`, `campus_documents`,
 `student_services`, `it_support`, `personal_account`, `general`, or
 `clarification`.
 
-The selected label is returned in the existing `answer` field. The Brain does
-not execute capabilities, query campus data, or answer the underlying question.
+The ordered list is returned as `capabilities`; `answer` contains only those
+labels for display. The Brain does not execute capabilities, query campus data,
+apply safety policy, or answer the underlying question.
 Model instructions live in `src/rockygpt_brain/capabilities/prompt.md`; runtime
 Python contains no embedded prompt text.
 
