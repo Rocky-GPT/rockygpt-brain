@@ -115,7 +115,7 @@ def classify(
     messages: Sequence[ConversationMessage], model: str
 ) -> tuple[tuple[CapabilityLabel, ...], str]:
     """Return ordered unique capability labels while preserving message order."""
-    response = OpenAI().responses.create(
+    response = OpenAI(max_retries=0, timeout=90.0).responses.create(
         model=model,
         input=cast(ResponseInputParam, list(messages)),
         instructions=CLASSIFIER_INSTRUCTIONS,

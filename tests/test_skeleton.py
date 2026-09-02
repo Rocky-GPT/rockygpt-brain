@@ -8,6 +8,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx import Request, Response
+from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
 from pydantic import ValidationError
 
 import rockygpt_brain
@@ -289,6 +291,7 @@ def test_chat_passes_complete_conversation_to_one_constrained_model_call() -> No
         store=False,
         temperature=0,
     )
+    openai.assert_called_once_with(max_retries=0, timeout=90.0)
 
 
 @pytest.mark.parametrize(
@@ -338,3 +341,77 @@ def test_malformed_model_output_safely_becomes_clarification(output: list[object
         "capabilities": ["clarification"],
         "model": "gpt-test",
     }
+
+
+def test_upstream_rate_limit_is_reasoned_429_without_retry() -> None:
+    upstream = Response(
+        429,
+        request=Request("POST", "https://api.openai.com/v1/responses"),
+        json={"error": {"code": "rate_limit_exceeded"}},
+    )
+    error = RateLimitError(
+        "Rate limit reached",
+        response=upstream,
+        body={"code": "rate_limit_exceeded"},
+    )
+
+    with patch("rockygpt_brain.api.app.classify", side_effect=error) as classify:
+        result = TestClient(app).post(
+            "/v1/chat",
+            json={"messages": [{"role": "user", "content": "Classify this"}]},
+        )
+
+    assert result.status_code == 429
+    assert result.json() == {
+        "error": "The classifier model is temporarily rate limited.",
+        "reason": "rate_limited",
+        "detail": "No classification was produced. Try this request again later.",
+        "retryable": True,
+    }
+    classify.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("error", "status_code", "reason"),
+    [
+        (
+            APITimeoutError(request=Request("POST", "https://api.openai.com/v1/responses")),
+            504,
+            "model_timeout",
+        ),
+        (
+            APIConnectionError(
+                request=Request("POST", "https://api.openai.com/v1/responses")
+            ),
+            503,
+            "model_unreachable",
+        ),
+        (
+            APIStatusError(
+                "Provider failed",
+                response=Response(
+                    500,
+                    request=Request("POST", "https://api.openai.com/v1/responses"),
+                ),
+                body=None,
+            ),
+            502,
+            "model_provider_error",
+        ),
+    ],
+)
+def test_upstream_failures_have_reasoned_responses_without_retry(
+    error: Exception, status_code: int, reason: str
+) -> None:
+    with patch("rockygpt_brain.api.app.classify", side_effect=error) as classify:
+        result = TestClient(app).post(
+            "/v1/chat",
+            json={"messages": [{"role": "user", "content": "Classify this"}]},
+        )
+
+    assert result.status_code == status_code
+    body = result.json()
+    assert body["reason"] == reason
+    assert body["detail"].startswith("No classification was produced")
+    assert isinstance(body["retryable"], bool)
+    classify.assert_called_once()
