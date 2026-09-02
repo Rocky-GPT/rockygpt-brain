@@ -4,6 +4,8 @@ import os
 from typing import Literal
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
 from pydantic import BaseModel, ConfigDict, Field
 
 from rockygpt_brain.capabilities import ConversationMessage, classify
@@ -41,13 +43,55 @@ def readiness() -> dict[str, str]:
     return {"status": "ready"}
 
 
-@app.post("/v1/chat")
-def chat(request: ChatRequest) -> dict[str, object]:
+@app.post("/v1/chat", response_model=None)
+def chat(request: ChatRequest) -> dict[str, object] | JSONResponse:
     """Classify the conversation into ordered unique capability labels."""
     messages: list[ConversationMessage] = [
         {"role": message.role, "content": message.content} for message in request.messages
     ]
-    capabilities, model = classify(messages, MODEL)
+    try:
+        capabilities, model = classify(messages, MODEL)
+    except RateLimitError:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "The classifier model is temporarily rate limited.",
+                "reason": "rate_limited",
+                "detail": "No classification was produced. Try this request again later.",
+                "retryable": True,
+            },
+        )
+    except APITimeoutError:
+        return JSONResponse(
+            status_code=504,
+            content={
+                "error": "The classifier model timed out.",
+                "reason": "model_timeout",
+                "detail": "No classification was produced before the provider timeout.",
+                "retryable": True,
+            },
+        )
+    except APIConnectionError:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "The classifier model is unreachable.",
+                "reason": "model_unreachable",
+                "detail": "No classification was produced because the provider connection failed.",
+                "retryable": True,
+            },
+        )
+    except APIStatusError as error:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": "The classifier model rejected the request.",
+                "reason": "model_provider_error",
+                "detail": "No classification was produced by the provider.",
+                "upstream_status": error.status_code,
+                "retryable": error.status_code >= 500,
+            },
+        )
     return {
         "answer": "\n\n".join(capabilities),
         "capabilities": list(capabilities),
