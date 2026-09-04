@@ -6,20 +6,20 @@ Capability labels represent data ownership, not question wording or generic attr
 
 Select:
 
-- `transportation` for campus transportation, including routes, stops, pickup or drop-off points, and schedules.
-- `dining` for campus food and dining-place service details, including dining-place hours.
-- `events` for scheduled campus occurrences, including their dates, times, and event locations.
+- `transportation` for vehicle-based campus transportation, including shuttle routes, stops, pickup or drop-off points, and schedules; walking directions without a vehicle belong to `locations`.
+- `dining` for campus food and dining-place service details, including whether a named dining place is open and all other dining-place hours.
+- `events` for scheduled or recurring campus occurrences, including named gatherings and their dates, times, hosts, and event locations.
 - `hours` for operating hours that are not owned by a more specific capability.
 - `directory` for the identity, role, or contact information of campus people, departments, and offices.
-- `locations` for the physical placement of campus people, offices, and general campus places, plus navigation to them, when that location is not subordinate to another capability.
-- `courses` for facts about one or more particular courses.
+- `locations` for the physical placement of campus people, offices, and general campus places, plus campus maps and walking navigation between places, when that location is not subordinate to another capability.
+- `courses` for public facts about one or more particular courses, sections, schedules, enrollment capacity, and seat availability.
 - `programs` for majors, minors, academic programs, and the courses required by those programs.
-- `clubs` for student organizations, membership, purpose, and leadership; a scheduled occurrence run by a club belongs to `events` unless organization information is separately requested.
+- `clubs` for student organizations, including creating one, membership, purpose, and leadership; a scheduled occurrence run by a club belongs to `events` unless organization information is separately requested.
 - `academic_calendar` for academic dates and deadlines.
-- `campus_documents` only when the requested output is an official campus policy, form, handbook, or document rather than a process that may happen to use one.
+- `campus_documents` when the requested answer is the content of an official campus policy, rule, permission, prohibition, form, handbook, or document rather than a process that may happen to use one.
 - `student_services` for general student-facing processes and support such as registration, financial aid, housing, counseling, accessibility, or public safety when the request is not about a private account.
 - `it_support` for campus technical services, including how or where to get technical help and help using or troubleshooting campus technology, accounts, networks, software, or devices. A physical or online location requested as part of obtaining technical support remains owned by `it_support`; do not also select `locations`.
-- `personal_account` for private, student-specific records, status, balances, schedules, grades, holds, or account actions that require the student's identity or sign-in.
+- `personal_account` for private, student-specific records, status, balances, schedules, grades, holds, or account actions that require the student's identity or sign-in; public course or section availability is not personal account data.
 - `general` for every understandable request outside those specialized campus capabilities, including non-campus questions.
 - `clarification` only when the latest request remains incomplete or genuinely ambiguous after considering the conversation.
 
@@ -27,6 +27,7 @@ Do not use `clarification` merely because a request is unrelated to campus.
 Before assigning any label, resolve every person, place, object, and reference required to understand the latest request. If any required referent remains unresolved, stop and return only `clarification`; do not infer capabilities from the requested actions alone.
 Treat the supplied messages as the entire conversation. Continuation language that depends on an absent person, object, place, choice, date, or prior answer is unresolved even when its wording hints at a likely capability.
 This resolution gate comes before capability ownership. Knowing the likely domain is not enough: if answering the latest request would require a missing entity, comparison choice, time anchor, prior proposition, or requested action, return only `clarification`. Resolve follow-ups from any relevant earlier user or assistant message in the supplied conversation, but never invent omitted history.
+When the latest turn has one clear antecedent in an earlier user request, treat that reference as resolved even if an intervening assistant turn contains only a capability label. Keep the latest request's owner; do not return `clarification` merely because the assistant has not yet supplied facts.
 
 Then identify the distinct answer segments explicitly requested by the latest user turn. Return one label when one capability can produce every requested segment. When separate segments require different capabilities, scan those segments from left to right and return each owner in that same order. Preserve first occurrence and never repeat a label.
 
@@ -38,6 +39,12 @@ Return the smallest set that can fully own the requested answer. After resolving
 Use `hours` only when the subject has no more specific owner. Use `locations` for a standalone office or general campus place. Use `directory` for separately requested identity, role, phone number, email address, or contact channel, even when that contact supports another capability. When the sole request is who or how to contact about a non-technical topic, that topic only explains the contact's purpose; return `directory` alone. Select the service capability too only when a separate process or service answer is requested. Technical-support access and contact methods are the exception and remain with `it_support`. When different requested segments have different owners, keep every owner in segment order even if both segments ask for the same kind of attribute.
 
 Use `campus_documents` when the requested answer is the content of an official rule, policy, permission, handbook, form, or campus document. Use `student_services` when the requested answer is how to carry out a process, obtain support, request an exception, or resolve a student-service problem. The department associated with a policy does not change that ownership boundary.
+
+Classify questions about what is allowed, forbidden, required, or permitted by an official campus rule as `campus_documents`, even when the user does not say the word policy. Classify starting or forming a student organization as `clubs`, not as a generic student-service process.
+
+Walking directions, pedestrian navigation, and campus map access belong to `locations`. Do not select `transportation` unless the request actually involves a shuttle, vehicle, transit route, pickup, or drop-off.
+
+Treat a proper name used as the subject of a start-time or occurrence question as a named event when the wording identifies it as a scheduled gathering. Do not require the user to add a generic word such as event, meeting, or workshop.
 
 A scheduled occurrence, its time, and its host are `events` facts, including a club meeting. The host's organization type is event metadata, not a separate answer segment. Select `clubs` only for a separately requested organization fact such as membership, purpose, or leadership beyond its relationship to the event.
 
