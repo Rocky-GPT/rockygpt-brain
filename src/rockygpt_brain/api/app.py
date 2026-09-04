@@ -1,99 +1,133 @@
-"""Minimal HTTP shell for RockyGPT Brain."""
+"""Stateless HTTP boundary for the student assistant."""
 
+import asyncio
+import hmac
 import os
-from typing import Literal
+from datetime import datetime
+from threading import BoundedSemaphore
+from uuid import uuid4
+from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI
+from dotenv import load_dotenv
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
-from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
-from pydantic import BaseModel, ConfigDict, Field
+from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, RateLimitError
 
-from rockygpt_brain.capabilities import ConversationMessage, classify
+from rockygpt_brain.contracts import ChatRequest
+from rockygpt_brain.data import CampusData
+from rockygpt_brain.engine import InvalidAnswer, run_turn
+from rockygpt_brain.limits import BodyLimitMiddleware
 
-app = FastAPI(title="RockyGPT Brain", version="0.0.0")
-MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o")
-
-
-class ChatMessage(BaseModel):
-    """One ordered conversation message."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    role: Literal["user", "assistant"]
-    content: str
-
-
-class ChatRequest(BaseModel):
-    """The complete conversation supplied by the client."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    messages: list[ChatMessage] = Field(min_length=1)
+load_dotenv()
+app = FastAPI(title="RockyGPT Brain", version="1.0.0")
+app.add_middleware(BodyLimitMiddleware)
+CAMPUS_TIMEZONE = ZoneInfo("America/New_York")
+TURN_SLOTS = BoundedSemaphore(4)
+HTTP_TURN_SECONDS = 52.0
 
 
 @app.get("/health")
+@app.head("/health", include_in_schema=False)
 def health() -> dict[str, str]:
-    """Process liveness probe."""
     return {"status": "ok"}
 
 
-@app.get("/readiness")
-def readiness() -> dict[str, str]:
-    """Service readiness probe."""
-    return {"status": "ready"}
+@app.get("/readiness", response_model=None)
+def readiness() -> dict[str, object] | JSONResponse:
+    if not os.getenv("OPENAI_API_KEY") or not os.getenv("DATABASE_URL"):
+        return JSONResponse(status_code=503, content={"status": "unavailable"})
+    data = CampusData(os.environ["DATABASE_URL"], datetime.now(CAMPUS_TIMEZONE))
+    try:
+        return {"status": "ready", "campus_data": data.readiness()}
+    except Exception:
+        return JSONResponse(status_code=503, content={"status": "unavailable"})
+    finally:
+        data.close()
 
 
 @app.post("/v1/chat", response_model=None)
-def chat(request: ChatRequest) -> dict[str, object] | JSONResponse:
-    """Classify the conversation into ordered unique capability labels."""
-    messages: list[ConversationMessage] = [
-        {"role": message.role, "content": message.content} for message in request.messages
-    ]
+async def chat(
+    request: ChatRequest,
+    x_rockygpt_environment_token: str | None = Header(default=None),
+) -> dict[str, object] | JSONResponse:
+    expected_token = os.getenv("STAGING_SERVICE_TOKEN", "").strip()
+    if expected_token and not hmac.compare_digest(
+        expected_token, x_rockygpt_environment_token or ""
+    ):
+        raise HTTPException(status_code=401, detail="Environment access token required")
+    request_id = str(uuid4())
+    if not os.getenv("OPENAI_API_KEY"):
+        return failure(503, "model_not_configured", request_id)
+    slots = TURN_SLOTS
+    if not slots.acquire(blocking=False):
+        return failure(429, "busy", request_id)
+    now = datetime.now(CAMPUS_TIMEZONE)
+    worker = asyncio.create_task(asyncio.to_thread(chat_worker, request, request_id, now, slots))
     try:
-        capabilities, model = classify(messages, MODEL)
-    except RateLimitError:
-        return JSONResponse(
-            status_code=429,
-            content={
-                "error": "The classifier model is temporarily rate limited.",
-                "reason": "rate_limited",
-                "detail": "No classification was produced. Try this request again later.",
-                "retryable": True,
-            },
-        )
-    except APITimeoutError:
-        return JSONResponse(
-            status_code=504,
-            content={
-                "error": "The classifier model timed out.",
-                "reason": "model_timeout",
-                "detail": "No classification was produced before the provider timeout.",
-                "retryable": True,
-            },
-        )
+        # A timed-out worker retains its slot until its bounded I/O and cleanup
+        # finish. Shielding also prevents cancelling a worker queued to start.
+        return await asyncio.wait_for(asyncio.shield(worker), timeout=HTTP_TURN_SECONDS)
+    except TimeoutError:
+        return failure(504, "model_timeout", request_id)
+
+
+def chat_worker(
+    request: ChatRequest,
+    request_id: str,
+    now: datetime,
+    slots: BoundedSemaphore,
+) -> dict[str, object] | JSONResponse:
+    data: CampusData | None = None
+    try:
+        data = CampusData(os.getenv("DATABASE_URL", ""), now)
+        with OpenAI(max_retries=0, timeout=30.0) as client:
+            result = run_turn(
+                request.messages,
+                client=client,
+                data=data,
+                model=os.getenv("OPENAI_CHAT_MODEL") or "gpt-5.4",
+                now=now,
+            )
+        return {**result, "requestId": request_id}
+    except RateLimitError as error:
+        if error.type == "insufficient_quota" or error.code in {
+            "insufficient_quota",
+            "credit_balance_exhausted",
+        }:
+            return failure(429, "model_quota_exhausted", request_id)
+        return failure(429, "rate_limited", request_id)
+    except (APITimeoutError, TimeoutError):
+        return failure(504, "model_timeout", request_id)
     except APIConnectionError:
-        return JSONResponse(
-            status_code=503,
-            content={
-                "error": "The classifier model is unreachable.",
-                "reason": "model_unreachable",
-                "detail": "No classification was produced because the provider connection failed.",
-                "retryable": True,
+        return failure(503, "model_unreachable", request_id)
+    except APIStatusError:
+        return failure(502, "model_provider_error", request_id)
+    except InvalidAnswer:
+        return failure(502, "invalid_model_output", request_id)
+    finally:
+        try:
+            if data is not None:
+                data.close()
+        finally:
+            slots.release()
+
+
+def failure(status: int, reason: str, request_id: str) -> JSONResponse:
+    message = (
+        "RockyGPT is currently unavailable. Please use Ramapo's official resources "
+        "for campus information."
+        if reason == "model_quota_exhausted"
+        else "Rocky couldn't produce a reliable answer just now. Please try again."
+    )
+    return JSONResponse(
+        status_code=status,
+        content={
+            "error": {
+                "code": reason,
+                "message": message,
+                "retryable": reason not in {"model_not_configured", "model_quota_exhausted"},
             },
-        )
-    except APIStatusError as error:
-        return JSONResponse(
-            status_code=502,
-            content={
-                "error": "The classifier model rejected the request.",
-                "reason": "model_provider_error",
-                "detail": "No classification was produced by the provider.",
-                "upstream_status": error.status_code,
-                "retryable": error.status_code >= 500,
-            },
-        )
-    return {
-        "answer": "\n\n".join(capabilities),
-        "capabilities": list(capabilities),
-        "model": model,
-    }
+            "reason": reason,
+            "requestId": request_id,
+        },
+    )
