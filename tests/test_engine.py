@@ -52,7 +52,10 @@ def answer(
 
 
 def review(
-    *verdicts: str, ids: list[str] | None = None, subject: str = "record_subject"
+    *verdicts: str,
+    ids: list[str] | None = None,
+    subject: str = "record_subject",
+    infers_food_safety: bool = False,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         status="completed",
@@ -65,10 +68,11 @@ def review(
                         "part_index": i,
                         "verdict": verdict,
                         "reason": "",
-                        "evidence_uses": [
+                        "event_evidence_uses": [
                             {"evidence_id": key, "assertion_subject": subject}
                             for key in (ids or [])
                         ],
+                        "infers_food_safety": infers_food_safety,
                     }
                     for i, verdict in enumerate(verdicts or ("supported",))
                 ],
@@ -77,7 +81,13 @@ def review(
     )
 
 
-def search(call_id: str = "lookup", collection: str = "contacts") -> SimpleNamespace:
+def search(
+    call_id: str = "lookup",
+    collection: str = "contacts",
+    *,
+    date_from: str | None = None,
+    limit: int = 4,
+) -> SimpleNamespace:
     return SimpleNamespace(
         type="function_call",
         name="search_campus",
@@ -86,9 +96,9 @@ def search(call_id: str = "lookup", collection: str = "contacts") -> SimpleNames
             {
                 "collection": collection,
                 "query": "registrar",
-                "date_from": None,
+                "date_from": date_from,
                 "date_to": None,
-                "limit": 4,
+                "limit": limit,
             }
         ),
     )
@@ -108,7 +118,7 @@ def test_full_conversation_is_preserved_and_evidence_is_cited() -> None:
     client.responses.create.side_effect = [
         tools(search("office"), search("contact")),
         answer("The office is D-224.", "campus_fact", [RECORD["id"]]),
-        review(ids=[RECORD["id"]]),
+        review(),
     ]
     data.search.return_value = {"status": "ok", "dataset_version": "release-1", "records": [RECORD]}
     result = run_turn(messages, client=client, data=data, model="test", now=NOW)
@@ -328,7 +338,7 @@ def test_evidence_cannot_leak_between_turns() -> None:
     client.responses.create.side_effect = [
         tools(search()),
         answer("D-224", "campus_fact", [RECORD["id"]]),
-        review(ids=[RECORD["id"]]),
+        review(),
     ]
     data.search.return_value = {"status": "ok", "records": [RECORD]}
     run_turn(
@@ -357,7 +367,7 @@ def test_tool_exhaustion_preserves_answer_repair_and_review() -> None:
         tools(*calls),
         answer("D-224", "campus_fact", ["fake"]),
         answer("D-224", "campus_fact", [RECORD["id"]]),
-        review(ids=[RECORD["id"]]),
+        review(),
     ]
     data.search.return_value = {"status": "ok", "records": [RECORD]}
     result = run_turn(
@@ -393,7 +403,7 @@ def test_long_retrieval_reserves_synthesis_repair_and_review() -> None:
         *(tools(search(str(i))) for i in range(MAX_DRAFT_CALLS - 2)),
         answer("D-224", "campus_fact", ["fake"]),
         answer("D-224", "campus_fact", [RECORD["id"]]),
-        review(ids=[RECORD["id"]]),
+        review(),
     ]
     data.search.return_value = {"status": "ok", "records": [RECORD]}
     result = run_turn(
@@ -417,7 +427,7 @@ def test_every_part_kind_requires_review_and_repaired_answer_is_reviewed(kind: s
     client.responses.create.side_effect = [
         tools(search()),
         answer("The library is D-224.", kind, [RECORD["id"]]),
-        review("wrong_scope", ids=[RECORD["id"]]),
+        review("wrong_scope"),
         answer("I could not verify the library's location.", "limitation", status="unavailable"),
         review(),
     ]
@@ -442,7 +452,7 @@ def test_review_is_separate_and_contains_uncited_conflicting_evidence_and_histor
     client.responses.create.side_effect = [
         tools(search()),
         answer("D-224", "campus_fact", [RECORD["id"]]),
-        review(ids=[RECORD["id"]]),
+        review(),
     ]
     data.search.return_value = {
         "status": "ok",
@@ -548,7 +558,7 @@ def test_overlapping_search_does_not_erase_previously_read_details() -> None:
         tools(read_call),
         tools(search("again")),
         answer("Walk-in support is available on Friday.", "campus_fact", [RECORD["id"]]),
-        review(ids=[RECORD["id"]]),
+        review(),
     ]
     data.search.return_value = {"status": "ok", "records": [excerpt]}
     data.read.return_value = {"status": "ok", "records": [detail]}
@@ -653,17 +663,18 @@ def test_event_reference_cannot_establish_general_entity_attributes_even_if_mode
     assert valid.parts[0].verdict == "supported"
 
 
-def test_review_cannot_skip_classifying_a_cited_source() -> None:
+def test_review_cannot_skip_classifying_a_cited_event() -> None:
+    event = {**RECORD, "collection": "events", "content": "Book Club meets in D-224."}
     client = Mock()
     client.responses.create.return_value = review()
     candidate = Answer.model_validate_json(
-        answer("Office D-224", "campus_fact", [RECORD["id"]]).output_text
+        answer("Book Club meets in D-224.", "campus_fact", [event["id"]]).output_text
     )
     with pytest.raises(InvalidAnswer) as error:
         review_answer(
             candidate,
-            messages=[ChatMessage(role="user", content="Office location?")],
-            evidence={RECORD["id"]: RECORD},
+            messages=[ChatMessage(role="user", content="Where does Book Club meet?")],
+            evidence={event["id"]: event},
             trace=[],
             client=client,
             model="test",
@@ -678,9 +689,9 @@ def test_last_reserved_repair_is_reviewed_within_total_model_budget() -> None:
     client.responses.create.side_effect = [
         *(tools(search(str(i))) for i in range(MAX_DRAFT_CALLS - 2)),
         answer("A-101", "campus_fact", [RECORD["id"]]),
-        review("contradicted_evidence", ids=[RECORD["id"]]),
+        review("contradicted_evidence"),
         answer("D-224", "campus_fact", [RECORD["id"]]),
-        review(ids=[RECORD["id"]]),
+        review(),
     ]
     data.search.return_value = {"status": "ok", "records": [RECORD]}
     result = run_turn(
@@ -693,3 +704,74 @@ def test_last_reserved_repair_is_reviewed_within_total_model_budget() -> None:
     assert result["metrics"]["modelCalls"] == client.responses.create.call_count == MAX_MODEL_CALLS
     assert result["metrics"]["reviewCalls"] == 2
     assert "A-101" not in result["answer"]
+
+
+def test_menu_list_can_keep_every_item_cited_without_repeating_source_urls() -> None:
+    records = [
+        {
+            **RECORD,
+            "id": f"menu:item-{i}",
+            "collection": "menu",
+            "title": f"Menu item {i}",
+            "source_title": "Dining Menu",
+            "url": "https://www.ramapo.edu/dining/menu/",
+            "content": {"dietary_labels": ["Vegan"], "allergens": []},
+        }
+        for i in range(20)
+    ]
+    client, data = Mock(), Mock()
+    client.responses.create.side_effect = [
+        tools(search(collection="menu", date_from="2026-09-04", limit=20)),
+        answer(
+            "Published vegan items: " + ", ".join(str(record["title"]) for record in records),
+            "campus_fact",
+            [str(record["id"]) for record in records],
+        ),
+        review(),
+    ]
+    data.search.return_value = {"status": "ok", "records": records}
+    result = run_turn(
+        [ChatMessage(role="user", content="What vegan items are on the menu?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    assert len(result["citations"]) == 20
+    assert result["answer"].count("https://www.ramapo.edu/dining/menu/") == 1
+    assert result["metrics"]["validationFailures"] == []
+    payload = json.loads(client.responses.create.call_args.kwargs["input"])
+    assert payload["evidence"] == records
+    assert len(payload["candidate"]["parts"][0]["evidence_ids"]) == 20
+
+
+@pytest.mark.parametrize("kind", ["campus_fact", "guidance", "limitation"])
+def test_food_safety_inference_is_repaired_and_reviewed_even_if_model_approves(kind: str) -> None:
+    menu = {
+        **RECORD,
+        "id": "menu:rice",
+        "collection": "menu",
+        "title": "Rice",
+        "content": {"dietary_labels": ["Vegan"], "allergens": []},
+    }
+    client, data = Mock(), Mock()
+    client.responses.create.side_effect = [
+        tools(search(collection="menu", date_from="2026-09-04")),
+        answer("The blank allergen label means rice is lower risk.", kind, [str(menu["id"])]),
+        review(infers_food_safety=True),
+        answer("Ask dining staff about ingredients and cross-contact.", "guidance"),
+        review(),
+    ]
+    data.search.return_value = {"status": "ok", "records": [menu]}
+    result = run_turn(
+        [ChatMessage(role="user", content="What can I eat with a peanut allergy?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    assert "lower risk" not in result["answer"]
+    assert "cross-contact" in result["answer"]
+    assert result["metrics"]["validationFailures"] == ["unsupported_claim"]
+    assert result["metrics"]["reviewCalls"] == 2
+    assert client.responses.create.call_args_list[3].kwargs["tool_choice"] == "none"

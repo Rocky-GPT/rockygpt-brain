@@ -36,7 +36,7 @@ class ChatRequest(StrictModel):
 class AnswerPart(StrictModel):
     kind: Literal["campus_fact", "guidance", "limitation", "clarification"]
     text: str = Field(min_length=1, max_length=6000)
-    evidence_ids: list[str] = Field(max_length=12)
+    evidence_ids: list[str] = Field(max_length=50)
 
 
 class Answer(StrictModel):
@@ -61,13 +61,23 @@ class PartReview(StrictModel):
         "supported", "unsupported_claim", "contradicted_evidence", "wrong_scope", "wrong_context"
     ]
     reason: str = Field(max_length=400)
-    evidence_uses: list[EvidenceUse] = Field(
-        max_length=24,
+    event_evidence_uses: list[EvidenceUse] = Field(
+        max_length=100,
         description=(
-            "Classify every cited record's use, even for a supported part or a part labelled "
-            "guidance/limitation. Include both uses if the paragraph makes assertions about "
-            "both the record subject and a referenced entity. No cited ID may be omitted."
+            "Classify every cited EVENT record's use, including event documents, even for "
+            "a supported part or guidance/limitation. Use evidence_subjects kind=event; "
+            "omit non-event records from this list. Include both uses if the paragraph "
+            "asserts facts about both the event and a referenced entity. Omit no cited event."
         ),
+    )
+    infers_food_safety: bool = Field(
+        description=(
+            "True if this part uses menu, dietary, or allergen labels (including blank or "
+            "missing labels) to infer that food is safe, safer, or lower risk for an allergy. "
+            "A later caveat does not undo this inference. False when the part only reports "
+            "published labels or recommends asking dining staff about ingredients and "
+            "cross-contact without ranking food safety."
+        )
     )
 
 

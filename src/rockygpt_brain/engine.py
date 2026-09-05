@@ -206,10 +206,14 @@ def review_answer(
             "Review did not cover every answer part exactly once", "review_coverage"
         )
     for part in review.parts:
-        citations = set(answer.parts[part.part_index].evidence_ids)
-        if {use.evidence_id for use in part.evidence_uses} != citations:
-            raise InvalidAnswer("Review omitted or invented an evidence use", "review_evidence")
-        for use in part.evidence_uses:
+        event_citations = {
+            record_id
+            for record_id in answer.parts[part.part_index].evidence_ids
+            if subjects.get(record_id, {}).get("kind") == "event"
+        }
+        if {use.evidence_id for use in part.event_evidence_uses} != event_citations:
+            raise InvalidAnswer("Review omitted or invented an event use", "review_evidence")
+        for use in part.event_evidence_uses:
             subject = subjects.get(use.evidence_id)
             if subject is None:
                 raise InvalidAnswer("Unknown review evidence", "review_evidence")
@@ -222,6 +226,13 @@ def review_answer(
                     "facility or organization. Use direct evidence for that entity, or "
                     "state that the requested attribute could not be verified."
                 )
+        if part.infers_food_safety:
+            part.verdict = "unsupported_claim"
+            part.reason = (
+                "Published menu and allergen labels do not establish allergy safety or "
+                "relative risk, including when a label is blank. Report the labels and "
+                "ask dining staff about ingredients and cross-contact without ranking safety."
+            )
     return review
 
 

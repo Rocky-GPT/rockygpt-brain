@@ -15,7 +15,7 @@ Student UI / Dev UI / CLI
  Draft answer + citation/freshness validation
           ▼
  Required evidence review in a separate context ──→ OpenAI Responses
-          │ complete source-use classification + code-enforced event scope
+          │ factual support + event scope + food-safety inference check
           ▼
  Accepted answer + server-rendered source links
 ```
@@ -96,10 +96,13 @@ that published field but citations use its existing official source URL. The
 model is never asked to repair a URL owned by the retrieval layer.
 Freshness and ID validation are deterministic. Every candidate then receives a
 separate model review with the complete conversation, exact current-turn evidence,
-and search coverage. Each paragraph must have one verdict, and every citation must
-be classified as supporting an assertion about the record's own subject or a
-referenced entity. Code rejects missing/duplicate paragraph decisions and omitted
-or invented source-use entries. This applies to guidance and limitations too.
+and search coverage. Each paragraph must have one verdict. Every cited event record
+must also be classified as supporting an assertion about the event or a referenced
+entity. Code rejects missing/duplicate paragraph decisions and omitted or invented
+event-use entries. Non-event citations receive the same factual support review
+without redundant ID echoes. This applies to guidance and limitations too.
+Each paragraph can cite 50 records, matching the retrieval result limit, so a
+published menu list can retain a citation for every item.
 
 Event records and the official Archway Events feed describe activities. Code
 overrides a supported verdict when those records are used for general attributes
@@ -107,6 +110,12 @@ of a referenced facility or organization. An event venue can therefore remain an
 event venue without being promoted into a facility's general location. Source
 scope comes from collection/provenance metadata, not student wording or regex
 routing. Later search excerpts cannot erase a fuller record already read.
+
+The reviewer separately classifies whether a paragraph infers allergy safety or
+relative risk from menu, dietary, or allergen labels. Code rejects that inference
+even if the reviewer also marks the paragraph supported. Blank labels cannot
+establish lower risk; reporting labels and directing the student to dining staff
+for ingredients and cross-contact questions remain valid.
 
 Other semantic support, including negative claims and faithful
 schedule interpretation, is checked by the reviewer against full records and
