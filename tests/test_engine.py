@@ -465,8 +465,7 @@ def test_review_is_separate_and_contains_uncited_conflicting_evidence_and_histor
     payload = json.loads(request["input"])
     assert payload["conversation"] == [message.model_dump() for message in messages]
     assert payload["evidence"] == [RECORD, other]
-    assert payload["retrieval"][0]["truncated"] is True
-    assert payload["retrieval"][0]["total_matches"] == 3
+    assert "retrieval" not in payload
     assert payload["candidate"]["parts"][0]["evidence_ids"] == [RECORD["id"]]
     assert request["tools"] == []
     assert request["tool_choice"] == "none"
@@ -641,7 +640,6 @@ def test_event_reference_cannot_establish_general_entity_attributes_even_if_mode
         candidate,
         messages=[ChatMessage(role="user", content="Where is the library?")],
         evidence={event["id"]: event},
-        trace=[],
         client=client,
         model="test",
         now=NOW,
@@ -654,7 +652,6 @@ def test_event_reference_cannot_establish_general_entity_attributes_even_if_mode
         candidate,
         messages=[ChatMessage(role="user", content="Where does Book Club meet?")],
         evidence={event["id"]: event},
-        trace=[],
         client=client,
         model="test",
         now=NOW,
@@ -675,7 +672,6 @@ def test_review_cannot_skip_classifying_a_cited_event() -> None:
             candidate,
             messages=[ChatMessage(role="user", content="Where does Book Club meet?")],
             evidence={event["id"]: event},
-            trace=[],
             client=client,
             model="test",
             now=NOW,
