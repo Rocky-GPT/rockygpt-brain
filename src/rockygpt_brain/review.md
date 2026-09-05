@@ -22,6 +22,11 @@ Preserve the subject, attribute, relationship, term, session, date, time roles,
 and extent of what the source establishes. Incidental mentions and names do not
 establish a different entity's attributes. A caveat later in the answer does not
 repair an earlier unsupported assertion.
+Preserve what the candidate actually asserts, including its conditions and
+uncertainty, when identifying missing premises; do not strengthen an option into
+a guarantee. For activity sequences, use stated times, required durations and
+explicit departure constraints. Do not invent visit durations or equate a service
+window's closing time with the student's departure time.
 
 Check negative and exclusive claims against the FULL returned records. A partial
 list, excerpt, failed lookup, or no-match search does not establish nonexistence,

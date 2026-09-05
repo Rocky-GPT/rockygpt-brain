@@ -7,6 +7,7 @@ from unittest.mock import Mock
 from zoneinfo import ZoneInfo
 
 import pytest
+from openai import Timeout
 
 from rockygpt_brain.contracts import Answer, ChatMessage
 from rockygpt_brain.engine import (
@@ -616,6 +617,32 @@ def test_review_timeout_never_releases_the_draft() -> None:
             now=NOW,
         )
     assert client.responses.create.call_count == 2
+
+
+def test_complex_review_can_use_available_turn_time_without_exceeding_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = [0.0]
+    monkeypatch.setattr("rockygpt_brain.engine.monotonic", lambda: clock[0])
+    client, data = Mock(), Mock()
+
+    def respond(**kwargs: object) -> SimpleNamespace:
+        if client.responses.create.call_count == 1:
+            clock[0] = 5.0
+            return answer()
+        timeout = kwargs["timeout"]
+        assert isinstance(timeout, Timeout)
+        assert timeout.read == 30.0
+        clock[0] += 24.0
+        return review()
+
+    client.responses.create.side_effect = respond
+    result = run_turn(
+        [ChatMessage(role="user", content="Help me study")],
+        client=client, data=data, model="test", now=NOW,
+    )
+    assert result["elapsedMs"] == 29000
+    assert result["metrics"]["modelCalls"] == 2
 
 
 def test_invalid_review_retries_same_candidate_without_draft_or_tool_work() -> None:

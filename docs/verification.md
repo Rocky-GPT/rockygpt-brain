@@ -16,7 +16,7 @@ The latest fixes give summaries access to earlier same-answer citations and
 mechanically reject conclusions with identified unverified factual premises.
 Conditional service rules retain their condition in the time-check contract
 instead of being treated as expired dated plans.
-Local validation: 119 Brain tests, Ruff, and strict mypy pass. The complete
+Local validation: 120 Brain tests, Ruff, and strict mypy pass. The complete
 acceptance report and independent semantic review are recorded in
 `rockygpt-evals/brain-reset/checkpoints/2026-09-04-behavior/` after execution.
 

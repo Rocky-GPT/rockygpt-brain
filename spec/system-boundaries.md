@@ -146,7 +146,9 @@ the actual request. A rejected draft can be repaired within the shared budget, b
 revision must pass another review. Code never returns a rejected or unreviewed
 revision and does not splice unreviewed paragraph combinations together.
 The verifier uses medium reasoning effort to compare relationships, source categories,
-and the supplied campus clock. Malformed or incomplete review output gets one retry
+and the supplied campus clock. A review can use up to 30 seconds within the remaining
+turn budget; the overall 50-second execution and 52-second HTTP limits still fit
+the existing clients' 60-second timeout. Malformed or incomplete review output gets one retry
 of the same candidate, counted within the same limits. A valid rejection never gets
 retried for a different verdict; it requires a revised answer and a fresh review.
 
