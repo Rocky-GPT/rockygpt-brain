@@ -7,21 +7,29 @@ from importlib.resources import files
 from time import monotonic
 from typing import Any, cast
 
-from openai import OpenAI
+from openai import OpenAI, Timeout
 from openai.types.responses import ResponseInputParam, ToolParam
 from pydantic import ValidationError
 
-from rockygpt_brain.contracts import Answer, ChatMessage
+from rockygpt_brain.contracts import Answer, ChatMessage, EvidenceReview
 from rockygpt_brain.data import COLLECTIONS, CampusData, ReadQuery, SearchQuery
 
 INSTRUCTIONS = files("rockygpt_brain").joinpath("prompt.md").read_text(encoding="utf-8")
-MAX_MODEL_CALLS = 6
+REVIEW_INSTRUCTIONS = files("rockygpt_brain").joinpath("review.md").read_text(encoding="utf-8")
+MAX_DRAFT_CALLS = 6
+MAX_MODEL_CALLS = 8
 MAX_TOOL_CALLS = 12
 TURN_SECONDS = 50.0
+REVIEW_RESERVE_SECONDS = 8.0
+ANSWER_RESERVE_SECONDS = 20.0
 
 
 class InvalidAnswer(Exception):
     """The provider did not produce a safe, complete output contract."""
+
+    def __init__(self, message: str, code: str = "invalid_answer") -> None:
+        super().__init__(message)
+        self.code = code
 
 
 def function_tool(name: str, description: str, schema: dict[str, Any]) -> ToolParam:
@@ -53,7 +61,9 @@ def tool_definitions() -> list[ToolParam]:
             "campus_hours, dining_hours, shuttle and events, using the requested date "
             "or the supplied current campus date. Do not put schedule dates only in keywords. "
             "Read returned records for missing details. "
-            "Search each requested subject; reformulate if no relevant results.",
+            "Search each requested subject; reformulate if no relevant results. "
+            "A no-match result may include discovery_titles from a small published collection. "
+            "Choose relevant names by meaning and retrieve their records before citing them.",
             SearchQuery.model_json_schema(),
         ),
         function_tool(
@@ -74,19 +84,21 @@ def render_answer(answer: Answer, evidence: dict[str, dict[str, Any]]) -> dict[s
             part.text,
             re.IGNORECASE,
         ):
-            raise InvalidAnswer("Model text contains an unvalidated link or is blank")
+            raise InvalidAnswer(
+                "Model text contains an unvalidated link or is blank", "answer_text"
+            )
         if part.kind == "campus_fact" and not part.evidence_ids:
-            raise InvalidAnswer("Campus assertion without evidence")
+            raise InvalidAnswer("Campus assertion without evidence", "missing_citation")
         links: dict[str, str] = {}
         for evidence_id in dict.fromkeys(part.evidence_ids):
             record = evidence.get(evidence_id)
             if record is None:
-                raise InvalidAnswer("Unknown citation")
+                raise InvalidAnswer("Unknown citation", "unknown_citation")
             if part.kind == "campus_fact" and record["freshness"] not in {"fresh", "static"}:
-                raise InvalidAnswer("Campus assertion uses stale or unknown evidence")
+                raise InvalidAnswer("Campus assertion uses stale or unknown evidence", "stale_fact")
             url = record["url"]
             if not isinstance(url, str) or not url.startswith("https://"):
-                raise InvalidAnswer("Unsafe source URL")
+                raise InvalidAnswer("Unsafe source URL", "source_url")
             source_title = str(record.get("source_title") or record["title"])
             title = source_title.replace("[", "").replace("]", "")
             safe_url = url.replace("(", "%28").replace(")", "%29").replace(" ", "%20")
@@ -113,12 +125,104 @@ def render_answer(answer: Answer, evidence: dict[str, dict[str, Any]]) -> dict[s
         paragraphs.append(text)
     rendered = "\n\n".join(paragraphs)
     if len(rendered) > 12000:
-        raise InvalidAnswer("Answer is too long for conversation history; shorten it")
+        raise InvalidAnswer(
+            "Answer is too long for conversation history; shorten it", "answer_length"
+        )
     return {
         "answer": rendered,
         "status": answer.status,
         "citations": list(citations.values()),
     }
+
+
+def review_answer(
+    answer: Answer,
+    *,
+    messages: list[ChatMessage],
+    evidence: dict[str, dict[str, Any]],
+    trace: list[dict[str, Any]],
+    client: OpenAI,
+    model: str,
+    now: datetime,
+    timeout: float,
+) -> EvidenceReview:
+    """A separate context checks every part; draft/tool history cannot approve itself."""
+    subjects = {
+        record_id: {
+            "name": record["title"],
+            "kind": (
+                "event"
+                if record["collection"] == "events"
+                or record.get("source_key") == "archway-events"
+                # Captured records from the first checkpoint used source titles.
+                or record.get("source_title") == "Archway Events"
+                else record["collection"]
+            ),
+        }
+        for record_id, record in evidence.items()
+    }
+    response = client.responses.create(
+        model=model,
+        instructions=REVIEW_INSTRUCTIONS,
+        input=json.dumps(
+            {
+                "conversation": [message.model_dump() for message in messages],
+                "campus_time": now.isoformat(),
+                "campus_weekday": now.strftime("%A"),
+                "campus_calendar_week": [
+                    str(now.date() - timedelta(days=now.weekday())),
+                    str(now.date() + timedelta(days=6 - now.weekday())),
+                ],
+                "candidate": answer.model_dump(),
+                "evidence": list(evidence.values()),
+                "evidence_subjects": subjects,
+                "retrieval": trace,
+            },
+            default=str,
+            ensure_ascii=False,
+        ),
+        tools=[],
+        tool_choice="none",
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "evidence_review",
+                "schema": EvidenceReview.model_json_schema(),
+                "strict": True,
+            }
+        },
+        max_output_tokens=2400,
+        store=False,
+        timeout=Timeout(timeout, connect=min(2.0, timeout)),
+    )
+    if response.status != "completed":
+        raise InvalidAnswer("Incomplete evidence review", "incomplete_review")
+    try:
+        review = EvidenceReview.model_validate_json(response.output_text)
+    except ValidationError as error:
+        raise InvalidAnswer("Invalid evidence review", "invalid_review") from error
+    if sorted(part.part_index for part in review.parts) != list(range(len(answer.parts))):
+        raise InvalidAnswer(
+            "Review did not cover every answer part exactly once", "review_coverage"
+        )
+    for part in review.parts:
+        citations = set(answer.parts[part.part_index].evidence_ids)
+        if {use.evidence_id for use in part.evidence_uses} != citations:
+            raise InvalidAnswer("Review omitted or invented an evidence use", "review_evidence")
+        for use in part.evidence_uses:
+            subject = subjects.get(use.evidence_id)
+            if subject is None:
+                raise InvalidAnswer("Unknown review evidence", "review_evidence")
+            # Event facts are about that activity. A venue or organizer mention
+            # cannot establish general attributes of the referenced entity.
+            if subject["kind"] == "event" and use.assertion_subject == "referenced_entity":
+                part.verdict = "wrong_scope"
+                part.reason = (
+                    "Event evidence cannot establish general attributes of a referenced "
+                    "facility or organization. Use direct evidence for that entity, or "
+                    "state that the requested attribute could not be verified."
+                )
+    return review
 
 
 def run_turn(
@@ -130,10 +234,18 @@ def run_turn(
     now: datetime,
 ) -> dict[str, Any]:
     started = monotonic()
-    data.deadline = started + TURN_SECONDS
+    data.deadline = started + TURN_SECONDS - ANSWER_RESERVE_SECONDS
     history: list[Any] = [message.model_dump() for message in messages]
     evidence: dict[str, dict[str, Any]] = {}
     trace: list[dict[str, Any]] = []
+    # A tool limit closes retrieval, not answer recovery. Review capacity is
+    # separate and every call still shares the same wall-clock deadline.
+    tool_slots_used = 0
+    tool_executions = 0
+    draft_calls = 0
+    review_calls = 0
+    validation_failures: list[str] = []
+    answer_only = False
     dataset_version: str | None = None
     week_start = now.date() - timedelta(days=now.weekday())
     week_end = week_start + timedelta(days=6)
@@ -143,17 +255,28 @@ def run_turn(
         f"The current campus calendar week is {week_start} through {week_end}.\n"
     )
     tools = tool_definitions()
-    for round_index in range(MAX_MODEL_CALLS):
+    for round_index in range(MAX_DRAFT_CALLS):
+        if draft_calls + review_calls > MAX_MODEL_CALLS - 2:
+            raise InvalidAnswer("No capacity for a draft and its review", "answer_budget")
         remaining = TURN_SECONDS - (monotonic() - started)
-        if remaining <= 0:
-            raise TimeoutError("Turn deadline exceeded")
-        final_round = round_index == MAX_MODEL_CALLS - 1 or len(trace) >= MAX_TOOL_CALLS
+        if remaining <= REVIEW_RESERVE_SECONDS:
+            raise TimeoutError("Insufficient time for an answer and evidence review")
+        # Reserve the last two draft calls for synthesis and contract repair.
+        # Semantic repair also needs a fresh review; it never reopens retrieval.
+        answer_only = (
+            answer_only
+            or round_index >= MAX_DRAFT_CALLS - 2
+            or draft_calls + review_calls >= MAX_MODEL_CALLS - 2
+            or tool_slots_used >= MAX_TOOL_CALLS
+            or remaining <= ANSWER_RESERVE_SECONDS
+        )
+        draft_calls += 1
         response = client.responses.create(
             model=model,
             instructions=instructions,
-            input=cast(ResponseInputParam, history),
+            input=cast(ResponseInputParam, list(history)),
             tools=tools,
-            tool_choice="none" if final_round else "auto",
+            tool_choice="none" if answer_only else "auto",
             parallel_tool_calls=True,
             text={
                 "format": {
@@ -165,50 +288,117 @@ def run_turn(
             },
             max_output_tokens=2400,
             store=False,
-            timeout=min(30.0, remaining),
+            timeout=Timeout(
+                min(30.0, remaining - REVIEW_RESERVE_SECONDS),
+                connect=min(2.0, remaining - REVIEW_RESERVE_SECONDS),
+            ),
         )
         if response.status != "completed":
-            raise InvalidAnswer("Incomplete model response")
+            raise InvalidAnswer("Incomplete model response", "incomplete_draft")
         calls = [item for item in response.output if item.type == "function_call"]
         if not calls:
             try:
-                result = render_answer(Answer.model_validate_json(response.output_text), evidence)
+                candidate = Answer.model_validate_json(response.output_text)
+                result = render_answer(candidate, evidence)
             except (ValidationError, InvalidAnswer) as error:
-                if final_round:
-                    raise InvalidAnswer("Invalid final answer") from error
+                code = "answer_schema" if isinstance(error, ValidationError) else error.code
+                validation_failures.append(code)
+                if round_index == MAX_DRAFT_CALLS - 1:
+                    raise InvalidAnswer("Invalid final answer", code) from error
+                detail = (
+                    json.dumps(
+                        [
+                            {"field": item["loc"], "error": item["type"]}
+                            for item in error.errors(include_input=False, include_context=False)[:3]
+                        ]
+                    )
+                    if isinstance(error, ValidationError)
+                    else str(error)
+                )
                 history.extend(response.output)
                 history.append(
                     {
                         "role": "developer",
                         "content": "Your answer failed server validation: "
-                        + str(error).split("\n")[0][:180]
+                        + detail[:400]
                         + ". Return a corrected answer. Use only retrieved evidence, separate "
                         "limitations, and omit URLs. If evidence is missing, say so.",
                     }
                 )
                 continue
+            remaining = TURN_SECONDS - (monotonic() - started)
+            if remaining <= 0:
+                raise TimeoutError("Turn deadline exceeded before evidence review")
+            review_calls += 1
+            review = review_answer(
+                candidate,
+                messages=messages,
+                evidence=evidence,
+                trace=trace,
+                client=client,
+                model=model,
+                now=now,
+                timeout=min(20.0, remaining),
+            )
+            rejected = [part for part in review.parts if part.verdict != "supported"]
+            if rejected:
+                validation_failures.extend(part.verdict for part in rejected)
+                if (
+                    draft_calls + review_calls > MAX_MODEL_CALLS - 2
+                    or round_index == MAX_DRAFT_CALLS - 1
+                ):
+                    raise InvalidAnswer("Answer failed evidence review", "unsupported_answer")
+                answer_only = True
+                history.extend(response.output)
+                history.append(
+                    {
+                        "role": "developer",
+                        "content": "The evidence review rejected this draft. Correct the "
+                        "identified claims using the retrieved evidence, preserve supported "
+                        "parts, and explicitly state any missing information. The revision "
+                        "must pass a new review. Review findings: " + review.model_dump_json(),
+                    }
+                )
+                continue
+            if monotonic() - started >= TURN_SECONDS:
+                raise TimeoutError("Turn deadline exceeded during evidence review")
             return {
                 **result,
                 "model": response.model,
                 "datasetVersion": dataset_version,
                 "trace": trace,
+                "metrics": {
+                    "modelCalls": draft_calls + review_calls,
+                    "draftCalls": draft_calls,
+                    "reviewCalls": review_calls,
+                    "toolRequests": len(trace),
+                    "toolExecutions": tool_executions,
+                    "validationFailures": validation_failures,
+                },
                 "elapsedMs": round((monotonic() - started) * 1000),
             }
         history.extend(response.output)
         for call in calls:
             tool_started = monotonic()
             arguments: dict[str, Any] = {}
-            if len(trace) >= MAX_TOOL_CALLS or monotonic() - started >= TURN_SECONDS - 2:
+            if (
+                answer_only
+                or tool_slots_used >= MAX_TOOL_CALLS
+                or monotonic() - started >= TURN_SECONDS - ANSWER_RESERVE_SECONDS
+            ):
                 output: dict[str, Any] = {"status": "unavailable", "reason": "tool_budget"}
             else:
+                tool_slots_used += 1
                 try:
                     if call.name == "search_campus":
                         query = SearchQuery.model_validate_json(call.arguments)
                         arguments = query.model_dump(mode="json")
+                        tool_executions += 1
                         output = data.search(query)
                     elif call.name == "read_campus":
                         read = ReadQuery.model_validate_json(call.arguments)
                         arguments = read.model_dump(mode="json")
+                        tool_executions += 1
                         output = data.read(read)
                     else:
                         output = {"status": "invalid_request", "reason": "unknown_tool"}
@@ -228,13 +418,22 @@ def run_turn(
                     output = {"status": "unavailable", "reason": "campus_data_unavailable"}
             dataset_version = output.get("dataset_version", dataset_version)
             for record in output.get("records", []):
-                evidence[record["id"]] = record
+                previous = evidence.get(record["id"])
+                # Same release/record, different excerpt bounds: an overlapping
+                # search must not erase details already delivered by read_campus.
+                if previous is None or len(json.dumps(record, default=str)) >= len(
+                    json.dumps(previous, default=str)
+                ):
+                    evidence[record["id"]] = record
             trace.append(
                 {
                     "tool": call.name,
                     "arguments": arguments,
                     "status": output["status"],
                     "result_count": len(output.get("records", [])),
+                    "total_matches": output.get("total_matches"),
+                    "truncated": output.get("truncated"),
+                    "reason": output.get("reason"),
                     "elapsed_ms": round((monotonic() - tool_started) * 1000),
                 }
             )
@@ -245,4 +444,4 @@ def run_turn(
                     "output": json.dumps(output, default=str, ensure_ascii=False),
                 }
             )
-    raise InvalidAnswer("Model did not finish within the tool budget")
+    raise InvalidAnswer("Model did not finish within the answer budget", "answer_budget")

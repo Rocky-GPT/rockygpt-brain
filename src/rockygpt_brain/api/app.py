@@ -2,6 +2,7 @@
 
 import asyncio
 import hmac
+import logging
 import os
 from datetime import datetime
 from threading import BoundedSemaphore
@@ -102,7 +103,11 @@ def chat_worker(
         return failure(503, "model_unreachable", request_id)
     except APIStatusError:
         return failure(502, "model_provider_error", request_id)
-    except InvalidAnswer:
+    except InvalidAnswer as error:
+        # Fixed reason codes only: no student text, raw model output, or provider secrets.
+        logging.getLogger(__name__).warning(
+            "Brain answer rejected request_id=%s reason=%s", request_id, error.code
+        )
         return failure(502, "invalid_model_output", request_id)
     finally:
         try:

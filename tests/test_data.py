@@ -570,3 +570,58 @@ def test_date_dependent_search_rejects_implicit_today(collection: str) -> None:
         }
     )
     assert valid.date_from == date(2026, 9, 5)
+
+
+def test_no_match_discovers_published_names_without_admitting_them_as_evidence(
+    data: CampusData,
+) -> None:
+    club = record(data, "clubs", "Garden Club", {"name": "Garden Club"}, "garden")
+    data._cache["clubs"] = [club]
+    data._seen = {}
+    missing = data.search(SearchQuery(collection="clubs", query="ecology"))
+    assert missing["status"] == "no_match"
+    assert missing["records"] == []
+    assert missing["discovery_titles"] == ["Garden Club"]
+    assert data.read(ReadQuery(ids=[club["id"]]))["records"] == []
+    found = data.search(SearchQuery(collection="clubs", query="Garden Club"))
+    assert found["records"][0]["id"] == club["id"]
+    assert found["records"][0]["source_key"] == "academic-programs"
+
+
+def test_discovery_respects_date_scope_and_collection_size(data: CampusData) -> None:
+    data._cache["events"] = [
+        record(data, "events", "Current Event", {"starts_at": "2026-09-04T17:00:00-04:00"}),
+        record(data, "events", "Future Event", {"starts_at": "2026-10-01T17:00:00-04:00"}, "later"),
+    ]
+    result = data.search(
+        SearchQuery(
+            collection="events",
+            query="unmatched",
+            date_from=date(2026, 9, 4),
+            date_to=date(2026, 9, 4),
+        )
+    )
+    assert result["discovery_titles"] == ["Current Event"]
+    data._cache["courses"] = [
+        record(data, "courses", f"Course {i}", {"code": str(i)}, str(i)) for i in range(301)
+    ]
+    assert (
+        data.search(SearchQuery(collection="courses", query="unmatched"))["discovery_titles"] == []
+    )
+
+
+@pytest.mark.parametrize("website", ["http://www.ramapo.edu/group/", "javascript:alert(1)"])
+def test_uncitable_record_website_uses_existing_official_source_url(
+    data: CampusData,
+    website: str,
+) -> None:
+    result = data._evidence(
+        "clubs",
+        {"id": "group", "source_id": "source", "collected_at": NOW},
+        {"name": "Campus Group", "website_url": website},
+        "Campus Group",
+        website,
+    )
+    assert result is not None
+    assert result["url"] == data.sources["source"]["canonical_url"]
+    assert result["fields"]["website_url"] == website

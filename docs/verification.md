@@ -1,5 +1,24 @@
 # Brain restart checkpoint — September 4, 2026
 
+The original checkpoint `e2ddd39` failed its later frozen acceptance run:
+17/20 conversations and 24/27 turns passed semantic review. Its failures were
+a program/club HTTP error, an event-to-library location inference, and an overly
+broad Saturday lunch exclusion. The composite described below is historical and
+does not mark that frozen checkpoint verified.
+
+The current branch adds bounded recovery, a required evidence-support gate,
+code-enforced event/source scope, discovery of small published collections,
+official source fallback for uncitable record websites, retained expanded
+evidence, and reserved database/network time. The synthesis prompt is unchanged.
+Local validation: 94 Brain tests, Ruff, and strict mypy pass. The new complete
+acceptance report and independent semantic review are recorded in
+`rockygpt-evals/brain-reset/checkpoints/2026-09-04-behavior/` after execution.
+
+The evidence gate and source-use interpretation still depend on a model; the
+runtime checks do not guarantee correctness outside the tested conversations.
+
+---
+
 This checkpoint replaces the label-only classifier with a student assistant.
 Implementation decisions came from the product goal and the current published
 campus dataset, not historical Brain branches or designs.

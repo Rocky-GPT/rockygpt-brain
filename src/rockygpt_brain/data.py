@@ -407,8 +407,12 @@ class CampusData:
             "id": f"{collection}:{row['id']}",
             "collection": collection,
             "title": title,
-            "url": url or source["canonical_url"],
+            # An optional record website may use HTTP or an unsupported scheme.
+            # Cite the published source instead; never invent an HTTPS upgrade
+            # or force the model to repair a server-owned citation URL.
+            "url": url if url and url.startswith("https://") else source["canonical_url"],
             "source_title": source["title"],
+            "source_key": source["source_key"],
             "trust_tier": source["trust_tier"],
             "fields": json.loads(_json(fields)),
             "content": _json(fields),
@@ -740,6 +744,7 @@ class CampusData:
 
     def search(self, query: SearchQuery) -> dict[str, Any]:
         self._ensure_loaded()
+        discovery_titles: list[str] = []
         if query.collection == "documents":
             selected, total = self._documents(query)
         else:
@@ -774,6 +779,11 @@ class CampusData:
             )
             total = len(ranked)
             selected = [record for _, record in ranked[: query.limit]]
+            if not selected and len(records) <= 300:
+                # Small published collections can be discovered by their actual
+                # names when semantic interests don't overlap stored keywords.
+                # Names are navigation only; a follow-up search retrieves evidence.
+                discovery_titles = sorted({record["title"] for record in records})
         for record in selected:
             self._seen[record["id"]] = record
         return {
@@ -783,6 +793,7 @@ class CampusData:
             "total_matches": total,
             "truncated": total > len(selected),
             "available_collections": list(COLLECTIONS),
+            "discovery_titles": discovery_titles,
         }
 
     def read(self, query: ReadQuery) -> dict[str, Any]:

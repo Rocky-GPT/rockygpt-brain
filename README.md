@@ -2,7 +2,8 @@
 
 A student assistant for Ramapo College, grounded in the currently published
 campus dataset. One model-driven conversation loop searches and reads official
-campus evidence, then produces a cited answer. There is no intent classifier,
+campus evidence, then produces a cited draft. A separate evidence review must
+approve every part before the answer is returned. There is no intent classifier,
 phrase routing, vector service, process conversation memory, or generated SQL.
 
 ## Run
@@ -37,10 +38,13 @@ If `STAGING_SERVICE_TOKEN` is set, chat requires the matching
 
 The response has `answer` (Markdown with validated source links), `status`
 (`answered`, `partial`, `clarification`, or `unavailable`), `citations`, `model`,
-`requestId`, `datasetVersion`, `elapsedMs`, and `trace`. Each citation includes
+`requestId`, `datasetVersion`, `elapsedMs`, `trace`, and `metrics`. Each citation includes
 its evidence ID, title, URL, collection, collection timestamp, freshness, trust,
 validity, and limitations. Trace exposes only tool names, arguments, result
-counts, statuses, and duration; it does not contain model reasoning.
+counts, search coverage, statuses, and duration; it does not contain model reasoning.
+Metrics distinguish draft and review model calls, requested and executed tools,
+and fixed validation-failure codes. Rejected answer text and review explanations
+are not returned. Invalid-output logs contain only the request ID and reason code.
 
 Clients append the returned answer as an assistant message before the next user
 message. Prior assistant text resolves references but is not authoritative;
@@ -51,8 +55,12 @@ No student text or conversations are persisted by Brain. Model calls use
 Requests are capped at 64 KiB, 80 messages, 16,000 characters per message, and
 48,000 total content characters. Oversized histories are rejected explicitly.
 Answers are capped at 12,000 characters so they fit in a subsequent request.
-There are at most four active turns per process, six model calls, twelve executed
-tools, a 50-second execution budget, and a 52-second HTTP deadline. Timed-out
+There are at most four active turns per process, eight model calls in total
+(at most six draft/tool calls, with capacity reserved for review), twelve admitted tool attempts, a
+50-second execution budget, and a 52-second HTTP deadline. Retrieval has a
+30-second deadline, leaving time for synthesis and review. Exhausting retrieval
+does not disable answer repair. Provider connection attempts are capped at two
+seconds per address; model reads share the remaining turn budget. Timed-out
 workers retain their slot until provider and database cleanup finish. Validation errors use HTTP 422; upstream
 errors use 429/502/503/504 with a safe structured error and a request ID.
 
