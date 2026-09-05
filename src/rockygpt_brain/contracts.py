@@ -45,6 +45,24 @@ class Answer(StrictModel):
     parts: list[AnswerPart] = Field(min_length=1, max_length=12)
 
 
+class ActionDeadline(StrictModel):
+    basis: Literal["student_plan", "standing_service_rule"] = Field(
+        description=(
+            "student_plan for an action recommended for this student's requested date or "
+            "time, including optional suggestions. standing_service_rule for an undated "
+            "conditional procedure explaining which service to use when its condition "
+            "holds, without asserting that the condition holds now. A recurring service "
+            "rule does not become a plan for today merely because today's clock is supplied."
+        ),
+    )
+    latest_usable_at: datetime | None = Field(
+        description=(
+            "Latest usable ISO timestamp with timezone for a dated student plan. "
+            "Use null for an undated standing service rule; do not invent a date for it."
+        ),
+    )
+
+
 class PartReview(StrictModel):
     part_index: int = Field(ge=0, le=11)
     verdict: Literal[
@@ -83,11 +101,12 @@ class PartReview(StrictModel):
             "cross-contact without ranking food safety."
         )
     )
-    plan_deadlines: list[datetime] = Field(
+    plan_deadlines: list[ActionDeadline] = Field(
         max_length=12,
         description=(
             "For EVERY explicit schedule/deadline constraint on an action this paragraph "
-            "recommends taking, extract its latest usable ISO timestamp with timezone. "
+            "recommends taking, preserve whether it is a dated student plan or a standing "
+            "conditional service rule and extract its latest usable ISO timestamp with timezone. "
             "For a proposed fixed start or 'before' time, use that time; for joining an "
             "ongoing event or service window, use its end. Include these timestamps even "
             "when the verdict is supported and even if they are already past. Use the "

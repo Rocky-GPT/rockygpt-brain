@@ -56,6 +56,7 @@ def review(
     uses_event_for_entity: bool = False,
     infers_food_safety: bool = False,
     plan_deadlines: list[str] | None = None,
+    deadline_basis: str = "student_plan",
     unverified_premises: list[str] | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
@@ -72,7 +73,10 @@ def review(
                         "unverified_premises": unverified_premises or [],
                         "uses_event_for_entity": uses_event_for_entity,
                         "infers_food_safety": infers_food_safety,
-                        "plan_deadlines": plan_deadlines or [],
+                        "plan_deadlines": [
+                            {"basis": deadline_basis, "latest_usable_at": deadline}
+                            for deadline in plan_deadlines or []
+                        ],
                     }
                     for i, verdict in enumerate(verdicts or ("supported",))
                 ],
@@ -883,9 +887,13 @@ def test_code_checks_plan_deadlines_against_campus_clock(
     assert result.parts[0].verdict == expected
 
 
-def test_plan_deadlines_must_have_explicit_timezones() -> None:
+@pytest.mark.parametrize("deadline", [None, "2026-09-04T13:00:00"])
+def test_plan_deadlines_must_have_explicit_timezones(deadline: str | None) -> None:
     client = Mock()
     client.responses.create.return_value = review(plan_deadlines=["2026-09-04T13:00:00"])
+    verdict = json.loads(client.responses.create.return_value.output_text)
+    verdict["parts"][0]["plan_deadlines"][0]["latest_usable_at"] = deadline
+    client.responses.create.return_value.output_text = json.dumps(verdict)
     candidate = Answer.model_validate_json(answer().output_text)
     with pytest.raises(InvalidAnswer) as error:
         review_answer(
@@ -893,6 +901,26 @@ def test_plan_deadlines_must_have_explicit_timezones() -> None:
             evidence={}, client=client, model="test", now=NOW, timeout=10,
         )
     assert error.value.code == "invalid_review"
+
+
+@pytest.mark.parametrize("deadline", [None, "2026-09-04T11:00:00-04:00"])
+def test_standing_service_condition_does_not_expire_at_todays_closing(deadline: str | None) -> None:
+    client = Mock()
+    client.responses.create.return_value = review(
+        plan_deadlines=["2026-09-04T11:00:00-04:00"],
+        deadline_basis="standing_service_rule",
+    )
+    verdict = json.loads(client.responses.create.return_value.output_text)
+    verdict["parts"][0]["plan_deadlines"][0]["latest_usable_at"] = deadline
+    client.responses.create.return_value.output_text = json.dumps(verdict)
+    candidate = Answer.model_validate_json(
+        answer("During office hours use the office; after hours use the phone service.").output_text
+    )
+    result = review_answer(
+        candidate, messages=[ChatMessage(role="user", content="How can I get help?")],
+        evidence={}, client=client, model="test", now=NOW, timeout=10,
+    )
+    assert result.parts[0].verdict == "supported"
 
 
 def test_last_reserved_repair_is_reviewed_within_total_model_budget() -> None:
