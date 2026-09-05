@@ -20,7 +20,7 @@ uvicorn rockygpt_brain.api.app:app --host 127.0.0.1 --port 8000
 Set `OPENAI_API_KEY` and `DATABASE_URL`. Use a read-only database role with SELECT
 access to the published `rockygpt_v2` tables. `OPENAI_CHAT_MODEL` defaults to
 `gpt-5.4`; use a model supporting Responses function calls, structured output,
-and low reasoning effort for the evidence review.
+and medium reasoning effort for the evidence review.
 If `STAGING_SERVICE_TOKEN` is set, chat requires the matching
 `x-rockygpt-environment-token` header. Keep it identical in UI and Dev.
 

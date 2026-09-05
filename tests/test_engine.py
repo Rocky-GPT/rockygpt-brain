@@ -474,7 +474,7 @@ def test_review_is_separate_and_contains_uncited_conflicting_evidence_and_histor
     assert request["tools"] == []
     assert request["tool_choice"] == "none"
     assert request["store"] is False
-    assert request["reasoning"] == {"effort": "low"}
+    assert request["reasoning"] == {"effort": "medium"}
     assert "function_call_output" not in request["input"]
 
 
