@@ -55,6 +55,7 @@ def review(
     *verdicts: str,
     uses_event_for_entity: bool = False,
     infers_food_safety: bool = False,
+    plan_deadlines: list[str] | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         status="completed",
@@ -69,6 +70,7 @@ def review(
                         "reason": "",
                         "uses_event_for_entity": uses_event_for_entity,
                         "infers_food_safety": infers_food_safety,
+                        "plan_deadlines": plan_deadlines or [],
                     }
                     for i, verdict in enumerate(verdicts or ("supported",))
                 ],
@@ -777,6 +779,40 @@ def test_review_requires_scope_decision_for_every_paragraph() -> None:
             model="test",
             now=NOW,
             timeout=10,
+        )
+    assert error.value.code == "invalid_review"
+
+
+@pytest.mark.parametrize(
+    ("deadline", "expected"),
+    [
+        ("2026-09-04T11:00:00-04:00", "wrong_context"),
+        ("2026-09-04T12:00:00-04:00", "wrong_context"),
+        ("2026-09-04T13:00:00-04:00", "supported"),
+        (None, "supported"),
+    ],
+)
+def test_code_checks_plan_deadlines_against_campus_clock(
+    deadline: str | None, expected: str,
+) -> None:
+    client = Mock()
+    client.responses.create.return_value = review(plan_deadlines=[deadline] if deadline else [])
+    candidate = Answer.model_validate_json(answer("A time-bound proposed action.").output_text)
+    result = review_answer(
+        candidate, messages=[ChatMessage(role="user", content="Plan the rest of today")],
+        evidence={}, client=client, model="test", now=NOW, timeout=10,
+    )
+    assert result.parts[0].verdict == expected
+
+
+def test_plan_deadlines_must_have_explicit_timezones() -> None:
+    client = Mock()
+    client.responses.create.return_value = review(plan_deadlines=["2026-09-04T13:00:00"])
+    candidate = Answer.model_validate_json(answer().output_text)
+    with pytest.raises(InvalidAnswer) as error:
+        review_answer(
+            candidate, messages=[ChatMessage(role="user", content="Plan today")],
+            evidence={}, client=client, model="test", now=NOW, timeout=10,
         )
     assert error.value.code == "invalid_review"
 
