@@ -56,6 +56,7 @@ def review(
     uses_event_for_entity: bool = False,
     infers_food_safety: bool = False,
     plan_deadlines: list[str] | None = None,
+    unverified_premises: list[str] | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         status="completed",
@@ -68,6 +69,7 @@ def review(
                         "part_index": i,
                         "verdict": verdict,
                         "reason": "",
+                        "unverified_premises": unverified_premises or [],
                         "uses_event_for_entity": uses_event_for_entity,
                         "infers_food_safety": infers_food_safety,
                         "plan_deadlines": plan_deadlines or [],
@@ -497,6 +499,81 @@ def test_no_tools_or_citations_does_not_bypass_semantic_review() -> None:
     data.search.assert_not_called()
 
 
+def test_summary_reuses_preceding_citations_without_borrowing_later_or_unrelated_support() -> None:
+    other = {**RECORD, "id": "contacts:other", "title": "Another office"}
+    parts = [
+        {"kind": "limitation", "text": "I could not verify hours.", "evidence_ids": []},
+        {"kind": "campus_fact", "text": "Registrar: D-224.", "evidence_ids": [RECORD["id"]]},
+        {"kind": "guidance", "text": "You can ask the Registrar in D-224.", "evidence_ids": []},
+        {"kind": "campus_fact", "text": "Another office.", "evidence_ids": [other["id"]]},
+    ]
+    draft = answer()
+    draft.output_text = json.dumps({"status": "partial", "parts": parts})
+    client, data = Mock(), Mock()
+    client.responses.create.side_effect = [tools(search()), draft, review(*(["supported"] * 4))]
+    data.search.return_value = {"status": "ok", "records": [RECORD, other]}
+    result = run_turn(
+        [ChatMessage(role="user", content="Where is the Registrar and what are its hours?")],
+        client=client, data=data, model="test", now=NOW,
+    )
+    payload = json.loads(client.responses.create.call_args.kwargs["input"])
+    assert payload["citation_scope"] == {
+        "0": [], "1": [RECORD["id"]], "2": [RECORD["id"]], "3": [other["id"]],
+    }
+    assert payload["candidate"]["parts"] == parts
+    assert result["metrics"]["modelCalls"] == 3
+    assert result["metrics"]["validationFailures"] == []
+
+
+def test_summary_citation_reuse_preserves_event_scope_veto() -> None:
+    event = {**RECORD, "id": "events:club", "collection": "events", "title": "Book Club"}
+    candidate = Answer.model_validate({
+        "status": "answered",
+        "parts": [
+            {"kind": "campus_fact", "text": "Book Club meets in D-224.",
+             "evidence_ids": [event["id"]]},
+            {"kind": "guidance", "text": "So the library is in D-224.", "evidence_ids": []},
+        ],
+    })
+    verdict = review("supported", "supported")
+    payload = json.loads(verdict.output_text)
+    payload["parts"][1]["uses_event_for_entity"] = True
+    verdict.output_text = json.dumps(payload)
+    client = Mock()
+    client.responses.create.return_value = verdict
+    result = review_answer(
+        candidate, messages=[ChatMessage(role="user", content="Where is the library?")],
+        evidence={event["id"]: event}, client=client, model="test", now=NOW, timeout=10,
+    )
+    assert [part.verdict for part in result.parts] == ["supported", "wrong_scope"]
+    request = json.loads(client.responses.create.call_args.kwargs["input"])
+    assert request["event_citations"] == {"0": [event["id"]], "1": [event["id"]]}
+
+
+@pytest.mark.parametrize("kind", ["campus_fact", "guidance", "limitation", "clarification"])
+def test_unverified_premise_overrides_approval_and_requires_reviewed_repair(kind: str) -> None:
+    client, data = Mock(), Mock()
+    client.responses.create.side_effect = [
+        tools(search()),
+        answer("The office is in D-224, so it is open now.", kind, [RECORD["id"]]),
+        review(unverified_premises=["Having a listed office means the service is currently open."]),
+        answer("The office is D-224. I could not verify current hours.",
+               "limitation", [RECORD["id"]], status="partial"),
+        review(),
+    ]
+    data.search.return_value = {"status": "ok", "records": [RECORD]}
+    result = run_turn(
+        [ChatMessage(role="user", content="Where is the Registrar and is it open now?")],
+        client=client, data=data, model="test", now=NOW,
+    )
+    assert "it is open now" not in result["answer"]
+    assert "could not verify current hours" in result["answer"]
+    assert result["metrics"]["validationFailures"] == ["unsupported_claim"]
+    assert result["metrics"]["reviewCalls"] == 2
+    assert result["metrics"]["modelCalls"] == 5
+    assert client.responses.create.call_args_list[3].kwargs["tool_choice"] == "none"
+
+
 @pytest.mark.parametrize("failure", ["incomplete", "malformed", "omitted", "duplicate"])
 def test_failed_or_partial_review_never_releases_the_draft(failure: str) -> None:
     client, data = Mock(), Mock()
@@ -760,12 +837,13 @@ def test_event_reference_cannot_establish_general_entity_attributes_even_if_mode
     assert valid.parts[0].verdict == "supported"
 
 
-def test_review_requires_scope_decision_for_every_paragraph() -> None:
+@pytest.mark.parametrize("field", ["uses_event_for_entity", "unverified_premises"])
+def test_review_requires_scope_decision_for_every_paragraph(field: str) -> None:
     event = {**RECORD, "collection": "events", "content": "Book Club meets in D-224."}
     client = Mock()
     client.responses.create.return_value = review()
     payload = json.loads(client.responses.create.return_value.output_text)
-    del payload["parts"][0]["uses_event_for_entity"]
+    del payload["parts"][0][field]
     client.responses.create.return_value.output_text = json.dumps(payload)
     candidate = Answer.model_validate_json(
         answer("Book Club meets in D-224.", "campus_fact", [event["id"]]).output_text

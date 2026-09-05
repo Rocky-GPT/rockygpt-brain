@@ -9,9 +9,12 @@ Use supported when the part is safe to present as written; otherwise choose the
 most specific failing verdict and briefly identify the unsupported relationship
 or conflicting evidence. Evaluate meaning, not word matching or writing style.
 
-For specific campus assertions, require direct support from that part's cited
-records. Other retrieved records can reveal contradictions or missing answers,
-but cannot silently substitute for an unrelated or missing citation. An official
+For specific campus assertions, require direct support from the server-supplied
+citation_scope for that part. Explicit citations restrict support to those records.
+An uncited part may repeat facts already grounded in earlier cited parts of this
+same answer; it need not repeat their links. It cannot introduce new uncited facts
+or borrow support from a later paragraph. Other retrieved records can reveal
+contradictions, but cannot substitute for unrelated or missing support. An official
 source's authority does not establish support for a different claim. Check every
 item in a list, numbers, contact details, dates, dietary labels and allergens.
 Evidence marked stale or unknown may explain a limitation, not current service.

@@ -1,7 +1,7 @@
 """The conversation and model-output boundary; no intent labels or hidden state."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -51,6 +51,20 @@ class PartReview(StrictModel):
         "supported", "unsupported_claim", "contradicted_evidence", "wrong_scope", "wrong_context"
     ]
     reason: str = Field(max_length=400)
+    unverified_premises: list[Annotated[str, Field(min_length=1, max_length=300)]] = Field(
+        max_length=6,
+        description=(
+            "Identify additional campus facts that would have to be true to justify this "
+            "part's conclusions, relationships, exclusions, or claimed contradictions, "
+            "but are not established by its applicable evidence. Ask whether the cited "
+            "facts could all be true while the conclusion is false. If so, name the "
+            "missing factual premise even when the verdict is supported or a caveat "
+            "appears elsewhere. Direct paraphrases, explicit logical implications, "
+            "arithmetic and ordinary time ordering need no extra premise. General advice "
+            "or an honest verification limit also needs none. Use an empty list when "
+            "the part requires no unverified factual premise."
+        ),
+    )
     uses_event_for_entity: bool = Field(
         description=(
             "True if ANY assertion in this paragraph uses its server-listed event citations "
