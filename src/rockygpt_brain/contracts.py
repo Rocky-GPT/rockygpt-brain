@@ -1,5 +1,6 @@
 """The conversation and model-output boundary; no intent labels or hidden state."""
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -67,6 +68,20 @@ class PartReview(StrictModel):
             "published labels or recommends asking dining staff about ingredients and "
             "cross-contact without ranking food safety."
         )
+    )
+    plan_deadlines: list[datetime] = Field(
+        max_length=12,
+        description=(
+            "For EVERY explicit schedule/deadline constraint on an action this paragraph "
+            "recommends taking, extract its latest usable ISO timestamp with timezone. "
+            "For a proposed fixed start or 'before' time, use that time; for joining an "
+            "ongoing event or service window, use its end. Include these timestamps even "
+            "when the verdict is supported and even if they are already past. Use the "
+            "supplied campus date for today/tonight. Do not include merely quoted historical "
+            "schedules or hypothetical examples that are not recommendations for this student. "
+            "Advice to act now or as soon as possible has no expiry by itself. Use an empty "
+            "list when the proposed actions have no explicit time bounds."
+        ),
     )
 
 

@@ -119,6 +119,12 @@ even if the reviewer also marks the paragraph supported. Blank labels cannot
 establish lower risk; reporting labels and directing the student to dining staff
 for ingredients and cross-contact questions remain valid.
 
+For proposed actions, the reviewer extracts the latest usable timestamps. Code
+compares these timezone-aware values with the request's campus clock and rejects
+elapsed plans even when the factual verdict says supported. Merely quoting a past
+schedule is allowed; joining an ongoing window uses its end, not its past start.
+Timestamp extraction still depends on the model, while comparison is deterministic.
+
 Other semantic support, including negative claims and faithful
 schedule interpretation, is checked by the reviewer against full records and
 the actual request. A rejected draft can be repaired within the shared budget, but the
