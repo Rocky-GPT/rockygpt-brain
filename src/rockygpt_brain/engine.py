@@ -243,9 +243,12 @@ def review_answer(
                 "relative risk, including when a label is blank. Report the labels and "
                 "ask dining staff about ingredients and cross-contact without ranking safety."
             )
-        for deadline in part.plan_deadlines:
-            if deadline.tzinfo is None:
-                raise InvalidAnswer("Plan deadline lacks timezone", "invalid_review")
+        for constraint in part.plan_deadlines:
+            if constraint.basis == "standing_service_rule":
+                continue
+            deadline = constraint.latest_usable_at
+            if deadline is None or deadline.tzinfo is None:
+                raise InvalidAnswer("Dated plan lacks a timezone-aware deadline", "invalid_review")
             if deadline <= now:
                 part.verdict = "wrong_context"
                 part.reason = (

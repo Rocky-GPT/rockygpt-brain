@@ -132,10 +132,12 @@ even if the reviewer also marks the paragraph supported. Blank labels cannot
 establish lower risk; reporting labels and directing the student to dining staff
 for ingredients and cross-contact questions remain valid.
 
-For proposed actions, the reviewer extracts the latest usable timestamps. Code
-compares these timezone-aware values with the request's campus clock and rejects
-elapsed plans even when the factual verdict says supported. Merely quoting a past
-schedule is allowed; joining an ongoing window uses its end, not its past start.
+For proposed actions, the reviewer extracts the latest usable timestamps together
+with their basis: a dated student plan or an undated standing service rule. Code
+compares dated plans with the request's campus clock and rejects elapsed actions
+even when the factual verdict says supported. A conditional service procedure does
+not expire at today's closing time; its condition must hold when used. Merely
+quoting a past schedule is allowed; joining an ongoing window uses its end, not its past start.
 Timestamp extraction still depends on the model, while comparison is deterministic.
 
 Other semantic support, including negative claims and faithful
