@@ -145,7 +145,7 @@ schedule interpretation, is checked by the reviewer against full records and
 the actual request. A rejected draft can be repaired within the shared budget, but the
 revision must pass another review. Code never returns a rejected or unreviewed
 revision and does not splice unreviewed paragraph combinations together.
-The verifier uses low reasoning effort to compare relationships, source categories,
+The verifier uses medium reasoning effort to compare relationships, source categories,
 and the supplied campus clock. Malformed or incomplete review output gets one retry
 of the same candidate, counted within the same limits. A valid rejection never gets
 retried for a different verdict; it requires a revised answer and a fresh review.

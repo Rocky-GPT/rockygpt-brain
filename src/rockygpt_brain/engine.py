@@ -208,7 +208,7 @@ def review_answer(
                 "strict": True,
             }
         },
-        reasoning={"effort": "low"},
+        reasoning={"effort": "medium"},
         max_output_tokens=4096,
         store=False,
         timeout=Timeout(timeout, connect=min(2.0, timeout)),
