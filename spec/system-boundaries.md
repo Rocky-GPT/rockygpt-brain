@@ -105,6 +105,19 @@ It does not echo record IDs. Code rejects missing/duplicate paragraph decisions.
 This applies to guidance and limitations too.
 Each paragraph can cite 50 records, matching the retrieval result limit, so a
 published menu list can retain a citation for every item.
+Code also supplies each paragraph's citation scope: explicit IDs stay restricted
+to those records. Uncited guidance or limitations may repeat facts supported by
+earlier cited paragraphs of the same answer without repeating their links. Later
+citations, uncited retrieval results, or earlier conversation text cannot supply
+that support. The original candidate and rendered text are unchanged; the reviewer
+still rejects new unsupported facts and applies event scope to reused citations.
+
+The review contract requires a list of unverified premises: additional campus
+facts needed to justify any inferred relationship, exclusion or claimed conflict.
+Code rejects a nonempty list even when the reviewer also approves the paragraph.
+This separates the evidence's stated facts from conclusions that need an unstated
+policy or availability condition. Such a rejection requires a revised answer and
+a fresh review within the existing budget; it adds no model call to an accepted draft.
 
 Event records and the official Archway Events feed describe activities. Code
 overrides a supported verdict when those records are used for general attributes
@@ -135,7 +148,7 @@ and the supplied campus clock. Malformed or incomplete review output gets one re
 of the same candidate, counted within the same limits. A valid rejection never gets
 retried for a different verdict; it requires a revised answer and a fresh review.
 
-Claim interpretation and source-use classification still depend on a model. This
+Claim interpretation, premise identification and source-use classification still depend on a model. This
 gate reduces observed errors; it is not a proof of entailment. Realistic and
 adversarial evaluations must independently check the resulting answers.
 Stale records can explain a limitation. This first checkpoint conservatively

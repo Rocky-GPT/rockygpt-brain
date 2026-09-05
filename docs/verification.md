@@ -12,7 +12,9 @@ official source fallback for uncitable record websites, retained expanded
 evidence, and reserved database/network time. Menu paragraphs can retain up to
 50 record citations, and inferred allergy safety receives an explicit runtime
 veto. The synthesis prompt is unchanged.
-Local validation: 109 Brain tests, Ruff, and strict mypy pass. The new complete
+The latest fixes give summaries access to earlier same-answer citations and
+mechanically reject conclusions with identified unverified factual premises.
+Local validation: 116 Brain tests, Ruff, and strict mypy pass. The complete
 acceptance report and independent semantic review are recorded in
 `rockygpt-evals/brain-reset/checkpoints/2026-09-04-behavior/` after execution.
 

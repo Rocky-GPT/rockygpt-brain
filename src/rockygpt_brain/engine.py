@@ -160,13 +160,22 @@ def review_answer(
         }
         for record_id, record in evidence.items()
     }
+    # A summary can reuse citations already visible in this answer. Explicit
+    # citations keep their own scope; unrelated records cannot replace them.
+    citation_scope: dict[int, list[str]] = {}
+    preceding_citations: dict[str, None] = {}
+    for index, answer_part in enumerate(answer.parts):
+        citation_scope[index] = list(dict.fromkeys(answer_part.evidence_ids))
+        if not citation_scope[index] and answer_part.kind != "campus_fact":
+            citation_scope[index] = list(preceding_citations)
+        preceding_citations.update(dict.fromkeys(answer_part.evidence_ids))
     event_citations = {
         index: [
             record_id
-            for record_id in dict.fromkeys(part.evidence_ids)
+            for record_id in record_ids
             if subjects.get(record_id, {}).get("kind") == "event"
         ]
-        for index, part in enumerate(answer.parts)
+        for index, record_ids in citation_scope.items()
     }
     response = client.responses.create(
         model=model,
@@ -183,6 +192,7 @@ def review_answer(
                 "candidate": answer.model_dump(),
                 "evidence": list(evidence.values()),
                 "evidence_subjects": subjects,
+                "citation_scope": citation_scope,
                 "event_citations": event_citations,
             },
             default=str,
@@ -214,6 +224,9 @@ def review_answer(
             "Review did not cover every answer part exactly once", "review_coverage"
         )
     for part in review.parts:
+        if part.unverified_premises:
+            part.verdict = "unsupported_claim"
+            part.reason = ("Missing factual support: " + "; ".join(part.unverified_premises))[:400]
         # Citation membership and source kind come from code, not an ID list
         # echoed by the reviewer. Event facts are about that activity only.
         if event_citations[part.part_index] and part.uses_event_for_entity:
