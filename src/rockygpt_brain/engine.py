@@ -160,6 +160,14 @@ def review_answer(
         }
         for record_id, record in evidence.items()
     }
+    event_citations = {
+        index: [
+            record_id
+            for record_id in dict.fromkeys(part.evidence_ids)
+            if subjects.get(record_id, {}).get("kind") == "event"
+        ]
+        for index, part in enumerate(answer.parts)
+    }
     response = client.responses.create(
         model=model,
         instructions=REVIEW_INSTRUCTIONS,
@@ -175,6 +183,7 @@ def review_answer(
                 "candidate": answer.model_dump(),
                 "evidence": list(evidence.values()),
                 "evidence_subjects": subjects,
+                "event_citations": event_citations,
             },
             default=str,
             ensure_ascii=False,
@@ -189,7 +198,8 @@ def review_answer(
                 "strict": True,
             }
         },
-        max_output_tokens=2400,
+        reasoning={"effort": "low"},
+        max_output_tokens=4096,
         store=False,
         timeout=Timeout(timeout, connect=min(2.0, timeout)),
     )
@@ -204,26 +214,15 @@ def review_answer(
             "Review did not cover every answer part exactly once", "review_coverage"
         )
     for part in review.parts:
-        event_citations = {
-            record_id
-            for record_id in answer.parts[part.part_index].evidence_ids
-            if subjects.get(record_id, {}).get("kind") == "event"
-        }
-        if {use.evidence_id for use in part.event_evidence_uses} != event_citations:
-            raise InvalidAnswer("Review omitted or invented an event use", "review_evidence")
-        for use in part.event_evidence_uses:
-            subject = subjects.get(use.evidence_id)
-            if subject is None:
-                raise InvalidAnswer("Unknown review evidence", "review_evidence")
-            # Event facts are about that activity. A venue or organizer mention
-            # cannot establish general attributes of the referenced entity.
-            if subject["kind"] == "event" and use.assertion_subject == "referenced_entity":
-                part.verdict = "wrong_scope"
-                part.reason = (
-                    "Event evidence cannot establish general attributes of a referenced "
-                    "facility or organization. Use direct evidence for that entity, or "
-                    "state that the requested attribute could not be verified."
-                )
+        # Citation membership and source kind come from code, not an ID list
+        # echoed by the reviewer. Event facts are about that activity only.
+        if event_citations[part.part_index] and part.uses_event_for_entity:
+            part.verdict = "wrong_scope"
+            part.reason = (
+                "Event evidence cannot establish general attributes of a referenced "
+                "facility or organization. Use direct evidence for that entity, or "
+                "state that the requested attribute could not be verified."
+            )
         if part.infers_food_safety:
             part.verdict = "unsupported_claim"
             part.reason = (
@@ -335,19 +334,31 @@ def run_turn(
                     }
                 )
                 continue
-            remaining = TURN_SECONDS - (monotonic() - started)
-            if remaining <= 0:
-                raise TimeoutError("Turn deadline exceeded before evidence review")
-            review_calls += 1
-            review = review_answer(
-                candidate,
-                messages=messages,
-                evidence=evidence,
-                client=client,
-                model=model,
-                now=now,
-                timeout=min(20.0, remaining),
-            )
+            for review_attempt in range(2):
+                remaining = TURN_SECONDS - (monotonic() - started)
+                if remaining <= 0:
+                    raise TimeoutError("Turn deadline exceeded before evidence review")
+                if draft_calls + review_calls >= MAX_MODEL_CALLS:
+                    raise InvalidAnswer("No capacity for evidence review", "answer_budget")
+                review_calls += 1
+                try:
+                    review = review_answer(
+                        candidate,
+                        messages=messages,
+                        evidence=evidence,
+                        client=client,
+                        model=model,
+                        now=now,
+                        timeout=min(20.0, remaining),
+                    )
+                except InvalidAnswer as error:
+                    if error.code not in {"invalid_review", "incomplete_review", "review_coverage"}:
+                        raise
+                    validation_failures.append(error.code)
+                    if review_attempt == 1:
+                        raise
+                else:
+                    break
             rejected = [part for part in review.parts if part.verdict != "supported"]
             if rejected:
                 validation_failures.extend(part.verdict for part in rejected)
