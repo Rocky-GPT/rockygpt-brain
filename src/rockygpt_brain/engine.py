@@ -375,7 +375,7 @@ def run_turn(
                         client=client,
                         model=model,
                         now=now,
-                        timeout=min(20.0, remaining),
+                        timeout=min(30.0, remaining),
                     )
                 except InvalidAnswer as error:
                     if error.code not in {"invalid_review", "incomplete_review", "review_coverage"}:
