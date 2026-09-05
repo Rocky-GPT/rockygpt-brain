@@ -95,8 +95,11 @@ When an optional record website cannot be cited over HTTPS, the record retains
 that published field but citations use its existing official source URL. The
 model is never asked to repair a URL owned by the retrieval layer.
 Freshness and ID validation are deterministic. Every candidate then receives a
-separate model review with the complete conversation, exact current-turn evidence,
-and search coverage. Each paragraph must have one verdict. Every cited event record
+separate model review with the complete conversation and exact current-turn evidence.
+Search counts and truncation flags stay in the synthesis/tool context and public
+trace; they are not authority for accepting or rejecting a factual assertion.
+Answer completeness is assessed independently in the acceptance suite.
+Each paragraph must have one verdict. Every cited event record
 must also be classified as supporting an assertion about the event or a referenced
 entity. Code rejects missing/duplicate paragraph decisions and omitted or invented
 event-use entries. Non-event citations receive the same factual support review
