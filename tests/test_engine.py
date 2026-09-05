@@ -53,8 +53,7 @@ def answer(
 
 def review(
     *verdicts: str,
-    ids: list[str] | None = None,
-    subject: str = "record_subject",
+    uses_event_for_entity: bool = False,
     infers_food_safety: bool = False,
 ) -> SimpleNamespace:
     return SimpleNamespace(
@@ -68,10 +67,7 @@ def review(
                         "part_index": i,
                         "verdict": verdict,
                         "reason": "",
-                        "event_evidence_uses": [
-                            {"evidence_id": key, "assertion_subject": subject}
-                            for key in (ids or [])
-                        ],
+                        "uses_event_for_entity": uses_event_for_entity,
                         "infers_food_safety": infers_food_safety,
                     }
                     for i, verdict in enumerate(verdicts or ("supported",))
@@ -470,6 +466,7 @@ def test_review_is_separate_and_contains_uncited_conflicting_evidence_and_histor
     assert request["tools"] == []
     assert request["tool_choice"] == "none"
     assert request["store"] is False
+    assert request["reasoning"] == {"effort": "low"}
     assert "function_call_output" not in request["input"]
 
 
@@ -512,7 +509,7 @@ def test_failed_or_partial_review_never_releases_the_draft(failure: str) -> None
         payload = json.loads(verdict.output_text)
         payload["parts"] *= 2
         verdict.output_text = json.dumps(payload)
-    client.responses.create.side_effect = [answer(), verdict]
+    client.responses.create.side_effect = [answer(), verdict, verdict]
     with pytest.raises(InvalidAnswer):
         run_turn(
             [ChatMessage(role="user", content="Help me study")],
@@ -521,7 +518,7 @@ def test_failed_or_partial_review_never_releases_the_draft(failure: str) -> None
             model="test",
             now=NOW,
         )
-    assert client.responses.create.call_count == 2
+    assert client.responses.create.call_count == 3
 
 
 def test_review_timeout_never_releases_the_draft() -> None:
@@ -536,6 +533,107 @@ def test_review_timeout_never_releases_the_draft() -> None:
             now=NOW,
         )
     assert client.responses.create.call_count == 2
+
+
+def test_invalid_review_retries_same_candidate_without_draft_or_tool_work() -> None:
+    client, data = Mock(), Mock()
+    malformed = review()
+    malformed.output_text = "not JSON"
+    client.responses.create.side_effect = [answer(), malformed, review()]
+    result = run_turn(
+        [ChatMessage(role="user", content="Help me plan a study session")],
+        client=client, data=data, model="test", now=NOW,
+    )
+    requests = client.responses.create.call_args_list
+    assert requests[1].kwargs == requests[2].kwargs
+    assert result["metrics"] == {
+        "modelCalls": 3, "draftCalls": 1, "reviewCalls": 2,
+        "toolRequests": 0, "toolExecutions": 0, "validationFailures": ["invalid_review"],
+    }
+    data.search.assert_not_called()
+
+
+def test_review_retry_stops_at_turn_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = [0.0]
+    monkeypatch.setattr("rockygpt_brain.engine.monotonic", lambda: clock[0])
+    client, data = Mock(), Mock()
+
+    def respond(**kwargs: object) -> SimpleNamespace:
+        if client.responses.create.call_count == 1:
+            return answer()
+        clock[0] = 50.0
+        malformed = review()
+        malformed.output_text = "not JSON"
+        return malformed
+
+    client.responses.create.side_effect = respond
+    with pytest.raises(TimeoutError):
+        run_turn(
+            [ChatMessage(role="user", content="Help me study")],
+            client=client, data=data, model="test", now=NOW,
+        )
+    assert client.responses.create.call_count == 2
+
+
+def test_review_retry_then_valid_rejection_cannot_exceed_shared_budget() -> None:
+    client, data = Mock(), Mock()
+    malformed = review()
+    malformed.output_text = "not JSON"
+    client.responses.create.side_effect = [
+        *(tools(search(str(i))) for i in range(4)),
+        answer("Office A-101", "campus_fact", [RECORD["id"]]),
+        malformed,
+        review("contradicted_evidence"),
+    ]
+    data.search.return_value = {"status": "ok", "records": [RECORD]}
+    with pytest.raises(InvalidAnswer) as error:
+        run_turn(
+            [ChatMessage(role="user", content="Where is the office?")],
+            client=client, data=data, model="test", now=NOW,
+        )
+    assert error.value.code == "unsupported_answer"
+    assert client.responses.create.call_count == 7 < MAX_MODEL_CALLS
+
+
+def test_last_review_retry_fits_exact_total_model_budget() -> None:
+    client, data = Mock(), Mock()
+    malformed = review()
+    malformed.output_text = "not JSON"
+    client.responses.create.side_effect = [
+        *(tools(search(str(i))) for i in range(4)),
+        answer("See https://unverified.example/", "campus_fact", [RECORD["id"]]),
+        answer("Office D-224", "campus_fact", [RECORD["id"]]),
+        malformed,
+        review(),
+    ]
+    data.search.return_value = {"status": "ok", "records": [RECORD]}
+    result = run_turn(
+        [ChatMessage(role="user", content="Where is the office?")],
+        client=client, data=data, model="test", now=NOW,
+    )
+    assert result["metrics"]["modelCalls"] == client.responses.create.call_count == MAX_MODEL_CALLS
+    assert result["metrics"]["draftCalls"] == MAX_DRAFT_CALLS
+    assert result["metrics"]["reviewCalls"] == 2
+
+
+@pytest.mark.parametrize("scope_flag", [False, True])
+def test_uncited_events_do_not_corrupt_direct_entity_evidence_review(scope_flag: bool) -> None:
+    event = {**RECORD, "id": "event:club", "collection": "events", "title": "Book Club"}
+    client, data = Mock(), Mock()
+    client.responses.create.side_effect = [
+        tools(search()),
+        answer("Office D-224", "campus_fact", [RECORD["id"]]),
+        review(uses_event_for_entity=scope_flag),
+    ]
+    data.search.return_value = {"status": "ok", "records": [RECORD, event]}
+    result = run_turn(
+        [ChatMessage(role="user", content="Where is the Registrar?")],
+        client=client, data=data, model="test", now=NOW,
+    )
+    assert "Office D-224" in result["answer"]
+    payload = json.loads(client.responses.create.call_args.kwargs["input"])
+    assert payload["event_citations"] == {"0": []}
+    assert event in payload["evidence"]
 
 
 def test_overlapping_search_does_not_erase_previously_read_details() -> None:
@@ -632,7 +730,7 @@ def test_event_reference_cannot_establish_general_entity_attributes_even_if_mode
     client = Mock()
     # The model's classification exposes the source/subject mismatch. Code must
     # override its erroneous approval, rather than trusting supported blindly.
-    client.responses.create.return_value = review(ids=[event["id"]], subject="referenced_entity")
+    client.responses.create.return_value = review(uses_event_for_entity=True)
     candidate = Answer.model_validate_json(
         answer("The library is in LC417.", kind, [event["id"]]).output_text
     )
@@ -646,7 +744,7 @@ def test_event_reference_cannot_establish_general_entity_attributes_even_if_mode
         timeout=10,
     )
     assert result.parts[0].verdict == "wrong_scope"
-    client.responses.create.return_value = review(ids=[event["id"]])
+    client.responses.create.return_value = review()
     candidate.parts[0].text = "Book Club meets at Library (LC417)."
     valid = review_answer(
         candidate,
@@ -660,10 +758,13 @@ def test_event_reference_cannot_establish_general_entity_attributes_even_if_mode
     assert valid.parts[0].verdict == "supported"
 
 
-def test_review_cannot_skip_classifying_a_cited_event() -> None:
+def test_review_requires_scope_decision_for_every_paragraph() -> None:
     event = {**RECORD, "collection": "events", "content": "Book Club meets in D-224."}
     client = Mock()
     client.responses.create.return_value = review()
+    payload = json.loads(client.responses.create.return_value.output_text)
+    del payload["parts"][0]["uses_event_for_entity"]
+    client.responses.create.return_value.output_text = json.dumps(payload)
     candidate = Answer.model_validate_json(
         answer("Book Club meets in D-224.", "campus_fact", [event["id"]]).output_text
     )
@@ -677,7 +778,7 @@ def test_review_cannot_skip_classifying_a_cited_event() -> None:
             now=NOW,
             timeout=10,
         )
-    assert error.value.code == "review_evidence"
+    assert error.value.code == "invalid_review"
 
 
 def test_last_reserved_repair_is_reviewed_within_total_model_budget() -> None:

@@ -44,30 +44,19 @@ class Answer(StrictModel):
     parts: list[AnswerPart] = Field(min_length=1, max_length=12)
 
 
-class EvidenceUse(StrictModel):
-    evidence_id: str
-    assertion_subject: Literal["record_subject", "referenced_entity"] = Field(
-        description=(
-            "Does the assertion describe the record's own subject, or an entity merely "
-            "mentioned in it? Use the server-supplied evidence_subjects. Classify the "
-            "subject of the assertion, not just the noun in a matching quote."
-        )
-    )
-
-
 class PartReview(StrictModel):
     part_index: int = Field(ge=0, le=11)
     verdict: Literal[
         "supported", "unsupported_claim", "contradicted_evidence", "wrong_scope", "wrong_context"
     ]
     reason: str = Field(max_length=400)
-    event_evidence_uses: list[EvidenceUse] = Field(
-        max_length=100,
+    uses_event_for_entity: bool = Field(
         description=(
-            "Classify every cited EVENT record's use, including event documents, even for "
-            "a supported part or guidance/limitation. Use evidence_subjects kind=event; "
-            "omit non-event records from this list. Include both uses if the paragraph "
-            "asserts facts about both the event and a referenced entity. Omit no cited event."
+            "True if ANY assertion in this paragraph uses its server-listed event citations "
+            "to infer general attributes of a referenced facility or organization, even "
+            "when mixed with actual event facts. False for an event's own details or an "
+            "honest statement that an event does not verify an entity attribute. False if "
+            "this paragraph's event_citations list is empty. Evaluate every paragraph kind."
         ),
     )
     infers_food_safety: bool = Field(

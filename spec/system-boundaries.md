@@ -99,11 +99,10 @@ separate model review with the complete conversation and exact current-turn evid
 Search counts and truncation flags stay in the synthesis/tool context and public
 trace; they are not authority for accepting or rejecting a factual assertion.
 Answer completeness is assessed independently in the acceptance suite.
-Each paragraph must have one verdict. Every cited event record
-must also be classified as supporting an assertion about the event or a referenced
-entity. Code rejects missing/duplicate paragraph decisions and omitted or invented
-event-use entries. Non-event citations receive the same factual support review
-without redundant ID echoes. This applies to guidance and limitations too.
+Each paragraph must have one verdict. Code supplies the exact event citations per
+paragraph; the reviewer flags whether any are used for general entity attributes.
+It does not echo record IDs. Code rejects missing/duplicate paragraph decisions.
+This applies to guidance and limitations too.
 Each paragraph can cite 50 records, matching the retrieval result limit, so a
 published menu list can retain a citation for every item.
 
@@ -125,6 +124,10 @@ schedule interpretation, is checked by the reviewer against full records and
 the actual request. A rejected draft can be repaired within the shared budget, but the
 revision must pass another review. Code never returns a rejected or unreviewed
 revision and does not splice unreviewed paragraph combinations together.
+The verifier uses low reasoning effort to compare relationships, source categories,
+and the supplied campus clock. Malformed or incomplete review output gets one retry
+of the same candidate, counted within the same limits. A valid rejection never gets
+retried for a different verdict; it requires a revised answer and a fresh review.
 
 Claim interpretation and source-use classification still depend on a model. This
 gate reduces observed errors; it is not a proof of entailment. Realistic and
