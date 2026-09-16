@@ -3,6 +3,7 @@
 import json
 from copy import deepcopy
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -264,3 +265,55 @@ def test_calculation_does_not_accept_invented_evidence_values() -> None:
     record["fields"]["credits"] = "3-4"
     with pytest.raises(ValueError, match="scalar"):
         calculate(query, {"course": record}, messages("Total credits?"), NOW.date())
+
+
+@pytest.mark.parametrize(
+    ("operation", "expected"),
+    [
+        ("sum", "2.0"),
+        ("difference", "-4.5"),
+        ("mean", "1.0"),
+        ("minimum", "-1.25"),
+        ("maximum", "3.25"),
+    ],
+)
+def test_calculation_operations_preserve_sign_order_and_decimals(
+    operation: str,
+    expected: str,
+) -> None:
+    query = CalculationQuery.model_validate(
+        {
+            "operation": operation,
+            "operands": [{"source": "user", "value": value} for value in ["-1.25", "3.25"]],
+        }
+    )
+    result = calculate(query, {}, messages("Use -1.25 and 3.25 in that order"), NOW.date())
+    assert Decimal(result["result"]) == Decimal(expected)
+    assert result["unit"] == "unspecified"
+
+
+@pytest.mark.parametrize("invalid", ["stale", "coverage", "truncated", "date", "mixed_units"])
+def test_calculation_rejects_unverified_or_incompatible_measurements(invalid: str) -> None:
+    record: dict[str, Any] = {
+        "fields": {"calories": "100", "credits": "4"},
+        "freshness": "fresh",
+        "trust_tier": "official_primary",
+        "content_truncated": False,
+        "coverage": {"fields": {"calories": "published", "credits": "published"}},
+    }
+    operands = [{"source": "evidence", "value": "100", "evidence_id": "a", "field": "calories"}]
+    if invalid == "stale":
+        record["freshness"] = "stale"
+    elif invalid == "coverage":
+        record["coverage"]["fields"]["calories"] = "unknown"
+    elif invalid == "truncated":
+        record["content_truncated"] = True
+    elif invalid == "date":
+        record["valid_until"] = "2026-09-03"
+    else:
+        operands.append(
+            {"source": "evidence", "value": "4", "evidence_id": "a", "field": "credits"}
+        )
+    query = CalculationQuery.model_validate({"operation": "sum", "operands": operands})
+    with pytest.raises(ValueError):
+        calculate(query, {"a": record}, messages("Add these measurements"), NOW.date())

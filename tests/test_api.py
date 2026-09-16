@@ -70,6 +70,24 @@ def test_health_does_not_require_services() -> None:
     assert TestClient(app).head("/health").status_code == 200
 
 
+@pytest.mark.parametrize("reason", ["context_limit", "retrieval_context_limit"])
+def test_context_errors_distinguish_history_from_retrieval(reason: str) -> None:
+    with (
+        patch.dict("os.environ", {"STAGING_SERVICE_TOKEN": ""}),
+        patch("rockygpt_brain.api.app.open_gateway", return_value=gateway_context()),
+        patch("rockygpt_brain.api.app.run_turn", side_effect=PaidCallError(reason)),
+        patch("rockygpt_brain.api.app.CampusData"),
+    ):
+        response = TestClient(app).post(
+            "/v1/chat", json={"messages": [{"role": "user", "content": "Hello"}]}
+        )
+    payload = response.json()
+    assert response.status_code == 422
+    assert payload["requestId"] and payload["reason"] == reason
+    assert payload["error"]["retryable"] is False
+    assert ("conversation" in payload["error"]["message"]) == (reason == "context_limit")
+
+
 def test_oversized_body_is_rejected_before_json_parsing() -> None:
     with patch("rockygpt_brain.api.app.run_turn") as run:
         response = TestClient(app).post("/v1/chat", content=b"x" * 65537)

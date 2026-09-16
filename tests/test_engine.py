@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from openai import Timeout
 
+from rockygpt_brain.accounting import PaidCallError
 from rockygpt_brain.contracts import Answer, ChatMessage
 from rockygpt_brain.engine import (
     MAX_DRAFT_CALLS,
@@ -19,6 +20,7 @@ from rockygpt_brain.engine import (
     review_answer,
     run_turn,
 )
+from test_evidence import expand_records
 
 NOW = datetime(2026, 9, 4, 12, tzinfo=ZoneInfo("America/New_York"))
 RECORD = {
@@ -29,6 +31,30 @@ RECORD = {
     "freshness": "fresh",
     "content": "Office: D-224",
 }
+
+
+@pytest.mark.parametrize("stage", ["conversation", "draft", "review"])
+def test_internal_context_overflow_does_not_blame_accepted_history(stage: str) -> None:
+    client, data = Mock(), Mock()
+    preceding = []
+    if stage != "conversation":
+        preceding.append(tools(search()))
+    if stage == "review":
+        preceding.append(answer("D-224", "campus_fact", [RECORD["id"]]))
+    client.create.side_effect = [*preceding, PaidCallError("context_limit")]
+    data.search.return_value = {"status": "ok", "records": [RECORD]}
+    with pytest.raises(PaidCallError) as error:
+        run_turn(
+            [ChatMessage(role="user", content="Where is the Registrar?")],
+            client=client,
+            data=data,
+            model="test",
+            now=NOW,
+        )
+    assert error.value.code == (
+        "context_limit" if stage == "conversation" else "retrieval_context_limit"
+    )
+    assert client.create.call_count == len(preceding) + 1
 
 
 def answer(
@@ -473,7 +499,7 @@ def test_review_is_separate_and_contains_uncited_conflicting_evidence_and_histor
     request = client.create.call_args.kwargs
     payload = json.loads(request["input"])
     assert payload["conversation"] == [message.model_dump() for message in messages]
-    assert payload["evidence"] == [RECORD, other]
+    assert expand_records(payload["evidence"]) == [RECORD, other]
     assert "retrieval" not in payload
     assert payload["candidate"]["parts"][0]["evidence_ids"] == [RECORD["id"]]
     assert request["tools"] == []
@@ -796,7 +822,7 @@ def test_uncited_events_do_not_corrupt_direct_entity_evidence_review(scope_flag:
     assert "Office D-224" in result["answer"]
     payload = json.loads(client.create.call_args.kwargs["input"])
     assert payload["event_citations"] == {"0": []}
-    assert event in payload["evidence"]
+    assert event in expand_records(payload["evidence"])
 
 
 def test_overlapping_search_does_not_erase_previously_read_details() -> None:
@@ -830,7 +856,7 @@ def test_overlapping_search_does_not_erase_previously_read_details() -> None:
         now=NOW,
     )
     payload = json.loads(client.create.call_args.kwargs["input"])
-    assert payload["evidence"] == [detail]
+    assert expand_records(payload["evidence"]) == [detail]
 
 
 def test_slow_retrieval_obeys_reserved_deadline_and_answer_still_gets_reviewed(
@@ -1076,7 +1102,7 @@ def test_menu_list_can_keep_every_item_cited_without_repeating_source_urls() -> 
     assert result["answer"].count("https://www.ramapo.edu/dining/menu/") == 1
     assert result["metrics"]["validationFailures"] == []
     payload = json.loads(client.create.call_args.kwargs["input"])
-    assert payload["evidence"] == records
+    assert expand_records(payload["evidence"]) == records
     assert len(payload["candidate"]["parts"][0]["evidence_ids"]) == 20
 
 

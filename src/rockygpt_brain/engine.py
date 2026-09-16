@@ -10,10 +10,12 @@ from typing import Any
 from httpx import Timeout
 from pydantic import ValidationError
 
+from rockygpt_brain.accounting import PaidCallError
 from rockygpt_brain.calculations import CalculationQuery, calculate
 from rockygpt_brain.config import RELEASE
 from rockygpt_brain.contracts import Answer, ChatMessage, EvidenceReview
 from rockygpt_brain.data import COLLECTIONS, CampusData, ReadQuery, SearchQuery
+from rockygpt_brain.evidence import compact_records
 from rockygpt_brain.exact import ContactQuery, contact_answer
 from rockygpt_brain.provider import ModelClient
 
@@ -222,13 +224,14 @@ def review_answer(
                     str(now.date() + timedelta(days=6 - now.weekday())),
                 ],
                 "candidate": answer.model_dump(),
-                "evidence": list(evidence.values()),
+                "evidence": compact_records(list(evidence.values())),
                 "evidence_subjects": subjects,
                 "citation_scope": citation_scope,
                 "event_citations": event_citations,
             },
             default=str,
             ensure_ascii=False,
+            separators=(",", ":"),
         ),
         tools=[],
         tool_choice="none",
@@ -341,30 +344,35 @@ def run_turn(
             or remaining <= ANSWER_RESERVE_SECONDS
         )
         draft_calls += 1
-        response = client.create(
-            category="draft",
-            model=model,
-            instructions=instructions,
-            input=list(history),
-            tools=tools,
-            tool_choice="none" if answer_only else "auto",
-            parallel_tool_calls=True,
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "student_answer",
-                    "schema": Answer.model_json_schema(),
-                    "strict": True,
-                }
-            },
-            max_output_tokens=RELEASE.draft_output_tokens,
-            reasoning={"effort": RELEASE.draft_reasoning},
-            store=False,
-            timeout=Timeout(
-                min(30.0, remaining - REVIEW_RESERVE_SECONDS),
-                connect=min(2.0, remaining - REVIEW_RESERVE_SECONDS),
-            ),
-        )
+        try:
+            response = client.create(
+                category="draft",
+                model=model,
+                instructions=instructions,
+                input=list(history),
+                tools=tools,
+                tool_choice="none" if answer_only else "auto",
+                parallel_tool_calls=True,
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": "student_answer",
+                        "schema": Answer.model_json_schema(),
+                        "strict": True,
+                    }
+                },
+                max_output_tokens=RELEASE.draft_output_tokens,
+                reasoning={"effort": RELEASE.draft_reasoning},
+                store=False,
+                timeout=Timeout(
+                    min(30.0, remaining - REVIEW_RESERVE_SECONDS),
+                    connect=min(2.0, remaining - REVIEW_RESERVE_SECONDS),
+                ),
+            )
+        except PaidCallError as error:
+            if error.code == "context_limit" and round_index > 0:
+                raise PaidCallError("retrieval_context_limit") from error
+            raise
         if response.status != "completed":
             raise InvalidAnswer("Incomplete model response", "incomplete_draft")
         calls = [item for item in response.output if item.type == "function_call"]
@@ -415,6 +423,10 @@ def run_turn(
                         now=now,
                         timeout=min(30.0, remaining),
                     )
+                except PaidCallError as error:
+                    if error.code == "context_limit":
+                        raise PaidCallError("retrieval_context_limit") from error
+                    raise
                 except InvalidAnswer as error:
                     if error.code not in {"invalid_review", "incomplete_review", "review_coverage"}:
                         raise
@@ -548,11 +560,16 @@ def run_turn(
                 exact_candidate = contact_answer(
                     messages, ContactQuery.model_validate(arguments), output, now.date()
                 )
+            wire_output = dict(output)
+            if "records" in wire_output:
+                wire_output["evidence_groups"] = compact_records(wire_output.pop("records"))
             history.append(
                 {
                     "type": "function_call_output",
                     "call_id": call.call_id,
-                    "output": json.dumps(output, default=str, ensure_ascii=False),
+                    "output": json.dumps(
+                        wire_output, default=str, ensure_ascii=False, separators=(",", ":")
+                    ),
                 }
             )
         if exact_candidate is not None:

@@ -1,31 +1,25 @@
 # Phase 2 — implementation and acceptance
 
-Status: **reopened — menu-to-answer context handling remains unresolved**, September 16, 2026.
-The contact path and independent retrieval checks below passed, including **17/17**
-labeled retrieval cases. However, the subsequent student UI request “what is for
-dinner today” failed with `context_limit` after retrieving 50 menu records and
-four dining-hours records. Support ID: `70d4813d-392f-4615-b8fd-ce2c96d5d2aa`.
-The visible conversation was short; retrieved tool output exceeded the internal
-request bound, and the error incorrectly blamed conversation length. The first
-provider call settled; the next call was rejected before paid execution.
+Status: **Phase 2 development acceptance complete**, September 16, 2026.
 
-This case was missing from the end-to-end acceptance checks. Phase 2 must not be
-claimed complete until bounded tool context and an appropriate error distinction
-are implemented and this menu conversation passes an end-to-end regression.
-The results below remain valid for their tested scope. No fix for this new bug is
-included in this checkpoint, and it is not production release readiness.
+The menu-context regression that reopened this phase is fixed and covered by
+HTTP + real PostgreSQL + accounting-gateway tests. The exact contact path,
+all nine required controlled outcomes, and **17/17** labeled retrieval cases pass.
+The normal student browser also completed the original short dinner conversation.
+This establishes the Phase 2 milestone, not production release readiness or the
+later controller/model latency targets.
 
 ## Requirement-by-requirement evidence
 
 | Plan requirement | Implementation and verification |
 | --- | --- |
-| Existing browser → `POST /v1/chat` | Real Developer UI browser request `1d11515f-ae0e-49fc-aa1b-f4eb86c64709`, HTTP 200, normal Brain and OpenAI provider |
+| Existing browser → `POST /v1/chat` | Real Developer UI browser request `eaf389c0-9615-4028-8605-52be16cb1d7f`, HTTP 200, normal Brain and OpenAI provider |
 | Trusted environment, request ID, reserve before provider | Existing environment-specific paid gateway and durable ledger; admission, isolation, race, restart and month-boundary tests |
 | Baseline model chooses real tool | Real `lookup_contact` request for the Registrar; generic tool and entity/field contracts, no canned office answer |
 | Parameterized retrieval and evidence validation | Release-pinned SQL; published aliases, source/entity identity, field coverage, freshness, applicability and conflicts checked |
 | Exact eligible answer without synthesis/review | Browser contact: `exact_contact`, one model call, zero review calls; extra fetched fields do not expand the user's request |
 | Render fields and source in browser | Verified department, email, phone, office, directory citation and mailto link |
-| Actual accounting linked to request and evidence | Browser receipts include settled provider usage, request ID, configuration hash, tool result/evidence IDs and timings in `final-live-results.json` |
+| Actual accounting linked to request and evidence | Browser receipts include settled provider usage, request ID, configuration hash, tool result/evidence IDs and timings in `context-fix-live-results.json`; historical checks remain in `final-live-results.json` |
 | Supported/missing/uncovered | Actual SQL + HTTP tests; unsupported names clarify and unpublished fields produce a limitation |
 | Ambiguous/conflicting | Actual duplicate SQL rows with different identities or contradictory values; no unsupported exact output |
 | Database failure | Injected retrieval failure returns a safe response and request ID; already performed provider work stays settled |
@@ -36,6 +30,55 @@ included in this checkpoint, and it is not production release readiness.
 | Calculations and exact rendering | Decimal sum/difference/mean/minimum/maximum with verified operands and units; code renders exact contact facts and calculation values |
 | Labeled independent retrieval | 17/17 frozen checks, zero provider calls; all required source qualifiers must match, not merely any expected chunk |
 | Reproducible public snapshot | `public-snapshot.json.gz`, copied schema + additive migrations, guarded local-only loader, SHA-256 in result reports |
+
+## Menu-context regression closed
+
+The original short dinner conversation, request
+`70d4813d-392f-4615-b8fd-ce2c96d5d2aa`, retrieved 50 menu records and four
+hours records. Repeated source metadata pushed the next request over the
+conservative input bound; the error incorrectly blamed conversation length.
+
+Tool and reviewer payloads now share identical top-level record metadata in
+explicit `defaults`/`records` groups and use compact JSON. Reconstruction is
+lossless: each row overrides its group's defaults. No records, field values,
+coverage, dietary labels, limitations, conflicting evidence, or accepted
+conversation messages are discarded. Server validation and citations still use
+the original records. The reviewer still receives all retrieved evidence,
+including uncited contradictions. Both model instructions document the encoding.
+
+`test_short_dinner_chat_with_fifty_menu_records_and_hours` forces the exact
+50-menu + four-hours retrieval through HTTP, real frozen PostgreSQL, and the
+normal paid gateway with only the external provider simulated. It proves the
+old representation exceeds the unchanged input ceiling and the complete new
+representation fits. It checks every reconstructed record in both writing and
+review contexts, source counts/truncation, all menu names/citations, and settled
+accounting. It also injects genuinely oversized evidence: the next paid call
+and reservation are never made, previous usage stays settled, and HTTP 422
+returns `retrieval_context_limit` with a narrowing suggestion. Original-history
+overflow retains `context_limit`; neither response invites automatic retries.
+Separate regression tests cover overflow during review and preserve null versus
+absent fields, different sources, stale records, and differing coverage.
+
+Live revalidation used the normal services and provider:
+
+- Student UI: `hey` → `what is for dinner today` succeeded with a non-exhaustive
+  dinner list and the Ramapo Dining citation. Request
+  `64cfa2fb-0e8f-44df-bc64-280570a2b674`, 49,486 ms server time, five model calls,
+  32 ms retrieval, all usage settled. The live model chose 20 of 51 menu records;
+  the forced automated regression covers the larger 50 + four case.
+- Exact contact: request `eaf389c0-9615-4028-8605-52be16cb1d7f`, 6,383 ms browser
+  time, one model call, zero review calls, 62 ms retrieval, correct directory
+  fields/citation, all usage settled.
+- The earlier Developer UI dinner attempt
+  `21f409ae-3dee-4d64-b5fd-2b19e470ef98` passed context admission but timed out in
+  the existing review/repair path: HTTP 504 at 46,368 ms browser time. Its last
+  uncertain operation still holds 249,175,000 nUSD ($0.249175). No charge was
+  cleared, retried invisibly, or treated as free.
+
+There were five live turns in this revalidation: two greetings, two dinner
+attempts, and one contact request; four completed and one timed out. Receipts,
+configuration identities, and browser observations are retained in
+[context-fix-live-results.json](phase2/context-fix-live-results.json).
 
 ## What changed in retrieval
 
@@ -71,13 +114,15 @@ normal bounded search/read contract. See
 
 ## Verification
 
-- **Brain:** 211 tests passed using real disposable PostgreSQL, including all nine
-  controlled HTTP outcomes; Ruff and strict mypy passed.
+- **Brain:** 229 tests passed using real disposable PostgreSQL, including all nine
+  controlled HTTP outcomes, forced large-menu context/overflow cases, all five
+  arithmetic operations, and invalid measurement provenance/units. Ruff and strict
+  mypy passed. Tests used real disposable PostgreSQL with no skips.
 - **Data:** 70 tests passed, with no skips, including PostgreSQL and HTTP tests;
   typecheck, lint and build passed. The new ingestion test checks long sections,
   later conditions, tables, headings, source URLs and original timestamps.
-- **Real browser contact:** 7,063 ms browser wall time; one paid model call,
-  no review, 57 ms retrieval; correct fields and source.
+- **Current real browser contact:** 6,383 ms browser wall time; one paid model call,
+  no review, 62 ms retrieval; correct fields and source.
 - **Real browser policy:** request `a5925732-2aa0-4293-a6f6-33f2466fabcd` returned
   the previously truncated approved-room-change conditions and the official
   Residence Life source. It took 44,485 ms in the browser.
@@ -98,9 +143,11 @@ the latter use fixture usage and are not real provider cost measurements.
 
 General prose still follows the existing drafting/review path and can be slow or
 time out. Phase 3 changes the controller/general answer paths and repair loop;
-Phase 4 measures model choices. The independent retrieval checks pass,
-but the menu-to-answer failure above reopens overall acceptance. These checks do not establish all-question answer quality, p95 latency,
-embedding superiority or production release readiness.
+Phase 4 measures model choices. The context regression is closed and the Phase 2 exit conditions pass. These
+checks do not establish all-question answer quality, p95 latency, embedding
+superiority or production release readiness. The observed review timeout remains
+explicit evidence for the planned Phase 3 controller/repair changes and Phase 4
+model comparison; it is not a successful answer or a claim that speed is fixed.
 
 ## Development dataset and services
 
