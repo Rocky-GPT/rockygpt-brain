@@ -1,0 +1,172 @@
+{
+  "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f",
+  "method": "Real first controller call through the normal paid gateway; intentionally stop before tool execution. These check selection, not completed answers.",
+  "cases": [
+    {
+      "tool_calls": [
+        {
+          "name": "search_campus",
+          "arguments": {
+            "collection": "shuttle",
+            "query": "",
+            "date_from": "2026-09-16",
+            "date_to": "2026-09-16",
+            "limit": 20,
+            "filters": null
+          }
+        },
+        {
+          "name": "search_campus",
+          "arguments": {
+            "collection": "critical_facts",
+            "query": "shuttle",
+            "date_from": null,
+            "date_to": null,
+            "limit": 10,
+            "filters": null
+          }
+        }
+      ],
+      "answer": null,
+      "id": "legacy-topic-change",
+      "request_id": "f9f387f7-1efb-40c8-9e2e-bb1f39d1bf6b",
+      "messages": [
+        {
+          "role": "user",
+          "content": "what is for dinner today"
+        },
+        {
+          "role": "user",
+          "content": "when is next shuttle"
+        }
+      ],
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 3406,
+        "cachedInputTokens": 2560,
+        "outputTokens": 107,
+        "reasoningTokens": 0,
+        "draftModelMs": 3092,
+        "reviewModelMs": 0,
+        "costNusd": 4360000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      }
+    },
+    {
+      "tool_calls": [
+        {
+          "name": "search_campus",
+          "arguments": {
+            "collection": "dining_hours",
+            "query": "",
+            "date_from": "2026-09-17",
+            "date_to": "2026-09-17",
+            "limit": 20,
+            "filters": null
+          }
+        }
+      ],
+      "answer": null,
+      "id": "relative-followup",
+      "request_id": "9e43fea1-fab1-46ab-8917-ae7503c9cbb4",
+      "messages": [
+        {
+          "role": "user",
+          "content": "what is for dinner today"
+        },
+        {
+          "role": "assistant",
+          "content": "The previous request failed. No answer was delivered."
+        },
+        {
+          "role": "user",
+          "content": "what about tomorrow?"
+        }
+      ],
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 3422,
+        "cachedInputTokens": 2560,
+        "outputTokens": 51,
+        "reasoningTokens": 0,
+        "draftModelMs": 3062,
+        "reviewModelMs": 0,
+        "costNusd": 3560000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      }
+    },
+    {
+      "tool_calls": [
+        {
+          "name": "search_campus",
+          "arguments": {
+            "collection": "menu",
+            "query": "",
+            "date_from": "2026-09-16",
+            "date_to": "2026-09-16",
+            "limit": 20,
+            "filters": {
+              "name": null,
+              "meal": "Dinner",
+              "vegan": null,
+              "vegetarian": null,
+              "term": null,
+              "session": null,
+              "route": null
+            }
+          }
+        },
+        {
+          "name": "search_campus",
+          "arguments": {
+            "collection": "shuttle",
+            "query": "Ramsey Route 17",
+            "date_from": "2026-09-16",
+            "date_to": "2026-09-16",
+            "limit": 10,
+            "filters": {
+              "name": null,
+              "meal": null,
+              "vegan": null,
+              "vegetarian": null,
+              "term": null,
+              "session": null,
+              "route": "Ramsey Route 17"
+            }
+          }
+        }
+      ],
+      "answer": null,
+      "id": "explicit-combined-request",
+      "request_id": "58065c26-01a7-4f3f-a9c4-e7c217c77977",
+      "messages": [
+        {
+          "role": "user",
+          "content": "what is for dinner today"
+        },
+        {
+          "role": "assistant",
+          "content": "The previous request failed. No answer was delivered."
+        },
+        {
+          "role": "user",
+          "content": "Please answer the dinner question and tell me the next shuttle from campus to Ramsey Route 17."
+        }
+      ],
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 3437,
+        "cachedInputTokens": 0,
+        "outputTokens": 178,
+        "reasoningTokens": 0,
+        "draftModelMs": 3866,
+        "reviewModelMs": 0,
+        "costNusd": 11262500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      }
+    }
+  ]
+}

@@ -420,7 +420,7 @@ The first end-to-end milestone is **one real campus question working through the
 
 ### Phase 2 — Connect one complete path, then expand retrieval
 
-Development acceptance reopened September 16, 2026 after a short dinner-menu conversation exceeded the internal tool-context bound. See [verified results and the unresolved acceptance gap](docs/phase2.md).
+Development acceptance completed September 16, 2026. The menu-context regression is fixed and covered by HTTP/SQL/accounting tests and a successful student-browser dinner conversation. See [requirement-by-requirement evidence and remaining later-phase limitations](docs/phase2.md).
 
 #### 2A. One real question from browser to evidence to answer
 

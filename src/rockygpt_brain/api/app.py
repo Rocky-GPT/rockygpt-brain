@@ -130,6 +130,7 @@ def chat_worker(
             "model_timeout": 504,
             "model_provider_error": 502,
             "context_limit": 422,
+            "retrieval_context_limit": 422,
         }.get(error.code, 503)
         resources: list[dict[str, str]] = []
         if error.code == "budget_exhausted" and data is not None:
@@ -194,6 +195,11 @@ def failure(
         message = "RockyGPT's monthly AI allowance is exhausted. Use the official campus resources."
     elif reason == "context_limit":
         message = "This conversation exceeds the supported context limit. Start a shorter chat."
+    elif reason == "retrieval_context_limit":
+        message = (
+            "The information needed for this answer exceeds RockyGPT's processing limit. "
+            "Try narrowing the request to one topic, place, or date."
+        )
     elif reason not in {
         "busy",
         "rate_limited",

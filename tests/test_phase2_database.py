@@ -20,9 +20,10 @@ from rockygpt_brain.api.app import app
 from rockygpt_brain.config import MONTHLY_CAP_NUSD, RELEASE, Deployment
 from rockygpt_brain.data import CampusData, SearchQuery
 from rockygpt_brain.exact import ContactQuery
-from rockygpt_brain.provider import ModelResponse, OutputItem, PaidGateway, Usage
+from rockygpt_brain.provider import ModelResponse, OutputItem, PaidGateway, Usage, input_bound
 from test_accounting import database as database
 from test_accounting import ledger as ledger
+from test_evidence import expand_records
 
 
 @pytest.fixture(scope="module")
@@ -92,6 +93,178 @@ def test_calendar_filters_never_mix_terms_or_sessions(data: CampusData) -> None:
     )
 
 
+@pytest.mark.parametrize("oversized", [False, True])
+def test_short_dinner_chat_with_fifty_menu_records_and_hours(
+    frozen: dict[str, Any],
+    data: CampusData,
+    ledger: PostgresLedger,
+    oversized: bool,
+) -> None:
+    """Reproduce the actual failing retrieval through HTTP, SQL and paid admission.
+
+    Only the external provider is simulated. Force the troublesome tool choices
+    rather than relying on a live model to happen to ask for fifty records again.
+    """
+    now = datetime.fromisoformat(frozen["captured_at"])
+    queries = [
+        {
+            "collection": "menu",
+            "date_from": "2026-09-16",
+            "limit": 50,
+            "filters": {"meal": "Dinner"},
+        },
+        {"collection": "dining_hours", "date_from": "2026-09-16", "limit": 50},
+    ]
+    expected = [data.search(SearchQuery.model_validate(query)) for query in queries]
+    assert [len(result["records"]) for result in expected] == [50, 4]
+    assert expected[0]["total_matches"] == 51 and expected[0]["truncated"]
+    messages = [
+        {"role": "user", "content": "hey"},
+        {"role": "assistant", "content": "Hey! How can I help with Ramapo today?"},
+        {"role": "user", "content": "what is for dinner today"},
+    ]
+    menu, hours = [result["records"] for result in expected]
+    parts = [
+        {
+            "kind": "campus_fact",
+            "text": "Dinner menu: " + ", ".join(r["title"] for r in menu),
+            "evidence_ids": [r["id"] for r in menu],
+        },
+        {
+            "kind": "campus_fact",
+            "text": "Birch Tree Inn lists dinner from 5 to 8 PM.",
+            "evidence_ids": [r["id"] for r in hours if r["title"] == "Birch Tree Inn"],
+        },
+        {
+            "kind": "limitation",
+            "text": "These are 50 of 51 matching items, not the full menu.",
+            "evidence_ids": [],
+        },
+    ]
+    calls: list[dict[str, Any]] = []
+
+    def create(**kwargs: Any) -> ModelResponse:
+        calls.append(kwargs)
+        output: list[OutputItem] = []
+        text = ""
+        if len(calls) == 1:
+            output = [
+                OutputItem(
+                    {
+                        "type": "function_call",
+                        "name": "search_campus",
+                        "call_id": str(index),
+                        "arguments": json.dumps(query),
+                    }
+                )
+                for index, query in enumerate(queries)
+            ]
+        elif len(calls) == 2:
+            assert kwargs["input"][:3] == messages  # Never drop accepted conversation.
+            payload = {
+                k: v
+                for k, v in kwargs.items()
+                if k not in {"timeout", "service_tier", "truncation"}
+            }
+            legacy_history = []
+            originals = iter(expected)
+            for item in kwargs["input"]:
+                if item.get("type") == "function_call_output":
+                    item = {**item, "output": json.dumps(next(originals), ensure_ascii=False)}
+                legacy_history.append(item)
+            # The original representation fails the unchanged gateway ceiling;
+            # the same complete evidence now fits, with no inflated token cap.
+            assert input_bound({**payload, "input": legacy_history}) > RELEASE.max_input_tokens
+            assert input_bound(payload) <= RELEASE.max_input_tokens
+            outputs = [
+                json.loads(item["output"])
+                for item in kwargs["input"]
+                if item.get("type") == "function_call_output"
+            ]
+            for result, original in zip(outputs, expected, strict=True):
+                assert expand_records(result.pop("evidence_groups")) == original["records"]
+                assert result == {k: v for k, v in original.items() if k != "records"}
+            text = json.dumps({"status": "partial", "parts": parts})
+        else:
+            assert len(calls) == 3
+            review_input = json.loads(kwargs["input"])
+            assert review_input["conversation"] == messages
+            assert expand_records(review_input["evidence"]) == menu + hours
+            text = json.dumps(
+                {
+                    "parts": [
+                        {
+                            "part_index": i,
+                            "verdict": "supported",
+                            "reason": "",
+                            "unverified_premises": [],
+                            "uses_event_for_entity": False,
+                            "infers_food_safety": False,
+                            "plan_deadlines": [],
+                        }
+                        for i in range(len(parts))
+                    ]
+                }
+            )
+        return ModelResponse(
+            "fixture-" + str(uuid4()),
+            RELEASE.model,
+            "completed",
+            text,
+            output,
+            Usage(250, 0, 40, 0),
+        )
+
+    provider = Mock()
+    provider.create.side_effect = create
+    if oversized:
+        original_search = data.search
+
+        def large_search(query: SearchQuery) -> dict[str, Any]:
+            result = original_search(query)
+            # Simulate an oversized detailed source after the same actual SQL read.
+            result["records"][0]["fields"]["detail"] = "Long retrieved evidence. " * 5000
+            return result
+
+        data.search = large_search  # type: ignore[method-assign]
+    deployment = Deployment(
+        environment="development", api_key="fixture", project="fixture", ledger_url=local_database()
+    )
+
+    @contextmanager
+    def gateway(config: Deployment, request_id: str) -> Iterator[PaidGateway]:
+        yield PaidGateway(provider, ledger, request_id, clock=lambda: now)
+
+    with (
+        patch("rockygpt_brain.api.app.load_deployment", return_value=deployment),
+        patch("rockygpt_brain.api.app.open_gateway", gateway),
+        patch("rockygpt_brain.api.app.CampusData", return_value=data),
+        patch("rockygpt_brain.api.app.datetime") as clock,
+        patch.dict("os.environ", {"STAGING_SERVICE_TOKEN": ""}),
+    ):
+        clock.now.return_value = now
+        response = TestClient(app).post("/v1/chat", json={"messages": messages})
+    payload = response.json()
+    assert payload["requestId"]
+    operations = ledger.operations()
+    assert all(op["state"] == "settled" for op in operations)
+    assert all(op["request_id"] == payload["requestId"] for op in operations)
+    if oversized:
+        assert response.status_code == 422
+        assert payload["reason"] == "retrieval_context_limit"
+        assert "conversation" not in payload["error"]["message"].lower()
+        assert payload["error"]["retryable"] is False
+        assert len(calls) == len(operations) == 1  # No reservation or SDK call for overflow.
+    else:
+        assert response.status_code == 200
+        assert payload["status"] == "partial"
+        assert all(r["title"] in payload["answer"] for r in menu)
+        assert len(payload["citations"]) == 51
+        assert payload["metrics"]["usageComplete"]
+        assert payload["metrics"]["reviewCalls"] == 1
+        assert len(calls) == len(operations) == 3
+
+
 def provider_response(entity: str = "Registrar", fields: list[str] | None = None) -> ModelResponse:
     return ModelResponse(
         "fixture-" + str(uuid4()),
@@ -153,9 +326,7 @@ def test_http_path_preserves_accounting_for_controlled_failures(
                 "collected_at,content_hash,aliases FROM rockygpt_v2.campus_contacts "
                 "WHERE source_record_key='office:registrar' LIMIT 1 RETURNING id",
                 (
-                    "office:registrar"
-                    if scenario == "conflict"
-                    else "office:other-registrar",
+                    "office:registrar" if scenario == "conflict" else "office:other-registrar",
                     "Registrar" if scenario == "conflict" else "Other Registrar",
                     "201-555-0199",
                 ),

@@ -1,0 +1,513 @@
+{
+  "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+  "date": "2026-09-16",
+  "provider": "real OpenAI via normal development paid gateway",
+  "method": "In-app browser; normal student UI on 3000 and Developer UI on 3100. Ledger queried read-only afterward. No paid retries hidden.",
+  "cases": [
+    {
+      "id": "developer-greeting",
+      "request_id": "184032d4-4fb7-4cf3-bb67-ee5c99c8071e",
+      "question": "hey",
+      "browser_ms": 13661,
+      "summary": {
+        "status": "answered",
+        "costNusd": 9090000,
+        "elapsedMs": 12620,
+        "requestId": "184032d4-4fb7-4cf3-bb67-ee5c99c8071e",
+        "modelCalls": 2,
+        "inputTokens": 4974,
+        "retrievalMs": 0,
+        "toolResults": [],
+        "draftModelMs": 4304,
+        "fallbackUsed": false,
+        "outputTokens": 161,
+        "responseMode": "reviewed_prose",
+        "reviewModelMs": 4293,
+        "unsettledNusd": 0,
+        "usageComplete": true,
+        "datasetVersion": null,
+        "reasoningTokens": 52,
+        "cachedInputTokens": 2560,
+        "configurationHash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1"
+      },
+      "operations": [
+        {
+          "category": "draft",
+          "state": "settled",
+          "reserved_nusd": 145175000,
+          "cost_nusd": 3027500,
+          "usage": {
+            "input_tokens": 3293,
+            "output_tokens": 37,
+            "reasoning_tokens": 0,
+            "cached_input_tokens": 2560
+          },
+          "error_code": null,
+          "provider_response_id": "resp_06ff1b97fb4141a1016aaaf8fd18d887d2a00a00dbe65273c2",
+          "returned_model": "gpt-5.4-2026-03-05",
+          "elapsed_ms": 4304,
+          "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+          "input_token_bound": "43670"
+        },
+        {
+          "category": "review",
+          "state": "settled",
+          "reserved_nusd": 127525000,
+          "cost_nusd": 6062500,
+          "usage": {
+            "input_tokens": 1681,
+            "output_tokens": 124,
+            "reasoning_tokens": 52,
+            "cached_input_tokens": 0
+          },
+          "error_code": null,
+          "provider_response_id": "resp_0bcfb0bde2e41f06016aaaf901661087d29749d1a810e910e6",
+          "returned_model": "gpt-5.4-2026-03-05",
+          "elapsed_ms": 4293,
+          "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+          "input_token_bound": "26434"
+        }
+      ]
+    },
+    {
+      "id": "developer-dinner-timeout",
+      "request_id": "21f409ae-3dee-4d64-b5fd-2b19e470ef98",
+      "question": "what is for dinner today",
+      "browser_ms": 46368,
+      "summary": {
+        "status": "model_timeout",
+        "costNusd": 77747500,
+        "elapsedMs": 45364,
+        "requestId": "21f409ae-3dee-4d64-b5fd-2b19e470ef98",
+        "modelCalls": 4,
+        "inputTokens": 18613,
+        "retrievalMs": 71,
+        "toolResults": [
+          {
+            "tool": "search_campus",
+            "reason": null,
+            "status": "ok",
+            "truncated": true,
+            "elapsed_ms": 51,
+            "evidence_ids": [
+              "menu:231a576e-47ce-4c29-9b18-7a7868bcdeb1",
+              "menu:f9ceea47-883c-4dc0-84cd-b821c3df3836",
+              "menu:6470509c-847c-4727-8fd6-fd0961c7af83",
+              "menu:a7860b22-cade-4a82-bcde-720003c44a45",
+              "menu:14177a57-939e-4609-9f9a-ed6e9702b3e6",
+              "menu:ea5e05c4-9add-493d-a123-117d24be3d0c",
+              "menu:876dad68-8ef7-4219-be5b-95a4f9e30b4e",
+              "menu:fea5ee41-7d55-40b8-a6d1-ae78d2b1a832",
+              "menu:2c11d721-c652-4d9a-84e8-233ba0a1e39a",
+              "menu:0e0a91d0-9ea3-49ee-8d6e-69fb6de2bb43",
+              "menu:a3d53ca5-8d5d-4945-96af-0d7f47dbdca4",
+              "menu:38468be5-3e1c-4918-b84f-f3098bb2e515",
+              "menu:08d84e78-b782-4266-9593-d944d2fb7dc0",
+              "menu:5a88bf21-1dd7-4c93-a24e-7c8c78ae4013",
+              "menu:4d8d61b2-652a-48c4-ba69-7b4663bbee18",
+              "menu:b3719b07-09d4-4f5b-9e9c-4a3f2b5a5232",
+              "menu:f637b00c-9afb-4714-aa05-1a4e1b8b7df4",
+              "menu:f0c38f2e-1dd1-463b-822a-70b07f6726de",
+              "menu:1bccf4b5-63e9-4493-8404-ae51c1ecc132",
+              "menu:d5e10fba-539f-405e-8df2-a774d8993d4b"
+            ],
+            "result_count": 20,
+            "total_matches": 51
+          },
+          {
+            "tool": "search_campus",
+            "reason": null,
+            "status": "ok",
+            "truncated": false,
+            "elapsed_ms": 20,
+            "evidence_ids": [
+              "dining_hours:b8b12ea5-0b55-4ae3-880b-05f62b7472e1:2026-09-16",
+              "dining_hours:3790f19c-387f-4627-8a69-785d4bd9f0e4:2026-09-16",
+              "dining_hours:0d7cf7f0-1973-4cba-9712-2dd9ba1e88a0:2026-09-16",
+              "dining_hours:2c5a0944-9499-4472-8bb5-079edd379df1:2026-09-16"
+            ],
+            "result_count": 4,
+            "total_matches": 4
+          }
+        ],
+        "draftModelMs": 15019,
+        "fallbackUsed": false,
+        "outputTokens": 2849,
+        "responseMode": null,
+        "reviewModelMs": 24734,
+        "unsettledNusd": 249175000,
+        "usageComplete": false,
+        "datasetVersion": "phase2-development-20260916",
+        "reasoningTokens": 1510,
+        "cachedInputTokens": 5120,
+        "configurationHash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1"
+      },
+      "operations": [
+        {
+          "category": "draft",
+          "state": "settled",
+          "reserved_nusd": 145710000,
+          "cost_nusd": 5107500,
+          "usage": {
+            "input_tokens": 3315,
+            "output_tokens": 172,
+            "reasoning_tokens": 0,
+            "cached_input_tokens": 2560
+          },
+          "error_code": null,
+          "provider_response_id": "resp_0c717e830bc2e833016aaaf90ed8f887d2affee06ca5e871cf",
+          "returned_model": "gpt-5.4-2026-03-05",
+          "elapsed_ms": 3460,
+          "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+          "input_token_bound": "43884"
+        },
+        {
+          "category": "draft",
+          "state": "settled",
+          "reserved_nusd": 229620000,
+          "cost_nusd": 25600000,
+          "usage": {
+            "input_tokens": 7522,
+            "output_tokens": 837,
+            "reasoning_tokens": 0,
+            "cached_input_tokens": 2560
+          },
+          "error_code": null,
+          "provider_response_id": "resp_0c717e830bc2e833016aaaf913692887d29a36ed68c5f20b39",
+          "returned_model": "gpt-5.4-2026-03-05",
+          "elapsed_ms": 8576,
+          "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+          "input_token_bound": "77448"
+        },
+        {
+          "category": "review",
+          "state": "settled",
+          "reserved_nusd": 226810000,
+          "cost_nusd": 47040000,
+          "usage": {
+            "input_tokens": 7776,
+            "output_tokens": 1840,
+            "reasoning_tokens": 1510,
+            "cached_input_tokens": 0
+          },
+          "error_code": null,
+          "provider_response_id": "resp_0ca700e653fa5e75016aaaf91d2f3c87d28327f2e19326b0fd",
+          "returned_model": "gpt-5.4-2026-03-05",
+          "elapsed_ms": 24734,
+          "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+          "input_token_bound": "66148"
+        },
+        {
+          "category": "draft",
+          "state": "uncertain",
+          "reserved_nusd": 249175000,
+          "cost_nusd": null,
+          "usage": null,
+          "error_code": "model_timeout",
+          "provider_response_id": null,
+          "returned_model": null,
+          "elapsed_ms": 2983,
+          "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+          "input_token_bound": "85270"
+        }
+      ],
+      "browser_observation": {
+        "http_status": 504,
+        "error_code": "model_timeout",
+        "note": "Context compaction succeeded. Existing review/repair path exceeded its deadline. Uncertain final operation remains reserved."
+      }
+    },
+    {
+      "id": "student-greeting",
+      "request_id": "1fb1a504-2e2d-4cab-a98f-6360e5ca089b",
+      "question": "hey",
+      "browser_ms": null,
+      "summary": {
+        "status": "answered",
+        "costNusd": 9097500,
+        "elapsedMs": 11729,
+        "requestId": "1fb1a504-2e2d-4cab-a98f-6360e5ca089b",
+        "modelCalls": 2,
+        "inputTokens": 4977,
+        "retrievalMs": 0,
+        "toolResults": [],
+        "draftModelMs": 3537,
+        "fallbackUsed": false,
+        "outputTokens": 161,
+        "responseMode": "reviewed_prose",
+        "reviewModelMs": 3756,
+        "unsettledNusd": 0,
+        "usageComplete": true,
+        "datasetVersion": null,
+        "reasoningTokens": 49,
+        "cachedInputTokens": 2560,
+        "configurationHash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1"
+      },
+      "operations": [
+        {
+          "category": "draft",
+          "state": "settled",
+          "reserved_nusd": 145175000,
+          "cost_nusd": 3072500,
+          "usage": {
+            "input_tokens": 3293,
+            "output_tokens": 40,
+            "reasoning_tokens": 0,
+            "cached_input_tokens": 2560
+          },
+          "error_code": null,
+          "provider_response_id": "resp_0c30c794d21ff949016aaaf993788487d2b12ae57eb7beb88a",
+          "returned_model": "gpt-5.4-2026-03-05",
+          "elapsed_ms": 3537,
+          "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+          "input_token_bound": "43670"
+        },
+        {
+          "category": "review",
+          "state": "settled",
+          "reserved_nusd": 127605000,
+          "cost_nusd": 6025000,
+          "usage": {
+            "input_tokens": 1684,
+            "output_tokens": 121,
+            "reasoning_tokens": 49,
+            "cached_input_tokens": 0
+          },
+          "error_code": null,
+          "provider_response_id": "resp_060ad57bccfe0cff016aaaf997988c87d28e77aaf226389717",
+          "returned_model": "gpt-5.4-2026-03-05",
+          "elapsed_ms": 3756,
+          "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+          "input_token_bound": "26466"
+        }
+      ]
+    },
+    {
+      "id": "student-dinner",
+      "request_id": "64cfa2fb-0e8f-44df-bc64-280570a2b674",
+      "question": "what is for dinner today",
+      "browser_ms": null,
+      "summary": {
+        "status": "answered",
+        "costNusd": 98748500,
+        "elapsedMs": 49486,
+        "requestId": "64cfa2fb-0e8f-44df-bc64-280570a2b674",
+        "modelCalls": 5,
+        "inputTokens": 30803,
+        "retrievalMs": 32,
+        "toolResults": [
+          {
+            "tool": "search_campus",
+            "reason": null,
+            "status": "ok",
+            "truncated": true,
+            "elapsed_ms": 32,
+            "evidence_ids": [
+              "menu:231a576e-47ce-4c29-9b18-7a7868bcdeb1",
+              "menu:f9ceea47-883c-4dc0-84cd-b821c3df3836",
+              "menu:6470509c-847c-4727-8fd6-fd0961c7af83",
+              "menu:a7860b22-cade-4a82-bcde-720003c44a45",
+              "menu:14177a57-939e-4609-9f9a-ed6e9702b3e6",
+              "menu:ea5e05c4-9add-493d-a123-117d24be3d0c",
+              "menu:876dad68-8ef7-4219-be5b-95a4f9e30b4e",
+              "menu:fea5ee41-7d55-40b8-a6d1-ae78d2b1a832",
+              "menu:2c11d721-c652-4d9a-84e8-233ba0a1e39a",
+              "menu:0e0a91d0-9ea3-49ee-8d6e-69fb6de2bb43",
+              "menu:a3d53ca5-8d5d-4945-96af-0d7f47dbdca4",
+              "menu:38468be5-3e1c-4918-b84f-f3098bb2e515",
+              "menu:08d84e78-b782-4266-9593-d944d2fb7dc0",
+              "menu:5a88bf21-1dd7-4c93-a24e-7c8c78ae4013",
+              "menu:4d8d61b2-652a-48c4-ba69-7b4663bbee18",
+              "menu:b3719b07-09d4-4f5b-9e9c-4a3f2b5a5232",
+              "menu:f637b00c-9afb-4714-aa05-1a4e1b8b7df4",
+              "menu:f0c38f2e-1dd1-463b-822a-70b07f6726de",
+              "menu:1bccf4b5-63e9-4493-8404-ae51c1ecc132",
+              "menu:d5e10fba-539f-405e-8df2-a774d8993d4b"
+            ],
+            "result_count": 20,
+            "total_matches": 51
+          }
+        ],
+        "draftModelMs": 18227,
+        "fallbackUsed": false,
+        "outputTokens": 3043,
+        "responseMode": "reviewed_prose",
+        "reviewModelMs": 23887,
+        "unsettledNusd": 0,
+        "usageComplete": true,
+        "datasetVersion": "phase2-development-20260916",
+        "reasoningTokens": 1308,
+        "cachedInputTokens": 10624,
+        "configurationHash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1"
+      },
+      "operations": [
+        {
+          "category": "draft",
+          "state": "settled",
+          "reserved_nusd": 145790000,
+          "cost_nusd": 3735000,
+          "usage": {
+            "input_tokens": 3318,
+            "output_tokens": 80,
+            "reasoning_tokens": 0,
+            "cached_input_tokens": 2560
+          },
+          "error_code": null,
+          "provider_response_id": "resp_0b2ad39a18b823af016aaaf9b46d9487d29a0ceaaf47e140fa",
+          "returned_model": "gpt-5.4-2026-03-05",
+          "elapsed_ms": 2904,
+          "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+          "input_token_bound": "43916"
+        },
+        {
+          "category": "draft",
+          "state": "settled",
+          "reserved_nusd": 212195000,
+          "cost_nusd": 20372500,
+          "usage": {
+            "input_tokens": 6571,
+            "output_tokens": 647,
+            "reasoning_tokens": 0,
+            "cached_input_tokens": 2560
+          },
+          "error_code": null,
+          "provider_response_id": "resp_0b2ad39a18b823af016aaaf9b8665887d2a6ed7eb3fb1b495c",
+          "returned_model": "gpt-5.4-2026-03-05",
+          "elapsed_ms": 7693,
+          "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+          "input_token_bound": "70478"
+        },
+        {
+          "category": "review",
+          "state": "settled",
+          "reserved_nusd": 209655000,
+          "cost_nusd": 30650000,
+          "usage": {
+            "input_tokens": 6548,
+            "output_tokens": 952,
+            "reasoning_tokens": 731,
+            "cached_input_tokens": 0
+          },
+          "error_code": null,
+          "provider_response_id": "resp_0504e8a4fa6c3af0016aaaf9c1693087d28f02cf8bc1e63328",
+          "returned_model": "gpt-5.4-2026-03-05",
+          "elapsed_ms": 13288,
+          "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+          "input_token_bound": "59286"
+        },
+        {
+          "category": "draft",
+          "state": "settled",
+          "reserved_nusd": 227210000,
+          "cost_nusd": 15433500,
+          "usage": {
+            "input_tokens": 7455,
+            "output_tokens": 612,
+            "reasoning_tokens": 0,
+            "cached_input_tokens": 5504
+          },
+          "error_code": null,
+          "provider_response_id": "resp_0b2ad39a18b823af016aaaf9cfed3c87d295e0ff65e0ddfb88",
+          "returned_model": "gpt-5.4-2026-03-05",
+          "elapsed_ms": 7630,
+          "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+          "input_token_bound": "76484"
+        },
+        {
+          "category": "review",
+          "state": "settled",
+          "reserved_nusd": 212635000,
+          "cost_nusd": 28557500,
+          "usage": {
+            "input_tokens": 6911,
+            "output_tokens": 752,
+            "reasoning_tokens": 577,
+            "cached_input_tokens": 0
+          },
+          "error_code": null,
+          "provider_response_id": "resp_0bbfdfd8f6d0dbe2016aaaf9d8877887d2a3a0ef720801483f",
+          "returned_model": "gpt-5.4-2026-03-05",
+          "elapsed_ms": 10599,
+          "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+          "input_token_bound": "60478"
+        }
+      ],
+      "browser_observation": {
+        "conversation": [
+          "hey",
+          "Hey! What can I help you with today?",
+          "what is for dinner today"
+        ],
+        "answer": "For dinner today, Wednesday, September 16, 2026, Birch Tree Inn is showing items including Alfredo Sauce at Twists; American Bounty Vegetable Soup at Spoonful; Black Bean Burger, Buffalo Jalapeno Fried Chicken, Carnitas Coleslaw, and Cheddar Cheese at Sizzle; American Cheese and Cheddar Cheese at Stacked; Cheese Pizza and Chipolte Chicken Pizza at Slices; Citrus Spiced Lentil Salad and Corn, Tomato & Basil Salad at Mix; and Cucumber Tomato Salad, Diced Green Peppers, Diced Red Pepper, and Falafel Patty at Showcase.",
+        "source": "https://ramapo.sodexomyway.com/en-us/locations/birch-tree-inn",
+        "scope": "Non-exhaustive list from 20 of 51 matching menu records; not an exhaustive-menu assertion."
+      }
+    },
+    {
+      "id": "exact-contact",
+      "request_id": "eaf389c0-9615-4028-8605-52be16cb1d7f",
+      "question": "How can I contact the Registrar?",
+      "browser_ms": 6383,
+      "summary": {
+        "status": "answered",
+        "costNusd": 2922500,
+        "elapsedMs": 5357,
+        "requestId": "eaf389c0-9615-4028-8605-52be16cb1d7f",
+        "modelCalls": 1,
+        "inputTokens": 3299,
+        "retrievalMs": 62,
+        "toolResults": [
+          {
+            "tool": "lookup_contact",
+            "reason": null,
+            "status": "ok",
+            "truncated": false,
+            "elapsed_ms": 62,
+            "evidence_ids": [
+              "contacts:2f6d42fc-34bd-4739-86e3-84b66d258dc6"
+            ],
+            "result_count": 1,
+            "total_matches": 1
+          }
+        ],
+        "draftModelMs": 2440,
+        "fallbackUsed": false,
+        "outputTokens": 29,
+        "responseMode": "exact_contact",
+        "reviewModelMs": 0,
+        "unsettledNusd": 0,
+        "usageComplete": true,
+        "datasetVersion": "phase2-development-20260916",
+        "reasoningTokens": 0,
+        "cachedInputTokens": 2560,
+        "configurationHash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1"
+      },
+      "operations": [
+        {
+          "category": "draft",
+          "state": "settled",
+          "reserved_nusd": 145320000,
+          "cost_nusd": 2922500,
+          "usage": {
+            "input_tokens": 3299,
+            "output_tokens": 29,
+            "reasoning_tokens": 0,
+            "cached_input_tokens": 2560
+          },
+          "error_code": null,
+          "provider_response_id": "resp_028786ce9f4627d4016aaaf9d1ca7c87d29fb5cad256e8c7cd",
+          "returned_model": "gpt-5.4-2026-03-05",
+          "elapsed_ms": 2440,
+          "configuration_hash": "094219e37ed0dae52768596efaa769ef2a1062d9ef65286c9a8414c934fedeb1",
+          "input_token_bound": "43728"
+        }
+      ],
+      "browser_observation": {
+        "answer": "Registrar; Department: Office of the Registrar; Email: registrar@ramapo.edu; Office: D-224; Phone: 201-684-7695",
+        "source": "https://www.ramapo.edu/campus-directory/",
+        "review_calls": 0,
+        "response_mode": "exact_contact"
+      }
+    }
+  ]
+}
