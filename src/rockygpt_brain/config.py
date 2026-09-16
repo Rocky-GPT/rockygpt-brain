@@ -1,0 +1,113 @@
+"""One versioned release; deployment secrets and balances are separate."""
+
+import hashlib
+import json
+import os
+from datetime import date
+from importlib.metadata import version
+from importlib.resources import files
+from importlib.resources.abc import Traversable
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+Environment = Literal["development", "production"]
+MONTHLY_CAP_NUSD = 10_000_000_000
+
+
+class ConfigurationError(Exception):
+    """The trusted deployment is incomplete or inconsistent."""
+
+
+class Price(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    version: str
+    valid_from: date
+    valid_until: date
+    input_nusd: int = Field(gt=0)
+    cached_input_nusd: int = Field(ge=0)
+    output_nusd: int = Field(gt=0)
+    source: str
+
+    @model_validator(mode="after")
+    def valid(self) -> "Price":
+        if self.cached_input_nusd > self.input_nusd or self.valid_until <= self.valid_from:
+            raise ValueError("Invalid price configuration")
+        return self
+
+
+class Release(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    version: str
+    provider: Literal["openai"]
+    model: Literal["gpt-5.4"]
+    draft_reasoning: Literal["none"]
+    review_reasoning: Literal["medium"]
+    draft_output_tokens: int = Field(gt=0, le=128000)
+    review_output_tokens: int = Field(gt=0, le=128000)
+    max_input_tokens: int = Field(gt=0, le=128000)
+    max_draft_calls: int = Field(gt=0)
+    max_model_calls: int = Field(gt=0)
+    max_tool_calls: int = Field(gt=0)
+    turn_seconds: float = Field(gt=0)
+    http_turn_seconds: float = Field(gt=0)
+    answer_reserve_seconds: float = Field(gt=0)
+    review_reserve_seconds: float = Field(gt=0)
+    active_turns: int = Field(gt=0)
+    review_policy: Literal["generated_prose_with_bounded_repair"]
+    price: Price
+
+
+RELEASE = Release.model_validate_json(files("rockygpt_brain").joinpath("release.json").read_text())
+
+
+def configuration_hash() -> str:
+    """Includes prompts, schemas, runtime source, and behavior-affecting dependencies."""
+    root = files("rockygpt_brain")
+    digest = hashlib.sha256(RELEASE.model_dump_json().encode())
+
+    def visit(directory: Traversable, prefix: str = "") -> None:
+        for item in sorted(directory.iterdir(), key=lambda item: item.name):
+            if item.is_dir() and item.name != "__pycache__":
+                visit(item, prefix + item.name + "/")
+            elif item.name.endswith((".py", ".md")):
+                digest.update((prefix + item.name).encode())
+                digest.update(item.read_bytes())
+
+    visit(root)
+    for package in ("openai", "httpx", "psycopg", "pydantic", "fastapi"):
+        digest.update(f"{package}={version(package)}".encode())
+    return digest.hexdigest()
+
+
+class Deployment(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    environment: Environment
+    api_key: str = Field(repr=False, min_length=1)
+    project: str = Field(min_length=1)
+    ledger_url: str = Field(repr=False, min_length=1)
+
+
+def load_deployment() -> Deployment:
+    """Only one environment's secrets may be mounted in a process. No legacy fallback."""
+    try:
+        deployment = Deployment.model_validate(
+            {
+                "environment": os.environ["BRAIN_ENVIRONMENT"],
+                "api_key": os.environ["BRAIN_OPENAI_API_KEY"],
+                "project": os.environ["BRAIN_OPENAI_PROJECT"],
+                "ledger_url": os.environ["BRAIN_LEDGER_DATABASE_URL"],
+            }
+        )
+        if os.getenv("OPENAI_CHAT_MODEL", RELEASE.model) != RELEASE.model:
+            raise ValueError("Environment model override would break release parity")
+        expected = os.getenv("BRAIN_EXPECTED_CONFIG_HASH")
+        if expected and expected != configuration_hash():
+            raise ValueError("Release identity mismatch")
+        return deployment
+    except (KeyError, ValueError) as error:
+        raise ConfigurationError("Brain deployment is not configured") from error
+
+
+if __name__ == "__main__":
+    print(json.dumps({"version": RELEASE.version, "configurationHash": configuration_hash()}))

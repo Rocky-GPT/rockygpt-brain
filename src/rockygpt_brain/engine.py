@@ -5,23 +5,26 @@ import re
 from datetime import datetime, timedelta
 from importlib.resources import files
 from time import monotonic
-from typing import Any, cast
+from typing import Any
 
-from openai import OpenAI, Timeout
-from openai.types.responses import ResponseInputParam, ToolParam
+from httpx import Timeout
 from pydantic import ValidationError
 
+from rockygpt_brain.calculations import CalculationQuery, calculate
+from rockygpt_brain.config import RELEASE
 from rockygpt_brain.contracts import Answer, ChatMessage, EvidenceReview
 from rockygpt_brain.data import COLLECTIONS, CampusData, ReadQuery, SearchQuery
+from rockygpt_brain.exact import ContactQuery, contact_answer
+from rockygpt_brain.provider import ModelClient
 
 INSTRUCTIONS = files("rockygpt_brain").joinpath("prompt.md").read_text(encoding="utf-8")
 REVIEW_INSTRUCTIONS = files("rockygpt_brain").joinpath("review.md").read_text(encoding="utf-8")
-MAX_DRAFT_CALLS = 6
-MAX_MODEL_CALLS = 8
-MAX_TOOL_CALLS = 12
-TURN_SECONDS = 50.0
-REVIEW_RESERVE_SECONDS = 8.0
-ANSWER_RESERVE_SECONDS = 20.0
+MAX_DRAFT_CALLS = RELEASE.max_draft_calls
+MAX_MODEL_CALLS = RELEASE.max_model_calls
+MAX_TOOL_CALLS = RELEASE.max_tool_calls
+TURN_SECONDS = RELEASE.turn_seconds
+REVIEW_RESERVE_SECONDS = RELEASE.review_reserve_seconds
+ANSWER_RESERVE_SECONDS = RELEASE.answer_reserve_seconds
 
 
 class InvalidAnswer(Exception):
@@ -32,26 +35,53 @@ class InvalidAnswer(Exception):
         self.code = code
 
 
-def function_tool(name: str, description: str, schema: dict[str, Any]) -> ToolParam:
+def function_tool(name: str, description: str, schema: dict[str, Any]) -> dict[str, Any]:
     # Optional arguments are required-but-nullable in strict Responses schemas.
-    schema = dict(schema)
-    schema["required"] = list(schema["properties"])
-    for value in schema["properties"].values():
-        value.pop("default", None)
-    return cast(
-        ToolParam,
-        {
-            "type": "function",
-            "name": name,
-            "description": description,
-            "parameters": schema,
-            "strict": True,
-        },
-    )
+    schema = json.loads(json.dumps(schema))
+
+    def strict(node: Any) -> None:
+        if isinstance(node, dict):
+            node.pop("default", None)
+            if node.get("type") == "object":
+                node["required"] = list(node["properties"])
+                node["additionalProperties"] = False
+            for child in node.values():
+                strict(child)
+        elif isinstance(node, list):
+            for child in node:
+                strict(child)
+
+    strict(schema)
+    return {
+        "type": "function",
+        "name": name,
+        "description": description,
+        "parameters": schema,
+        "strict": True,
+    }
 
 
-def tool_definitions() -> list[ToolParam]:
+def tool_definitions() -> list[dict[str, Any]]:
     return [
+        function_tool(
+            "calculate",
+            "Compute sum, ordered difference, mean, minimum or maximum. Operands must be "
+            "explicit user numbers or exact retrieved calories/credits with evidence IDs. "
+            "No unit conversions, inferred numbers, policy conclusions or corpus-wide counts. "
+            "Do not mix user numbers with campus measurements. Results still require context.",
+            CalculationQuery.model_json_schema(),
+        ),
+        function_tool(
+            "lookup_contact",
+            "Look up a named directory contact by exact published name or alias. "
+            "Use for explicit phone, email, office, department or other contact-field requests. "
+            "Include every requested field; for 'contact details' or 'how to contact', "
+            "request phone, email, office and department. Hours/fax/website can be uncovered; "
+            "never infer them. Empty records do not prove an office does not exist. "
+            "The server may render a complete, validated contact answer directly. "
+            "For unnamed entities, discover their published names with search_campus first.",
+            ContactQuery.model_json_schema(),
+        ),
         function_tool(
             "search_campus",
             "Search published official campus evidence. Collections: "
@@ -140,7 +170,7 @@ def review_answer(
     *,
     messages: list[ChatMessage],
     evidence: dict[str, dict[str, Any]],
-    client: OpenAI,
+    client: ModelClient,
     model: str,
     now: datetime,
     timeout: float,
@@ -177,7 +207,8 @@ def review_answer(
         ]
         for index, record_ids in citation_scope.items()
     }
-    response = client.responses.create(
+    response = client.create(
+        category="review",
         model=model,
         instructions=REVIEW_INSTRUCTIONS,
         input=json.dumps(
@@ -208,8 +239,8 @@ def review_answer(
                 "strict": True,
             }
         },
-        reasoning={"effort": "medium"},
-        max_output_tokens=4096,
+        reasoning={"effort": RELEASE.review_reasoning},
+        max_output_tokens=RELEASE.review_output_tokens,
         store=False,
         timeout=Timeout(timeout, connect=min(2.0, timeout)),
     )
@@ -262,11 +293,15 @@ def review_answer(
 def run_turn(
     messages: list[ChatMessage],
     *,
-    client: OpenAI,
+    client: ModelClient,
     data: CampusData,
     model: str,
     now: datetime,
+    metrics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    metrics = metrics if metrics is not None else {}
+    metrics["retrievalMs"] = 0
+    metrics["toolResults"] = []
     started = monotonic()
     data.deadline = started + TURN_SECONDS - ANSWER_RESERVE_SECONDS
     history: list[Any] = [message.model_dump() for message in messages]
@@ -305,10 +340,11 @@ def run_turn(
             or remaining <= ANSWER_RESERVE_SECONDS
         )
         draft_calls += 1
-        response = client.responses.create(
+        response = client.create(
+            category="draft",
             model=model,
             instructions=instructions,
-            input=cast(ResponseInputParam, list(history)),
+            input=list(history),
             tools=tools,
             tool_choice="none" if answer_only else "auto",
             parallel_tool_calls=True,
@@ -320,7 +356,8 @@ def run_turn(
                     "strict": True,
                 }
             },
-            max_output_tokens=2400,
+            max_output_tokens=RELEASE.draft_output_tokens,
+            reasoning={"effort": RELEASE.draft_reasoning},
             store=False,
             timeout=Timeout(
                 min(30.0, remaining - REVIEW_RESERVE_SECONDS),
@@ -413,16 +450,21 @@ def run_turn(
                 "datasetVersion": dataset_version,
                 "trace": trace,
                 "metrics": {
+                    **metrics,
+                    "responseMode": "reviewed_prose",
                     "modelCalls": draft_calls + review_calls,
                     "draftCalls": draft_calls,
                     "reviewCalls": review_calls,
                     "toolRequests": len(trace),
                     "toolExecutions": tool_executions,
                     "validationFailures": validation_failures,
+                    "retrievalMs": sum(entry["elapsed_ms"] for entry in trace),
+                    "fallbackUsed": candidate.status == "unavailable",
                 },
                 "elapsedMs": round((monotonic() - started) * 1000),
             }
         history.extend(response.output)
+        exact_candidate: Answer | None = None
         for call in calls:
             tool_started = monotonic()
             arguments: dict[str, Any] = {}
@@ -435,7 +477,20 @@ def run_turn(
             else:
                 tool_slots_used += 1
                 try:
-                    if call.name == "search_campus":
+                    if call.name == "calculate":
+                        calculation = CalculationQuery.model_validate_json(call.arguments)
+                        arguments = calculation.model_dump(mode="json")
+                        tool_executions += 1
+                        try:
+                            output = calculate(calculation, evidence, messages, now.date())
+                        except ValueError as error:
+                            output = {"status": "invalid_request", "reason": str(error)}
+                    elif call.name == "lookup_contact":
+                        contact = ContactQuery.model_validate_json(call.arguments)
+                        arguments = contact.model_dump(mode="json")
+                        tool_executions += 1
+                        output = data.lookup_contact(contact)
+                    elif call.name == "search_campus":
                         query = SearchQuery.model_validate_json(call.arguments)
                         arguments = query.model_dump(mode="json")
                         tool_executions += 1
@@ -462,6 +517,7 @@ def run_turn(
                     # Do not expose connection strings, SQL, or provider errors.
                     output = {"status": "unavailable", "reason": "campus_data_unavailable"}
             dataset_version = output.get("dataset_version", dataset_version)
+            metrics["datasetVersion"] = dataset_version
             for record in output.get("records", []):
                 previous = evidence.get(record["id"])
                 # Same release/record, different excerpt bounds: an overlapping
@@ -479,9 +535,18 @@ def run_turn(
                     "total_matches": output.get("total_matches"),
                     "truncated": output.get("truncated"),
                     "reason": output.get("reason"),
+                    "evidence_ids": [record["id"] for record in output.get("records", [])],
                     "elapsed_ms": round((monotonic() - tool_started) * 1000),
                 }
             )
+            metrics["retrievalMs"] += trace[-1]["elapsed_ms"]
+            metrics["toolResults"].append(
+                {key: value for key, value in trace[-1].items() if key != "arguments"}
+            )
+            if call.name == "lookup_contact" and len(calls) == 1 and round_index == 0 and arguments:
+                exact_candidate = contact_answer(
+                    messages, ContactQuery.model_validate(arguments), output, now.date()
+                )
             history.append(
                 {
                     "type": "function_call_output",
@@ -489,4 +554,25 @@ def run_turn(
                     "output": json.dumps(output, default=str, ensure_ascii=False),
                 }
             )
+        if exact_candidate is not None:
+            if monotonic() - started >= TURN_SECONDS:
+                raise TimeoutError("Turn deadline exceeded during contact lookup")
+            metrics["responseMode"] = "exact_contact"
+            return {
+                **render_answer(exact_candidate, evidence),
+                "model": response.model,
+                "datasetVersion": dataset_version,
+                "trace": trace,
+                "metrics": {
+                    **metrics,
+                    "modelCalls": draft_calls,
+                    "draftCalls": draft_calls,
+                    "reviewCalls": 0,
+                    "toolRequests": len(trace),
+                    "toolExecutions": tool_executions,
+                    "validationFailures": validation_failures,
+                    "fallbackUsed": exact_candidate.status == "unavailable",
+                },
+                "elapsedMs": round((monotonic() - started) * 1000),
+            }
     raise InvalidAnswer("Model did not finish within the answer budget", "answer_budget")

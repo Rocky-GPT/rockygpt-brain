@@ -1,0 +1,355 @@
+"""The sole SDK boundary and paid-call gateway. No retries or unaccounted calls."""
+
+import json
+import math
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from time import monotonic
+from typing import Any, Protocol
+from uuid import uuid4
+
+from httpx import Timeout
+from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, RateLimitError
+
+from rockygpt_brain.accounting import CAMPUS_ZONE, Category, Ledger, PaidCallError, PostgresLedger
+from rockygpt_brain.config import RELEASE, Deployment, Price, Release, configuration_hash
+
+
+@dataclass(frozen=True)
+class Usage:
+    input_tokens: int
+    cached_input_tokens: int
+    output_tokens: int
+    reasoning_tokens: int
+
+    def __post_init__(self) -> None:
+        if any(type(value) is not int or value < 0 for value in asdict(self).values()):
+            raise ValueError("Invalid token usage")
+        if (
+            self.cached_input_tokens > self.input_tokens
+            or self.reasoning_tokens > self.output_tokens
+        ):
+            raise ValueError("Invalid token breakdown")
+
+    def cost(self, price: Price) -> int:
+        # Cached tokens are a subset of input; reasoning is already included in output.
+        return (
+            (self.input_tokens - self.cached_input_tokens) * price.input_nusd
+            + self.cached_input_tokens * price.cached_input_nusd
+            + self.output_tokens * price.output_nusd
+        )
+
+
+@dataclass
+class OutputItem:
+    payload: dict[str, Any]
+
+    @property
+    def type(self) -> str:
+        return str(self.payload["type"])
+
+    @property
+    def name(self) -> str:
+        return str(self.payload["name"])
+
+    @property
+    def call_id(self) -> str:
+        return str(self.payload["call_id"])
+
+    @property
+    def arguments(self) -> str:
+        return str(self.payload["arguments"])
+
+    def model_dump(self) -> dict[str, Any]:
+        return self.payload
+
+
+@dataclass
+class ModelResponse:
+    id: str
+    model: str
+    status: str
+    output_text: str
+    output: list[OutputItem]
+    usage: Usage | None
+
+
+class Provider(Protocol):
+    def create(self, **kwargs: Any) -> ModelResponse: ...
+
+
+class ModelClient(Protocol):
+    def create(self, *, category: Category, **kwargs: Any) -> ModelResponse: ...
+
+
+def normalize_usage(raw: Any) -> Usage | None:
+    try:
+        return Usage(
+            raw.input_tokens,
+            raw.input_tokens_details.cached_tokens,
+            raw.output_tokens,
+            raw.output_tokens_details.reasoning_tokens,
+        )
+    except (AttributeError, ValueError, TypeError):
+        return None
+
+
+class OpenAIProvider:
+    def __init__(self, client: OpenAI) -> None:
+        self._client = client
+
+    def create(self, **kwargs: Any) -> ModelResponse:
+        response = self._client.responses.create(**kwargs)
+        return ModelResponse(
+            id=response.id,
+            model=response.model,
+            status=response.status or "unknown",
+            output_text=response.output_text,
+            output=[
+                OutputItem(item.model_dump(mode="json", exclude_none=True))
+                for item in response.output
+            ],
+            usage=normalize_usage(response.usage),
+        )
+
+
+def provider_error(error: BaseException) -> str:
+    if isinstance(error, (APITimeoutError, TimeoutError)):
+        return "model_timeout"
+    if isinstance(error, RateLimitError):
+        if error.code in {"insufficient_quota", "credit_balance_exhausted"} or (
+            error.type == "insufficient_quota"
+        ):
+            return "model_quota_exhausted"
+        return "rate_limited"
+    if isinstance(error, APIConnectionError):
+        return "model_unreachable"
+    if isinstance(error, APIStatusError):
+        return "model_provider_error"
+    return "model_call_uncertain"
+
+
+def wire_value(value: Any) -> Any:
+    if hasattr(value, "model_dump"):
+        return wire_value(value.model_dump())
+    if isinstance(value, dict):
+        return {key: wire_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [wire_value(item) for item in value]
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return value
+    raise PaidCallError("unsupported_model_input")
+
+
+def input_bound(payload: dict[str, Any]) -> int:
+    """Text-only byte ceiling with doubled content and generous framing overhead.
+
+    Never use characters/4: Unicode, schemas, tools, and replayed reasoning items
+    must be included. This deliberately over-reserves; measured usage releases
+    the difference. Enforced context bounds keep this below long-context rates.
+    """
+    serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return 2 * len(serialized.encode("utf-8")) + 8192
+
+
+@dataclass
+class TurnUsage:
+    calls: list[dict[str, Any]] = field(default_factory=list)
+
+    def report(self) -> dict[str, Any]:
+        return {
+            "modelCalls": len(self.calls),
+            "inputTokens": sum(c.get("input_tokens", 0) for c in self.calls),
+            "cachedInputTokens": sum(c.get("cached_input_tokens", 0) for c in self.calls),
+            "outputTokens": sum(c.get("output_tokens", 0) for c in self.calls),
+            "reasoningTokens": sum(c.get("reasoning_tokens", 0) for c in self.calls),
+            "draftModelMs": sum(c["elapsedMs"] for c in self.calls if c["category"] == "draft"),
+            "reviewModelMs": sum(c["elapsedMs"] for c in self.calls if c["category"] == "review"),
+            "costNusd": sum(c.get("costNusd", 0) for c in self.calls),
+            "unsettledNusd": sum(c["reservedNusd"] for c in self.calls if not c.get("settled")),
+            "usageComplete": all(c.get("settled", False) for c in self.calls),
+        }
+
+
+class PaidGateway:
+    def __init__(
+        self,
+        provider: Provider,
+        ledger: Ledger,
+        request_id: str,
+        *,
+        release: Release = RELEASE,
+        project: str = "",
+        config_hash: str | None = None,
+        clock: Callable[[], datetime] = lambda: datetime.now(CAMPUS_ZONE),
+    ) -> None:
+        self._provider = provider
+        self._ledger = ledger
+        self.request_id = request_id
+        self.release = release
+        self.project = project
+        self.config_hash = config_hash or configuration_hash()
+        self.clock = clock
+        self.usage = TurnUsage()
+
+    def finish(self, summary: dict[str, Any]) -> None:
+        self._ledger.record_turn(
+            self.request_id,
+            {
+                **summary,
+                **self.usage.report(),
+                "configurationHash": self.config_hash,
+            },
+        )
+
+    def create(self, *, category: Category, **kwargs: Any) -> ModelResponse:
+        started = monotonic()
+        now = self.clock()
+        price = self.release.price
+        today = now.astimezone(CAMPUS_ZONE).date()
+        if not price.valid_from <= today < price.valid_until:
+            raise PaidCallError("price_unavailable")
+        if category not in {"draft", "review"}:
+            raise PaidCallError("unsupported_model_operation")
+        if len(self.usage.calls) >= self.release.max_model_calls:
+            raise PaidCallError("model_call_limit")
+        allowed = {
+            "model",
+            "instructions",
+            "input",
+            "tools",
+            "tool_choice",
+            "text",
+            "parallel_tool_calls",
+            "reasoning",
+            "max_output_tokens",
+            "store",
+            "timeout",
+        }
+        if set(kwargs) - allowed or kwargs.get("model") != self.release.model:
+            raise PaidCallError("unsupported_model_operation")
+        output_limit = (
+            self.release.draft_output_tokens
+            if category == "draft"
+            else self.release.review_output_tokens
+        )
+        if kwargs.get("max_output_tokens") != output_limit or kwargs.get("store") is not False:
+            raise PaidCallError("unsupported_model_operation")
+        timeout = kwargs.get("timeout")
+        if isinstance(timeout, (int, float)) and not isinstance(timeout, bool):
+            timeout = Timeout(timeout, connect=min(2.0, timeout))
+        if not isinstance(timeout, Timeout) or any(
+            value is None or not math.isfinite(value) or not 0 < value <= maximum
+            for value, maximum in (
+                (timeout.read, 30.0),
+                (timeout.connect, 2.0),
+                (timeout.write, 30.0),
+                (timeout.pool, 30.0),
+            )
+        ):
+            raise PaidCallError("unsupported_model_operation")
+        kwargs["timeout"] = timeout
+        effort = (
+            self.release.draft_reasoning if category == "draft" else self.release.review_reasoning
+        )
+        kwargs["reasoning"] = {"effort": effort}
+        # Exclude network timeouts from token estimation; include every wire content field.
+        payload = wire_value({key: value for key, value in kwargs.items() if key != "timeout"})
+        if any(tool.get("type") != "function" for tool in payload.get("tools", [])):
+            raise PaidCallError("unsupported_model_operation")
+
+        def validate_text(item: Any) -> None:
+            if isinstance(item, dict):
+                if item.get("type") in {"input_image", "input_file", "input_audio"}:
+                    raise PaidCallError("unsupported_model_input")
+                for value in item.values():
+                    validate_text(value)
+            elif isinstance(item, list):
+                for value in item:
+                    validate_text(value)
+
+        validate_text(payload)
+        bound = input_bound(payload)
+        if bound > self.release.max_input_tokens:
+            raise PaidCallError("context_limit")
+        reserved = bound * price.input_nusd + output_limit * price.output_nusd
+        operation_id = str(uuid4())
+        metadata = {
+            "provider": self.release.provider,
+            "project": self.project,
+            "requested_model": self.release.model,
+            "configuration_hash": self.config_hash,
+            "release_version": self.release.version,
+            "price": price.model_dump(mode="json"),
+            "input_token_bound": bound,
+            "max_output_tokens": output_limit,
+            "reasoning_effort": effort,
+        }
+        self._ledger.reserve(operation_id, self.request_id, category, reserved, metadata, now)
+        item: dict[str, Any] = {
+            "operationId": operation_id,
+            "category": category,
+            "reservedNusd": reserved,
+            "elapsedMs": 0,
+            "settled": False,
+        }
+        self.usage.calls.append(item)
+        try:
+            # Explicit default service tier prevents priority-rate overrides. No truncation,
+            # previous-response retrieval, built-in tools, or hidden conversation state.
+            response = self._provider.create(
+                **payload, timeout=kwargs["timeout"], service_tier="default", truncation="disabled"
+            )
+            item["elapsedMs"] = round((monotonic() - started) * 1000)
+            if response.usage is None or not response.id:
+                raise PaidCallError("usage_unknown")
+            usage = asdict(response.usage)
+            cost = response.usage.cost(price)
+            try:
+                self._ledger.settle(
+                    operation_id,
+                    cost,
+                    usage,
+                    response.id,
+                    response.model,
+                    item["elapsedMs"],
+                    self.clock(),
+                )
+            except PaidCallError as error:
+                if error.code == "accounting_bound_exceeded":
+                    item.update(usage, costNusd=cost, settled=True)
+                raise
+            item.update(usage, costNusd=cost, settled=True)
+            if response.model not in {self.release.model, "gpt-5.4-2026-03-05"}:
+                self._ledger.pause()
+                raise PaidCallError("model_identity_changed")
+            if response.usage.input_tokens > bound or response.usage.output_tokens > output_limit:
+                self._ledger.pause()
+                raise PaidCallError("accounting_bound_exceeded")
+            return response
+        except BaseException as error:
+            item["elapsedMs"] = round((monotonic() - started) * 1000)
+            code = error.code if isinstance(error, PaidCallError) else provider_error(error)
+            item["error"] = code
+            if not item["settled"]:
+                # If this update fails, the original durable reservation still holds.
+                self._ledger.uncertain(operation_id, code, item["elapsedMs"])
+            if isinstance(error, PaidCallError) or not isinstance(error, Exception):
+                raise
+            raise PaidCallError(code) from error
+
+
+@contextmanager
+def open_gateway(deployment: Deployment, request_id: str) -> Iterator[PaidGateway]:
+    ledger = PostgresLedger(deployment.ledger_url, deployment.environment)
+    ledger.readiness()
+    with OpenAI(
+        api_key=deployment.api_key,
+        project=deployment.project,
+        max_retries=0,
+        timeout=30.0,
+        base_url="https://api.openai.com/v1",
+    ) as client:
+        yield PaidGateway(OpenAIProvider(client), ledger, request_id, project=deployment.project)

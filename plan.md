@@ -4,9 +4,9 @@ Updated September 11, 2026. This document replaces `plain.md` and incorporates t
 
 ## 1. Decisions and success conditions
 
-**Keep the working FastAPI and PostgreSQL foundation. Simplify the answering engine around one tool-using chat controller, one embedding component for semantic search, and evidence checks whose value is measured.** A complete project rebuild is not justified by the current evidence.
+**Keep the working FastAPI and PostgreSQL foundation. Build the first version with one tool-using chat model, accurate structured and keyword retrieval, calculations and exact answers in code, reviewed campus explanations, and enforced budgets.** A complete project rebuild is not justified by the current evidence. This document is the roadmap; deferred features are not prerequisites for completing the first working version.
 
-Seven previously listed AI responsibilities do not require seven services, models, or calls per question. Understanding, tool selection, and answer writing belong to the same controller. Document and query embeddings belong to the same search component. Review and repair are bounded additional calls. AI evaluation is optional development work outside the student response path.
+Seven previously listed AI responsibilities do not require seven services, models, or calls per question. Understanding, tool selection, and answer writing belong to the same controller. Required review uses the same chat model in a separate call. Semantic search, automatic repair, additional providers, AI grading, and batch testing are extensions that must earn their place through measured results.
 
 The goal is the least expensive complete system that reliably answers supported Ramapo questions, including complex questions and follow-ups, and handles general help accurately. Fewer calls are useful only if answer quality remains acceptable.
 
@@ -16,18 +16,21 @@ The goal is the least expensive complete system that reliably answers supported 
 |---|---|
 | Audience | Ramapo College students |
 | Production traffic | Approximately 100 questions/day, or 3,000 turns in a 30-day month |
-| Development/testing traffic | Desired volume of approximately 1,000 fresh questions/day, or 30,000 turns in a 30-day month |
+| Development/testing traffic | Tests after relevant changes, repeated difficult cases, and the full acceptance suite before a release; no mandatory daily answer count |
+| Optional stress test | Up to 1,000 fresh questions in a day when useful and affordable; not a recurring requirement or automatic job |
 | Production AI budget | **$10 per calendar month**, including production model calls and attributable embedding work |
 | Development AI budget | **Separate $10 per calendar month**, including experiments, fresh answers, graders, and attributable embedding work |
 | Combined allowance | **$20/month; no automatic transfer between environments** |
-| Model parity | Same selected chat model, embedding model, and released Brain configuration in both environments |
+| Model parity | Same selected chat model and released Brain configuration in both environments; identical embedding configuration if added later |
 | Budget exhaustion | Stop paid work in the affected environment; provide supported resources where available |
 | Campus information | Existing campus sources only |
 | General questions | Stable general knowledge, writing, study assistance, and supported calculations |
 | Live web browsing | Disabled in the bot |
 | Current scope | Update this plan only; no application changes, deployments, or paid tests |
 
-The development volume is a real target, not permission to exceed $10. Replaying stored answers or running retrieval checks must not be reported as generating 1,000 fresh Brain answers. Under the illustrative costs in section 8, the fresh-answer target is **not yet demonstrated to fit**.
+The user explicitly made 1,000 fresh development answers/day an **optional stress test**. Quality testing is organized around changes, release candidates, and known failure risks. Replaying stored answers or running retrieval checks must still never be counted as fresh Brain answers. Admit an optional stress run only if its conservative cost fits the remaining development allowance after required test work is reserved.
+
+The combined $20 allowance comes from the user's separate-environment budget clarification, not from an architectural cost saving. Neither this clarification nor the optional stress-test choice permits weaker development settings or unmetered paid work.
 
 Correctness means answering every supported part, preserving conditions and exceptions, citing the actual supporting evidence, and identifying genuine gaps. Neither a different model nor an extra reviewer can recover facts absent from the permitted sources. Zero observed errors in a test set cannot guarantee that every future answer will be correct.
 
@@ -48,63 +51,64 @@ Change the expensive or error-prone parts:
 - Render exact supported values with code when the request can be fully satisfied that way.
 - Stop requiring an AI evidence review for ordinary general conversation or eligible deterministic responses.
 - Keep review for generated campus factual prose initially; narrow it only where independent tests support doing so.
+- On a rejected draft, return independently supported exact facts and a clear limitation without another model call in the first build.
 - Enforce separate environment budgets before every paid operation.
 
 Defer a specialist-agent network, a separate vector database, a dedicated AI router, an AI reranker, automatic conversation summarization, fine-tuning, and a general workflow framework. Add a component only when a specific measured failure requires it. This follows the principle of starting with simple workflows and adding complexity when it demonstrably helps. [Anthropic's architecture guidance](https://www.anthropic.com/engineering/building-effective-agents)
 
-## 3. Architecture and exact AI call locations
+### First build versus measured extensions
+
+| Build first | Consider later, only with evidence |
+|---|---|
+| Existing server, database, and one selected chat model | Additional provider integrations after a small comparison is justified |
+| Exact filters, bounded keyword search, source identity, applicability, and missing-data checks | Semantic search if labeled failures show useful evidence is missed |
+| Calculations and eligible exact responses in code | More domain operations only when actual questions require them |
+| Write a campus explanation, review it, then return supported output or a safe fallback | One repair plus recheck if it restores enough complete correct answers to justify the cost |
+| One accounting implementation with separate environment balances and credentials | Batch-specific reservation and reconciliation handling when batch is introduced |
+| Representative real-time tests, deterministic grading, and human review of meaning | A batch runner and sampled AI grading after measurement justifies them |
+
+The first build must still meet the applicable correctness and completion gates. More partial answers are a possible cost of omitting repair, not an acceptable way to inflate pass rates. If the small version fails a gate, diagnose the cause and add only the remedy supported by evidence before claiming release readiness.
+
+## 3. First-build architecture and exact AI call locations
 
 ```mermaid
 flowchart TD
     Sources[Existing campus sources] --> Ingest[Collect and validate with code]
     Ingest --> Data[(Versioned campus records and passages)]
-    Ingest --> Changed{Passage content changed?}
-    Changed -->|Yes, semantic search enabled| EmbedDocs[Embedding model: changed passages]
-    EmbedDocs --> Index[(PostgreSQL search indexes)]
+    Data --> Index[Existing PostgreSQL keyword indexes]
 
     Client[Student UI / Dev UI / evaluation runner] --> API[Validate request and admit within environment budget]
     API --> Chat[Same chat model: answer or request tools]
     Chat -->|General answer| Format[Code validation and response formatting]
     Chat -->|Tool request| Tools[Code: structured search, passage search, read, calculate]
     Tools --> Data
-    Tools -->|Semantic search needed| EmbedQuery[Embedding model: query]
-    EmbedQuery --> Index
+    Tools --> Index
     Tools --> Evidence[Evidence with identity, scope, coverage, and dates]
     Evidence -->|Eligible exact answer| Exact[Code assembles supported values]
     Exact --> Format
     Evidence -->|Explain or continue retrieval| Chat
-    Chat -->|Generated campus factual answer| Review{Review required by tested policy?}
-    Review -->|Yes| Check[Same chat model: focused evidence review]
-    Review -->|No| Format
+    Chat -->|Generated campus factual answer| Check[Same chat model: focused evidence review]
     Check -->|Pass| Format
-    Check -->|Fail and repair fits limits| Repair[Same chat model: one repair]
-    Repair --> Recheck[Same chat model: review changed content]
-    Recheck -->|Pass| Format
-    Check -->|No repair capacity| Fallback[Supported exact facts or clear limitation]
-    Recheck -->|Fail| Fallback
+    Check -->|Fail| Fallback[Code: supported exact facts or clear limitation]
     Fallback --> Format
     Format --> Client
 
     Gateway[Shared paid-call gateway and environment ledger] -. Reserve before execution .-> Chat
     Gateway -.-> Check
-    Gateway -.-> Repair
-    Gateway -.-> Recheck
-    Gateway -.-> EmbedDocs
-    Gateway -.-> EmbedQuery
 ```
 
-These boxes describe functions in the existing services, not separate deployed agents. The optional development grader also uses the paid-call gateway; it is not part of the diagram's student response path.
+These boxes describe functions in the existing services, not separate deployed agents. There is no repair loop, embedding service, or AI grader in this first-build diagram. Later paid extensions must use the same accounting implementation and preserve environment isolation.
 
-### The two AI components
+### AI components by stage
 
-| Component | Responsibilities | When it runs |
+| Component | Responsibilities | Stage |
 |---|---|---|
-| **Chat model and controller** | Understand the request; choose tools; answer; perform required evidence review and at most one repair | One or more bounded calls during a conversation turn |
-| **Embedding component** | Embed changed passages and semantic search queries | During indexing or a semantic retrieval operation |
+| **Chat model and controller** | Understand the request; choose tools; answer; perform required evidence review | First build; one or more bounded calls per turn |
+| **Embedding component** | Embed changed passages and semantic search queries | Deferred until retrieval evidence justifies it |
 
 One component can make multiple calls. Grouping responsibilities does not itself reduce billing. Count actual input, output, reasoning, embedding, and grading usage.
 
-### Planned chat-call paths
+### First-build chat-call paths
 
 | Answer type | Expected path | Target chat calls |
 |---|---|---:|
@@ -112,11 +116,10 @@ One component can make multiple calls. Grouping responsibilities does not itself
 | General question needing calculation | Request calculation, execute in code, explain result | Usually 2 |
 | Exact campus fact | Request data, then render eligible fields with code | 1; 2 if a second lookup is needed before rendering |
 | Campus explanation | Request evidence, write answer, review factual claims | Usually 3 initially |
-| Campus explanation with review exemption proven by tests | Request evidence, write answer, run code checks | Usually 2 |
-| Complex campus question | Additional retrieval/planning and required review, within the total cap | Target 3–5 |
-| Failed factual draft | Repair and recheck only when both calls fit the remaining allowance | Included in the same total cap |
+| Complex campus question | Additional retrieval/planning and required review, within the total cap | Target 3–4 |
+| Failed factual draft | Return eligible exact facts and a limitation using code | No additional model call after the failed review |
 
-An ambiguity can produce a clarification instead of a factual answer. Query embeddings are additional when semantic search is used. Targets are not measured latency or cost claims.
+An ambiguity can produce a clarification instead of a factual answer. Targets are not measured latency or cost claims. Later, a proven review exemption could reduce a campus explanation to two calls; a proven repair extension could require up to five total calls; semantic search would add query-embedding usage. None is assumed in the first build.
 
 ## 4. The conversation controller
 
@@ -168,9 +171,9 @@ Use typed, parameterized filters for dates, venues, meals, dietary flags, terms,
 
 Return bounded records with exact field values, evidence IDs, source URLs, applicability, freshness, and coverage. Conflicting records remain visible as conflicts; the model must not silently choose a convenient answer.
 
-### Semantic search where it improves recall
+### Deferred: semantic search where it improves recall
 
-Keep PostgreSQL full-text search. Add embeddings for relevant passages if the retrieval benchmark shows meaningful gains on paraphrases and policy questions. Use `pgvector` in the existing database rather than a separate vector service. [pgvector hybrid-search guidance](https://github.com/pgvector/pgvector#hybrid-search)
+Begin with PostgreSQL full-text search and measure what it misses. Build the following semantic-search extension only if labeled retrieval failures and a small comparison demonstrate meaningful gains on paraphrases and policy questions. If those failures block acceptance, address them before release; deferral does not waive the retrieval gate. Use `pgvector` in the existing database rather than a separate vector service. [pgvector hybrid-search guidance](https://github.com/pgvector/pgvector#hybrid-search)
 
 `text-embedding-3-small` is the initial embedding candidate, with the same model and dimensions in both environments. Its documented input price is $0.02 per million tokens. Reconfirm pricing before implementation. [Embedding model documentation](https://developers.openai.com/api/docs/models/text-embedding-3-small)
 
@@ -208,7 +211,17 @@ The reviewer checks whether the evidence supports the meaning, scope, conditions
 
 Remove the review only from answer categories for which held-out evaluation supports the exemption. Start with deterministic exact responses and ordinary general answers. Any further exemption must be based on observable answer/evidence structure and independent results, not a phrase list or the model's confidence score. Keep complex policy interpretation, conflicting evidence, and cross-source inference under review unless their own evidence justifies a change.
 
-Allow one repair after an actual failure. Review the changed factual content again. If it still fails or the necessary calls do not fit, return independently renderable supported facts and a limitation, or an unavailable response. Never release rejected prose or quietly skip a required check to finish within budget.
+**First build: write the explanation, check it, and return it only if supported. If checking fails, return independently renderable supported facts and a limitation, or an unavailable response. There is no automatic repair or recheck call.** Never release rejected prose, splice together unreviewed fragments, or skip a required check to finish within budget.
+
+Measure how often this fallback makes an answerable request incomplete. Keep the existing completion requirements; a smaller implementation does not justify lowering them.
+
+### Deferred: one repair only if it measurably helps
+
+Consider repair when recorded failures show that the necessary evidence was already retrieved but the draft expressed it incorrectly. Missing or contradictory source information requires better retrieval, clarification, or an honest gap, rather than another writing attempt.
+
+Compare the fallback-only path with one repair and a recheck on the same independent evaluation set. Report the number of complete correct answers recovered, new unsupported claims, extra tokens, and latency, as well as overall completion. Add repair only if the improvement justifies its cost and preserves all quality and budget gates.
+
+If introduced, allow at most one repair and review the changed factual content again. Both calls must fit a tested total ceiling of at most five chat calls. Otherwise keep the original safe fallback. A complex turn that already used four calls has no capacity for both repair and recheck under that ceiling.
 
 ### General and mixed questions
 
@@ -220,11 +233,11 @@ With bot browsing disabled, do not claim to have verified current external news,
 
 | Limit | Initial proposed default |
 |---|---:|
-| Chat calls per turn | Maximum 5, including planning, writing, review, repair, and recheck |
+| Chat calls per turn | Maximum 4 in the first build, including planning, writing, and required review |
 | Retrieval rounds | Maximum 2 |
 | Retrieval operations | Maximum 8 |
 | Independent retrieval concurrency | Up to 4 |
-| Query-embedding calls | Maximum 2 per turn, only for needed semantic queries |
+| Query-embedding calls | 0 in the first build; at most 2 if semantic search is later justified |
 | Real-time execution deadline | 30 seconds |
 | HTTP deadline | 32 seconds |
 | Admitted maximum cost per turn | $0.01, additionally constrained by the environment's remaining budget |
@@ -232,7 +245,7 @@ With bot browsing disabled, do not claim to have verified current external news,
 
 These are safety ceilings, not typical usage targets. A $0.01 ceiling does not imply that either environment can afford that average.
 
-Reserve calls, time, and money for required verification before further retrieval. A repair that requires rechecking needs two remaining chat slots. After a complex retrieval sequence, it may be necessary to return supported partial information rather than attempt repair. Never allow the five-call cap to expand implicitly.
+Reserve calls, time, and money for required verification before further retrieval. If another lookup would leave insufficient capacity to write and check the answer, use supported exact facts or a clear limitation. The four-call first-build cap can cover two controller/tool-request calls, one answer-writing call, and one review. A future repair extension requires an explicit tested configuration change, applied equally to both environments; caps never expand implicitly.
 
 Do not add AI calls solely to label uncertainty or format errors. Use explicit code statuses for missing evidence, limits, failures, and budget exhaustion.
 
@@ -240,7 +253,7 @@ Do not add AI calls solely to label uncertainty or format errors. Use explicit c
 
 Cache public evidence by dataset version, entity, filters, and resolved dates. Recheck freshness and time-dependent applicability before use. Preserve invalidation on source and schema changes.
 
-Reuse unchanged document embeddings and suitable frozen public-data indexes in development. Provider prompt caching may reduce repeated-prefix cost where supported, but measure actual billed cache usage. Do not assume batch and cache discounts stack.
+Reuse suitable frozen public-data snapshots in development. If semantic search is later added, reuse unchanged document embeddings as well. Provider prompt caching may reduce repeated-prefix cost where supported, but measure actual billed cache usage. Do not assume batch and cache discounts stack.
 
 Do not share personalized conversation answers between students. During answer-quality evaluation, bypass any full-answer cache and record whether the model was actually called.
 
@@ -250,7 +263,7 @@ Do not share personalized conversation answers between students. During answer-q
 
 Development must test the model that production will use. Keep the same selected model identity, supported reasoning settings by role, prompt versions, tool schemas, retrieval settings, rendering eligibility, review policy, and execution bounds in the released configuration.
 
-The embedding model, dimensions, and chunking configuration must also match. Development can use a frozen source snapshot for reproducibility; record its identity and run separate smoke checks against the current published dataset.
+If embeddings are added, their model, dimensions, chunking, and enablement must also match. Development can use a frozen source snapshot for reproducibility; record its identity and run separate smoke checks against the current published dataset.
 
 Proposed changes are tested in development. Promote the exact tested configuration to production as a versioned release. Do not use a weaker development model, a development-only relaxed verifier, or a different reasoning profile to make the bill look smaller.
 
@@ -266,7 +279,7 @@ Use the cheapest configuration that passes the independent quality gates and fit
 
 ### Keep provider integration small
 
-Keep SDK objects inside a thin adapter covering messages, tool calls/results, structured responses, reasoning options, deadlines, normalized usage, and errors. Begin with the existing provider and the one challenger actually being evaluated. Add other adapters only when the comparison requires them.
+Keep SDK objects inside a thin adapter covering messages, tool calls/results, structured responses, reasoning options, deadlines, normalized usage, and errors. Build the first working path on one provider, then integrate the first challenger for a bounded comparison after the baseline works. Add other adapters only when that comparison requires them.
 
 Provider compatibility must be tested; changing a base URL is not sufficient. Preserve tool-call IDs, structured-output behavior, continuation metadata, and provider-specific handling of reasoning tokens and limits. [Gemini function-calling documentation](https://ai.google.dev/gemini-api/docs/function-calling), [DeepSeek Responses compatibility](https://api-docs.deepseek.com/guides/responses_api/)
 
@@ -282,7 +295,7 @@ Rates below were checked against official documentation on September 11, 2026. T
 
 The estimates assume **6,000 total input tokens and 800 total billable output tokens per completed question across every chat call**, including reasoning where billed. That allowance is an illustration, not a measurement of the current or proposed Brain. Actual evidence size, history, repairs, and model behavior can change it substantially.
 
-| Candidate | Input / output per 1M tokens | Production: 3,000 questions | Development: 30,000 questions | Development if all eligible generation uses batch |
+| Candidate | Input / output per 1M tokens | Production: 3,000 questions | Optional stress scenario: 30,000 questions | Same optional scenario using eligible batch generation |
 |---|---:|---:|---:|---:|
 | Mistral Small 4 | $0.15 / $0.60 | $4.14 | $41.40 | $20.70 |
 | GPT-5.6 Luna | $0.20 / $1.20 | $6.48 | $64.80 | $32.40 |
@@ -294,28 +307,31 @@ Standard sources: [Mistral pricing](https://docs.mistral.ai/inference/pricing), 
 
 Batch sources: [Mistral batch processing](https://docs.mistral.ai/studio/batch-processing), [OpenAI pricing](https://developers.openai.com/api/docs/pricing), [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing), [Groq batch processing](https://console.groq.com/docs/batch). Groq documents that its batch discount does not stack with prompt caching. DeepSeek's range reflects peak/off-peak pricing; plan conservatively using peak pricing until the measured traffic schedule supports another estimate.
 
+The 30,000-question columns illustrate repeating the optional stress volume every day for 30 days; they are **not the regular development workload**. For a single 1,000-question real-time run under these assumptions, Mistral Small 4 would cost $1.38 and Luna $2.16 for generation alone. Those are calculations, not measured quotes for the new Brain.
+
 The table excludes embeddings, separate AI graders, failed attempts beyond the assumed token totals, source infrastructure, and taxes. It also assumes one tested candidate per question. Comparing two models on every question approximately adds their separate costs.
 
 ### Explicit feasibility targets
 
-| Environment | Monthly AI cap | Average available at the requested 30-day volume |
+| Environment/workload | Monthly AI cap | Feasibility rule |
 |---|---:|---:|
-| Production | $10 | Approximately $0.00333 per completed turn |
-| Development/testing | $10 | Approximately $0.000333 per fresh completed test turn |
+| Production: approximately 3,000 turns/month | $10 | Approximately $0.00333 per completed turn before other production AI work |
+| Regular development/testing | Separate $10 | Admit the relevant change-driven tests and release suite within the remaining allowance; no fixed daily turn count |
+| Optional stress at 1,000/day for 30 days | Uses the same development $10 | Would allow only approximately $0.000333 per fresh turn before other development AI work; not an operating requirement |
 
-Other AI work comes from the same environment allowance, so the actual chat-call target must be lower. A 31-day month or additional usage also changes the available average.
+Other AI work comes from the same environment allowance, so the available generation spend is lower. A 31-day month or additional usage also changes the production average. Reserve required development acceptance work before discretionary stress tests or provider experiments.
 
-Production appears plausible under the example, subject to measurement. **Development's 1,000 fresh answers/day does not fit the example, even at the listed batch prices.** Reducing the number of diagram boxes does not resolve that constraint.
+Production appears plausible under the example, subject to measurement. **Repeating the optional 1,000-answer stress test every day does not fit the example, even at the listed batch prices.** This no longer blocks the normal development workflow, because there is no mandatory daily test count. It also provides no reason to build a batch runner before the core Brain is measured.
 
-Test whether compact tool schemas, selective evidence, deterministic responses, fewer unnecessary calls, measured prefix caching, and batch execution reduce actual cost sufficiently. Never count weaker reasoning, skipped required verification, incomplete answers, or cached-answer replay as equivalent savings.
+First measure compact tool schemas, selective evidence, deterministic responses, fewer unnecessary calls, and actual prefix-cache savings. Consider batch execution later against measured test demand. Never count weaker reasoning, skipped required verification, incomplete answers, or cached-answer replay as equivalent savings.
 
-If the measured complete workload still exceeds $10, report that the full operating target is unmet. A larger development allowance or fewer fresh runs would require a user decision. Preserve the chosen model and quality settings while the decision is pending; do not silently transfer production funds or lower development quality.
+If required validation cannot fit the remaining development budget, save the checkpoint and defer the release until validation can finish within an available allowance. An optional stress test can be shortened or skipped with its actual scope reported. Increasing either $10 cap requires a user decision. Do not transfer production funds, lower development quality, or declare an incompletely tested release verified.
 
 ### Enforce spending before calls
 
 Use separate provider projects/credentials for production and development, plus separate ledger namespaces and grants. Environment identity comes from trusted server/job configuration, never a client-supplied field. Development cannot read production credentials or spend its balance.
 
-Add persistent accounting in a separate operational PostgreSQL schema. Keep the campus retrieval role read-only. One small paid-call gateway applies to Brain calls, query/document embeddings, model comparisons, graders, and batch jobs.
+Add persistent accounting in a separate operational PostgreSQL schema. Keep the campus retrieval role read-only. Implement one small paid-call gateway with separate environment balances and credentials. Initially it covers the real-time Brain and evaluation calls; any later embeddings, graders, provider experiments, or batch jobs must use that same accounting implementation rather than an independent spending system.
 
 For each paid operation:
 
@@ -326,9 +342,9 @@ For each paid operation:
 5. Settle from returned provider usage and release only the proven unused reservation.
 6. Retain the conservative reservation for ambiguous timeouts/cancellations until usage is reconciled. Unknown usage is not zero usage.
 
-Admission must work across concurrency, processes, and restarts. If the ledger or a usable price configuration is unavailable, paid calls stop. Budget reset must not erase unsettled commitments or permit queued work to evade accounting at a month boundary. Attribute delayed charges consistently with the provider's billing rules and reconcile them.
+Admission must work across concurrency, processes, and restarts. If the ledger or a usable price configuration is unavailable, paid calls stop. Budget reset must not erase unsettled commitments. Attribute delayed charges consistently with the provider's billing rules and reconcile them.
 
-Reserve queued batch work before submission, not when results arrive. A cancelled or expired job can still have billable completed requests. Never resubmit an uncertain batch as though the first attempt were free.
+**If batch is later introduced:** reserve queued work before submission, not when results arrive, and prevent month-boundary evasion. A cancelled or expired job can still have billable completed requests. Never resubmit an uncertain batch as though the first attempt were free. Batch job submission, polling, and reconciliation are deferred implementation work, not first-build requirements.
 
 Use provider usage reconciliation to identify differences and unexpected external spending. Dedicated credentials are necessary because unrelated scripts using shared keys can bypass application accounting. Dashboard alerts alone do not implement a hard cap.
 
@@ -337,6 +353,22 @@ Track usage categories within each environment for diagnosis. Production has its
 At exhaustion, stop new paid calls in that environment. Return a stable, non-retryable `budget_exhausted` result with the reset date and available official resources. Use the existing source catalog and non-AI rendering for that response; do not start an LLM to explain the limit. A failed development budget must not interrupt production.
 
 ## 9. Development and evaluation without misleading savings
+
+### Run tests for changes and known risks
+
+| Trigger | Required work |
+|---|---|
+| Retrieval, calculation, rendering, or accounting code changes | Run the relevant local checks; run fresh affected conversations when answer behavior can change |
+| Prompt, model, reasoning, or tool-contract changes | Run a balanced fresh regression subset and repeat relevant difficult cases before assessing the candidate |
+| Campus source/data changes | Validate affected records, applicability, and coverage; run affected fresh smoke cases where the change can alter answers |
+| Release candidate | Run the complete 200-turn acceptance suite, held-out repetition, and production-like runtime checks before release |
+| A new failure or ambiguous result | Add a source-grounded regression case; repeat it enough to investigate variability and include it in future relevant runs |
+| No relevant change | No mandatory daily generation quota; spend only when a stated diagnostic or consistency question justifies a run |
+| Optional stress test | State the purpose, question mix, freshness, concurrency, and admitted cost before running up to 1,000 fresh turns |
+
+Maintain the full corpus, but start implementation feedback with a small representative subset. Increase fresh coverage as the changed behavior requires it. Repeating a difficult case measures consistency; it does not increase the count of distinct scenarios. Report both distinct-case coverage and repeated-run stability.
+
+The first build uses real-time tests with code-based checks and human assessment of meaning. The minimum release checks remain mandatory even if discretionary testing is reduced to fit the budget.
 
 ### Count three kinds of work separately
 
@@ -352,11 +384,13 @@ Count failures, timeouts, unavailable answers to answerable questions, and budge
 
 Create source-grounded expected facts, acceptable answer conditions, citation IDs, and calculation results. Use code for exact values and structured checks. Do not rely solely on string matching for paraphrased explanations or policy interpretation.
 
-Use human review for critical or disputed factual meaning. Optional AI grading uses the selected chat model and can help screen explanations, but must be metered, sampled, and calibrated against human judgments. It is not automatically run for every test and does not certify its own model's accuracy. Its separate grading prompt does not alter the Brain configuration being tested.
+Use human review for critical or disputed factual meaning. Defer AI grading from the first build. If a measured review workload later justifies it, a sampled grader can use the selected chat model, with its own metered cost and calibration against human judgments. It must not automatically run for every test or certify its own model's accuracy. Its grading prompt does not alter the Brain configuration being tested.
 
 No recurring AI question generator is included. Maintain a curated corpus and add paraphrases, failures, and new source cases deliberately. Any future paid question generation belongs to the development budget.
 
-### Use batch for quality tests, real-time calls for runtime behavior
+### Deferred: batch only after its full-workload economics are measured
+
+Before implementing a batch runner, project the cost of the measured test mix using the actual provider's eligible batch rates. Include every dependent model round, the required real-time subset, failures, indexing, and any grading. Compare savings with the runner's implementation and maintenance work. If the projection does not make the intended workload affordable, do not build a batch system solely to pursue that workload.
 
 Batch is an optional transport optimization for fresh offline tests. Reuse the same controller, prompts, model settings, tool execution, evidence checks, and per-turn call ceilings. Avoid a second, simpler implementation that bypasses production behavior.
 
@@ -366,36 +400,69 @@ Use a fixed dataset and logical campus time for reproducibility. Batch jobs need
 
 Keep a representative real-time subset using the exact production deadlines and request path. Include its cost in the $10 development cap. Mixed batch/real-time spending will be higher than the all-batch column in section 8.
 
-Implement this runner only after cost profiling shows the batching benefit justifies it. Start with a small controlled real-time sample rather than building a complex batch scheduler before the Brain works.
+Implement this runner only after the working real-time Brain and cost profiling show that batching is justified. Its pausing/resuming, tool-round coordination, and delayed-charge accounting are a separate extension, not a prerequisite for first-build acceptance or routine development.
 
 ## 10. Implementation sequence and ownership
+
+Phases 1–4 produce and evaluate the smaller working version. Phase 5 is conditional: use only extensions justified by measured failures or costs, then rerun affected gates. A passing baseline can proceed directly to release preparation without implementing Phase 5 features.
+
+The first end-to-end milestone is **one real campus question working through the existing browser, evidence retrieval, answer rendering, citations, and spending records, including its failure paths**. Connect these pieces before expanding retrieval coverage. Use the same controller and contracts throughout the later work.
 
 ### Phase 1 — Baseline, configuration, and accounting
 
 - Capture the current branch's code/configuration identity, public contract, representative dataset, and existing regression corpus.
 - Add a versioned configuration shared by both environments, with environment-owned credentials and budgets supplied separately.
 - Add the paid-call gateway, reservation ledger, and usage/error normalization before paid experiments.
-- Measure model calls, tokens by category, retrieval time, writing/review/repair time, and total cost per complete turn.
-- Test budget isolation, admission races, restart recovery, unknown usage, month boundaries, and batch commitments without paid calls.
+- Measure model calls, tokens by category, retrieval time, writing/review time, fallback frequency, and total cost per complete turn.
+- Test budget isolation, admission races, restart recovery, unknown usage, and month boundaries without paid calls. Batch-specific tests belong to a later batch extension.
 
 **Exit:** no paid caller can bypass its environment's accounting, and instrumentation can explain each charge. No model is selected by an unmeasured cost estimate.
 
-### Phase 2 — Make the right evidence retrievable
+### Phase 2 — Connect one complete path, then expand retrieval
 
-- In the Data repository, improve identities, aliases, applicability, coverage, and typed fields from existing sources.
+#### 2A. One real question from browser to evidence to answer
+
+Choose an office-contact question that the existing published dataset actually supports. Verify the record and source first; this is a representative implementation case, not a hardcoded question or a claim about a particular office's available data.
+
+1. Submit the question through the existing browser interface and `POST /v1/chat`.
+2. Validate the request, establish its trusted environment and request ID, and reserve spending capacity before the model call.
+3. Let the baseline model request the relevant record through the real tool contract.
+4. Execute parameterized retrieval and validate the entity, requested fields, applicability, source identity, coverage, and conflicts.
+5. For an eligible exact response, assemble the contact fields and citation in code. Add no model-written explanation or evidence-review call merely to restate those validated fields.
+6. Return the answer and its source through the existing response contract and display them in the browser.
+7. Settle the actual model usage and connect the request, tool result, evidence IDs, elapsed time, and spending record through the request ID.
+
+Build this path with the reusable controller, tools, accounting, and response formats that later questions will use. Avoid a separate temporary implementation or logic keyed to the example's wording or expected answer.
+
+The same milestone must demonstrate these outcomes, using controlled failure injection where appropriate:
+
+| Case | Required behavior |
+|---|---|
+| Supported record | Browser shows the correct contact fields and supporting source; actual usage is recorded |
+| Missing record or uncovered attribute | Clear missing-information response without invented details |
+| Ambiguous entity or conflicting evidence | Clarification or an explicit limitation rather than an unsupported exact answer |
+| Database failure | Safe failure response, request ID, and correct accounting for any model work already performed |
+| Provider failure or uncertain timeout | Safe failure response; keep uncertain charges reserved until reconciled |
+| Exhausted environment budget | Code returns the limit/reset information and available resources; no paid call is made |
+
+**Milestone exit:** the real browser-to-evidence path and its failure handling work, with observable usage and citations. This establishes the first complete path, not release readiness. The remaining answer paths and the full acceptance requirements still apply.
+
+#### 2B. Expand evidence coverage using the same path
+
+- In the Data repository, make the minimum additive improvements to identities, aliases, applicability, coverage, and typed fields needed by the representative cases. Do not require a complete corpus redesign before the first build.
 - In Brain, improve parameterized filters, bounded reading, and evidence contracts.
 - Add calculation operations and exact rendering for supported data shapes.
-- Compare keyword-only retrieval with semantic retrieval on labeled paraphrases and policy cases; add the embedding/index path where it earns its cost and complexity.
-- Reuse existing public embeddings in suitable development snapshots instead of rebuilding the index for each run.
+- Measure keyword retrieval on labeled paraphrases and policy cases, and record evidence it misses. An embedding comparison is a later targeted remedy for demonstrated misses.
+- Use a frozen public-data snapshot for reproducible development checks.
 
 **Exit:** required evidence is retrieved for the labeled cases with correct entities, dates, qualifiers, and coverage. Retrieval can be evaluated independently of answer generation.
 
-### Phase 3 — Implement the small controller and answer paths
+### Phase 3 — Extend the same controller to the remaining answer paths
 
-- Use one model call to answer, request tools, or clarify; preserve multi-part tasks without a preliminary classifier.
-- Add deterministic factual responses and a one-call general path.
+- Extend the controller established in Phase 2A: use one model call to answer, request tools, or clarify, and preserve multi-part tasks without a preliminary classifier.
+- Extend the reusable deterministic response formats and add a one-call general path, using calculations where needed.
 - Keep generated campus prose under focused review initially.
-- Implement one repair with explicit capacity for its recheck and a safe fallback when it cannot fit.
+- On failed review, return only independently renderable supported facts and a limitation. Implement no automatic repair/recheck loop in this version.
 - Enforce all call, time, context, and spend ceilings in one place.
 - Preserve adversarial, follow-up, correction, partial-answer, and source-attribution behavior while removing superseded scenario-specific machinery.
 
@@ -408,31 +475,33 @@ Use the development $10 allowance for this work and all other development AI usa
 1. Begin with a small balanced screen, approximately 32 representative turns per candidate, comparing Luna and Mistral Small 4 on the same snapshot.
 2. Project the next run's conservative maximum cost before admitting it; reduce the run scope or stop when the remaining allowance cannot cover it.
 3. Evaluate the strongest eligible configurations on the full acceptance corpus and held-out portion as funding permits.
-4. Compare the same configuration with and without particular review exemptions on independently assessed answers. Do not remove review merely because the writer or its own reviewer prefers that version.
-5. Measure complete-turn cost distributions, including failures, review, repairs, reasoning, and embeddings.
+4. Evaluate the fallback-only policy against completion requirements. A higher partial-answer rate is a recorded failure when a question was answerable, not evidence that the smaller design passed.
+5. Measure complete-turn cost distributions, including failed attempts, required review, reasoning, and any already-justified extension.
 6. Add another provider candidate only if needed to address a demonstrated quality or cost failure.
 
 Select first for critical correctness and completeness, then for measured cost at the target traffic, then latency. Hold model, prompts, retrieval, and test data fixed when isolating the effect of one change.
 
-**Exit:** one configuration is selected on evidence. If funds run out or neither candidate passes, preserve the checkpoint and report an incomplete result. An unfinished comparison does not establish an optimal model.
+**Exit:** one configuration is selected on evidence and the first-build quality, completion, runtime, and budget gates pass. If funds run out or neither candidate passes, preserve the checkpoint and report an incomplete result. Use the failure diagnosis to consider a targeted Phase 5 extension; an unfinished comparison does not establish an optimal model.
 
-### Phase 5 — Test volume and simplify further where proven
+### Phase 5 — Optional extensions that earn their place
 
-- Measure a representative real-time sample on the selected configuration.
-- Add batch execution for offline quality runs if warranted; verify it preserves the same logical Brain behavior.
-- Use measured token distributions and the real batch/real-time mix to forecast both environments, including grading and indexing.
-- Remove review only from categories whose held-out results support exemption. Repeat critical cases after each such change.
-- Validate the desired 1,000 fresh development turns/day against the remaining allowance before launching a full daily run.
+- Semantic search: demonstrate that it retrieves necessary evidence missed by the simpler retrieval path, with acceptable indexing and query cost.
+- Repair: demonstrate that one repair plus recheck recovers sufficient complete correct answers to justify additional code, latency, and spend. Preserve the same quality gates and model in both environments.
+- Further review exemptions: compare independently assessed held-out results before removing a check from an additional answer category.
+- Additional providers: investigate only when the initial comparison exposes a specific quality or cost gap.
+- Batch testing: first project the complete measured workload at eligible rates, then implement only if the savings justify the runner. Verify both logical behavior and accounting.
+- AI grading: add sampled assistance only when its value against human judgment and its cost are measured.
+- Optional stress testing: reserve required validation costs first, then admit a clearly scoped run of up to 1,000 fresh turns when useful and affordable. It is not a daily completion requirement.
 
-**Exit:** report separately whether accuracy, production cost/traffic, and development cost/traffic targets pass. The overall operating goal remains unmet if the desired development volume still cannot fit $10. Do not conceal that failure by relabeling local checks or lowering the development model.
+**Exit for each extension:** it improves an identified deficiency, the resulting whole configuration passes the applicable gates, and the projected workload fits its environment budget. Record unused extensions as deferred, not incomplete core work. If optional stress testing is unaffordable, report the admitted or skipped scope without blocking an otherwise validated release.
 
-### Phase 6 — Integrate and release the tested configuration
+### Phase 6 — Finish client validation and prepare release
 
 Keep the existing public request shape and response fields: `answer`, `status`, `citations`, `model`, `requestId`, `datasetVersion`, `elapsedMs`, `trace`, and `metrics`.
 
 Add compatible optional evidence references and operational metrics where useful. Do not expose private reasoning, internal rejection prose, or detailed billing/accounting internals in student answers.
 
-Update clients to handle budget exhaustion, context limits, missing evidence, and provider failure without automatic retry storms. Reuse a simple non-AI resource view; add a small read-only source-catalog endpoint only if the existing client contract cannot supply it. Leave unrelated campus panels and dashboard features outside this work.
+Finish client coverage for all answer paths and verify budget exhaustion, context limits, missing evidence, and provider failure without automatic retry storms. The initial browser integration and basic failure handling already work from Phase 2A. Reuse a simple non-AI resource view; add a small read-only source-catalog endpoint only if the existing client contract cannot supply it. Leave unrelated campus panels and dashboard features outside this work.
 
 Prepare the Brain deployment image, grants, configuration release, and health checks in the appropriate repositories. Keep the prior release available for rollback. A deployment candidate must match the tested model/configuration identity.
 
@@ -443,8 +512,8 @@ Prepare the Brain deployment image, grants, configuration release, and health ch
 | Repository | Planned responsibility |
 |---|---|
 | `rockygpt-brain` | Controller, tool contracts, evidence validation/rendering, provider boundary, request accounting |
-| `rockygpt-data` | Existing-source ingestion, identities, coverage, freshness, changed-passage indexing |
-| `rockygpt-evals` | Fixtures, fresh runs, optional batch transport, graders, independent result reports |
+| `rockygpt-data` | Existing-source ingestion, identities, coverage, freshness; changed-passage indexing only if justified later |
+| `rockygpt-evals` | Fixtures, relevant fresh runs, deterministic checks and human-review reports; batch transport and AI grading deferred |
 | `rockygpt-ui` and `rockygpt-dev` | Compatible chat handling and clear limit/failure states |
 | `rockygpt-infra` | Deployment configuration, credentials/grants, operational storage, rollback |
 
@@ -487,9 +556,10 @@ Cover meal/date/venue/dietary filtering; missing menu versus closed venue; route
 | Simple-answer latency | Target p95 below 8 seconds on a warm real-time service |
 | Complex-answer latency | Target p95 below 25 seconds on a warm real-time service |
 | Production feasibility | Measured production mix supports approximately 100 questions/day within its $10/month AI cap |
-| Development feasibility | Measured test mix supports approximately 1,000 fresh complete answers/day within its separate $10/month AI cap; otherwise explicitly unmet |
+| Development feasibility | Required change-driven and release validation stays within its separate $10/month AI cap; unfinished required validation blocks release |
+| Optional stress testing | Run only within remaining development funds; report actual scope, cost, and distinct/repeated coverage; not a release requirement |
 | Environment parity | Released model, reasoning, prompts, tools, retrieval, and review policy match |
-| Spending enforcement | Isolation, concurrency, restart, uncertain usage, queued work, and boundary tests pass |
+| Spending enforcement | Isolation, concurrency, restart, uncertain usage, and boundary tests pass; queued-work tests additionally required if batch is introduced |
 
 Report sample sizes, failed/unrun counts, and the uncertainty of cost projections. These are pilot gates, not a claim of universal correctness or statistically established zero risk.
 
@@ -497,7 +567,7 @@ An unavailable answer passes only when the fixture establishes missing evidence 
 
 ### Demonstrate that each extra step helps
 
-Compare keyword versus hybrid retrieval; deterministic versus generated exact answers; generated prose with versus without specific review exemptions; supported reasoning profiles; and real-time versus batch quality. Measure complete-answer accuracy, retrieval coverage, refusal rate, citation correctness, tail latency, repair frequency, and total billed work.
+For each proposed extension, compare it against the working baseline: keyword versus hybrid retrieval; deterministic versus generated exact answers; fallback-only versus one repair and recheck; generated prose with versus without specific review exemptions; supported reasoning profiles; and real-time versus batch quality. These comparisons are conditional experiments, not a mandatory matrix before the first build can pass. Measure complete-answer accuracy, retrieval coverage, refusal/partial-answer rate, citation correctness, tail latency, and total billed work.
 
 Retain an added component or review step when it addresses meaningful failures. Remove it when independent evidence shows it does not justify its cost or delay. Revalidate the resulting whole configuration, rather than assuming isolated improvements combine safely.
 
@@ -505,8 +575,8 @@ Retain an added component or review step when it addresses meaningful failures. 
 
 Release behind a server-side configuration switch. Run the held-out suite before exposing student traffic, then begin a small pilot. Avoid duplicating every production request as a paid shadow call under this budget.
 
-Monitor supported-answer completion, unsupported claims, missing-data categories, latency, review/repair frequency, actual token usage, and each environment's remaining commitments. Store operational metrics without saving student conversation text by default. Synthetic evaluation traces can contain detailed evidence under separate retention controls.
+Monitor supported-answer completion, unsupported claims, missing-data categories, latency, review failures and fallbacks, actual token usage, and each environment's remaining commitments. Add repair-specific metrics only if repair is introduced. Store operational metrics without saving student conversation text by default. Synthetic evaluation traces can contain detailed evidence under separate retention controls.
 
 Roll back on a critical unsupported claim, incompatible provider/model change, or budget-enforcement failure. Re-evaluate model aliases, prompts, tool schemas, source schema changes, retrieval changes, and review exemptions before promotion. A changed model version must not reach production without corresponding development validation.
 
-Completion requires a measured configuration that answers supported campus and general questions well, preserves model parity, and meets the separately reported cost/traffic targets. Until the development target is demonstrated within $10, keep that limitation visible. The plan's priorities are accurate evidence, a small understandable controller, measured use of extra AI calls, and enforceable spending.
+Completion requires a measured configuration that answers supported campus and general questions well, preserves model parity, supports the production traffic within $10, and completes required development validation within its separate $10 allowance. Optional daily stress volume and unused roadmap extensions are not completion gates. The priorities are accurate evidence, a small understandable controller, measured use of extra AI calls, and enforceable spending.

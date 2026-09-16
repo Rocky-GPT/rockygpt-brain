@@ -17,6 +17,8 @@ from psycopg.conninfo import conninfo_to_dict
 from psycopg.rows import dict_row
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from rockygpt_brain.exact import ContactQuery
+
 CAMPUS_ZONE = ZoneInfo("America/New_York")
 COLLECTIONS = (
     "documents",
@@ -86,6 +88,17 @@ TABLES: dict[str, tuple[str, tuple[str, ...]]] = {
 }
 
 
+class SearchFilters(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    meal: str | None = Field(default=None, min_length=1, max_length=80)
+    vegan: bool | None = None
+    vegetarian: bool | None = None
+    term: str | None = Field(default=None, min_length=1, max_length=120)
+    session: str | None = Field(default=None, min_length=1, max_length=120)
+    route: str | None = Field(default=None, min_length=1, max_length=160)
+
+
 class SearchQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
     collection: Collection = Field(
@@ -106,6 +119,7 @@ class SearchQuery(BaseModel):
     date_from: date | None = None
     date_to: date | None = None
     limit: int = Field(default=12, ge=1, le=50)
+    filters: SearchFilters | None = None
 
     @model_validator(mode="after")
     def check_range(self) -> SearchQuery:
@@ -117,6 +131,16 @@ class SearchQuery(BaseModel):
                 )
         if self.date_from and self.date_to and self.date_to < self.date_from:
             raise ValueError("date_to must be on or after date_from")
+        allowed = {
+            "contacts": {"name"},
+            "menu": {"name", "meal", "vegan", "vegetarian"},
+            "calendar": {"term", "session"},
+            "shuttle": {"route"},
+            "campus_hours": {"name"},
+            "dining_hours": {"name"},
+        }.get(self.collection, set())
+        if self.filters and not set(self.filters.model_dump(exclude_none=True)) <= allowed:
+            raise ValueError("Filter is not supported for this collection")
         return self
 
 
@@ -271,6 +295,15 @@ def _dining_periods(value: Any) -> dict[tuple[Any, ...], list[dict[str, str]]]:
 
 
 class CampusData:
+    def resources(self) -> list[dict[str, str]]:
+        """Bounded non-AI links from the existing published source catalog."""
+        self._ensure_loaded()
+        return [
+            {"title": str(source["title"]), "url": str(source["canonical_url"])}
+            for source in sorted(self.sources.values(), key=lambda source: str(source["title"]))
+            if str(source.get("canonical_url", "")).startswith("https://")
+        ][:8]
+
     def __init__(self, database_url: str, now: datetime) -> None:
         if not now.tzinfo:
             raise ValueError("now must include a timezone")
@@ -405,6 +438,11 @@ class CampusData:
             )
         return {
             "id": f"{collection}:{row['id']}",
+            "entity_id": (
+                f"{source['source_key']}:{row['source_record_key']}"
+                if row.get("source_record_key")
+                else None
+            ),
             "collection": collection,
             "title": title,
             # An optional record website may use HTTP or an unsupported scheme.
@@ -421,9 +459,65 @@ class CampusData:
             "valid_from": str(row["valid_from"]) if row.get("valid_from") else None,
             "valid_until": str(row["valid_until"]) if row.get("valid_until") else None,
             "limitations": limitations,
+            "coverage": {
+                "scope": "record_fields_only",
+                "fields": {key: "published" for key, value in fields.items() if value is not None},
+            },
         }
 
-    def _load(self, collection: str) -> list[dict[str, Any]]:
+    def lookup_contact(self, query: ContactQuery) -> dict[str, Any]:
+        """Bounded parameterized equality lookup; no fuzzy match becomes an exact fact.
+
+        JSON extraction keeps old releases readable before the additive alias migration.
+        An office department is an existing published alternative name; a person's
+        department must never identify that person as the office itself.
+        """
+        self._ensure_loaded()
+        rows = self._fetch(
+            "SELECT t.*, t.id::text AS id, t.source_id::text AS source_id, "
+            "count(*) OVER() AS total FROM rockygpt_v2.campus_contacts t "
+            "JOIN rockygpt_v2.sources s ON s.id=t.source_id "
+            "WHERE t.dataset_version_id=%s::uuid "
+            "AND s.trust_tier IN ('official_primary','official_secondary') "
+            "AND (lower(trim(t.name))=lower(trim(%s)) "
+            "OR (t.source_record_key LIKE 'office:%%' "
+            "AND lower(trim(t.department))=lower(trim(%s))) "
+            "OR EXISTS (SELECT 1 FROM jsonb_array_elements_text("
+            "coalesce(to_jsonb(t)->'aliases','[]'::jsonb)) AS a(value) "
+            "WHERE lower(trim(a.value))=lower(trim(%s)))) ORDER BY t.id LIMIT 51",
+            (self.dataset["id"], query.entity, query.entity, query.entity),
+        )
+        records = []
+        for row in rows:
+            fields = {key: row[key] for key in TABLES["contacts"][1] if row.get(key)}
+            record = self._evidence("contacts", row, fields, row["name"])
+            if record:
+                record["aliases"] = row.get("aliases", [])
+                record["coverage"]["fields"].update(
+                    {
+                        field: "published" if fields.get(field) else "not_published"
+                        for field in query.fields
+                    }
+                )
+                self._seen[record["id"]] = record
+                records.append(self._public(record))
+        return {
+            "status": "ok",
+            "match": "exact",
+            "dataset_version": self.dataset["version"],
+            "records": records,
+            "total_matches": rows[0]["total"] if rows else 0,
+            "truncated": bool(rows and rows[0]["total"] > len(records)),
+            "coverage": {
+                "scope": "exact_name_and_published_aliases",
+                "absence_is_not_nonexistence": True,
+            },
+        }
+
+    def _load(self, collection: str, query: SearchQuery | None = None) -> list[dict[str, Any]]:
+        cache_key = collection if query is None else query.model_dump_json()
+        if cache_key in self._cache:
+            return self._cache[cache_key]
         if collection in self._cache:
             return self._cache[collection]
         records: list[dict[str, Any]] = []
@@ -436,25 +530,76 @@ class CampusData:
                 if collection == "shuttle"
                 else sql.SQL("")
             )
+            if collection == "menu":
+                extra = sql.SQL(", to_jsonb(t)->'label_coverage' AS label_coverage")
             join = (
                 sql.SQL("JOIN rockygpt_v2.shuttle_routes r ON r.id=t.route_id")
                 if collection == "shuttle"
                 else sql.SQL("")
             )
+            conditions: list[sql.Composable] = [sql.SQL("t.dataset_version_id=%s::uuid")]
+            params: list[Any] = [self.dataset["id"]]
+            if query is not None:
+                for key, value in (
+                    query.filters.model_dump(exclude_none=True) if query.filters else {}
+                ).items():
+                    column = (
+                        sql.Identifier("r", "name") if key == "route" else sql.Identifier("t", key)
+                    )
+                    if isinstance(value, bool):
+                        conditions.append(sql.SQL("{}=%s").format(column))
+                        if not value:
+                            conditions.append(
+                                sql.SQL("to_jsonb(t)->'label_coverage'->>%s='published'")
+                            )
+                            params.extend([value, key])
+                        else:
+                            params.append(value)
+                    else:
+                        conditions.append(sql.SQL("lower({})=lower(%s)").format(column))
+                        params.append(value)
+                if query.date_from and collection in {
+                    "menu",
+                    "campus_hours",
+                    "dining_hours",
+                    "shuttle",
+                }:
+                    conditions.extend(
+                        [
+                            sql.SQL("(t.valid_until IS NULL OR t.valid_until >= %s)"),
+                            sql.SQL("(t.valid_from IS NULL OR t.valid_from <= %s)"),
+                        ]
+                    )
+                    params.extend([query.date_from, query.date_to or query.date_from])
+                if query.date_from and collection in {"calendar", "events"}:
+                    conditions.append(
+                        sql.SQL("(t.starts_at AT TIME ZONE 'America/New_York')::date >= %s")
+                    )
+                    params.append(query.date_from)
+                if query.date_to and collection in {"calendar", "events"}:
+                    conditions.append(
+                        sql.SQL("(t.starts_at AT TIME ZONE 'America/New_York')::date <= %s")
+                    )
+                    params.append(query.date_to)
             rows = self._fetch(
                 sql.SQL(
-                    "SELECT t.id::text, t.source_id::text, t.collected_at, "
+                    "SELECT t.id::text, t.source_id::text, t.source_record_key, t.collected_at, "
                     "t.valid_from, t.valid_until, "
                     "{fields}{extra} FROM rockygpt_v2.{table} t {join} "
-                    "WHERE t.dataset_version_id=%s::uuid ORDER BY t.id"
+                    "WHERE {conditions} ORDER BY t.id LIMIT 5001"
                 ).format(
                     fields=sql.SQL(", ").join(sql.Identifier("t", name) for name in names),
                     extra=extra,
                     table=sql.Identifier(table),
                     join=join,
+                    conditions=sql.SQL(" AND ").join(conditions),
                 ),
-                (self.dataset["id"],),
+                tuple(params),
             )
+            if len(rows) > 5000:
+                raise ValueError(
+                    "Collection read exceeds 5000 rows; narrow dates and typed filters"
+                )
             for row in rows:
                 fields = {name: row[name] for name in names if row.get(name) is not None}
                 if collection == "shuttle":
@@ -479,14 +624,23 @@ class CampusData:
                 )
                 record = self._evidence(collection, row, fields, title, url)
                 if record:
+                    if collection == "menu":
+                        coverage = row.get("label_coverage") or {}
+                        for label in ("vegan", "vegetarian", "allergens"):
+                            state = coverage.get(label)
+                            if not state:
+                                state = "published" if fields.get(label) else "unknown"
+                            record["coverage"]["fields"][label] = state
+                            if state != "published":
+                                record["fields"].pop(label, None)
                     records.append(record)
             self._enrich(collection, records)
         unique = {
             _json([r["title"], r["fields"], r["url"], r["valid_from"], r["valid_until"]]): r
             for r in reversed(records)
         }
-        self._cache[collection] = list(unique.values())
-        return self._cache[collection]
+        self._cache[cache_key] = list(unique.values())
+        return self._cache[cache_key]
 
     def _load_artifact_records(self, collection: str) -> list[dict[str, Any]]:
         source_key = "faculty" if collection == "faculty" else "academic-programs"
@@ -720,6 +874,7 @@ class CampusData:
             )
             if record:
                 record["content"] = row["content"]
+                record["coverage"] = {"scope": "passage_only", "qualifiers": "check_source_context"}
                 record["_document_id"] = row["document_id"]
                 record["_chunk_index"] = row["chunk_index"]
                 record["limitations"].append(
@@ -748,11 +903,21 @@ class CampusData:
         if query.collection == "documents":
             selected, total = self._documents(query)
         else:
-            records = self._dates(self._load(query.collection), query)
+            records = self._dates(self._load(query.collection, query), query)
             terms = _tokens(query.query)
             ranked: list[tuple[float, dict[str, Any]]] = []
             for record in records:
                 fields = record["fields"]
+                filters = query.filters.model_dump(exclude_none=True) if query.filters else {}
+                if any(
+                    (
+                        fields.get(key) is not value
+                        if isinstance(value, bool)
+                        else str(fields.get(key, "")).casefold() != str(value).casefold()
+                    )
+                    for key, value in filters.items()
+                ):
+                    continue
                 body = _values(
                     {
                         k: v
@@ -794,6 +959,14 @@ class CampusData:
             "truncated": total > len(selected),
             "available_collections": list(COLLECTIONS),
             "discovery_titles": discovery_titles,
+            "coverage": {
+                "scope": "matching_records_only",
+                "filters": query.model_dump(mode="json"),
+                "absence_is_not_nonexistence": True,
+                "excerpts_truncated": any(
+                    r.get("content_truncated") for r in [self._public(r) for r in selected]
+                ),
+            },
         }
 
     def read(self, query: ReadQuery) -> dict[str, Any]:
@@ -812,7 +985,8 @@ class CampusData:
                     "WHERE d.dataset_version_id=%s::uuid AND c.document_id=%s::uuid "
                     "AND c.chunk_index BETWEEN %s AND %s "
                     "AND coalesce(c.metadata->>'canonicalUrl',s.canonical_url)=%s "
-                    "AND coalesce(c.metadata->>'headingPath',d.title)=%s ORDER BY c.chunk_index",
+                    "AND coalesce(c.metadata->>'headingPath',d.title)=%s "
+                    "ORDER BY c.chunk_index LIMIT 5",
                     (
                         self.dataset["id"],
                         record["_document_id"],

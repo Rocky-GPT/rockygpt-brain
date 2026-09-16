@@ -9,7 +9,9 @@ from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient, Request, Response
 from openai import APIConnectionError, APITimeoutError, RateLimitError
 
+from rockygpt_brain.accounting import PaidCallError
 from rockygpt_brain.api.app import app
+from rockygpt_brain.provider import provider_error
 
 
 @pytest.mark.parametrize(
@@ -31,9 +33,29 @@ def test_invalid_history_is_rejected(payload: dict[str, object]) -> None:
         run.assert_not_called()
 
 
+@pytest.fixture(autouse=True)
+def deployment_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key, value in {
+        "BRAIN_ENVIRONMENT": "development",
+        "BRAIN_OPENAI_API_KEY": "test",
+        "BRAIN_OPENAI_PROJECT": "test-project",
+        "BRAIN_LEDGER_DATABASE_URL": "test",
+        "OPENAI_CHAT_MODEL": "gpt-5.4",
+    }.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("BRAIN_EXPECTED_CONFIG_HASH", raising=False)
+
+
+def gateway_context() -> MagicMock:
+    context = MagicMock()
+    context.__enter__.return_value.usage.report.return_value = {}
+    return context
+
+
 def test_readiness_checks_actual_data_connection() -> None:
     with (
         patch.dict("os.environ", {"OPENAI_API_KEY": "test", "DATABASE_URL": "test"}),
+        patch("rockygpt_brain.api.app.PostgresLedger"),
         patch("rockygpt_brain.api.app.CampusData") as data,
     ):
         data.return_value.readiness.side_effect = RuntimeError("SECRET")
@@ -111,8 +133,8 @@ def test_environment_token_is_enforced_when_configured() -> None:
 def test_provider_failures_are_sanitized(error: Exception, status: int, reason: str) -> None:
     with (
         patch.dict("os.environ", {"OPENAI_API_KEY": "test", "STAGING_SERVICE_TOKEN": ""}),
-        patch("rockygpt_brain.api.app.OpenAI", return_value=MagicMock()),
-        patch("rockygpt_brain.api.app.run_turn", side_effect=error),
+        patch("rockygpt_brain.api.app.open_gateway", return_value=gateway_context()),
+        patch("rockygpt_brain.api.app.run_turn", side_effect=PaidCallError(provider_error(error))),
         patch("rockygpt_brain.api.app.CampusData") as data,
     ):
         response = TestClient(app).post(
@@ -137,8 +159,8 @@ def test_exhausted_provider_quota_is_unavailable_without_retry() -> None:
     )
     with (
         patch.dict("os.environ", {"OPENAI_API_KEY": "test", "STAGING_SERVICE_TOKEN": ""}),
-        patch("rockygpt_brain.api.app.OpenAI", return_value=MagicMock()),
-        patch("rockygpt_brain.api.app.run_turn", side_effect=error),
+        patch("rockygpt_brain.api.app.open_gateway", return_value=gateway_context()),
+        patch("rockygpt_brain.api.app.run_turn", side_effect=PaidCallError(provider_error(error))),
         patch("rockygpt_brain.api.app.CampusData") as data,
         patch("rockygpt_brain.api.app.TURN_SLOTS") as slots,
     ):
@@ -162,17 +184,19 @@ def test_http_timeout_preserves_worker_slot_until_cleanup() -> None:
     slots = BoundedSemaphore(1)
     started, finish = Event(), Event()
 
-    def slow_turn(*args: object, **kwargs: object) -> dict[str, str]:
+    def slow_turn(*args: object, **kwargs: object) -> dict[str, object]:
         started.set()
         assert finish.wait(timeout=0.08), "Test did not release its worker"
-        return {"answer": "Completed after the HTTP deadline"}
+        return {"answer": "Completed after the HTTP deadline", "status": "answered", "metrics": {}}
 
     async def exercise() -> None:
         with (
             patch.dict("os.environ", {"OPENAI_API_KEY": "test", "STAGING_SERVICE_TOKEN": ""}),
             patch("rockygpt_brain.api.app.HTTP_TURN_SECONDS", 0.01),
             patch("rockygpt_brain.api.app.TURN_SLOTS", slots),
-            patch("rockygpt_brain.api.app.OpenAI", return_value=MagicMock()) as provider,
+            patch(
+                "rockygpt_brain.api.app.open_gateway", return_value=gateway_context()
+            ) as provider,
             patch("rockygpt_brain.api.app.run_turn", side_effect=slow_turn) as run,
             patch("rockygpt_brain.api.app.CampusData") as data,
         ):
@@ -204,3 +228,56 @@ def test_http_timeout_preserves_worker_slot_until_cleanup() -> None:
                 provider.return_value.__exit__.assert_called_once()
 
     asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("catalog_available", [True, False])
+def test_budget_exhaustion_is_nonretryable_and_uses_only_source_catalog(
+    catalog_available: bool,
+) -> None:
+    error = PaidCallError("budget_exhausted", reset_at="2026-10-01T00:00:00-04:00")
+    with (
+        patch.dict("os.environ", {"STAGING_SERVICE_TOKEN": ""}),
+        patch("rockygpt_brain.api.app.open_gateway", return_value=gateway_context()),
+        patch("rockygpt_brain.api.app.run_turn", side_effect=error),
+        patch("rockygpt_brain.api.app.CampusData") as data,
+    ):
+        data.return_value.deadline = None
+        resources = [{"title": "Registrar", "url": "https://www.ramapo.edu/registrar/"}]
+        if catalog_available:
+            data.return_value.resources.return_value = resources
+        else:
+            data.return_value.resources.side_effect = RuntimeError("secret database details")
+        response = TestClient(app).post(
+            "/v1/chat", json={"messages": [{"role": "user", "content": "Hello"}]}
+        )
+    assert response.status_code == 429
+    detail = response.json()["error"]
+    assert detail["code"] == "budget_exhausted"
+    assert detail["retryable"] is False
+    assert detail["resetAt"] == "2026-10-01T00:00:00-04:00"
+    assert detail.get("resources", []) == (resources if catalog_available else [])
+    assert "secret" not in response.text
+
+
+def test_legacy_credentials_do_not_enable_unmetered_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("BRAIN_LEDGER_DATABASE_URL")
+    with patch("rockygpt_brain.api.app.open_gateway") as gateway:
+        response = TestClient(app).post(
+            "/v1/chat", json={"messages": [{"role": "user", "content": "Hello"}]}
+        )
+    assert response.status_code == 503
+    assert response.json()["error"]["retryable"] is False
+    gateway.assert_not_called()
+
+
+def test_client_cannot_select_a_budget_namespace() -> None:
+    response = TestClient(app).post(
+        "/v1/chat",
+        json={
+            "environment": "production",
+            "messages": [{"role": "user", "content": "Hello"}],
+        },
+    )
+    assert response.status_code == 422
