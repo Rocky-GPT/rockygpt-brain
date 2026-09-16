@@ -168,5 +168,540 @@
         "usageComplete": true
       }
     }
-  ]
+  ],
+  "browser_regression": {
+    "method": "In-app student UI, first dinner timeout injected locally; both subsequent shuttle turns use the normal live Brain, real retrieval and provider.",
+    "requests": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "what is for dinner today"
+          }
+        ]
+      },
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "what is for dinner today"
+          },
+          {
+            "role": "assistant",
+            "content": "The previous request failed. No answer was delivered."
+          },
+          {
+            "role": "user",
+            "content": "when is next shuttle"
+          }
+        ]
+      },
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "what is for dinner today"
+          },
+          {
+            "role": "assistant",
+            "content": "The previous request failed. No answer was delivered."
+          },
+          {
+            "role": "user",
+            "content": "when is next shuttle"
+          },
+          {
+            "role": "assistant",
+            "content": "Which shuttle route or destination do you want? “Next shuttle” depends on where you’re headed, and I can’t verify the correct next departure for your route from the information I have right now."
+          },
+          {
+            "role": "user",
+            "content": "Ramsey Route 17 from campus"
+          }
+        ]
+      }
+    ],
+    "responses": [
+      {
+        "status": 200,
+        "body": {
+          "answer": "Which shuttle route or destination do you want? “Next shuttle” depends on where you’re headed, and I can’t verify the correct next departure for your route from the information I have right now.",
+          "status": "clarification",
+          "citations": [],
+          "model": "gpt-5.4-2026-03-05",
+          "datasetVersion": "phase2-development-20260916",
+          "trace": [
+            {
+              "tool": "search_campus",
+              "arguments": {
+                "collection": "shuttle",
+                "query": "",
+                "date_from": "2026-09-16",
+                "date_to": "2026-09-16",
+                "limit": 10,
+                "filters": null
+              },
+              "status": "ok",
+              "result_count": 10,
+              "total_matches": 30,
+              "truncated": true,
+              "reason": null,
+              "evidence_ids": [
+                "shuttle:4a4675bf-9a42-4a30-b886-dedec1698888:2026-09-16",
+                "shuttle:780874f4-1bea-4d29-8c6b-12e997442ecc:2026-09-16",
+                "shuttle:8b6164a1-8733-4bb6-aafd-db1a35acc0f8:2026-09-16",
+                "shuttle:7855338e-8c93-4efe-aa53-e39597a46cf4:2026-09-16",
+                "shuttle:72b849c6-72df-4257-a783-ae3f0f0212de:2026-09-16",
+                "shuttle:be964506-e7e1-492f-b1f3-dde953053e7b:2026-09-16",
+                "shuttle:784992cf-d980-4be2-8d4f-bf3e46643223:2026-09-16",
+                "shuttle:00356f1b-5a71-44c3-8dd5-c78da960484c:2026-09-16",
+                "shuttle:dd6127cb-ef6e-4aab-b302-e8a73b5c076e:2026-09-16",
+                "shuttle:20a00a63-41c4-4513-bf86-eb6d837c9bec:2026-09-16"
+              ],
+              "elapsed_ms": 42
+            }
+          ],
+          "metrics": {
+            "retrievalMs": 42,
+            "toolResults": [
+              {
+                "tool": "search_campus",
+                "status": "ok",
+                "result_count": 10,
+                "total_matches": 30,
+                "truncated": true,
+                "reason": null,
+                "evidence_ids": [
+                  "shuttle:4a4675bf-9a42-4a30-b886-dedec1698888:2026-09-16",
+                  "shuttle:780874f4-1bea-4d29-8c6b-12e997442ecc:2026-09-16",
+                  "shuttle:8b6164a1-8733-4bb6-aafd-db1a35acc0f8:2026-09-16",
+                  "shuttle:7855338e-8c93-4efe-aa53-e39597a46cf4:2026-09-16",
+                  "shuttle:72b849c6-72df-4257-a783-ae3f0f0212de:2026-09-16",
+                  "shuttle:be964506-e7e1-492f-b1f3-dde953053e7b:2026-09-16",
+                  "shuttle:784992cf-d980-4be2-8d4f-bf3e46643223:2026-09-16",
+                  "shuttle:00356f1b-5a71-44c3-8dd5-c78da960484c:2026-09-16",
+                  "shuttle:dd6127cb-ef6e-4aab-b302-e8a73b5c076e:2026-09-16",
+                  "shuttle:20a00a63-41c4-4513-bf86-eb6d837c9bec:2026-09-16"
+                ],
+                "elapsed_ms": 42
+              }
+            ],
+            "datasetVersion": "phase2-development-20260916",
+            "responseMode": "reviewed_prose",
+            "modelCalls": 5,
+            "draftCalls": 3,
+            "reviewCalls": 2,
+            "toolRequests": 1,
+            "toolExecutions": 1,
+            "validationFailures": [
+              "unsupported_claim"
+            ],
+            "fallbackUsed": false,
+            "inputTokens": 23132,
+            "cachedInputTokens": 7040,
+            "outputTokens": 2164,
+            "reasoningTokens": 1656,
+            "draftModelMs": 10160,
+            "reviewModelMs": 24411,
+            "usageComplete": true
+          },
+          "elapsedMs": 41719,
+          "requestId": "e74403cb-b8d2-4100-89a6-2c2f4d5e5927"
+        }
+      },
+      {
+        "status": 200,
+        "body": {
+          "answer": "For Wednesday, September 16, the Ramsey Route 17 schedule includes a campus departure at 5:30 PM that goes to Ramsey Rt 17 Station at 5:40 PM. That record lists campus return as End of Service. [Transportation Services](https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/)\n\nI can confirm that this 5:30 PM trip is on today’s published schedule, but I can’t verify from the currently cited record alone that it is the next departure from campus or the final trip of the day.\n\nThis is the published timetable, not live service status, so delays or same-day service changes aren’t confirmed here. [Transportation Services](https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/)",
+          "status": "partial",
+          "citations": [
+            {
+              "id": "shuttle:11a85095-0076-472d-8fa2-8f117d851287:2026-09-16",
+              "title": "Transportation Services",
+              "url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+              "collection": "shuttle",
+              "collected_at": "2026-09-16T15:25:00.780000+00:00",
+              "freshness": "fresh",
+              "valid_from": null,
+              "valid_until": null,
+              "trust_tier": "official_primary",
+              "limitations": [
+                "Published weekly timetable; live delays and holiday service unknown."
+              ],
+              "record_title": "Ramsey Route 17"
+            }
+          ],
+          "model": "gpt-5.4-2026-03-05",
+          "datasetVersion": "phase2-development-20260916",
+          "trace": [
+            {
+              "tool": "search_campus",
+              "arguments": {
+                "collection": "shuttle",
+                "query": "Ramsey Route 17",
+                "date_from": "2026-09-16",
+                "date_to": "2026-09-16",
+                "limit": 10,
+                "filters": {
+                  "name": null,
+                  "meal": null,
+                  "vegan": null,
+                  "vegetarian": null,
+                  "term": null,
+                  "session": null,
+                  "route": "Ramsey Route 17"
+                }
+              },
+              "status": "ok",
+              "result_count": 10,
+              "total_matches": 18,
+              "truncated": true,
+              "reason": null,
+              "evidence_ids": [
+                "shuttle:4a4675bf-9a42-4a30-b886-dedec1698888:2026-09-16",
+                "shuttle:780874f4-1bea-4d29-8c6b-12e997442ecc:2026-09-16",
+                "shuttle:8b6164a1-8733-4bb6-aafd-db1a35acc0f8:2026-09-16",
+                "shuttle:7855338e-8c93-4efe-aa53-e39597a46cf4:2026-09-16",
+                "shuttle:72b849c6-72df-4257-a783-ae3f0f0212de:2026-09-16",
+                "shuttle:be964506-e7e1-492f-b1f3-dde953053e7b:2026-09-16",
+                "shuttle:784992cf-d980-4be2-8d4f-bf3e46643223:2026-09-16",
+                "shuttle:00356f1b-5a71-44c3-8dd5-c78da960484c:2026-09-16",
+                "shuttle:dd6127cb-ef6e-4aab-b302-e8a73b5c076e:2026-09-16",
+                "shuttle:20a00a63-41c4-4513-bf86-eb6d837c9bec:2026-09-16"
+              ],
+              "elapsed_ms": 31
+            },
+            {
+              "tool": "search_campus",
+              "arguments": {
+                "collection": "shuttle",
+                "query": "Ramsey Route 17",
+                "date_from": "2026-09-16",
+                "date_to": "2026-09-16",
+                "limit": 50,
+                "filters": {
+                  "name": null,
+                  "meal": null,
+                  "vegan": null,
+                  "vegetarian": null,
+                  "term": null,
+                  "session": null,
+                  "route": "Ramsey Route 17"
+                }
+              },
+              "status": "ok",
+              "result_count": 18,
+              "total_matches": 18,
+              "truncated": false,
+              "reason": null,
+              "evidence_ids": [
+                "shuttle:4a4675bf-9a42-4a30-b886-dedec1698888:2026-09-16",
+                "shuttle:780874f4-1bea-4d29-8c6b-12e997442ecc:2026-09-16",
+                "shuttle:8b6164a1-8733-4bb6-aafd-db1a35acc0f8:2026-09-16",
+                "shuttle:7855338e-8c93-4efe-aa53-e39597a46cf4:2026-09-16",
+                "shuttle:72b849c6-72df-4257-a783-ae3f0f0212de:2026-09-16",
+                "shuttle:be964506-e7e1-492f-b1f3-dde953053e7b:2026-09-16",
+                "shuttle:784992cf-d980-4be2-8d4f-bf3e46643223:2026-09-16",
+                "shuttle:00356f1b-5a71-44c3-8dd5-c78da960484c:2026-09-16",
+                "shuttle:dd6127cb-ef6e-4aab-b302-e8a73b5c076e:2026-09-16",
+                "shuttle:20a00a63-41c4-4513-bf86-eb6d837c9bec:2026-09-16",
+                "shuttle:b0300c14-e5e5-4699-b4ed-c99a22e56d0a:2026-09-16",
+                "shuttle:368fe6e7-3e32-479a-abc3-5798a295606a:2026-09-16",
+                "shuttle:5d1a8771-a05a-4464-aadd-29d71d6d570b:2026-09-16",
+                "shuttle:6865166e-5a36-42c7-8744-68950eff92c3:2026-09-16",
+                "shuttle:b21523c4-5e5c-42d6-9d63-38530fe177bf:2026-09-16",
+                "shuttle:f0f9855e-236c-404d-b4b8-ce2a80d70a05:2026-09-16",
+                "shuttle:723d7829-0fd8-4393-a977-43a8f33a5670:2026-09-16",
+                "shuttle:11a85095-0076-472d-8fa2-8f117d851287:2026-09-16"
+              ],
+              "elapsed_ms": 10
+            }
+          ],
+          "metrics": {
+            "retrievalMs": 41,
+            "toolResults": [
+              {
+                "tool": "search_campus",
+                "status": "ok",
+                "result_count": 10,
+                "total_matches": 18,
+                "truncated": true,
+                "reason": null,
+                "evidence_ids": [
+                  "shuttle:4a4675bf-9a42-4a30-b886-dedec1698888:2026-09-16",
+                  "shuttle:780874f4-1bea-4d29-8c6b-12e997442ecc:2026-09-16",
+                  "shuttle:8b6164a1-8733-4bb6-aafd-db1a35acc0f8:2026-09-16",
+                  "shuttle:7855338e-8c93-4efe-aa53-e39597a46cf4:2026-09-16",
+                  "shuttle:72b849c6-72df-4257-a783-ae3f0f0212de:2026-09-16",
+                  "shuttle:be964506-e7e1-492f-b1f3-dde953053e7b:2026-09-16",
+                  "shuttle:784992cf-d980-4be2-8d4f-bf3e46643223:2026-09-16",
+                  "shuttle:00356f1b-5a71-44c3-8dd5-c78da960484c:2026-09-16",
+                  "shuttle:dd6127cb-ef6e-4aab-b302-e8a73b5c076e:2026-09-16",
+                  "shuttle:20a00a63-41c4-4513-bf86-eb6d837c9bec:2026-09-16"
+                ],
+                "elapsed_ms": 31
+              },
+              {
+                "tool": "search_campus",
+                "status": "ok",
+                "result_count": 18,
+                "total_matches": 18,
+                "truncated": false,
+                "reason": null,
+                "evidence_ids": [
+                  "shuttle:4a4675bf-9a42-4a30-b886-dedec1698888:2026-09-16",
+                  "shuttle:780874f4-1bea-4d29-8c6b-12e997442ecc:2026-09-16",
+                  "shuttle:8b6164a1-8733-4bb6-aafd-db1a35acc0f8:2026-09-16",
+                  "shuttle:7855338e-8c93-4efe-aa53-e39597a46cf4:2026-09-16",
+                  "shuttle:72b849c6-72df-4257-a783-ae3f0f0212de:2026-09-16",
+                  "shuttle:be964506-e7e1-492f-b1f3-dde953053e7b:2026-09-16",
+                  "shuttle:784992cf-d980-4be2-8d4f-bf3e46643223:2026-09-16",
+                  "shuttle:00356f1b-5a71-44c3-8dd5-c78da960484c:2026-09-16",
+                  "shuttle:dd6127cb-ef6e-4aab-b302-e8a73b5c076e:2026-09-16",
+                  "shuttle:20a00a63-41c4-4513-bf86-eb6d837c9bec:2026-09-16",
+                  "shuttle:b0300c14-e5e5-4699-b4ed-c99a22e56d0a:2026-09-16",
+                  "shuttle:368fe6e7-3e32-479a-abc3-5798a295606a:2026-09-16",
+                  "shuttle:5d1a8771-a05a-4464-aadd-29d71d6d570b:2026-09-16",
+                  "shuttle:6865166e-5a36-42c7-8744-68950eff92c3:2026-09-16",
+                  "shuttle:b21523c4-5e5c-42d6-9d63-38530fe177bf:2026-09-16",
+                  "shuttle:f0f9855e-236c-404d-b4b8-ce2a80d70a05:2026-09-16",
+                  "shuttle:723d7829-0fd8-4393-a977-43a8f33a5670:2026-09-16",
+                  "shuttle:11a85095-0076-472d-8fa2-8f117d851287:2026-09-16"
+                ],
+                "elapsed_ms": 10
+              }
+            ],
+            "datasetVersion": "phase2-development-20260916",
+            "responseMode": "reviewed_prose",
+            "modelCalls": 6,
+            "draftCalls": 4,
+            "reviewCalls": 2,
+            "toolRequests": 2,
+            "toolExecutions": 2,
+            "validationFailures": [
+              "unsupported_claim"
+            ],
+            "fallbackUsed": false,
+            "inputTokens": 40513,
+            "cachedInputTokens": 18304,
+            "outputTokens": 2756,
+            "reasoningTokens": 1625,
+            "draftModelMs": 13906,
+            "reviewModelMs": 25213,
+            "usageComplete": true
+          },
+          "elapsedMs": 45505,
+          "requestId": "696c746a-2486-46d2-96ac-ed472e4f5ce2"
+        }
+      }
+    ],
+    "ui_history_source_sha256": "60fde66de43f31a7a310a8c79475a3f27a09d7175ed97778ba050678250c78e1",
+    "result": "Both shuttle turns completed without menu/hours retrieval or context overflow; route answer is explicitly partial, not a verified next-departure result."
+  },
+  "operations": [
+    {
+      "request_id": "e74403cb-b8d2-4100-89a6-2c2f4d5e5927",
+      "category": "draft",
+      "state": "settled",
+      "cost_nusd": 9305000,
+      "usage": {
+        "input_tokens": 3422,
+        "output_tokens": 50,
+        "reasoning_tokens": 0,
+        "cached_input_tokens": 0
+      },
+      "provider_response_id": "resp_00037110a1e76c9b016aab00583ec087d2aa88e0fa230d0927",
+      "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f"
+    },
+    {
+      "request_id": "e74403cb-b8d2-4100-89a6-2c2f4d5e5927",
+      "category": "draft",
+      "state": "settled",
+      "cost_nusd": 9355000,
+      "usage": {
+        "input_tokens": 5524,
+        "output_tokens": 87,
+        "reasoning_tokens": 0,
+        "cached_input_tokens": 2560
+      },
+      "provider_response_id": "resp_00037110a1e76c9b016aab005c8c1c87d2abcc2227a194523a",
+      "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f"
+    },
+    {
+      "request_id": "e74403cb-b8d2-4100-89a6-2c2f4d5e5927",
+      "category": "review",
+      "state": "settled",
+      "cost_nusd": 28277500,
+      "usage": {
+        "input_tokens": 4189,
+        "output_tokens": 1187,
+        "reasoning_tokens": 1008,
+        "cached_input_tokens": 0
+      },
+      "provider_response_id": "resp_01b80bef000e2456016aab006196b887d2a836ac6efa051ea9",
+      "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f"
+    },
+    {
+      "request_id": "e74403cb-b8d2-4100-89a6-2c2f4d5e5927",
+      "category": "draft",
+      "state": "settled",
+      "cost_nusd": 5530000,
+      "usage": {
+        "input_tokens": 5824,
+        "output_tokens": 70,
+        "reasoning_tokens": 0,
+        "cached_input_tokens": 4480
+      },
+      "provider_response_id": "resp_00037110a1e76c9b016aab00703db487d29bae66cea4909328",
+      "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f"
+    },
+    {
+      "request_id": "e74403cb-b8d2-4100-89a6-2c2f4d5e5927",
+      "category": "review",
+      "state": "settled",
+      "cost_nusd": 21982500,
+      "usage": {
+        "input_tokens": 4173,
+        "output_tokens": 770,
+        "reasoning_tokens": 648,
+        "cached_input_tokens": 0
+      },
+      "provider_response_id": "resp_0b131c8d8a4f7320016aab0074a01487d29301ce9433a95fab",
+      "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f"
+    },
+    {
+      "request_id": "f9f387f7-1efb-40c8-9e2e-bb1f39d1bf6b",
+      "category": "draft",
+      "state": "settled",
+      "cost_nusd": 4360000,
+      "usage": {
+        "input_tokens": 3406,
+        "output_tokens": 107,
+        "reasoning_tokens": 0,
+        "cached_input_tokens": 2560
+      },
+      "provider_response_id": "resp_0652ffbad48631fd016aab0088c0c487d29aa40752f7395008",
+      "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f"
+    },
+    {
+      "request_id": "9e43fea1-fab1-46ab-8917-ae7503c9cbb4",
+      "category": "draft",
+      "state": "settled",
+      "cost_nusd": 3560000,
+      "usage": {
+        "input_tokens": 3422,
+        "output_tokens": 51,
+        "reasoning_tokens": 0,
+        "cached_input_tokens": 2560
+      },
+      "provider_response_id": "resp_06b87a859d02b060016aab008f620887d28eb871d48e9b1d32",
+      "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f"
+    },
+    {
+      "request_id": "58065c26-01a7-4f3f-a9c4-e7c217c77977",
+      "category": "draft",
+      "state": "settled",
+      "cost_nusd": 11262500,
+      "usage": {
+        "input_tokens": 3437,
+        "output_tokens": 178,
+        "reasoning_tokens": 0,
+        "cached_input_tokens": 0
+      },
+      "provider_response_id": "resp_0cca1c5ca1c735dd016aab00956a9887d2ad621071429b5c57",
+      "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f"
+    },
+    {
+      "request_id": "696c746a-2486-46d2-96ac-ed472e4f5ce2",
+      "category": "draft",
+      "state": "settled",
+      "cost_nusd": 4257500,
+      "usage": {
+        "input_tokens": 3479,
+        "output_tokens": 88,
+        "reasoning_tokens": 0,
+        "cached_input_tokens": 2560
+      },
+      "provider_response_id": "resp_093884a11245eebf016aab00b0613487d2b1413f7d876114dd",
+      "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f"
+    },
+    {
+      "request_id": "696c746a-2486-46d2-96ac-ed472e4f5ce2",
+      "category": "draft",
+      "state": "settled",
+      "cost_nusd": 9720000,
+      "usage": {
+        "input_tokens": 5658,
+        "output_tokens": 89,
+        "reasoning_tokens": 0,
+        "cached_input_tokens": 2560
+      },
+      "provider_response_id": "resp_093884a11245eebf016aab00b5536087d2a78e6562a748e1e0",
+      "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f"
+    },
+    {
+      "request_id": "696c746a-2486-46d2-96ac-ed472e4f5ce2",
+      "category": "draft",
+      "state": "settled",
+      "cost_nusd": 15674500,
+      "usage": {
+        "input_tokens": 9211,
+        "output_tokens": 201,
+        "reasoning_tokens": 0,
+        "cached_input_tokens": 4608
+      },
+      "provider_response_id": "resp_093884a11245eebf016aab00b8c98087d2b5374ec1e9965a99",
+      "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f"
+    },
+    {
+      "request_id": "696c746a-2486-46d2-96ac-ed472e4f5ce2",
+      "category": "review",
+      "state": "settled",
+      "cost_nusd": 34202500,
+      "usage": {
+        "input_tokens": 6187,
+        "output_tokens": 1249,
+        "reasoning_tokens": 980,
+        "cached_input_tokens": 0
+      },
+      "provider_response_id": "resp_0e34057cc48fb772016aab00bdd84c87d2874fee419a14810a",
+      "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f"
+    },
+    {
+      "request_id": "696c746a-2486-46d2-96ac-ed472e4f5ce2",
+      "category": "draft",
+      "state": "settled",
+      "cost_nusd": 8514000,
+      "usage": {
+        "input_tokens": 9720,
+        "output_tokens": 234,
+        "reasoning_tokens": 0,
+        "cached_input_tokens": 8576
+      },
+      "provider_response_id": "resp_093884a11245eebf016aab00ce565487d2bbade3d379e0809c",
+      "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f"
+    },
+    {
+      "request_id": "696c746a-2486-46d2-96ac-ed472e4f5ce2",
+      "category": "review",
+      "state": "settled",
+      "cost_nusd": 29070000,
+      "usage": {
+        "input_tokens": 6258,
+        "output_tokens": 895,
+        "reasoning_tokens": 645,
+        "cached_input_tokens": 0
+      },
+      "provider_response_id": "resp_055216b916ea0d92016aab00d3420c87d2a75fccebb0e1e2a7",
+      "configuration_hash": "6f76b88a072fcaa272e810bc87ea19a8e687ffbfe6f378f1a8e367b3696a0f6f"
+    }
+  ],
+  "verification": {
+    "ui_history_unit_tests": 3,
+    "brain_regression_tests": 138,
+    "ui_typecheck": "passed",
+    "ui_lint": "passed",
+    "brain_ruff": "passed",
+    "brain_mypy": "passed"
+  }
 }

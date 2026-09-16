@@ -80,6 +80,44 @@ attempts, and one contact request; four completed and one timed out. Receipts,
 configuration identities, and browser observations are retained in
 [context-fix-live-results.json](phase2/context-fix-live-results.json).
 
+## Failed turn followed by a topic change
+
+A subsequent student report, request `2745b834-1d41-4c0f-9d0f-93073cf6606d`,
+exposed another context failure: after a dinner timeout, a new shuttle question
+caused the model to retrieve 50 menu items, four dining-hours records, and 20
+shuttle records. The earlier compaction fix did not prevent that unwanted scope
+expansion. The UI had omitted the failed assistant turn while retaining its user
+question, leaving consecutive unanswered user messages.
+
+The student UI now preserves the failed turn's boundary with a fixed assistant
+message: “The previous request failed. No answer was delivered.” It retains the
+original question and successful history for follow-ups, while excluding raw
+errors and support IDs from model context. Writer and reviewer instructions now
+explicitly target the final user request: failed, cancelled, or unanswered older
+questions are not a queue to retry. Earlier context still resolves references,
+corrections, and explicitly resumed or combined requests.
+
+Verification used three UI history tests (including repeated failures and
+reference/retry preservation), 138 Brain regressions, UI lint/typecheck, and
+Brain Ruff/mypy. In the in-app student browser, one injected dinner timeout was
+followed by the exact “when is next shuttle” request and a route clarification.
+Both subsequent requests ran through the normal Brain, real database, provider,
+and accounting gateway. They completed with HTTP 200 and shuttle-only retrieval:
+`e74403cb-b8d2-4100-89a6-2c2f4d5e5927` and
+`696c746a-2486-46d2-96ac-ed472e4f5ce2`. The first asked for a route; the second
+returned a cited, explicitly partial timetable answer. They took 44.0 and 46.6
+seconds server-side. This verifies the context fix, not the later speed targets
+or an exact next-departure answer.
+
+Three additional real first-call probes verified legacy consecutive-user topic
+switching, retaining dining context with tomorrow's date, and retrieving both
+subjects when explicitly requested. These probes intentionally stop before tool
+execution and are not counted as completed answers. All 14 provider operations
+across these checks settled. Requests, responses, receipts, and implementation
+identity are in [conversation-scope-results.json](phase2/conversation-scope-results.json).
+Run the UI history regression with
+`node --experimental-strip-types --test lib/chat-conversation.test.mjs` in the UI repo.
+
 ## What changed in retrieval
 
 The Data scraper no longer clips sections at 2,000 characters or six paragraphs,
