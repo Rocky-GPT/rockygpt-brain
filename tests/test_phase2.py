@@ -142,6 +142,21 @@ def test_missing_attribute_and_record_do_not_invent_information(contact: dict[st
     assert missing is not None and missing.status == "clarification"
 
 
+def test_extra_lookup_fields_do_not_force_prose_or_expand_the_answer(
+    contact: dict[str, Any],
+) -> None:
+    query = ContactQuery(entity="Registrar", fields=["phone", "fax", "office", "department"])
+    answer = contact_answer(
+        messages("What is the Registrar phone and fax?"), query, result_for([contact]), NOW.date()
+    )
+    assert answer is not None and answer.status == "partial"
+    rendered = render_answer(answer, {contact["id"]: contact})["answer"]
+    assert "Phone: 201-684-7695" in rendered
+    assert "does not provide: fax" in rendered
+    assert "D-224" not in rendered
+    assert "Department:" not in rendered
+
+
 @pytest.mark.parametrize(
     "mutation",
     [

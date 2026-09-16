@@ -79,9 +79,10 @@ def contact_answer(
     output: dict[str, Any],
     today: date,
 ) -> Answer | None:
-    if len(messages) != 1 or requested_fields(messages[0].content, query.entity) != set(
-        query.fields
-    ):
+    if len(messages) != 1:
+        return None
+    requested = requested_fields(messages[0].content, query.entity)
+    if requested is None or not requested <= set(query.fields):
         return None
 
     def limitation(text: str, status: str = "unavailable") -> Answer:
@@ -122,7 +123,6 @@ def contact_answer(
             "Please specify the full name and department.",
             "clarification",
         )
-    requested = set(query.fields)
     for record in records:
         url = urlparse(record.get("url", ""))
         if (

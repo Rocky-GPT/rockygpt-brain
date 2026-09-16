@@ -1,14 +1,256 @@
 [
-  {"id":"contact-name","question":"What is the Registrar email?","query":{"collection":"contacts","query":"Registrar email"},"expected_entity":"campus-directory:office:registrar"},
-  {"id":"contact-published-alias","question":"Phone for the Office of the Registrar","query":{"collection":"contacts","query":"Office of the Registrar"},"expected_entity":"campus-directory:office:registrar"},
-  {"id":"contact-paraphrase","question":"Who handles my transcript?","query":{"collection":"contacts","query":"Who handles my transcript?"},"expected_entity":"campus-directory:office:registrar"},
-  {"id":"contact-reformulated","question":"Who handles my transcript?","query":{"collection":"contacts","query":"Registrar"},"expected_entity":"campus-directory:office:registrar"},
-  {"id":"room-change-keywords","question":"What happens if I do not complete an approved room change?","query":{"collection":"documents","query":"room change request fee","limit":12},"expected_ids":["documents:9861b4d6-90e0-46a8-a07d-2a40ba49b590"],"source_gap":"Published excerpt ends mid-condition; passage retrieval does not prove full policy coverage."},
-  {"id":"room-change-paraphrase","question":"Can I switch dorms?","query":{"collection":"documents","query":"Can I switch dorms?","limit":12},"expected_ids":["documents:9861b4d6-90e0-46a8-a07d-2a40ba49b590"]},
-  {"id":"meal-plan-qualifier","question":"Which residents can forgo a meal plan?","query":{"collection":"documents","query":"meal plan requirements Village College Park Apartments","limit":12},"expected_ids":["documents:7128eb11-9d25-440c-961b-f61cdb27130b","documents:f1bf053d-93a9-4be3-830f-665465ddc9fb"]},
-  {"id":"menu-date-meal-diet","question":"Vegan lunch on September 16","query":{"collection":"menu","date_from":"2026-09-16","filters":{"meal":"Lunch","vegan":true},"limit":50},"every_field":{"meal":"Lunch","vegan":true},"every_date":"2026-09-16"},
-  {"id":"menu-uncovered-date","question":"Lunch on January 1, 2030","query":{"collection":"menu","date_from":"2030-01-01","filters":{"meal":"Lunch"}},"expect_empty":true},
-  {"id":"calendar-term-session","question":"Fall 2026 Session I withdrawal dates","query":{"collection":"calendar","query":"withdraw","filters":{"term":"Fall 2026","session":"Session I"}},"every_field":{"term":"Fall 2026","session":"Session I"}},
-  {"id":"shuttle-route-day","question":"Ramsey Route 17 weekday schedule","query":{"collection":"shuttle","date_from":"2026-09-16","filters":{"route":"Ramsey Route 17"},"limit":50},"every_field":{"route":"Ramsey Route 17","service_day":"weekday","service_date":"2026-09-16"}},
-  {"id":"shuttle-other-service-day","question":"Saturday Roadrunner on a Wednesday","query":{"collection":"shuttle","date_from":"2026-09-16","filters":{"route":"Saturday Roadrunner Express"}},"expect_empty":true}
+  {
+    "id": "contact-name",
+    "question": "What is the Registrar email?",
+    "query": {
+      "collection": "contacts",
+      "query": "Registrar email"
+    },
+    "expected_entity": "campus-directory:office:registrar"
+  },
+  {
+    "id": "contact-published-alias",
+    "question": "Phone for the Office of the Registrar",
+    "query": {
+      "collection": "contacts",
+      "query": "Office of the Registrar"
+    },
+    "expected_entity": "campus-directory:office:registrar"
+  },
+  {
+    "id": "contact-paraphrase",
+    "question": "Who handles my transcript?",
+    "query": {
+      "collection": "contacts",
+      "query": "Who handles my transcript?"
+    },
+    "expected_entity": "campus-directory:office:registrar"
+  },
+  {
+    "id": "contact-reformulated",
+    "question": "Who handles my transcript?",
+    "query": {
+      "collection": "contacts",
+      "query": "Registrar"
+    },
+    "expected_entity": "campus-directory:office:registrar"
+  },
+  {
+    "id": "room-change-keywords",
+    "question": "What happens if I do not complete an approved room change?",
+    "query": {
+      "collection": "documents",
+      "query": "room change request fee",
+      "limit": 12
+    },
+    "required_sources": [
+      {
+        "url": "https://www.ramapo.edu/reslife/rcp/",
+        "contains": [
+          "$75 improper checkout fee",
+          "may still be required to relocate",
+          "cancellations cannot occur",
+          "contingent upon the availability",
+          "not operate on a first-come",
+          "9/7/26",
+          "9/13/26",
+          "Once the open room change period ends, contact your hall office"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "room-change-paraphrase",
+    "question": "Can I switch dorms?",
+    "query": {
+      "collection": "documents",
+      "query": "Can I switch dorms?",
+      "limit": 12
+    },
+    "required_sources": [
+      {
+        "url": "https://www.ramapo.edu/reslife/rcp/",
+        "contains": [
+          "$75 improper checkout fee",
+          "may still be required to relocate",
+          "cancellations cannot occur",
+          "contingent upon the availability",
+          "not operate on a first-come",
+          "9/7/26",
+          "9/13/26",
+          "Once the open room change period ends, contact your hall office"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "meal-plan-qualifier",
+    "question": "Which residents can forgo a meal plan?",
+    "query": {
+      "collection": "documents",
+      "query": "meal plan requirements Village College Park Apartments",
+      "limit": 12
+    },
+    "required_sources": [
+      {
+        "url": "https://www.ramapo.edu/reslife/rcp/",
+        "contains": [
+          "Only residents assigned to The Village and The College Park Apartments",
+          "after the semester\u2019s deadline",
+          "will not be able to remove their existing meal plan",
+          "automatically be assigned the Tasty 10 meal plan",
+          "mealplan@ramapo.edu"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "menu-date-meal-diet",
+    "question": "Vegan lunch on September 16",
+    "query": {
+      "collection": "menu",
+      "date_from": "2026-09-16",
+      "filters": {
+        "meal": "Lunch",
+        "vegan": true
+      },
+      "limit": 50
+    },
+    "every_field": {
+      "meal": "Lunch",
+      "vegan": true
+    },
+    "every_date": "2026-09-16"
+  },
+  {
+    "id": "menu-uncovered-date",
+    "question": "Lunch on January 1, 2030",
+    "query": {
+      "collection": "menu",
+      "date_from": "2030-01-01",
+      "filters": {
+        "meal": "Lunch"
+      }
+    },
+    "expect_empty": true
+  },
+  {
+    "id": "calendar-term-session",
+    "question": "Fall 2026 Session I withdrawal dates",
+    "query": {
+      "collection": "calendar",
+      "query": "withdraw",
+      "filters": {
+        "term": "Fall 2026",
+        "session": "Session I"
+      }
+    },
+    "every_field": {
+      "term": "Fall 2026",
+      "session": "Session I"
+    }
+  },
+  {
+    "id": "shuttle-route-day",
+    "question": "Ramsey Route 17 weekday schedule",
+    "query": {
+      "collection": "shuttle",
+      "date_from": "2026-09-16",
+      "filters": {
+        "route": "Ramsey Route 17"
+      },
+      "limit": 50
+    },
+    "every_field": {
+      "route": "Ramsey Route 17",
+      "service_day": "weekday",
+      "service_date": "2026-09-16"
+    }
+  },
+  {
+    "id": "shuttle-other-service-day",
+    "question": "Saturday Roadrunner on a Wednesday",
+    "query": {
+      "collection": "shuttle",
+      "date_from": "2026-09-16",
+      "filters": {
+        "route": "Saturday Roadrunner Express"
+      }
+    },
+    "expect_empty": true
+  },
+  {
+    "id": "transcript-policy",
+    "question": "How do I request a paper transcript?",
+    "query": {
+      "collection": "documents",
+      "query": "paper transcript request fee processing",
+      "limit": 12
+    },
+    "required_sources": [
+      {
+        "url": "https://www.ramapo.edu/registrar/forms-transcripts/",
+        "contains": [
+          "3-5 business days",
+          "during peak period it may be longer",
+          "no charge for a paper copy",
+          "Registrar\u2019s office"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "contact-heldout-plural",
+    "question": "Where can I get transcripts?",
+    "query": {
+      "collection": "contacts",
+      "query": "Where can I get transcripts?"
+    },
+    "expected_entity": "campus-directory:office:registrar"
+  },
+  {
+    "id": "housing-heldout-wording",
+    "question": "Changing dormitories",
+    "query": {
+      "collection": "documents",
+      "query": "Changing dormitories",
+      "limit": 12
+    },
+    "required_sources": [
+      {
+        "url": "https://www.ramapo.edu/reslife/rcp/",
+        "contains": [
+          "cancellations cannot occur",
+          "not guaranteed",
+          "after the semester\u2019s deadline",
+          "hall office"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "no-invented-office",
+    "question": "Quantum Admissions Desk",
+    "query": {
+      "collection": "contacts",
+      "query": "Quantum Admissions Desk",
+      "filters": {
+        "name": "Quantum Admissions Desk"
+      }
+    },
+    "expect_empty": true
+  },
+  {
+    "id": "unknown-diet-is-not-false",
+    "question": "Non-vegan Lunch on September 16",
+    "query": {
+      "collection": "menu",
+      "date_from": "2026-09-16",
+      "filters": {
+        "meal": "Lunch",
+        "vegan": false
+      }
+    },
+    "expect_empty": true
+  }
 ]

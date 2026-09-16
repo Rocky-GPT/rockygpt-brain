@@ -1,7 +1,7 @@
 {
-  "dataset": "v2-20260916152516",
-  "snapshot_time": "2026-09-16T14:09:09.280247-04:00",
-  "snapshot_sha256": "2c2c5d6ed3035f11c94c0254a94b031e3f42be8d2be83a38f3a38e15665cf85a",
+  "dataset": "phase2-development-20260916",
+  "snapshot_time": "2026-09-16T15:41:18.483055-04:00",
+  "snapshot_sha256": "7b9472c37c829154dd842110420015aa917a99c8ab4e3adf8952064bf97a919c",
   "provider_calls": 0,
   "method": "PostgreSQL keyword retrieval and typed filters; labeled evidence at query limit",
   "cases": [
@@ -14,36 +14,39 @@
       ],
       "total_matches": 2,
       "truncated": false,
-      "source_gap": null
+      "source_checks": []
     },
     {
       "id": "contact-published-alias",
       "evidence_retrieved": true,
       "returned_ids": [
         "contacts:2f6d42fc-34bd-4739-86e3-84b66d258dc6",
+        "contacts:34b89150-bd12-42be-811d-4f27fe123677",
         "contacts:47de403e-65a1-4423-8501-88e3ce7ddbf2",
         "contacts:4eee8f9a-e8da-49ee-ae29-fb51945bd4b9",
+        "contacts:58b57f50-2432-4b4a-b6a1-458e2c6fbbbb",
+        "contacts:677fd162-ec84-43fc-8cec-14b9910870e3",
         "contacts:6ed02477-d0d6-432a-bd06-368eb496f4de",
         "contacts:7fe3811b-448a-47c2-96c6-69c774d1e729",
-        "contacts:a77f83c2-932e-4225-afed-dcc249948a97",
         "contacts:ac187051-e8d3-4e53-a597-d6383f8cd246",
-        "contacts:b580585e-3e59-4bdc-b19d-c5a511fb294e",
+        "contacts:c2d2f4ec-e24a-4ac9-9fca-b58371df53ec",
         "contacts:cc2ec147-d031-44ce-b3b9-2b10fcf0fe86",
-        "contacts:dcb70909-6be7-4639-8455-1b676c531bac",
-        "contacts:e64d11fc-8b8d-4db4-9695-90dba8cddd53",
-        "contacts:ff50d689-b3d3-4834-9880-7b9082e234ae"
+        "contacts:d7f7259a-adb1-442c-876e-da4b63230fb6"
       ],
-      "total_matches": 214,
+      "total_matches": 14,
       "truncated": true,
-      "source_gap": null
+      "source_checks": []
     },
     {
       "id": "contact-paraphrase",
-      "evidence_retrieved": false,
-      "returned_ids": [],
-      "total_matches": 0,
+      "evidence_retrieved": true,
+      "returned_ids": [
+        "contacts:2f6d42fc-34bd-4739-86e3-84b66d258dc6",
+        "contacts:b580585e-3e59-4bdc-b19d-c5a511fb294e"
+      ],
+      "total_matches": 2,
       "truncated": false,
-      "source_gap": null
+      "source_checks": []
     },
     {
       "id": "contact-reformulated",
@@ -53,60 +56,91 @@
       ],
       "total_matches": 1,
       "truncated": false,
-      "source_gap": null
+      "source_checks": []
     },
     {
       "id": "room-change-keywords",
       "evidence_retrieved": true,
       "returned_ids": [
-        "documents:0839a447-a067-42a6-8eac-2e3ab651bd53",
-        "documents:1c0a045f-4f3a-482d-bf92-7fcb5dfbb1e9",
-        "documents:395b821e-1655-4724-80aa-9ef25864dc93",
-        "documents:42c7324c-af49-4438-9260-805568141a7b",
-        "documents:43e08ac3-4bda-433f-b7c2-286d77d7f36a",
-        "documents:7128eb11-9d25-440c-961b-f61cdb27130b",
-        "documents:7f299f23-e08f-4ccd-a909-79533f5437cd",
-        "documents:8d64ab60-6532-4ae4-bed7-9fd3917054c7",
-        "documents:8df7fbeb-bc70-41d5-9e07-c1faec3db639",
-        "documents:9861b4d6-90e0-46a8-a07d-2a40ba49b590",
-        "documents:c1d1631b-9c1f-439a-86e6-2eece7d9a837",
-        "documents:f1bf053d-93a9-4be3-830f-665465ddc9fb"
+        "documents:0baa2f50-ec7f-4ab2-84eb-6b916a85e198",
+        "documents:12d8e603-cf8f-41a3-b689-e5470cfeed66",
+        "documents:1ffeaf8a-b30f-4bec-b80b-9d411bc73b21",
+        "documents:341b4103-217e-4937-8475-301d347d3bb3",
+        "documents:4350a6bb-f5ef-484a-94af-6425ad7b15f2",
+        "documents:77dcdf5f-7d99-4f7d-bb30-609b295ef785",
+        "documents:a58415b6-653b-41ff-8baf-a0cfc0f24c08",
+        "documents:af66bd88-9b04-42c0-a354-4674cfec1991",
+        "documents:b2aff7bd-465a-4275-978e-88ad6dcf75f5",
+        "documents:e86341db-ee27-436d-9391-a9a2fc7061e4",
+        "documents:f042c07f-53f8-4d22-9f1d-e1147a06d037",
+        "documents:fde88f43-c06e-487f-9327-8d164d69cc86"
       ],
-      "total_matches": 508,
+      "total_matches": 938,
       "truncated": true,
-      "source_gap": "Published excerpt ends mid-condition; passage retrieval does not prove full policy coverage."
+      "source_checks": [
+        {
+          "url": "https://www.ramapo.edu/reslife/rcp/",
+          "missing_qualifiers": [],
+          "found": true,
+          "fresh": true
+        }
+      ]
     },
     {
       "id": "room-change-paraphrase",
-      "evidence_retrieved": false,
+      "evidence_retrieved": true,
       "returned_ids": [
-        "documents:db4868a9-26e1-4a0b-9591-7c9e10038894",
-        "documents:f2138d52-3883-4e2f-ad0a-aaa889924138"
+        "documents:0baa2f50-ec7f-4ab2-84eb-6b916a85e198",
+        "documents:12d8e603-cf8f-41a3-b689-e5470cfeed66",
+        "documents:1ffeaf8a-b30f-4bec-b80b-9d411bc73b21",
+        "documents:341b4103-217e-4937-8475-301d347d3bb3",
+        "documents:4350a6bb-f5ef-484a-94af-6425ad7b15f2",
+        "documents:77dcdf5f-7d99-4f7d-bb30-609b295ef785",
+        "documents:a58415b6-653b-41ff-8baf-a0cfc0f24c08",
+        "documents:af66bd88-9b04-42c0-a354-4674cfec1991",
+        "documents:b2aff7bd-465a-4275-978e-88ad6dcf75f5",
+        "documents:e86341db-ee27-436d-9391-a9a2fc7061e4",
+        "documents:f042c07f-53f8-4d22-9f1d-e1147a06d037",
+        "documents:fde88f43-c06e-487f-9327-8d164d69cc86"
       ],
-      "total_matches": 2,
-      "truncated": false,
-      "source_gap": null
+      "total_matches": 858,
+      "truncated": true,
+      "source_checks": [
+        {
+          "url": "https://www.ramapo.edu/reslife/rcp/",
+          "missing_qualifiers": [],
+          "found": true,
+          "fresh": true
+        }
+      ]
     },
     {
       "id": "meal-plan-qualifier",
       "evidence_retrieved": true,
       "returned_ids": [
-        "documents:27cb7ebe-b707-4112-9f9d-9e9109ec4c95",
+        "documents:050aa047-c41a-4be8-8062-6c3f0ea0abf9",
+        "documents:094d4ee4-929a-495d-bee7-57e09b854db5",
         "documents:2a86a347-8e8e-43e9-b481-4b8d384c0b1d",
-        "documents:442f47fa-10de-4730-9a39-806e6eeb4c7d",
+        "documents:341b4103-217e-4937-8475-301d347d3bb3",
+        "documents:3f2a1f89-f92f-4836-9ae6-1c6edb64f03e",
         "documents:5166ce34-0e72-49f8-8c4c-98bc4eb84fd1",
-        "documents:5f8996a9-d20f-4633-92b2-39f9c3002328",
-        "documents:7128eb11-9d25-440c-961b-f61cdb27130b",
-        "documents:76e395bd-80b5-4094-a705-c2f76fd2bf7d",
-        "documents:77a5f9f4-2f71-418f-90c4-29605e359301",
-        "documents:803ecf4f-49b2-491c-a6d6-b1dc211319c3",
+        "documents:565ef754-9e23-4384-b468-38e9d0362f8b",
+        "documents:6bf3b778-223f-436c-a3ac-a679d02ec6fe",
+        "documents:af66bd88-9b04-42c0-a354-4674cfec1991",
         "documents:b456eaa4-300b-424c-a2aa-0a4088d41aab",
-        "documents:cd122d1c-ffe3-40c5-9787-4b0795f75ed9",
-        "documents:f1bf053d-93a9-4be3-830f-665465ddc9fb"
+        "documents:e76b2c52-3dd0-4610-aac3-c18dbdcf873a",
+        "documents:e930a7d4-bc05-4309-b749-fe6e7d2dcfaa"
       ],
-      "total_matches": 1037,
+      "total_matches": 3013,
       "truncated": true,
-      "source_gap": null
+      "source_checks": [
+        {
+          "url": "https://www.ramapo.edu/reslife/rcp/",
+          "missing_qualifiers": [],
+          "found": true,
+          "fresh": true
+        }
+      ]
     },
     {
       "id": "menu-date-meal-diet",
@@ -143,7 +177,7 @@
       ],
       "total_matches": 28,
       "truncated": false,
-      "source_gap": null
+      "source_checks": []
     },
     {
       "id": "menu-uncovered-date",
@@ -151,7 +185,7 @@
       "returned_ids": [],
       "total_matches": 0,
       "truncated": false,
-      "source_gap": null
+      "source_checks": []
     },
     {
       "id": "calendar-term-session",
@@ -161,7 +195,7 @@
       ],
       "total_matches": 1,
       "truncated": false,
-      "source_gap": null
+      "source_checks": []
     },
     {
       "id": "shuttle-route-day",
@@ -188,7 +222,7 @@
       ],
       "total_matches": 18,
       "truncated": false,
-      "source_gap": null
+      "source_checks": []
     },
     {
       "id": "shuttle-other-service-day",
@@ -196,10 +230,97 @@
       "returned_ids": [],
       "total_matches": 0,
       "truncated": false,
-      "source_gap": null
+      "source_checks": []
+    },
+    {
+      "id": "transcript-policy",
+      "evidence_retrieved": true,
+      "returned_ids": [
+        "documents:056f8b20-474d-48e8-86e6-efb81a650341",
+        "documents:0b67f6be-c938-43fd-980e-5e86d8463d85",
+        "documents:0baa2f50-ec7f-4ab2-84eb-6b916a85e198",
+        "documents:0efdffdc-d9a2-4f73-803d-4308f639565f",
+        "documents:13287e18-7536-4c1b-939a-79063fd58ad2",
+        "documents:3fc0cc10-7b4d-447a-9391-d91d5dab99f0",
+        "documents:65d45c85-15a9-4889-b2bd-813ca133d896",
+        "documents:7432f11b-6f19-42de-8dfb-a81bbeda9640",
+        "documents:82edb61c-1ded-4988-8ec5-42960f97bf9b",
+        "documents:a6736c97-6e1b-48fd-a59f-243537d86c7e",
+        "documents:b0a10517-daff-4f35-96b2-3ef4cf0e6580",
+        "documents:f32b6112-e297-4bfb-aff1-902e6459a77e"
+      ],
+      "total_matches": 491,
+      "truncated": true,
+      "source_checks": [
+        {
+          "url": "https://www.ramapo.edu/registrar/forms-transcripts/",
+          "missing_qualifiers": [],
+          "found": true,
+          "fresh": true
+        }
+      ]
+    },
+    {
+      "id": "contact-heldout-plural",
+      "evidence_retrieved": true,
+      "returned_ids": [
+        "contacts:2f6d42fc-34bd-4739-86e3-84b66d258dc6",
+        "contacts:55364012-4aae-4dd6-b1cd-d8217eef400a",
+        "contacts:6e69c341-21ef-4093-8b31-09d4578a27be",
+        "contacts:844dadf9-0cf0-40d0-a977-352eca6b5395",
+        "contacts:9592ec49-2e7f-4471-b5fa-56440a6f5df3",
+        "contacts:b580585e-3e59-4bdc-b19d-c5a511fb294e"
+      ],
+      "total_matches": 6,
+      "truncated": false,
+      "source_checks": []
+    },
+    {
+      "id": "housing-heldout-wording",
+      "evidence_retrieved": true,
+      "returned_ids": [
+        "documents:0baa2f50-ec7f-4ab2-84eb-6b916a85e198",
+        "documents:12d8e603-cf8f-41a3-b689-e5470cfeed66",
+        "documents:1ffeaf8a-b30f-4bec-b80b-9d411bc73b21",
+        "documents:341b4103-217e-4937-8475-301d347d3bb3",
+        "documents:4350a6bb-f5ef-484a-94af-6425ad7b15f2",
+        "documents:77dcdf5f-7d99-4f7d-bb30-609b295ef785",
+        "documents:a58415b6-653b-41ff-8baf-a0cfc0f24c08",
+        "documents:af66bd88-9b04-42c0-a354-4674cfec1991",
+        "documents:b2aff7bd-465a-4275-978e-88ad6dcf75f5",
+        "documents:e86341db-ee27-436d-9391-a9a2fc7061e4",
+        "documents:f042c07f-53f8-4d22-9f1d-e1147a06d037",
+        "documents:fde88f43-c06e-487f-9327-8d164d69cc86"
+      ],
+      "total_matches": 858,
+      "truncated": true,
+      "source_checks": [
+        {
+          "url": "https://www.ramapo.edu/reslife/rcp/",
+          "missing_qualifiers": [],
+          "found": true,
+          "fresh": true
+        }
+      ]
+    },
+    {
+      "id": "no-invented-office",
+      "evidence_retrieved": true,
+      "returned_ids": [],
+      "total_matches": 0,
+      "truncated": false,
+      "source_checks": []
+    },
+    {
+      "id": "unknown-diet-is-not-false",
+      "evidence_retrieved": true,
+      "returned_ids": [],
+      "total_matches": 0,
+      "truncated": false,
+      "source_checks": []
     }
   ],
-  "evidence_retrieved": 10,
-  "total": 12,
-  "limits": "This measures retrieval, not answer correctness or full policy coverage. Known paraphrase/source gaps are retained."
+  "evidence_retrieved": 17,
+  "total": 17,
+  "limits": "This measures retrieval, not answer correctness or full policy coverage. Every required qualifier must be present in bounded reads of the cited source. Historical misses are retained in initial-retrieval-results.json."
 }

@@ -8,10 +8,11 @@ from typing import Any
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
+import psycopg
 import pytest
 from fastapi.testclient import TestClient
-from httpx import Request
-from openai import APITimeoutError
+from httpx import Request, Response
+from openai import APITimeoutError, AuthenticationError
 from phase2_snapshot import load_snapshot, local_database
 
 from rockygpt_brain.accounting import PostgresLedger
@@ -112,7 +113,18 @@ def provider_response(entity: str = "Registrar", fields: list[str] | None = None
 
 
 @pytest.mark.parametrize(
-    "scenario", ["supported", "missing", "uncovered", "database", "timeout", "budget"]
+    "scenario",
+    [
+        "supported",
+        "missing",
+        "uncovered",
+        "ambiguous",
+        "conflict",
+        "database",
+        "provider",
+        "timeout",
+        "budget",
+    ],
 )
 def test_http_path_preserves_accounting_for_controlled_failures(
     scenario: str,
@@ -130,6 +142,34 @@ def test_http_path_preserves_accounting_for_controlled_failures(
     if scenario == "uncovered":
         provider.create.return_value = provider_response(fields=["fax"])
         question = "What is Registrar's fax?"
+    injected_id = None
+    if scenario in {"ambiguous", "conflict"}:
+        with psycopg.connect(local_database()) as conn:
+            row = conn.execute(
+                "INSERT INTO rockygpt_v2.campus_contacts "
+                "(dataset_version_id,source_id,source_record_key,name,department,phone,"
+                "email,office,collected_at,content_hash,aliases) "
+                "SELECT dataset_version_id,source_id,%s,%s,department,%s,email,office,"
+                "collected_at,content_hash,aliases FROM rockygpt_v2.campus_contacts "
+                "WHERE source_record_key='office:registrar' LIMIT 1 RETURNING id",
+                (
+                    "office:registrar"
+                    if scenario == "conflict"
+                    else "office:other-registrar",
+                    "Registrar" if scenario == "conflict" else "Other Registrar",
+                    "201-555-0199",
+                ),
+            ).fetchone()
+            assert row
+            injected_id = row[0]
+        provider.create.return_value = provider_response("Office of the Registrar")
+        question = "What is Office of the Registrar's phone?"
+    if scenario == "provider":
+        provider.create.side_effect = AuthenticationError(
+            "invalid credential",
+            response=Response(401, request=Request("POST", "https://api.openai.com")),
+            body=None,
+        )
     if scenario == "database":
         data.lookup_contact = Mock(side_effect=RuntimeError("secret connection details"))  # type: ignore[method-assign]
     if scenario == "timeout":
@@ -155,20 +195,28 @@ def test_http_path_preserves_accounting_for_controlled_failures(
         response = TestClient(app).post(
             "/v1/chat", json={"messages": [{"role": "user", "content": question}]}
         )
+    if injected_id:
+        with psycopg.connect(local_database()) as conn:
+            conn.execute("DELETE FROM rockygpt_v2.campus_contacts WHERE id=%s", (injected_id,))
     payload = response.json()
     assert payload["requestId"]
     assert "secret connection" not in response.text
-    with ledger.transaction() as conn:
-        row = conn.execute(
+    with ledger.transaction() as ledger_conn:
+        summary_row = ledger_conn.execute(
             "SELECT summary FROM brain_ops.turns WHERE request_id=%s", (payload["requestId"],)
         ).fetchone()
-        assert row is not None
-        summary = row["summary"]
+        assert summary_row is not None
+        summary = summary_row["summary"]
     operations = ledger.operations()
     if scenario == "budget":
         assert response.status_code == 429
         assert payload["error"]["resetAt"] and payload["error"]["resources"]
         provider.create.assert_not_called()
+    elif scenario == "provider":
+        assert response.status_code >= 400
+        assert provider.create.call_count == 1
+        assert operations[0]["state"] == "uncertain"
+        assert summary["unsettledNusd"] > 0
     elif scenario == "timeout":
         assert response.status_code == 504
         assert operations[0]["state"] == "uncertain"
@@ -186,3 +234,8 @@ def test_http_path_preserves_accounting_for_controlled_failures(
             assert summary["toolResults"][0]["evidence_ids"] == [payload["citations"][0]["id"]]
         else:
             assert payload["status"] in {"clarification", "unavailable"}
+            if scenario == "conflict":
+                assert "conflicting" in payload["answer"]
+            if scenario == "ambiguous":
+                assert "more than one" in payload["answer"]
+            assert "201-555-0199" not in payload["answer"]

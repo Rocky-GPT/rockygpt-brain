@@ -420,6 +420,8 @@ The first end-to-end milestone is **one real campus question working through the
 
 ### Phase 2 — Connect one complete path, then expand retrieval
 
+Development acceptance reopened September 16, 2026 after a short dinner-menu conversation exceeded the internal tool-context bound. See [verified results and the unresolved acceptance gap](docs/phase2.md).
+
 #### 2A. One real question from browser to evidence to answer
 
 Choose an office-contact question that the existing published dataset actually supports. Verify the record and source first; this is a representative implementation case, not a hardcoded question or a claim about a particular office's available data.
