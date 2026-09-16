@@ -1,0 +1,28 @@
+{
+  "version": "phase2-2026-09-16",
+  "provider": "openai",
+  "model": "gpt-5.4",
+  "draft_reasoning": "none",
+  "review_reasoning": "medium",
+  "draft_output_tokens": 2400,
+  "review_output_tokens": 4096,
+  "max_input_tokens": 128000,
+  "max_draft_calls": 6,
+  "max_model_calls": 8,
+  "max_tool_calls": 12,
+  "turn_seconds": 50.0,
+  "http_turn_seconds": 52.0,
+  "answer_reserve_seconds": 20.0,
+  "review_reserve_seconds": 8.0,
+  "active_turns": 4,
+  "review_policy": "generated_prose_with_bounded_repair",
+  "price": {
+    "version": "openai-standard-2026-09-11",
+    "valid_from": "2026-09-11",
+    "valid_until": "2026-10-11",
+    "input_nusd": 2500,
+    "cached_input_nusd": 250,
+    "output_nusd": 15000,
+    "source": "https://developers.openai.com/api/docs/models/gpt-5.4"
+  }
+}

@@ -46,7 +46,9 @@ clarification in the same bounded loop.
 
 ## Retrieval
 
-Two tools are enough. `search_campus` takes a collection, ordinary keyword query,
+`lookup_contact` performs a bounded exact name/alias lookup with field coverage.
+`calculate` checks explicit scalar operands and returns arithmetic with provenance.
+`search_campus` takes a collection, ordinary keyword query,
 campus-local date range, and bounded result limit. A start date is required for
 menus, hours, shuttle schedules, and events; dates are optional for other
 collections. `read_campus` accepts
@@ -178,3 +180,29 @@ network address. These bounds fail safely rather than extending a student's wait
 Model tool outputs are fed back with their call IDs, including every call in a
 multi-call response, following the [official Responses function-calling contract](https://developers.openai.com/api/docs/guides/function-calling#handling-function-calls).
 There is no background agent, deployment, new datastore, or scheduled work.
+
+
+## Phase 1 accounting boundary (September 11, 2026)
+
+The controller now calls a typed model-client interface. Only `provider.py`
+imports the SDK. Its gateway reserves against the environment’s PostgreSQL
+ledger before every draft/tool or review call and settles returned usage before
+answer validation. Campus retrieval still uses its original read-only role.
+The separate `brain_ops` schema contains no campus records or student prose.
+
+The bundled release config and source/dependency hash identify the model,
+prompts, tools, schemas, retrieval/rendering, review policy, and execution limits.
+Deployment credentials/project and the two capped balances are supplied
+separately. The previous model remains the baseline; later plan phases change
+answer paths. See [Phase 1](../docs/phase1.md) for setup and reconciliation.
+
+## Phase 2 exact output
+
+After the first model tool request, a complete single-contact question may be
+rendered in code. Exact identity, source, requested fields, dates, freshness,
+coverage, truncation and conflicts must pass. Conservative full-question
+templates establish eligibility after retrieval; they do not select the model
+path before the first call. Mixed tasks and conversation follow-ups retain the
+reviewed prose path. Exact contact output adds no writing or review call.
+Tool outcomes and evidence IDs join the spending summary through requestId;
+operational summaries exclude tool arguments and student text.

@@ -1,0 +1,30 @@
+{
+  "verified_at": "2026-09-11T18:09:39.752300+00:00",
+  "phase": 1,
+  "configuration_hash": "e0c68dde1b1df5e7ad9bb4736e2de9bb04c0136f4a69024f29ddf1044ba85b38",
+  "release": "phase1-2026-09-11",
+  "brain_tests": {
+    "passed": 168,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evaluation_tests": {
+    "passed": 13,
+    "failed": 0
+  },
+  "ruff": "passed",
+  "strict_mypy": "passed",
+  "postgresql": "16; isolated localhost database",
+  "database_restart_recovery": "passed",
+  "public_openapi_schema": "unchanged from baseline",
+  "user_plan_edits": "preserved byte-for-byte",
+  "wheel_build": "passed; release, prompts, and modules verified; no credentials",
+  "wheel_sha256": "61b69174426dd64f59c577e9dcbbf237bd99b56da704a4214562aaea306a93b5",
+  "paid_model_calls": 0,
+  "live_campus_database_mutations": 0,
+  "deployment_performed": false,
+  "limitations": [
+    "Current source freshness and paid model quality/latency were not evaluated.",
+    "Operational migration and dedicated environment credentials must be provisioned before live use."
+  ]
+}

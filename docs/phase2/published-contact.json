@@ -1,0 +1,95 @@
+{
+  "captured_at": "2026-09-16T14:09:09.280247-04:00",
+  "readiness": {
+    "status": "ok",
+    "dataset_version": "v2-20260916152516",
+    "activated_at": "2026-09-16 15:28:44.451254+00:00",
+    "available_collections": [
+      "documents",
+      "critical_facts",
+      "contacts",
+      "campus_hours",
+      "dining_hours",
+      "menu",
+      "calendar",
+      "events",
+      "clubs",
+      "programs",
+      "program_requirements",
+      "courses",
+      "faculty",
+      "shuttle"
+    ]
+  },
+  "contact_search": {
+    "status": "ok",
+    "dataset_version": "v2-20260916152516",
+    "records": [
+      {
+        "id": "contacts:2f6d42fc-34bd-4739-86e3-84b66d258dc6",
+        "entity_id": "campus-directory:office:registrar",
+        "collection": "contacts",
+        "title": "Registrar",
+        "url": "https://www.ramapo.edu/campus-directory/",
+        "source_title": "Campus Directory",
+        "source_key": "campus-directory",
+        "trust_tier": "official_primary",
+        "fields": {
+          "name": "Registrar",
+          "department": "Office of the Registrar",
+          "phone": "201-684-7695",
+          "email": "registrar@ramapo.edu",
+          "office": "D-224"
+        },
+        "collected_at": "2026-09-16T15:24:58.927000+00:00",
+        "freshness": "fresh",
+        "valid_from": null,
+        "valid_until": null,
+        "limitations": [],
+        "coverage": {
+          "scope": "record_fields_only",
+          "fields": {
+            "name": "published",
+            "department": "published",
+            "phone": "published",
+            "email": "published",
+            "office": "published"
+          }
+        },
+        "content_truncated": false
+      }
+    ],
+    "total_matches": 1,
+    "truncated": false,
+    "available_collections": [
+      "documents",
+      "critical_facts",
+      "contacts",
+      "campus_hours",
+      "dining_hours",
+      "menu",
+      "calendar",
+      "events",
+      "clubs",
+      "programs",
+      "program_requirements",
+      "courses",
+      "faculty",
+      "shuttle"
+    ],
+    "discovery_titles": [],
+    "coverage": {
+      "scope": "matching_records_only",
+      "filters": {
+        "collection": "contacts",
+        "query": "Registrar",
+        "date_from": null,
+        "date_to": null,
+        "limit": 12,
+        "filters": null
+      },
+      "absence_is_not_nonexistence": true,
+      "qualifiers_complete": true
+    }
+  }
+}

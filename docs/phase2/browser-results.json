@@ -1,0 +1,205 @@
+{
+  "mode": "injected_provider_real_http_sql_ledger",
+  "paid_calls": 0,
+  "live_model_blocked": "Missing BRAIN_ENVIRONMENT, BRAIN_OPENAI_API_KEY, BRAIN_OPENAI_PROJECT, BRAIN_LEDGER_DATABASE_URL",
+  "ui_checks": [
+    "Correct contact fields and official citation",
+    "Email mailto link",
+    "Missing fax limitation",
+    "Timeout support ID and retry",
+    "Budget reset date, resource links and no retry"
+  ],
+  "turns": [
+    {
+      "request_id": "5c3d2db8-c713-4878-8a38-87d38897c9e9",
+      "summary": {
+        "status": "answered",
+        "costNusd": 1225000,
+        "elapsedMs": 50,
+        "requestId": "5c3d2db8-c713-4878-8a38-87d38897c9e9",
+        "modelCalls": 1,
+        "inputTokens": 250,
+        "retrievalMs": 13,
+        "toolResults": [
+          {
+            "tool": "lookup_contact",
+            "reason": null,
+            "status": "ok",
+            "truncated": false,
+            "elapsed_ms": 13,
+            "evidence_ids": [
+              "contacts:2f6d42fc-34bd-4739-86e3-84b66d258dc6"
+            ],
+            "result_count": 1,
+            "total_matches": 1
+          }
+        ],
+        "draftModelMs": 14,
+        "fallbackUsed": false,
+        "outputTokens": 40,
+        "responseMode": "exact_contact",
+        "reviewModelMs": 0,
+        "unsettledNusd": 0,
+        "usageComplete": true,
+        "datasetVersion": "v2-20260916152516",
+        "reasoningTokens": 0,
+        "cachedInputTokens": 0,
+        "configurationHash": "7323b1f93cddeb9dce4b17740209b17ba16e47235ed67e441c711e896d1f7017"
+      }
+    },
+    {
+      "request_id": "0bef3660-f693-44d6-bde2-58a1c2de3611",
+      "summary": {
+        "status": "answered",
+        "costNusd": 1225000,
+        "elapsedMs": 158,
+        "requestId": "0bef3660-f693-44d6-bde2-58a1c2de3611",
+        "modelCalls": 1,
+        "inputTokens": 250,
+        "retrievalMs": 53,
+        "toolResults": [
+          {
+            "tool": "lookup_contact",
+            "reason": null,
+            "status": "ok",
+            "truncated": false,
+            "elapsed_ms": 53,
+            "evidence_ids": [
+              "contacts:2f6d42fc-34bd-4739-86e3-84b66d258dc6"
+            ],
+            "result_count": 1,
+            "total_matches": 1
+          }
+        ],
+        "draftModelMs": 39,
+        "fallbackUsed": false,
+        "outputTokens": 40,
+        "responseMode": "exact_contact",
+        "reviewModelMs": 0,
+        "unsettledNusd": 0,
+        "usageComplete": true,
+        "datasetVersion": "v2-20260916152516",
+        "reasoningTokens": 0,
+        "cachedInputTokens": 0,
+        "configurationHash": "0eabfe8d9544a3a1d6a0f0a04b18a7de2cead38b4398f55d4ecfdb6e320dc168"
+      }
+    },
+    {
+      "request_id": "2d3feab0-c4ac-44d9-842c-953637d73772",
+      "summary": {
+        "status": "unavailable",
+        "costNusd": 1225000,
+        "elapsedMs": 134,
+        "requestId": "2d3feab0-c4ac-44d9-842c-953637d73772",
+        "modelCalls": 1,
+        "inputTokens": 250,
+        "retrievalMs": 40,
+        "toolResults": [
+          {
+            "tool": "lookup_contact",
+            "reason": null,
+            "status": "ok",
+            "truncated": false,
+            "elapsed_ms": 40,
+            "evidence_ids": [
+              "contacts:2f6d42fc-34bd-4739-86e3-84b66d258dc6"
+            ],
+            "result_count": 1,
+            "total_matches": 1
+          }
+        ],
+        "draftModelMs": 39,
+        "fallbackUsed": true,
+        "outputTokens": 40,
+        "responseMode": "exact_contact",
+        "reviewModelMs": 0,
+        "unsettledNusd": 0,
+        "usageComplete": true,
+        "datasetVersion": "v2-20260916152516",
+        "reasoningTokens": 0,
+        "cachedInputTokens": 0,
+        "configurationHash": "0eabfe8d9544a3a1d6a0f0a04b18a7de2cead38b4398f55d4ecfdb6e320dc168"
+      }
+    },
+    {
+      "request_id": "228f5c80-ad98-46a2-8081-dec9382b63df",
+      "summary": {
+        "status": "model_timeout",
+        "costNusd": 0,
+        "elapsedMs": 145,
+        "requestId": "228f5c80-ad98-46a2-8081-dec9382b63df",
+        "modelCalls": 1,
+        "inputTokens": 0,
+        "retrievalMs": 0,
+        "toolResults": [],
+        "draftModelMs": 71,
+        "fallbackUsed": false,
+        "outputTokens": 0,
+        "responseMode": null,
+        "reviewModelMs": 0,
+        "unsettledNusd": 137320000,
+        "usageComplete": false,
+        "datasetVersion": null,
+        "reasoningTokens": 0,
+        "cachedInputTokens": 0,
+        "configurationHash": "0eabfe8d9544a3a1d6a0f0a04b18a7de2cead38b4398f55d4ecfdb6e320dc168"
+      }
+    },
+    {
+      "request_id": "dab0655c-6fc8-4ede-b4ae-d6d8969dadc4",
+      "summary": {
+        "status": "budget_exhausted",
+        "costNusd": 0,
+        "elapsedMs": 61,
+        "requestId": "dab0655c-6fc8-4ede-b4ae-d6d8969dadc4",
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "retrievalMs": 0,
+        "toolResults": [],
+        "draftModelMs": 0,
+        "fallbackUsed": true,
+        "outputTokens": 0,
+        "responseMode": null,
+        "reviewModelMs": 0,
+        "unsettledNusd": 0,
+        "usageComplete": true,
+        "datasetVersion": null,
+        "reasoningTokens": 0,
+        "cachedInputTokens": 0,
+        "configurationHash": "0eabfe8d9544a3a1d6a0f0a04b18a7de2cead38b4398f55d4ecfdb6e320dc168"
+      }
+    }
+  ],
+  "operations": [
+    {
+      "request_id": "5c3d2db8-c713-4878-8a38-87d38897c9e9",
+      "state": "settled",
+      "cost_nusd": 1225000,
+      "reserved_nusd": 137320000
+    },
+    {
+      "request_id": "0bef3660-f693-44d6-bde2-58a1c2de3611",
+      "state": "settled",
+      "cost_nusd": 1225000,
+      "reserved_nusd": 137320000
+    },
+    {
+      "request_id": "2d3feab0-c4ac-44d9-842c-953637d73772",
+      "state": "settled",
+      "cost_nusd": 1225000,
+      "reserved_nusd": 137290000
+    },
+    {
+      "request_id": "228f5c80-ad98-46a2-8081-dec9382b63df",
+      "state": "uncertain",
+      "cost_nusd": null,
+      "reserved_nusd": 137320000
+    },
+    {
+      "request_id": "injected-budget",
+      "state": "reserved",
+      "cost_nusd": null,
+      "reserved_nusd": 9859005000
+    }
+  ]
+}

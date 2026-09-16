@@ -1,0 +1,205 @@
+{
+  "dataset": "v2-20260916152516",
+  "snapshot_time": "2026-09-16T14:09:09.280247-04:00",
+  "snapshot_sha256": "2c2c5d6ed3035f11c94c0254a94b031e3f42be8d2be83a38f3a38e15665cf85a",
+  "provider_calls": 0,
+  "method": "PostgreSQL keyword retrieval and typed filters; labeled evidence at query limit",
+  "cases": [
+    {
+      "id": "contact-name",
+      "evidence_retrieved": true,
+      "returned_ids": [
+        "contacts:2f6d42fc-34bd-4739-86e3-84b66d258dc6",
+        "contacts:d1416b2f-a217-472e-99c9-0a95e26a1d56"
+      ],
+      "total_matches": 2,
+      "truncated": false,
+      "source_gap": null
+    },
+    {
+      "id": "contact-published-alias",
+      "evidence_retrieved": true,
+      "returned_ids": [
+        "contacts:2f6d42fc-34bd-4739-86e3-84b66d258dc6",
+        "contacts:47de403e-65a1-4423-8501-88e3ce7ddbf2",
+        "contacts:4eee8f9a-e8da-49ee-ae29-fb51945bd4b9",
+        "contacts:6ed02477-d0d6-432a-bd06-368eb496f4de",
+        "contacts:7fe3811b-448a-47c2-96c6-69c774d1e729",
+        "contacts:a77f83c2-932e-4225-afed-dcc249948a97",
+        "contacts:ac187051-e8d3-4e53-a597-d6383f8cd246",
+        "contacts:b580585e-3e59-4bdc-b19d-c5a511fb294e",
+        "contacts:cc2ec147-d031-44ce-b3b9-2b10fcf0fe86",
+        "contacts:dcb70909-6be7-4639-8455-1b676c531bac",
+        "contacts:e64d11fc-8b8d-4db4-9695-90dba8cddd53",
+        "contacts:ff50d689-b3d3-4834-9880-7b9082e234ae"
+      ],
+      "total_matches": 214,
+      "truncated": true,
+      "source_gap": null
+    },
+    {
+      "id": "contact-paraphrase",
+      "evidence_retrieved": false,
+      "returned_ids": [],
+      "total_matches": 0,
+      "truncated": false,
+      "source_gap": null
+    },
+    {
+      "id": "contact-reformulated",
+      "evidence_retrieved": true,
+      "returned_ids": [
+        "contacts:2f6d42fc-34bd-4739-86e3-84b66d258dc6"
+      ],
+      "total_matches": 1,
+      "truncated": false,
+      "source_gap": null
+    },
+    {
+      "id": "room-change-keywords",
+      "evidence_retrieved": true,
+      "returned_ids": [
+        "documents:0839a447-a067-42a6-8eac-2e3ab651bd53",
+        "documents:1c0a045f-4f3a-482d-bf92-7fcb5dfbb1e9",
+        "documents:395b821e-1655-4724-80aa-9ef25864dc93",
+        "documents:42c7324c-af49-4438-9260-805568141a7b",
+        "documents:43e08ac3-4bda-433f-b7c2-286d77d7f36a",
+        "documents:7128eb11-9d25-440c-961b-f61cdb27130b",
+        "documents:7f299f23-e08f-4ccd-a909-79533f5437cd",
+        "documents:8d64ab60-6532-4ae4-bed7-9fd3917054c7",
+        "documents:8df7fbeb-bc70-41d5-9e07-c1faec3db639",
+        "documents:9861b4d6-90e0-46a8-a07d-2a40ba49b590",
+        "documents:c1d1631b-9c1f-439a-86e6-2eece7d9a837",
+        "documents:f1bf053d-93a9-4be3-830f-665465ddc9fb"
+      ],
+      "total_matches": 508,
+      "truncated": true,
+      "source_gap": "Published excerpt ends mid-condition; passage retrieval does not prove full policy coverage."
+    },
+    {
+      "id": "room-change-paraphrase",
+      "evidence_retrieved": false,
+      "returned_ids": [
+        "documents:db4868a9-26e1-4a0b-9591-7c9e10038894",
+        "documents:f2138d52-3883-4e2f-ad0a-aaa889924138"
+      ],
+      "total_matches": 2,
+      "truncated": false,
+      "source_gap": null
+    },
+    {
+      "id": "meal-plan-qualifier",
+      "evidence_retrieved": true,
+      "returned_ids": [
+        "documents:27cb7ebe-b707-4112-9f9d-9e9109ec4c95",
+        "documents:2a86a347-8e8e-43e9-b481-4b8d384c0b1d",
+        "documents:442f47fa-10de-4730-9a39-806e6eeb4c7d",
+        "documents:5166ce34-0e72-49f8-8c4c-98bc4eb84fd1",
+        "documents:5f8996a9-d20f-4633-92b2-39f9c3002328",
+        "documents:7128eb11-9d25-440c-961b-f61cdb27130b",
+        "documents:76e395bd-80b5-4094-a705-c2f76fd2bf7d",
+        "documents:77a5f9f4-2f71-418f-90c4-29605e359301",
+        "documents:803ecf4f-49b2-491c-a6d6-b1dc211319c3",
+        "documents:b456eaa4-300b-424c-a2aa-0a4088d41aab",
+        "documents:cd122d1c-ffe3-40c5-9787-4b0795f75ed9",
+        "documents:f1bf053d-93a9-4be3-830f-665465ddc9fb"
+      ],
+      "total_matches": 1037,
+      "truncated": true,
+      "source_gap": null
+    },
+    {
+      "id": "menu-date-meal-diet",
+      "evidence_retrieved": true,
+      "returned_ids": [
+        "menu:031533a2-8bf9-41e4-92e6-d02d4a6d9c84",
+        "menu:04ba1771-d208-4e4d-b3b1-30aa108748d3",
+        "menu:29f1f3a4-8d5a-4046-8422-3d301a58d9ce",
+        "menu:30138734-f39e-4577-8710-34b168190b9e",
+        "menu:490394b9-948b-4bcd-8f90-ff9b8ad2ec17",
+        "menu:4a3afe14-df01-4139-aa9b-9c15d489fe22",
+        "menu:5039f66c-fd64-4d06-8c93-a1beb228e430",
+        "menu:550edb74-6cfa-42c3-8aa1-3638cdbb0b46",
+        "menu:5c535a8f-6fb2-43c1-8bb7-3710cc78269d",
+        "menu:62a9bc37-e54d-406f-bae0-60340e5a27ab",
+        "menu:6982af26-8d6c-4147-ad91-38a06748e65c",
+        "menu:6e8172b9-ab63-46f4-b3fa-b25da554b572",
+        "menu:84ad6027-46ea-41ef-adb4-176ed90cc332",
+        "menu:886caa24-d93b-4fdd-8006-3883f734dfad",
+        "menu:8e10fddd-84de-4030-b9c0-29db656c75fd",
+        "menu:924adf21-d6fd-4eab-ba52-832b55b3822e",
+        "menu:99b716e3-5cf7-41a2-b3fd-ccf49499fcf4",
+        "menu:9da59065-1018-4ca4-8775-f123889eba49",
+        "menu:a6b766c2-3e8b-4a08-beda-41e79ec0f7b0",
+        "menu:b0775272-7430-426a-b2c2-bf6ba0603c09",
+        "menu:b22e7546-23c6-4c76-ae40-1f9a64fe6ed5",
+        "menu:bde7ed3e-f7ac-4a8f-a3a5-602abc1c08b1",
+        "menu:d263cc9a-7716-4870-bc41-9a78bb47b058",
+        "menu:f1976cca-4de0-45a0-a4fd-550e86db0f7a",
+        "menu:f35067df-9e49-4169-9727-a79eaac8f116",
+        "menu:f3e68848-aaaa-43d9-a34c-3ee287a5e0fe",
+        "menu:fda13b07-1bd8-4861-991e-a8436453669f",
+        "menu:fff89003-61cf-4714-9486-18e9ac7ecb81"
+      ],
+      "total_matches": 28,
+      "truncated": false,
+      "source_gap": null
+    },
+    {
+      "id": "menu-uncovered-date",
+      "evidence_retrieved": true,
+      "returned_ids": [],
+      "total_matches": 0,
+      "truncated": false,
+      "source_gap": null
+    },
+    {
+      "id": "calendar-term-session",
+      "evidence_retrieved": true,
+      "returned_ids": [
+        "calendar:b11e5fe5-1303-461e-b923-cefe3d20bc60"
+      ],
+      "total_matches": 1,
+      "truncated": false,
+      "source_gap": null
+    },
+    {
+      "id": "shuttle-route-day",
+      "evidence_retrieved": true,
+      "returned_ids": [
+        "shuttle:00356f1b-5a71-44c3-8dd5-c78da960484c:2026-09-16",
+        "shuttle:11a85095-0076-472d-8fa2-8f117d851287:2026-09-16",
+        "shuttle:20a00a63-41c4-4513-bf86-eb6d837c9bec:2026-09-16",
+        "shuttle:368fe6e7-3e32-479a-abc3-5798a295606a:2026-09-16",
+        "shuttle:4a4675bf-9a42-4a30-b886-dedec1698888:2026-09-16",
+        "shuttle:5d1a8771-a05a-4464-aadd-29d71d6d570b:2026-09-16",
+        "shuttle:6865166e-5a36-42c7-8744-68950eff92c3:2026-09-16",
+        "shuttle:723d7829-0fd8-4393-a977-43a8f33a5670:2026-09-16",
+        "shuttle:72b849c6-72df-4257-a783-ae3f0f0212de:2026-09-16",
+        "shuttle:780874f4-1bea-4d29-8c6b-12e997442ecc:2026-09-16",
+        "shuttle:784992cf-d980-4be2-8d4f-bf3e46643223:2026-09-16",
+        "shuttle:7855338e-8c93-4efe-aa53-e39597a46cf4:2026-09-16",
+        "shuttle:8b6164a1-8733-4bb6-aafd-db1a35acc0f8:2026-09-16",
+        "shuttle:b0300c14-e5e5-4699-b4ed-c99a22e56d0a:2026-09-16",
+        "shuttle:b21523c4-5e5c-42d6-9d63-38530fe177bf:2026-09-16",
+        "shuttle:be964506-e7e1-492f-b1f3-dde953053e7b:2026-09-16",
+        "shuttle:dd6127cb-ef6e-4aab-b302-e8a73b5c076e:2026-09-16",
+        "shuttle:f0f9855e-236c-404d-b4b8-ce2a80d70a05:2026-09-16"
+      ],
+      "total_matches": 18,
+      "truncated": false,
+      "source_gap": null
+    },
+    {
+      "id": "shuttle-other-service-day",
+      "evidence_retrieved": true,
+      "returned_ids": [],
+      "total_matches": 0,
+      "truncated": false,
+      "source_gap": null
+    }
+  ],
+  "evidence_retrieved": 10,
+  "total": 12,
+  "limits": "This measures retrieval, not answer correctness or full policy coverage. Known paraphrase/source gaps are retained."
+}
