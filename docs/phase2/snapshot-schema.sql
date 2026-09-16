@@ -1,4 +1,3 @@
--- Frozen test schema from the current Data workspace, 2026-09-16.
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS rockygpt_v2.schema_migrations (
@@ -343,3 +342,16 @@ ALTER TABLE rockygpt_v2.feedback
 
 CREATE INDEX IF NOT EXISTS feedback_expires_at_idx
   ON rockygpt_v2.feedback (expires_at);
+
+-- Additive publication metadata. No backfill fabricates historical coverage.
+ALTER TABLE rockygpt_v2.campus_contacts
+  ADD COLUMN IF NOT EXISTS aliases JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE rockygpt_v2.menu_items
+  ALTER COLUMN vegan DROP NOT NULL,
+  ALTER COLUMN vegan DROP DEFAULT,
+  ALTER COLUMN vegetarian DROP NOT NULL,
+  ALTER COLUMN vegetarian DROP DEFAULT,
+  ADD COLUMN IF NOT EXISTS label_coverage JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+-- Discovery vocabulary is separate from factual fields and identity aliases.
+ALTER TABLE rockygpt_v2.campus_contacts ADD COLUMN IF NOT EXISTS search_text text;

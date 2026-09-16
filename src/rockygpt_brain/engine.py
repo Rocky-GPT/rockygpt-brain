@@ -73,8 +73,9 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         function_tool(
             "lookup_contact",
-            "Look up a named directory contact by exact published name or alias. "
-            "Use for explicit phone, email, office, department or other contact-field requests. "
+            "First choice for how to contact a named office/person, contact details, or "
+            "specific phone, email, office, department or other directory fields. "
+            "Look up the exact published name or alias. "
             "Include every requested field; for 'contact details' or 'how to contact', "
             "request phone, email, office and department. Hours/fax/website can be uncovered; "
             "never infer them. Empty records do not prove an office does not exist. "

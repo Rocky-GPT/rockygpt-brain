@@ -27,6 +27,9 @@ try:
     for table in (
         "campus_contacts",
         "academic_dates",
+        "campus_events",
+        "clubs",
+        "programs",
         "menu_items",
         "campus_hours",
         "dining_hours",
@@ -65,7 +68,7 @@ try:
     tables["release_artifacts"] = data._fetch(
         "SELECT * FROM rockygpt_v2.release_artifacts WHERE dataset_version_id=%s::uuid "
         "AND artifact_key IN ('menu-context','dining-hours',"
-        "'events','courses','programs','faculty')",
+        "'events','courses','programs','faculty','search-vocabulary')",
         (data.dataset["id"],),
     )
     Path("docs/phase2/public-snapshot.json.gz").write_bytes(

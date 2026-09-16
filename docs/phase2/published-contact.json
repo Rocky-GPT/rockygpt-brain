@@ -1,8 +1,8 @@
 {
-  "captured_at": "2026-09-16T14:09:09.280247-04:00",
+  "captured_at": "2026-09-16T15:41:18.483055-04:00",
   "readiness": {
     "status": "ok",
-    "dataset_version": "v2-20260916152516",
+    "dataset_version": "phase2-development-20260916",
     "activated_at": "2026-09-16 15:28:44.451254+00:00",
     "available_collections": [
       "documents",
@@ -23,7 +23,7 @@
   },
   "contact_search": {
     "status": "ok",
-    "dataset_version": "v2-20260916152516",
+    "dataset_version": "phase2-development-20260916",
     "records": [
       {
         "id": "contacts:2f6d42fc-34bd-4739-86e3-84b66d258dc6",
@@ -89,7 +89,7 @@
         "filters": null
       },
       "absence_is_not_nonexistence": true,
-      "qualifiers_complete": true
+      "excerpts_truncated": false
     }
   }
 }

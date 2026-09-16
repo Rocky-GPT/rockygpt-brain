@@ -532,6 +532,12 @@ class CampusData:
             )
             if collection == "menu":
                 extra = sql.SQL(", to_jsonb(t)->'label_coverage' AS label_coverage")
+            if collection == "contacts":
+                extra = sql.SQL(
+                    ", tsvector_to_array(to_tsvector('english', concat_ws(' ', "
+                    "t.name,t.department,to_jsonb(t)->>'search_text'))) AS search_terms, "
+                    "tsvector_to_array(to_tsvector('english', %s)) AS query_terms"
+                )
             join = (
                 sql.SQL("JOIN rockygpt_v2.shuttle_routes r ON r.id=t.route_id")
                 if collection == "shuttle"
@@ -539,6 +545,8 @@ class CampusData:
             )
             conditions: list[sql.Composable] = [sql.SQL("t.dataset_version_id=%s::uuid")]
             params: list[Any] = [self.dataset["id"]]
+            if collection == "contacts":
+                params.insert(0, query.query if query else "")
             if query is not None:
                 for key, value in (
                     query.filters.model_dump(exclude_none=True) if query.filters else {}
@@ -624,6 +632,10 @@ class CampusData:
                 )
                 record = self._evidence(collection, row, fields, title, url)
                 if record:
+                    if collection == "contacts":
+                        # Discovery terms never become factual fields or identity aliases.
+                        record["_search_terms"] = row.get("search_terms", [])
+                        record["_query_terms"] = row.get("query_terms")
                     if collection == "menu":
                         coverage = row.get("label_coverage") or {}
                         for label in ("vegan", "vegetarian", "allergens"):
@@ -848,7 +860,18 @@ class CampusData:
         return dated
 
     def _documents(self, query: SearchQuery) -> tuple[list[dict[str, Any]], int]:
-        terms = " OR ".join(sorted(_tokens(query.query)))
+        tokens = _tokens(query.query)
+        vocabulary = self._artifact("search-vocabulary") or {}
+        groups = vocabulary.get("groups", []) if isinstance(vocabulary, dict) else []
+        for group in groups[:100]:
+            if (
+                isinstance(group, list)
+                and len(group) <= 20
+                and all(isinstance(word, str) and len(word) <= 40 for word in group)
+                and tokens.intersection(group)
+            ):
+                tokens = tokens.union(group)
+        terms = " OR ".join(sorted(tokens))
         rows = self._fetch(
             "WITH q AS (SELECT websearch_to_tsquery('english', %s) AS term) "
             "SELECT c.id::text, c.document_id::text, c.chunk_index, c.content, c.metadata, "
@@ -859,12 +882,16 @@ class CampusData:
             "JOIN rockygpt_v2.sources s ON s.id=d.source_id CROSS JOIN q "
             "WHERE d.dataset_version_id=%s::uuid "
             "AND s.trust_tier IN ('official_primary','official_secondary') "
-            "AND (%s='' OR c.lexical_vector @@ q.term) ORDER BY score DESC,c.id LIMIT %s",
+            "AND (%s='' OR c.lexical_vector @@ q.term OR to_tsvector('english', "
+            "coalesce(c.metadata->>'headingPath',d.title)) @@ q.term) "
+            "ORDER BY score DESC,c.id LIMIT %s",
             (terms, self.dataset["id"], terms, query.limit),
         )
         records = []
         for row in rows:
             metadata = row.get("metadata") or {}
+            if metadata.get("collectedAt"):
+                row = {**row, "collected_at": metadata["collectedAt"]}
             record = self._evidence(
                 "documents",
                 row,
@@ -905,6 +932,8 @@ class CampusData:
         else:
             records = self._dates(self._load(query.collection, query), query)
             terms = _tokens(query.query)
+            if query.collection == "contacts" and records:
+                terms = set(records[0].get("_query_terms") or terms)
             ranked: list[tuple[float, dict[str, Any]]] = []
             for record in records:
                 fields = record["fields"]
@@ -927,6 +956,8 @@ class CampusData:
                 )
                 body += " " + " ".join(k for k, v in fields.items() if v is True)
                 title_terms, body_terms = _tokens(record["title"]), _tokens(body)
+                if query.collection == "contacts":
+                    body_terms.update(record.get("_search_terms", []))
                 matched = terms & (title_terms | body_terms)
                 if terms and not matched:
                     continue
@@ -979,25 +1010,37 @@ class CampusData:
                 continue
             if record["collection"] == "documents":
                 rows = self._fetch(
-                    "SELECT c.content FROM rockygpt_v2.document_chunks c "
+                    "SELECT c.content, c.chunk_index, c.metadata, "
+                    "count(*) OVER() AS page_chunks, min(c.chunk_index) OVER() AS first_chunk, "
+                    "max(c.chunk_index) OVER() AS last_chunk "
+                    "FROM rockygpt_v2.document_chunks c "
                     "JOIN rockygpt_v2.documents d ON d.id=c.document_id "
                     "JOIN rockygpt_v2.sources s ON s.id=d.source_id "
                     "WHERE d.dataset_version_id=%s::uuid AND c.document_id=%s::uuid "
-                    "AND c.chunk_index BETWEEN %s AND %s "
                     "AND coalesce(c.metadata->>'canonicalUrl',s.canonical_url)=%s "
-                    "AND coalesce(c.metadata->>'headingPath',d.title)=%s "
-                    "ORDER BY c.chunk_index LIMIT 5",
+                    "ORDER BY abs(c.chunk_index-%s), c.chunk_index LIMIT 5",
                     (
                         self.dataset["id"],
                         record["_document_id"],
-                        record["_chunk_index"] - 1,
-                        record["_chunk_index"] + 3,
                         record["url"],
-                        record["title"],
+                        record["_chunk_index"],
                     ),
                 )
                 if rows:
-                    record = {**record, "content": "\n\n".join(row["content"] for row in rows)}
+                    rows.sort(key=lambda row: row.get("chunk_index", 0))
+                    record = {
+                        **record,
+                        "content": "\n\n".join(row["content"] for row in rows),
+                        "coverage": {
+                            "scope": "bounded_source_context",
+                            "returned_chunks": len(rows),
+                            "source_chunks": rows[0].get("page_chunks"),
+                            "complete_source": rows[0].get("page_chunks") == len(rows),
+                            "headings": [
+                                (row.get("metadata") or {}).get("headingPath") for row in rows
+                            ],
+                        },
+                    }
             records.append(self._public(record, detail=True))
         return {
             "status": "ok" if records else "no_match",

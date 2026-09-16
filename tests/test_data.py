@@ -92,7 +92,7 @@ def test_postgres_is_read_only_bounded_and_dataset_pinned() -> None:
     assert connection.transaction.call_count == 3
     calls = [call for call in all_calls if "set_config(" not in str(call.args[0])]
     assert calls[1].args[1] == ("dataset-one",)
-    assert calls[2].args[1] == ("dataset-one",)
+    assert calls[2].args[1] == ("'; DROP TABLE sources; --", "dataset-one")
     assert "DROP" not in str(calls[2].args[0])
     assert sum("status = 'active'" in str(call.args[0]) for call in calls) == 1
     connection.close.assert_called_once()
@@ -261,7 +261,7 @@ def test_false_diet_flags_do_not_match_vegan(data: CampusData) -> None:
     ] == ["Tofu"]
 
 
-def test_document_read_stays_on_same_page_heading_and_pinned_dataset(data: CampusData) -> None:
+def test_document_read_stays_on_same_page_and_pinned_dataset(data: CampusData) -> None:
     document = record(data, "documents", "Guest Policy", {})
     document.update(_document_id="document-one", _chunk_index=10, content="Initial passage")
     data._seen[document["id"]] = document
@@ -269,8 +269,9 @@ def test_document_read_stays_on_same_page_heading_and_pinned_dataset(data: Campu
     with patch.object(data, "_fetch", fetch):
         result = data.read(ReadQuery(ids=[document["id"], "documents:invented"]))
     query, parameters = fetch.call_args.args
-    assert "canonicalUrl" in query and "headingPath" in query
-    assert parameters == ("dataset-one", "document-one", 9, 13, document["url"], "Guest Policy")
+    assert "canonicalUrl" in query and "LIMIT 5" in query
+    assert parameters == ("dataset-one", "document-one", document["url"], 10)
+    assert result["records"][0]["coverage"]["complete_source"] is False
     assert result["records"][0]["content"] == "Same page expanded details"
     assert result["records"][0]["url"] == document["url"]
     assert result["missing_ids"] == ["documents:invented"]
