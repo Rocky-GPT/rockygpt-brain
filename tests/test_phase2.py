@@ -17,6 +17,7 @@ from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.data import SearchQuery
 from rockygpt_brain.engine import render_answer, run_turn, tool_definitions
 from rockygpt_brain.exact import ContactQuery, contact_answer, requested_fields
+from rockygpt_brain.provider import OutputItem
 from test_engine import NOW
 
 
@@ -53,11 +54,13 @@ def test_exact_contact_uses_one_model_call_and_no_review(contact: dict[str, Any]
         status="completed",
         model="test",
         output=[
-            SimpleNamespace(
-                type="function_call",
-                name="lookup_contact",
-                call_id="contact",
-                arguments=query.model_dump_json(),
+            OutputItem(
+                {
+                    "type": "function_call",
+                    "name": "lookup_contact",
+                    "call_id": "contact",
+                    "arguments": query.model_dump_json(),
+                }
             )
         ],
     )

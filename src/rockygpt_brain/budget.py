@@ -102,3 +102,14 @@ class TurnBudget:
         if committed_nusd + reservation + review_reserve > self.release.max_turn_cost_nusd:
             raise PaidCallError("turn_cost_limit")
         return reservation
+
+    def retrieval_context_limit(self, current_bound: int, pending_tools: int) -> int:
+        """Share remaining context among new results; keep room for composition.
+
+        Admission still checks the actual next draft/review payload. This only
+        limits newly delivered evidence; accepted history is never shortened.
+        """
+        remaining = max(
+            0, self.release.max_input_tokens - current_bound - 2 * self.release.draft_output_tokens
+        )
+        return current_bound + remaining // max(1, pending_tools)

@@ -127,3 +127,33 @@ def test_shared_defaults_keep_distinct_sources_and_qualifiers_on_their_records()
     assert "limitations" not in packed[0]["defaults"]
     assert packed[0]["defaults"]["fields"] == {"location": "Library"}
     assert expand_records(packed) == records
+
+
+def test_delivery_limit_never_leaves_a_schedule_summary_for_omitted_records() -> None:
+    from rockygpt_brain.evidence import bounded_result
+
+    source = {
+        "status": "ok",
+        "records": [{"id": "a"}, {"id": "b"}],
+        "total_matches": 2,
+        "truncated": False,
+        "schedule_calculations": {"last_departure": {"evidence_id": "b"}},
+    }
+    result = bounded_result(source, lambda value: len(value["records"]) <= 1)
+    assert result["records"] == [{"id": "a"}]
+    assert "schedule_calculations" not in result
+    assert result["truncated"] is True and result["total_matches"] == 2
+    assert result["omitted_count"] == 1
+    assert len(source["records"]) == 2 and "schedule_calculations" in source
+
+
+def test_oversized_record_is_unavailable_not_a_false_no_match_or_partial_record() -> None:
+    from rockygpt_brain.evidence import bounded_result
+
+    result = bounded_result(
+        {"status": "ok", "records": [{"id": "a", "content": "qualification"}], "total_matches": 1},
+        lambda value: not value["records"],
+    )
+    assert result["status"] == "unavailable"
+    assert result["reason"] == "retrieval_delivery_limit"
+    assert result["records"] == [] and result["total_matches"] == 1

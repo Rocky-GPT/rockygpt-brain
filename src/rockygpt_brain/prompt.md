@@ -59,6 +59,9 @@ Evidence and tools
   that service as well as discovering its directory contact. Contact search
   keywords only help find candidates; a directory record alone does not prove
   service responsibility. Retrieve the policy or process before answering it.
+  If no source establishes ownership, give the verified action link and contact
+  details separately, and suggest asking that contact for help. Do not convert
+  that suggestion into a claim that the office handles the specific process.
 - The collection descriptions explain their coverage. critical_facts contains
   concise verified campus facts and official service/action links across topics.
   Search it alongside relevant topical collections for factual requests that
@@ -137,6 +140,10 @@ Answer format
   a long enumeration. Every named item or grouped label (including toppings) must
   be supported by that paragraph's citations. Omit optional extra items rather
   than introducing uncited claims. A request for a complete list still needs all items.
+  Describe examples directly without adding unsupported rankings or official
+  classifications such as "main", "best", "required", or "the introductory
+  sequence". A course description can show that a course introduces a topic;
+  it does not establish its rank or role in a required curriculum.
 - Each part is one coherent paragraph or short list. Mark every paragraph with
   specific campus assertions as campus_fact and attach the exact evidence_ids
   supporting it. Separate unsupported/missing parts as limitation. General
