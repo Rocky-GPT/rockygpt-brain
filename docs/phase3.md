@@ -405,3 +405,38 @@ checks took 36.465 and 22.090 seconds end-to-end respectively. This two-case
 component diagnostic is not combined with earlier successes into a full pass.
 Its separate agent audit leaves human review pending. Full committed-runtime
 conversation and review regression acceptance remain outstanding.
+
+
+## Full committed-runtime HTTP checkpoint: 015ab1a
+
+`development-http-05` attempted all 27 turns from the unchanged 20-conversation
+suite. Brain 015ab1a, UI 217c0d6 and evaluation harness c129080 were recorded before
+and after; commits, suite hash and runtime configuration hash remained unchanged.
+Every campus result used `phase2-development-20260916`. The separate agent audit
+finds 20 passes, two safe but unhelpful responses, and **five failures**. Human
+review remains pending; this is not a Phase 3 acceptance pass.
+
+- Library hours/contact, password reset, and catalog/live-seat questions retrieved
+  useful evidence but returned a generic unavailable fallback after review.
+- The shuttle itinerary timed out at the HTTP deadline, retaining its uncertain
+  reservation. The program/club question exceeded the conservative context bound.
+- The shortened-venue vegetarian menu now used the exact path: one model call,
+  all 39 items/citations, and 5,605 ms end-to-end HTTP latency. Its vegan Lunch and
+  closing-time follow-ups preserved the correction and service-period meanings.
+- The menu/allergen request and combined dinner/event request completed. The
+  private GPA example used the calculator, and urgent guidance completed with
+  one model call in 7,220 ms without a campus lookup.
+
+Median HTTP latency was 20,118 ms. Settled cost was $1.0448825 with $0.20193 still
+reserved as uncertain; no holds were reset. All 27 turns were admitted, 25 returned
+final responses, and two returned errors. No skipped turns or individually
+successful retries were combined into these results. The full review regression
+was not launched because this candidate already failed conversation acceptance.
+
+The next diagnosis needs the actual unchecked draft for the three review
+fallbacks, not guesses from the final generic error. The student SSE protocol
+already exposes that draft; the HTTP evaluation harness currently requests JSON
+and therefore loses it. Capturing existing SSE preview events in synthetic
+acceptance reports can address that observability gap without exposing reasoning
+or changing the runtime's review policy. Bounded tool-result delivery also needs
+to prevent a broad retrieval from consuming the entire remaining model context.

@@ -7,9 +7,11 @@ from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import evaluate_phase3 as runner
+import httpx
 import pytest
 
 from rockygpt_brain.accounting import PaidCallError
+from rockygpt_brain.contracts import ChatMessage
 
 
 @pytest.mark.parametrize("quota_failure, limited", [(False, False), (True, False), (False, True)])
@@ -117,7 +119,7 @@ def test_http_run_retains_uncertain_cost_and_checks_source_and_evidence(
     reply = http_client.return_value.__enter__.return_value.post.return_value
     reply.status_code = 200
     reply.json.return_value = payload
-    monkeypatch.setattr(runner.httpx, "Client", http_client)
+    monkeypatch.setattr(httpx, "Client", http_client)
     monkeypatch.setenv("STAGING_SERVICE_TOKEN", "synthetic-token")
     operation = {
         "operation_id": "op",
@@ -165,3 +167,45 @@ def test_http_run_retains_uncertain_cost_and_checks_source_and_evidence(
         assert result["result"] == payload
         assert result["httpStatus"] == 200
         assert result["evidenceOrigin"] == "replayed_frozen_trace_with_verified_ids"
+
+
+@pytest.mark.parametrize("status", [200, 504, None])
+def test_http_stream_keeps_preview_separate_from_final_result(
+    monkeypatch: pytest.MonkeyPatch, status: int | None
+) -> None:
+    payload = {"requestId": "stream-turn", "answer": "Final answer", "trace": []}
+    if status == 504:
+        payload = {"requestId": "stream-turn", "reason": "model_timeout"}
+    frames = 'event: progress\ndata: {"stage":"reviewing","draft":"Unchecked text"}\n\n'
+    if status is not None:
+        frames += "event: result\ndata: " + json.dumps({"status": status, "body": payload}) + "\n\n"
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        assert request.headers["accept"] == "text/event-stream"
+        assert request.url.path == "/v1/chat"
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, text=frames)
+
+    client = httpx.Client(transport=httpx.MockTransport(respond))
+    monkeypatch.setattr(httpx, "Client", lambda **kwargs: client)
+    ledger = Mock()
+    ledger.operations.return_value = []
+    args = (
+        "http://127.0.0.1:8000",
+        [ChatMessage(role="user", content="Question")],
+        Mock(outputs=[]),
+        ledger,
+        "expected",
+    )
+    if status is None:
+        with pytest.raises(ValueError, match="without a final result"):
+            runner.execute_http(*args, stream=True)
+        ledger.operations.assert_not_called()
+        return
+    row = runner.execute_http(*args, stream=True)
+    assert row["httpStatus"] == status
+    assert row["progress"][0]["draft"] == "Unchecked text"
+    assert row["progress"][0]["elapsedMs"] >= 0
+    if status == 504:
+        assert row["error"] == "model_timeout" and "result" not in row
+    else:
+        assert row["result"]["answer"] == "Final answer"

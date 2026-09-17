@@ -1,8 +1,82 @@
 """Lossless wire representation of records with recursively shared defaults."""
 
 import json
+from collections.abc import Callable
 from itertools import groupby
 from typing import Any
+
+
+def bounded_result(
+    output: dict[str, Any], fits: Callable[[dict[str, Any]], bool]
+) -> dict[str, Any]:
+    """Bound NEW delivery only; retain complete records and explicit set coverage.
+
+    Never alter an individual record's facts or silently treat an omitted result
+    as absent. A caller's prior evidence/history is outside this function.
+    """
+    if fits(output):
+        return output
+    records = output.get("records", [])
+    titles = output.get("discovery_titles", [])
+    limited = {**output}
+    # Discovery names are navigation, not evidence. Prefer actual retrieved
+    # records when both compete for the remaining context.
+    if titles:
+        limited["discovery_titles"] = []
+        limited["discovery_titles_truncated"] = True
+        limited["discovery_title_count"] = len(titles)
+    for count in range(len(records), -1, -1):
+        if count < len(records):
+            limited.update(
+                records=records[:count],
+                truncated=True,
+                reason="retrieval_delivery_limit",
+                retrieved_count=len(records),
+                omitted_count=len(records) - count,
+            )
+            # Derived summaries must not claim coverage of omitted evidence.
+            limited.pop("schedule_calculations", None)
+            if not count:
+                limited["status"] = "unavailable"
+        if fits(limited):
+            if titles:
+                for title_count in range(len(titles), -1, -1):
+                    limited["discovery_titles"] = titles[:title_count]
+                    limited["discovery_titles_truncated"] = title_count < len(titles)
+                    if fits(limited):
+                        break
+            return limited
+    return {
+        "status": "unavailable",
+        "reason": "retrieval_delivery_limit",
+        "dataset_version": output.get("dataset_version"),
+        "records": [],
+        "truncated": True,
+        "total_matches": output.get("total_matches"),
+        "retrieved_count": len(records),
+        "omitted_count": len(records),
+    }
+
+
+def tool_result_wire(
+    output: dict[str, Any], sent: dict[str, dict[str, Any]], evidence_ids: list[str]
+) -> str:
+    """Encode without mutating delivery state, also usable for context admission."""
+    wire_output = dict(output)
+    records = wire_output.pop("records", None)
+    if records is not None:
+        wire_output["evidence_groups"] = compact_records(
+            [record for record in records if sent.get(record["id"]) != record]
+        )
+        repeated = [record["id"] for record in records if sent.get(record["id"]) == record]
+        if repeated:
+            wire_output["unchanged_evidence_ids"] = repeated
+    return json.dumps(
+        map_references(wire_output, reference_aliases(evidence_ids)),
+        default=str,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
 
 
 def common_values(rows: list[dict[str, Any]], *, root: bool = False) -> dict[str, Any]:

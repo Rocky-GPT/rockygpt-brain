@@ -111,6 +111,8 @@ def execute_http(
     data: CapturedData,
     ledger: PostgresLedger,
     source_hash: str,
+    *,
+    stream: bool = False,
 ) -> dict[str, Any]:
     """Actual local HTTP path; reconstruct frozen evidence and verify its IDs.
 
@@ -121,22 +123,54 @@ def execute_http(
     token = os.environ.get("STAGING_SERVICE_TOKEN", "").strip()
     if token:
         headers["X-RockyGPT-Environment-Token"] = token
+    if stream:
+        headers["Accept"] = "text/event-stream"
+    progress: list[dict[str, Any]] = []
     started = monotonic()
     with httpx.Client(timeout=60, trust_env=False) as client:
-        response = client.post(
-            base_url.rstrip("/") + "/v1/chat",
-            headers=headers,
-            json={"messages": [message.model_dump() for message in messages]},
-        )
+        request = {"messages": [message.model_dump() for message in messages]}
+        url = base_url.rstrip("/") + "/v1/chat"
+        if stream:
+            with client.stream("POST", url, headers=headers, json=request) as response:
+                if "text/event-stream" in response.headers.get("content-type", ""):
+                    terminal = None
+                    event_name = ""
+                    event_lines: list[str] = []
+                    for line in response.iter_lines():
+                        if line.startswith("event:"):
+                            event_name = line[6:].strip()
+                        elif line.startswith("data:"):
+                            event_lines.append(line[5:].lstrip())
+                        elif not line and event_lines:
+                            value = json.loads("\n".join(event_lines))
+                            if event_name == "progress":
+                                progress.append(
+                                    {"elapsedMs": round((monotonic() - started) * 1000), **value}
+                                )
+                            elif event_name == "result":
+                                terminal = value
+                                break
+                            event_name, event_lines = "", []
+                    if terminal is None:
+                        raise ValueError(
+                            "Stream ended without a final result; previews are not answers"
+                        )
+                    status, payload = terminal["status"], terminal["body"]
+                else:
+                    response.read()
+                    status, payload = response.status_code, response.json()
+        else:
+            response = client.post(url, headers=headers, json=request)
+            status, payload = response.status_code, response.json()
     elapsed = round((monotonic() - started) * 1000)
-    payload = response.json()
     request_id = payload["requestId"]
     operations = ledger.operations(request_id)
     settled = [op for op in operations if op["state"] == "settled"]
     row: dict[str, Any] = {
         "requestId": request_id,
-        "httpStatus": response.status_code,
+        "httpStatus": status,
         "httpElapsedMs": elapsed,
+        **({"progress": progress} if stream else {}),
         "evidenceOrigin": "replayed_frozen_trace_with_verified_ids",
         "usage": {
             "modelCalls": len(operations),
@@ -169,7 +203,7 @@ def execute_http(
         row["error"] = "server_configuration_mismatch"
         row["response"] = payload
         return row
-    if response.status_code != 200:
+    if status != 200:
         row["error"] = payload.get("reason", payload.get("error", {}).get("code", "http_error"))
         row["response"] = payload
         return row
@@ -185,6 +219,17 @@ def execute_http(
             output = data.lookup_contact(ContactQuery.model_validate(query))
         else:
             continue
+        if trace.get("reason") == "retrieval_delivery_limit":
+            # The API reports the delivered prefix, not every record the query
+            # could return. Reproduce that subset without crediting omitted
+            # records as evidence available to the writer or checker.
+            delivered = output["records"][: trace["result_count"]]
+            output.update(
+                records=delivered,
+                truncated=True,
+                reason="retrieval_delivery_limit",
+                status=trace["status"],
+            )
         if payload.get("datasetVersion") != output.get("dataset_version") or trace[
             "evidence_ids"
         ] != [record["id"] for record in output["records"]]:
@@ -207,7 +252,14 @@ def main() -> None:
     parser.add_argument(
         "--base-url", help="Use the actual local HTTP API instead of direct engine execution."
     )
+    parser.add_argument(
+        "--stream",
+        action="store_true",
+        help="Capture public progress and unverified previews using the real SSE transport.",
+    )
     args = parser.parse_args()
+    if args.stream and not args.base_url:
+        parser.error("--stream requires --base-url")
     if args.base_url:
         target = urlsplit(args.base_url)
         if (
@@ -274,7 +326,7 @@ def main() -> None:
             "admission": "per-turn maximum plus settled and uncertain previous calls",
         },
         "semanticReview": "pending",
-        "transport": "http" if args.base_url else "engine",
+        "transport": "http-sse" if args.stream else "http" if args.base_url else "engine",
         "runs": [],
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -332,7 +384,11 @@ def main() -> None:
         }
         try:
             if args.base_url:
-                row.update(execute_http(args.base_url, messages, data, ledger, source_hash))
+                row.update(
+                    execute_http(
+                        args.base_url, messages, data, ledger, source_hash, stream=args.stream
+                    )
+                )
                 report["runs"].append(row)
                 checkpoint()
             else:

@@ -1292,3 +1292,58 @@ def test_context_bound_ends_tool_selection_without_discarding_evidence() -> None
     assert result["metrics"]["modelCalls"] == 3
     assert result["metrics"]["reviewCalls"] == 1
     assert result["status"] == "answered"
+
+
+def test_oversized_new_results_preserve_history_and_prior_evidence_with_truthful_coverage() -> None:
+    from rockygpt_brain.provider import input_bound, wire_value
+
+    client, data = Mock(), Mock()
+    large_records = [
+        {
+            **RECORD,
+            "id": f"documents:{index}",
+            "collection": "documents",
+            "content": f"Qualified policy {index}. " * 1000,
+        }
+        for index in range(4)
+    ]
+    original = {"status": "ok", "records": large_records, "total_matches": 4, "truncated": False}
+    data.search.side_effect = [{"status": "ok", "records": [RECORD]}, original]
+    client.create.side_effect = [
+        tools(search("first"), search("second", collection="documents")),
+        answer("The contact is D-224.", "campus_fact", [RECORD["id"]]),
+        review(),
+    ]
+    messages = [
+        ChatMessage(role="user", content="Where is the Registrar?"),
+        ChatMessage(role="assistant", content="Are you also asking about their policies?"),
+        ChatMessage(role="user", content="Yes, show the office and any published policy details."),
+    ]
+    result = run_turn(messages, client=client, data=data, model="test", now=NOW)
+    writer = client.create.call_args_list[1].kwargs
+    assert writer["input"][:3] == [message.model_dump() for message in messages]
+    outputs = [
+        json.loads(item["output"])
+        for item in writer["input"]
+        if isinstance(item, dict) and item.get("type") == "function_call_output"
+    ]
+    assert expand_records(outputs[0]["evidence_groups"]) == [RECORD]
+    delivered = expand_records(outputs[1]["evidence_groups"])
+    assert 0 < len(delivered) < 4
+    assert delivered == large_records[: len(delivered)]
+    assert outputs[1]["total_matches"] == 4
+    assert outputs[1]["truncated"] is True
+    assert outputs[1]["reason"] == "retrieval_delivery_limit"
+    assert outputs[1]["omitted_count"] == 4 - len(delivered)
+    assert original["records"] == large_records and original["truncated"] is False
+    assert result["trace"][1]["evidence_ids"] == [record["id"] for record in delivered]
+    assert result["metrics"]["contextLimitedResults"] is True
+    # Both paid-stage payloads must still fit, and review gets exactly the
+    # delivered records rather than implicitly using omitted evidence.
+    for call in client.create.call_args_list[1:]:
+        payload = wire_value(
+            {k: v for k, v in call.kwargs.items() if k not in {"category", "timeout"}}
+        )
+        assert input_bound(payload) <= RELEASE.max_input_tokens
+    reviewed = json.loads(client.create.call_args_list[-1].kwargs["input"])
+    assert expand_records(reviewed["evidence"]) == [RECORD, *delivered]

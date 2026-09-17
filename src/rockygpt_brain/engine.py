@@ -17,10 +17,12 @@ from rockygpt_brain.config import RELEASE
 from rockygpt_brain.contracts import Answer, AnswerPart, ChatMessage, EvidenceReview
 from rockygpt_brain.data import COLLECTIONS, CampusData, ReadQuery, SearchQuery
 from rockygpt_brain.evidence import (
+    bounded_result,
     compact_records,
     expand_argument_references,
     map_references,
     reference_aliases,
+    tool_result_wire,
 )
 from rockygpt_brain.exact import ContactQuery, contact_answer
 from rockygpt_brain.formats import (
@@ -651,7 +653,7 @@ def run_turn(
         history.extend(response.output)
         exact_candidate: Answer | None = None
         retrieval_allowed = not answer_only and budget.begin_retrieval()
-        for call in calls:
+        for call_index, call in enumerate(calls):
             tool_started = monotonic()
             arguments: dict[str, Any] = {}
             request_quote: str | None = None
@@ -737,6 +739,44 @@ def run_turn(
                 except Exception:
                     # Do not expose connection strings, SQL, or provider errors.
                     output = {"status": "unavailable", "reason": "campus_data_unavailable"}
+            # Admit a truthful subset BEFORE adding new records to authoritative
+            # evidence, exact renderers or the model transcript. Prior results
+            # remain intact. Account for the remaining parallel tool replies.
+            pending_outputs = [
+                {"type": "function_call_output", "call_id": pending.call_id, "output": ""}
+                for pending in calls[call_index:]
+            ]
+            next_payload = wire_value(
+                {key: value for key, value in request.items() if key != "timeout"}
+            )
+            next_payload.update(
+                tools=[], tool_choice="none", input=[*wire_value(history), *pending_outputs]
+            )
+            delivery_limit = budget.retrieval_context_limit(
+                input_bound(next_payload), len(pending_outputs)
+            )
+
+            def fits_delivery(
+                candidate_output: dict[str, Any],
+                *,
+                pending: list[dict[str, str]] = pending_outputs,
+                payload: dict[str, Any] = next_payload,
+                limit: int = delivery_limit,
+            ) -> bool:
+                ids = list(
+                    dict.fromkeys(
+                        [
+                            *evidence,
+                            *(record["id"] for record in candidate_output.get("records", [])),
+                        ]
+                    )
+                )
+                pending[0]["output"] = tool_result_wire(candidate_output, sent_records, ids)
+                return input_bound(payload) <= limit
+
+            output = bounded_result(output, fits_delivery)
+            if output.get("reason") == "retrieval_delivery_limit":
+                metrics["contextLimitedResults"] = True
             if output.get("records"):
                 for subject in tool_subjects:
                     if subject not in subjects:
@@ -786,31 +826,14 @@ def run_turn(
                 )
                 if piece is not None:
                     exact_pieces.append(piece)
-            wire_output = dict(output)
-            if "records" in wire_output:
-                fresh_records = []
-                repeated_ids = []
-                for record in wire_output.pop("records"):
-                    if sent_records.get(record["id"]) == record:
-                        repeated_ids.append(record["id"])
-                    else:
-                        fresh_records.append(record)
-                        sent_records[record["id"]] = record
-                wire_output["evidence_groups"] = compact_records(fresh_records)
-                if repeated_ids:
-                    wire_output["unchanged_evidence_ids"] = repeated_ids
             history.append(
                 {
                     "type": "function_call_output",
                     "call_id": call.call_id,
-                    "output": json.dumps(
-                        map_references(wire_output, reference_aliases(list(evidence))),
-                        default=str,
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                    ),
+                    "output": tool_result_wire(output, sent_records, list(evidence)),
                 }
             )
+            sent_records.update({record["id"]: record for record in output.get("records", [])})
         combined = combine_exact(messages, exact_pieces, fallback=False)
         response_mode = "exact_contact"
         if combined is not None:

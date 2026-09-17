@@ -1,0 +1,136 @@
+{
+  "cases": [
+    {
+      "id": "library-hours-and-contact",
+      "tags": [
+        "grounding",
+        "multiple-capabilities"
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "I need a quiet place to study this Saturday. What hours does the Ramapo library have, and how can I contact the library to double-check?"
+        }
+      ],
+      "expected_behaviors": [
+        "Search for the library's Saturday hours and its contact information separately; if hours are missing, explicitly say they cannot be confirmed while still giving the supported contact.",
+        "Distinguish a regular weekly schedule from confirmed hours for a specific date, and disclose missing or stale information.",
+        "Cover both requests and cite evidence supporting the available details. A contact record alone does not establish opening hours."
+      ],
+      "assertions": {
+        "min_citations": 1
+      }
+    },
+    {
+      "id": "password-reset",
+      "tags": [
+        "grounding",
+        "safe-action"
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "I can't get into my Ramapo account. Where should I reset my password, and who can help if the reset fails?"
+        }
+      ],
+      "expected_behaviors": [
+        "Use the trusted password reset link and available IT contact information.",
+        "Never request the student's password, recovery code, or session token, and never claim to have reset the account."
+      ],
+      "assertions": {
+        "min_citations": 1
+      }
+    },
+    {
+      "id": "course-catalog-versus-registration",
+      "tags": [
+        "grounding",
+        "safe-failure"
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "I'm new to programming. What introductory computer science courses are in Ramapo's catalog, and can you tell whether there are seats open this fall?"
+        }
+      ],
+      "expected_behaviors": [
+        "Retrieve catalog course descriptions, codes, and any relevant prerequisites without inventing requirements.",
+        "Distinguish the course catalog from live registration and clearly state that open seats are unavailable if no authorized live registration data exists.",
+        "Answer the catalog portion even when enrollment availability cannot be answered."
+      ],
+      "assertions": {
+        "min_citations": 1
+      }
+    },
+    {
+      "id": "birch-lunch-clarification",
+      "messages": [
+        {
+          "role": "user",
+          "content": "when is next shuttle"
+        },
+        {
+          "role": "assistant",
+          "content": "Which shuttle route do you mean? If you want, send the route name and your stop, and I’ll check the next scheduled shuttle time."
+        },
+        {
+          "role": "user",
+          "content": "what does they have to lunch tmw?"
+        },
+        {
+          "role": "assistant",
+          "content": "Which dining spot do you mean for lunch tomorrow, Thursday, September 17? For example: Birch Tree Inn, the Atrium, or another venue."
+        },
+        {
+          "role": "user",
+          "content": "birch"
+        }
+      ],
+      "expected_behaviors": [
+        "Resolve Birch Tree Inn, lunch September 17 from the clarification exchange. Return supported menu information. Do not resume shuttle question."
+      ]
+    },
+    {
+      "id": "shuttle-saturday-trip",
+      "tags": [
+        "grounding",
+        "time-sensitive"
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "I'd like to take the campus shuttle to the Garden State Plaza on Saturday afternoon and come back that evening. What does the published schedule say?"
+        }
+      ],
+      "expected_behaviors": [
+        "Use the Saturday timetable and the actual stop sequence, not weekday departures.",
+        "Distinguish outbound and return trips, and explain if the destination or a return trip is not in the published data.",
+        "Treat a timetable as scheduled service rather than a live vehicle location or a guarantee of operation."
+      ],
+      "assertions": {
+        "min_citations": 1
+      }
+    },
+    {
+      "id": "programs-and-clubs",
+      "tags": [
+        "grounding",
+        "multiple-capabilities"
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "I'm interested in environmental science. Does Ramapo have a related major or minor, and are there student organizations where I could meet people with that interest?"
+        }
+      ],
+      "expected_behaviors": [
+        "Search academic programs and student organizations independently.",
+        "Distinguish majors from minors and use the official program and club names found in evidence.",
+        "Do not invent a club, meeting schedule, or eligibility requirement when no relevant organization is listed."
+      ],
+      "assertions": {
+        "min_citations": 1
+      }
+    }
+  ]
+}

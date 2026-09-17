@@ -1,0 +1,26 @@
+{
+  "startedAt": "2026-09-17T02:19:08.343043+00:00",
+  "commits": {
+    "rockygpt-brain": "015ab1a8e9edf24731ffc200edd40cce56207a8e",
+    "rockygpt-ui": "217c0d65cb1ae89732f9bbf8401d0c6be2e3d40f",
+    "rockygpt-evals": "c129080a85e7ff9aaccacd0826e8d71c57223261"
+  },
+  "configurationHash": "7ecfeb8f8a15ed85fc173b303f9f20708303b849bf169e9feaf4c39236d70e5a",
+  "suiteSha256": "fb9604b7794a2dd92736271a0aa7013ce9710d093d2c61e81114524155ac72f2",
+  "run": "development-http-05.json",
+  "runCeilingUsd": "2.40",
+  "humanReview": "pending",
+  "finishedAt": "2026-09-17T02:30:38.949381+00:00",
+  "endingCommits": {
+    "rockygpt-brain": "015ab1a8e9edf24731ffc200edd40cce56207a8e",
+    "rockygpt-ui": "217c0d65cb1ae89732f9bbf8401d0c6be2e3d40f",
+    "rockygpt-evals": "c129080a85e7ff9aaccacd0826e8d71c57223261"
+  },
+  "endingSuiteSha256": "fb9604b7794a2dd92736271a0aa7013ce9710d093d2c61e81114524155ac72f2",
+  "endingConfigurationHash": "7ecfeb8f8a15ed85fc173b303f9f20708303b849bf169e9feaf4c39236d70e5a",
+  "datasetVersions": [
+    "phase2-development-20260916"
+  ],
+  "reportSha256": "b4c166641ab28ac07ceae50716d2acd94448762e9d4a7d2dd4e158731b4927ed",
+  "overall": "fail"
+}
