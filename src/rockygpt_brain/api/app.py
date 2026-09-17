@@ -7,12 +7,13 @@ import logging
 import os
 from datetime import datetime
 from importlib.resources import files
-from pathlib import Path
 from threading import BoundedSemaphore, Event
 from time import monotonic
 from typing import Any, cast
 from uuid import uuid4
 from zoneinfo import ZoneInfo
+
+from pydantic import BaseModel, Field
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException
@@ -70,6 +71,7 @@ def get_logs(limit: int = 50) -> dict[str, Any]:
         try:
             import certifi
             import psycopg
+            from psycopg import sql
             from psycopg.rows import dict_row
 
             conn_opts: dict[str, Any] = {"autocommit": True, "connect_timeout": 2}
@@ -78,7 +80,7 @@ def get_logs(limit: int = 50) -> dict[str, Any]:
 
             with psycopg.connect(ledger_url, **conn_opts) as conn:
                 with conn.cursor(row_factory=dict_row) as cur:
-                    cur.execute(f"SET ROLE brain_{env}")
+                    cur.execute(sql.SQL("SET ROLE {}").format(sql.Identifier(f"brain_{env}")))
                     cur.execute(
                         "SELECT request_id, created_at, summary FROM brain_ops.turns "
                         "WHERE summary->>'question' IS NOT NULL "
@@ -108,20 +110,226 @@ def get_logs(limit: int = 50) -> dict[str, Any]:
                 })
             return {"logs": entries, "total": total}
         except Exception as err:
-            logging.getLogger(__name__).warning("Database turns query failed, falling back to local file: %s", err)
+            logging.getLogger(__name__).warning("Database turns query failed: %s", err)
+            return {"logs": [], "total": 0, "error": str(err)}
 
-    log_file = Path("logs/student_questions.jsonl")
-    if not log_file.exists():
-        return {"logs": [], "total": 0}
-    lines = log_file.read_text(encoding="utf-8").strip().splitlines()
-    entries_local: list[dict[str, Any]] = []
-    for line in reversed(lines[-limit:]):
-        if line.strip():
-            try:
-                entries_local.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-    return {"logs": entries_local, "total": len(lines)}
+    return {"logs": [], "total": 0}
+
+
+class FeedbackPayload(BaseModel):
+    requestId: str
+    rating: int
+    category: str | None = None
+    comments: str | None = None
+    question: str | None = None
+    answer: str | None = None
+
+
+@app.post("/v1/feedback")
+def submit_feedback(payload: FeedbackPayload) -> dict[str, Any]:
+    ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
+    env = os.getenv("BRAIN_ENVIRONMENT", "development")
+    if not ledger_url:
+        return {"success": False, "error": "Database ledger URL not configured"}
+    try:
+        import certifi
+        import psycopg
+        from psycopg import sql
+        from psycopg.rows import dict_row
+
+        conn_opts: dict[str, Any] = {"autocommit": True, "connect_timeout": 5}
+        if "sslrootcert" not in ledger_url and not os.getenv("PGSSLROOTCERT"):
+            conn_opts["sslrootcert"] = certifi.where()
+
+        rating = 1 if payload.rating > 0 else -1
+        question = payload.question or ""
+        answer = payload.answer or ""
+
+        with psycopg.connect(ledger_url, **conn_opts) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                if not question or not answer:
+                    try:
+                        cur.execute(sql.SQL("SET ROLE {}").format(sql.Identifier(f"brain_{env}")))
+                        cur.execute(
+                            "SELECT summary FROM brain_ops.turns WHERE request_id = %s",
+                            (payload.requestId,),
+                        )
+                        row = cur.fetchone()
+                        if row and row.get("summary"):
+                            s = row["summary"] if isinstance(row["summary"], dict) else json.loads(row["summary"])
+                            question = question or s.get("question", "")
+                            answer = answer or s.get("answer", "")
+                    except Exception:
+                        pass
+
+                cur.execute(sql.SQL("RESET ROLE"))
+                cur.execute(
+                    """
+                    INSERT INTO rockygpt_v2.feedback (request_id, question, answer, rating, category, comments)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (request_id) DO UPDATE SET
+                        rating = EXCLUDED.rating,
+                        category = EXCLUDED.category,
+                        comments = EXCLUDED.comments,
+                        question = CASE WHEN EXCLUDED.question <> '' THEN EXCLUDED.question ELSE rockygpt_v2.feedback.question END,
+                        answer = CASE WHEN EXCLUDED.answer <> '' THEN EXCLUDED.answer ELSE rockygpt_v2.feedback.answer END
+                    """,
+                    (payload.requestId, question or "N/A", answer or "N/A", rating, payload.category, payload.comments),
+                )
+        return {"success": True}
+    except Exception as err:
+        logging.getLogger(__name__).warning("Failed to submit feedback: %s", err)
+        return {"success": False, "error": str(err)}
+
+
+@app.get("/v1/feedback")
+def get_feedback(limit: int = 50) -> dict[str, Any]:
+    ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
+    if not ledger_url:
+        return {"feedback": [], "total": 0}
+    try:
+        import certifi
+        import psycopg
+        from psycopg.rows import dict_row
+
+        conn_opts: dict[str, Any] = {"autocommit": True, "connect_timeout": 5}
+        if "sslrootcert" not in ledger_url and not os.getenv("PGSSLROOTCERT"):
+            conn_opts["sslrootcert"] = certifi.where()
+
+        with psycopg.connect(ledger_url, **conn_opts) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(
+                    """
+                    SELECT id, request_id, question, answer, rating, category, comments, created_at
+                    FROM rockygpt_v2.feedback
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = cur.fetchall()
+                cur.execute("SELECT count(*) as total FROM rockygpt_v2.feedback")
+                total_row = cur.fetchone()
+                total = total_row["total"] if total_row else len(rows)
+
+        entries = []
+        for r in rows:
+            entries.append({
+                "id": str(r["id"]),
+                "requestId": str(r["request_id"]),
+                "question": r["question"],
+                "answer": r["answer"],
+                "rating": r["rating"],
+                "category": r["category"],
+                "comments": r["comments"],
+                "createdAt": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+            })
+        return {"feedback": entries, "total": total}
+    except Exception as err:
+        logging.getLogger(__name__).warning("Failed to fetch feedback: %s", err)
+        return {"feedback": [], "total": 0, "error": str(err)}
+
+
+class EvalRunPayload(BaseModel):
+    runId: str
+    suite: str
+    totalTests: int
+    passed: int
+    failed: int
+    durationMs: int
+    summary: dict[str, Any] = Field(default_factory=dict)
+
+
+@app.post("/v1/evals/runs")
+def record_eval_run(payload: EvalRunPayload) -> dict[str, Any]:
+    ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
+    if not ledger_url:
+        return {"success": False, "error": "Database ledger URL not configured"}
+    try:
+        import certifi
+        import psycopg
+        from psycopg.types.json import Jsonb
+
+        conn_opts: dict[str, Any] = {"autocommit": True, "connect_timeout": 5}
+        if "sslrootcert" not in ledger_url and not os.getenv("PGSSLROOTCERT"):
+            conn_opts["sslrootcert"] = certifi.where()
+
+        with psycopg.connect(ledger_url, **conn_opts) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO brain_ops.eval_runs (run_id, suite, total_tests, passed, failed, duration_ms, summary)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (run_id) DO UPDATE SET
+                        total_tests = EXCLUDED.total_tests,
+                        passed = EXCLUDED.passed,
+                        failed = EXCLUDED.failed,
+                        duration_ms = EXCLUDED.duration_ms,
+                        summary = EXCLUDED.summary
+                    """,
+                    (
+                        payload.runId,
+                        payload.suite,
+                        payload.totalTests,
+                        payload.passed,
+                        payload.failed,
+                        payload.durationMs,
+                        Jsonb(payload.summary),
+                    ),
+                )
+        return {"success": True}
+    except Exception as err:
+        logging.getLogger(__name__).warning("Failed to record eval run: %s", err)
+        return {"success": False, "error": str(err)}
+
+
+@app.get("/v1/evals/runs")
+def get_eval_runs(limit: int = 50) -> dict[str, Any]:
+    ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
+    if not ledger_url:
+        return {"runs": [], "total": 0}
+    try:
+        import certifi
+        import psycopg
+        from psycopg.rows import dict_row
+
+        conn_opts: dict[str, Any] = {"autocommit": True, "connect_timeout": 5}
+        if "sslrootcert" not in ledger_url and not os.getenv("PGSSLROOTCERT"):
+            conn_opts["sslrootcert"] = certifi.where()
+
+        with psycopg.connect(ledger_url, **conn_opts) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(
+                    """
+                    SELECT id, run_id, suite, total_tests, passed, failed, duration_ms, summary, created_at
+                    FROM brain_ops.eval_runs
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = cur.fetchall()
+                cur.execute("SELECT count(*) as total FROM brain_ops.eval_runs")
+                total_row = cur.fetchone()
+                total = total_row["total"] if total_row else len(rows)
+
+        entries = []
+        for r in rows:
+            entries.append({
+                "id": str(r["id"]),
+                "runId": r["run_id"],
+                "suite": r["suite"],
+                "totalTests": r["total_tests"],
+                "passed": r["passed"],
+                "failed": r["failed"],
+                "durationMs": r["duration_ms"],
+                "summary": r["summary"] if isinstance(r["summary"], dict) else json.loads(r["summary"]),
+                "createdAt": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+            })
+        return {"runs": entries, "total": total}
+    except Exception as err:
+        logging.getLogger(__name__).warning("Failed to fetch eval runs: %s", err)
+        return {"runs": [], "total": 0, "error": str(err)}
 
 
 @app.get("/v1/prompts")
@@ -186,6 +394,14 @@ def get_releases() -> Any:
 
 
 CAPABILITIES_CATALOG = [
+    {
+        "capability": "critical_facts",
+        "describes": "Concise verified campus facts, emergency contacts, action links, and key dates.",
+        "filters": [
+            {"field": "name", "type": "string", "description": "Fact key or topic"},
+        ],
+        "fields": ["fact_key", "fact_value", "verified_at"],
+    },
     {
         "capability": "contacts",
         "describes": "Campus directories, staff, offices, phone numbers, and email addresses.",
@@ -255,12 +471,29 @@ CAPABILITIES_CATALOG = [
         "fields": ["name", "category", "email", "description"],
     },
     {
+        "capability": "programs",
+        "describes": "Academic degree programs, majors, minors, concentrations, and schools.",
+        "filters": [
+            {"field": "name", "type": "string", "description": "Program name or major"},
+        ],
+        "fields": ["name", "degree", "program_kind", "school", "description", "program_url"],
+    },
+    {
         "capability": "courses",
         "describes": "Course catalog offerings, prerequisites, credit hours, and subject descriptions.",
         "filters": [
             {"field": "subject", "type": "string", "description": "Academic discipline"},
         ],
         "fields": ["course_code", "title", "credits", "prerequisites", "description"],
+    },
+    {
+        "capability": "faculty",
+        "describes": "Faculty directory profiles, schools, teaching fields, and research interests.",
+        "filters": [
+            {"field": "name", "type": "string", "description": "Professor or instructor name"},
+            {"field": "school", "type": "string", "description": "Academic school"},
+        ],
+        "fields": ["name", "title", "school", "email", "phone", "office"],
     },
     {
         "capability": "documents",
@@ -384,16 +617,6 @@ async def chat(
         return failure(504, "model_timeout", request_id)
 
 
-def log_student_question(entry: dict[str, object]) -> None:
-    """Append unfiltered student interaction to real-time JSONL audit log."""
-    try:
-        log_dir = Path("logs")
-        log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir / "student_questions.jsonl"
-        with log_file.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-    except Exception as err:
-        logging.getLogger(__name__).warning("Failed to append student question log: %s", err)
 
 
 def chat_worker(
@@ -494,31 +717,29 @@ def chat_worker(
                 "fallbackReason": operational.get("fallbackReason"),
                 "validationFailures": operational.get("validationFailures", []),
                 "retrievalMs": operational.get("retrievalMs", 0),
+                "citations": citations,
                 **(gateway.usage.report() if gateway is not None else {}),
             }
 
-            # 1. Append raw interaction to logs/student_questions.jsonl
-            log_student_question({
-                "timestamp": now.isoformat(),
-                "requestId": request_id,
-                "question": question_text,
-                "messages": raw_messages,
-                "answer": answer_text,
-                "status": outcome,
-                "elapsedMs": summary["elapsedMs"],
-                "citations": citations,
-            })
-
-            # 2. Log to console / uvicorn logger
+            # 1. Log to console / uvicorn logger
             logging.getLogger("uvicorn.error").info("brain_turn %s", json.dumps(summary))
 
-            # 3. Save to PostgreSQL ledger (brain_ops.turns table)
+            # 2. Save to PostgreSQL ledger (brain_ops.turns table)
             if gateway is not None:
                 try:
                     gateway.finish(summary)
                 except PaidCallError:
                     logging.getLogger(__name__).warning(
                         "Brain telemetry unavailable request_id=%s", request_id
+                    )
+            elif deployment is not None:
+                try:
+                    from rockygpt_brain.governance.accounting import PostgresLedger
+                    ledger = PostgresLedger(deployment.ledger_url, deployment.environment)
+                    ledger.record_turn(request_id, summary)
+                except Exception as db_err:
+                    logging.getLogger(__name__).warning(
+                        "Brain turn fallback record failed request_id=%s: %s", request_id, db_err
                     )
             if data is not None:
                 data.close()
