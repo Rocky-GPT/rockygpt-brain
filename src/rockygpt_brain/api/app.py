@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from datetime import datetime
+from pathlib import Path
 from threading import BoundedSemaphore, Event
 from time import monotonic
 from uuid import uuid4
@@ -133,6 +134,18 @@ async def chat(
         return failure(504, "model_timeout", request_id)
 
 
+def log_student_question(entry: dict[str, object]) -> None:
+    """Append unfiltered student interaction to real-time JSONL audit log."""
+    try:
+        log_dir = Path("logs")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "student_questions.jsonl"
+        with log_file.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception as err:
+        logging.getLogger(__name__).warning("Failed to append student question log: %s", err)
+
+
 def chat_worker(
     request: ChatRequest,
     request_id: str,
@@ -146,11 +159,14 @@ def chat_worker(
     outcome = "unavailable"
     dataset_version: str | None = None
     operational: dict[str, object] = {}
+    result: dict[str, object] | JSONResponse | None = None
+    question_text = request.messages[-1].content if request.messages else ""
+    raw_messages = [m.model_dump() for m in request.messages]
     try:
         deployment = load_deployment()
         data = CampusData(os.getenv("DATABASE_URL", ""), now)
         with open_gateway(deployment, request_id) as gateway:
-            result = run_turn(
+            turn_result = run_turn(
                 request.messages,
                 client=gateway,
                 data=data,
@@ -159,6 +175,7 @@ def chat_worker(
                 metrics=operational,
                 progress=progress,
             )
+            result = turn_result
         outcome = result["status"]
         dataset_version = result.get("datasetVersion")
         operational = result["metrics"]
@@ -206,8 +223,17 @@ def chat_worker(
         return failure(502, "invalid_model_output", request_id)
     finally:
         try:
+            answer_text = None
+            citations: Any = []
+            if isinstance(result, dict):
+                answer_text = result.get("answer")
+                citations = result.get("citations", [])
+
             summary = {
                 "requestId": request_id,
+                "question": question_text,
+                "messages": raw_messages,
+                "answer": answer_text,
                 "status": outcome,
                 "datasetVersion": dataset_version or operational.get("datasetVersion"),
                 "toolResults": operational.get("toolResults", []),
@@ -220,7 +246,23 @@ def chat_worker(
                 "retrievalMs": operational.get("retrievalMs", 0),
                 **(gateway.usage.report() if gateway is not None else {}),
             }
+
+            # 1. Append raw interaction to logs/student_questions.jsonl
+            log_student_question({
+                "timestamp": now.isoformat(),
+                "requestId": request_id,
+                "question": question_text,
+                "messages": raw_messages,
+                "answer": answer_text,
+                "status": outcome,
+                "elapsedMs": summary["elapsedMs"],
+                "citations": citations,
+            })
+
+            # 2. Log to console / uvicorn logger
             logging.getLogger("uvicorn.error").info("brain_turn %s", json.dumps(summary))
+
+            # 3. Save to PostgreSQL ledger (brain_ops.turns table)
             if gateway is not None:
                 try:
                     gateway.finish(summary)
@@ -232,6 +274,7 @@ def chat_worker(
                 data.close()
         finally:
             slots.release()
+
 
 
 def failure(
