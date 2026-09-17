@@ -11,3 +11,4 @@ This branch is a complete clean-room rewrite of RockyGPT Brain from zero.
 - Do not add abstractions or complexity before they are actually needed.
 - Build one small step at a time.
 - Do only what I ask, then stop.
+- NEVER create new git branches (no `git checkout -b` or feature branches). Commit and push directly to `dev`.
