@@ -13,10 +13,10 @@ from typing import Any
 
 from pydantic import Field
 
+from rockygpt_brain.campus.schedules import departure_summary, opening_intervals
 from rockygpt_brain.contracts import Answer, AnswerPart, ChatMessage
-from rockygpt_brain.data import SearchQuery
-from rockygpt_brain.exact import ContactQuery, contact_answer, plain
-from rockygpt_brain.schedules import departure_summary, opening_intervals
+from rockygpt_brain.retrieval.exact import ContactQuery, contact_answer, plain
+from rockygpt_brain.retrieval.models import SearchQuery
 
 
 class SearchCall(SearchQuery):

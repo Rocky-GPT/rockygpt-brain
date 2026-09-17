@@ -10,22 +10,8 @@ from typing import Any
 from httpx import Timeout
 from pydantic import ValidationError
 
-from rockygpt_brain.accounting import PaidCallError
-from rockygpt_brain.budget import TurnBudget
-from rockygpt_brain.calculations import CalculationQuery, calculate
-from rockygpt_brain.config import RELEASE
-from rockygpt_brain.contracts import Answer, AnswerPart, ChatMessage, EvidenceReview
-from rockygpt_brain.data import COLLECTIONS, CampusData, ReadQuery, SearchQuery
-from rockygpt_brain.evidence import (
-    bounded_result,
-    compact_records,
-    expand_argument_references,
-    map_references,
-    reference_aliases,
-    tool_result_wire,
-)
-from rockygpt_brain.exact import ContactQuery, contact_answer
-from rockygpt_brain.formats import (
+from rockygpt_brain.campus.calculations import CalculationQuery, calculate
+from rockygpt_brain.campus.formats import (
     ContactCall,
     ExactPiece,
     SearchCall,
@@ -33,7 +19,7 @@ from rockygpt_brain.formats import (
     exact_contact,
     exact_search,
 )
-from rockygpt_brain.progress import (
+from rockygpt_brain.campus.progress import (
     ProgressCallback,
     ProgressStage,
     ProgressSubject,
@@ -41,335 +27,35 @@ from rockygpt_brain.progress import (
     TurnCancelled,
     search_subject,
 )
-from rockygpt_brain.provider import ModelClient, input_bound, wire_value
-from rockygpt_brain.schedules import departure_summary, schedule_references
+from rockygpt_brain.campus.schedules import departure_summary, schedule_references
+from rockygpt_brain.config import RELEASE
+from rockygpt_brain.contracts import Answer, AnswerPart, ChatMessage, EvidenceReview
+from rockygpt_brain.core.provider import ModelClient, input_bound, wire_value
+from rockygpt_brain.core.render import InvalidAnswer, render_answer
+from rockygpt_brain.core.reviewer import REVIEW_INSTRUCTIONS, review_answer
+from rockygpt_brain.core.tools import function_tool, tool_definitions
+from rockygpt_brain.governance.accounting import PaidCallError
+from rockygpt_brain.governance.budget import TurnBudget
+from rockygpt_brain.governance.evidence import (
+    bounded_result,
+    compact_records,
+    expand_argument_references,
+    map_references,
+    reference_aliases,
+    tool_result_wire,
+)
+from rockygpt_brain.retrieval.data import CampusData
+from rockygpt_brain.retrieval.exact import ContactQuery, contact_answer
+from rockygpt_brain.retrieval.models import COLLECTIONS, ReadQuery, SearchQuery
 
 INSTRUCTIONS = files("rockygpt_brain").joinpath("prompt.md").read_text(encoding="utf-8")
-REVIEW_INSTRUCTIONS = files("rockygpt_brain").joinpath("review.md").read_text(encoding="utf-8")
+
 MAX_DRAFT_CALLS = RELEASE.max_draft_calls
 MAX_MODEL_CALLS = RELEASE.max_model_calls
 MAX_TOOL_CALLS = RELEASE.max_tool_calls
 TURN_SECONDS = RELEASE.turn_seconds
 REVIEW_RESERVE_SECONDS = RELEASE.review_reserve_seconds
 ANSWER_RESERVE_SECONDS = RELEASE.answer_reserve_seconds
-
-
-class InvalidAnswer(Exception):
-    """The provider did not produce a safe, complete output contract."""
-
-    def __init__(self, message: str, code: str = "invalid_answer") -> None:
-        super().__init__(message)
-        self.code = code
-
-
-def function_tool(name: str, description: str, schema: dict[str, Any]) -> dict[str, Any]:
-    # Optional arguments are required-but-nullable in strict Responses schemas.
-    schema = json.loads(json.dumps(schema))
-
-    def strict(node: Any) -> None:
-        if isinstance(node, dict):
-            node.pop("default", None)
-            if node.get("type") == "object":
-                node["required"] = list(node["properties"])
-                node["additionalProperties"] = False
-            for child in node.values():
-                strict(child)
-        elif isinstance(node, list):
-            for child in node:
-                strict(child)
-
-    strict(schema)
-    return {
-        "type": "function",
-        "name": name,
-        "description": description,
-        "parameters": schema,
-        "strict": True,
-    }
-
-
-def tool_definitions() -> list[dict[str, Any]]:
-    return [
-        function_tool(
-            "calculate",
-            "Compute arithmetic or ascending sort over explicit user numbers or exact retrieved "
-            "calories/credits; count supplied record IDs; compare two verified times or calculate "
-            "their elapsed minutes (second minus first). Times require explicit user ISO offsets "
-            "or published event, opening/closing, or schedule_calculations references. Preserve "
-            "arrival/departure meaning and exact stop labels. Supply only operands, times, or "
-            "evidence_ids for the chosen operation; other lists must be empty. No inferred units, "
-            "travel durations, policy conclusions or corpus-wide counts. Results require context.",
-            CalculationQuery.model_json_schema(),
-        ),
-        function_tool(
-            "lookup_contact",
-            "First choice for how to contact a named office/person, contact details, or "
-            "specific phone, email, office, department or other directory fields. "
-            "Look up the exact published name or alias. "
-            "Include every requested field; for 'contact details' or 'how to contact', "
-            "request phone, email, office and department. Hours/fax/website can be uncovered; "
-            "never infer them. Empty records do not prove an office does not exist. "
-            "The server may render a complete, validated contact answer directly. "
-            "For unnamed entities, discover their published names with search_campus first.",
-            ContactCall.model_json_schema(),
-        ),
-        function_tool(
-            "search_campus",
-            "Search published official campus evidence. Collections: "
-            + ", ".join(COLLECTIONS)
-            + ". Use short distinctive terms; an empty query browses a collection. "
-            "Dates are campus-local ISO dates. Always supply date_from for menu, "
-            "campus_hours, dining_hours, shuttle and events, using the requested date "
-            "or the supplied current campus date. Do not put schedule dates only in keywords. "
-            "Read returned records for missing details. "
-            "Search each requested subject; reformulate if no relevant results. "
-            "A no-match result may include discovery_titles from a small published collection. "
-            "Choose relevant names by meaning and retrieve their records before citing them.",
-            SearchCall.model_json_schema(),
-        ),
-        function_tool(
-            "read_campus",
-            "Read details of evidence ids already returned by search_campus.",
-            ReadQuery.model_json_schema(),
-        ),
-    ]
-
-
-def render_answer(answer: Answer, evidence: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    """References resolve to retrieved sources; links never come from model text."""
-    paragraphs: list[str] = []
-    citations: dict[str, dict[str, Any]] = {}
-    for part in answer.parts:
-        if not part.text.strip() or re.search(
-            r"https?://|www\.|\]\(|\]\s*\[|\]:\s*\S|<(?:[a-z][a-z0-9+.-]*:|//)",
-            part.text,
-            re.IGNORECASE,
-        ):
-            raise InvalidAnswer(
-                "Model text contains an unvalidated link or is blank", "answer_text"
-            )
-        if part.kind == "campus_fact" and not part.evidence_ids:
-            raise InvalidAnswer("Campus assertion without evidence", "missing_citation")
-        links: dict[str, str] = {}
-        for evidence_id in dict.fromkeys(part.evidence_ids):
-            record = evidence.get(evidence_id)
-            if record is None:
-                raise InvalidAnswer("Unknown citation", "unknown_citation")
-            if part.kind == "campus_fact" and record["freshness"] not in {"fresh", "static"}:
-                raise InvalidAnswer("Campus assertion uses stale or unknown evidence", "stale_fact")
-            url = record["url"]
-            if not isinstance(url, str) or not url.startswith("https://"):
-                raise InvalidAnswer("Unsafe source URL", "source_url")
-            source_title = str(record.get("source_title") or record["title"])
-            title = source_title.replace("[", "").replace("]", "")
-            safe_url = url.replace("(", "%28").replace(")", "%29").replace(" ", "%20")
-            links[url] = f"[{title}]({safe_url})"
-            citations[evidence_id] = {
-                key: record.get(key)
-                for key in (
-                    "id",
-                    "title",
-                    "url",
-                    "collection",
-                    "collected_at",
-                    "freshness",
-                    "valid_from",
-                    "valid_until",
-                    "trust_tier",
-                    "limitations",
-                )
-            }
-            citations[evidence_id].update(title=source_title, record_title=record["title"])
-        text = part.text.strip()
-        if links:
-            text += " " + " ".join(links.values())
-        paragraphs.append(text)
-    rendered = "\n\n".join(paragraphs)
-    if len(rendered) > 12000:
-        raise InvalidAnswer(
-            "Answer is too long for conversation history; shorten it", "answer_length"
-        )
-    return {
-        "answer": rendered,
-        "status": answer.status,
-        "citations": list(citations.values()),
-    }
-
-
-def review_answer(
-    answer: Answer,
-    *,
-    messages: list[ChatMessage],
-    evidence: dict[str, dict[str, Any]],
-    client: ModelClient,
-    model: str,
-    now: datetime,
-    timeout: float,
-    verified_prefix: list[AnswerPart] | None = None,
-    retrievals: list[dict[str, Any]] | None = None,
-) -> EvidenceReview:
-    """A separate context checks every part; draft/tool history cannot approve itself."""
-    subjects = {
-        record_id: {
-            "name": record["title"],
-            "published_category": record.get("fields", {}).get("category"),
-            "kind": (
-                "event"
-                if record["collection"] == "events"
-                or record.get("source_key") == "archway-events"
-                # Captured records from the first checkpoint used source titles.
-                or record.get("source_title") == "Archway Events"
-                else record["collection"]
-            ),
-        }
-        for record_id, record in evidence.items()
-    }
-    # A summary can reuse citations already visible in this answer. Explicit
-    # citations keep their own scope; unrelated records cannot replace them.
-    citation_scope: dict[int, list[str]] = {}
-    earlier_citation_scope: dict[int, list[str]] = {}
-    preceding_citations: dict[str, None] = dict.fromkeys(
-        record_id for part in (verified_prefix or []) for record_id in part.evidence_ids
-    )
-    for index, answer_part in enumerate(answer.parts):
-        earlier_citation_scope[index] = list(preceding_citations)
-        citation_scope[index] = list(dict.fromkeys(answer_part.evidence_ids))
-        if not citation_scope[index] and answer_part.kind != "campus_fact":
-            citation_scope[index] = list(preceding_citations)
-        preceding_citations.update(dict.fromkeys(answer_part.evidence_ids))
-    event_citations = {
-        index: [
-            record_id
-            for record_id in dict.fromkeys([*record_ids, *earlier_citation_scope[index]])
-            if subjects.get(record_id, {}).get("kind") == "event"
-        ]
-        for index, record_ids in citation_scope.items()
-    }
-    aliases = reference_aliases(list(evidence))
-    response = client.create(
-        category="review",
-        model=model,
-        instructions=REVIEW_INSTRUCTIONS,
-        input=json.dumps(
-            {
-                "conversation": [message.model_dump() for message in messages],
-                "campus_time": now.isoformat(),
-                "campus_weekday": now.strftime("%A"),
-                "campus_calendar_week": [
-                    str(now.date() - timedelta(days=now.weekday())),
-                    str(now.date() + timedelta(days=6 - now.weekday())),
-                ],
-                "candidate": {
-                    **answer.model_dump(),
-                    "parts": [
-                        {
-                            **part.model_dump(),
-                            "evidence_ids": map_references(part.evidence_ids, aliases),
-                        }
-                        for part in answer.parts
-                    ],
-                },
-                "verified_prefix": [
-                    {
-                        **part.model_dump(),
-                        "evidence_ids": map_references(part.evidence_ids, aliases),
-                    }
-                    for part in (verified_prefix or [])
-                ],
-                "evidence": map_references(compact_records(list(evidence.values())), aliases),
-                "evidence_subjects": map_references(subjects, aliases),
-                "citation_scope": map_references(citation_scope, aliases),
-                "earlier_citation_scope": map_references(earlier_citation_scope, aliases),
-                "evidence_scope": {
-                    "record_ids": map_references(list(evidence), aliases),
-                    "covers": "all records returned in this turn",
-                    "does_not_establish": "exhaustive campus or database coverage",
-                },
-                "retrieval_coverage": map_references(
-                    [
-                        {
-                            key: lookup.get(key)
-                            for key in (
-                                "tool",
-                                "arguments",
-                                "status",
-                                "result_count",
-                                "total_matches",
-                                "truncated",
-                                "reason",
-                                "evidence_ids",
-                            )
-                        }
-                        for lookup in (retrievals or [])
-                        if lookup.get("tool") in {"search_campus", "read_campus", "lookup_contact"}
-                    ],
-                    aliases,
-                ),
-                "event_citations": map_references(event_citations, aliases),
-            },
-            default=str,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ),
-        tools=[],
-        tool_choice="none",
-        text={
-            "format": {
-                "type": "json_schema",
-                "name": "evidence_review",
-                "schema": EvidenceReview.model_json_schema(),
-                "strict": True,
-            }
-        },
-        reasoning={"effort": RELEASE.review_reasoning},
-        max_output_tokens=RELEASE.review_output_tokens,
-        store=False,
-        timeout=Timeout(timeout, connect=min(2.0, timeout)),
-    )
-    if response.status != "completed":
-        raise InvalidAnswer("Incomplete evidence review", "incomplete_review")
-    try:
-        review = EvidenceReview.model_validate_json(response.output_text)
-    except ValidationError as error:
-        raise InvalidAnswer("Invalid evidence review", "invalid_review") from error
-    if sorted(part.part_index for part in review.parts) != list(range(len(answer.parts))):
-        raise InvalidAnswer(
-            "Review did not cover every answer part exactly once", "review_coverage"
-        )
-    for part in review.parts:
-        if part.unverified_premises:
-            part.verdict = "unsupported_claim"
-            part.reason = ("Missing factual support: " + "; ".join(part.unverified_premises))[:400]
-        # Citation membership and source kind come from code, not an ID list
-        # echoed by the reviewer. Event facts are about that activity only.
-        if event_citations[part.part_index] and part.uses_event_for_entity:
-            part.verdict = "wrong_scope"
-            part.reason = (
-                "Event evidence cannot establish general attributes of a referenced "
-                "facility or organization. Use direct evidence for that entity, or "
-                "state that the requested attribute could not be verified."
-            )
-        if part.infers_food_safety:
-            part.verdict = "unsupported_claim"
-            part.reason = (
-                "Published menu and allergen labels do not establish allergy safety or "
-                "relative risk, including when a label is blank. Report the labels and "
-                "ask dining staff about ingredients and cross-contact without ranking safety."
-            )
-        for constraint in part.plan_deadlines:
-            if constraint.basis == "standing_service_rule":
-                continue
-            deadline = constraint.latest_usable_at
-            if deadline is None or deadline.tzinfo is None:
-                raise InvalidAnswer("Dated plan lacks a timezone-aware deadline", "invalid_review")
-            if deadline <= now:
-                part.verdict = "wrong_context"
-                part.reason = (
-                    f"This proposed action's latest usable time is {deadline.isoformat()}, "
-                    f"which has passed at campus time {now.isoformat()}. Describe it as past "
-                    "or offer an option that can still be followed, using published evidence."
-                )
-    return review
 
 
 def run_turn(

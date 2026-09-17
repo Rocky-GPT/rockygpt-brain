@@ -8,7 +8,7 @@ policy; a caller cannot bypass limits by invoking the gateway directly.
 from collections.abc import Callable
 from time import monotonic
 
-from rockygpt_brain.accounting import Category, PaidCallError
+from rockygpt_brain.governance.accounting import Category, PaidCallError
 from rockygpt_brain.config import RELEASE, Release
 
 

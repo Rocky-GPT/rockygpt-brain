@@ -15,15 +15,13 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from rockygpt_brain.accounting import PaidCallError, PostgresLedger
 from rockygpt_brain.api.stream import stream_turn
+from rockygpt_brain.campus.progress import ProgressCallback, ProgressUpdate, TurnCancelled
 from rockygpt_brain.config import RELEASE, ConfigurationError, load_deployment
 from rockygpt_brain.contracts import ChatRequest
-from rockygpt_brain.data import CampusData
-from rockygpt_brain.engine import InvalidAnswer, run_turn
-from rockygpt_brain.limits import BodyLimitMiddleware
-from rockygpt_brain.progress import ProgressCallback, ProgressUpdate, TurnCancelled
-from rockygpt_brain.provider import PaidGateway, open_gateway
+from rockygpt_brain.core import InvalidAnswer, PaidGateway, open_gateway, run_turn
+from rockygpt_brain.governance import BodyLimitMiddleware, PaidCallError, PostgresLedger
+from rockygpt_brain.retrieval import CampusData
 
 load_dotenv()
 app = FastAPI(title="RockyGPT Brain", version="1.0.0")

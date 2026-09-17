@@ -9,7 +9,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from rockygpt_brain.data import SearchQuery
+from rockygpt_brain.retrieval.models import SearchQuery
 
 CAMPUS_ZONE = ZoneInfo("America/New_York")
 

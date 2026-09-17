@@ -13,8 +13,14 @@ from uuid import uuid4
 from httpx import Timeout
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, RateLimitError
 
-from rockygpt_brain.accounting import CAMPUS_ZONE, Category, Ledger, PaidCallError, PostgresLedger
-from rockygpt_brain.budget import TurnBudget
+from rockygpt_brain.governance.accounting import (
+    CAMPUS_ZONE,
+    Category,
+    Ledger,
+    PaidCallError,
+    PostgresLedger,
+)
+from rockygpt_brain.governance.budget import TurnBudget
 from rockygpt_brain.config import RELEASE, Deployment, Price, Release, configuration_hash
 
 

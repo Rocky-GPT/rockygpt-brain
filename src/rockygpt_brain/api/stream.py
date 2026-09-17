@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi.responses import JSONResponse
 
-from rockygpt_brain.progress import ProgressUpdate
+from rockygpt_brain.campus.progress import ProgressUpdate
 
 
 def event(name: str, payload: dict[str, Any]) -> str:

@@ -4,7 +4,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict
 
 if TYPE_CHECKING:
-    from rockygpt_brain.data import SearchQuery
+    from rockygpt_brain.retrieval.models import SearchQuery
 
 ProgressStage = Literal[
     "connecting", "understanding", "retrieving", "calculating", "composing", "reviewing"
