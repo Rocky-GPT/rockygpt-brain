@@ -6,9 +6,11 @@ import json
 import logging
 import os
 from datetime import datetime
+from importlib.resources import files
 from pathlib import Path
 from threading import BoundedSemaphore, Event
 from time import monotonic
+from typing import Any, cast
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -58,6 +60,254 @@ def readiness() -> dict[str, object] | JSONResponse:
         return JSONResponse(status_code=503, content={"status": "unavailable"})
     finally:
         data.close()
+
+
+@app.get("/v1/logs")
+def get_logs(limit: int = 50) -> dict[str, Any]:
+    ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
+    env = os.getenv("BRAIN_ENVIRONMENT", "development")
+    if ledger_url:
+        try:
+            import certifi
+            import psycopg
+            from psycopg.rows import dict_row
+
+            conn_opts: dict[str, Any] = {"autocommit": True, "connect_timeout": 2}
+            if "sslrootcert" not in ledger_url and not os.getenv("PGSSLROOTCERT"):
+                conn_opts["sslrootcert"] = certifi.where()
+
+            with psycopg.connect(ledger_url, **conn_opts) as conn:
+                with conn.cursor(row_factory=dict_row) as cur:
+                    cur.execute(f"SET ROLE brain_{env}")
+                    cur.execute(
+                        "SELECT request_id, created_at, summary FROM brain_ops.turns "
+                        "WHERE summary->>'question' IS NOT NULL "
+                        "ORDER BY created_at DESC LIMIT %s",
+                        (limit,),
+                    )
+                    rows = cur.fetchall()
+                    cur.execute(
+                        "SELECT count(*) as total FROM brain_ops.turns "
+                        "WHERE summary->>'question' IS NOT NULL"
+                    )
+                    total_row = cur.fetchone()
+                    total = total_row["total"] if total_row else len(rows)
+
+            entries = []
+            for r in rows:
+                s = r["summary"] if isinstance(r["summary"], dict) else json.loads(r["summary"])
+                entries.append({
+                    "timestamp": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+                    "requestId": str(r["request_id"]),
+                    "question": s.get("question", ""),
+                    "messages": s.get("messages", []),
+                    "answer": s.get("answer"),
+                    "status": s.get("status", "answered"),
+                    "elapsedMs": s.get("elapsedMs", 0),
+                    "citations": s.get("citations", []),
+                })
+            return {"logs": entries, "total": total}
+        except Exception as err:
+            logging.getLogger(__name__).warning("Database turns query failed, falling back to local file: %s", err)
+
+    log_file = Path("logs/student_questions.jsonl")
+    if not log_file.exists():
+        return {"logs": [], "total": 0}
+    lines = log_file.read_text(encoding="utf-8").strip().splitlines()
+    entries_local: list[dict[str, Any]] = []
+    for line in reversed(lines[-limit:]):
+        if line.strip():
+            try:
+                entries_local.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return {"logs": entries_local, "total": len(lines)}
+
+
+@app.get("/v1/prompts")
+def get_prompts() -> dict[str, Any]:
+    prompt_md = files("rockygpt_brain").joinpath("prompt.md").read_text(encoding="utf-8")
+    review_md = files("rockygpt_brain").joinpath("review.md").read_text(encoding="utf-8")
+    return {
+        "model": RELEASE.model,
+        "prompt": prompt_md,
+        "review": review_md,
+        "draftReasoning": RELEASE.draft_reasoning,
+        "reviewReasoning": RELEASE.review_reasoning,
+    }
+
+
+@app.get("/v1/config")
+def get_config() -> dict[str, Any]:
+    from rockygpt_brain.config import MONTHLY_CAP_NUSD
+    return {
+        **RELEASE.model_dump(mode="json"),
+        "monthlyCapNusd": MONTHLY_CAP_NUSD,
+        "environment": os.getenv("BRAIN_ENVIRONMENT", "development"),
+        "timezone": "America/New_York",
+    }
+
+
+@app.get("/v1/releases")
+def get_releases() -> Any:
+    release_json = files("rockygpt_brain").joinpath("release.json").read_text(encoding="utf-8")
+    config_release = json.loads(release_json)
+    database_url = os.getenv("DATABASE_URL", "")
+    dataset_info = None
+    if database_url:
+        try:
+            data = CampusData(database_url, datetime.now(ZoneInfo("America/New_York")))
+            data._ensure_loaded()
+            activated = data.dataset.get("activated_at")
+            dataset_info = {
+                "id": data.dataset.get("id"),
+                "version": data.dataset.get("version"),
+                "activatedAt": activated.isoformat() if hasattr(activated, "isoformat") else str(activated),
+                "sourcesCount": len(data.sources),
+                "sources": [
+                    {
+                        "id": s.get("id"),
+                        "source_key": s.get("source_key"),
+                        "title": s.get("title"),
+                        "canonical_url": s.get("canonical_url"),
+                        "trust_tier": s.get("trust_tier"),
+                        "provenance_status": s.get("provenance_status"),
+                    }
+                    for s in list(data.sources.values())[:50]
+                ],
+            }
+            data.close()
+        except Exception as e:
+            dataset_info = {"error": str(e)}
+    return {
+        "brainRelease": config_release,
+        "dataset": dataset_info,
+    }
+
+
+CAPABILITIES_CATALOG = [
+    {
+        "capability": "contacts",
+        "describes": "Campus directories, staff, offices, phone numbers, and email addresses.",
+        "filters": [
+            {"field": "name", "type": "string", "description": "Person or office name"},
+            {"field": "department", "type": "string", "description": "Campus department"},
+        ],
+        "fields": ["name", "title", "email", "phone", "office", "department"],
+    },
+    {
+        "capability": "campus_hours",
+        "describes": "Operational opening and closing hours for campus buildings and administrative offices.",
+        "filters": [
+            {"field": "venue", "type": "string", "description": "Building or facility"},
+            {"field": "date", "type": "iso-date", "description": "Date of interest"},
+        ],
+        "fields": ["venue", "day_of_week", "open_time", "close_time", "notes"],
+    },
+    {
+        "capability": "dining_hours",
+        "describes": "Operating hours and meal periods for campus dining facilities.",
+        "filters": [
+            {"field": "venue", "type": "string", "description": "Dining location"},
+        ],
+        "fields": ["venue", "meal_period", "open_time", "close_time"],
+    },
+    {
+        "capability": "menu",
+        "describes": "Daily campus dining menu offerings, ingredients, allergens, and nutritional info.",
+        "filters": [
+            {"field": "date", "type": "iso-date", "description": "Menu date"},
+            {"field": "venue", "type": "string", "description": "Dining location"},
+        ],
+        "fields": ["venue", "date", "station", "item_name", "calories", "allergens"],
+    },
+    {
+        "capability": "events",
+        "describes": "Campus events, activities, student programming, and workshops from Archway.",
+        "filters": [
+            {"field": "date_from", "type": "iso-date", "description": "Start date"},
+            {"field": "category", "type": "string", "description": "Event category"},
+        ],
+        "fields": ["title", "starts_at", "ends_at", "location", "organization"],
+    },
+    {
+        "capability": "shuttle",
+        "describes": "Roadrunner Express shuttle routes, stops, schedules, and transit loops.",
+        "filters": [
+            {"field": "route", "type": "string", "description": "Shuttle route name"},
+        ],
+        "fields": ["route", "stop_name", "departure_time", "direction"],
+    },
+    {
+        "capability": "calendar",
+        "describes": "Official Ramapo academic calendar milestones, deadlines, and semester dates.",
+        "filters": [
+            {"field": "term", "type": "string", "description": "Semester term"},
+        ],
+        "fields": ["event", "date", "term"],
+    },
+    {
+        "capability": "clubs",
+        "describes": "Student clubs, greek life, and cultural organizations recognized by SGA.",
+        "filters": [
+            {"field": "category", "type": "string", "description": "Club category"},
+        ],
+        "fields": ["name", "category", "email", "description"],
+    },
+    {
+        "capability": "courses",
+        "describes": "Course catalog offerings, prerequisites, credit hours, and subject descriptions.",
+        "filters": [
+            {"field": "subject", "type": "string", "description": "Academic discipline"},
+        ],
+        "fields": ["course_code", "title", "credits", "prerequisites", "description"],
+    },
+    {
+        "capability": "documents",
+        "describes": "Official campus policies, student handbook regulations, and college bylaws.",
+        "filters": [
+            {"field": "query", "type": "string", "description": "Keyword search query"},
+        ],
+        "fields": ["title", "url", "category", "snippet"],
+    },
+]
+
+
+@app.get("/v1/capabilities")
+def get_capabilities() -> dict[str, Any]:
+    return {"capabilities": CAPABILITIES_CATALOG}
+
+
+@app.get("/v1/capabilities/{name}/records")
+def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any]:
+    database_url = os.getenv("DATABASE_URL", "")
+    if not database_url:
+        return {"returned": 0, "records": []}
+    data = None
+    try:
+        from rockygpt_brain.retrieval.models import COLLECTIONS, SearchQuery
+        if name not in COLLECTIONS:
+            return {"returned": 0, "records": [], "error": f"Unknown collection: {name}"}
+        data = CampusData(database_url, datetime.now(ZoneInfo("America/New_York")))
+        data._ensure_loaded()
+        if name == "documents":
+            records, _ = data._documents(SearchQuery(collection="documents", query="", limit=min(limit, 100)))
+        else:
+            records = data._load(name)
+            if limit:
+                records = records[:limit]
+
+        formatted: list[dict[str, Any]] = []
+        for r in records:
+            item = {"id": r.get("id"), "title": r.get("title", ""), **r.get("fields", {})}
+            formatted.append(item)
+        return {"returned": len(formatted), "records": formatted}
+    except Exception as e:
+        return {"returned": 0, "records": [], "error": str(e)}
+    finally:
+        if data is not None:
+            data.close()
+
 
 
 @app.post("/v1/chat", response_model=None)
