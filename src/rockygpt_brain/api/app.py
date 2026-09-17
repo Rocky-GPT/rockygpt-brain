@@ -479,6 +479,14 @@ CAPABILITIES_CATALOG = [
         "fields": ["name", "degree", "program_kind", "school", "description", "program_url"],
     },
     {
+        "capability": "program_requirements",
+        "describes": "Degree requirements, graduation rules, and required course sequences for academic programs.",
+        "filters": [
+            {"field": "program", "type": "string", "description": "Degree program name"},
+        ],
+        "fields": ["program", "section", "rule"],
+    },
+    {
         "capability": "courses",
         "describes": "Course catalog offerings, prerequisites, credit hours, and subject descriptions.",
         "filters": [
