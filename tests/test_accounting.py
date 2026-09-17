@@ -7,7 +7,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import UTC, datetime
 from multiprocessing import get_context
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -16,10 +16,10 @@ import pytest
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 from rockygpt_brain.accounting import PaidCallError, PostgresLedger, month_at, reset_at
-from rockygpt_brain.config import MONTHLY_CAP_NUSD, RELEASE, Environment
+from rockygpt_brain.config import MONTHLY_CAP_NUSD, RELEASE, Deployment, Environment
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.engine import run_turn
-from rockygpt_brain.provider import ModelResponse, OutputItem, PaidGateway, Usage
+from rockygpt_brain.provider import ModelResponse, OutputItem, PaidGateway, Usage, open_gateway
 from rockygpt_brain.reconcile import Receipt, reconcile
 
 NOW = datetime(2026, 9, 30, 23, 59, tzinfo=ZoneInfo("America/New_York"))
@@ -41,13 +41,19 @@ def database() -> str:
             conn.execute((Path(__file__).parents[1] / "migrations/001_accounting.sql").read_text())
             conn.execute("CREATE ROLE brain_test_development LOGIN IN ROLE brain_development")
             conn.execute("CREATE ROLE brain_test_production LOGIN IN ROLE brain_production")
+        if conn.execute("SELECT to_regclass('brain_ops.monthly_allowances')").fetchone() == (None,):
+            conn.execute(
+                (
+                    Path(__file__).parents[1] / "migrations/002_development_monthly_allowance.sql"
+                ).read_text()
+            )
     return url
 
 
 @pytest.fixture
 def ledger(database: str) -> Iterator[PostgresLedger]:
     with psycopg.connect(database) as conn:
-        conn.execute("TRUNCATE brain_ops.operations, brain_ops.turns")
+        conn.execute("TRUNCATE brain_ops.operations, brain_ops.turns, brain_ops.monthly_allowances")
         conn.execute(
             "UPDATE brain_ops.accounts SET paused = false, cap_nusd = %s", (MONTHLY_CAP_NUSD,)
         )
@@ -58,12 +64,102 @@ def for_environment(url: str, environment: Environment) -> PostgresLedger:
     return PostgresLedger(make_conninfo(url, user="brain_test_" + environment), environment)
 
 
+def test_transaction_setup_is_applied_before_account_access(ledger: PostgresLedger) -> None:
+    with ledger.transaction() as conn:
+        row = conn.execute(
+            "SELECT current_user AS role, current_setting('statement_timeout') AS statement, "
+            "current_setting('lock_timeout') AS lock"
+        ).fetchone()
+        assert row == {"role": "brain_development", "statement": "2s", "lock": "1500ms"}
+
+
+def test_failed_role_setup_never_exposes_transaction(database: str) -> None:
+    ledger = PostgresLedger(make_conninfo(database, user="brain_test_development"), "production")
+    with pytest.raises(PaidCallError, match="accounting_unavailable"):
+        with ledger.transaction():
+            pytest.fail("A failed role change must not yield an accounting connection")
+
+
 def reserve(
     ledger: PostgresLedger, amount: int, *, now: datetime = NOW, operation_id: str | None = None
 ) -> str:
     identity = operation_id or str(uuid4())
     ledger.reserve(identity, "turn", "draft", amount, {"price_version": "test"}, now)
     return identity
+
+
+def test_session_reuses_connection_without_holding_account_locks(
+    ledger: PostgresLedger, database: str
+) -> None:
+    with ledger.session():
+        with ledger.transaction() as first:
+            ledger.account(first)
+        identity = reserve(ledger, 100)
+        assert first.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
+        # A different connection sees the committed hold and can lock the account
+        # while the session waits for the model, without waiting for session close.
+        with psycopg.connect(database) as other:
+            assert other.execute(
+                "SELECT reserved_nusd FROM brain_ops.operations WHERE operation_id=%s",
+                (identity,),
+            ).fetchone() == (100,)
+            assert other.execute(
+                "SELECT environment FROM brain_ops.accounts "
+                "WHERE environment='development' FOR UPDATE NOWAIT"
+            ).fetchone() == ("development",)
+        with ledger.transaction() as second:
+            assert first is second
+    assert first.closed
+    # Telemetry after gateway exit still works on a fresh connection.
+    assert str(ledger.operations()[0]["operation_id"]) == identity
+
+
+def test_session_rolls_back_failed_transaction_and_preserves_committed_holds(
+    ledger: PostgresLedger,
+) -> None:
+    with pytest.raises(RuntimeError, match="turn cancelled"):
+        with ledger.session():
+            identity = reserve(ledger, 100)
+            with pytest.raises(PaidCallError, match="accounting_unavailable"):
+                with ledger.transaction() as failed:
+                    failed.execute("SELECT 1 / 0")
+            with ledger.transaction() as recovered:
+                assert recovered is failed
+                assert ledger.account(recovered)["environment"] == "development"
+            assert str(ledger.operations()[0]["operation_id"]) == identity
+            raise RuntimeError("turn cancelled")
+    assert failed.closed
+    assert ledger.operations()[0]["state"] == "reserved"
+
+
+def test_request_session_cannot_be_shared_between_workers(ledger: PostgresLedger) -> None:
+    with ledger.session(), ThreadPoolExecutor(max_workers=1) as pool:
+        with pytest.raises(PaidCallError, match="accounting_unavailable"):
+            pool.submit(reserve, ledger, 100).result(timeout=3)
+        assert ledger.operations() == []
+        reserve(ledger, 100)
+
+
+def test_paid_gateway_reuses_ledger_session_for_readiness_reserve_and_settle(
+    ledger: PostgresLedger,
+) -> None:
+    from test_provider import arguments, response
+
+    deployment = Deployment(
+        environment="development", api_key="test-key", project="test-project", ledger_url=ledger.url
+    )
+    provider = Mock()
+    provider.create.return_value = response()
+    with (
+        patch("rockygpt_brain.provider.OpenAIProvider", return_value=provider),
+        patch("rockygpt_brain.accounting.psycopg.connect", wraps=psycopg.connect) as connect,
+    ):
+        with open_gateway(deployment, "session-test") as gateway:
+            gateway.clock = lambda: datetime(2026, 9, 11, tzinfo=ZoneInfo("America/New_York"))
+            gateway.create(category="draft", **arguments())
+            gateway.finish({"status": "answered"})
+        assert connect.call_count == 1
+    assert ledger.operations("session-test")[0]["state"] == "settled"
 
 
 def race_admission(url: str) -> str:
@@ -309,3 +405,49 @@ def test_complete_turn_accounts_for_lookup_draft_and_review(ledger: PostgresLedg
     assert gateway.usage.report()["reasoningTokens"] == 30
     wire_history = provider.create.call_args_list[1].kwargs["input"]
     assert wire_history[1]["call_id"] == wire_history[2]["call_id"] == "lookup"
+
+
+def test_approved_supplement_expires_and_cannot_affect_production(
+    ledger: PostgresLedger, database: str
+) -> None:
+    with psycopg.connect(database) as conn:
+        conn.execute(
+            "INSERT INTO brain_ops.monthly_allowances "
+            "(environment, month, extra_nusd, approval_note) "
+            "VALUES ('development', %s, 20000000000, 'Synthetic test authorization')",
+            (month_at(NOW),),
+        )
+    operation = reserve(ledger, 30_000_000_000)
+    with pytest.raises(PaidCallError, match="budget_exhausted"):
+        reserve(ledger, 1)
+    production = for_environment(database, "production")
+    with pytest.raises(PaidCallError, match="budget_exhausted"):
+        reserve(production, 10_000_000_001)
+    reserve(production, 10_000_000_000)
+    ledger.settle(operation, 30_000_000_000, {}, "response", "test", 1, NOW)
+    next_month = NOW.replace(month=10, day=1, hour=0)
+    reserve(ledger, 10_000_000_000, now=next_month)
+    with pytest.raises(PaidCallError, match="budget_exhausted"):
+        reserve(ledger, 1, now=next_month)
+    assert ledger.operations()[0]["metadata"]["monthly_cap_nusd"] == 30_000_000_000
+
+
+def test_runtime_cannot_grant_its_own_monthly_supplement(
+    ledger: PostgresLedger, database: str
+) -> None:
+    with pytest.raises(PaidCallError, match="accounting_unavailable"):
+        with ledger.transaction() as conn:
+            conn.execute(
+                "INSERT INTO brain_ops.monthly_allowances "
+                "(environment, month, extra_nusd, approval_note) "
+                "VALUES ('development', %s, 20000000000, 'Unauthorized')",
+                (month_at(NOW),),
+            )
+    with psycopg.connect(database) as conn:
+        with pytest.raises(psycopg.errors.CheckViolation):
+            conn.execute(
+                "INSERT INTO brain_ops.monthly_allowances "
+                "(environment, month, extra_nusd, approval_note) "
+                "VALUES ('production', %s, 20000000000, 'Not approved')",
+                (month_at(NOW),),
+            )

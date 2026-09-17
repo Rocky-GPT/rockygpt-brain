@@ -1,0 +1,178 @@
+{
+  "started_at": "2026-09-17T02:13:22.840128+00:00",
+  "kind": "component_regression_on_archived_evidence",
+  "corpus_sha256": "5fd43498da768c6cd539390390664cfdb9ad8072bef90f8a004aaf1c02125cb1",
+  "model": "gpt-5.4",
+  "configuration_hash": "7ecfeb8f8a15ed85fc173b303f9f20708303b849bf169e9feaf4c39236d70e5a",
+  "results": [
+    {
+      "id": "captured-evening-summary-reuses-earlier-citations",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 4,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 6191,
+        "cachedInputTokens": 1792,
+        "outputTokens": 2883,
+        "reasoningTokens": 2617,
+        "draftModelMs": 0,
+        "reviewModelMs": 33067,
+        "costNusd": 54690500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "c8689041-581a-4299-bedd-d22417bc32c1",
+      "elapsed_seconds": 36.465
+    },
+    {
+      "id": "uncited-evening-summary-cannot-invent-later-closing",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 4,
+            "verdict": "contradicted_evidence",
+            "reason": "Birch Tree Inn’s Late Night period ends at 11:00 PM, not midnight.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-05T00:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 6187,
+        "cachedInputTokens": 1792,
+        "outputTokens": 1886,
+        "reasoningTokens": 1597,
+        "draftModelMs": 0,
+        "reviewModelMs": 19426,
+        "costNusd": 39725500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "1e32d02b-e724-4898-9ec7-90dff06fbc86",
+      "elapsed_seconds": 22.09
+    }
+  ],
+  "ending_configuration_hash": "7ecfeb8f8a15ed85fc173b303f9f20708303b849bf169e9feaf4c39236d70e5a",
+  "summary": {
+    "passed": 2,
+    "attempted": 2,
+    "planned": 2,
+    "model_calls": 2,
+    "unrun": 0,
+    "cost_nusd": 94416000,
+    "unsettled_nusd": 0,
+    "tool_calls": 0
+  }
+}

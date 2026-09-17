@@ -1,0 +1,27 @@
+{
+  "kind": "read_only_development_ledger_latency",
+  "configurationHash": "5a1ff4417e15cec5c83e29b8864271419ddc1e385fce7e9d1f068ad62e6c7cf8",
+  "paidCalls": 0,
+  "databaseMutations": 0,
+  "results": [
+    {
+      "reuse": false,
+      "transactions": 4,
+      "elapsedMs": 3788,
+      "distinctServerBackendPids": 1,
+      "clientConnectionOpens": 4
+    },
+    {
+      "reuse": true,
+      "transactions": 4,
+      "elapsedMs": 2052,
+      "distinctServerBackendPids": 1,
+      "clientConnectionOpens": 1
+    }
+  ],
+  "savedMs": 1736,
+  "notes": [
+    "Four sequential read-only transactions per mode; not an end-to-end model latency test.",
+    "The configured database pool can reuse a server backend across distinct client connections. Backend PID counts are not client connection counts."
+  ]
+}

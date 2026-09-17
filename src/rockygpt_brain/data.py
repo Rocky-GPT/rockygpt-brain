@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import time
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
@@ -90,12 +91,29 @@ TABLES: dict[str, tuple[str, tuple[str, ...]]] = {
 
 class SearchFilters(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    name: str | None = Field(default=None, min_length=1, max_length=160)
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=160,
+        description=(
+            "Exact published name. For menu this is a DISH name, never a venue. "
+            "Use query to discover an unknown name; do not guess an exact filter."
+        ),
+    )
     meal: str | None = Field(default=None, min_length=1, max_length=80)
     vegan: bool | None = None
     vegetarian: bool | None = None
     term: str | None = Field(default=None, min_length=1, max_length=120)
-    session: str | None = Field(default=None, min_length=1, max_length=120)
+    session: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+        description=(
+            "Exact single-session label. Shared dates such as Full and Session I may have "
+            "no single-session field. If a requested date is missing, search the same term "
+            "with session null and verify applicability from the published title."
+        ),
+    )
     route: str | None = Field(default=None, min_length=1, max_length=160)
 
 
@@ -109,16 +127,31 @@ class SearchQuery(BaseModel):
             "email, department, and office. campus_hours and dining_hours: dated opening "
             "schedules and exceptions. menu: dated items, meal, dietary flags, and allergens. "
             "calendar: academic dates by term and session. events: dated campus activities. "
-            "clubs: student organizations. programs: degrees and programs. "
+            "clubs: organization directory, including departments; "
+            "inspect each published category. "
+            "programs: degrees and programs. "
             "program_requirements: detailed published curriculum. courses: catalog "
             "descriptions, not live registration. faculty: published faculty information. "
             "shuttle: scheduled routes, service days, and ordered stops, not live vehicles."
         )
     )
     query: str = Field(default="", max_length=500)
-    date_from: date | None = None
-    date_to: date | None = None
-    limit: int = Field(default=12, ge=1, le=50)
+    date_from: date | None = Field(
+        default=None,
+        description=(
+            "Requested service date for menus/hours/shuttles/events. For academic calendar "
+            "queries by term, leave null unless the user explicitly restricts dates: "
+            "past deadlines in that term are still relevant."
+        ),
+    )
+    date_to: date | None = Field(
+        default=None,
+        description=(
+            "Last requested date, or null. Do not restrict a term's academic dates to "
+            "the current/future portion of the term."
+        ),
+    )
+    limit: int = Field(default=12, ge=1, le=100)
     filters: SearchFilters | None = None
 
     @model_validator(mode="after")
@@ -133,6 +166,8 @@ class SearchQuery(BaseModel):
             raise ValueError("date_to must be on or after date_from")
         allowed = {
             "contacts": {"name"},
+            "clubs": {"name"},
+            "programs": {"name"},
             "menu": {"name", "meal", "vegan", "vegetarian"},
             "calendar": {"term", "session"},
             "shuttle": {"route"},
@@ -536,7 +571,8 @@ class CampusData:
                 extra = sql.SQL(
                     ", tsvector_to_array(to_tsvector('english', concat_ws(' ', "
                     "t.name,t.department,to_jsonb(t)->>'search_text'))) AS search_terms, "
-                    "tsvector_to_array(to_tsvector('english', %s)) AS query_terms"
+                    "tsvector_to_array(to_tsvector('english', %s)) AS query_terms, "
+                    "tsvector_to_array(to_tsvector('english', t.name)) AS title_terms"
                 )
             join = (
                 sql.SQL("JOIN rockygpt_v2.shuttle_routes r ON r.id=t.route_id")
@@ -636,6 +672,7 @@ class CampusData:
                         # Discovery terms never become factual fields or identity aliases.
                         record["_search_terms"] = row.get("search_terms", [])
                         record["_query_terms"] = row.get("query_terms")
+                        record["_title_terms"] = row.get("title_terms")
                     if collection == "menu":
                         coverage = row.get("label_coverage") or {}
                         for label in ("vegan", "vegetarian", "allergens"):
@@ -753,6 +790,7 @@ class CampusData:
                 )
                 if schedule_key in periods:
                     fields["periods"] = periods[schedule_key]
+                    record["coverage"]["fields"]["periods"] = "published"
                     record["content"] = _json(fields)
         elif collection == "menu":
             context = (self._artifact("menu-context") or {}).get("content", "")
@@ -772,6 +810,7 @@ class CampusData:
             for record in records:
                 if venue:
                     record["fields"] = {"venue": venue, **record["fields"]}
+                    record["coverage"]["fields"]["venue"] = "published"
                 if url.startswith("https://"):
                     record["url"] = url
                 record["content"] = _json(record["fields"])
@@ -927,10 +966,38 @@ class CampusData:
     def search(self, query: SearchQuery) -> dict[str, Any]:
         self._ensure_loaded()
         discovery_titles: list[str] = []
+        name_resolution = None
         if query.collection == "documents":
             selected, total = self._documents(query)
         else:
-            records = self._dates(self._load(query.collection, query), query)
+            loaded = self._load(query.collection, query)
+            # Resolve only a whole-name prefix, against all published names BEFORE
+            # dates/filters/ranking can hide another venue with the same prefix.
+            name_field = {"menu": "venue", "dining_hours": "name", "campus_hours": "name"}.get(
+                query.collection
+            )
+            prefix = re.findall(r"\w+", query.query.casefold())
+            if name_field and prefix and any(
+                len(word) >= 3 and word not in {"the", "a", "an"} for word in prefix
+            ):
+                names = {
+                    r["fields"][name_field]
+                    for r in loaded
+                    if isinstance(r["fields"].get(name_field), str)
+                }
+                matches = {
+                    name
+                    for name in names
+                    if re.findall(r"\w+", name.casefold())[: len(prefix)] == prefix
+                }
+                if len(matches) == 1:
+                    name_resolution = {
+                        "field": name_field,
+                        "query": query.query,
+                        "canonical_name": next(iter(matches)),
+                        "basis": "unique_published_name_prefix",
+                    }
+            records = self._dates(loaded, query)
             terms = _tokens(query.query)
             if query.collection == "contacts" and records:
                 terms = set(records[0].get("_query_terms") or terms)
@@ -958,6 +1025,7 @@ class CampusData:
                 title_terms, body_terms = _tokens(record["title"]), _tokens(body)
                 if query.collection == "contacts":
                     body_terms.update(record.get("_search_terms", []))
+                    title_terms = set(record.get("_title_terms") or title_terms)
                 matched = terms & (title_terms | body_terms)
                 if terms and not matched:
                     continue
@@ -992,6 +1060,7 @@ class CampusData:
             "discovery_titles": discovery_titles,
             "coverage": {
                 "scope": "matching_records_only",
+                "name_resolution": name_resolution,
                 "filters": query.model_dump(mode="json"),
                 "absence_is_not_nonexistence": True,
                 "excerpts_truncated": any(

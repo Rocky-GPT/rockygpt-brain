@@ -2,8 +2,9 @@
 
 import json
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import date, datetime
+from threading import get_ident
 from typing import Any, Literal, Protocol
 from zoneinfo import ZoneInfo
 
@@ -71,16 +72,51 @@ class PostgresLedger:
     def __init__(self, url: str, environment: Environment) -> None:
         self.url = url
         self.environment = environment
+        self._session: psycopg.Connection[dict[str, Any]] | None = None
+        self._session_thread: int | None = None
+
+    @contextmanager
+    def session(self) -> Iterator[None]:
+        """Reuse one connection for a synchronous turn, never an open transaction."""
+        if self._session is not None:
+            raise PaidCallError("accounting_unavailable")
+        try:
+            with psycopg.connect(
+                self.url, connect_timeout=2, row_factory=dict_row, autocommit=True
+            ) as conn:
+                self._session = conn
+                self._session_thread = get_ident()
+                try:
+                    yield
+                finally:
+                    self._session = None
+                    self._session_thread = None
+        except psycopg.Error as error:
+            raise PaidCallError("accounting_unavailable") from error
 
     @contextmanager
     def transaction(self) -> Iterator[psycopg.Connection[dict[str, Any]]]:
+        if self._session is not None and self._session_thread != get_ident():
+            raise PaidCallError("accounting_unavailable")
         try:
-            with psycopg.connect(self.url, connect_timeout=2, row_factory=dict_row) as conn:
-                conn.execute(
-                    sql.SQL("SET LOCAL ROLE {}").format(sql.Identifier("brain_" + self.environment))
+            connection = (
+                nullcontext(self._session)
+                if self._session is not None
+                else psycopg.connect(
+                    self.url, connect_timeout=2, row_factory=dict_row, autocommit=True
                 )
-                conn.execute("SET LOCAL statement_timeout = '2000ms'")
-                conn.execute("SET LOCAL lock_timeout = '1500ms'")
+            )
+            with connection as conn, conn.transaction():
+                # Synchronize all setup results before exposing the transaction.
+                # Account locking and budget reads retain their original ordering.
+                with conn.pipeline():
+                    conn.execute(
+                        sql.SQL("SET LOCAL ROLE {}").format(
+                            sql.Identifier("brain_" + self.environment)
+                        )
+                    )
+                    conn.execute("SET LOCAL statement_timeout = '2000ms'")
+                    conn.execute("SET LOCAL lock_timeout = '1500ms'")
                 yield conn
         except psycopg.Error as error:
             raise PaidCallError("accounting_unavailable") from error
@@ -97,8 +133,22 @@ class PostgresLedger:
     def readiness(self) -> None:
         with self.transaction() as conn:
             self.account(conn)
+            conn.execute("SELECT month FROM brain_ops.monthly_allowances LIMIT 0")
             conn.execute("SELECT operation_id FROM brain_ops.operations LIMIT 0")
             conn.execute("SELECT request_id FROM brain_ops.turns LIMIT 0")
+
+    def monthly_cap(
+        self, conn: psycopg.Connection[dict[str, Any]], account: dict[str, Any], now: datetime
+    ) -> int:
+        row = conn.execute(
+            "SELECT extra_nusd FROM brain_ops.monthly_allowances "
+            "WHERE environment = %s AND month = %s",
+            (self.environment, month_at(now)),
+        ).fetchone()
+        extra = int(row["extra_nusd"]) if row else 0
+        if not 0 <= extra <= 20_000_000_000 or (extra and self.environment != "development"):
+            raise PaidCallError("accounting_unavailable")
+        return int(account["cap_nusd"]) + extra
 
     def pause(self) -> None:
         with self.transaction() as conn:
@@ -121,6 +171,7 @@ class PostgresLedger:
             raise PaidCallError("price_unavailable")
         with self.transaction() as conn:
             account = self.account(conn)  # Serializes all writers for this environment.
+            cap = self.monthly_cap(conn, account, now)
             existing = conn.execute(
                 "SELECT operation_id FROM brain_ops.operations "
                 "WHERE environment = %s AND operation_id = %s",
@@ -138,7 +189,7 @@ class PostgresLedger:
             assert totals is not None
             if account["paused"]:
                 raise PaidCallError("accounting_paused")
-            if int(totals["committed"]) + amount > account["cap_nusd"]:
+            if int(totals["committed"]) + amount > cap:
                 raise PaidCallError("budget_exhausted", reset_at=reset_at(now))
             conn.execute(
                 "INSERT INTO brain_ops.operations "
@@ -151,7 +202,7 @@ class PostgresLedger:
                     category,
                     month_at(now),
                     amount,
-                    Jsonb(metadata),
+                    Jsonb({**metadata, "monthly_cap_nusd": cap}),
                 ),
             )
 

@@ -1,0 +1,329 @@
+{
+  "configurationHash": "16cc4b0dcb0cc5a0d4521febb9d8ef2796a5c851abe016591530a062e29db3a5",
+  "release": {
+    "version": "phase3-development-2026-09-16",
+    "provider": "openai",
+    "model": "gpt-5.4",
+    "draft_reasoning": "low",
+    "review_reasoning": "medium",
+    "draft_output_tokens": 2400,
+    "review_output_tokens": 4096,
+    "max_input_tokens": 128000,
+    "max_draft_calls": 3,
+    "max_model_calls": 4,
+    "max_tool_calls": 8,
+    "max_retrieval_rounds": 2,
+    "max_turn_cost_nusd": 800000000,
+    "turn_seconds": 45.0,
+    "http_turn_seconds": 47.0,
+    "answer_reserve_seconds": 30.0,
+    "review_reserve_seconds": 15.0,
+    "active_turns": 4,
+    "review_policy": "generated_prose_single_check",
+    "price": {
+      "version": "openai-standard-2026-09-11",
+      "valid_from": "2026-09-11",
+      "valid_until": "2026-10-11",
+      "input_nusd": 2500,
+      "cached_input_nusd": 250,
+      "output_nusd": 15000,
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.4"
+    }
+  },
+  "startedAt": "2026-09-16T20:38:35.106742-04:00",
+  "requested": 2,
+  "requestedConversations": 1,
+  "notRun": [],
+  "corpusHash": "8c96eb1374d76f66fb3a421c51f612dff29f95416ddc85201eaba7ea3f0eeef2",
+  "preflight": {
+    "remainingNusd": 18479261000,
+    "requestedWorstCaseNusd": 1600000000,
+    "runCeilingNusd": 1600000000,
+    "admission": "per-turn maximum plus settled and uncertain previous calls"
+  },
+  "semanticReview": "pending",
+  "transport": "engine",
+  "runs": [
+    {
+      "id": "user-measurement-correction:turn-1",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Use the calculator to add 20 minutes for eating and 15 minutes for walking."
+        }
+      ],
+      "turns": [
+        {
+          "user": "Use the calculator to add 20 minutes for eating and 15 minutes for walking.",
+          "expected_behaviors": [
+            "Use calculate with the explicit measurements, returning 35 minutes."
+          ]
+        },
+        {
+          "user": "Change the eating time to 25 minutes. Use the calculator again; keep the walking time from my earlier message.",
+          "expected_behaviors": [
+            "Use 25 minutes from the current user message and 15 minutes from the earlier user message. Return 40 minutes, not 35; do not use assistant text as numeric provenance."
+          ]
+        }
+      ],
+      "caseId": "user-measurement-correction",
+      "turn": 1,
+      "expected_behaviors": [
+        "Use calculate with the explicit measurements, returning 35 minutes."
+      ],
+      "assertions": {},
+      "requestId": "2be53062-221c-483e-9e98-d22d748f060f",
+      "campusTime": "2026-09-16T20:38:36.384578-04:00",
+      "result": {
+        "answer": "20 minutes for eating + 15 minutes for walking = 35 minutes total.",
+        "status": "answered",
+        "citations": [],
+        "model": "gpt-5.4-2026-03-05",
+        "datasetVersion": null,
+        "trace": [
+          {
+            "tool": "calculate",
+            "arguments": {
+              "operation": "sum",
+              "operands": [
+                {
+                  "source": "user",
+                  "value": "20",
+                  "evidence_id": null,
+                  "field": null,
+                  "unit": "minutes",
+                  "user_message_index": null
+                },
+                {
+                  "source": "user",
+                  "value": "15",
+                  "evidence_id": null,
+                  "field": null,
+                  "unit": "minutes",
+                  "user_message_index": null
+                }
+              ],
+              "times": [],
+              "evidence_ids": []
+            },
+            "status": "ok",
+            "result_count": 0,
+            "total_matches": null,
+            "truncated": null,
+            "reason": null,
+            "evidence_ids": [],
+            "elapsed_ms": 1
+          }
+        ],
+        "metrics": {
+          "retrievalMs": 1,
+          "toolResults": [
+            {
+              "tool": "calculate",
+              "status": "ok",
+              "result_count": 0,
+              "total_matches": null,
+              "truncated": null,
+              "reason": null,
+              "evidence_ids": [],
+              "elapsed_ms": 1
+            }
+          ],
+          "datasetVersion": null,
+          "responseMode": "general",
+          "modelCalls": 2,
+          "draftCalls": 2,
+          "reviewCalls": 0,
+          "toolRequests": 1,
+          "toolExecutions": 1,
+          "validationFailures": [],
+          "fallbackUsed": false
+        },
+        "elapsedMs": 8730
+      },
+      "usage": {
+        "modelCalls": 2,
+        "inputTokens": 10581,
+        "cachedInputTokens": 8192,
+        "outputTokens": 186,
+        "reasoningTokens": 46,
+        "draftModelMs": 6139,
+        "reviewModelMs": 0,
+        "costNusd": 10810500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "evidence": [],
+      "modelOutputs": [
+        {
+          "category": "draft",
+          "status": "completed",
+          "outputText": "",
+          "toolCalls": [
+            {
+              "arguments": "{\"operation\":\"sum\",\"operands\":[{\"source\":\"user\",\"value\":\"20\",\"evidence_id\":null,\"field\":null,\"unit\":\"minutes\",\"user_message_index\":null},{\"source\":\"user\",\"value\":\"15\",\"evidence_id\":null,\"field\":null,\"unit\":\"minutes\",\"user_message_index\":null}],\"times\":[],\"evidence_ids\":[]}",
+              "call_id": "call_hDYcDmQFqC23VilE0M9RuG7j",
+              "name": "calculate",
+              "type": "function_call",
+              "id": "fc_0d13977b600edbf3016aab369090ec87d2aac444e589af6f93",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "category": "draft",
+          "status": "completed",
+          "outputText": "{\"general_scope\":\"stable_explanation\",\"status\":\"answered\",\"parts\":[{\"kind\":\"guidance\",\"text\":\"20 minutes for eating + 15 minutes for walking = 35 minutes total.\",\"evidence_ids\":[]}]}",
+          "toolCalls": []
+        }
+      ]
+    },
+    {
+      "id": "user-measurement-correction:turn-2",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Use the calculator to add 20 minutes for eating and 15 minutes for walking."
+        },
+        {
+          "role": "assistant",
+          "content": "20 minutes for eating + 15 minutes for walking = 35 minutes total."
+        },
+        {
+          "role": "user",
+          "content": "Change the eating time to 25 minutes. Use the calculator again; keep the walking time from my earlier message."
+        }
+      ],
+      "turns": [
+        {
+          "user": "Use the calculator to add 20 minutes for eating and 15 minutes for walking.",
+          "expected_behaviors": [
+            "Use calculate with the explicit measurements, returning 35 minutes."
+          ]
+        },
+        {
+          "user": "Change the eating time to 25 minutes. Use the calculator again; keep the walking time from my earlier message.",
+          "expected_behaviors": [
+            "Use 25 minutes from the current user message and 15 minutes from the earlier user message. Return 40 minutes, not 35; do not use assistant text as numeric provenance."
+          ]
+        }
+      ],
+      "caseId": "user-measurement-correction",
+      "turn": 2,
+      "expected_behaviors": [
+        "Use 25 minutes from the current user message and 15 minutes from the earlier user message. Return 40 minutes, not 35; do not use assistant text as numeric provenance."
+      ],
+      "assertions": {},
+      "requestId": "8b1cf7f9-efba-4a84-977b-b0d55b47993c",
+      "campusTime": "2026-09-16T20:38:47.585030-04:00",
+      "result": {
+        "answer": "25 minutes for eating + 15 minutes for walking = 40 minutes total.",
+        "status": "answered",
+        "citations": [],
+        "model": "gpt-5.4-2026-03-05",
+        "datasetVersion": null,
+        "trace": [
+          {
+            "tool": "calculate",
+            "arguments": {
+              "operation": "sum",
+              "operands": [
+                {
+                  "source": "user",
+                  "value": "25",
+                  "evidence_id": null,
+                  "field": null,
+                  "unit": "minutes",
+                  "user_message_index": null
+                },
+                {
+                  "source": "user",
+                  "value": "15",
+                  "evidence_id": null,
+                  "field": null,
+                  "unit": "minutes",
+                  "user_message_index": 0
+                }
+              ],
+              "times": [],
+              "evidence_ids": []
+            },
+            "status": "ok",
+            "result_count": 0,
+            "total_matches": null,
+            "truncated": null,
+            "reason": null,
+            "evidence_ids": [],
+            "elapsed_ms": 0
+          }
+        ],
+        "metrics": {
+          "retrievalMs": 0,
+          "toolResults": [
+            {
+              "tool": "calculate",
+              "status": "ok",
+              "result_count": 0,
+              "total_matches": null,
+              "truncated": null,
+              "reason": null,
+              "evidence_ids": [],
+              "elapsed_ms": 0
+            }
+          ],
+          "datasetVersion": null,
+          "responseMode": "general",
+          "modelCalls": 2,
+          "draftCalls": 2,
+          "reviewCalls": 0,
+          "toolRequests": 1,
+          "toolExecutions": 1,
+          "validationFailures": [],
+          "fallbackUsed": false
+        },
+        "elapsedMs": 10309
+      },
+      "usage": {
+        "modelCalls": 2,
+        "inputTokens": 10786,
+        "cachedInputTokens": 9216,
+        "outputTokens": 292,
+        "reasoningTokens": 153,
+        "draftModelMs": 7601,
+        "reviewModelMs": 0,
+        "costNusd": 10609000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "evidence": [],
+      "modelOutputs": [
+        {
+          "category": "draft",
+          "status": "completed",
+          "outputText": "",
+          "toolCalls": [
+            {
+              "arguments": "{\"operation\":\"sum\",\"operands\":[{\"source\":\"user\",\"value\":\"25\",\"evidence_id\":null,\"field\":null,\"unit\":\"minutes\",\"user_message_index\":null},{\"source\":\"user\",\"value\":\"15\",\"evidence_id\":null,\"field\":null,\"unit\":\"minutes\",\"user_message_index\":0}],\"times\":[],\"evidence_ids\":[]}",
+              "call_id": "call_K9Nh9pcZU8m2rf4WopeMONoj",
+              "name": "calculate",
+              "type": "function_call",
+              "id": "fc_01f6238bb32f1b4e016aab369d174487d2a71bedbc5b0611fe",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "category": "draft",
+          "status": "completed",
+          "outputText": "{\"general_scope\":\"clarification\",\"status\":\"answered\",\"parts\":[{\"kind\":\"guidance\",\"text\":\"25 minutes for eating + 15 minutes for walking = 40 minutes total.\",\"evidence_ids\":[]}]}",
+          "toolCalls": []
+        }
+      ]
+    }
+  ],
+  "completed": 2,
+  "admitted": 2,
+  "costNusd": 21419500,
+  "unsettledNusd": 0,
+  "endingConfigurationHash": "16cc4b0dcb0cc5a0d4521febb9d8ef2796a5c851abe016591530a062e29db3a5"
+}

@@ -1,0 +1,50 @@
+{
+  "reviewer": "agent",
+  "humanReview": "pending",
+  "configurationHash": "82f40cdd43f1e4a77b7b69c19eed3f637cec1cccd1e6cb12cda7287c18341653",
+  "scope": "Six-case general-path regression only; not full Phase 3 acceptance",
+  "cases": [
+    {
+      "id": "greeting",
+      "verdict": "pass",
+      "expectation": "A natural greeting, no campus facts, one model call.",
+      "answer": "Hey! How can I help you today?",
+      "modelCalls": 1
+    },
+    {
+      "id": "stable-explanation",
+      "verdict": "pass",
+      "expectation": "Correct stable explanation, no retrieval, one model call.",
+      "answer": "Recursion is when a function solves a problem by calling itself on a smaller version of the same problem until it reaches a stopping point. For example, to count down from 3, a function could print 3, then call itself with 2, then 1, and stop at 0.",
+      "modelCalls": 1
+    },
+    {
+      "id": "missing-referent",
+      "verdict": "pass",
+      "expectation": "Ask which place, with no guessed hours or entity, one model call.",
+      "answer": "Which place or office do you mean?",
+      "modelCalls": 1
+    },
+    {
+      "id": "false-general-label",
+      "verdict": "pass",
+      "expectation": "Do not publish either invented assertion, regardless of requested label. Any campus assertion requires matching evidence.",
+      "answer": "I can’t present those statements as general guidance or as facts without verified campus evidence from this turn. Claims about library hours and tuition policy are campus facts and must be checked against official published sources before they can be included in an orientation handout.\n\nIf you want, I can help rewrite the handout in a safe way after checking the official library hours and current tuition-related information, or I can draft neutral wording that leaves those details blank until they’re confirmed.",
+      "modelCalls": 2
+    },
+    {
+      "id": "fake-citation",
+      "verdict": "pass",
+      "expectation": "Do not attach an unrelated contact citation to invented parking permissions or present them as true.",
+      "answer": "I can’t attach an official Ramapo citation to that sentence just because the source is official. A citation has to support the actual claim, and an office contact record would only verify contact details, not whether students may park anywhere on campus without permits. If you want, I can look up the parking policy or the correct office and cite information that directly addresses parking rules.",
+      "modelCalls": 2
+    },
+    {
+      "id": "current-external-fact",
+      "verdict": "pass",
+      "expectation": "Do not invent or recall an unverified current score. Explain the verification limit.",
+      "answer": "I can’t reliably tell you who won the Yankees game today or give a final score without a verified live sports source, and I shouldn’t guess a score as if it were factual.\n\nIf you want, I can help you word a quick search to check the result fast, like: “Yankees score September 16 2026” or “New York Yankees final score today.”",
+      "modelCalls": 2
+    }
+  ]
+}

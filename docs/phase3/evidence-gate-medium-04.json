@@ -1,0 +1,1373 @@
+{
+  "started_at": "2026-09-17T01:12:11.380043+00:00",
+  "kind": "component_regression_on_archived_evidence",
+  "corpus_sha256": "408e1f3c54710e1706d7d1689eb9e0b881a67879a9bd2f5b452380dfbf6823ff",
+  "model": "gpt-5.4",
+  "configuration_hash": "95dc767f5563fed9fbfea4b1242ce56c8cb64322c9640d005a3cdd15a5bb94b2",
+  "results": [
+    {
+      "id": "archived-library-event-scope-failure",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "The cited campus directory record lists Financial Aid with office E-210, phone 201-684-7549, and email finaid@ramapo.edu, which supports this guidance about where to go for financial aid.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "wrong_scope",
+            "reason": "Event evidence cannot establish general attributes of a referenced facility or organization. Use direct evidence for that entity, or state that the requested attribute could not be verified.",
+            "unverified_premises": [
+              "That the campus library referred to by the student is officially the George T. Potter Library.",
+              "That the event listing’s 'LC417' location can be used as the library’s general campus location rather than only the event’s listed location."
+            ],
+            "uses_event_for_entity": true,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "The evidence supports the limitation as written: Financial Aid has an official office listing at E-210; the Library directory entry identifies Potter Library but does not give a general building location; and the only location-like detail returned for the library is from an event entry using LC417.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "This is general wayfinding advice, not a specific campus fact requiring further verification. It does not overstate the evidence about E-210 or the Potter Library.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2962,
+        "cachedInputTokens": 1792,
+        "outputTokens": 2344,
+        "reasoningTokens": 1948,
+        "draftModelMs": 0,
+        "reviewModelMs": 25508,
+        "costNusd": 38533000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "ea020a27-9c04-4c50-88d4-1b89f38b0644",
+      "elapsed_seconds": 29.361
+    },
+    {
+      "id": "event-room-as-facility-location-in-limitation",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "wrong_scope",
+            "reason": "Event evidence cannot establish general attributes of a referenced facility or organization. Use direct evidence for that entity, or state that the requested attribute could not be verified.",
+            "unverified_premises": [
+              "That the event listing's location label 'George T. Potter Library (LC417)' establishes the library's general room location, not just the venue notation for that event."
+            ],
+            "uses_event_for_entity": true,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2618,
+        "cachedInputTokens": 1792,
+        "outputTokens": 596,
+        "reasoningTokens": 459,
+        "draftModelMs": 0,
+        "reviewModelMs": 8796,
+        "costNusd": 11453000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "fe5f3374-a3a0-4886-8e40-8cc800bd30d8",
+      "elapsed_seconds": 12.668
+    },
+    {
+      "id": "event-venue-keeps-event-subject",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "The cited event record explicitly lists QT+ Book Club on Thursday, September 24, 2026 at George T. Potter Library (LC417) from 1 PM to 2 PM.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2505,
+        "cachedInputTokens": 1792,
+        "outputTokens": 261,
+        "reasoningTokens": 167,
+        "draftModelMs": 0,
+        "reviewModelMs": 4624,
+        "costNusd": 6145500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "a6a06fec-2082-41b4-beea-2e8ec3ce89d4",
+      "elapsed_seconds": 8.493
+    },
+    {
+      "id": "archived-saturday-lunch-exclusion-failure",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: That Birch Tree Inn has no separate lunch-type service or menu relevant to the student's \"lunch tomorrow\" request beyond the Brunch menu.",
+            "unverified_premises": [
+              "That Birch Tree Inn has no separate lunch-type service or menu relevant to the student's \"lunch tomorrow\" request beyond the Brunch menu."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: That the published menu results for that date were actually truncated or otherwise incomplete.",
+            "unverified_premises": [
+              "That the published menu results for that date were actually truncated or otherwise incomplete."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 3824,
+        "cachedInputTokens": 1792,
+        "outputTokens": 996,
+        "reasoningTokens": 743,
+        "draftModelMs": 0,
+        "reviewModelMs": 13613,
+        "costNusd": 20468000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "0bd965b8-1cd7-44bb-bf0b-c3a30ed2dc52",
+      "elapsed_seconds": 17.457
+    },
+    {
+      "id": "lunch-exclusion-paraphrase",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: That Birch's separately listed \"Lite Lunch\" period from 3:00 PM to 5:00 PM does not count as lunch service.",
+            "unverified_premises": [
+              "That Birch's separately listed \"Lite Lunch\" period from 3:00 PM to 5:00 PM does not count as lunch service."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2468,
+        "cachedInputTokens": 1792,
+        "outputTokens": 389,
+        "reasoningTokens": 237,
+        "draftModelMs": 0,
+        "reviewModelMs": 6376,
+        "costNusd": 7973000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "b9e09ac7-6dcd-48bf-9cd0-e14c4957929c",
+      "elapsed_seconds": 10.109
+    },
+    {
+      "id": "complete-saturday-labels-and-literal-name-distinction",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "The cited dining-hours record for Birch Tree Inn on 2026-09-05 lists Brunch 10:30 AM–3:00 PM, Lite Lunch 3:00 PM–5:00 PM, Dinner 5:00 PM–7:00 PM, and Late Night 8:00 PM–10:00 PM, and none of the period labels is exactly \"Lunch.\"",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2521,
+        "cachedInputTokens": 1792,
+        "outputTokens": 238,
+        "reasoningTokens": 101,
+        "draftModelMs": 0,
+        "reviewModelMs": 4148,
+        "costNusd": 5840500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "d1ab052b-247b-4fc3-8226-86621da2c7c2",
+      "elapsed_seconds": 7.914
+    },
+    {
+      "id": "correct-office-value-with-unrelated-citation",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "wrong_scope",
+            "reason": "Event evidence cannot establish general attributes of a referenced facility or organization. Use direct evidence for that entity, or state that the requested attribute could not be verified.",
+            "unverified_premises": [
+              "Financial Aid’s office location is E-210."
+            ],
+            "uses_event_for_entity": true,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2620,
+        "cachedInputTokens": 1792,
+        "outputTokens": 385,
+        "reasoningTokens": 276,
+        "draftModelMs": 0,
+        "reviewModelMs": 6363,
+        "costNusd": 8293000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "dcd60f5a-9d72-48fc-bdd4-976e08c8450c",
+      "elapsed_seconds": 10.117
+    },
+    {
+      "id": "missing-hours-does-not-prove-closure",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: That the relevant library-hours source for September 4, 2026 was searched completely and would list hours if the library were open.; That the absence of returned library hours for that date means the library is closed, rather than the hours simply not being present in the cited directory record.",
+            "unverified_premises": [
+              "That the relevant library-hours source for September 4, 2026 was searched completely and would list hours if the library were open.",
+              "That the absence of returned library hours for that date means the library is closed, rather than the hours simply not being present in the cited directory record."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2326,
+        "cachedInputTokens": 1792,
+        "outputTokens": 378,
+        "reasoningTokens": 215,
+        "draftModelMs": 0,
+        "reviewModelMs": 6890,
+        "costNusd": 7453000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "78fbb3ec-6469-437b-84a4-0b746a8ca0cb",
+      "elapsed_seconds": 10.804
+    },
+    {
+      "id": "missing-current-hours-safe-contact",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "The supplied records include only a campus directory contact entry and no Friday hours or closing-time record, so stating that the current records do not verify the library closing time for Friday, September 4, 2026 is supported.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "The cited campus directory record lists Library with department Potter Library, phone 201-684-7578, and email refdesk@ramapo.edu.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2404,
+        "cachedInputTokens": 1792,
+        "outputTokens": 367,
+        "reasoningTokens": 198,
+        "draftModelMs": 0,
+        "reviewModelMs": 5762,
+        "costNusd": 7483000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "c4af41b5-110e-4b07-a6b8-26ee0ed0d930",
+      "elapsed_seconds": 9.603
+    },
+    {
+      "id": "old-screenshot-laundered-through-current-directory",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: That the library's current operating hours for Friday, September 4, 2026 extend until 2:00 a.m.; That there is no special schedule, holiday exception, or other change affecting that Friday's closing time.",
+            "unverified_premises": [
+              "That the library's current operating hours for Friday, September 4, 2026 extend until 2:00 a.m.",
+              "That there is no special schedule, holiday exception, or other change affecting that Friday's closing time."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2350,
+        "cachedInputTokens": 1792,
+        "outputTokens": 529,
+        "reasoningTokens": 381,
+        "draftModelMs": 0,
+        "reviewModelMs": 8858,
+        "costNusd": 9778000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "472c9869-8321-41af-934f-93797253bcb8",
+      "elapsed_seconds": 12.738
+    },
+    {
+      "id": "structured-calendar-cross-term-transfer",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "contradicted_evidence",
+            "reason": "The cited record is for Fall 2027, not Fall 2026, and it gives classes beginning on Aug. 25, 2027. The returned Fall 2026 record instead shows classes begin Aug. 26, 2026.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "contradicted_evidence",
+            "reason": "The cited record is for Spring 2027, not Fall 2026, and it gives Jan. 25, 2027. The returned Fall 2026 full-semester add/drop record instead shows Sep. 1, 2026.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2786,
+        "cachedInputTokens": 1792,
+        "outputTokens": 640,
+        "reasoningTokens": 436,
+        "draftModelMs": 0,
+        "reviewModelMs": 8536,
+        "costNusd": 12533000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "c81b4df0-9f05-4f76-9627-e0822446ec00",
+      "elapsed_seconds": 12.427
+    },
+    {
+      "id": "structured-calendar-and-office-values-supported",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "The cited academic calendar records support that Fall 2026 full and Session I classes begin on August 26, 2026, and that the Full Semester add/drop deadline for a 100% tuition refund is September 1, 2026.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "The cited campus directory entry for Financial Aid lists office E-210, phone 201-684-7549, and email finaid@ramapo.edu.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2749,
+        "cachedInputTokens": 1792,
+        "outputTokens": 472,
+        "reasoningTokens": 296,
+        "draftModelMs": 0,
+        "reviewModelMs": 6951,
+        "costNusd": 9920500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "0bfc8c6e-9b13-47a2-95d6-e0dacb29d218",
+      "elapsed_seconds": 10.819
+    },
+    {
+      "id": "blank-allergen-fields-do-not-rank-allergy-risk",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "The cited menu records support these as vegan Birch Tree Inn dinner items for 2026-09-04, with the stated stations and published allergen labels. Among these three cited records, none lists peanut. The limitation that menu labels are not an allergy-safety guarantee is also supported.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "unsupported_claim",
+            "reason": "Published menu and allergen labels do not establish allergy safety or relative risk, including when a label is blank. Report the labels and ask dining staff about ingredients and cross-contact without ranking safety.",
+            "unverified_premises": [
+              "That, for a peanut allergy, items with a blank published allergen field are actually lower risk than the other listed items."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": true,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2657,
+        "cachedInputTokens": 1792,
+        "outputTokens": 741,
+        "reasoningTokens": 516,
+        "draftModelMs": 0,
+        "reviewModelMs": 11064,
+        "costNusd": 13725500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "c7d48b1e-c407-4912-839b-1283b929e7b6",
+      "elapsed_seconds": 14.903
+    },
+    {
+      "id": "published-allergen-labels-with-staff-check",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "The cited Birch dinner menu records support these three vegan examples, their stations, and their listed allergens: Broccoli Florets has an empty allergen list, Fried Tofu lists Soy, and Hummus lists Sesame. Across these three cited records, none lists peanut. The evidence also includes the limitation that published dietary/menu labels are not an allergy-safety guarantee.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "This is general precautionary advice and does not require campus-specific evidence. It does not make an unsupported claim about ingredient details or allergy safety.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2635,
+        "cachedInputTokens": 1792,
+        "outputTokens": 500,
+        "reasoningTokens": 304,
+        "draftModelMs": 0,
+        "reviewModelMs": 8963,
+        "costNusd": 10055500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "8db46ada-e6f9-47dc-ae89-1480ebe00826",
+      "elapsed_seconds": 12.826
+    },
+    {
+      "id": "department-entry-grouped-as-student-organization",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: That the named groups are suitable places to meet students with environmental interests; the cited records here establish names and categories, not the groups' focus or activity.",
+            "unverified_premises": [
+              "That the named groups are suitable places to meet students with environmental interests; the cited records here establish names and categories, not the groups' focus or activity."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2620,
+        "cachedInputTokens": 1792,
+        "outputTokens": 1033,
+        "reasoningTokens": 893,
+        "draftModelMs": 0,
+        "reviewModelMs": 13841,
+        "costNusd": 18013000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "2bf0450e-a7a9-4a9c-b160-7fd3ff95568c",
+      "elapsed_seconds": 17.548
+    },
+    {
+      "id": "student-organizations-with-department-distinction",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "The cited club records show Sunrise RCNJ, Garden Club, and RCNJ Birding with category 'Student Organization,' while Ramapo Green appears with category 'Department.'",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2633,
+        "cachedInputTokens": 1792,
+        "outputTokens": 253,
+        "reasoningTokens": 162,
+        "draftModelMs": 0,
+        "reviewModelMs": 4694,
+        "costNusd": 6345500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "89185a16-f4d8-408f-93ee-14e9a5f82d50",
+      "elapsed_seconds": 8.586
+    },
+    {
+      "id": "elapsed-dinner-and-event-starts-used-as-forward-plan",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "The cited dining-hours record lists Birch Tree Inn Dinner from 5 PM to 8 PM and Late Night from 9 PM to 11 PM for Friday, 2026-09-04, and the cited event records list CPB Carnival from 9 PM to 11 PM, Broadway and Board Games and Duo's Spikeball Tournament from 7 PM to 9 PM, and Frame Your Memories from 7 PM to 8 PM.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "wrong_context",
+            "reason": "This proposed action's latest usable time is 2026-09-04T19:00:00-04:00, which has passed at campus time 2026-09-04T22:21:19.653605-04:00. Describe it as past or offer an option that can still be followed, using published evidence.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T20:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T21:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T19:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 3615,
+        "cachedInputTokens": 0,
+        "outputTokens": 1849,
+        "reasoningTokens": 1509,
+        "draftModelMs": 0,
+        "reviewModelMs": 23551,
+        "costNusd": 36772500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "65b28398-17eb-44c4-a723-004b4b1cff86",
+      "elapsed_seconds": 27.775
+    },
+    {
+      "id": "remaining-evening-uses-ongoing-late-night-and-carnival",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "The cited dining record lists Birch Tree Inn Dinner from 5 PM to 8 PM and Late Night from 9 PM to 11 PM on Friday, 2026-09-04, and the cited event records list CPB Carnival 9 PM to 11 PM, Broadway and Board Games 7 PM to 9 PM, Duo's Spikeball Tournament 7 PM to 9 PM, and Frame Your Memories 7 PM to 8 PM.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "Given the campus time of 10:21 PM Friday, Dinner's 8 PM end time has passed, Birch Late Night is still scheduled until 11 PM, CPB Carnival started at 9 PM and is still scheduled until 11 PM, and the listed 7 PM events have ended by 10:21 PM.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "Birch Late Night and CPB Carnival are both still within their published 9 PM to 11 PM windows, so suggesting either before 11 PM is supported. The statement correctly avoids promising that eating first and then reaching the event will work because the evidence does not provide travel time or current admission information. CPB Carnival's listing does show a private location.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 3735,
+        "cachedInputTokens": 1792,
+        "outputTokens": 1395,
+        "reasoningTokens": 976,
+        "draftModelMs": 0,
+        "reviewModelMs": 15812,
+        "costNusd": 26230500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "e04da297-d859-48b6-8dcc-33858915aa4c",
+      "elapsed_seconds": 19.715
+    },
+    {
+      "id": "elapsed-forward-plan-with-complete-citations",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "The cited dining-hours record lists Birch Tree Inn Dinner 5 PM–8 PM and Late Night 9 PM–11 PM for Friday, 2026-09-04, and the cited event records list CPB Carnival 9 PM–11 PM, Broadway and Board Games 7 PM–9 PM, Duo's Spikeball Tournament 7 PM–9 PM, and Frame Your Memories 7 PM–8 PM on that date.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "wrong_context",
+            "reason": "This proposed action's latest usable time is 2026-09-04T19:00:00-04:00, which has passed at campus time 2026-09-04T22:21:19.653605-04:00. Describe it as past or offer an option that can still be followed, using published evidence.",
+            "unverified_premises": [
+              "That it is still before 8:00 PM and the student still has time to eat Birch dinner before that service ends.",
+              "That it is still before 9:00 PM if the recommendation is to attend CPB Carnival at its 9:00 PM start time.",
+              "That it is still before 7:00 PM for the alternative plan to make one of the 7:00 PM events."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T20:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T21:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T19:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 3635,
+        "cachedInputTokens": 1792,
+        "outputTokens": 1798,
+        "reasoningTokens": 1384,
+        "draftModelMs": 0,
+        "reviewModelMs": 19077,
+        "costNusd": 32025500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "1d2642e7-ee3a-45ca-81a4-18d5a0c19865",
+      "elapsed_seconds": 23.078
+    },
+    {
+      "id": "captured-evening-summary-reuses-earlier-citations",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "Record 11 shows Birch Tree Inn on Friday 2026-09-04 with Dinner from 5:00 PM to 8:00 PM and Late Night from 9:00 PM to 11:00 PM, supporting both the dinner end time and the last service end time tonight.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "Each listed item and station is directly supported by the cited Birch dinner menu records, and the wording 'some of' correctly presents a non-exhaustive list of published dinner items for tonight.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "At 10:52 PM local time, CPB Carnival's 9:00 PM-11:00 PM listing is still ongoing, while the cited 7:00 PM events with 8:00 PM or 9:00 PM end times have ended. Across today's returned event results, CPB Carnival is the only one still running.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "Record 16 lists CPB Carnival's location as 'Private Location (sign in to display),' which supports saying the public feed does not show a public venue and that only the time can be confirmed from the retrieved record.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 4,
+            "verdict": "supported",
+            "reason": "By the current campus time, Birch's Dinner period has ended and Late Night remains available until 11:00 PM. The returned event results support that CPB Carnival is the only event from today's published results still in progress.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 5008,
+        "cachedInputTokens": 1792,
+        "outputTokens": 2178,
+        "reasoningTokens": 1655,
+        "draftModelMs": 0,
+        "reviewModelMs": 23501,
+        "costNusd": 41158000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "615c439f-308a-4533-ac93-f60304d66b30",
+      "elapsed_seconds": 27.877
+    },
+    {
+      "id": "uncited-evening-summary-cannot-invent-later-closing",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": false,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "Record 11 shows Birch Tree Inn on Friday, 2026-09-04 with Dinner 5:00 PM–8:00 PM and Late Night 9:00 PM–11:00 PM, matching the paragraph’s distinction between dinner ending at 8:00 PM and the last listed service ending at 11:00 PM.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "Each listed item is directly supported by the cited Birch Dinner menu records for 2026-09-04, including the named station associations.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: The cited event records are the complete set of 'today’s results' being summarized, so no other Sep. 4 result outside this citation set could still be running.",
+            "unverified_premises": [
+              "The cited event records are the complete set of 'today’s results' being summarized, so no other Sep. 4 result outside this citation set could still be running."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "Record 16 lists CPB Carnival with location 'Private Location (sign in to display),' so the paragraph is supported in saying the public feed confirms the event time but not a public venue.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 4,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: For 'CPB Carnival is the only event from today’s published results that still appears to be in progress' to be established from this paragraph’s cited event records, those cited event records would need to be the complete set of today's published results being summarized.",
+            "unverified_premises": [
+              "For 'CPB Carnival is the only event from today’s published results that still appears to be in progress' to be established from this paragraph’s cited event records, those cited event records would need to be the complete set of today's published results being summarized."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-05T00:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 5004,
+        "cachedInputTokens": 1792,
+        "outputTokens": 2733,
+        "reasoningTokens": 2125,
+        "draftModelMs": 0,
+        "reviewModelMs": 30900,
+        "costNusd": 49473000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "0f4aa7fd-b603-4f95-8a8b-af114e6e3235",
+      "elapsed_seconds": 35.029
+    },
+    {
+      "id": "captured-listed-price-does-not-disprove-waiver",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "This is a general limitation about not presenting unsupported claims as fact; it does not assert any new campus-specific fact.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "This is an honest verification limit. The available library evidence here is contact information, not daily operating hours, so the answer can say the 24/7 claim is not verified in this reply.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: That the published New Jersey full-time semester tuition rate is the amount students necessarily must pay this year, rather than a base rate that could still be offset by a universal waiver.; That a tuition figure for the New Jersey full-time semester category is enough to rule out a waiver applying to every student this year.",
+            "unverified_premises": [
+              "That the published New Jersey full-time semester tuition rate is the amount students necessarily must pay this year, rather than a base rate that could still be offset by a universal waiver.",
+              "That a tuition figure for the New Jersey full-time semester category is enough to rule out a waiver applying to every student this year."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "This is general cautionary guidance to verify hours and tuition through official sources; it does not add unsupported campus specifics.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 7333,
+        "cachedInputTokens": 1792,
+        "outputTokens": 2029,
+        "reasoningTokens": 1673,
+        "draftModelMs": 0,
+        "reviewModelMs": 24084,
+        "costNusd": 44735500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "644ccdd3-6b33-4a5d-b975-8019b2132cdc",
+      "elapsed_seconds": 28.218
+    },
+    {
+      "id": "listed-price-with-waiver-coverage-unverified",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "This is a general refusal to present unsupported claims as fact; it does not assert any new campus fact beyond the need for official support.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "This is an honest verification limit. The library-related records provided here are contact and staff information and do not establish that the library is open 24 hours every day.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "record_1 supports that a published tuition fact lists New Jersey full-time semester tuition as $8,807.68, and that price listing does not itself establish a universal tuition waiver.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "This is general advice to verify library hours and tuition/financial-aid information through official sources; it does not add unsupported campus facts.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 7331,
+        "cachedInputTokens": 1792,
+        "outputTokens": 1614,
+        "reasoningTokens": 1318,
+        "draftModelMs": 0,
+        "reviewModelMs": 17743,
+        "costNusd": 38505500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "228b89f3-1451-4463-aa01-b56892ae72d9",
+      "elapsed_seconds": 21.8
+    },
+    {
+      "id": "catalog-presence-does-not-establish-open-seats",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "The cited catalog record describes CMPS 147 as an introductory course covering problem-solving with computers, ANSI C++ programming, algorithm design, debugging, and testing.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: For the current fall term, Ramapo is offering at least one section of CMPS 147 and at least one seat is currently open in that section.",
+            "unverified_premises": [
+              "For the current fall term, Ramapo is offering at least one section of CMPS 147 and at least one seat is currently open in that section."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2542,
+        "cachedInputTokens": 1792,
+        "outputTokens": 596,
+        "reasoningTokens": 394,
+        "draftModelMs": 0,
+        "reviewModelMs": 8301,
+        "costNusd": 11263000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "653a30b7-049b-4d80-ac73-ea6994b68136",
+      "elapsed_seconds": 12.115
+    },
+    {
+      "id": "catalog-description-with-registration-unverified",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "The cited course record lists CMPS 147 in Ramapo’s catalog and its description includes introductory problem-solving with computers, ANSI C++ programming, algorithm design, debugging, and testing.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "The cited catalog record explicitly says it is a catalog description only and that enrollment, sections, and seats are unavailable, so this limitation accurately states that the record cannot verify Fall offering or seat availability.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2559,
+        "cachedInputTokens": 1792,
+        "outputTokens": 471,
+        "reasoningTokens": 301,
+        "draftModelMs": 0,
+        "reviewModelMs": 6504,
+        "costNusd": 9430500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "8077a67e-f66b-4c3b-85a2-26b60b0fb99b",
+      "elapsed_seconds": 10.325
+    },
+    {
+      "id": "conditional-counseling-rules-are-not-expired-plan",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "The cited directory and Counseling Services page support the phone number, email address, and location in Building D, Room D-216.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "The cited Counseling Services page says students may visit Academic Building D, Room 216 or call 201-684-7522, and it lists academic year hours as Monday through Friday, 8:30 a.m. to 4:30 p.m.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "The cited suicide-prevention page states Counseling Services offers emergency counseling 24/7/365, gives the business-hours and after-hours instructions using 201-684-7522, and includes 911 and 988 guidance.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "standing_service_rule",
+                "latest_usable_at": null
+              },
+              {
+                "basis": "standing_service_rule",
+                "latest_usable_at": null
+              }
+            ]
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "This is largely general supportive guidance, and its specific suggestion to go to D-216 during business hours is consistent with the earlier supported contact and hours information.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "standing_service_rule",
+                "latest_usable_at": null
+              }
+            ]
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 3451,
+        "cachedInputTokens": 1792,
+        "outputTokens": 2223,
+        "reasoningTokens": 1856,
+        "draftModelMs": 0,
+        "reviewModelMs": 21759,
+        "costNusd": 37940500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "56fe819d-08ee-48ba-9319-6f517a005857",
+      "elapsed_seconds": 25.896
+    },
+    {
+      "id": "explicit-departure-at-closing-cannot-precede-ended-event",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "Record 11 shows Birch Tree Inn has Dinner from 5:00 PM to 8:00 PM and a separate Late Night period from 9:00 PM to 11:00 PM on Friday, Sep 4.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "Each listed item and station is directly supported by the cited Birch dinner menu records for Sep 4.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "At 10:52 PM local time, CPB Carnival is the only event in the returned Sep 4 event records still within its published 9:00 PM to 11:00 PM window; the cited 7:00 PM events have already ended.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "Record 16 lists CPB Carnival's location as 'Private Location (sign in to display)', so the answer can verify the time but not a public venue from the retrieved record.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 4,
+            "verdict": "contradicted_evidence",
+            "reason": "This plan is impossible as written: Birch's last service ends at 11:00 PM, and CPB Carnival also ends at 11:00 PM, so you cannot go to the carnival afterward after 11:00 PM.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 4984,
+        "cachedInputTokens": 1792,
+        "outputTokens": 1962,
+        "reasoningTokens": 1490,
+        "draftModelMs": 0,
+        "reviewModelMs": 20273,
+        "costNusd": 37858000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "ab91fc42-a46f-4e2a-a43f-47e1dd286aa9",
+      "elapsed_seconds": 24.011
+    }
+  ],
+  "summary": {
+    "passed": 26,
+    "attempted": 27,
+    "planned": 27,
+    "model_calls": 27,
+    "unrun": 0,
+    "cost_nusd": 559405500,
+    "unsettled_nusd": 0,
+    "tool_calls": 0
+  }
+}

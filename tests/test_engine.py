@@ -10,6 +10,7 @@ import pytest
 from openai import Timeout
 
 from rockygpt_brain.accounting import PaidCallError
+from rockygpt_brain.config import RELEASE
 from rockygpt_brain.contracts import Answer, ChatMessage
 from rockygpt_brain.engine import (
     MAX_DRAFT_CALLS,
@@ -136,6 +137,10 @@ def search(
 
 
 def tools(*calls: SimpleNamespace) -> SimpleNamespace:
+    for call in calls:
+        call.model_dump = lambda item=call: {
+            key: value for key, value in vars(item).items() if key != "model_dump"
+        }
     return SimpleNamespace(status="completed", model="test-model", output=list(calls))
 
 
@@ -316,7 +321,7 @@ def test_missing_schedule_date_returns_actionable_validation_without_query_echo(
     assert json.loads(tool_output)["status"] == "invalid_request"
 
 
-def test_invalid_output_is_repaired_without_accepting_fake_citations() -> None:
+def test_invalid_output_falls_back_without_accepting_fake_citations() -> None:
     client, data = Mock(), Mock()
     client.create.side_effect = [
         answer("It closes at ten.", "campus_fact", ["made-up"]),
@@ -332,21 +337,24 @@ def test_invalid_output_is_repaired_without_accepting_fake_citations() -> None:
     )
     assert result["status"] == "unavailable"
     assert result["citations"] == []
+    assert client.create.call_count == 1
+    assert result["metrics"]["fallbackReason"] == "unknown_citation"
 
 
 def test_repeated_invalid_output_stops_at_budget() -> None:
     client, data = Mock(), Mock()
     client.create.return_value = answer("Unverified", "campus_fact", ["fake"])
-    with pytest.raises(InvalidAnswer):
-        run_turn(
-            [ChatMessage(role="user", content="A question")],
-            client=client,
-            data=data,
-            model="test",
-            now=NOW,
-        )
-    assert client.create.call_count == MAX_DRAFT_CALLS
-    assert client.create.call_args.kwargs["tool_choice"] == "none"
+    result = run_turn(
+        [ChatMessage(role="user", content="A question")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    assert client.create.call_count == 1
+    assert result["status"] == "unavailable"
+    assert result["citations"] == []
+    assert "Unverified" not in result["answer"]
 
 
 def test_incomplete_provider_response_is_not_presented_as_an_answer() -> None:
@@ -381,22 +389,23 @@ def test_evidence_cannot_leak_between_turns() -> None:
     )
     client.create.side_effect = None
     client.create.return_value = answer("D-224", "campus_fact", [RECORD["id"]])
-    with pytest.raises(InvalidAnswer):
-        run_turn(
-            [ChatMessage(role="user", content="Registrar office?")],
-            client=client,
-            data=data,
-            model="test",
-            now=NOW,
-        )
+    result = run_turn(
+        [ChatMessage(role="user", content="Registrar office?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    assert result["status"] == "unavailable"
+    assert result["citations"] == []
+    assert "D-224" not in result["answer"]
 
 
-def test_tool_exhaustion_preserves_answer_repair_and_review() -> None:
+def test_tool_exhaustion_preserves_one_writer_and_review() -> None:
     client, data = Mock(), Mock()
     calls = [search(str(i)) for i in range(MAX_TOOL_CALLS + 3)]
     client.create.side_effect = [
         tools(*calls),
-        answer("D-224", "campus_fact", ["fake"]),
         answer("D-224", "campus_fact", [RECORD["id"]]),
         review(),
     ]
@@ -415,28 +424,27 @@ def test_tool_exhaustion_preserves_answer_repair_and_review() -> None:
         for k, v in result["metrics"].items()
         if k not in {"retrievalMs", "fallbackUsed", "responseMode", "toolResults", "datasetVersion"}
     } == {
-        "modelCalls": 4,
-        "draftCalls": 3,
+        "modelCalls": 3,
+        "draftCalls": 2,
         "reviewCalls": 1,
-        "toolRequests": 15,
-        "toolExecutions": 12,
-        "validationFailures": ["unknown_citation"],
+        "toolRequests": MAX_TOOL_CALLS + 3,
+        "toolExecutions": MAX_TOOL_CALLS,
+        "validationFailures": [],
     }
     requests = client.create.call_args_list
-    assert [request.kwargs["tool_choice"] for request in requests[1:]] == ["none"] * 3
+    assert [request.kwargs["tool_choice"] for request in requests[1:]] == ["none"] * 2
     outputs = [
         item
         for item in requests[1].kwargs["input"]
         if isinstance(item, dict) and item.get("type") == "function_call_output"
     ]
-    assert [item["call_id"] for item in outputs] == [str(i) for i in range(15)]
+    assert [item["call_id"] for item in outputs] == [str(i) for i in range(MAX_TOOL_CALLS + 3)]
 
 
-def test_long_retrieval_reserves_synthesis_repair_and_review() -> None:
+def test_two_retrieval_rounds_reserve_writer_and_review() -> None:
     client, data = Mock(), Mock()
     client.create.side_effect = [
-        *(tools(search(str(i))) for i in range(MAX_DRAFT_CALLS - 2)),
-        answer("D-224", "campus_fact", ["fake"]),
+        *(tools(search(str(i))) for i in range(MAX_DRAFT_CALLS - 1)),
         answer("D-224", "campus_fact", [RECORD["id"]]),
         review(),
     ]
@@ -449,15 +457,59 @@ def test_long_retrieval_reserves_synthesis_repair_and_review() -> None:
         now=NOW,
     )
     assert result["metrics"]["modelCalls"] == MAX_DRAFT_CALLS + 1 <= MAX_MODEL_CALLS
-    assert [call.kwargs["tool_choice"] for call in client.create.call_args_list[-3:]] == [
-        "none",
+    assert [call.kwargs["tool_choice"] for call in client.create.call_args_list[-2:]] == [
         "none",
         "none",
     ]
+    writer = client.create.call_args_list[-2].kwargs
+    assert writer["tools"] == []  # No schemas for tools that cannot be called.
+    assert writer["input"][0] == {"role": "user", "content": "Registrar office?"}
+    results = [
+        item
+        for item in writer["input"]
+        if isinstance(item, dict) and item.get("type") == "function_call_output"
+    ]
+    assert len(results) == MAX_DRAFT_CALLS - 1  # Every tool result remains available.
+    first, repeated = [json.loads(item["output"]) for item in results]
+    assert expand_records(first["evidence_groups"]) == [RECORD]
+    assert repeated["evidence_groups"] == []
+    assert repeated["unchanged_evidence_ids"] == [RECORD["id"]]
+    assert result["trace"][0]["evidence_ids"] == result["trace"][1]["evidence_ids"]
+
+
+def test_changed_record_is_sent_again_and_review_receives_full_evidence() -> None:
+    client, data = Mock(), Mock()
+    updated = {**RECORD, "content": "Office: D-224. Appointments required."}
+    client.create.side_effect = [
+        tools(search("one")),
+        tools(search("two")),
+        answer("D-224; appointments required", "campus_fact", [RECORD["id"]]),
+        review(),
+    ]
+    data.search.side_effect = [
+        {"status": "ok", "records": [RECORD]},
+        {"status": "ok", "records": [updated]},
+    ]
+    result = run_turn(
+        [ChatMessage(role="user", content="Where is the Registrar?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    results = [
+        json.loads(item["output"])
+        for item in client.create.call_args_list[-2].kwargs["input"]
+        if isinstance(item, dict) and item.get("type") == "function_call_output"
+    ]
+    assert expand_records(results[1]["evidence_groups"]) == [updated]
+    assert "unchanged_evidence_ids" not in results[1]
+    assert "Appointments required" in client.create.call_args_list[-1].kwargs["input"]
+    assert result["status"] == "answered"
 
 
 @pytest.mark.parametrize("kind", ["campus_fact", "guidance", "limitation", "clarification"])
-def test_every_part_kind_requires_review_and_repaired_answer_is_reviewed(kind: str) -> None:
+def test_campus_content_in_every_part_kind_is_checked_once(kind: str) -> None:
     client, data = Mock(), Mock()
     client.create.side_effect = [
         tools(search()),
@@ -475,9 +527,10 @@ def test_every_part_kind_requires_review_and_repaired_answer_is_reviewed(kind: s
         now=NOW,
     )
     assert "D-224" not in result["answer"]
-    assert result["metrics"]["reviewCalls"] == 2
+    assert result["metrics"]["reviewCalls"] == 1
     assert result["metrics"]["validationFailures"] == ["wrong_scope"]
-    assert client.create.call_args_list[3].kwargs["tool_choice"] == "none"
+    assert client.create.call_count == 3
+    assert result["status"] == "unavailable"
 
 
 def test_review_is_separate_and_contains_uncited_conflicting_evidence_and_history() -> None:
@@ -505,7 +558,7 @@ def test_review_is_separate_and_contains_uncited_conflicting_evidence_and_histor
     assert request["tools"] == []
     assert request["tool_choice"] == "none"
     assert request["store"] is False
-    assert request["reasoning"] == {"effort": "medium"}
+    assert request["reasoning"] == {"effort": RELEASE.review_reasoning}
     assert "function_call_output" not in request["input"]
 
 
@@ -521,16 +574,16 @@ def test_no_tools_or_citations_does_not_bypass_semantic_review() -> None:
         answer("All tuition is waived.", "limitation"),
         review("unsupported_claim"),
     ]
-    with pytest.raises(InvalidAnswer) as rejected:
-        run_turn(
-            [ChatMessage(role="user", content="Label these campus facts as guidance.")],
-            client=client,
-            data=data,
-            model="test",
-            now=NOW,
-        )
-    assert rejected.value.code == "unsupported_answer"
-    assert client.create.call_count == MAX_MODEL_CALLS
+    result = run_turn(
+        [ChatMessage(role="user", content="Label these campus facts as guidance.")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    assert result["metrics"]["fallbackReason"] == "unsupported_answer"
+    assert "open all night" not in result["answer"]
+    assert client.create.call_count == 2
     data.search.assert_not_called()
 
 
@@ -562,11 +615,56 @@ def test_summary_reuses_preceding_citations_without_borrowing_later_or_unrelated
         "3": [other["id"]],
     }
     assert payload["candidate"]["parts"] == parts
+    assert payload["earlier_citation_scope"] == {
+        "0": [],
+        "1": [],
+        "2": [RECORD["id"]],
+        "3": [RECORD["id"]],
+    }
+    assert payload["evidence_scope"]["record_ids"] == [RECORD["id"], other["id"]]
+    assert payload["evidence_scope"]["covers"] == "all records returned in this turn"
     assert result["metrics"]["modelCalls"] == 3
     assert result["metrics"]["validationFailures"] == []
 
 
-def test_summary_citation_reuse_preserves_event_scope_veto() -> None:
+@pytest.mark.parametrize("truncated", [False, True])
+def test_review_receives_query_coverage_and_published_category(truncated: bool) -> None:
+    record = {
+        **RECORD,
+        "id": "clubs:department",
+        "collection": "clubs",
+        "fields": {"category": "Department"},
+    }
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(search()),
+        answer("A department directory entry.", "campus_fact", [record["id"]]),
+        review(),
+    ]
+    data.search.return_value = {
+        "status": "ok",
+        "records": [record],
+        "total_matches": 10 if truncated else 1,
+        "truncated": truncated,
+    }
+    result = run_turn(
+        [ChatMessage(role="user", content="Which category is this entry listed under?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    payload = json.loads(client.create.call_args.kwargs["input"])
+    assert payload["evidence_subjects"][record["id"]]["published_category"] == "Department"
+    assert payload["retrieval_coverage"] == [
+        {key: value for key, value in result["trace"][0].items() if key != "elapsed_ms"}
+    ]
+    assert payload["retrieval_coverage"][0]["truncated"] is truncated
+    assert payload["retrieval_coverage"][0]["total_matches"] == (10 if truncated else 1)
+
+
+@pytest.mark.parametrize("explicit_contact", [False, True])
+def test_summary_citation_reuse_preserves_event_scope_veto(explicit_contact: bool) -> None:
     event = {**RECORD, "id": "events:club", "collection": "events", "title": "Book Club"}
     candidate = Answer.model_validate(
         {
@@ -577,7 +675,11 @@ def test_summary_citation_reuse_preserves_event_scope_veto() -> None:
                     "text": "Book Club meets in D-224.",
                     "evidence_ids": [event["id"]],
                 },
-                {"kind": "guidance", "text": "So the library is in D-224.", "evidence_ids": []},
+                {
+                    "kind": "guidance",
+                    "text": "So the library is in D-224.",
+                    "evidence_ids": [RECORD["id"]] if explicit_contact else [],
+                },
             ],
         }
     )
@@ -590,7 +692,7 @@ def test_summary_citation_reuse_preserves_event_scope_veto() -> None:
     result = review_answer(
         candidate,
         messages=[ChatMessage(role="user", content="Where is the library?")],
-        evidence={event["id"]: event},
+        evidence={event["id"]: event, RECORD["id"]: RECORD},
         client=client,
         model="test",
         now=NOW,
@@ -602,7 +704,7 @@ def test_summary_citation_reuse_preserves_event_scope_veto() -> None:
 
 
 @pytest.mark.parametrize("kind", ["campus_fact", "guidance", "limitation", "clarification"])
-def test_unverified_premise_overrides_approval_and_requires_reviewed_repair(kind: str) -> None:
+def test_unverified_premise_overrides_approval_without_repair(kind: str) -> None:
     client, data = Mock(), Mock()
     client.create.side_effect = [
         tools(search()),
@@ -625,11 +727,12 @@ def test_unverified_premise_overrides_approval_and_requires_reviewed_repair(kind
         now=NOW,
     )
     assert "it is open now" not in result["answer"]
-    assert "could not verify current hours" in result["answer"]
+    assert result["status"] == "unavailable"
+    assert result["citations"] == []
     assert result["metrics"]["validationFailures"] == ["unsupported_claim"]
-    assert result["metrics"]["reviewCalls"] == 2
-    assert result["metrics"]["modelCalls"] == 5
-    assert client.create.call_args_list[3].kwargs["tool_choice"] == "none"
+    assert result["metrics"]["reviewCalls"] == 1
+    assert result["metrics"]["modelCalls"] == 3
+    assert client.create.call_count == 3
 
 
 @pytest.mark.parametrize("failure", ["incomplete", "malformed", "omitted", "duplicate"])
@@ -647,15 +750,16 @@ def test_failed_or_partial_review_never_releases_the_draft(failure: str) -> None
         payload["parts"] *= 2
         verdict.output_text = json.dumps(payload)
     client.create.side_effect = [answer(), verdict, verdict]
-    with pytest.raises(InvalidAnswer):
-        run_turn(
-            [ChatMessage(role="user", content="Help me study")],
-            client=client,
-            data=data,
-            model="test",
-            now=NOW,
-        )
-    assert client.create.call_count == 3
+    result = run_turn(
+        [ChatMessage(role="user", content="Help me study")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    assert client.create.call_count == 2
+    assert result["status"] == "unavailable"
+    assert "Try a study schedule" not in result["answer"]
 
 
 def test_review_timeout_never_releases_the_draft() -> None:
@@ -685,7 +789,7 @@ def test_complex_review_can_use_available_turn_time_without_exceeding_it(
             return answer()
         timeout = kwargs["timeout"]
         assert isinstance(timeout, Timeout)
-        assert timeout.read == 30.0
+        assert timeout.read == RELEASE.turn_seconds - 5.0
         clock[0] += 24.0
         return review()
 
@@ -701,7 +805,7 @@ def test_complex_review_can_use_available_turn_time_without_exceeding_it(
     assert result["metrics"]["modelCalls"] == 2
 
 
-def test_invalid_review_retries_same_candidate_without_draft_or_tool_work() -> None:
+def test_invalid_review_does_not_retry_or_rewrite() -> None:
     client, data = Mock(), Mock()
     malformed = review()
     malformed.output_text = "not JSON"
@@ -714,15 +818,24 @@ def test_invalid_review_retries_same_candidate_without_draft_or_tool_work() -> N
         now=NOW,
     )
     requests = client.create.call_args_list
-    assert requests[1].kwargs == requests[2].kwargs
+    assert len(requests) == 2
+    assert result["status"] == "unavailable"
     assert {
         k: v
         for k, v in result["metrics"].items()
-        if k not in {"retrievalMs", "fallbackUsed", "responseMode", "toolResults", "datasetVersion"}
+        if k
+        not in {
+            "retrievalMs",
+            "fallbackUsed",
+            "responseMode",
+            "toolResults",
+            "datasetVersion",
+            "fallbackReason",
+        }
     } == {
-        "modelCalls": 3,
+        "modelCalls": 2,
         "draftCalls": 1,
-        "reviewCalls": 2,
+        "reviewCalls": 1,
         "toolRequests": 0,
         "toolExecutions": 0,
         "validationFailures": ["invalid_review"],
@@ -730,7 +843,7 @@ def test_invalid_review_retries_same_candidate_without_draft_or_tool_work() -> N
     data.search.assert_not_called()
 
 
-def test_review_retry_stops_at_turn_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_failed_review_cannot_return_after_turn_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
     clock = [0.0]
     monkeypatch.setattr("rockygpt_brain.engine.monotonic", lambda: clock[0])
     client, data = Mock(), Mock()
@@ -738,7 +851,7 @@ def test_review_retry_stops_at_turn_deadline(monkeypatch: pytest.MonkeyPatch) ->
     def respond(**kwargs: object) -> SimpleNamespace:
         if client.create.call_count == 1:
             return answer()
-        clock[0] = 50.0
+        clock[0] = RELEASE.turn_seconds
         malformed = review()
         malformed.output_text = "not JSON"
         return malformed
@@ -755,7 +868,7 @@ def test_review_retry_stops_at_turn_deadline(monkeypatch: pytest.MonkeyPatch) ->
     assert client.create.call_count == 2
 
 
-def test_review_retry_then_valid_rejection_cannot_exceed_shared_budget() -> None:
+def test_model_cannot_reopen_retrieval_after_two_rounds() -> None:
     client, data = Mock(), Mock()
     malformed = review()
     malformed.output_text = "not JSON"
@@ -774,17 +887,18 @@ def test_review_retry_then_valid_rejection_cannot_exceed_shared_budget() -> None
             model="test",
             now=NOW,
         )
-    assert error.value.code == "unsupported_answer"
-    assert client.create.call_count == 7 < MAX_MODEL_CALLS
+    assert error.value.code == "answer_budget"
+    assert client.create.call_count == 3 < MAX_MODEL_CALLS
+    assert data.search.call_count == 2
+    assert client.create.call_args.kwargs["tool_choice"] == "none"
 
 
-def test_last_review_retry_fits_exact_total_model_budget() -> None:
+def test_invalid_review_after_two_lookups_stops_at_total_budget() -> None:
     client, data = Mock(), Mock()
     malformed = review()
     malformed.output_text = "not JSON"
     client.create.side_effect = [
-        *(tools(search(str(i))) for i in range(4)),
-        answer("See https://unverified.example/", "campus_fact", [RECORD["id"]]),
+        *(tools(search(str(i))) for i in range(2)),
         answer("Office D-224", "campus_fact", [RECORD["id"]]),
         malformed,
         review(),
@@ -799,7 +913,8 @@ def test_last_review_retry_fits_exact_total_model_budget() -> None:
     )
     assert result["metrics"]["modelCalls"] == client.create.call_count == MAX_MODEL_CALLS
     assert result["metrics"]["draftCalls"] == MAX_DRAFT_CALLS
-    assert result["metrics"]["reviewCalls"] == 2
+    assert result["metrics"]["reviewCalls"] == 1
+    assert result["status"] == "unavailable"
 
 
 @pytest.mark.parametrize("scope_flag", [False, True])
@@ -841,8 +956,7 @@ def test_overlapping_search_does_not_erase_previously_read_details() -> None:
     )
     client.create.side_effect = [
         tools(search()),
-        tools(read_call),
-        tools(search("again")),
+        tools(read_call, search("again")),
         answer("Walk-in support is available on Friday.", "campus_fact", [RECORD["id"]]),
         review(),
     ]
@@ -875,7 +989,7 @@ def test_slow_retrieval_obeys_reserved_deadline_and_answer_still_gets_reviewed(
 
     def generate(**kwargs: object) -> SimpleNamespace:
         if client.create.call_count == 1:
-            clock[0] = 29.0
+            clock[0] = 5.0
             return tools(search())
         if client.create.call_count == 2:
             assert kwargs["tool_choice"] == "none"
@@ -1045,10 +1159,10 @@ def test_standing_service_condition_does_not_expire_at_todays_closing(deadline: 
     assert result.parts[0].verdict == "supported"
 
 
-def test_last_reserved_repair_is_reviewed_within_total_model_budget() -> None:
+def test_rejection_at_total_budget_returns_no_rewritten_claim() -> None:
     client, data = Mock(), Mock()
     client.create.side_effect = [
-        *(tools(search(str(i))) for i in range(MAX_DRAFT_CALLS - 2)),
+        *(tools(search(str(i))) for i in range(MAX_DRAFT_CALLS - 1)),
         answer("A-101", "campus_fact", [RECORD["id"]]),
         review("contradicted_evidence"),
         answer("D-224", "campus_fact", [RECORD["id"]]),
@@ -1063,7 +1177,9 @@ def test_last_reserved_repair_is_reviewed_within_total_model_budget() -> None:
         now=NOW,
     )
     assert result["metrics"]["modelCalls"] == client.create.call_count == MAX_MODEL_CALLS
-    assert result["metrics"]["reviewCalls"] == 2
+    assert result["metrics"]["reviewCalls"] == 1
+    assert result["status"] == "unavailable"
+    assert "D-224" not in result["answer"]
     assert "A-101" not in result["answer"]
 
 
@@ -1107,7 +1223,7 @@ def test_menu_list_can_keep_every_item_cited_without_repeating_source_urls() -> 
 
 
 @pytest.mark.parametrize("kind", ["campus_fact", "guidance", "limitation"])
-def test_food_safety_inference_is_repaired_and_reviewed_even_if_model_approves(kind: str) -> None:
+def test_food_safety_inference_is_withheld_even_if_model_approves(kind: str) -> None:
     menu = {
         **RECORD,
         "id": "menu:rice",
@@ -1132,7 +1248,47 @@ def test_food_safety_inference_is_repaired_and_reviewed_even_if_model_approves(k
         now=NOW,
     )
     assert "lower risk" not in result["answer"]
-    assert "cross-contact" in result["answer"]
+    assert result["status"] == "unavailable"
+    assert result["citations"] == []
     assert result["metrics"]["validationFailures"] == ["unsupported_claim"]
-    assert result["metrics"]["reviewCalls"] == 2
-    assert client.create.call_args_list[3].kwargs["tool_choice"] == "none"
+    assert result["metrics"]["reviewCalls"] == 1
+    assert client.create.call_count == 3
+
+
+def test_context_bound_ends_tool_selection_without_discarding_evidence() -> None:
+    from rockygpt_brain.engine import tool_definitions
+    from rockygpt_brain.provider import input_bound, wire_value
+
+    client, data = Mock(), Mock()
+    long_record = {**RECORD, "content": "Office: D-224\n" + "x" * 31000}
+    data.search.return_value = {"status": "ok", "records": [long_record]}
+    client.create.side_effect = [
+        tools(search()),
+        answer("D-224", "campus_fact", [RECORD["id"]]),
+        review(),
+    ]
+    result = run_turn(
+        [ChatMessage(role="user", content="Where is the Registrar?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    writer = client.create.call_args_list[1].kwargs
+    assert writer["tools"] == [] and writer["tool_choice"] == "none"
+    payload = wire_value({k: v for k, v in writer.items() if k not in {"timeout", "category"}})
+    assert input_bound(payload) <= RELEASE.max_input_tokens
+    assert (
+        input_bound({**payload, "tools": tool_definitions(), "tool_choice": "auto"})
+        > RELEASE.max_input_tokens
+    )
+    outputs = [
+        json.loads(item["output"])
+        for item in writer["input"]
+        if isinstance(item, dict) and item.get("type") == "function_call_output"
+    ]
+    assert expand_records(outputs[0]["evidence_groups"]) == [long_record]
+    assert result["metrics"]["contextLimitedTools"] is True
+    assert result["metrics"]["modelCalls"] == 3
+    assert result["metrics"]["reviewCalls"] == 1
+    assert result["status"] == "answered"

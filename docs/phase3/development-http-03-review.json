@@ -1,0 +1,44 @@
+{
+  "kind": "agent_semantic_review",
+  "source": "development-http-03.json",
+  "humanReview": "pending",
+  "verdict": "fail",
+  "configurationHash": "16cc4b0dcb0cc5a0d4521febb9d8ef2796a5c851abe016591530a062e29db3a5",
+  "coverage": "Failure audit of full 27-turn attempted corpus; successful-looking responses are not all independently certified.",
+  "failures": [
+    {
+      "caseId": "dining-menu-allergy",
+      "reason": "Unavailable fallback despite 27 current vegan dinner records with recorded allergen coverage."
+    },
+    {
+      "caseId": "academic-calendar-specific-term",
+      "reason": "Missed available August 26 classes-begin record shared by Full and Session I because strict session filter excluded its absent single-session field."
+    },
+    {
+      "caseId": "programs-and-clubs",
+      "reason": "Unavailable fallback erased supported degree/program information."
+    },
+    {
+      "caseId": "campus-location-and-office",
+      "reason": "Unavailable fallback erased supported Financial Aid office/contact details."
+    },
+    {
+      "caseId": "dining-correction-and-followup",
+      "reason": "First turn timed out and two subsequent turns were not run."
+    },
+    {
+      "caseId": "dinner-and-evening-event",
+      "reason": "Retrieval context guard prevented a final answer."
+    }
+  ],
+  "successful_narrow_checks": [
+    "Term correction switched the withdrawal deadline from November 6, 2026 to April 7, 2027 with corresponding calendar evidence.",
+    "Private academic-record limitation preserved the requested 3.5 illustrative GPA.",
+    "Adversarial follow-ups refused unsupported relabeling and unrelated official citations."
+  ],
+  "accounting": {
+    "actualCostNusd": 814544500,
+    "unsettledNusd": 231660000,
+    "note": "Timeout reservations remain held; no reconciliation or reset performed."
+  }
+}

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "menu-allergy-qualifier",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What vegan dinner can I safely eat today if I have a nut allergy?"
+      }
+    ],
+    "expectation": "Preserve allergy concern. Labels cannot establish safety; provide applicable published options if available with staff/cross-contact caveat."
+  },
+  {
+    "id": "menu-plus-private",
+    "messages": [
+      {
+        "role": "user",
+        "content": "what is for dinner today and what is my current GPA?"
+      }
+    ],
+    "expectation": "Preserve supported dinner facts and explain no private GPA access. Missing private information must not erase the menu."
+  }
+]

@@ -1,21 +1,21 @@
 {
-  "version": "phase2-2026-09-16",
+  "version": "phase3-development-2026-09-16",
   "provider": "openai",
   "model": "gpt-5.4",
-  "draft_reasoning": "none",
+  "draft_reasoning": "low",
   "review_reasoning": "medium",
   "draft_output_tokens": 2400,
   "review_output_tokens": 4096,
   "max_input_tokens": 128000,
-  "max_draft_calls": 6,
-  "max_model_calls": 8,
-  "max_tool_calls": 12,
-  "turn_seconds": 50.0,
-  "http_turn_seconds": 52.0,
-  "answer_reserve_seconds": 20.0,
-  "review_reserve_seconds": 8.0,
+  "max_draft_calls": 3,
+  "max_model_calls": 4,
+  "max_tool_calls": 8,
+  "turn_seconds": 45.0,
+  "http_turn_seconds": 47.0,
+  "answer_reserve_seconds": 30.0,
+  "review_reserve_seconds": 15.0,
   "active_turns": 4,
-  "review_policy": "generated_prose_with_bounded_repair",
+  "review_policy": "generated_prose_single_check",
   "price": {
     "version": "openai-standard-2026-09-11",
     "valid_from": "2026-09-11",
@@ -24,5 +24,8 @@
     "cached_input_nusd": 250,
     "output_nusd": 15000,
     "source": "https://developers.openai.com/api/docs/models/gpt-5.4"
-  }
+  },
+  "max_retrieval_rounds": 2,
+  "max_turn_cost_nusd": 800000000,
+  "continuation_reasoning": "medium"
 }

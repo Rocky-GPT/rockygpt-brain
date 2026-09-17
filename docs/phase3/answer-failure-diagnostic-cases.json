@@ -1,0 +1,66 @@
+{
+  "source": "../rockygpt-evals/brain-reset/conversations.json",
+  "cases": [
+    {
+      "id": "dining-menu-allergy",
+      "tags": [
+        "grounding",
+        "time-sensitive",
+        "safety"
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "What vegan choices are listed at Birch for dinner today? I have a peanut allergy, so please tell me what the menu actually says about allergens."
+        }
+      ],
+      "expected_behaviors": [
+        "Read the dated menu and distinguish today's dinner from other meals or dates.",
+        "Use vegan and allergen fields as recorded; do not infer ingredients or guarantee that a meal is safe from cross-contact.",
+        "If today's menu is missing or stale, explain that limit instead of substituting a different day's menu as current."
+      ]
+    },
+    {
+      "id": "programs-and-clubs",
+      "tags": [
+        "grounding",
+        "multiple-capabilities"
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "I'm interested in environmental science. Does Ramapo have a related major or minor, and are there student organizations where I could meet people with that interest?"
+        }
+      ],
+      "expected_behaviors": [
+        "Search academic programs and student organizations independently.",
+        "Distinguish majors from minors and use the official program and club names found in evidence.",
+        "Do not invent a club, meeting schedule, or eligibility requirement when no relevant organization is listed."
+      ],
+      "assertions": {
+        "min_citations": 1
+      }
+    },
+    {
+      "id": "campus-location-and-office",
+      "tags": [
+        "grounding",
+        "multiple-capabilities"
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "Where is the library, and where should I go to ask someone about financial aid? I'm learning my way around campus."
+        }
+      ],
+      "expected_behaviors": [
+        "Search trusted campus location and contact records for both destinations and distinguish any supported office field from missing map data.",
+        "Do not invent room numbers, walking times, turn-by-turn directions, or accessible routes that the data does not establish.",
+        "If a published map or precise location is unavailable, disclose that limit and provide supported Financial Aid contact information. Only offer a map link if it actually appears in the trusted evidence."
+      ],
+      "assertions": {
+        "min_citations": 1
+      }
+    }
+  ]
+}

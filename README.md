@@ -19,7 +19,7 @@ uvicorn rockygpt_brain.api.app:app --host 127.0.0.1 --port 8000
 
 `.env` loads from the working directory without overriding exported variables.
 Set the environment-owned credentials in `.env.example` and apply the separate
-operational migration using the [Phase 1 setup guide](docs/phase1.md). `DATABASE_URL`
+operational migrations using the [Phase 1 setup guide](docs/phase1.md). `DATABASE_URL`
 retains read-only SELECT access to published `rockygpt_v2` tables. The operational
 connection receives only its matching `brain_development` or `brain_production`
 role. Missing accounting configuration stops paid calls.
@@ -28,7 +28,9 @@ The bundled `release.json` fixes the shared baseline at `gpt-5.4`, explicit `non
 draft reasoning and `medium` review reasoning. No model comparison or selection
 is part of Phase 1. Legacy API-key fallback is removed; a conflicting
 `OPENAI_CHAT_MODEL` override is rejected. Each environment has an independent
-$10 monthly allowance. `python -m rockygpt_brain.config` prints the release hash.
+$10 default monthly allowance. Explicit administrator-recorded development
+supplements expire at the end of their approved month; see [Phase 3](docs/phase3.md).
+`python -m rockygpt_brain.config` prints the release hash.
 If `STAGING_SERVICE_TOKEN` is set, chat requires the matching
 `x-rockygpt-environment-token` header. Keep it identical in UI and Dev.
 

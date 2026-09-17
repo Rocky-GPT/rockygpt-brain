@@ -1,0 +1,12 @@
+{
+  "reviewer": "agent",
+  "humanReview": "pending",
+  "scope": "Two-case component diagnostic only; not full acceptance",
+  "reportSha256": "4bfe97740d1b26e32c46628cf32611a91669b30caa45f717c8b6aa43a8a89b8e",
+  "configurationHash": "7ecfeb8f8a15ed85fc173b303f9f20708303b849bf169e9feaf4c39236d70e5a",
+  "endingConfigurationHash": "7ecfeb8f8a15ed85fc173b303f9f20708303b849bf169e9feaf4c39236d70e5a",
+  "assessment": "pass",
+  "reason": "The captured valid summary is accepted and the later-closing mutation is rejected, with the unaffected parts accepted.",
+  "costNusd": 94416000,
+  "unsettledNusd": 0
+}

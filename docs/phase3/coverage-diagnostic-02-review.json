@@ -1,0 +1,32 @@
+{
+  "reviewer": "agent",
+  "humanReview": "pending",
+  "kind": "independent_diagnostic_failure_audit",
+  "overall": "fail",
+  "reportSha256": "c7737956f9e99b136ce9c2746908997cfe0af38ee5b6ed43247f6f69efa8003e",
+  "configurationHash": "55ddd1eaccb95190ffcff318b2d444f1f0ae06bf8cccda6e4b8321e04b03e879",
+  "cases": [
+    {
+      "id": "academic-calendar-specific-term",
+      "assessment": "fail",
+      "reason": "Used the current date as the lower bound for a full academic term, excluding the requested start/add-drop dates; final fallback lost the answer."
+    },
+    {
+      "id": "programs-and-clubs",
+      "assessment": "fail",
+      "reason": "Valid program facts were lost when the draft asserted an unverified interest relationship for a department."
+    },
+    {
+      "id": "campus-location-and-office",
+      "assessment": "fail",
+      "reason": "No usable structured final answer reached the engine; the resulting fallback omitted verified Financial Aid facts. The original capture lacks message-phase detail to establish why."
+    },
+    {
+      "id": "dinner-and-evening-event",
+      "assessment": "fail",
+      "reason": "Repeated retrieved records exceeded the conservative input bound before writing."
+    }
+  ],
+  "costNusd": 212519500,
+  "unsettledNusd": 0
+}

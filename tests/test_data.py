@@ -144,6 +144,55 @@ def test_menu_dates_do_not_substitute_another_day_or_undated_food(data: CampusDa
     assert missing["status"] == "no_match"  # Missing menu is never proof of closure.
 
 
+@pytest.mark.parametrize("other_name", ["Garden Cafe", "Orchard Inn"])
+def test_name_prefix_uniqueness_precedes_date_and_dietary_filtering(
+    data: CampusData, other_name: str
+) -> None:
+    data._cache["menu"] = [
+        record(
+            data,
+            "menu",
+            "Soup",
+            {"name": "Soup", "venue": "Garden Hall", "vegan": True},
+            valid_from="2026-09-04",
+            valid_until="2026-09-04",
+        ),
+        record(
+            data,
+            "menu",
+            "Pizza",
+            {"name": "Pizza", "venue": other_name, "vegan": False},
+            "other",
+            valid_from="2026-09-05",
+            valid_until="2026-09-05",
+        ),
+    ]
+    result = data.search(
+        SearchQuery.model_validate(
+            {
+                "collection": "menu",
+                "query": "Garden",
+                "date_from": "2026-09-04",
+                "filters": {"vegan": True},
+            }
+        )
+    )
+    assert len(result["records"]) == 1
+    resolution = result["coverage"]["name_resolution"]
+    if other_name == "Garden Cafe":
+        assert resolution is None
+    else:
+        assert resolution == {
+            "field": "venue",
+            "query": "Garden",
+            "canonical_name": "Garden Hall",
+            "basis": "unique_published_name_prefix",
+        }
+    for query in ("Hall", "Gar", "Garden soup", "Soup"):
+        result = data.search(SearchQuery(collection="menu", query=query, date_from=data.today))
+        assert result["coverage"]["name_resolution"] is None
+
+
 def test_seasonal_closure_overrides_weekly_schedule_and_read_keeps_date(data: CampusData) -> None:
     data._cache["dining_hours"] = [
         record(data, "dining_hours", "Dunkin'", {"day": "Monday", "schedule": "7:30 AM - 3 PM"}),
@@ -626,3 +675,25 @@ def test_uncitable_record_website_uses_existing_official_source_url(
     assert result is not None
     assert result["url"] == data.sources["source"]["canonical_url"]
     assert result["fields"]["website_url"] == website
+
+
+@pytest.mark.parametrize("collection", ["clubs", "programs"])
+def test_discovered_name_filter_retrieves_only_the_named_record(
+    data: CampusData,
+    collection: str,
+) -> None:
+    wanted = record(data, collection, "Garden", {"name": "Garden"}, "wanted")
+    other = record(data, collection, "Garden Studies", {"name": "Garden Studies"}, "other")
+    data._cache[collection] = [wanted, other]
+    result = data.search(
+        SearchQuery.model_validate(
+            {
+                "collection": collection,
+                "filters": {"name": "garden"},
+            }
+        )
+    )
+    assert [item["id"] for item in result["records"]] == [wanted["id"]]
+    assert result["total_matches"] == 1
+    with pytest.raises(ValidationError, match="Filter is not supported"):
+        SearchQuery.model_validate({"collection": collection, "filters": {"meal": "Dinner"}})

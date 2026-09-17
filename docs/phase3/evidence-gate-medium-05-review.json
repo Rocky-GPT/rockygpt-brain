@@ -1,0 +1,18 @@
+{
+  "reviewer": "agent",
+  "humanReview": "pending",
+  "overall": "fail",
+  "reportSha256": "5b2ecc90c15cdbfca33da450de695dea5fb6210ea2ce98ee86fd28f3a8a5b123",
+  "attempted": 33,
+  "passed": 31,
+  "failures": [
+    {
+      "id": "department-entry-grouped-as-student-organization",
+      "reason": "Unsafe acceptance: a Department was grouped as a student organization despite its published category."
+    },
+    {
+      "id": "captured-evening-summary-reuses-earlier-citations",
+      "reason": "False rejection: an ordinary list of earlier events was treated as exhaustive, and a currently-running event was treated as a promised sequential visit."
+    }
+  ]
+}

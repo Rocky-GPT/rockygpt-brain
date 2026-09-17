@@ -41,21 +41,38 @@ class Release(BaseModel):
     version: str
     provider: Literal["openai"]
     model: Literal["gpt-5.4"]
-    draft_reasoning: Literal["none"]
+    draft_reasoning: Literal["none", "low", "medium"]
+    continuation_reasoning: Literal["none", "low", "medium"]
     review_reasoning: Literal["medium"]
     draft_output_tokens: int = Field(gt=0, le=128000)
     review_output_tokens: int = Field(gt=0, le=128000)
     max_input_tokens: int = Field(gt=0, le=128000)
-    max_draft_calls: int = Field(gt=0)
-    max_model_calls: int = Field(gt=0)
-    max_tool_calls: int = Field(gt=0)
-    turn_seconds: float = Field(gt=0)
-    http_turn_seconds: float = Field(gt=0)
+    max_draft_calls: int = Field(gt=0, le=3)
+    max_model_calls: int = Field(gt=0, le=4)
+    max_tool_calls: int = Field(gt=0, le=8)
+    max_retrieval_rounds: int = Field(gt=0, le=2)
+    max_turn_cost_nusd: int = Field(gt=0, le=MONTHLY_CAP_NUSD)
+    turn_seconds: float = Field(gt=0, le=45)
+    http_turn_seconds: float = Field(gt=0, le=47)
     answer_reserve_seconds: float = Field(gt=0)
     review_reserve_seconds: float = Field(gt=0)
     active_turns: int = Field(gt=0)
-    review_policy: Literal["generated_prose_with_bounded_repair"]
+    review_policy: Literal["generated_prose_single_check"]
     price: Price
+
+    def draft_effort(self, call_index: int) -> Literal["none", "low", "medium"]:
+        return self.draft_reasoning if call_index == 0 else self.continuation_reasoning
+
+    @model_validator(mode="after")
+    def bounded_path(self) -> "Release":
+        if not (
+            self.max_draft_calls < self.max_model_calls
+            and self.max_retrieval_rounds < self.max_draft_calls
+            and self.review_reserve_seconds < self.answer_reserve_seconds < self.turn_seconds
+            and self.turn_seconds < self.http_turn_seconds
+        ):
+            raise ValueError("Release must reserve a writer and one check within its deadline")
+        return self
 
 
 RELEASE = Release.model_validate_json(files("rockygpt_brain").joinpath("release.json").read_text())
