@@ -11,9 +11,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from rockygpt_brain.accounting import CAMPUS_ZONE, PaidCallError, PostgresLedger
 from rockygpt_brain.config import ConfigurationError, Environment, Price
-from rockygpt_brain.provider import Usage
+from rockygpt_brain.governance.accounting import CAMPUS_ZONE, PaidCallError, PostgresLedger
 
 
 class Receipt(BaseModel):
@@ -29,6 +28,8 @@ class Receipt(BaseModel):
 
 
 def reconcile(ledger: PostgresLedger, receipt: Receipt, now: datetime) -> None:
+    from rockygpt_brain.core.provider import Usage
+
     identity = str(UUID(receipt.operation_id))
     with ledger.transaction() as conn:
         operation = conn.execute(
