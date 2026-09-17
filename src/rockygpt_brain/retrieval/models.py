@@ -44,7 +44,7 @@ Collection = Literal[
 # Only public field values enter keyword ranking, never database IDs or ingestion metadata.
 TABLES: dict[str, tuple[str, tuple[str, ...]]] = {
     "critical_facts": ("critical_facts", ("fact_key", "fact_value", "verified_at")),
-    "contacts": ("campus_contacts", ("name", "department", "phone", "email", "office")),
+    "contacts": ("campus_contacts", ("name", "department", "phone", "email", "office", "prefers_email")),
     "campus_hours": ("campus_hours", ("name", "day", "schedule")),
     "dining_hours": ("dining_hours", ("name", "day", "schedule")),
     "menu": (

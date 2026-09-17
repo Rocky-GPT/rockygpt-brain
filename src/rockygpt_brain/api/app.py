@@ -409,7 +409,7 @@ CAPABILITIES_CATALOG = [
             {"field": "name", "type": "string", "description": "Person or office name"},
             {"field": "department", "type": "string", "description": "Campus department"},
         ],
-        "fields": ["name", "title", "email", "phone", "office", "department"],
+        "fields": ["name", "title", "email", "phone", "office", "department", "prefers_email"],
     },
     {
         "capability": "campus_hours",
