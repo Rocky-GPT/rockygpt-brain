@@ -541,6 +541,10 @@ def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any]:
         formatted: list[dict[str, Any]] = []
         for r in records:
             item = {"id": r.get("id"), "title": r.get("title", ""), **r.get("fields", {})}
+            if r.get("valid_from"):
+                item["date"] = r.get("valid_from")
+            if r.get("valid_until") and r.get("valid_until") != r.get("valid_from"):
+                item["valid_until"] = r.get("valid_until")
             if name == "documents":
                 item["url"] = r.get("url", "")
                 item["snippet"] = r.get("content", "")
