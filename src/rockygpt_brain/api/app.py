@@ -541,10 +541,123 @@ def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any]:
         formatted: list[dict[str, Any]] = []
         for r in records:
             item = {"id": r.get("id"), "title": r.get("title", ""), **r.get("fields", {})}
+            if name == "documents":
+                item["url"] = r.get("url", "")
+                item["snippet"] = r.get("content", "")
             formatted.append(item)
         return {"returned": len(formatted), "records": formatted}
     except Exception as e:
         return {"returned": 0, "records": [], "error": str(e)}
+    finally:
+        if data is not None:
+            data.close()
+
+
+@app.get("/v1/documents")
+def get_documents() -> dict[str, Any]:
+    database_url = os.getenv("DATABASE_URL", "")
+    if not database_url:
+        return {"documents": [], "total": 0}
+    data = None
+    try:
+        data = CampusData(database_url, datetime.now(ZoneInfo("America/New_York")))
+        data._ensure_loaded()
+        rows = data._fetch(
+            """
+            SELECT d.id::text, d.title, length(d.content) as content_length, 
+                   d.collected_at, d.metadata,
+                   s.canonical_url, s.source_key, s.trust_tier,
+                   count(c.id) as chunk_count
+            FROM rockygpt_v2.documents d
+            JOIN rockygpt_v2.sources s ON s.id = d.source_id
+            LEFT JOIN rockygpt_v2.document_chunks c ON c.document_id = d.id
+            WHERE d.dataset_version_id = %s::uuid
+            GROUP BY d.id, d.title, d.content, d.collected_at, d.metadata, s.canonical_url, s.source_key, s.trust_tier
+            ORDER BY d.title
+            """,
+            (data.dataset["id"],),
+        )
+        documents = []
+        for r in rows:
+            collected = r.get("collected_at")
+            documents.append({
+                "id": r["id"],
+                "title": r["title"],
+                "contentLength": r["content_length"],
+                "chunkCount": r["chunk_count"],
+                "canonicalUrl": r["canonical_url"],
+                "sourceKey": r["source_key"],
+                "trustTier": r["trust_tier"],
+                "collectedAt": collected.isoformat() if hasattr(collected, "isoformat") else str(collected),
+                "metadata": r.get("metadata") or {},
+            })
+        return {"documents": documents, "total": len(documents)}
+    except Exception as e:
+        return {"documents": [], "total": 0, "error": str(e)}
+    finally:
+        if data is not None:
+            data.close()
+
+
+@app.get("/v1/documents/{document_id}")
+def get_document(document_id: str) -> dict[str, Any]:
+    database_url = os.getenv("DATABASE_URL", "")
+    if not database_url:
+        return {"error": "Database not configured"}
+    data = None
+    try:
+        data = CampusData(database_url, datetime.now(ZoneInfo("America/New_York")))
+        data._ensure_loaded()
+        doc_rows = data._fetch(
+            """
+            SELECT d.id::text, d.title, d.content, d.collected_at, d.metadata,
+                   s.canonical_url, s.source_key, s.trust_tier
+            FROM rockygpt_v2.documents d
+            JOIN rockygpt_v2.sources s ON s.id = d.source_id
+            WHERE d.id = %s::uuid AND d.dataset_version_id = %s::uuid
+            LIMIT 1
+            """,
+            (document_id, data.dataset["id"]),
+        )
+        if not doc_rows:
+            return {"error": f"Document not found: {document_id}"}
+
+        doc = doc_rows[0]
+        chunks_rows = data._fetch(
+            """
+            SELECT c.id::text, c.chunk_index, c.content, c.metadata
+            FROM rockygpt_v2.document_chunks c
+            WHERE c.document_id = %s::uuid
+            ORDER BY c.chunk_index ASC
+            """,
+            (document_id,),
+        )
+        collected = doc.get("collected_at")
+        chunks = [
+            {
+                "id": c["id"],
+                "chunkIndex": c["chunk_index"],
+                "content": c["content"],
+                "headingPath": (c.get("metadata") or {}).get("headingPath", ""),
+                "metadata": c.get("metadata") or {},
+            }
+            for c in chunks_rows
+        ]
+        return {
+            "id": doc["id"],
+            "title": doc["title"],
+            "content": doc["content"],
+            "contentLength": len(doc["content"]) if doc.get("content") else 0,
+            "canonicalUrl": doc["canonical_url"],
+            "sourceKey": doc["source_key"],
+            "trustTier": doc["trust_tier"],
+            "collectedAt": collected.isoformat() if hasattr(collected, "isoformat") else str(collected),
+            "metadata": doc.get("metadata") or {},
+            "chunkCount": len(chunks),
+            "chunks": chunks,
+        }
+    except Exception as e:
+        return {"error": str(e)}
     finally:
         if data is not None:
             data.close()
