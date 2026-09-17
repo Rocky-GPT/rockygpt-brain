@@ -1,0 +1,32 @@
+{
+  "reviewer": "agent",
+  "humanReview": "pending",
+  "kind": "independent_diagnostic_failure_audit",
+  "overall": "fail",
+  "reportSha256": "f51b95ad46d508dfbaab903680b35d92e0f7045af3b182cab4fe829c4124ae5a",
+  "configurationHash": "af0854daad90415e77a606a2f01cfba9ebc76033b0ec0072530d34543ba9abba",
+  "cases": [
+    {
+      "id": "academic-calendar-specific-term",
+      "assessment": "pass",
+      "reason": "Current evidence supports August 26 classes beginning and September 1 full-semester add/drop with the 100% refund qualifier. Session I is explicitly distinguished."
+    },
+    {
+      "id": "programs-and-clubs",
+      "assessment": "fail",
+      "reason": "Programs are supported, but all discovered club-name lookups were rejected because the name filter was unavailable for clubs. The incomplete organization answer is not a full task pass."
+    },
+    {
+      "id": "campus-location-and-office",
+      "assessment": "pass",
+      "reason": "Correctly identifies Potter Library without inventing its building/room; returns Financial Aid E-210, phone and email from directory evidence. No invented map URL or route."
+    },
+    {
+      "id": "dinner-and-evening-event",
+      "assessment": "fail",
+      "reason": "The first model call consumed the retrieval time allowance, so no campus records were read. All three requested parts remained unavailable; this is a runtime failure, not proof of absent data."
+    }
+  ],
+  "costNusd": 239540000,
+  "unsettledNusd": 0
+}

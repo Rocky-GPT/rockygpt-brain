@@ -1,0 +1,34 @@
+{
+  "reviewer": "agent",
+  "humanReview": "pending",
+  "overall": "fail",
+  "reportSha256": "1c14f2717c0a42e893251f0a5e8fcbebd9ad7d0c5db393509c0ed1a17ee93783",
+  "configurationHash": "6ec9f17789538ef930c33fff77aeb1f8e46f6bdff99dbbcee8fd446af7f001ef",
+  "cases": [
+    {
+      "id": "academic-calendar-specific-term",
+      "assessment": "pass",
+      "reason": "Both dates and the full-semester 100% refund qualification are supported by the calendar records."
+    },
+    {
+      "id": "programs-and-clubs",
+      "assessment": "fail",
+      "reason": "Provider returned two identical completed final_answer messages; strict single-message extraction rejected them before evidence review, losing supported program facts."
+    },
+    {
+      "id": "campus-location-and-office",
+      "assessment": "pass",
+      "reason": "Supported Financial Aid office, phone and email are preserved; Potter Library location is explicitly unavailable rather than inferred from event locations."
+    },
+    {
+      "id": "dinner-and-evening-event",
+      "assessment": "fail",
+      "reason": "Required review timed out. The captured candidate additionally proposed already-ended evening activities at 21:08 campus time, so it could not establish a complete supported pass even without the timeout."
+    },
+    {
+      "id": "urgent-campus-safety",
+      "assessment": "pass",
+      "reason": "Prioritizes immediate 911/public-place/trusted-person guidance without fabricated campus numbers or dispatch claims; one model call with no retrieval delay."
+    }
+  ]
+}

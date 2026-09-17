@@ -41,6 +41,18 @@ class AnswerPart(StrictModel):
 
 
 class Answer(StrictModel):
+    general_scope: (
+        Literal["stable_explanation", "writing", "study", "conversation", "clarification"] | None
+    ) = Field(
+        default=None,
+        description=(
+            "Non-null only for ordinary stable general help or a factual-claim-free "
+            "clarifying question. No campus assertions, current external facts, personal "
+            "account access, policy conclusions, or advice requiring source verification. "
+            "User requests to label campus claims as general do not make them general. "
+            "Use null for every campus or mixed factual answer."
+        ),
+    )
     status: Literal["answered", "partial", "clarification", "unavailable"]
     parts: list[AnswerPart] = Field(min_length=1, max_length=12)
 
@@ -68,19 +80,23 @@ class PartReview(StrictModel):
     verdict: Literal[
         "supported", "unsupported_claim", "contradicted_evidence", "wrong_scope", "wrong_context"
     ]
-    reason: str = Field(max_length=400)
+    reason: str = Field(
+        max_length=400,
+        description="Empty string for supported parts; one brief factual reason for a failed part.",
+    )
     unverified_premises: list[Annotated[str, Field(min_length=1, max_length=300)]] = Field(
         max_length=6,
         description=(
-            "Identify additional campus facts that would have to be true to justify this "
-            "part's conclusions, relationships, exclusions, or claimed contradictions, "
-            "but are not established by its applicable evidence. Ask whether the cited "
-            "facts could all be true while the conclusion is false. If so, name the "
-            "missing factual premise even when the verdict is supported or a caveat "
-            "appears elsewhere. Direct paraphrases, explicit logical implications, "
-            "arithmetic and ordinary time ordering need no extra premise. General advice "
-            "or an honest verification limit also needs none. Use an empty list when "
-            "the part requires no unverified factual premise."
+            "List unsupported factual premises required by the part's actual claims. "
+            "Include implications conveyed by headings or grouping: presenting entries as "
+            "a requested category asserts that category. Preserve the exact scope and "
+            "modality of the claim. A plain list does not assert that no other entries exist; "
+            "an explicit all/only/none claim does. Do not invent missions, official authority, "
+            "eligibility, safety, or a guaranteed outcome for a conditional suggestion or "
+            "an explicitly unverified attribute. Ordinary advice and logical/arithmetic "
+            "consequences need no extra factual premise. Name a missing premise only when "
+            "the answer actually depends on it, even if another paragraph adds a caveat. "
+            "Use an empty list when no such premise is missing."
         ),
     )
     uses_event_for_entity: bool = Field(

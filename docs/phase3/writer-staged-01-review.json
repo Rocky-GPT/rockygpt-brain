@@ -1,0 +1,67 @@
+{
+  "reviewer": "agent",
+  "humanReview": "pending",
+  "overall": "fail",
+  "reportSha256": "e6a153c6ef7ec5d4a32b28473baba0987ab4844f0a91902fc67693a5c5acca01",
+  "configurationHash": "59d3a54a316b5c5b44a325eb721797b48b29e6477896c35102b1dc46379b7a78",
+  "endingConfigurationHash": "59d3a54a316b5c5b44a325eb721797b48b29e6477896c35102b1dc46379b7a78",
+  "requested": 8,
+  "cases": [
+    {
+      "caseId": "dining-menu-allergy",
+      "turn": 1,
+      "assessment": "fail",
+      "reason": "The provider work settled, but the turn exceeded its deadline and delivered no menu/allergen answer.",
+      "requestId": "356bc2a7-1175-404a-90f8-5653281a2bcf"
+    },
+    {
+      "caseId": "password-reset",
+      "turn": 1,
+      "assessment": "pass",
+      "reason": "Reset URL and Help Desk phone/email match the cited critical fact and directory entry. No credential request or promised account action.",
+      "requestId": "be899771-5822-4a09-aba3-10048fc762bb"
+    },
+    {
+      "caseId": "programs-and-clubs",
+      "turn": 1,
+      "assessment": "pass",
+      "reason": "Major/minor fields and schools match program records. Organization categories are preserved, including the Department distinction; absent mission descriptions are explicitly unverified.",
+      "requestId": "225e2537-c90c-470a-a510-9b30c9c1ff4a"
+    },
+    {
+      "caseId": "campus-location-and-office",
+      "turn": 1,
+      "assessment": "pass",
+      "reason": "Financial Aid E-210, phone and email match the directory. The library location is explicitly unverified; no room is inferred from event evidence.",
+      "requestId": "bb3f7467-610c-48ce-8439-d8fa5502cf76"
+    },
+    {
+      "caseId": "dining-correction-and-followup",
+      "turn": 1,
+      "assessment": "fail",
+      "reason": "Available 39-of-39 vegetarian Dinner results were lost after review treated query completeness as unknown.",
+      "requestId": "598daf36-2f42-48bd-8d0d-b48530dffbf1"
+    },
+    {
+      "caseId": "dining-correction-and-followup",
+      "turn": 2,
+      "assessment": "fail",
+      "reason": "Corrected vegan Lunch data was retrieved, but the answer was withheld over missing query-coverage context.",
+      "requestId": "f6ac34ed-c40b-49b9-928d-4950c6adfcad"
+    },
+    {
+      "caseId": "dining-correction-and-followup",
+      "turn": 3,
+      "assessment": "pass",
+      "reason": "Retains corrected September 17 context, distinguishes 2 PM Lunch ending from the venue final 11 PM close.",
+      "requestId": "ba33c311-a89a-4924-8eef-43e89c1c6744"
+    },
+    {
+      "caseId": "dinner-and-evening-event",
+      "turn": 1,
+      "assessment": "fail",
+      "reason": "Draft and review usage settled, but the complete turn exceeded its deadline; no final multipart plan was delivered.",
+      "requestId": "d3b22d5b-baa0-45e7-97ad-1d2f778ac701"
+    }
+  ]
+}

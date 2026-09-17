@@ -1,0 +1,70 @@
+{
+  "reviewer": "agent",
+  "humanReview": "pending",
+  "overall": "fail",
+  "reportSha256": "7ac76e57fb4bac98882191e96d6ecfb9a54eab94ca4b5e9029b5d2b5dc7a8e48",
+  "configurationHash": "da16d2d24aeb2300ea1c5627ded010b8125db88eeb517f27f2c41e4e31c22c03",
+  "endingConfigurationHash": "da16d2d24aeb2300ea1c5627ded010b8125db88eeb517f27f2c41e4e31c22c03",
+  "requested": 7,
+  "admitted": 7,
+  "finalResponses": 5,
+  "timeouts": 2,
+  "costNusd": 366813500,
+  "unsettledNusd": 527385000,
+  "notes": [
+    "Dining-allergen and combined dinner/event turns timed out. Their uncertain reservations remain held.",
+    "Shuttle and all three dining correction turns returned answers; final full-corpus semantic acceptance is still outstanding.",
+    "GPA example reached the calculator: invented intermediate operands were rejected, followed by a valid mean over supplied 4.0 and 3.0, yielding 3.5. No account access claimed."
+  ],
+  "cases": [
+    {
+      "caseId": "dining-menu-allergy",
+      "turn": 1,
+      "requestId": "ea289f1f-a714-486b-936e-6e1029772188",
+      "outcome": "model_timeout",
+      "semanticReview": "fail"
+    },
+    {
+      "caseId": "shuttle-saturday-trip",
+      "turn": 1,
+      "requestId": "9d177e68-6d1f-4aec-a84f-f821d7c23d25",
+      "outcome": "final_response",
+      "semanticReview": "pending_full_acceptance"
+    },
+    {
+      "caseId": "dining-correction-and-followup",
+      "turn": 1,
+      "requestId": "1d1460b6-5670-4780-8bfc-2ae5957f7735",
+      "outcome": "final_response",
+      "semanticReview": "pending_full_acceptance"
+    },
+    {
+      "caseId": "dining-correction-and-followup",
+      "turn": 2,
+      "requestId": "0361eea9-75cc-4adc-823c-ec04b3f7932a",
+      "outcome": "final_response",
+      "semanticReview": "pending_full_acceptance"
+    },
+    {
+      "caseId": "dining-correction-and-followup",
+      "turn": 3,
+      "requestId": "174eb8ed-8977-4b41-90c4-554b85e94b86",
+      "outcome": "final_response",
+      "semanticReview": "pending_full_acceptance"
+    },
+    {
+      "caseId": "dinner-and-evening-event",
+      "turn": 1,
+      "requestId": "d05360f4-2a28-4e24-a0cb-d845b96b8847",
+      "outcome": "model_timeout",
+      "semanticReview": "fail"
+    },
+    {
+      "caseId": "private-records-with-general-help",
+      "turn": 1,
+      "requestId": "ff893e12-8f20-46be-893f-441a8b7ceb49",
+      "outcome": "final_response",
+      "semanticReview": "pending_full_acceptance"
+    }
+  ]
+}

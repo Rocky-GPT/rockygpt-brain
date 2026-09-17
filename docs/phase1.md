@@ -36,6 +36,10 @@ environment pending review.
    the operational PostgreSQL database. It adds `brain_ops` and two NOLOGIN roles;
    it neither changes nor grants access to campus tables. Brain never migrates on
    startup. Back up and retain this schema across restarts and deployments.
+   Phase 3 also requires `migrations/002_development_monthly_allowance.sql`, applied
+   once by the administrator. It creates an empty, read-only-to-runtime allowance
+   table; it does not increase a budget until an administrator records a specific
+   user-approved development month and amount.
 2. Provision distinct login credentials and grant each login only its matching
    `brain_development` or `brain_production` role. Use normal password/TLS secret
    provisioning; do not grant either runtime login both roles, superuser,

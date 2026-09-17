@@ -6,21 +6,23 @@ import json
 import logging
 import os
 from datetime import datetime
-from threading import BoundedSemaphore
+from threading import BoundedSemaphore, Event
 from time import monotonic
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from rockygpt_brain.accounting import PaidCallError, PostgresLedger
+from rockygpt_brain.api.stream import stream_turn
 from rockygpt_brain.config import RELEASE, ConfigurationError, load_deployment
 from rockygpt_brain.contracts import ChatRequest
 from rockygpt_brain.data import CampusData
 from rockygpt_brain.engine import InvalidAnswer, run_turn
 from rockygpt_brain.limits import BodyLimitMiddleware
+from rockygpt_brain.progress import ProgressCallback, ProgressUpdate, TurnCancelled
 from rockygpt_brain.provider import PaidGateway, open_gateway
 
 load_dotenv()
@@ -29,6 +31,7 @@ app.add_middleware(BodyLimitMiddleware)
 CAMPUS_TIMEZONE = ZoneInfo("America/New_York")
 TURN_SLOTS = BoundedSemaphore(RELEASE.active_turns)
 HTTP_TURN_SECONDS = RELEASE.http_turn_seconds
+WORKERS: set[asyncio.Task[dict[str, object] | JSONResponse]] = set()
 
 
 @app.get("/health")
@@ -62,7 +65,8 @@ def readiness() -> dict[str, object] | JSONResponse:
 async def chat(
     request: ChatRequest,
     x_rockygpt_environment_token: str | None = Header(default=None),
-) -> dict[str, object] | JSONResponse:
+    accept: str | None = Header(default=None),
+) -> dict[str, object] | JSONResponse | StreamingResponse:
     expected_token = os.getenv("STAGING_SERVICE_TOKEN", "").strip()
     if expected_token and not hmac.compare_digest(
         expected_token, x_rockygpt_environment_token or ""
@@ -77,7 +81,52 @@ async def chat(
     if not slots.acquire(blocking=False):
         return failure(429, "busy", request_id)
     now = datetime.now(CAMPUS_TIMEZONE)
-    worker = asyncio.create_task(asyncio.to_thread(chat_worker, request, request_id, now, slots))
+    updates: asyncio.Queue[ProgressUpdate] = asyncio.Queue(maxsize=32)
+    stopped = Event()
+    loop = asyncio.get_running_loop()
+
+    def enqueue(stage: ProgressUpdate) -> None:
+        if stopped.is_set():
+            return
+        if updates.full():
+            updates.get_nowait()
+        updates.put_nowait(stage)
+
+    def progress(stage: ProgressUpdate) -> None:
+        if stopped.is_set():
+            raise TurnCancelled()
+        loop.call_soon_threadsafe(enqueue, stage)
+
+    streaming = bool(accept and "text/event-stream" in accept.lower())
+    worker = asyncio.create_task(
+        asyncio.to_thread(
+            chat_worker, request, request_id, now, slots, progress if streaming else None
+        )
+    )
+    WORKERS.add(worker)
+
+    def finished(task: asyncio.Task[dict[str, object] | JSONResponse]) -> None:
+        WORKERS.discard(task)
+        if not task.cancelled():
+            task.exception()  # Observe exceptions even after an HTTP disconnect.
+
+    worker.add_done_callback(finished)
+    if streaming:
+        return StreamingResponse(
+            stream_turn(
+                worker,
+                updates,
+                stopped,
+                HTTP_TURN_SECONDS,
+                lambda status, reason: failure(status, reason, request_id),
+            ),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache, no-transform",
+                "X-Accel-Buffering": "no",
+                "X-Request-Id": request_id,
+            },
+        )
     try:
         # A timed-out worker retains its slot until its bounded I/O and cleanup
         # finish. Shielding also prevents cancelling a worker queued to start.
@@ -91,6 +140,7 @@ def chat_worker(
     request_id: str,
     now: datetime,
     slots: BoundedSemaphore,
+    progress: ProgressCallback | None = None,
 ) -> dict[str, object] | JSONResponse:
     data: CampusData | None = None
     gateway: PaidGateway | None = None
@@ -109,6 +159,7 @@ def chat_worker(
                 model=RELEASE.model,
                 now=now,
                 metrics=operational,
+                progress=progress,
             )
         outcome = result["status"]
         dataset_version = result.get("datasetVersion")
@@ -119,6 +170,9 @@ def chat_worker(
             {key: value for key, value in usage.items() if key not in {"costNusd", "unsettledNusd"}}
         )
         return {**result, "requestId": request_id}
+    except TurnCancelled:
+        outcome = "request_cancelled"
+        return failure(499, "request_cancelled", request_id)
     except ConfigurationError:
         return failure(503, "model_not_configured", request_id)
     except PaidCallError as error:
@@ -131,6 +185,8 @@ def chat_worker(
             "model_provider_error": 502,
             "context_limit": 422,
             "retrieval_context_limit": 422,
+            "turn_cost_limit": 422,
+            "model_call_limit": 422,
         }.get(error.code, 503)
         resources: list[dict[str, str]] = []
         if error.code == "budget_exhausted" and data is not None:
@@ -159,7 +215,10 @@ def chat_worker(
                 "toolResults": operational.get("toolResults", []),
                 "responseMode": operational.get("responseMode"),
                 "elapsedMs": round((monotonic() - started) * 1000),
-                "fallbackUsed": outcome in {"unavailable", "budget_exhausted"},
+                "fallbackUsed": operational.get("fallbackUsed", False)
+                or outcome in {"unavailable", "budget_exhausted"},
+                "fallbackReason": operational.get("fallbackReason"),
+                "validationFailures": operational.get("validationFailures", []),
                 "retrievalMs": operational.get("retrievalMs", 0),
                 **(gateway.usage.report() if gateway is not None else {}),
             }
@@ -199,6 +258,11 @@ def failure(
         message = (
             "The information needed for this answer exceeds RockyGPT's processing limit. "
             "Try narrowing the request to one topic, place, or date."
+        )
+    elif reason in {"turn_cost_limit", "model_call_limit"}:
+        message = (
+            "This request exceeds RockyGPT's per-answer processing allowance. "
+            "Please ask a more focused question."
         )
     elif reason not in {
         "busy",

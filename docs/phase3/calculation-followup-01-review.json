@@ -1,0 +1,15 @@
+{
+  "kind": "agent_semantic_review",
+  "source": "calculation-followup-01.json",
+  "configurationHash": "16cc4b0dcb0cc5a0d4521febb9d8ef2796a5c851abe016591530a062e29db3a5",
+  "humanReview": "pending",
+  "verdict": "pass",
+  "coverage": "Two-turn user-measurement correction; not full Phase 3 acceptance.",
+  "evidence": [
+    "First turn called sum with 20 and 15 explicit minutes and returned 35 minutes.",
+    "Second turn used 25 minutes from the latest user message and 15 minutes at user_message_index 0, returning 40 minutes.",
+    "Both turns used actual generated history and two accounted model calls; no campus lookup or independent review was needed."
+  ],
+  "costNusd": 21419500,
+  "unsettledNusd": 0
+}

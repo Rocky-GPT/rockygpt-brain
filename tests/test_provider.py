@@ -64,7 +64,7 @@ def test_reservation_precedes_execution_and_settlement_releases_only_unused_amou
     assert reservation[3] > ledger.settle.call_args.args[1] > 0
     assert reservation[4]["configuration_hash"] == configuration_hash()
     assert "Hello" not in json.dumps(reservation[4])
-    assert provider.create.call_args.kwargs["reasoning"] == {"effort": "none"}
+    assert provider.create.call_args.kwargs["reasoning"] == {"effort": RELEASE.draft_reasoning}
     assert provider.create.call_args.kwargs["truncation"] == "disabled"
     assert gateway.usage.report()["usageComplete"] is True
     assert gateway.usage.report()["reasoningTokens"] == 30
@@ -177,8 +177,12 @@ def test_prices_expire_closed_and_all_calls_share_a_cap() -> None:
     with pytest.raises(PaidCallError, match="price_unavailable"):
         gateway.create(category="draft", **arguments())
     gateway.clock = lambda: NOW
-    for _ in range(RELEASE.max_model_calls):
+    for _ in range(RELEASE.max_draft_calls):
         gateway.create(category="draft", **arguments())
+    gateway.create(
+        category="review",
+        **{**arguments(), "max_output_tokens": RELEASE.review_output_tokens},
+    )
     with pytest.raises(PaidCallError, match="model_call_limit"):
         gateway.create(category="draft", **arguments())
     assert provider.create.call_count == RELEASE.max_model_calls
@@ -269,3 +273,94 @@ def test_changed_provider_model_is_billed_then_blocks_further_paid_work() -> Non
     ledger.pause.assert_called_once()
     assert gateway.usage.report()["costNusd"] > 0
     assert gateway.usage.report()["unsettledNusd"] == 0
+
+
+@pytest.mark.parametrize(
+    ("phases", "statuses", "expected"),
+    [
+        (["commentary", "final_answer"], ["completed", "completed"], '{"answer":1}'),
+        ([None], ["completed"], '{"answer":0}'),
+        (["commentary"], ["completed"], ""),
+        (["commentary", "final_answer"], ["completed", "incomplete"], ""),
+        (["final_answer", "final_answer"], ["completed", "completed"], ""),
+        ([None, None], ["completed", "completed"], ""),
+    ],
+)
+def test_only_one_completed_final_message_becomes_structured_answer(
+    phases: list[str | None],
+    statuses: list[str],
+    expected: str,
+) -> None:
+    from openai.types.responses.response_output_message import ResponseOutputMessage
+
+    payloads = [
+        {
+            "id": str(index),
+            "type": "message",
+            "role": "assistant",
+            "phase": phase,
+            "status": status,
+            "content": [
+                {"type": "output_text", "text": '{"answer":' + str(index) + "}", "annotations": []}
+            ],
+        }
+        for index, (phase, status) in enumerate(zip(phases, statuses, strict=True))
+    ]
+    client = Mock()
+    client.responses.create.return_value = SimpleNamespace(
+        id="response-phases",
+        model="gpt-5.4",
+        status="completed",
+        usage=None,
+        output=[ResponseOutputMessage.model_validate(item) for item in payloads],
+    )
+    result = OpenAIProvider(client).create(model="gpt-5.4")
+    assert result.output_text == expected
+    assert [item.payload.get("phase") for item in result.output] == phases
+    assert [item.payload["status"] for item in result.output] == statuses
+
+
+def test_identical_completed_final_messages_are_one_candidate() -> None:
+    from openai.types.responses.response_output_message import ResponseOutputMessage
+
+    client = Mock()
+    payloads = [
+        {
+            "id": f"message-{index}",
+            "type": "message",
+            "role": "assistant",
+            "phase": "final_answer",
+            "status": "completed",
+            "content": [
+                {"type": "output_text", "text": '{"answer":"candidate"}', "annotations": []}
+            ],
+        }
+        for index in range(2)
+    ]
+    client.responses.create.return_value = SimpleNamespace(
+        id="duplicate-final",
+        model="gpt-5.4",
+        status="completed",
+        usage=None,
+        output=[ResponseOutputMessage.model_validate(item) for item in payloads],
+    )
+    result = OpenAIProvider(client).create(model="gpt-5.4")
+    assert result.output_text == '{"answer":"candidate"}'
+    assert len(result.output) == 2  # Preserve the provider's replay items unchanged.
+
+
+def test_gateway_enforces_initial_and_continuation_effort_and_records_both() -> None:
+    provider, ledger = Mock(), Mock()
+    provider.create.side_effect = [response(), response()]
+    gateway = PaidGateway(provider, ledger, "effort-sequence", clock=lambda: NOW)
+    for _ in range(2):
+        gateway.create(category="draft", **{**arguments(), "reasoning": {"effort": "high"}})
+    assert [call.kwargs["reasoning"] for call in provider.create.call_args_list] == [
+        {"effort": RELEASE.draft_reasoning},
+        {"effort": RELEASE.continuation_reasoning},
+    ]
+    assert [call.args[4]["reasoning_effort"] for call in ledger.reserve.call_args_list] == [
+        RELEASE.draft_reasoning,
+        RELEASE.continuation_reasoning,
+    ]
+    assert ledger.settle.call_count == 2

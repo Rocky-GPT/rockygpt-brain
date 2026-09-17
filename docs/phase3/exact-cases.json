@@ -1,0 +1,8 @@
+[
+  {"id":"dinner-current-complete","messages":[{"role":"user","content":"what is for dinner today"}],"expectation":"Answer today's published dinner with correct venue/date, no missing item represented as complete, no review needed when exactly covered."},
+  {"id":"hours-named","messages":[{"role":"user","content":"When does Birch Tree Inn close today?"}],"expectation":"Published closing time with correct date and qualification; do not infer meal window as whole venue hours."},
+  {"id":"shuttle-ambiguous","messages":[{"role":"user","content":"when is next shuttle"}],"expectation":"Clarify route/origin or show carefully scoped scheduled options. No guessed destination, live status, or context-limit failure."},
+  {"id":"menu-allergy-qualifier","messages":[{"role":"user","content":"What vegan dinner can I safely eat today if I have a nut allergy?"}],"expectation":"Preserve allergy concern. Labels cannot establish safety; provide applicable published options if available with staff/cross-contact caveat."},
+  {"id":"menu-plus-private","messages":[{"role":"user","content":"what is for dinner today and what is my current GPA?"}],"expectation":"Preserve supported dinner facts and explain no private GPA access. Missing private information must not erase the menu."},
+  {"id":"general-current-build","messages":[{"role":"user","content":"Explain recursion briefly."}],"expectation":"Stable correct explanation, one paid call and no campus retrieval."}
+]

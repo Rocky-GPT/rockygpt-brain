@@ -4,6 +4,7 @@ import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock, patch
 from uuid import uuid4
@@ -18,11 +19,15 @@ from phase2_snapshot import load_snapshot, local_database
 from rockygpt_brain.accounting import PostgresLedger
 from rockygpt_brain.api.app import app
 from rockygpt_brain.config import MONTHLY_CAP_NUSD, RELEASE, Deployment
+from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.data import CampusData, SearchQuery
+from rockygpt_brain.engine import run_turn
+from rockygpt_brain.evidence import map_references, reference_aliases
 from rockygpt_brain.exact import ContactQuery
 from rockygpt_brain.provider import ModelResponse, OutputItem, PaidGateway, Usage, input_bound
 from test_accounting import database as database
 from test_accounting import ledger as ledger
+from test_engine import tools
 from test_evidence import expand_records
 
 
@@ -75,6 +80,44 @@ def test_actual_filters_intersect_dates_and_dietary_labels(data: CampusData) -> 
     assert data.search(query)["records"] == []
 
 
+def test_captured_short_venue_request_renders_frozen_menu_after_one_model_call(
+    data: CampusData, frozen: dict[str, Any]
+) -> None:
+    question = "What vegetarian options are on Birch's dinner menu today?"
+    client = Mock()
+    client.create.return_value = tools(
+        SimpleNamespace(
+            type="function_call",
+            name="search_campus",
+            call_id="menu",
+            arguments=json.dumps(
+                {
+                    "collection": "menu",
+                    "query": "Birch",
+                    "date_from": "2026-09-16",
+                    "date_to": "2026-09-16",
+                    "limit": 100,
+                    "filters": {"meal": "Dinner", "vegetarian": True},
+                    "request_text": question,
+                }
+            ),
+        )
+    )
+    result = run_turn(
+        [ChatMessage(role="user", content=question)],
+        client=client,
+        data=data,
+        model="test",
+        now=datetime.fromisoformat(frozen["captured_at"]),
+    )
+    assert result["metrics"]["responseMode"] == "exact_records"
+    assert client.create.call_count == 1
+    assert result["status"] == "answered"
+    assert "Birch Tree Inn" in result["answer"]
+    assert "2026-09-16" in result["answer"]
+    assert len(result["citations"]) == result["trace"][0]["total_matches"] == 39
+
+
 def test_calendar_filters_never_mix_terms_or_sessions(data: CampusData) -> None:
     output = data.search(
         SearchQuery.model_validate(
@@ -124,6 +167,10 @@ def test_short_dinner_chat_with_fifty_menu_records_and_hours(
         {"role": "user", "content": "what is for dinner today"},
     ]
     menu, hours = [result["records"] for result in expected]
+    original_ids = {
+        alias: record_id
+        for record_id, alias in reference_aliases([r["id"] for r in menu + hours]).items()
+    }
     parts = [
         {
             "kind": "campus_fact",
@@ -177,7 +224,7 @@ def test_short_dinner_chat_with_fifty_menu_records_and_hours(
             assert input_bound({**payload, "input": legacy_history}) > RELEASE.max_input_tokens
             assert input_bound(payload) <= RELEASE.max_input_tokens
             outputs = [
-                json.loads(item["output"])
+                map_references(json.loads(item["output"]), original_ids)
                 for item in kwargs["input"]
                 if item.get("type") == "function_call_output"
             ]
@@ -187,7 +234,7 @@ def test_short_dinner_chat_with_fifty_menu_records_and_hours(
             text = json.dumps({"status": "partial", "parts": parts})
         else:
             assert len(calls) == 3
-            review_input = json.loads(kwargs["input"])
+            review_input = map_references(json.loads(kwargs["input"]), original_ids)
             assert review_input["conversation"] == messages
             assert expand_records(review_input["evidence"]) == menu + hours
             text = json.dumps(
@@ -410,3 +457,9 @@ def test_http_path_preserves_accounting_for_controlled_failures(
             if scenario == "ambiguous":
                 assert "more than one" in payload["answer"]
             assert "201-555-0199" not in payload["answer"]
+
+
+def test_contact_discovery_uses_same_stemming_for_title_and_query(data: CampusData) -> None:
+    result = data.search(SearchQuery(collection="contacts", query="library", limit=1))
+    assert result["records"][0]["fields"]["name"] == "Library"
+    assert all(not key.startswith("_") for key in result["records"][0])

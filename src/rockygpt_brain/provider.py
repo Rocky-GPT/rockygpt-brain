@@ -14,6 +14,7 @@ from httpx import Timeout
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, RateLimitError
 
 from rockygpt_brain.accounting import CAMPUS_ZONE, Category, Ledger, PaidCallError, PostgresLedger
+from rockygpt_brain.budget import TurnBudget
 from rockygpt_brain.config import RELEASE, Deployment, Price, Release, configuration_hash
 
 
@@ -102,15 +103,34 @@ class OpenAIProvider:
 
     def create(self, **kwargs: Any) -> ModelResponse:
         response = self._client.responses.create(**kwargs)
+        output = [
+            OutputItem(item.model_dump(mode="json", exclude_none=True)) for item in response.output
+        ]
+        messages = [item.payload for item in output if item.type == "message"]
+        final = [item for item in messages if item.get("phase") == "final_answer"]
+        # output_text concatenates commentary and final messages. Select the
+        # completed final candidate; identical duplicate messages are one value.
+        # Older responses without phase are accepted only when unambiguous.
+        if not final and len(messages) == 1 and messages[0].get("phase") is None:
+            final = messages
+        text = ""
+        if final and all(item.get("status") == "completed" for item in final):
+            candidates = {
+                "".join(
+                    block["text"]
+                    for block in item.get("content", [])
+                    if block.get("type") == "output_text"
+                )
+                for item in final
+            }
+            if len(candidates) == 1:
+                text = candidates.pop()
         return ModelResponse(
             id=response.id,
             model=response.model,
             status=response.status or "unknown",
-            output_text=response.output_text,
-            output=[
-                OutputItem(item.model_dump(mode="json", exclude_none=True))
-                for item in response.output
-            ],
+            output_text=text,
+            output=output,
             usage=normalize_usage(response.usage),
         )
 
@@ -193,6 +213,7 @@ class PaidGateway:
         self.config_hash = config_hash or configuration_hash()
         self.clock = clock
         self.usage = TurnUsage()
+        self.budget = TurnBudget(release)
 
     def finish(self, summary: dict[str, Any]) -> None:
         self._ledger.record_turn(
@@ -213,8 +234,7 @@ class PaidGateway:
             raise PaidCallError("price_unavailable")
         if category not in {"draft", "review"}:
             raise PaidCallError("unsupported_model_operation")
-        if len(self.usage.calls) >= self.release.max_model_calls:
-            raise PaidCallError("model_call_limit")
+        available = self.budget.model_timeout(category)
         allowed = {
             "model",
             "instructions",
@@ -243,16 +263,21 @@ class PaidGateway:
         if not isinstance(timeout, Timeout) or any(
             value is None or not math.isfinite(value) or not 0 < value <= maximum
             for value, maximum in (
-                (timeout.read, 30.0),
+                (timeout.read, self.release.turn_seconds),
                 (timeout.connect, 2.0),
-                (timeout.write, 30.0),
-                (timeout.pool, 30.0),
+                (timeout.write, self.release.turn_seconds),
+                (timeout.pool, self.release.turn_seconds),
             )
         ):
             raise PaidCallError("unsupported_model_operation")
-        kwargs["timeout"] = timeout
+        assert timeout.read is not None and timeout.connect is not None
+        kwargs["timeout"] = Timeout(
+            min(float(timeout.read), available), connect=min(float(timeout.connect), available)
+        )
         effort = (
-            self.release.draft_reasoning if category == "draft" else self.release.review_reasoning
+            self.release.draft_effort(self.budget.draft_calls)
+            if category == "draft"
+            else self.release.review_reasoning
         )
         kwargs["reasoning"] = {"effort": effort}
         # Exclude network timeouts from token estimation; include every wire content field.
@@ -272,9 +297,10 @@ class PaidGateway:
 
         validate_text(payload)
         bound = input_bound(payload)
-        if bound > self.release.max_input_tokens:
-            raise PaidCallError("context_limit")
-        reserved = bound * price.input_nusd + output_limit * price.output_nusd
+        usage = self.usage.report()
+        reserved = self.budget.admit_cost(
+            category, bound, usage["costNusd"] + usage["unsettledNusd"]
+        )
         operation_id = str(uuid4())
         metadata = {
             "provider": self.release.provider,
@@ -296,6 +322,7 @@ class PaidGateway:
             "settled": False,
         }
         self.usage.calls.append(item)
+        self.budget.note_model(category)
         try:
             # Explicit default service tier prevents priority-rate overrides. No truncation,
             # previous-response retrieval, built-in tools, or hidden conversation state.
@@ -344,12 +371,15 @@ class PaidGateway:
 @contextmanager
 def open_gateway(deployment: Deployment, request_id: str) -> Iterator[PaidGateway]:
     ledger = PostgresLedger(deployment.ledger_url, deployment.environment)
-    ledger.readiness()
-    with OpenAI(
-        api_key=deployment.api_key,
-        project=deployment.project,
-        max_retries=0,
-        timeout=30.0,
-        base_url="https://api.openai.com/v1",
-    ) as client:
-        yield PaidGateway(OpenAIProvider(client), ledger, request_id, project=deployment.project)
+    with ledger.session():
+        ledger.readiness()
+        with OpenAI(
+            api_key=deployment.api_key,
+            project=deployment.project,
+            max_retries=0,
+            timeout=RELEASE.turn_seconds,
+            base_url="https://api.openai.com/v1",
+        ) as client:
+            yield PaidGateway(
+                OpenAIProvider(client), ledger, request_id, project=deployment.project
+            )

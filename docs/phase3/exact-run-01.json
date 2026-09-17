@@ -1,0 +1,201 @@
+{
+  "configurationHash": "08c187e5a0703bd82e86b467889a98122077a9475e39413dcc461cb1f5578be3",
+  "release": {
+    "version": "phase3-development-2026-09-16",
+    "provider": "openai",
+    "model": "gpt-5.4",
+    "draft_reasoning": "none",
+    "review_reasoning": "medium",
+    "draft_output_tokens": 2400,
+    "review_output_tokens": 4096,
+    "max_input_tokens": 128000,
+    "max_draft_calls": 3,
+    "max_model_calls": 4,
+    "max_tool_calls": 8,
+    "max_retrieval_rounds": 2,
+    "max_turn_cost_nusd": 800000000,
+    "turn_seconds": 30.0,
+    "http_turn_seconds": 32.0,
+    "answer_reserve_seconds": 20.0,
+    "review_reserve_seconds": 8.0,
+    "active_turns": 4,
+    "review_policy": "generated_prose_single_check",
+    "price": {
+      "version": "openai-standard-2026-09-11",
+      "valid_from": "2026-09-11",
+      "valid_until": "2026-10-11",
+      "input_nusd": 2500,
+      "cached_input_nusd": 250,
+      "output_nusd": 15000,
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.4"
+    }
+  },
+  "startedAt": "2026-09-16T18:22:12.726437-04:00",
+  "requested": 6,
+  "preflight": {
+    "remainingNusd": 6469092000,
+    "runCeilingNusd": 4800000000
+  },
+  "semanticReview": "pending",
+  "runs": [
+    {
+      "id": "dinner-current-complete",
+      "messages": [
+        {
+          "role": "user",
+          "content": "what is for dinner today"
+        }
+      ],
+      "expectation": "Answer today's published dinner with correct venue/date, no missing item represented as complete, no review needed when exactly covered.",
+      "requestId": "dffb4ee2-713c-46b6-92ae-79fd171aa6bc",
+      "campusTime": "2026-09-16T18:22:14.718889-04:00",
+      "error": "model_quota_exhausted",
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 0,
+        "cachedInputTokens": 0,
+        "outputTokens": 0,
+        "reasoningTokens": 0,
+        "draftModelMs": 3506,
+        "reviewModelMs": 0,
+        "costNusd": 0,
+        "unsettledNusd": 169125000,
+        "usageComplete": false
+      },
+      "evidence": []
+    },
+    {
+      "id": "hours-named",
+      "messages": [
+        {
+          "role": "user",
+          "content": "When does Birch Tree Inn close today?"
+        }
+      ],
+      "expectation": "Published closing time with correct date and qualification; do not infer meal window as whole venue hours.",
+      "requestId": "8e3df49e-0116-4b96-baab-b58ccae7b2b6",
+      "campusTime": "2026-09-16T18:22:21.915304-04:00",
+      "error": "model_quota_exhausted",
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 0,
+        "cachedInputTokens": 0,
+        "outputTokens": 0,
+        "reasoningTokens": 0,
+        "draftModelMs": 2227,
+        "reviewModelMs": 0,
+        "costNusd": 0,
+        "unsettledNusd": 169190000,
+        "usageComplete": false
+      },
+      "evidence": []
+    },
+    {
+      "id": "shuttle-ambiguous",
+      "messages": [
+        {
+          "role": "user",
+          "content": "when is next shuttle"
+        }
+      ],
+      "expectation": "Clarify route/origin or show carefully scoped scheduled options. No guessed destination, live status, or context-limit failure.",
+      "requestId": "2606991d-a7d8-4d29-b9e8-80a54d5dc237",
+      "campusTime": "2026-09-16T18:22:27.786643-04:00",
+      "error": "model_quota_exhausted",
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 0,
+        "cachedInputTokens": 0,
+        "outputTokens": 0,
+        "reasoningTokens": 0,
+        "draftModelMs": 1868,
+        "reviewModelMs": 0,
+        "costNusd": 0,
+        "unsettledNusd": 169105000,
+        "usageComplete": false
+      },
+      "evidence": []
+    },
+    {
+      "id": "menu-allergy-qualifier",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What vegan dinner can I safely eat today if I have a nut allergy?"
+        }
+      ],
+      "expectation": "Preserve allergy concern. Labels cannot establish safety; provide applicable published options if available with staff/cross-contact caveat.",
+      "requestId": "a65d8d63-815a-4291-9edf-7fc8fbc2b891",
+      "campusTime": "2026-09-16T18:22:33.241906-04:00",
+      "error": "model_quota_exhausted",
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 0,
+        "cachedInputTokens": 0,
+        "outputTokens": 0,
+        "reasoningTokens": 0,
+        "draftModelMs": 1919,
+        "reviewModelMs": 0,
+        "costNusd": 0,
+        "unsettledNusd": 169330000,
+        "usageComplete": false
+      },
+      "evidence": []
+    },
+    {
+      "id": "menu-plus-private",
+      "messages": [
+        {
+          "role": "user",
+          "content": "what is for dinner today and what is my current GPA?"
+        }
+      ],
+      "expectation": "Preserve supported dinner facts and explain no private GPA access. Missing private information must not erase the menu.",
+      "requestId": "ad40065b-d1a4-44ad-9321-b324fa6f257d",
+      "campusTime": "2026-09-16T18:22:38.724635-04:00",
+      "error": "model_quota_exhausted",
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 0,
+        "cachedInputTokens": 0,
+        "outputTokens": 0,
+        "reasoningTokens": 0,
+        "draftModelMs": 2122,
+        "reviewModelMs": 0,
+        "costNusd": 0,
+        "unsettledNusd": 169265000,
+        "usageComplete": false
+      },
+      "evidence": []
+    },
+    {
+      "id": "general-current-build",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Explain recursion briefly."
+        }
+      ],
+      "expectation": "Stable correct explanation, one paid call and no campus retrieval.",
+      "requestId": "4dec8deb-bd11-44b4-9c84-53cd0b3413f6",
+      "campusTime": "2026-09-16T18:22:44.446383-04:00",
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 0,
+        "cachedInputTokens": 0,
+        "outputTokens": 0,
+        "reasoningTokens": 0,
+        "draftModelMs": 2166,
+        "reviewModelMs": 0,
+        "costNusd": 0,
+        "unsettledNusd": 169135000,
+        "usageComplete": false
+      },
+      "evidence": []
+    }
+  ],
+  "completed": 0,
+  "admitted": 6,
+  "costNusd": 0,
+  "unsettledNusd": 1015150000
+}

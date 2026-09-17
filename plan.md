@@ -28,6 +28,12 @@ The goal is the least expensive complete system that reliably answers supported 
 | Live web browsing | Disabled in the bot |
 | Current scope | Update this plan only; no application changes, deployments, or paid tests |
 
+**Temporary authorization, September 16, 2026:** the user approved an additional
+$20 for development API testing in September 2026. The development allowance is
+$30 for that month, and the combined allowance is $40; production stays at $10.
+The extra allowance expires in October. This overrides the default budget rows
+above only for that approved month. It does not waive accounting or quality gates.
+
 The user explicitly made 1,000 fresh development answers/day an **optional stress test**. Quality testing is organized around changes, release candidates, and known failure risks. Replaying stored answers or running retrieval checks must still never be counted as fresh Brain answers. Admit an optional stress run only if its conservative cost fits the remaining development allowance after required test work is reserved.
 
 The combined $20 allowance comes from the user's separate-environment budget clarification, not from an architectural cost saving. Neither this clarification nor the optional stress-test choice permits weaker development settings or unmetered paid work.

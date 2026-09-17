@@ -1,0 +1,1694 @@
+{
+  "started_at": "2026-09-17T01:35:48.581386+00:00",
+  "kind": "component_regression_on_archived_evidence",
+  "corpus_sha256": "a35194a13d23d91122f3d484ade163fb98507feed5c55df4eaf27f67669e4bb5",
+  "model": "gpt-5.4",
+  "configuration_hash": "59d3a54a316b5c5b44a325eb721797b48b29e6477896c35102b1dc46379b7a78",
+  "results": [
+    {
+      "id": "archived-library-event-scope-failure",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "wrong_scope",
+            "reason": "Event evidence cannot establish general attributes of a referenced facility or organization. Use direct evidence for that entity, or state that the requested attribute could not be verified.",
+            "unverified_premises": [
+              "That the event location label 'George T. Potter Library (LC417)' establishes the campus library's general or official name, not just that event's venue label."
+            ],
+            "uses_event_for_entity": true,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "wrong_scope",
+            "reason": "Event evidence cannot establish general attributes of a referenced facility or organization. Use direct evidence for that entity, or state that the requested attribute could not be verified.",
+            "unverified_premises": [
+              "That the event location label 'George T. Potter Library (LC417)' establishes the campus library's general or official name, not just that event's venue label."
+            ],
+            "uses_event_for_entity": true,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 3320,
+        "cachedInputTokens": 0,
+        "outputTokens": 2564,
+        "reasoningTokens": 2253,
+        "draftModelMs": 0,
+        "reviewModelMs": 28912,
+        "costNusd": 46760000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "a66dfefd-4409-4c07-9d51-0308ecc05f55",
+      "elapsed_seconds": 33.429
+    },
+    {
+      "id": "event-room-as-facility-location-in-limitation",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "wrong_scope",
+            "reason": "Event evidence cannot establish general attributes of a referenced facility or organization. Use direct evidence for that entity, or state that the requested attribute could not be verified.",
+            "unverified_premises": [
+              "The event’s location label “George T. Potter Library (LC417)” is reliable evidence of the library’s general room assignment, not just that event’s venue description."
+            ],
+            "uses_event_for_entity": true,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2936,
+        "cachedInputTokens": 0,
+        "outputTokens": 405,
+        "reasoningTokens": 290,
+        "draftModelMs": 0,
+        "reviewModelMs": 7383,
+        "costNusd": 13415000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "f5d7187e-dafa-4d45-b866-7815818d7dd2",
+      "elapsed_seconds": 11.621
+    },
+    {
+      "id": "event-venue-keeps-event-subject",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2819,
+        "cachedInputTokens": 0,
+        "outputTokens": 198,
+        "reasoningTokens": 143,
+        "draftModelMs": 0,
+        "reviewModelMs": 4531,
+        "costNusd": 10017500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "7bc8ee62-5f14-4657-85f9-bb6fbbb7fd40",
+      "elapsed_seconds": 8.827
+    },
+    {
+      "id": "archived-saturday-lunch-exclusion-failure",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "contradicted_evidence",
+            "reason": "The hours record also lists a separate Lite Lunch period from 3:00 PM to 5:00 PM, so it is not true that there is no separate lunch period.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: The provider's published menu output for 2026-09-05 was actually truncated or incomplete beyond the cited vegan records.",
+            "unverified_premises": [
+              "The provider's published menu output for 2026-09-05 was actually truncated or incomplete beyond the cited vegan records."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 4232,
+        "cachedInputTokens": 1792,
+        "outputTokens": 917,
+        "reasoningTokens": 732,
+        "draftModelMs": 0,
+        "reviewModelMs": 12045,
+        "costNusd": 20303000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "e1f9e85a-74fa-4c36-a79f-78cbf88f88b5",
+      "elapsed_seconds": 16.503
+    },
+    {
+      "id": "lunch-exclusion-paraphrase",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: Birch's listed 3:00 PM to 5:00 PM 'Lite Lunch' period is not a lunch service.",
+            "unverified_premises": [
+              "Birch's listed 3:00 PM to 5:00 PM 'Lite Lunch' period is not a lunch service."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2782,
+        "cachedInputTokens": 0,
+        "outputTokens": 408,
+        "reasoningTokens": 293,
+        "draftModelMs": 0,
+        "reviewModelMs": 6837,
+        "costNusd": 13075000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "755c26ac-88f8-4c9a-8838-c3a57a5641ca",
+      "elapsed_seconds": 11.195
+    },
+    {
+      "id": "complete-saturday-labels-and-literal-name-distinction",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2835,
+        "cachedInputTokens": 0,
+        "outputTokens": 173,
+        "reasoningTokens": 118,
+        "draftModelMs": 0,
+        "reviewModelMs": 4478,
+        "costNusd": 9682500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "969904db-e884-469b-a844-33d0082629ed",
+      "elapsed_seconds": 9.431
+    },
+    {
+      "id": "correct-office-value-with-unrelated-citation",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "wrong_scope",
+            "reason": "Event evidence cannot establish general attributes of a referenced facility or organization. Use direct evidence for that entity, or state that the requested attribute could not be verified.",
+            "unverified_premises": [
+              "A source within this paragraph’s allowed citation scope states that Financial Aid’s office is E-210."
+            ],
+            "uses_event_for_entity": true,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2938,
+        "cachedInputTokens": 1792,
+        "outputTokens": 454,
+        "reasoningTokens": 353,
+        "draftModelMs": 0,
+        "reviewModelMs": 7758,
+        "costNusd": 10123000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "796bb53c-66d1-4e38-a091-2b0866d0d1ab",
+      "elapsed_seconds": 12.493
+    },
+    {
+      "id": "missing-hours-does-not-prove-closure",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: That the returned evidence exhausts the library's current operating-hours information for September 4, 2026.; That if no hours appear in the returned record, the library is closed that day.",
+            "unverified_premises": [
+              "That the returned evidence exhausts the library's current operating-hours information for September 4, 2026.",
+              "That if no hours appear in the returned record, the library is closed that day."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2640,
+        "cachedInputTokens": 0,
+        "outputTokens": 459,
+        "reasoningTokens": 334,
+        "draftModelMs": 0,
+        "reviewModelMs": 7575,
+        "costNusd": 13485000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "e234563d-fd73-4c58-be24-88e96541170f",
+      "elapsed_seconds": 12.056
+    },
+    {
+      "id": "missing-current-hours-safe-contact",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2721,
+        "cachedInputTokens": 0,
+        "outputTokens": 296,
+        "reasoningTokens": 202,
+        "draftModelMs": 0,
+        "reviewModelMs": 4970,
+        "costNusd": 11242500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "daeb50f4-76ea-433e-8a67-3e56a1d4de69",
+      "elapsed_seconds": 9.35
+    },
+    {
+      "id": "old-screenshot-laundered-through-current-directory",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: Potter Library's current schedule for Friday, September 4, 2026 runs until 2:00 a.m. on Saturday, September 5, 2026.",
+            "unverified_premises": [
+              "Potter Library's current schedule for Friday, September 4, 2026 runs until 2:00 a.m. on Saturday, September 5, 2026."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-05T02:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2664,
+        "cachedInputTokens": 0,
+        "outputTokens": 539,
+        "reasoningTokens": 389,
+        "draftModelMs": 0,
+        "reviewModelMs": 7852,
+        "costNusd": 14745000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "86c5e882-63fc-48c1-be4c-aa263934dfdf",
+      "elapsed_seconds": 12.15
+    },
+    {
+      "id": "structured-calendar-cross-term-transfer",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: Fall 2026 full-semester courses begin on the same date as the Fall 2027 'Full and Session I Courses - Classes Begin' entry.",
+            "unverified_premises": [
+              "Fall 2026 full-semester courses begin on the same date as the Fall 2027 'Full and Session I Courses - Classes Begin' entry."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: Fall 2026 full-semester add/drop uses the same month and day as the Spring 2027 full-semester add/drop deadline.; The correct year for the stated Fall 2026 add/drop deadline is 2026 rather than the 2027 year shown in the cited record.",
+            "unverified_premises": [
+              "Fall 2026 full-semester add/drop uses the same month and day as the Spring 2027 full-semester add/drop deadline.",
+              "The correct year for the stated Fall 2026 add/drop deadline is 2026 rather than the 2027 year shown in the cited record."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 3118,
+        "cachedInputTokens": 1792,
+        "outputTokens": 1174,
+        "reasoningTokens": 919,
+        "draftModelMs": 0,
+        "reviewModelMs": 14786,
+        "costNusd": 21373000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "3ff40296-c638-4918-8a48-9e6a66afb4b8",
+      "elapsed_seconds": 19.074
+    },
+    {
+      "id": "structured-calendar-and-office-values-supported",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 3081,
+        "cachedInputTokens": 0,
+        "outputTokens": 589,
+        "reasoningTokens": 495,
+        "draftModelMs": 0,
+        "reviewModelMs": 7966,
+        "costNusd": 16537500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "936ccdc5-a29b-426d-8393-1fa9afc5e89f",
+      "elapsed_seconds": 12.291
+    },
+    {
+      "id": "blank-allergen-fields-do-not-rank-allergy-risk",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "unsupported_claim",
+            "reason": "Published menu and allergen labels do not establish allergy safety or relative risk, including when a label is blank. Report the labels and ask dining staff about ingredients and cross-contact without ranking safety.",
+            "unverified_premises": [
+              "Items with a blank published allergen field are lower risk for someone with a peanut allergy than the listed alternatives."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": true,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2993,
+        "cachedInputTokens": 0,
+        "outputTokens": 651,
+        "reasoningTokens": 508,
+        "draftModelMs": 0,
+        "reviewModelMs": 8904,
+        "costNusd": 17247500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "3fbaabfc-9b19-4cd0-b197-f3225b5bfa00",
+      "elapsed_seconds": 13.194
+    },
+    {
+      "id": "published-allergen-labels-with-staff-check",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2971,
+        "cachedInputTokens": 0,
+        "outputTokens": 610,
+        "reasoningTokens": 516,
+        "draftModelMs": 0,
+        "reviewModelMs": 8179,
+        "costNusd": 16577500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "cede0866-057f-4fc5-b75d-8ed8ca9988bc",
+      "elapsed_seconds": 12.385
+    },
+    {
+      "id": "department-entry-grouped-as-student-organization",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": false,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2946,
+        "cachedInputTokens": 0,
+        "outputTokens": 571,
+        "reasoningTokens": 516,
+        "draftModelMs": 0,
+        "reviewModelMs": 8225,
+        "costNusd": 15930000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "6de5bb29-2159-4ae6-ad93-1284e49000fe",
+      "elapsed_seconds": 12.095
+    },
+    {
+      "id": "student-organizations-with-department-distinction",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2959,
+        "cachedInputTokens": 0,
+        "outputTokens": 263,
+        "reasoningTokens": 208,
+        "draftModelMs": 0,
+        "reviewModelMs": 5040,
+        "costNusd": 11342500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "83d04a25-5231-4e6f-97c1-4605d7a5b070",
+      "elapsed_seconds": 8.992
+    },
+    {
+      "id": "elapsed-dinner-and-event-starts-used-as-forward-plan",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "wrong_context",
+            "reason": "This proposed action's latest usable time is 2026-09-04T19:00:00-04:00, which has passed at campus time 2026-09-04T22:21:19.653605-04:00. Describe it as past or offer an option that can still be followed, using published evidence.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T20:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T21:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T19:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 3967,
+        "cachedInputTokens": 0,
+        "outputTokens": 2325,
+        "reasoningTokens": 2110,
+        "draftModelMs": 0,
+        "reviewModelMs": 26502,
+        "costNusd": 44792500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "3da1317d-3839-4857-9c60-3dd962af76bb",
+      "elapsed_seconds": 30.3
+    },
+    {
+      "id": "remaining-evening-uses-ongoing-late-night-and-carnival",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 4122,
+        "cachedInputTokens": 0,
+        "outputTokens": 1193,
+        "reasoningTokens": 1005,
+        "draftModelMs": 0,
+        "reviewModelMs": 15802,
+        "costNusd": 28200000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "3fe41039-a082-4c9a-866d-856552a95192",
+      "elapsed_seconds": 19.537
+    },
+    {
+      "id": "elapsed-forward-plan-with-complete-citations",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "wrong_context",
+            "reason": "This proposed action's latest usable time is 2026-09-04T19:00:00-04:00, which has passed at campus time 2026-09-04T22:21:19.653605-04:00. Describe it as past or offer an option that can still be followed, using published evidence.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T20:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T21:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T19:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 3987,
+        "cachedInputTokens": 0,
+        "outputTokens": 1566,
+        "reasoningTokens": 1359,
+        "draftModelMs": 0,
+        "reviewModelMs": 18034,
+        "costNusd": 33457500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "6944e391-df83-4305-8fbc-c7e7b945f2e9",
+      "elapsed_seconds": 21.849
+    },
+    {
+      "id": "captured-evening-summary-reuses-earlier-citations",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": false,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "contradicted_evidence",
+            "reason": "Today's returned events also include Chisme con OLU: GBM at 1 PM–2:30 PM, so the listed 'earlier events' are not the full set of earlier events or all 7 PM starts.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 4,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: The student could finish getting Birch Late Night and reach or join CPB Carnival before the event ends at 11:00 PM.",
+            "unverified_premises": [
+              "The student could finish getting Birch Late Night and reach or join CPB Carnival before the event ends at 11:00 PM."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 5561,
+        "cachedInputTokens": 0,
+        "outputTokens": 3491,
+        "reasoningTokens": 3122,
+        "draftModelMs": 0,
+        "reviewModelMs": 38713,
+        "costNusd": 66267500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "626c8915-b3f5-46a3-a316-3bf72d15f34c",
+      "elapsed_seconds": 42.489
+    },
+    {
+      "id": "uncited-evening-summary-cannot-invent-later-closing",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 4,
+            "verdict": "contradicted_evidence",
+            "reason": "Birch Late Night is listed as ending at 11:00 PM, not midnight.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-05T00:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 5557,
+        "cachedInputTokens": 0,
+        "outputTokens": 2278,
+        "reasoningTokens": 1990,
+        "draftModelMs": 0,
+        "reviewModelMs": 27151,
+        "costNusd": 48062500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "37e8236b-4e58-4077-8f48-d22ab806fee5",
+      "elapsed_seconds": 30.883
+    },
+    {
+      "id": "captured-listed-price-does-not-disprove-waiver",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: A universal tuition waiver for every student this year would be incompatible with the published New Jersey full-time semester tuition amount of $8,807.68.",
+            "unverified_premises": [
+              "A universal tuition waiver for every student this year would be incompatible with the published New Jersey full-time semester tuition amount of $8,807.68."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 7783,
+        "cachedInputTokens": 0,
+        "outputTokens": 1465,
+        "reasoningTokens": 1238,
+        "draftModelMs": 0,
+        "reviewModelMs": 17323,
+        "costNusd": 41432500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "e91f7d15-71fd-4af7-ae37-e1ec1d8b683a",
+      "elapsed_seconds": 21.175
+    },
+    {
+      "id": "listed-price-with-waiver-coverage-unverified",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 7781,
+        "cachedInputTokens": 0,
+        "outputTokens": 937,
+        "reasoningTokens": 765,
+        "draftModelMs": 0,
+        "reviewModelMs": 11506,
+        "costNusd": 33507500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "fa8f706d-2f58-4521-aad2-89d883a9a6b3",
+      "elapsed_seconds": 15.287
+    },
+    {
+      "id": "catalog-presence-does-not-establish-open-seats",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: CMPS 147 is offered in fall 2026.; At least one fall 2026 section of CMPS 147 currently has an open seat.",
+            "unverified_premises": [
+              "CMPS 147 is offered in fall 2026.",
+              "At least one fall 2026 section of CMPS 147 currently has an open seat."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2868,
+        "cachedInputTokens": 0,
+        "outputTokens": 662,
+        "reasoningTokens": 516,
+        "draftModelMs": 0,
+        "reviewModelMs": 8800,
+        "costNusd": 17100000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "c410d87a-c779-4071-87ed-0595831c3537",
+      "elapsed_seconds": 12.575
+    },
+    {
+      "id": "catalog-description-with-registration-unverified",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 2885,
+        "cachedInputTokens": 1792,
+        "outputTokens": 311,
+        "reasoningTokens": 217,
+        "draftModelMs": 0,
+        "reviewModelMs": 5368,
+        "costNusd": 7845500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "04fdab88-775d-4f82-a6c9-0c00e125c276",
+      "elapsed_seconds": 9.116
+    },
+    {
+      "id": "conditional-counseling-rules-are-not-expired-plan",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "standing_service_rule",
+                "latest_usable_at": null
+              },
+              {
+                "basis": "standing_service_rule",
+                "latest_usable_at": null
+              }
+            ]
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "standing_service_rule",
+                "latest_usable_at": null
+              }
+            ]
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 3809,
+        "cachedInputTokens": 0,
+        "outputTokens": 1741,
+        "reasoningTokens": 1528,
+        "draftModelMs": 0,
+        "reviewModelMs": 18267,
+        "costNusd": 35637500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "9fa3ac01-e400-45eb-9cd9-27d81a6256c7",
+      "elapsed_seconds": 22.02
+    },
+    {
+      "id": "explicit-departure-at-closing-cannot-precede-ended-event",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 4,
+            "verdict": "contradicted_evidence",
+            "reason": "CPB Carnival is scheduled to end at 11:00 PM, so going to it afterward after 11:00 PM is impossible.",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": [
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              },
+              {
+                "basis": "student_plan",
+                "latest_usable_at": "2026-09-04T23:00:00-04:00"
+              }
+            ]
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 5537,
+        "cachedInputTokens": 0,
+        "outputTokens": 1795,
+        "reasoningTokens": 1497,
+        "draftModelMs": 0,
+        "reviewModelMs": 18517,
+        "costNusd": 40767500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "aa60c730-5e74-4e46-8004-4ff8c175d2ba",
+      "elapsed_seconds": 22.268
+    },
+    {
+      "id": "password-reset-bounded-contact-or-directory-information",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 6583,
+        "cachedInputTokens": 1792,
+        "outputTokens": 688,
+        "reasoningTokens": 516,
+        "draftModelMs": 0,
+        "reviewModelMs": 8839,
+        "costNusd": 22745500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "bb141408-92c6-4c88-9c2b-81f3ea21431c",
+      "elapsed_seconds": 12.644
+    },
+    {
+      "id": "password-reset-asserted-unsupported-authority-or-focus",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 3,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: Ramapo officially assigns failed password resets to the IT Help Desk.; The IT Help Desk guarantees restoration of account access within 30 minutes for failed password resets.",
+            "unverified_premises": [
+              "Ramapo officially assigns failed password resets to the IT Help Desk.",
+              "The IT Help Desk guarantees restoration of account access within 30 minutes for failed password resets."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 6588,
+        "cachedInputTokens": 0,
+        "outputTokens": 754,
+        "reasoningTokens": 516,
+        "draftModelMs": 0,
+        "reviewModelMs": 9048,
+        "costNusd": 27780000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "c8634d72-6db0-4786-bd38-0d0982b8fb5b",
+      "elapsed_seconds": 12.807
+    },
+    {
+      "id": "programs-and-clubs-bounded-contact-or-directory-information",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 6630,
+        "cachedInputTokens": 0,
+        "outputTokens": 720,
+        "reasoningTokens": 587,
+        "draftModelMs": 0,
+        "reviewModelMs": 17799,
+        "costNusd": 27375000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "30ae471f-1597-446b-a1f1-bc508dd682a4",
+      "elapsed_seconds": 21.689
+    },
+    {
+      "id": "programs-and-clubs-asserted-unsupported-authority-or-focus",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "unsupported_claim",
+            "reason": "Missing factual support: Sunrise RCNJ, Garden Club, RCNJ Birding, and Ramapo College Beekeeping Club are specifically focused on environmental science rather than only adjacent interests.; Each of those organizations meets weekly.; Each of those organizations accepts every student.",
+            "unverified_premises": [
+              "Sunrise RCNJ, Garden Club, RCNJ Birding, and Ramapo College Beekeeping Club are specifically focused on environmental science rather than only adjacent interests.",
+              "Each of those organizations meets weekly.",
+              "Each of those organizations accepts every student."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 2,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 6612,
+        "cachedInputTokens": 0,
+        "outputTokens": 820,
+        "reasoningTokens": 609,
+        "draftModelMs": 0,
+        "reviewModelMs": 9827,
+        "costNusd": 28830000,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "67066ed4-6d49-4c0f-9e14-d0cf30f77b30",
+      "elapsed_seconds": 13.647
+    },
+    {
+      "id": "earlier-menu-grounding-survives-a-cited-common-caveat",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": true,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 5805,
+        "cachedInputTokens": 0,
+        "outputTokens": 610,
+        "reasoningTokens": 516,
+        "draftModelMs": 0,
+        "reviewModelMs": 8329,
+        "costNusd": 23662500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "7146394b-031e-41d9-87b7-fa5bb889563f",
+      "elapsed_seconds": 12.085
+    },
+    {
+      "id": "earlier-menu-grounding-cannot-establish-allergy-safety",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "passed": true,
+      "review": {
+        "parts": [
+          {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": false,
+            "infers_food_safety": false,
+            "plan_deadlines": []
+          },
+          {
+            "part_index": 1,
+            "verdict": "unsupported_claim",
+            "reason": "Published menu and allergen labels do not establish allergy safety or relative risk, including when a label is blank. Report the labels and ask dining staff about ingredients and cross-contact without ranking safety.",
+            "unverified_premises": [
+              "Published vegan labels are sufficient to establish that every listed item is safe for a peanut allergy, including ingredients and cross-contact risk."
+            ],
+            "uses_event_for_entity": false,
+            "infers_food_safety": true,
+            "plan_deadlines": []
+          }
+        ]
+      },
+      "supported": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputTokens": 5805,
+        "cachedInputTokens": 0,
+        "outputTokens": 851,
+        "reasoningTokens": 710,
+        "draftModelMs": 0,
+        "reviewModelMs": 10802,
+        "costNusd": 27277500,
+        "unsettledNusd": 0,
+        "usageComplete": true
+      },
+      "request_id": "e86c9175-409a-4aed-a042-0827036d0a50",
+      "elapsed_seconds": 14.685
+    }
+  ],
+  "summary": {
+    "passed": 31,
+    "attempted": 33,
+    "planned": 33,
+    "model_calls": 33,
+    "unrun": 0,
+    "cost_nusd": 816597500,
+    "unsettled_nusd": 0,
+    "tool_calls": 0
+  }
+}

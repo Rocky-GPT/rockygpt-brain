@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "id": "user-measurement-correction",
+      "messages": [],
+      "turns": [
+        {
+          "user": "Use the calculator to add 20 minutes for eating and 15 minutes for walking.",
+          "expected_behaviors": [
+            "Use calculate with the explicit measurements, returning 35 minutes."
+          ]
+        },
+        {
+          "user": "Change the eating time to 25 minutes. Use the calculator again; keep the walking time from my earlier message.",
+          "expected_behaviors": [
+            "Use 25 minutes from the current user message and 15 minutes from the earlier user message. Return 40 minutes, not 35; do not use assistant text as numeric provenance."
+          ]
+        }
+      ]
+    }
+  ]
+}
