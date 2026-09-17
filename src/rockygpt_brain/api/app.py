@@ -412,15 +412,10 @@ CAPABILITIES_CATALOG = [
         "fields": [
             "name",
             "department",
-            "phone",
+            "phones",
             "email",
             "office",
-            "prefers_email",
             "preferred_contact",
-            "contact_note",
-            "phones",
-            "raw_phone",
-            "phone_normalization_status",
         ],
     },
     {
@@ -552,15 +547,36 @@ def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any]:
 
         formatted: list[dict[str, Any]] = []
         for r in records:
-            item = {"id": r.get("id"), "title": r.get("title", ""), **r.get("fields", {})}
-            if r.get("valid_from"):
-                item["date"] = r.get("valid_from")
-            if r.get("valid_until") and r.get("valid_until") != r.get("valid_from"):
-                item["valid_until"] = r.get("valid_until")
-            if name == "documents":
-                item["url"] = r.get("url", "")
-                item["snippet"] = r.get("content", "")
-            formatted.append(item)
+            if name == "contacts":
+                f = r.get("fields", {})
+                item: dict[str, Any] = {
+                    "id": r.get("id"),
+                    "name": f.get("name") or r.get("title", ""),
+                }
+                if f.get("department"):
+                    item["department"] = f["department"]
+                phones = f.get("phones")
+                if phones and len(phones) > 0:
+                    item["phones"] = phones
+                if f.get("email"):
+                    item["email"] = f["email"]
+                if f.get("office"):
+                    item["office"] = f["office"]
+                if f.get("preferred_contact"):
+                    item["preferred_contact"] = f["preferred_contact"]
+                elif f.get("prefers_email"):
+                    item["preferred_contact"] = "email"
+                formatted.append(item)
+            else:
+                item = {"id": r.get("id"), "title": r.get("title", ""), **r.get("fields", {})}
+                if r.get("valid_from"):
+                    item["date"] = r.get("valid_from")
+                if r.get("valid_until") and r.get("valid_until") != r.get("valid_from"):
+                    item["valid_until"] = r.get("valid_until")
+                if name == "documents":
+                    item["url"] = r.get("url", "")
+                    item["snippet"] = r.get("content", "")
+                formatted.append(item)
         return {"returned": len(formatted), "records": formatted}
     except Exception as e:
         return {"returned": 0, "records": [], "error": str(e)}
