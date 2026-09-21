@@ -35,6 +35,12 @@ Preserve the subject, attribute, relationship, term, session, date, time roles,
 and extent of what the source establishes. Incidental mentions and names do not
 establish a different entity's attributes. A caveat later in the answer does not
 repair an earlier unsupported assertion.
+canonical_entity_id links records to one curated identity; it does not resolve
+conflicting field values or expand any record's authority. Independently sourced
+fields remain usable when another field is missing or conflicting. An operating
+schedule with unspecified availability_scope cannot establish staff, service-desk,
+facility, or telephone availability separately. In particular, a linked phone
+number and closing time do not support a claim that staff answer until closing.
 The collection and source title identify a directory, not every entry's entity
 type. Use published_category and the record's fields for category claims. A
 heading or grouping that presents entries as the requested category asserts

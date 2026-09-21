@@ -7,6 +7,16 @@ fields and citations in code after one tool-request call. Generated prose is
 checked by a separate evidence review before it is returned. There is no intent classifier,
 phrase routing, vector service, process conversation memory, or generated SQL.
 
+Combined contact/hours requests can use `lookup_profile`, which resolves a
+published `campus-identities` release artifact and retrieves its exact linked
+record keys from that same dataset. Persistent UUIDs identify entities; source
+record IDs, sources, collection times, and freshness remain separate. No name
+similarity establishes a link. Missing components and conflicting fields remain
+explicit without discarding independent facts. Operating schedules with unknown
+availability scope never establish phone-answering or staff hours. Profiles use
+the ordinary generated-answer evidence review; they have no exact-answer bypass.
+Older releases without the artifact report that profile linking is unavailable.
+
 ## Run
 
 ```sh

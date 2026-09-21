@@ -8,6 +8,7 @@ from typing import Any
 from rockygpt_brain.campus.calculations import CalculationQuery
 from rockygpt_brain.campus.formats import ContactCall, SearchCall
 from rockygpt_brain.retrieval.models import COLLECTIONS, ReadQuery
+from rockygpt_brain.retrieval.profiles import ProfileQuery
 
 
 def function_tool(name: str, description: str, schema: dict[str, Any]) -> dict[str, Any]:
@@ -48,6 +49,18 @@ def tool_definitions() -> list[dict[str, Any]]:
             "evidence_ids for the chosen operation; other lists must be empty. No inferred units, "
             "travel durations, policy conclusions or corpus-wide counts. Results require context.",
             CalculationQuery.model_json_schema(),
+        ),
+        function_tool(
+            "lookup_profile",
+            "Resolve a named campus entity through curated identity links and retrieve its "
+            "contact and/or dated hours together. Prefer this for combined contact and hours "
+            "requests. Supply exactly one name/verified alias or a previously returned entity_id. "
+            "Choose only requested components. A null date uses the current campus date. "
+            "Ambiguity needs clarification; no match means no curated identity, not nonexistence. "
+            "Each record retains its own source and freshness. Conflicts and unavailable "
+            "components do not invalidate independent fields. Operating hours never establish "
+            "staff or telephone availability. Generated profile answers require evidence review.",
+            ProfileQuery.model_json_schema(),
         ),
         function_tool(
             "lookup_contact",

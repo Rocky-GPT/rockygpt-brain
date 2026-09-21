@@ -47,6 +47,7 @@ from rockygpt_brain.governance.evidence import (
 from rockygpt_brain.retrieval.data import CampusData
 from rockygpt_brain.retrieval.exact import ContactQuery, contact_answer
 from rockygpt_brain.retrieval.models import COLLECTIONS, ReadQuery, SearchQuery
+from rockygpt_brain.retrieval.profiles import ProfileQuery
 
 INSTRUCTIONS = files("rockygpt_brain").joinpath("prompt.md").read_text(encoding="utf-8")
 
@@ -366,6 +367,16 @@ def run_turn(
                             )
                         except ValueError as error:
                             output = {"status": "invalid_request", "reason": str(error)}
+                    elif call.name == "lookup_profile":
+                        profile = ProfileQuery.model_validate_json(call_arguments)
+                        tool_subjects = [
+                            {"topic": "contacts" if part == "contact" else "campus_hours"}
+                            for part in profile.include
+                        ]
+                        notify("retrieving", tool_subjects)
+                        arguments = profile.model_dump(mode="json")
+                        tool_executions += 1
+                        output = data.lookup_profile(profile)
                     elif call.name == "lookup_contact":
                         contact_call = ContactCall.model_validate_json(call_arguments)
                         request_quote = contact_call.request_text
@@ -490,6 +501,19 @@ def run_turn(
                     "elapsed_ms": round((monotonic() - tool_started) * 1000),
                 }
             )
+            if call.name == "lookup_profile":
+                trace[-1]["resolution"] = output.get("resolution")
+                if "components" in output:
+                    trace[-1]["components"] = {
+                        component: {
+                            key: value for key, value in details.items()
+                            if key in {
+                                "status", "evidence_ids", "fields", "truncated",
+                                "service_date", "availability_scope",
+                            }
+                        }
+                        for component, details in output["components"].items()
+                    }
             metrics["retrievalMs"] += trace[-1]["elapsed_ms"]
             metrics["toolResults"].append(
                 {key: value for key, value in trace[-1].items() if key != "arguments"}

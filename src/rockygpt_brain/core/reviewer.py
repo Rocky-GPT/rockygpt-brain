@@ -122,10 +122,15 @@ def review_answer(
                                 "truncated",
                                 "reason",
                                 "evidence_ids",
+                                "resolution",
+                                "components",
                             )
+                            if key not in {"resolution", "components"} or key in lookup
                         }
                         for lookup in (retrievals or [])
-                        if lookup.get("tool") in {"search_campus", "read_campus", "lookup_contact"}
+                        if lookup.get("tool") in {
+                            "search_campus", "read_campus", "lookup_contact", "lookup_profile"
+                        }
                     ],
                     aliases,
                 ),
