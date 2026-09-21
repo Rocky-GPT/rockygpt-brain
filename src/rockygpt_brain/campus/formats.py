@@ -299,7 +299,8 @@ def hours_parts(
         raise ValueError("Missing schedule")
     text = f"Published hours for {plain(name)} on {day}: {plain(schedule)}."
     if has_close and not has_hours and not schedule.casefold().startswith("closed"):
-        endings = [end for _, end in opening_intervals(schedule, day)]
+        intervals = opening_intervals(records[0]["fields"].get("hours", schedule), day)
+        endings = [end for _, end in intervals]
         last = max(endings, key=lambda value: value.timestamp())
         text = (
             f"{plain(name)} is scheduled to close at {last.strftime('%I:%M %p').lstrip('0')} "

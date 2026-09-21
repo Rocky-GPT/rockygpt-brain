@@ -60,19 +60,47 @@ def trip_times(fields: dict[str, Any], day_offset: int = 0) -> list[tuple[str, d
     return result
 
 
-def opening_intervals(schedule: str, day: date) -> list[tuple[datetime, datetime]]:
-    """Published intervals only; no inferred service periods or overnight dates."""
-    result = []
-    for interval in schedule.split(";"):
-        clocks = re.split(r"\s*[-–]\s*", interval.strip())
-        if len(clocks) != 2:
-            raise ValueError("Schedule does not establish explicit opening intervals")
-        start, end = (wall_time(value, day) for value in clocks)
-        if end < start:
-            end = wall_time(clocks[1], day + timedelta(days=1))
-        if start == end:
-            raise ValueError("Equal opening and closing clocks do not establish 24-hour service")
-        result.append((start, end))
+def opening_intervals(
+    schedule: str | list[dict[str, Any]], day: date
+) -> list[tuple[datetime, datetime]]:
+    """Validated intervals for one service day; closure is empty, unknown raises."""
+    result: list[tuple[datetime, datetime]] = []
+    if isinstance(schedule, list):
+        for interval in schedule:
+            if not isinstance(interval, dict):
+                raise ValueError("Malformed opening interval")
+            clocks = [interval.get("open"), interval.get("close")]
+            if any(not isinstance(clock, str) or not re.fullmatch(r"\d{2}:\d{2}", clock)
+                   for clock in clocks):
+                raise ValueError("Opening intervals require explicit HH:MM clocks")
+            offset = interval.get("close_day_offset", 0)
+            if type(offset) is not int or offset not in (0, 1):
+                raise ValueError("Invalid closing day offset")
+            start = wall_time(clocks[0], day)
+            end = wall_time(clocks[1], day + timedelta(days=offset))
+            # A next-day marker cannot turn contradictory/equal clocks into a full day.
+            wall_duration = end.replace(tzinfo=None) - start.replace(tzinfo=None)
+            if not timedelta(0) < wall_duration < timedelta(days=1):
+                raise ValueError("Invalid opening interval duration")
+            result.append((start, end))
+    elif isinstance(schedule, str):
+        if schedule.strip().casefold() == "closed":
+            return []
+        for interval in re.split(r"\s+and\s+|;|,", schedule, flags=re.IGNORECASE):
+            clocks = re.split(r"\s*(?:[-–—]|\bto\b)\s*", interval.strip(), flags=re.IGNORECASE)
+            if len(clocks) != 2:
+                raise ValueError("Schedule does not establish explicit opening intervals")
+            start, end = (wall_time(value, day) for value in clocks)
+            if end < start:
+                end = wall_time(clocks[1], day + timedelta(days=1))
+            if start == end:
+                raise ValueError("Equal clocks do not establish 24-hour service")
+            result.append((start, end))
+    else:
+        raise ValueError("Unknown opening hours")
+    ordered = sorted(result)
+    if any(next_start < end for (_, end), (next_start, _) in zip(ordered, ordered[1:], strict=False)):
+        raise ValueError("Overlapping opening intervals")
     return result
 
 

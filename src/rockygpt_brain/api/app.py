@@ -428,7 +428,7 @@ CAPABILITIES_CATALOG = [
             {"field": "venue", "type": "string", "description": "Building or facility"},
             {"field": "date", "type": "iso-date", "description": "Date of interest"},
         ],
-        "fields": ["venue", "day_of_week", "open_time", "close_time", "notes"],
+        "fields": ["name", "day", "hours"],
     },
     {
         "capability": "dining_hours",
@@ -563,6 +563,13 @@ def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any] | JSO
                     if f.get(field):
                         item[field] = f[field]
                 item.setdefault("name", r.get("title", ""))
+                formatted.append(item)
+            elif name == "campus_hours":
+                f = r.get("fields", {})
+                item = {"id": r.get("id"), "name": f.get("name"), "day": f.get("day")}
+                # [] is a published closure. An absent/NULL value is unknown.
+                if f.get("hours") is not None:
+                    item["hours"] = f["hours"]
                 formatted.append(item)
             else:
                 item = {"id": r.get("id"), "title": r.get("title", ""), **r.get("fields", {})}

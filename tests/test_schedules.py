@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from rockygpt_brain.data import SearchQuery
-from rockygpt_brain.schedules import CAMPUS_ZONE, departure_summary, trip_times, wall_time
+from rockygpt_brain.schedules import CAMPUS_ZONE, departure_summary, opening_intervals, trip_times, wall_time
 
 NOW = datetime(2026, 9, 16, 16, tzinfo=CAMPUS_ZONE)
 QUERY = SearchQuery(collection="shuttle", date_from=NOW.date(), limit=50)
@@ -157,3 +157,37 @@ def test_elapsed_duration_uses_actual_dst_elapsed_time() -> None:
     trip["fields"]["service_date"] = "2026-03-08"
     points = trip_times(trip["fields"])
     assert points[-1][1].timestamp() - points[0][1].timestamp() == 3600
+
+
+@pytest.mark.parametrize("schedule", [
+    "8:00am-9:30am and 11:30am-12:30pm",
+    [{"open": "08:00", "close": "09:30"}, {"open": "11:30", "close": "12:30"}],
+])
+def test_split_opening_intervals_preserve_the_closed_gap(schedule: Any) -> None:
+    day = date(2026, 9, 21)
+    intervals = opening_intervals(schedule, day)
+    assert [(start.strftime("%H:%M"), end.strftime("%H:%M")) for start, end in intervals] == [
+        ("08:00", "09:30"), ("11:30", "12:30"),
+    ]
+    gap = datetime(2026, 9, 21, 10, tzinfo=CAMPUS_ZONE)
+    assert not any(start <= gap < end for start, end in intervals)
+
+
+def test_structured_midnight_and_closure_keep_service_day_meaning() -> None:
+    day = date(2026, 9, 21)
+    start, end = opening_intervals([{"open": "08:00", "close": "00:00", "close_day_offset": 1}], day)[0]
+    assert start.date() == day and end.date() == date(2026, 9, 22)
+    assert opening_intervals([], day) == opening_intervals("CLOSED", day) == []
+
+
+@pytest.mark.parametrize("schedule", [
+    None, "", "CLOSED until noon", "9am-5pm and unknown",
+    [{"open": "08:00", "close": "00:00"}],
+    [{"open": "08:00", "close": "08:00", "close_day_offset": 1}],
+    [{"open": "08:00", "close": "17:00", "close_day_offset": True}],
+    [{"open": "25:00", "close": "26:00"}],
+    [{"open": "08:00", "close": "12:00"}, {"open": "11:00", "close": "13:00"}],
+])
+def test_unknown_or_invalid_opening_hours_never_mean_closed(schedule: Any) -> None:
+    with pytest.raises(ValueError):
+        opening_intervals(schedule, date(2026, 9, 21))

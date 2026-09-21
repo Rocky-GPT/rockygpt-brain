@@ -27,7 +27,8 @@ def build_collection_query(
     }
     fields = [
         sql.SQL("to_jsonb(t)->{} AS {}").format(sql.Literal(name), sql.Identifier(name))
-        if collection == "contacts" and name in optional_contact_fields
+        if (collection == "contacts" and name in optional_contact_fields)
+        or (collection == "campus_hours" and name == "hours")
         else sql.Identifier("t", name)
         for name in names
     ]

@@ -112,6 +112,22 @@ def test_successful_empty_records_remain_a_success() -> None:
     data.return_value.close.assert_called_once()
 
 
+@pytest.mark.parametrize("hours", [None, [], [{"open": "08:00", "close": "00:00", "close_day_offset": 1}]])
+def test_campus_hours_export_preserves_closed_versus_unknown(hours: object) -> None:
+    fields = {"name": "Example facility", "day": "Monday", "schedule": "source text", "hours": hours}
+    with (
+        patch.dict("os.environ", {"DATABASE_URL": "test"}),
+        patch("rockygpt_brain.api.app.CampusData") as data,
+    ):
+        data.return_value._load.return_value = [{"id": "campus_hours:stable", "fields": fields}]
+        response = TestClient(app).get("/v1/capabilities/campus_hours/records")
+    assert response.status_code == 200
+    expected: dict[str, object] = {"id": "campus_hours:stable", "name": "Example facility", "day": "Monday"}
+    if hours is not None:
+        expected["hours"] = hours
+    assert response.json() == {"returned": 1, "records": [expected]}
+
+
 def test_contact_records_export_only_clean_fields() -> None:
     fields = {
         "name": "Example office", "type": "office", "department": "Example unit",
