@@ -18,6 +18,7 @@ from rockygpt_brain.api.app import app
 from rockygpt_brain.campus.schedules import opening_intervals
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
+from rockygpt_brain.governance.evidence import bounded_result
 from rockygpt_brain.retrieval.models import SearchQuery
 from rockygpt_brain.retrieval.profiles import IdentityRegistry, ProfileQuery
 from test_engine import answer, review, tools
@@ -328,6 +329,89 @@ def dining_data() -> Any:
     data._fetch = Mock(side_effect=lambda _sql, params:
                        schedules if params[2][0] == 'Monday' else menus)  # type: ignore[method-assign]
     return data
+
+
+def full_dining_data() -> Any:
+    """A realistic large meal set, distinct from date filtering and transport limits."""
+    data = dining_data()
+    schedules = data._fetch(None, ('dataset', 'dining', ['Monday']))
+    original = data._fetch(None, ('dataset', 'dining', ['today:lunch']))[0]
+    menus = [{
+        **original, 'id': f'dish-{index:02}', 'source_record_key': f'lunch:dish-{index:02}',
+        'name': f'Dish {index:02}', 'station': f'Published Station {index % 4}', 'total': 52,
+    } for index in reversed(range(52))]
+    data._artifacts['campus-identities']['entities'][0]['links'][1]['source_record_keys'] = [
+        record['source_record_key'] for record in menus
+    ]
+    data._fetch = Mock(side_effect=lambda _sql, params:
+                       schedules if params[2][0] == 'Monday' else menus)
+    return data
+
+
+def test_large_profile_menu_defaults_to_complete_records_with_truthful_section_counts() -> None:
+    data = full_dining_data()
+    query = ProfileQuery(entity='Example Dining', include=['hours', 'menu'],
+                         date=date(2026, 9, 21), meal='Lunch')
+    output = data.lookup_profile(query)
+    assert len(output['records']) == 13
+    assert output['total_matches'] == 53 and output['truncated']
+    menu = output['components']['menu']
+    assert menu['status'] == 'partial' and menu['truncated']
+    assert menu['total_matches'] == 52
+    assert menu['returned_count'] == 12 and menu['omitted_count'] == 40
+    assert len(menu['evidence_ids']) == 12
+    assert menu['reason'] == 'menu_item_limit'
+    assert menu['service_date'] == '2026-09-21' and menu['meal'] == 'Lunch'
+    assert output['components']['hours']['status'] == 'available'
+    assert output['components']['hours']['omitted_count'] == 0
+    keys = [(record['fields']['station'], record['fields']['name'])
+            for record in output['records'][1:]]
+    assert keys == sorted(keys)
+    assert all(not record['content_truncated'] for record in output['records'])
+    complete = data.lookup_profile(query.model_copy(update={'menu_limit': 100}))
+    assert len(complete['records']) == complete['total_matches'] == 53
+    assert not complete['truncated']
+    assert complete['components']['menu']['returned_count'] == 52
+    assert complete['components']['menu']['omitted_count'] == 0
+    assert complete['components']['menu']['status'] == 'available'
+    assert complete['records'][0]['fields'] == output['records'][0]['fields']
+    bounded = bounded_result(output, lambda result: len(result.get('records', [])) <= 2)
+    assert bounded['total_matches'] == 53 and bounded['truncated']
+    assert 'components' not in bounded
+    assert bounded['components_withheld'] == 'retrieval_delivery_limit'
+
+
+def test_large_menu_section_coverage_reaches_normal_answer_review() -> None:
+    data = full_dining_data()
+    client = Mock()
+    client.create.side_effect = [
+        tools(SimpleNamespace(
+            type='function_call', name='lookup_profile', call_id='meal',
+            arguments=json.dumps({'entity': 'Example Dining', 'include': ['hours', 'menu'],
+                                  'date': '2026-09-21', 'meal': 'Lunch'}),
+        )),
+        answer('A published lunch menu example is Dish 00.', 'campus_fact', ['menu:dish-00']),
+        review('supported'),
+    ]
+    result = run_turn([
+        ChatMessage(role='user', content='What is on the lunch menu and what are lunch hours?'),
+    ], client=client, data=data, model='test', now=NOW)
+    assert result['status'] == 'answered'
+    assert result['trace'][0]['result_count'] == 13
+    assert result['trace'][0]['total_matches'] == 53
+    reviewer_input = json.loads(client.create.call_args_list[-1].kwargs['input'])
+    coverage = reviewer_input['retrieval_coverage'][0]['components']
+    assert coverage['menu']['total_matches'] == 52
+    assert coverage['menu']['returned_count'] == 12
+    assert coverage['menu']['omitted_count'] == 40
+    assert coverage['menu']['truncated']
+    assert not coverage['hours']['truncated']
+
+
+@pytest.mark.parametrize('limit', [0, 101])
+def test_menu_limit_rejects_unbounded_or_empty_delivery(limit: int) -> None:
+    with pytest.raises(ValidationError):
+        ProfileQuery(entity='Example Dining', include=['menu'], menu_limit=limit)
 
 
 def test_dining_date_meal_exceptions_split_hours_and_unknown_labels() -> None:

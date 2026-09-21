@@ -72,6 +72,13 @@ class ProfileQuery(BaseModel):
         default=None, min_length=1, max_length=80,
         description="Published meal label for menu and dining periods, or null for all meals.",
     )
+    menu_limit: int = Field(
+        default=12, ge=1, le=100,
+        description=(
+            "Maximum menu item records. Use 12 for an ordinary menu summary; raise this "
+            "only for an explicitly requested complete list. Other sections are unaffected."
+        ),
+    )
 
     @model_validator(mode="after")
     def valid_selector(self) -> ProfileQuery:
@@ -376,6 +383,7 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
     result["resolution"].update(status="matched", entity=_identity_summary(entity))
     entities = {item.id: item for item in registry.entities}
     cache: dict[str, tuple[list[dict[str, Any]], list[str], bool]] = {}
+    matched_record_ids: set[str] = set()
     for component in query.include:
         links = [link for link in entity.links if link.collection in SECTION_COLLECTIONS[component]]
         records: list[dict[str, Any]] = []
@@ -463,6 +471,18 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                 for record in evidence:
                     record["fields"].setdefault("identity_relationships", []).append(summary)
         records = list({record["id"]: record for record in records}.values())
+        matched_record_ids.update(record["id"] for record in records)
+        total_matches = len(records)
+        if component == "menu":
+            # A normal profile request needs a bounded, cited selection, as an
+            # ordinary search does. Stable published station/name ordering adds
+            # no inferred food category or ranking and keeps every record whole.
+            records.sort(key=lambda record: (
+                _normalize(str(record["fields"].get("station", ""))),
+                _normalize(str(record["fields"].get("name", ""))), record["id"],
+            ))
+            records = records[:query.menu_limit]
+            truncated = truncated or len(records) < total_matches
         if component == "contact":
             field_names = tuple(field for field in TABLES["contacts"][1] if field != "name")
         elif component == "hours":
@@ -516,7 +536,12 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             "relationships_missing": relationship_missing,
             "failed_links": failed_links,
             "truncated": truncated,
+            "total_matches": total_matches,
+            "returned_count": len(records),
+            "omitted_count": total_matches - len(records),
         }
+        if component == "menu" and len(records) < total_matches:
+            result["components"][component]["reason"] = "menu_item_limit"
         if component in {"conveners", "courses", "program"}:
             result["components"][component]["relationships"] = relationships
             if component == "conveners" and not relationships:
@@ -549,7 +574,7 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             record["coverage"]["fields"].update(previous["coverage"]["fields"])
         merged[record["id"]] = record
     result["records"] = list(merged.values())
-    result["total_matches"] = len(result["records"])
+    result["total_matches"] = len(matched_record_ids)
     if not result["records"] and any(
         component["status"] == "unavailable" for component in result["components"].values()
     ):
