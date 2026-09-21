@@ -12,7 +12,7 @@ from psycopg import sql
 
 from rockygpt_brain.retrieval.helpers import _date, _dining_schedules, _json, _tokens
 from rockygpt_brain.retrieval.models import TABLES, SearchQuery
-
+from rockygpt_brain.retrieval.normalization import normalize_record
 
 if TYPE_CHECKING:
     from rockygpt_brain.retrieval.data import CampusData
@@ -35,6 +35,7 @@ def build_collection_query(
         sql.SQL("to_jsonb(t)->{} AS {}").format(sql.Literal(name), sql.Identifier(name))
         if (collection == "contacts" and name in optional_contact_fields)
         or (collection == "campus_hours" and name == "hours")
+        or (collection == "menu" and name == "portion_size")
         else sql.Identifier("t", name)
         for name in names
     ]
@@ -187,7 +188,10 @@ def load_artifact_records(
         ):
             for program_index, program in enumerate(school.get("majors", [])):
                 for index, requirement in enumerate(program.get("requirements", [])):
-                    fields = {"program": program["name"], **requirement}
+                    fields = {
+                        "program": program["name"], **requirement,
+                        "program_url": program.get("catalogUrl") or program.get("url"),
+                    }
                     entries.append(
                         (
                             f"{school_index}.{program_index}.{index}",
@@ -221,6 +225,8 @@ def load_artifact_records(
             url,
         )
         if record:
+            normalize_record(record)
+            record["content"] = _json(record["fields"])
             record["source_record_key"] = source_record_key
             if collection == "faculty" and "courses" in fields:
                 record["limitations"].append(
@@ -280,6 +286,27 @@ def enrich_records(
                 )
             record["content"] = _json(fields)
     elif collection == "menu":
+        from pydantic import ValidationError
+
+        from rockygpt_brain.retrieval.profiles import IdentityRegistry
+
+        # A known source message is not food. Preserve it in stored source snapshots.
+        records[:] = [r for r in records if " ".join(
+            str(r["fields"].get("name", "")).split()
+        ).casefold() != "have a nice day"]
+        venues = {}
+        identity_payload = get_artifact("campus-identities")
+        if identity_payload:
+            try:
+                registry = IdentityRegistry.model_validate(identity_payload)
+                venues = {
+                    (link.source_key, key): entity
+                    for entity in registry.entities if entity.kind == "venue"
+                    for link in entity.links if link.collection == "menu"
+                    for key in link.source_record_keys
+                }
+            except ValidationError:
+                venues = {}  # Unvalidated identities never establish a venue link.
         context = (get_artifact("menu-context") or {}).get("content", "")
         # This is the published artifact's Markdown metadata, not user text.
         heading = next(
@@ -295,6 +322,15 @@ def enrich_records(
             "",
         )
         for record in records:
+            identity = venues.get((record.get("source_key"), record.get("source_record_key")))
+            if identity:
+                record["venue_entity_id"] = str(identity.id)
+                record["relationship_to_entity"] = "offering_at"
+                record["fields"]["venue"] = identity.name
+                record["coverage"]["fields"]["venue"] = "published"
+            calories = record["fields"].get("calories")
+            if isinstance(calories, str) and calories.strip().isdigit():
+                record["fields"]["calories"] = int(calories)
             if venue:
                 record["fields"] = {"venue": venue, **record["fields"]}
                 record["coverage"]["fields"]["venue"] = "published"
@@ -310,18 +346,28 @@ def enrich_records(
                     record["fields"][key] = item[key]
             record["content"] = _json(record["fields"])
     elif collection == "programs":
-        programs = {
-            item["name"]: item
-            for school in (get_artifact("programs") or {}).get("schools", [])
+        programs = [
+            item for school in (get_artifact("programs") or {}).get("schools", [])
             for item in school.get("majors", [])
-        }
+        ]
         for record in records:
-            item = programs.get(record["title"], {})
+            candidates = [item for item in programs if item.get("name") == record["title"]]
+            if len(candidates) > 1:
+                candidates = [
+                    item for item in candidates
+                    if record["fields"].get("program_url")
+                    and record["fields"]["program_url"] in (item.get("url"), item.get("catalogUrl"))
+                ]
+            item = candidates[0] if len(candidates) == 1 else {}
             for key in ("type", "catalogUrl", "careers"):
                 if key in item:
                     record["fields"][key] = item[key]
             record["fields"]["requirements_collection"] = "program_requirements"
             record["content"] = _json(record["fields"])
+    for record in records:
+        normalize_record(record)
+        record["content"] = _json(record["fields"])
+
 
 
 def catalog_convener_records(

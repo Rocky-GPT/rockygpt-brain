@@ -379,3 +379,45 @@ def test_client_cannot_select_a_budget_namespace() -> None:
         },
     )
     assert response.status_code == 422
+
+
+def test_menu_export_has_one_name_numeric_nutrition_and_explicit_label_semantics() -> None:
+    rows = [
+        {"id": "menu:one", "title": "Sliced Tomato", "valid_from": "2026-09-21",
+         "venue_entity_id": "venue-id", "fields": {"name": "Sliced Tomato", "calories": 0,
+         "vegan": False, "vegetarian": True, "allergens": [], "venue": "Birch Tree Inn"}},
+        {"id": "menu:two", "title": "French Toash", "valid_from": "2026-09-21",
+         "fields": {"name": "French Toash"}},
+    ]
+    with patch.dict("os.environ", {"DATABASE_URL": "test"}), patch("rockygpt_brain.api.app.CampusData") as data:
+        data.return_value._load.return_value = rows
+        response = TestClient(app).get("/v1/capabilities/menu/records").json()
+    one, two = response["records"]
+    assert "title" not in one and "title" not in two
+    assert one["calories"] == 0 and one["vegan"] is False and one["allergens"] == []
+    assert one["venue_entity_id"] == "venue-id"
+    assert two["allergens"] is None and two["vegan"] is None and two["vegetarian"] is None
+
+
+@pytest.mark.parametrize("collection,fields", [
+    ("clubs", {"name": "Example Club", "category": "Student Organization"}),
+    ("courses", {"code": "COMP 101", "name": "Computing", "credits": 4}),
+    ("faculty", {"name": "Example", "title": "Professor", "phone": "201.555.0100"}),
+    ("dining_hours", {"name": "Example Hall", "schedule": "Closed"}),
+])
+def test_clean_exports_preserve_real_titles_and_dining_hours_contract(
+    collection: str, fields: dict[str, object],
+) -> None:
+    rows = [{"id": "stable", "title": "Evidence title", "fields": fields,
+             "url": "https://example.edu/source"}]
+    with patch.dict("os.environ", {"DATABASE_URL": "test"}), patch("rockygpt_brain.api.app.CampusData") as data:
+        data.return_value._load.return_value = rows
+        result = TestClient(app).get(f"/v1/capabilities/{collection}/records").json()["records"][0]
+    if collection == "dining_hours":
+        assert result == {"id": "stable", "title": "Evidence title", **fields}
+    elif collection == "faculty":
+        assert result["title"] == "Professor"
+        assert result["phone"] == "(201) 555-0100"
+    else:
+        assert "title" not in result
+        assert result["source_url"] == "https://example.edu/source"

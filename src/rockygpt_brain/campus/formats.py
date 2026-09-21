@@ -178,6 +178,10 @@ def menu_parts(
 ) -> list[AnswerPart]:
     if not query.filters or not query.filters.meal or query.filters.name:
         raise ValueError("A whole meal list requires a meal filter")
+    # Broad meal questions need a reviewed selection, not an exhaustive dump of
+    # ingredients, garnishes and dishes that share the same source station.
+    if not set(words(text).split()) & {"menu", "list", "all", "full", "complete"}:
+        raise ValueError("A meal overview needs a reviewed summary")
     meal = query.filters.meal
     text, meal_named = remove_phrase(text, meal)
     if not meal_named:
@@ -195,6 +199,9 @@ def menu_parts(
             extra_fields.append(field)
     for marker in (
         "menu",
+        "all",
+        "full",
+        "complete",
         "food",
         "items",
         "options",
