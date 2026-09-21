@@ -516,6 +516,7 @@ def run_turn(
                                 "conflicts", "linked_records_missing", "failed_links",
                                 "relationships", "relationships_missing", "temporal_scope",
                                 "meal", "reason",
+                                "total_matches", "returned_count", "omitted_count",
                             }
                         }
                         for component, details in output["components"].items()
