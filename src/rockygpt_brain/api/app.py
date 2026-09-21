@@ -578,8 +578,30 @@ def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any] | JSO
                 if f.get("hours") is not None:
                     item["hours"] = f["hours"]
                 formatted.append(item)
+            elif name == "menu":
+                item = {"id": r.get("id"), **r.get("fields", {}), "date": r.get("valid_from")}
+                # Keep unknown distinct from a source-published false/empty value.
+                for label in ("vegan", "vegetarian", "allergens"):
+                    item.setdefault(label, None)
+                if r.get("venue_entity_id"):
+                    item["venue_entity_id"] = r["venue_entity_id"]
+                formatted.append(item)
             else:
-                item = {"id": r.get("id"), "title": r.get("title", ""), **r.get("fields", {})}
+                item = {"id": r.get("id"), **r.get("fields", {})}
+                if name == "dining_hours":
+                    item = {"id": r.get("id"), "title": r.get("title", ""), **r.get("fields", {})}
+                if not any(
+                    key in item for key in ("name", "title", "code", "fact_key", "route", "program")
+                ):
+                    item["title"] = r.get("title", "")
+                if name == "faculty" and "phone" in item:
+                    from rockygpt_brain.retrieval.normalization import faculty_phone_display
+
+                    item["phone"] = faculty_phone_display(item["phone"])
+                if name == "programs":
+                    item["record_kind"] = "catalog_convener" if "field_meaning" in item else "program"
+                if r.get("url") and name not in ("dining_hours", "documents"):
+                    item["source_url"] = r["url"]
                 if r.get("valid_from"):
                     item["date"] = r.get("valid_from")
                 if r.get("valid_until") and r.get("valid_until") != r.get("valid_from"):

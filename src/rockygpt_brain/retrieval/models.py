@@ -68,7 +68,7 @@ TABLES: dict[str, tuple[str, tuple[str, ...]]] = {
     "dining_hours": ("dining_hours", ("name", "day", "schedule")),
     "menu": (
         "menu_items",
-        ("meal", "station", "name", "calories", "vegan", "vegetarian", "allergens"),
+        ("meal", "station", "name", "calories", "portion_size", "vegan", "vegetarian", "allergens"),
     ),
     "calendar": (
         "academic_dates",

@@ -357,6 +357,7 @@ class CampusData:
                         record["_query_terms"] = row.get("query_terms")
                         record["_title_terms"] = row.get("title_terms")
                     if collection == "menu":
+                        record["source_record_key"] = row.get("source_record_key")
                         coverage = row.get("label_coverage") or {}
                         for label in ("vegan", "vegetarian", "allergens"):
                             state = coverage.get(label)

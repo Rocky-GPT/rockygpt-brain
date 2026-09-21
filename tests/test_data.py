@@ -32,7 +32,7 @@ def data() -> CampusData:
         }
     }
     repository._cache = {}
-    repository._artifacts = {}
+    repository._artifacts = {"campus-identities": None}
     repository._seen = {}
     return repository
 
@@ -697,3 +697,13 @@ def test_discovered_name_filter_retrieves_only_the_named_record(
     assert result["total_matches"] == 1
     with pytest.raises(ValidationError, match="Filter is not supported"):
         SearchQuery.model_validate({"collection": collection, "filters": {"meal": "Dinner"}})
+
+
+def test_menu_artifacts_are_filtered_but_components_and_zero_calories_survive(data: CampusData) -> None:
+    data._artifacts["menu-context"] = {"content": "# Birch Tree Inn Menu"}
+    rows = [record(data, "menu", name, {"name": name, "calories": calories}, key=name)
+            for name, calories in [("Have a Nice Day", ""), ("Sliced Tomato", "0"),
+                                   ("Hand Cut French Fries", "307"), ("Hand Cut French Fries", "537")]]
+    data._enrich("menu", rows)
+    assert [r["fields"]["calories"] for r in rows] == [0, 307, 537]
+    assert rows[0]["fields"]["name"] == "Sliced Tomato"

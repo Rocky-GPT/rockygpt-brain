@@ -71,7 +71,7 @@ def hours(schedule: str = "05:00 PM - 08:00 PM") -> dict[str, Any]:
 
 
 def test_complete_dinner_returns_all_published_items_without_more_model_calls() -> None:
-    question = "what is for dinner today"
+    question = "list the dinner menu today"
     query = menu_query()
     client, data = Mock(), Mock()
     client.create.return_value = tools(
@@ -175,7 +175,7 @@ def test_unconsumed_qualifiers_never_use_exact_exemption(question: str) -> None:
     ],
 )
 def test_unverified_menu_facts_do_not_bypass_review(change: dict[str, Any]) -> None:
-    question = "what is for dinner today"
+    question = "list the dinner menu today"
     assert (
         exact_search(question, messages(question), menu_query(), output(menu(**change)), NOW)
         is None
@@ -183,7 +183,7 @@ def test_unverified_menu_facts_do_not_bypass_review(change: dict[str, Any]) -> N
 
 
 def test_dietary_request_and_source_flag_must_both_match() -> None:
-    question = "what vegan dinner is available today"
+    question = "what vegan dinner menu is available today"
     assert exact_search(question, messages(question), menu_query(), output(menu()), NOW) is None
     query = menu_query(vegan=True)
     assert exact_search(question, messages(question), query, output(menu()), NOW) is not None
@@ -195,14 +195,14 @@ def test_dietary_request_and_source_flag_must_both_match() -> None:
 def test_conflicting_identity_is_not_chosen() -> None:
     first, other = menu(), menu()
     other["fields"]["name"] = "Different dish"
-    question = "what is for dinner today"
+    question = "list the dinner menu today"
     assert (
         exact_search(question, messages(question), menu_query(), output(first, other), NOW) is None
     )
 
 
 def test_partial_menu_is_not_presented_as_complete_and_keeps_qualification() -> None:
-    question = "dinner allergens today"
+    question = "dinner menu allergens today"
     rows = {**output(menu()), "total_matches": 7, "truncated": True}
     piece = exact_search(question, messages(question), menu_query(), rows, NOW)
     assert piece is not None and not piece.complete
@@ -224,14 +224,14 @@ def test_partial_menu_is_not_presented_as_complete_and_keeps_qualification() -> 
 def test_quote_cannot_omit_qualifiers_from_its_atomic_request(question: str) -> None:
     assert (
         exact_search(
-            "what is for dinner today", messages(question), menu_query(), output(menu()), NOW
+            "list the dinner menu today", messages(question), menu_query(), output(menu()), NOW
         )
         is None
     )
 
 
 def test_unanswered_multipart_request_prevents_early_return() -> None:
-    quote = "what is for dinner today"
+    quote = "list the dinner menu today"
     request = quote + " and how do I appeal a parking ticket?"
     piece = exact_search(quote, messages(request), menu_query(), output(menu()), NOW)
     assert piece is not None
@@ -242,7 +242,7 @@ def test_unanswered_multipart_request_prevents_early_return() -> None:
 
 
 def test_rejected_prose_retains_only_independent_facts_and_limitations() -> None:
-    quote = "dinner allergens today"
+    quote = "dinner menu allergens today"
     request = quote + " and how do I appeal a parking ticket?"
     client, data = Mock(), Mock()
     query = menu_query()
@@ -310,13 +310,13 @@ def test_next_departure_requires_route_origin_and_single_requested_extremum() ->
 def test_failed_format_does_not_mutate_evidence() -> None:
     rows = output(menu())
     before = deepcopy(rows)
-    question = "what is for dinner today"
+    question = "list the dinner menu today"
     exact_search(question, messages(question), menu_query(), rows, NOW)
     assert rows == before
 
 
 def test_complete_meal_larger_than_one_citation_group_stays_complete() -> None:
-    question = "what is for dinner today"
+    question = "list the dinner menu today"
     rows = output(*(menu(f"Dish {index}") for index in range(75)))
     piece = exact_search(question, messages(question), menu_query(), rows, NOW)
     assert piece is not None and piece.complete
@@ -327,7 +327,7 @@ def test_complete_meal_larger_than_one_citation_group_stays_complete() -> None:
 
 
 def test_oversized_exact_menu_continues_to_reviewed_answer() -> None:
-    question = "what is for dinner today"
+    question = "list the dinner menu today"
     client, data = Mock(), Mock()
     rows = output(*(menu(f"Dish {index}: " + "x" * 160) for index in range(75)))
     query = menu_query()
@@ -351,7 +351,7 @@ def test_oversized_exact_menu_continues_to_reviewed_answer() -> None:
 
 @pytest.mark.parametrize("verdict", ["supported", "unsupported_claim"])
 def test_multipart_keeps_code_facts_and_reviews_only_new_prose(verdict: str) -> None:
-    quote = "dinner allergens today"
+    quote = "dinner menu allergens today"
     request = quote + " and what is my current GPA?"
     client, data = Mock(), Mock()
     client.create.side_effect = [
@@ -385,3 +385,18 @@ def test_multipart_keeps_code_facts_and_reviews_only_new_prose(verdict: str) -> 
     else:
         assert "personal academic record" not in result["answer"]
         assert result["metrics"]["responseMode"] == "safe_fallback"
+
+
+@pytest.mark.parametrize("question", ["What's for dinner?", "what is for dinner today", "what vegan dinner is available today"])
+def test_meal_overview_never_bypasses_review_with_a_component_dump(question: str) -> None:
+    rows = output(menu("Sliced Tomato"), menu("Ginger"), menu("Garlic Grilled Chicken"))
+    assert exact_search(question, messages(question), menu_query(), rows, NOW) is None
+
+
+def test_explicit_full_menu_keeps_components() -> None:
+    question = "list the full dinner menu today"
+    rows = output(menu("Sliced Tomato"), menu("Garlic Grilled Chicken"))
+    piece = exact_search(question, messages(question), menu_query(), rows, NOW)
+    assert piece is not None
+    assert "Sliced Tomato" in piece.answer.parts[0].text
+    assert "Garlic Grilled Chicken" in piece.answer.parts[0].text
