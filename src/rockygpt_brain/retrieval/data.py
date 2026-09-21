@@ -41,6 +41,7 @@ from rockygpt_brain.retrieval.processing import (
     filter_by_dates,
     load_artifact_records,
 )
+from rockygpt_brain.retrieval.profiles import ProfileQuery, lookup_profile
 
 __all__ = [
     "CAMPUS_ZONE",
@@ -281,6 +282,9 @@ class CampusData:
                 "absence_is_not_nonexistence": True,
             },
         }
+
+    def lookup_profile(self, query: ProfileQuery) -> dict[str, Any]:
+        return lookup_profile(self, query)
 
     def _load(self, collection: str, query: SearchQuery | None = None) -> list[dict[str, Any]]:
         cache_key = collection if query is None else query.model_dump_json()
