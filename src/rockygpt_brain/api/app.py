@@ -526,16 +526,19 @@ def get_capabilities() -> dict[str, Any]:
     return {"capabilities": CAPABILITIES_CATALOG}
 
 
-@app.get("/v1/capabilities/{name}/records")
-def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any]:
+@app.get("/v1/capabilities/{name}/records", response_model=None)
+def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any] | JSONResponse:
+    from rockygpt_brain.retrieval.models import COLLECTIONS, SearchQuery
+
+    if name not in COLLECTIONS:
+        return JSONResponse(status_code=404, content={"error": f"Unknown collection: {name}"})
     database_url = os.getenv("DATABASE_URL", "")
     if not database_url:
-        return {"returned": 0, "records": []}
+        return JSONResponse(
+            status_code=503, content={"error": "Campus database is not configured."}
+        )
     data = None
     try:
-        from rockygpt_brain.retrieval.models import COLLECTIONS, SearchQuery
-        if name not in COLLECTIONS:
-            return {"returned": 0, "records": [], "error": f"Unknown collection: {name}"}
         data = CampusData(database_url, datetime.now(ZoneInfo("America/New_York")))
         data._ensure_loaded()
         if name == "documents":
@@ -558,6 +561,8 @@ def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any]:
                 phones = f.get("phones")
                 if phones and len(phones) > 0:
                     item["phones"] = phones
+                elif f.get("phone"):
+                    item["phone"] = f["phone"]
                 if f.get("email"):
                     item["email"] = f["email"]
                 if f.get("office"):
@@ -578,8 +583,12 @@ def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any]:
                     item["snippet"] = r.get("content", "")
                 formatted.append(item)
         return {"returned": len(formatted), "records": formatted}
-    except Exception as e:
-        return {"returned": 0, "records": [], "error": str(e)}
+    except Exception:
+        logging.getLogger(__name__).exception("Capability records lookup failed: %s", name)
+        return JSONResponse(
+            status_code=503,
+            content={"error": "Campus records could not be loaded. Check the Brain logs for details."},
+        )
     finally:
         if data is not None:
             data.close()
