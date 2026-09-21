@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Callable
 from datetime import date, timedelta
@@ -337,13 +338,25 @@ def enrich_records(
             if url.startswith("https://"):
                 record["url"] = url
             record["content"] = _json(record["fields"])
-    elif collection == "events":
-        by_url = {item.get("url"): item for item in get_artifact("events") or []}
+    elif collection in {"clubs", "events"}:
+        url_field = "websiteUrl" if collection == "clubs" else "url"
+        by_url: dict[str, list[dict[str, Any]]] = {}
+        for item in get_artifact(collection) or []:
+            if isinstance(item, dict) and item.get(url_field):
+                by_url.setdefault(item[url_field], []).append(item)
         for record in records:
-            item = by_url.get(record["url"], {})
-            for key in ("location", "tags", "ticketStatus"):
+            # Public evidence URLs can fall back to a source landing page. Only
+            # the original record URL establishes this artifact correspondence.
+            url = record["fields"].get("website_url" if collection == "clubs" else "event_url")
+            candidates = by_url.get(url, [])
+            item = candidates[0] if len(candidates) == 1 else {}
+            keys = ("email", "bucket", "instagramUrl", "groupmeUrls", "groupmeGroups") if (
+                collection == "clubs"
+            ) else ("location", "tags", "ticketStatus")
+            for key in keys:
                 if key in item:
                     record["fields"][key] = item[key]
+                    record["coverage"]["fields"][key] = "published"
             record["content"] = _json(record["fields"])
     elif collection == "programs":
         programs = [
@@ -422,6 +435,50 @@ def catalog_convener_records(
             output.append(record)
     return output
 
+
+
+def event_organizer_records(
+    data: CampusData, rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Keep explicitly identified page organizers separate from event-row freshness."""
+    payload = data._artifact("event-organizers") or {}
+    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+        return []
+    output = []
+    for row in rows:
+        source = data.sources.get(str(row.get("source_id")), {})
+        matches = [item for item in payload.get("events", []) if isinstance(item, dict)
+                   and item.get("source_key") == source.get("source_key")
+                   and item.get("source_record_key") == row.get("source_record_key")
+                   and item.get("source_record_id") == str(row["id"])
+                   and item.get("event_url") == row.get("event_url")]
+        captures = {_json(dict(sorted(item.items()))): item for item in matches}
+        for capture, item in sorted(captures.items()):
+            if not all(item.get(key) for key in (
+                "organizer_group_id", "organizer_url", "source_url",
+            )):
+                continue
+            suffix = ":" + hashlib.sha256(capture.encode()).hexdigest()[:16] if (
+                len(captures) > 1
+            ) else ""
+            record = data._evidence(
+                "events", {**row, "id": f"{row['id']}:organizer{suffix}",
+                           "collected_at": item.get("collected_at")},
+                {key: item[key] for key in ("event_url", "organizer_group_id", "organizer_url",
+                                            "organizer_name") if key in item},
+                f"{row['title']} — published organizer", item["source_url"],
+            )
+            if record:
+                record["fields"]["event_record_id"] = str(row["id"])
+                record["source_record_key"] = row["source_record_key"]
+                record["source_record_id"] = str(row["id"])
+                record["limitations"].append(
+                    "Organizer identity evidence from the cited event page; "
+                    "its collection time is independent of the event listing."
+                )
+                record["content"] = _json(record["fields"])
+                output.append(record)
+    return output
 
 
 def filter_by_dates(

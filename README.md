@@ -17,6 +17,22 @@ availability scope never establish phone-answering or staff hours. Profiles use
 the ordinary generated-answer evidence review; they have no exact-answer bypass.
 Older releases without the artifact report that profile linking is unavailable.
 
+Profile sections include `club` and `event`. Clubs retain the directory's published
+category and contact/social links; a listing does not establish current meetings
+or membership. Events represent individual RSVP instances, not academic programs
+or operating schedules. A null profile date retains an event's published occurrence;
+an explicit date filters in `America/New_York`. Repeated titles require a date or
+persistent identity, and missing times/locations remain unknown. Exact row IDs
+qualify colliding legacy event keys while preserving the original keys. An
+`organized_by` relationship requires explicit event-page group identity evidence;
+organizer or venue name similarity is insufficient. Separate page captures keep
+their own timestamps, and conflicting organizer assertions are not resolved by recency.
+The club `event` section follows incoming approved organizer links and rechecks
+their evidence, retaining each event's identity. It inspects at most 20 candidate
+events and reports unexamined candidates; this is not a complete event calendar.
+Date disambiguation likewise checks at most 20 identically named instances and
+otherwise retains ambiguity. Existing event search remains available for broader queries.
+
 ## Run
 
 ```sh

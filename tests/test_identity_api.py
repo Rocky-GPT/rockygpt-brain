@@ -180,7 +180,7 @@ def test_default_profile_sections_remain_selective_and_date_defaults_to_campus_t
     assert response.status_code == 200
     output = response.json()["profile"]
     assert set(output["components"]) == {
-        "contact", "hours", "faculty", "courses", "program", "conveners", "menu",
+        "contact", "hours", "faculty", "courses", "program", "conveners", "menu", "club", "event",
     }
     assert output["components"]["hours"]["service_date"] == data.today.isoformat()
     assert output["components"]["faculty"]["status"] == "missing"

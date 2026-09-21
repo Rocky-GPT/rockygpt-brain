@@ -8,6 +8,8 @@ import re
 from datetime import datetime
 from typing import Any, TypeGuard
 
+from rockygpt_brain.retrieval.helpers import _date
+
 COLLECTIONS = {
     "critical_facts",
     "calendar",
@@ -85,6 +87,20 @@ def normalize_record(record: dict[str, Any]) -> None:
         if fields["credits"] is None:
             coverage["credits"] = "not_published"
     if collection == "events":
+        fields["temporal_scope"] = "dated_event_occurrence"
+        fields["timezone"] = "America/New_York"
+        occurrence_date = _date(fields.get("starts_at"))
+        fields["occurrence_date"] = occurrence_date.isoformat() if occurrence_date else None
+        for field in ("starts_at", "start_time", "end_time", "organizer", "location", "event_url"):
+            if not fields.get(field):
+                coverage[field] = "not_published"
+        if occurrence_date and not fields.get("start_time"):
+            # The ingestion parser may retain a date with midnight when the source
+            # supplies no clock. That establishes the date, not a midnight start.
+            coverage["starts_at"] = "date_only"
+            note = "An event date is published, but its start time is unavailable."
+            if note not in record["limitations"]:
+                record["limitations"].append(note)
         location = fields.get("location")
         access = {
             "Private Location (sign in to display)": "sign_in_required",
