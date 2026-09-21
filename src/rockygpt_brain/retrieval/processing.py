@@ -19,6 +19,18 @@ def build_collection_query(
 ) -> tuple[sql.Composable, tuple[Any, ...]]:
     """Build parameterized SQL query and arguments for a collection table read."""
     table, names = TABLES[collection]
+    # Optional contact metadata was added after the original directory schema.
+    # JSON extraction preserves native value types and returns NULL on older releases.
+    optional_contact_fields = {
+        "prefers_email", "preferred_contact", "contact_note", "phones",
+        "raw_phone", "phone_normalization_status",
+    }
+    fields = [
+        sql.SQL("to_jsonb(t)->{} AS {}").format(sql.Literal(name), sql.Identifier(name))
+        if collection == "contacts" and name in optional_contact_fields
+        else sql.Identifier("t", name)
+        for name in names
+    ]
     extra = (
         sql.SQL(", r.name AS route, r.service_day")
         if collection == "shuttle"
@@ -78,7 +90,7 @@ def build_collection_query(
         "{fields}{extra} FROM rockygpt_v2.{table} t {join} "
         "WHERE {conditions} ORDER BY t.id LIMIT 5001"
     ).format(
-        fields=sql.SQL(", ").join(sql.Identifier("t", name) for name in names),
+        fields=sql.SQL(", ").join(fields),
         extra=extra,
         table=sql.Identifier(table),
         join=join,

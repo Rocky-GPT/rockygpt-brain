@@ -70,6 +70,70 @@ def test_health_does_not_require_services() -> None:
     assert TestClient(app).head("/health").status_code == 200
 
 
+def test_records_without_database_are_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    response = TestClient(app).get("/v1/capabilities/contacts/records")
+    assert response.status_code == 503
+    assert "error" in response.json()
+    assert "records" not in response.json()
+
+
+def test_unknown_records_collection_is_not_an_empty_success() -> None:
+    with patch("rockygpt_brain.api.app.CampusData") as data:
+        response = TestClient(app).get("/v1/capabilities/unknown/records")
+    assert response.status_code == 404
+    data.assert_not_called()
+
+
+@pytest.mark.parametrize("stage", ["_ensure_loaded", "_load"])
+def test_records_failures_are_errors_and_close_connection(stage: str) -> None:
+    with (
+        patch.dict("os.environ", {"DATABASE_URL": "test"}),
+        patch("rockygpt_brain.api.app.CampusData") as data,
+    ):
+        getattr(data.return_value, stage).side_effect = RuntimeError("secret database details")
+        response = TestClient(app).get("/v1/capabilities/contacts/records")
+    assert response.status_code == 503
+    assert "error" in response.json()
+    assert "records" not in response.json()
+    assert "secret database details" not in response.text
+    data.return_value.close.assert_called_once()
+
+
+def test_successful_empty_records_remain_a_success() -> None:
+    with (
+        patch.dict("os.environ", {"DATABASE_URL": "test"}),
+        patch("rockygpt_brain.api.app.CampusData") as data,
+    ):
+        data.return_value._load.return_value = []
+        response = TestClient(app).get("/v1/capabilities/contacts/records")
+    assert response.status_code == 200
+    assert response.json() == {"returned": 0, "records": []}
+    data.return_value.close.assert_called_once()
+
+
+@pytest.mark.parametrize("structured", [False, True])
+def test_contact_records_preserve_published_phone_on_both_schemas(structured: bool) -> None:
+    fields: dict[str, object] = {"name": "Example office", "phone": "201-555-0100"}
+    if structured:
+        fields.update(phones=[{"number": "201-555-0100"}], preferred_contact="email")
+    with (
+        patch.dict("os.environ", {"DATABASE_URL": "test"}),
+        patch("rockygpt_brain.api.app.CampusData") as data,
+    ):
+        data.return_value._load.return_value = [{"id": "contacts:one", "fields": fields}]
+        response = TestClient(app).get("/v1/capabilities/contacts/records")
+    assert response.status_code == 200
+    assert response.json()["returned"] == 1
+    contact = response.json()["records"][0]
+    if structured:
+        assert contact["phones"] == fields["phones"]
+        assert contact["preferred_contact"] == "email"
+    else:
+        assert contact["phone"] == fields["phone"]
+        assert "preferred_contact" not in contact
+
+
 @pytest.mark.parametrize("reason", ["context_limit", "retrieval_context_limit"])
 def test_context_errors_distinguish_history_from_retrieval(reason: str) -> None:
     with (
