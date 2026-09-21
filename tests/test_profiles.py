@@ -243,7 +243,9 @@ def test_tool_runs_through_generated_answer_review() -> None:
     assert result["metrics"]["reviewCalls"] == 1
     assert result["trace"][0]["tool"] == "lookup_profile"
     tool = next(tool for tool in tool_definitions() if tool["name"] == "lookup_profile")
-    assert set(tool["parameters"]["required"]) == {"entity", "entity_id", "include", "date"}
+    assert set(tool["parameters"]["required"]) == {
+        "entity", "entity_id", "include", "date", "meal",
+    }
 
 
 def test_explicit_date_with_no_hours_for_that_day_is_missing_not_closed() -> None:

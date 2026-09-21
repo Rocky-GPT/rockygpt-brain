@@ -41,6 +41,13 @@ fields remain usable when another field is missing or conflicting. An operating
 schedule with unspecified availability_scope cannot establish staff, service-desk,
 facility, or telephone availability separately. In particular, a linked phone
 number and closing time do not support a claim that staff answer until closing.
+Identity relationships identify separate subjects: a program's convener is a
+person, not the program itself. Verify the explicit relationship as well as the
+person's requested contact field. Faculty-profile course lists and profile_course
+links are undated and cannot establish current-semester teaching assignments.
+Catalog links establish only supported catalog descriptions. Dining schedules
+must apply to the requested campus date and meal; preserve split periods and
+schedule exceptions. Unlabeled meal hours are unknown, not closed.
 The collection and source title identify a directory, not every entry's entity
 type. Use published_category and the record's fields for category claims. A
 heading or grouping that presents entries as the requested category asserts

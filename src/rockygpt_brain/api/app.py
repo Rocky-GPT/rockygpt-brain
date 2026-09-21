@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from rockygpt_brain.api.stream import stream_turn
 from rockygpt_brain.campus.progress import ProgressCallback, ProgressUpdate, TurnCancelled
-from rockygpt_brain.config import RELEASE, ConfigurationError, load_deployment
+from rockygpt_brain.config import RELEASE, ConfigurationError, configuration_hash, load_deployment
 from rockygpt_brain.contracts import ChatRequest
 from rockygpt_brain.core import InvalidAnswer, PaidGateway, open_gateway, run_turn
 from rockygpt_brain.governance import BodyLimitMiddleware, PaidCallError, PostgresLedger
@@ -56,7 +56,14 @@ def readiness() -> dict[str, object] | JSONResponse:
             < (RELEASE.price.valid_until)
         ):
             raise ConfigurationError("Price configuration expired")
-        return {"status": "ready", "campus_data": data.readiness()}
+        result: dict[str, object] = {"status": "ready", "campus_data": data.readiness()}
+        if deployment.environment == "development":
+            result["development"] = {
+                "release_version": RELEASE.version,
+                "configurationHash": configuration_hash(),
+                "identities": data.identity_readiness(),
+            }
+        return result
     except Exception:
         return JSONResponse(status_code=503, content={"status": "unavailable"})
     finally:

@@ -76,30 +76,36 @@ def opening_intervals(
             offset = interval.get("close_day_offset", 0)
             if type(offset) is not int or offset not in (0, 1):
                 raise ValueError("Invalid closing day offset")
-            start = wall_time(clocks[0], day)
-            end = wall_time(clocks[1], day + timedelta(days=offset))
+            start = wall_time(str(clocks[0]), day)
+            end = wall_time(str(clocks[1]), day + timedelta(days=offset))
             # A next-day marker cannot turn contradictory/equal clocks into a full day.
             wall_duration = end.replace(tzinfo=None) - start.replace(tzinfo=None)
             if not timedelta(0) < wall_duration < timedelta(days=1):
                 raise ValueError("Invalid opening interval duration")
             result.append((start, end))
     elif isinstance(schedule, str):
-        if schedule.strip().casefold() == "closed":
+        if schedule.strip().casefold() in {"closed", "closed (seasonal closure)"}:
             return []
-        for interval in re.split(r"\s+and\s+|;|,", schedule, flags=re.IGNORECASE):
-            clocks = re.split(r"\s*(?:[-–—]|\bto\b)\s*", interval.strip(), flags=re.IGNORECASE)
-            if len(clocks) != 2:
+        for text_interval in re.split(r"\s+and\s+|;|,", schedule, flags=re.IGNORECASE):
+            # Labels identify meal periods; they do not alter the supplied clocks.
+            text_interval = re.sub(r"^[^:\d]+:\s*(?=\d{1,2}:\d{2})", "", text_interval.strip())
+            text_clocks = re.split(
+                r"\s*(?:[-–—]|\bto\b)\s*", text_interval, flags=re.IGNORECASE
+            )
+            if len(text_clocks) != 2:
                 raise ValueError("Schedule does not establish explicit opening intervals")
-            start, end = (wall_time(value, day) for value in clocks)
+            start, end = (wall_time(value, day) for value in text_clocks)
             if end < start:
-                end = wall_time(clocks[1], day + timedelta(days=1))
+                end = wall_time(text_clocks[1], day + timedelta(days=1))
             if start == end:
                 raise ValueError("Equal clocks do not establish 24-hour service")
             result.append((start, end))
     else:
         raise ValueError("Unknown opening hours")
     ordered = sorted(result)
-    if any(next_start < end for (_, end), (next_start, _) in zip(ordered, ordered[1:], strict=False)):
+    if any(
+        next_start < end for (_, end), (next_start, _) in zip(ordered, ordered[1:], strict=False)
+    ):
         raise ValueError("Overlapping opening intervals")
     return result
 

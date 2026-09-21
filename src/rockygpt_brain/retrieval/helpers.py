@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -126,12 +127,17 @@ def _dining_periods(value: Any) -> dict[tuple[Any, ...], list[dict[str, str]]]:
                     for schedule in schedules:
                         periods: list[dict[str, str]] = []
                         intervals: list[str] = []
+                        labeled_intervals: list[str] = []
                         for entry in schedule.get("hours", []):
                             start = clock(entry.get("startTime") or {})
                             end = clock(entry.get("finishTime") or {})
                             if not start or not end:
                                 break
                             intervals.append(f"{start} - {end}")
+                            label = str(entry.get("label") or "").strip()
+                            labeled_intervals.append(
+                                f"{label}: {start} - {end}" if label else f"{start} - {end}"
+                            )
                             if entry.get("label"):
                                 periods.append(
                                     {"label": entry["label"], "start": start, "end": end}
@@ -139,17 +145,88 @@ def _dining_periods(value: Any) -> dict[tuple[Any, ...], list[dict[str, str]]]:
                         else:
                             if periods:
                                 for day in schedule.get("days", []):
-                                    key = (
-                                        node["name"],
-                                        day.get("value"),
-                                        first,
-                                        last,
-                                        "; ".join(intervals),
-                                    )
-                                    indexed[key] = periods
+                                    for display in (intervals, labeled_intervals):
+                                        key = (
+                                            node["name"], day.get("value"), first, last,
+                                            "; ".join(display),
+                                        )
+                                        indexed[key] = periods
             else:
                 for child in node.values():
                     visit(child)
 
     visit(value)
     return indexed
+
+
+def _dining_schedules(value: Any) -> dict[tuple[Any, ...], dict[str, Any]]:
+    """Reconstruct published dining intervals; incomplete clocks never mean closed."""
+    indexed: dict[tuple[Any, ...], dict[str, Any]] = {}
+    ambiguous: set[tuple[Any, ...]] = set()
+    weekdays = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
+    def clock(value: Any) -> str | None:
+        if not isinstance(value, dict):
+            return None
+        hour, minute, period = (str(value.get(key, "")) for key in ("hour", "minute", "period"))
+        if not (re.fullmatch(r"0?[1-9]|1[0-2]", hour)
+                and re.fullmatch(r"[0-5]\d", minute) and period.upper() in {"AM", "PM"}):
+            return None
+        return f"{hour.zfill(2)}:{minute} {period.upper()}"
+
+    def visit(node: Any) -> None:
+        if isinstance(node, list):
+            for child in node:
+                visit(child)
+        elif isinstance(node, dict):
+            if "name" not in node or not isinstance(node.get("openingHours"), dict):
+                for child in node.values():
+                    visit(child)
+                return
+            opening = node["openingHours"]
+            windows: list[tuple[str | None, str | None, Any, bool]] = [
+                (None, None, opening.get("standardHours", []), False)
+            ]
+            for season in opening.get("seasonalHours", []):
+                first_date, last_date = _date(season.get("from")), _date(season.get("to"))
+                if first_date is not None and last_date is not None:
+                    windows.append((first_date.isoformat(), last_date.isoformat(),
+                                    season.get("openingHours", []), True))
+            for first, last, groups, seasonal in windows:
+                for day in weekdays:
+                    matching = [g for g in groups if any(
+                        d.get("value") == day for d in g.get("days", [])
+                    )]
+                    if not matching and not seasonal:
+                        continue
+                    intervals: list[str] = []
+                    periods: list[dict[str, str]] = []
+                    for group in matching:
+                        hours = group.get("hours", [])
+                        if not hours:
+                            intervals.append("Hours unavailable")
+                        for entry in hours:
+                            label = str(entry.get("label") or "").strip()
+                            if re.match(r"^(closed|no service)\b", label, re.IGNORECASE):
+                                intervals.append("Closed")
+                                continue
+                            start = clock(entry.get("startTime"))
+                            end = clock(entry.get("finishTime"))
+                            prefix = f"{label}: " if label else ""
+                            if start is None or end is None:
+                                intervals.append(prefix + "Hours unavailable")
+                                continue
+                            intervals.append(prefix + f"{start} - {end}")
+                            if label:
+                                periods.append({"label": label, "start": start, "end": end})
+                    schedule = "; ".join(intervals) or "Hours unavailable"
+                    if seasonal and schedule == "Closed":
+                        schedule = "Closed (seasonal closure)"
+                    key = (node["name"], day, first, last)
+                    result = {"schedule": schedule, "periods": periods}
+                    if key in indexed and indexed[key] != result:
+                        ambiguous.add(key)
+                    indexed[key] = result
+
+    visit(value)
+    return {key: result for key, result in indexed.items() if key not in ambiguous}
