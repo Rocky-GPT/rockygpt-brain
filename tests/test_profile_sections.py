@@ -12,13 +12,14 @@ from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from rockygpt_brain.api.app import app
 from rockygpt_brain.campus.schedules import opening_intervals
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
 from rockygpt_brain.retrieval.models import SearchQuery
-from rockygpt_brain.retrieval.profiles import ProfileQuery
+from rockygpt_brain.retrieval.profiles import IdentityRegistry, ProfileQuery
 from test_engine import answer, review, tools
 from test_profiles import ENTITY_ID, NOW, repository, rows
 
@@ -73,6 +74,65 @@ def test_contact_faculty_conflicts_do_not_erase_agreed_fields_or_invent_freshnes
     assert faculty['freshness'] == 'static'
     assert 'courses' not in faculty['fields']
     assert 'phone' in contact['conflicts']
+
+
+@pytest.mark.parametrize('field,first,second,expected', [
+    ('phone', '(201) 555-0100', '201-555-0100', 'published'),
+    ('phone', '+1 (201) 555-0100', '201.555.0100', 'published'),
+    ('phone', '12015550100', '2015550100', 'published'),
+    ('phone', '201-555-0100 ext 2', '201-555-0100', 'conflict'),
+    ('phone', '201-555-0100 x2', '201-555-0100 x3', 'conflict'),
+    ('phone', '+44 20 1234 5678', '020 1234 5678', 'conflict'),
+    ('phone', '201-555-0100 / 201-555-0101', '201-555-0100', 'conflict'),
+    ('phone', '201-555-0100', '201-555-0101', 'conflict'),
+    ('office', 'ASB-312', 'ASB312', 'published'),
+    ('office', 'ASB 312', 'ASB-312', 'published'),
+    ('office', 'ASB-312', 'ASB-313', 'conflict'),
+    ('office', 'ASB-312 / G-209', 'ASB312/G209', 'conflict'),
+    ('office', 'ASB-312A', 'ASB-312', 'conflict'),
+])
+def test_formatting_equivalence_preserves_original_source_values(
+    field: str, first: str, second: str, expected: str,
+) -> None:
+    data = person_data()
+    data._fetch.return_value[0][field] = first
+    data._artifacts['faculty'][0][field] = second
+    output = data.lookup_profile(ProfileQuery(entity='Ada Example', include=['contact']))
+    assert output['components']['contact']['fields'][field] == expected
+    assert [record['fields'][field] for record in output['records']] == [first, second]
+    assert (field in output['components']['contact']['conflicts']) == (expected == 'conflict')
+
+
+def test_compiled_registry_bounds_match_publisher_contract() -> None:
+    payload = copy.deepcopy(person_data()._artifacts['campus-identities'])
+    person = payload['entities'][0]
+    person['links'] = [link('faculty', 's' * 500, f'record-{index}') for index in range(32)]
+    evidence = {'collection': 'faculty', 'source_key': 's' * 500,
+                'source_record_key': 'r' * 500, 'field': 'f' * 500,
+                'source_url': 'u' * 500}
+    person['relationships'] = [{
+        'type': 'profile_course',
+        'target_record': {'collection': 'courses', 'source_key': 's' * 500,
+                          'source_record_key': 'r' * 500},
+        'evidence': [evidence.copy() for _ in range(32)],
+    } for _ in range(1000)]
+    assert len(IdentityRegistry.model_validate(payload).entities[0].relationships) == 1000
+    for path, extra in [
+        ('links', link('faculty', 's', 'extra')),
+        ('relationships', person['relationships'][0]),
+    ]:
+        invalid = copy.deepcopy(payload)
+        invalid['entities'][0][path].append(extra)
+        with pytest.raises(ValidationError):
+            IdentityRegistry.model_validate(invalid)
+    invalid = copy.deepcopy(payload)
+    invalid['entities'][0]['relationships'][0]['evidence'].append(evidence)
+    with pytest.raises(ValidationError):
+        IdentityRegistry.model_validate(invalid)
+    invalid = copy.deepcopy(payload)
+    invalid['entities'][0]['links'][0]['source_key'] += 's'
+    with pytest.raises(ValidationError):
+        IdentityRegistry.model_validate(invalid)
 
 
 def test_profile_courses_stay_undated_and_catalog_record_is_related_not_identical() -> None:
