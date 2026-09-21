@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from rockygpt_brain.api.identities import router as identities_router
 from rockygpt_brain.api.stream import stream_turn
 from rockygpt_brain.campus.progress import ProgressCallback, ProgressUpdate, TurnCancelled
 from rockygpt_brain.config import RELEASE, ConfigurationError, configuration_hash, load_deployment
@@ -30,6 +31,7 @@ from rockygpt_brain.retrieval import CampusData
 load_dotenv()
 app = FastAPI(title="RockyGPT Brain", version="1.0.0")
 app.add_middleware(BodyLimitMiddleware)
+app.include_router(identities_router)
 CAMPUS_TIMEZONE = ZoneInfo("America/New_York")
 TURN_SLOTS = BoundedSemaphore(RELEASE.active_turns)
 HTTP_TURN_SECONDS = RELEASE.http_turn_seconds
