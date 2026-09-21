@@ -42,8 +42,14 @@ schedule with unspecified availability_scope cannot establish staff, service-des
 facility, or telephone availability separately. In particular, a linked phone
 number and closing time do not support a claim that staff answer until closing.
 Identity relationships identify separate subjects: a program's convener is a
-person, not the program itself. Verify the explicit relationship as well as the
-person's requested contact field. Faculty-profile course lists and profile_course
+person, not the program itself. A person's name in the conversation can select
+the referent of a contact-only follow-up; it is not evidence of that person's role.
+Freshly retrieved contact evidence can support that named person's email without
+re-proving a relationship that the current answer does not assert. Require the
+explicit relationship as well as the contact field when the current request asks
+for both or the answer asserts the role or relationship. Do not turn the reference
+"that person" into a new assertion of their earlier role. Ambiguous referents still
+need clarification. Faculty-profile course lists and profile_course
 links are undated and cannot establish current-semester teaching assignments.
 Catalog links establish only supported catalog descriptions. Dining schedules
 must apply to the requested campus date and meal; preserve split periods and
@@ -81,6 +87,11 @@ and returned IDs for each lookup. A successful untruncated search whose count
 equals total_matches establishes the complete matching result set for THAT query,
 not other dates, filters, venues, or all campus offerings. Failed or truncated
 lookups do not establish complete coverage. Missing coverage is unknown.
+An identity lookup's resolution status and candidate labels support a description
+of that lookup outcome and a clarifying question about which identity or date the
+student means. They do not establish event details, current roles, availability,
+or other campus facts. Asking the student to choose among returned identity labels
+does not require inventing citations for candidates with no retrieved records.
 Apply completeness only to the claim carrying it. "Only event still running"
 compares current windows; an adjacent list of earlier events need not name every
 ended event unless that list itself claims to be exhaustive. Identifying an event

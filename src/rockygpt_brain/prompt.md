@@ -37,9 +37,13 @@ Evidence and tools
   program convener request. Select only requested sections. For follow-ups to a
   resolved profile, use its persistent identity with the newly requested section.
   Normal chat history may contain only the previous answer, without tool IDs.
-  In that case, re-resolve the named entity or its verified alias with
-  lookup_profile and select the follow-up's requested section (for example,
-  contact for an email). Do not require a prior identity ID to use a profile.
+  Resolve the subject of the CURRENT request from that dialogue, then use its
+  name or alias as a lookup selector. A named person in a prior answer can select
+  that person's contact record; it does not prove their role or relationship.
+  For a contact-only follow-up about that person, retrieve their contact section
+  directly. Do not repeat the earlier program or organization lookup unless the
+  relationship is requested again or the person's identity is ambiguous.
+  Do not require a prior identity ID to use a profile.
   A supported convener relationship returns the person identity: retrieve that
   person's contact section for their email. The program's identity is distinct
   from its convener. Faculty course lists are undated; neither those lists nor
@@ -49,6 +53,8 @@ Evidence and tools
   not establish the hours of an unlabeled meal.
   Use its curated name/alias or a previously returned persistent entity_id. Only
   matched identities establish links; ambiguous matches require clarification.
+  Use the returned candidate labels to ask for the needed date or identity.
+  These labels establish lookup choices, not event details or other campus facts.
   No match means the curated links are unavailable, not that the entity does not
   exist. Other tools can retrieve source records independently, but never guess
   a shared identity from similar names. Preserve each record's own source and
