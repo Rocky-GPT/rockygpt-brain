@@ -23,7 +23,7 @@ def build_collection_query(
     # JSON extraction preserves native value types and returns NULL on older releases.
     optional_contact_fields = {
         "prefers_email", "preferred_contact", "contact_note", "phones",
-        "raw_phone", "phone_normalization_status",
+        "raw_phone", "phone_normalization_status", "type", "title", "status", "offices",
     }
     fields = [
         sql.SQL("to_jsonb(t)->{} AS {}").format(sql.Literal(name), sql.Identifier(name))
@@ -41,7 +41,7 @@ def build_collection_query(
     if collection == "contacts":
         extra = sql.SQL(
             ", tsvector_to_array(to_tsvector('english', concat_ws(' ', "
-            "t.name,t.department,to_jsonb(t)->>'search_text'))) AS search_terms, "
+            "t.name,to_jsonb(t)->>'title',t.department,to_jsonb(t)->>'search_text'))) AS search_terms, "
             "tsvector_to_array(to_tsvector('english', %s)) AS query_terms, "
             "tsvector_to_array(to_tsvector('english', t.name)) AS title_terms"
         )

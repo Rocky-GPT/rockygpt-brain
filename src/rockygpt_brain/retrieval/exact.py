@@ -177,6 +177,8 @@ def contact_answer(
     parts = []
     if values:
         lines = [plain(records[0]["title"])]
+        if any(r.get("fields", {}).get("status") == "retired" for r in records):
+            lines.append("Status: Retired (as listed in the directory).")
         lines.extend(f"{field.capitalize()}: {plain(value)}" for field, value in values.items())
         parts.append(
             {
