@@ -53,9 +53,16 @@ def tool_definitions() -> list[dict[str, Any]]:
         function_tool(
             "lookup_profile",
             "Resolve a named campus entity through curated identity links and retrieve its "
-            "contact and/or dated hours together. Prefer this for combined contact and hours "
-            "requests. Supply exactly one name/verified alias or a previously returned entity_id. "
+            "selected contact, faculty, undated profile courses, program, conveners, dated "
+            "campus/dining hours and menu sections. Prefer it for named combined requests, "
+            "program conveners and their follow-ups. Supply exactly one name/verified alias "
+            "or a previously returned entity_id. If chat history lacks prior tool IDs, "
+            "re-resolve the prior named entity or alias here for a selective follow-up. "
+            "A convener relationship returns a person's "
+            "identity ID; look up that ID's contact section for their email. "
             "Choose only requested components. A null date uses the current campus date. "
+            "Use date and meal for dated menus and meal hours. Profile course lists are "
+            "undated, never current-semester teaching assignments. "
             "Ambiguity needs clarification; no match means no curated identity, not nonexistence. "
             "Each record retains its own source and freshness. Conflicts and unavailable "
             "components do not invalidate independent fields. Operating hours never establish "

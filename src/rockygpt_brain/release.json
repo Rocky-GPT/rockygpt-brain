@@ -1,5 +1,5 @@
 {
-  "version": "phase3-development-2026-09-16",
+  "version": "campus-profiles-development-2026-09-21",
   "provider": "openai",
   "model": "gpt-5.4",
   "draft_reasoning": "low",

@@ -47,7 +47,7 @@ from rockygpt_brain.governance.evidence import (
 from rockygpt_brain.retrieval.data import CampusData
 from rockygpt_brain.retrieval.exact import ContactQuery, contact_answer
 from rockygpt_brain.retrieval.models import COLLECTIONS, ReadQuery, SearchQuery
-from rockygpt_brain.retrieval.profiles import ProfileQuery
+from rockygpt_brain.retrieval.profiles import SECTION_COLLECTIONS, ProfileQuery
 
 INSTRUCTIONS = files("rockygpt_brain").joinpath("prompt.md").read_text(encoding="utf-8")
 
@@ -370,8 +370,11 @@ def run_turn(
                     elif call.name == "lookup_profile":
                         profile = ProfileQuery.model_validate_json(call_arguments)
                         tool_subjects = [
-                            {"topic": "contacts" if part == "contact" else "campus_hours"}
-                            for part in profile.include
+                            {"topic": collection}
+                            for collection in dict.fromkeys(
+                                collection for part in profile.include
+                                for collection in SECTION_COLLECTIONS[part]
+                            )
                         ]
                         notify("retrieving", tool_subjects)
                         arguments = profile.model_dump(mode="json")
@@ -510,6 +513,9 @@ def run_turn(
                             if key in {
                                 "status", "evidence_ids", "fields", "truncated",
                                 "service_date", "availability_scope",
+                                "conflicts", "linked_records_missing", "failed_links",
+                                "relationships", "relationships_missing", "temporal_scope",
+                                "meal", "reason",
                             }
                         }
                         for component, details in output["components"].items()

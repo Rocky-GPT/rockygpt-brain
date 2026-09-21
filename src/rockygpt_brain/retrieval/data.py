@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -36,6 +37,7 @@ from rockygpt_brain.retrieval.models import (
 )
 from rockygpt_brain.retrieval.processing import (
     build_collection_query,
+    catalog_convener_records,
     enrich_records,
     expand_document_query,
     filter_by_dates,
@@ -155,6 +157,28 @@ class CampusData:
             "dataset_version": self.dataset["version"],
             "activated_at": str(self.dataset["activated_at"]),
             "available_collections": list(COLLECTIONS),
+        }
+
+    def identity_readiness(self) -> dict[str, Any]:
+        """Development diagnostics only; old releases remain usable without identities."""
+        self._ensure_loaded()
+        payload = self._artifact("campus-identities")
+        if payload is None:
+            return {"status": "missing"}
+        from rockygpt_brain.retrieval.profiles import IdentityRegistry
+
+        try:
+            registry = IdentityRegistry.model_validate(payload)
+        except ValueError:
+            return {"status": "invalid"}
+        return {
+            "status": "available",
+            "schema_version": registry.schema_version,
+            "entity_count": len(registry.entities),
+            "artifact_hash": hashlib.sha256(
+                json.dumps(payload, sort_keys=True, separators=(",", ":"),
+                           ensure_ascii=False).encode()
+            ).hexdigest(),
         }
 
     def _artifact(self, key: str) -> Any:
@@ -343,6 +367,8 @@ class CampusData:
                                 record["fields"].pop(label, None)
                     records.append(record)
             self._enrich(collection, records)
+            if collection == "programs":
+                records.extend(catalog_convener_records(self, rows, records))
         unique = {
             _json([r["title"], r["fields"], r["url"], r["valid_from"], r["valid_until"]]): r
             for r in reversed(records)
