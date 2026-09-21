@@ -166,7 +166,9 @@ def verified_time(
             or not source_day
         ):
             raise ValueError("No applicable published opening intervals")
-        intervals = opening_intervals(fields["schedule"], date.fromisoformat(source_day))
+        intervals = opening_intervals(
+            fields.get("hours", fields["schedule"]), date.fromisoformat(source_day)
+        )
         candidates = [
             min(start for start, _ in intervals)
             if operand.field == "opening"
