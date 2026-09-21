@@ -410,11 +410,14 @@ CAPABILITIES_CATALOG = [
             {"field": "department", "type": "string", "description": "Campus department"},
         ],
         "fields": [
+            "type",
             "name",
+            "title",
             "department",
             "phones",
             "email",
-            "office",
+            "offices",
+            "status",
             "preferred_contact",
         ],
     },
@@ -552,25 +555,14 @@ def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any] | JSO
         for r in records:
             if name == "contacts":
                 f = r.get("fields", {})
-                item: dict[str, Any] = {
-                    "id": r.get("id"),
-                    "name": f.get("name") or r.get("title", ""),
-                }
-                if f.get("department"):
-                    item["department"] = f["department"]
-                phones = f.get("phones")
-                if phones and len(phones) > 0:
-                    item["phones"] = phones
-                elif f.get("phone"):
-                    item["phone"] = f["phone"]
-                if f.get("email"):
-                    item["email"] = f["email"]
-                if f.get("office"):
-                    item["office"] = f["office"]
-                if f.get("preferred_contact"):
-                    item["preferred_contact"] = f["preferred_contact"]
-                elif f.get("prefers_email"):
-                    item["preferred_contact"] = "email"
+                item: dict[str, Any] = {"id": r.get("id")}
+                for field in (
+                    "type", "name", "title", "department", "phones", "email",
+                    "offices", "status", "preferred_contact",
+                ):
+                    if f.get(field):
+                        item[field] = f[field]
+                item.setdefault("name", r.get("title", ""))
                 formatted.append(item)
             else:
                 item = {"id": r.get("id"), "title": r.get("title", ""), **r.get("fields", {})}

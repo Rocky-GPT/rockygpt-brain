@@ -48,6 +48,10 @@ TABLES: dict[str, tuple[str, tuple[str, ...]]] = {
         "campus_contacts",
         (
             "name",
+            "type",
+            "title",
+            "status",
+            "offices",
             "department",
             "phone",
             "email",

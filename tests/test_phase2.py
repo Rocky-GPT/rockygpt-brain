@@ -81,6 +81,18 @@ def test_exact_contact_uses_one_model_call_and_no_review(contact: dict[str, Any]
     assert "arguments" not in result["metrics"]["toolResults"][0]
 
 
+def test_exact_contact_preserves_explicit_retirement(contact: dict[str, Any]) -> None:
+    contact["fields"]["status"] = "retired"
+    contact["coverage"]["fields"]["status"] = "published"
+    answer = contact_answer(
+        messages("What is the Registrar's phone?"),
+        ContactQuery(entity="Registrar", fields=["phone"]),
+        result_for([contact]), NOW.date(),
+    )
+    assert answer is not None
+    assert "Status: Retired" in render_answer(answer, {contact["id"]: contact})["answer"]
+
+
 @pytest.mark.parametrize("name", ["Bursar", "Example Service", "Office of Student Life"])
 def test_exact_format_is_not_keyed_to_a_particular_office(
     contact: dict[str, Any], name: str

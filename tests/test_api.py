@@ -112,11 +112,14 @@ def test_successful_empty_records_remain_a_success() -> None:
     data.return_value.close.assert_called_once()
 
 
-@pytest.mark.parametrize("structured", [False, True])
-def test_contact_records_preserve_published_phone_on_both_schemas(structured: bool) -> None:
-    fields: dict[str, object] = {"name": "Example office", "phone": "201-555-0100"}
-    if structured:
-        fields.update(phones=[{"number": "201-555-0100"}], preferred_contact="email")
+def test_contact_records_export_only_clean_fields() -> None:
+    fields = {
+        "name": "Example office", "type": "office", "department": "Example unit",
+        "title": "", "status": None, "phones": [{"number": "201-555-0100"}],
+        "offices": ["G-203B", "ASB-431D"], "preferred_contact": "email",
+        "phone": "legacy display", "office": "legacy office", "raw_phone": "raw input",
+        "contact_note": "source note", "phone_normalization_status": "normalized",
+    }
     with (
         patch.dict("os.environ", {"DATABASE_URL": "test"}),
         patch("rockygpt_brain.api.app.CampusData") as data,
@@ -124,14 +127,11 @@ def test_contact_records_preserve_published_phone_on_both_schemas(structured: bo
         data.return_value._load.return_value = [{"id": "contacts:one", "fields": fields}]
         response = TestClient(app).get("/v1/capabilities/contacts/records")
     assert response.status_code == 200
-    assert response.json()["returned"] == 1
-    contact = response.json()["records"][0]
-    if structured:
-        assert contact["phones"] == fields["phones"]
-        assert contact["preferred_contact"] == "email"
-    else:
-        assert contact["phone"] == fields["phone"]
-        assert "preferred_contact" not in contact
+    assert response.json() == {"returned": 1, "records": [{
+        "id": "contacts:one", "type": "office", "name": "Example office",
+        "department": "Example unit", "phones": [{"number": "201-555-0100"}],
+        "offices": ["G-203B", "ASB-431D"], "preferred_contact": "email",
+    }]}
 
 
 @pytest.mark.parametrize("reason", ["context_limit", "retrieval_context_limit"])
