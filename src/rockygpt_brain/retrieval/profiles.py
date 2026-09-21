@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from datetime import date as CalendarDate
 from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
@@ -88,20 +89,20 @@ class ProfileQuery(BaseModel):
 class IdentityLink(BaseModel):
     model_config = ConfigDict(extra="forbid")
     collection: LinkCollection
-    source_key: IdentityText
+    source_key: RecordKey
     source_record_keys: list[RecordKey] = Field(min_length=1, max_length=25000)
 
 
 class RecordReference(BaseModel):
     model_config = ConfigDict(extra="forbid")
     collection: LinkCollection
-    source_key: IdentityText
+    source_key: RecordKey
     source_record_key: RecordKey
 
 
 class RelationshipEvidence(RecordReference):
-    field: IdentityText
-    source_url: str | None = None
+    field: RecordKey
+    source_url: RecordKey | None = None
 
 
 class IdentityRelationship(BaseModel):
@@ -109,7 +110,7 @@ class IdentityRelationship(BaseModel):
     type: Literal["convener", "profile_course"]
     target_entity_id: UUID | None = None
     target_record: RecordReference | None = None
-    evidence: list[RelationshipEvidence] = Field(min_length=1, max_length=16)
+    evidence: list[RelationshipEvidence] = Field(min_length=1, max_length=32)
 
     @model_validator(mode="after")
     def target_matches_type(self) -> IdentityRelationship:
@@ -129,8 +130,8 @@ class Identity(BaseModel):
     kind: Literal["office", "person", "facility", "venue", "program"]
     name: IdentityText
     aliases: list[IdentityText] = Field(max_length=32)
-    links: list[IdentityLink] = Field(min_length=1, max_length=16)
-    relationships: list[IdentityRelationship] = Field(default_factory=list, max_length=256)
+    links: list[IdentityLink] = Field(min_length=1, max_length=32)
+    relationships: list[IdentityRelationship] = Field(default_factory=list, max_length=1000)
 
     @field_validator("id", mode="before")
     @classmethod
@@ -171,6 +172,24 @@ def _identity_summary(entity: Identity) -> dict[str, str]:
     return {"id": str(entity.id), "name": entity.name, "kind": entity.kind}
 
 
+def _comparison_key(field: str, value: Any) -> str:
+    """Compare narrow presentation variants without changing published values."""
+    if isinstance(value, str):
+        if field == "phone" and re.fullmatch(r"\+?[0-9().\s-]+", value.strip()):
+            digits = re.sub(r"\D", "", value)
+            if len(digits) == 11 and digits.startswith("1"):
+                digits = digits[1:]
+            elif "+" in value:
+                return _json(value)
+            if len(digits) == 10:
+                return _json({"us_phone_digits": digits})
+        if field == "office":
+            room = re.fullmatch(r"([A-Za-z]{1,6})[ -]?(\d{2,4}[A-Za-z]?)", value.strip())
+            if room:
+                return _json({"building_room": (room[1], room[2])})
+    return _json(value)
+
+
 def _field_coverage(
     records: list[dict[str, Any]], fields: tuple[str, ...]
 ) -> tuple[dict[str, str], dict[str, list[dict[str, Any]]]]:
@@ -182,7 +201,7 @@ def _field_coverage(
             value = record["fields"].get(field)
             if value is None or value == "":
                 continue
-            key = _json(value)
+            key = _comparison_key(field, value)
             values.setdefault(key, {"value": value, "evidence_ids": []})["evidence_ids"].append(
                 record["id"]
             )
