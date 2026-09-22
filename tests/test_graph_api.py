@@ -243,6 +243,16 @@ def test_live_release_full_navigation_is_read_only_and_complete(
         })
         assert response.status_code == 200, response.text
         assert len(response.json()["children"]) <= 2
+        for child in response.json()["children"]:
+            leaf = child["kind"] not in {"object", "array"} or child["count"] == 0
+            assert ("value" in child) is leaf
+            if leaf:
+                detail = client.get("/v1/dev/graph/value", params={
+                    "collection": "artifacts", "record_id": "artifacts:menu-week",
+                    "path": json.dumps(child["path"]), "dataset_version": version,
+                })
+                assert detail.status_code == 200
+                assert child["value"] == detail.json()["value"]
 
 
 @pytest.mark.parametrize("kind,expected", [("object", {}), ("array", [])])
@@ -280,3 +290,42 @@ def test_exact_source_reference_passes_original_id_then_preserves_detail() -> No
     assert result["id"] == "events:specific-original-id"
     read.assert_called_once_with("events", "events:specific-original-id")
     assert data._fetch.call_args.args[1][-1] == "specific-original-id"
+
+
+@pytest.mark.parametrize("kind,scalar,count,expected", [
+    ("string", "complete long leaf " * 100, 0, "complete long leaf " * 100),
+    ("string", "", 0, ""),
+    ("boolean", False, 0, False),
+    ("number", 0, 0, 0),
+    ("null", None, 0, None),
+    ("array", None, 0, []),
+    ("object", None, 0, {}),
+])
+def test_artifact_children_include_complete_native_leaf_values(
+    kind: str, scalar: Any, count: int, expected: Any,
+) -> None:
+    data = repository()
+    data._fetch = Mock(side_effect=[
+        [{"present": True, "kind": "object", "total": 1, "scalar": None,
+          "content_hash": "h", "created_at": NOW}],
+        [{"key": "leaf", "kind": kind, "count": count, "scalar": scalar,
+          "preview": str(scalar)[:160], "label": "leaf"}],
+    ])
+    child = GraphData(data).artifact_value("menu", [], 0, 24)["children"][0]
+    assert "value" in child and child["value"] == expected
+    assert type(child["value"]) is type(expected)
+    assert "scalar" not in child
+
+
+@pytest.mark.parametrize("kind", ["array", "object"])
+def test_artifact_children_omit_nonempty_container_payloads(kind: str) -> None:
+    data = repository()
+    data._fetch = Mock(side_effect=[
+        [{"present": True, "kind": "object", "total": 1, "scalar": None,
+          "content_hash": "h", "created_at": NOW}],
+        [{"key": "container", "kind": kind, "count": 20, "scalar": None,
+          "preview": None, "label": "container"}],
+    ])
+    child = GraphData(data).artifact_value("menu", [], 0, 24)["children"][0]
+    assert "value" not in child and "scalar" not in child
+    assert child["count"] == 20

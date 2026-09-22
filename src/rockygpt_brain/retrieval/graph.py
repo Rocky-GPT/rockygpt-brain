@@ -459,6 +459,8 @@ class GraphData:
                 "WHEN 'array' THEN jsonb_array_length(child) ELSE 0 END AS count, "
                 "CASE WHEN jsonb_typeof(child) IN ('object','array') THEN NULL "
                 "ELSE left(child::text, 160) END AS preview, "
+                "CASE WHEN jsonb_typeof(child) IN ('object','array') THEN NULL "
+                "ELSE child END AS scalar, "
                 "coalesce(child->>'name',child->>'title',child->>'code',key) AS label "
                 "FROM selected CROSS JOIN LATERAL ("
                 "SELECT key, value AS child, 0::bigint AS ordinal FROM jsonb_each("
@@ -476,8 +478,12 @@ class GraphData:
                            f"{entry['count']} items" if entry["kind"] == "array" else
                            "null · no value stored" if entry["kind"] == "null" else
                            entry["preview"] or "")
+                scalar = entry.pop("scalar", None)
+                leaf = ({"value": scalar} if entry["kind"] not in {"object", "array"} else
+                        {"value": {} if entry["kind"] == "object" else []}
+                        if entry["count"] == 0 else {})
                 children.append({**entry, "path": [*path, entry["key"]],
-                                 "label": label, "preview": preview})
+                                 "label": label, "preview": preview, **leaf})
         value = ({"value": row["scalar"]} if row["kind"] not in {"object", "array"} else
                  {"value": {} if row["kind"] == "object" else []} if row["total"] == 0 else {})
         return {"artifact_key": artifact_key, "path": path, "kind": row["kind"],
