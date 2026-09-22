@@ -1,5 +1,5 @@
 {
-  "version": "jev-routing-development-2026-09-22",
+  "version": "campus-organizations-development-2026-09-22",
   "provider": "openai",
   "model": "gpt-5.4",
   "draft_reasoning": "low",
@@ -29,7 +29,7 @@
   "max_turn_cost_nusd": 800000000,
   "continuation_reasoning": "medium",
   "routing": {
-    "version": "campus-routing-1",
+    "version": "campus-routing-2",
     "model": "jev-1.13.0",
     "timeout_seconds": 2.0,
     "threshold": 0.9,
