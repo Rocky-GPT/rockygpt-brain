@@ -26,6 +26,8 @@ from rockygpt_brain.retrieval.profiles import (
 )
 
 FIELDS = ("phone", "email", "office", "department", "fax", "hours", "website")
+# The related section needs a relationship and direction that the router does not choose.
+ROUTED_SECTIONS = tuple(section for section in SECTION_COLLECTIONS if section != "related")
 ROUTES = {
     "contact": "Contact fields for exactly one named person or office.",
     "profile": "One known campus entity's profile sections, including combined contact/hours.",
@@ -205,12 +207,13 @@ def routing_payload(
             f"Does latest_request request the contact field '{field}'? For general contact "
             "details include phone, email, office and department; otherwise only explicit fields."
         )
-    for section in SECTION_COLLECTIONS:
+    for section in ROUTED_SECTIONS:
         questions["section_" + section] = noul(
             f"Does latest_request request the profile section '{section}'? Select only requested "
             "sections. Courses means an undated faculty profile course list, not current teaching. "
             "Conveners means the published program conveners. Event is an occurrence or a club's "
-            "linked events. Hours means operating hours, not phone or staff availability."
+            "or campus organization's linked events. Hours means operating hours, not phone or "
+            "staff availability."
         )
     return {
         "model": RELEASE.routing.model,
@@ -325,7 +328,7 @@ def interpret(
         query = ContactQuery.model_validate({"entity": entity.name, "fields": fields})
         decision.arguments = {**query.model_dump(mode="json"), "request_text": None}
     else:
-        sections = included(answers, "section_", SECTION_COLLECTIONS)
+        sections = included(answers, "section_", ROUTED_SECTIONS)
         if not sections:
             return decision
         arguments: dict[str, Any] = {"entity_id": entity_id, "include": sections}

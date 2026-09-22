@@ -6,6 +6,7 @@ import re
 from collections import Counter
 from copy import deepcopy
 from datetime import date as CalendarDate
+from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
 from uuid import UUID
 
@@ -21,8 +22,8 @@ from pydantic import (
     model_validator,
 )
 
-from rockygpt_brain.retrieval.helpers import _date, _json
-from rockygpt_brain.retrieval.models import TABLES, Collection, SearchQuery
+from rockygpt_brain.retrieval.helpers import _date, _instant, _json
+from rockygpt_brain.retrieval.models import CAMPUS_ZONE, TABLES, Collection, SearchQuery
 from rockygpt_brain.retrieval.processing import catalog_convener_records, event_organizer_records
 
 if TYPE_CHECKING:
@@ -43,8 +44,12 @@ RecordKey = Annotated[
 ]
 
 ProfileSection = Literal[
-    "contact", "hours", "faculty", "courses", "program", "conveners", "menu", "club", "event"
+    "contact", "hours", "faculty", "courses", "program", "conveners", "menu", "club", "event",
+    "related",
 ]
+RelationshipType = Literal["convener", "profile_course", "organized_by"]
+# Archway directory groups: student clubs and other campus organizations.
+ARCHWAY_GROUPS = frozenset({"club", "organization"})
 LinkCollection = Literal[
     "contacts", "campus_hours", "dining_hours", "menu", "faculty", "programs", "courses",
     "clubs", "events",
@@ -59,6 +64,7 @@ SECTION_COLLECTIONS: dict[str, tuple[str, ...]] = {
     "menu": ("menu",),
     "club": ("clubs",),
     "event": ("events",),
+    "related": (),  # Published relationships, not linked source records.
 }
 
 
@@ -70,7 +76,7 @@ class ProfileQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
     entity: str | None = Field(default=None, min_length=1, max_length=240)
     entity_id: UUID | None = None
-    include: list[ProfileSection] = Field(min_length=1, max_length=9)
+    include: list[ProfileSection] = Field(min_length=1, max_length=10)
     date: CalendarDate | None = Field(
         default=None, description=(
             "Campus-local service date; null means today for hours/menu. An event is a dated "
@@ -88,6 +94,17 @@ class ProfileQuery(BaseModel):
             "only for an explicitly requested complete list. Other sections are unaffected."
         ),
     )
+    relationship: RelationshipType | None = Field(
+        default=None,
+        description="With include=['related']: only this relationship type, or null for all.",
+    )
+    direction: Literal["outgoing", "incoming"] | None = Field(
+        default=None,
+        description=(
+            "With include=['related']: relationships this entity declares (outgoing), ones "
+            "that point to it (incoming), or null for both."
+        ),
+    )
 
     @model_validator(mode="after")
     def valid_selector(self) -> ProfileQuery:
@@ -99,6 +116,8 @@ class ProfileQuery(BaseModel):
             raise ValueError("include must not contain duplicates")
         if self.meal is not None and not self.meal.strip():
             raise ValueError("meal must not be blank")
+        if (self.relationship or self.direction) and "related" not in self.include:
+            raise ValueError("relationship and direction apply only to the related section")
         return self
 
 
@@ -125,7 +144,7 @@ class RelationshipEvidence(RecordReference):
 
 class IdentityRelationship(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    type: Literal["convener", "profile_course", "organized_by"]
+    type: RelationshipType
     target_entity_id: UUID | None = None
     target_record: RecordReference | None = None
     evidence: list[RelationshipEvidence] = Field(min_length=1, max_length=32)
@@ -150,7 +169,9 @@ class IdentityRelationship(BaseModel):
 class Identity(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: UUID
-    kind: Literal["office", "person", "facility", "venue", "program", "club", "event"]
+    kind: Literal[
+        "office", "person", "facility", "venue", "program", "club", "organization", "event"
+    ]
     name: IdentityText
     aliases: list[IdentityText] = Field(max_length=32)
     links: list[IdentityLink] = Field(min_length=1, max_length=32)
@@ -429,26 +450,74 @@ def _event_date_candidates(
     return selected
 
 
-def _club_event_records(
-    data: CampusData, club: Identity, registry: IdentityRegistry, query: ProfileQuery,
+EVENT_CANDIDATE_LIMIT = 20
+
+
+def _occurrence_starts(data: CampusData, events: list[Identity]) -> dict[UUID, datetime]:
+    """Read linked occurrence start times in one query; unknown starts are absent."""
+    owners = {
+        row_id: entity.id for entity in events for link in entity.links
+        if link.collection == "events" for row_id in link.source_record_ids or []
+    }
+    if not owners:
+        return {}
+    rows = data._fetch(
+        "SELECT t.id::text AS id, t.starts_at FROM rockygpt_v2.campus_events t "
+        "WHERE t.dataset_version_id=%s::uuid AND t.id::text = ANY(%s)",
+        (data.dataset["id"], sorted(owners)),
+    )
+    starts: dict[UUID, datetime] = {}
+    for row in rows:
+        owner, start = owners.get(str(row.get("id"))), _instant(row.get("starts_at"))
+        if owner is not None and start is not None:
+            starts[owner] = min(start, starts.get(owner, start))
+    return starts
+
+
+def _chronological(
+    events: list[Identity], starts: dict[UUID, datetime], now: datetime,
+) -> list[Identity]:
+    """Upcoming occurrences soonest first, then past ones latest first, unknown dates last."""
+    def key(entity: Identity) -> tuple[int, float, str]:
+        start = starts.get(entity.id)
+        if start is None:
+            return (2, 0.0, str(entity.id))
+        stamp = start.timestamp()
+        return (0, stamp, str(entity.id)) if start >= now else (1, -stamp, str(entity.id))
+    return sorted(events, key=key)
+
+
+def _on_date(
+    events: list[Identity], starts: dict[UUID, datetime], day: CalendarDate | None,
+) -> list[Identity]:
+    # An unknown start cannot disprove that an occurrence is on the requested date.
+    return events if day is None else [
+        entity for entity in events
+        if entity.id not in starts or starts[entity.id].astimezone(CAMPUS_ZONE).date() == day
+    ]
+
+
+def _group_event_records(
+    data: CampusData, group: Identity, registry: IdentityRegistry, query: ProfileQuery,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int, int, dict[str, int]]:
     """Traverse approved incoming organizers, then recheck each event's source proof."""
-    candidates = [entity for entity in registry.entities if entity.kind == "event" and any(
-        relation.type == "organized_by" and relation.target_entity_id == club.id
+    linked = [entity for entity in registry.entities if entity.kind == "event" and any(
+        relation.type == "organized_by" and relation.target_entity_id == group.id
         for relation in entity.relationships
     )]
-    candidates.sort(key=lambda entity: str(entity.id))
+    starts = _occurrence_starts(data, linked)
+    candidates = _chronological(_on_date(linked, starts, query.date), starts, data.now)
     records: list[dict[str, Any]] = []
     relationships: list[dict[str, Any]] = []
     missing, failed = 0, 0
-    for entity in candidates[:20]:
+    for entity in candidates[:EVENT_CANDIDATE_LIMIT]:
         output = lookup_profile(data, ProfileQuery(
             entity_id=entity.id, include=["event"], date=query.date,
         ))
         component = output["components"].get("event", {})
         supported = [relation for relation in component.get("relationships", [])
                      if relation["type"] == "organized_by"
-                     and relation.get("target", {}).get("id") == str(club.id)]
+                     and relation.get("target", {}).get("id") == str(group.id)]
         failed += component.get("failed_links", 0)
         missing += component.get("linked_records_missing", 0)
         if not supported:
@@ -459,12 +528,138 @@ def _club_event_records(
                              for relation in supported)
         for public in output["records"]:
             record = deepcopy(data._seen[public["id"]])
-            record["related_to_entity_id"] = str(club.id)
+            record["related_to_entity_id"] = str(group.id)
             record["relationship_to_entity"] = "organized_by"
             records.append(record)
     return records, relationships, missing, failed, {
-        "linked_event_candidates": len(candidates),
-        "unexamined_event_candidates": max(0, len(candidates) - 20),
+        "linked_event_candidates": len(linked),
+        "unexamined_event_candidates": max(0, len(candidates) - EVENT_CANDIDATE_LIMIT),
+    }
+
+
+RELATED_LIMIT = 20
+TARGET_KINDS: dict[str, frozenset[str]] = {
+    "convener": frozenset({"person"}), "organized_by": ARCHWAY_GROUPS,
+}
+RELATIONSHIP_MEANINGS: dict[tuple[str, str], str] = {
+    ("convener", "outgoing"): "This program's catalog Convener field names the related person.",
+    ("convener", "incoming"): "The related program's catalog Convener field names this person.",
+    ("profile_course", "outgoing"):
+        "This person's undated faculty profile lists the related catalog course.",
+    ("organized_by", "outgoing"): "This event's page names the related group as its organizer.",
+    ("organized_by", "incoming"): "The related event's page names this group as its organizer.",
+}
+RELATIONSHIP_LIMITATIONS = {
+    "convener": "A catalog Convener field is not a verified current appointment.",
+    "profile_course": "An undated profile course list is not a current teaching assignment.",
+    "organized_by": "Only explicitly evidenced organizer links are included; absence does not "
+                    "mean a group has no other events.",
+}
+
+
+def _related_records(
+    data: CampusData, entity: Identity, registry: IdentityRegistry, query: ProfileQuery,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    """Follow published relationships in either direction, rechecking each one's evidence.
+
+    Predicate meaning and caveats come from the tables above, so a new relationship type
+    needs a table entry rather than a new profile section.
+    """
+    entities = {item.id: item for item in registry.entities}
+    edges: list[tuple[str, Identity, IdentityRelationship]] = []
+    if query.direction in {None, "outgoing"}:
+        edges += [("outgoing", entity, relation) for relation in entity.relationships
+                  if query.relationship in {None, relation.type}]
+    if query.direction in {None, "incoming"}:
+        edges += [("incoming", source, relation) for source in registry.entities
+                  for relation in source.relationships
+                  if relation.target_entity_id == entity.id
+                  and query.relationship in {None, relation.type}]
+    events = [source for direction, source, relation in edges
+              if direction == "incoming" and relation.type == "organized_by"]
+    starts = _occurrence_starts(data, events)
+    if query.date is not None:
+        dated = {item.id for item in _on_date(events, starts, query.date)}
+        edges = [edge for edge in edges if not (edge[0] == "incoming"
+                 and edge[2].type == "organized_by" and edge[1].id not in dated)]
+    chronology = _chronological(events, starts, data.now)
+    ordered = {item.id: index for index, item in enumerate(chronology)}
+
+    def other(edge: tuple[str, Identity, IdentityRelationship]) -> Identity | None:
+        direction, source, relation = edge
+        target = relation.target_entity_id
+        return source if direction == "incoming" else entities.get(target) if target else None
+
+    def order(edge: tuple[str, Identity, IdentityRelationship]) -> tuple[str, str, int, str]:
+        related = other(edge)
+        name = related.name if related else str(edge[2].target_record)
+        return (edge[2].type, edge[0], ordered.get(edge[1].id, 0), _normalize(name))
+
+    edges.sort(key=order)
+    cache: dict[str, tuple[list[dict[str, Any]], list[str], bool]] = {}
+
+    def fetch(link: IdentityLink) -> list[dict[str, Any]]:
+        key = link.model_dump_json()
+        if key not in cache:
+            cache[key] = _linked_records(data, link)
+        return cache[key][0]
+
+    records: list[dict[str, Any]] = []
+    summaries: list[dict[str, Any]] = []
+    unverified = failed = 0
+    for edge in edges[:RELATED_LIMIT]:
+        direction, _, relation = edge
+        related = other(edge)
+        try:
+            evidence = [record for reference in relation.evidence for record in fetch(IdentityLink(
+                collection=reference.collection, source_key=reference.source_key,
+                source_record_keys=[reference.source_record_key],
+                source_record_ids=[reference.source_record_id]
+                if reference.source_record_id else None,
+            )) if _supports_relationship(record, relation)]
+            course = relation.target_record
+            targets = fetch(IdentityLink(
+                collection=course.collection, source_key=course.source_key,
+                source_record_keys=[course.source_record_key],
+                source_record_ids=[course.source_record_id] if course.source_record_id else None,
+            )) if course is not None and direction == "outgoing" else []
+        except Exception:
+            # One broken link must not erase the other relationships.
+            failed += 1
+            continue
+        allowed = TARGET_KINDS.get(relation.type)
+        target = entities.get(relation.target_entity_id) if relation.target_entity_id else None
+        organizers = {(record["fields"].get("organizer_group_id"),
+                       record["fields"].get("organizer_url"),
+                       _normalize(str(record["fields"].get("organizer_name", ""))))
+                      for record in evidence}
+        if (not evidence or (allowed is not None and (target is None or target.kind not in allowed))
+                or (relation.type == "organized_by" and len(organizers) != 1)
+                or (course is not None and direction == "outgoing" and not targets)):
+            unverified += 1  # Retained in the registry, but not re-established here.
+            continue
+        summary: dict[str, Any] = {
+            "type": relation.type, "direction": direction,
+            "meaning": RELATIONSHIP_MEANINGS[(relation.type, direction)],
+            "evidence_ids": [record["id"] for record in evidence],
+        }
+        if related is not None:
+            summary["entity"] = _identity_summary(related)
+        if course is not None:
+            summary["target_record"] = course.model_dump()
+            summary["target_evidence_ids"] = [record["id"] for record in targets]
+        summaries.append(summary)
+        for record in [*evidence, *targets]:
+            copied = deepcopy(record)
+            copied["limitations"].append(RELATIONSHIP_LIMITATIONS[relation.type])
+            records.append(copied)
+    return records, summaries, {
+        "relationship_filter": query.relationship, "direction_filter": query.direction,
+        "relationship_candidates": len(edges),
+        "unexamined_relationship_candidates": max(0, len(edges) - RELATED_LIMIT),
+        "unverified_relationships": unverified, "failed_relationships": failed,
+        "limitations": [RELATIONSHIP_LIMITATIONS[kind] for kind in sorted({
+            summary["type"] for summary in summaries})],
     }
 
 
@@ -560,9 +755,18 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
         relationships: list[dict[str, Any]] = []
         relationship_missing = 0
         reverse_coverage: dict[str, int] = {}
-        if component == "event" and entity.kind == "club":
+        related_coverage: dict[str, Any] = {}
+        if component == "related":
+            related_records, relationships, related_coverage = _related_records(
+                data, entity, registry, query,
+            )
+            records.extend(related_records)
+            relationship_missing += related_coverage["unverified_relationships"]
+            failed_links += related_coverage["failed_relationships"]
+            truncated = truncated or bool(related_coverage["unexamined_relationship_candidates"])
+        if component == "event" and entity.kind in ARCHWAY_GROUPS:
             related, relationships, reverse_missing, reverse_failed, reverse_coverage = (
-                _club_event_records(data, entity, registry, query)
+                _group_event_records(data, entity, registry, query)
             )
             records.extend(related)
             relationship_missing += reverse_missing
@@ -593,8 +797,7 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                 if relationship.type in {"convener", "organized_by"}:
                     assert relationship.target_entity_id is not None
                     target = entities.get(relationship.target_entity_id)
-                    expected_kind = "person" if relationship.type == "convener" else "club"
-                    if target is None or target.kind != expected_kind:
+                    if target is None or target.kind not in TARGET_KINDS[relationship.type]:
                         relationship_missing += 1
                         continue
                     summary["target"] = _identity_summary(target)
@@ -649,7 +852,7 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
         elif component == "club":
             field_names = ("category", "bucket", "email", "website_url", "instagramUrl",
                            "groupmeUrls")
-        elif component == "event" and entity.kind != "club":
+        elif component == "event" and entity.kind not in ARCHWAY_GROUPS:
             field_names = ("date_label", "start_time", "end_time", "organizer", "location",
                            "location_access", "event_url", "organizer_group_id", "organizer_url",
                            "organizer_name")
@@ -724,20 +927,22 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             )
         if component == "courses":
             result["components"][component]["temporal_scope"] = "undated_profile_list"
+        if component == "related":
+            result["components"][component].update(relationships=relationships, **related_coverage)
         if component == "club":
             result["components"][component]["limitations"] = [
                 "A directory listing does not establish current meetings, membership, or events."
             ]
         if component == "event":
             result["components"][component].update(
-                temporal_scope="linked_event_occurrences" if entity.kind == "club"
+                temporal_scope="linked_event_occurrences" if entity.kind in ARCHWAY_GROUPS
                 else "dated_event_occurrence", timezone="America/New_York",
                 requested_date=query.date.isoformat() if query.date else None,
                 occurrence_dates=sorted({record["fields"]["occurrence_date"] for record in records
                                          if record["fields"].get("occurrence_date")}),
                 **reverse_coverage,
             )
-            if entity.kind == "club":
+            if entity.kind in ARCHWAY_GROUPS:
                 result["components"][component]["limitations"] = [
                     "Only events with an approved, evidenced organizer link are included; "
                     "absence does not mean this organization has no events."

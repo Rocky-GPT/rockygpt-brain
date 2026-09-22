@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
-from datetime import date
+from datetime import date, timedelta
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock, patch
@@ -306,7 +306,7 @@ def test_reverse_event_candidate_bound_is_explicit_not_an_exhaustive_no_events_c
     assert component["unexamined_event_candidates"] == 2
     assert component["truncated"] and component["reason"] == "event_candidate_limit"
     assert "absence does not mean" in component["limitations"][0]
-    assert data._fetch.call_count == 20
+    assert data._fetch.call_count == 21  # One start-time read, then one per examined candidate.
 
 
 @pytest.mark.parametrize("conflict", [False, True])
@@ -429,3 +429,66 @@ def test_dev_api_serves_new_sections_without_default_today_filter(
     component = response.json()["profile"]["components"]["event"]
     assert component["requested_date"] is None
     assert component["occurrence_dates"] == ["2026-09-22"]
+
+
+def organization(data: Any) -> Any:
+    data._artifacts["campus-identities"]["entities"][0]["kind"] = "organization"
+    add_organizer(data)
+    return data
+
+
+def test_organizations_use_the_same_evidenced_organizer_links_as_clubs() -> None:
+    data = organization(campus())
+    group = data.lookup_profile(ProfileQuery(entity_id=UUID(CLUB), include=["event"]))
+    component = group["components"]["event"]
+    assert component["temporal_scope"] == "linked_event_occurrences"
+    assert [r["source"]["id"] for r in component["relationships"]] == [EVENT]
+    assert "absence does not mean" in component["limitations"][0]
+    occurrence = data.lookup_profile(ProfileQuery(entity_id=UUID(EVENT), include=["event"]))
+    target = occurrence["components"]["event"]["relationships"][0]["target"]
+    assert target == {"id": CLUB, "name": "Example Club", "kind": "organization"}
+    incoming = data.lookup_profile(ProfileQuery(
+        entity_id=UUID(CLUB), include=["related"], direction="incoming"))
+    assert [(r["type"], r["entity"]["id"]) for r in
+            incoming["components"]["related"]["relationships"]] == [("organized_by", EVENT)]
+
+
+def test_group_events_are_examined_soonest_first_and_narrowed_by_date() -> None:
+    data = organization(campus())
+    entities = data._artifacts["campus-identities"]["entities"]
+    starts: dict[str, Any] = {}
+    offsets: dict[str, int] = {}
+    for index in range(25):
+        entity = copy.deepcopy(entities[1])
+        entity.update(id=str(UUID(int=index + 1)), name=f"Occurrence {index}", aliases=[])
+        entity["links"][0].update(source_record_keys=[f"key-{index}"],
+                                 source_record_ids=[f"row-{index}"])
+        entities.append(entity)
+        offset = (index * 7) % 25 - 5  # -5..19 days, deliberately not in ID order.
+        starts[f"row-{index}"] = NOW + timedelta(days=offset)
+        offsets[f"key-{index}"] = offset
+    inner = data._fetch.side_effect
+
+    def fetch(sql_text: Any, params: tuple[Any, ...]) -> list[dict[str, Any]]:
+        if "starts_at" in str(sql_text):
+            return [{"id": row, "starts_at": starts[row]} for row in params[1] if row in starts]
+        return list(inner(sql_text, params))
+
+    data._fetch = Mock(side_effect=fetch)
+
+    def examined() -> list[str]:
+        return [key for call in data._fetch.call_args_list if len(call.args[1]) >= 3
+                for key in call.args[1][2]]
+
+    component = data.lookup_profile(
+        ProfileQuery(entity_id=UUID(CLUB), include=["event"]))["components"]["event"]
+    assert component["linked_event_candidates"] == 26
+    assert component["unexamined_event_candidates"] == 6
+    assert [offsets[key] for key in examined()] == list(range(20))  # Upcoming, soonest first.
+    data._fetch.reset_mock()
+    day = (NOW + timedelta(days=3)).date()
+    data.lookup_profile(ProfileQuery(entity_id=UUID(CLUB), include=["event"], date=day))
+    # The unknown-date occurrence cannot be excluded by a date it may match.
+    assert sorted(examined()) == sorted([
+        next(key for key, offset in offsets.items() if offset == 3), "Sep22:Welcome Meeting",
+    ])
