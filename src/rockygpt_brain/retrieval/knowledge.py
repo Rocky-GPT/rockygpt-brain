@@ -13,7 +13,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from fastapi import HTTPException
 
 from rockygpt_brain.retrieval.graph import GraphData
-from rockygpt_brain.retrieval.profiles import IdentityRegistry
+from rockygpt_brain.retrieval.profiles import IdentityRegistry, IdentityRelationship
 
 
 def course_id(source: str, key: str) -> str:
@@ -46,14 +46,7 @@ class KnowledgeGraph:
         edges = []
         for entity in self.registry.entities:
             for relationship in entity.relationships:
-                target = (str(relationship.target_entity_id)
-                          if relationship.target_entity_id else None)
-                if relationship.target_record:
-                    ref = relationship.target_record
-                    records = self.course_groups.get((ref.source_key, ref.source_record_key), [])
-                    if len(records) == 1 and (not ref.source_record_id or
-                            records[0]["id"] == f"courses:{ref.source_record_id}"):
-                        target = course_id(ref.source_key, ref.source_record_key)
+                target = self.relationship_target(relationship)
                 if target not in known:
                     diagnostics.append({"reason": "unresolved_relationship", "entity": entity.name,
                                         "relationship": relationship.type})
@@ -66,6 +59,18 @@ class KnowledgeGraph:
         if isinstance(coverage, dict) and isinstance(coverage.get("unresolved"), list):
             diagnostics.extend(item for item in coverage["unresolved"] if isinstance(item, dict))
         return {"nodes": nodes, "edges": edges, "diagnostics": diagnostics}
+
+    def relationship_target(self, relationship: IdentityRelationship) -> str | None:
+        """The same exact target resolution is used by the index and full export."""
+        if relationship.target_entity_id:
+            return str(relationship.target_entity_id)
+        if relationship.target_record:
+            ref = relationship.target_record
+            records = self.course_groups.get((ref.source_key, ref.source_record_key), [])
+            if len(records) == 1 and (not ref.source_record_id or
+                    records[0]["id"] == f"courses:{ref.source_record_id}"):
+                return course_id(ref.source_key, ref.source_record_key)
+        return None
 
     def properties(self, entity_id: UUID, collection: str | None, offset: int,
                    limit: int) -> dict[str, Any]:

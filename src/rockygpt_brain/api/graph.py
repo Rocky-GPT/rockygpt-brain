@@ -7,6 +7,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 
 from rockygpt_brain.api.identities import _campus_data, _require_development
 from rockygpt_brain.retrieval.graph import GRAPH_COLLECTIONS, GROUP_FIELDS, LABELS, GraphData
@@ -125,6 +126,25 @@ def knowledge(dataset_version: Version = None) -> dict[str, Any]:
     with _campus_data() as data:
         snapshot = _snapshot(data, dataset_version)
         return {**snapshot, **KnowledgeGraph(data).index()}
+
+
+@router.get("/export")
+def graph_export() -> JSONResponse:
+    from rockygpt_brain.retrieval.graph_export import export_graph
+
+    with _campus_data() as data:
+        data._ensure_loaded()
+        assert data.connection is not None
+        # Pin every graph/registry/metadata read to one database snapshot. The
+        # initial active-release lookup is rechecked by export_graph in this transaction.
+        with data.connection.transaction():
+            data.connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            snapshot = _snapshot(data, None)
+            result = export_graph(data, snapshot)
+        return JSONResponse(result, headers={
+            "Content-Disposition": 'attachment; filename="campus-knowledge-graph.json"',
+            "Cache-Control": "no-store",
+        })
 
 
 @router.get("/properties")
