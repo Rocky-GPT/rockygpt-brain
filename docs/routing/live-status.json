@@ -1,0 +1,8 @@
+{
+  "status": "blocked",
+  "missingEnvironmentVariables": [
+    "BRAIN_TYPESAFE_API_KEY"
+  ],
+  "routingEnabled": false,
+  "paidCalls": 0
+}

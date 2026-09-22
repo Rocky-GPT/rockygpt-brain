@@ -16,7 +16,7 @@ from psycopg.types.json import Jsonb
 from rockygpt_brain.config import MONTHLY_CAP_NUSD, ConfigurationError, Environment
 
 CAMPUS_ZONE = ZoneInfo("America/New_York")
-Category = Literal["draft", "review"]
+Category = Literal["draft", "review", "routing"]
 
 
 class PaidCallError(Exception):

@@ -1,7 +1,6 @@
 """One bounded model/tool loop over one published campus release."""
 
 import json
-import re
 from datetime import datetime, timedelta
 from importlib.resources import files
 from time import monotonic
@@ -28,19 +27,24 @@ from rockygpt_brain.campus.progress import (
     search_subject,
 )
 from rockygpt_brain.campus.schedules import departure_summary, schedule_references
-from rockygpt_brain.config import RELEASE
-from rockygpt_brain.contracts import Answer, AnswerPart, ChatMessage, EvidenceReview
-from rockygpt_brain.core.provider import ModelClient, input_bound, wire_value
+from rockygpt_brain.config import RELEASE, RoutingMode
+from rockygpt_brain.contracts import Answer, ChatMessage
+from rockygpt_brain.core.provider import (
+    ModelClient,
+    ModelResponse,
+    OutputItem,
+    input_bound,
+    wire_value,
+)
 from rockygpt_brain.core.render import InvalidAnswer, render_answer
-from rockygpt_brain.core.reviewer import REVIEW_INSTRUCTIONS, review_answer
+from rockygpt_brain.core.reviewer import review_answer
+from rockygpt_brain.core.routing import RoutingClient, route_request
 from rockygpt_brain.core.tools import function_tool, tool_definitions
 from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.governance.budget import TurnBudget
 from rockygpt_brain.governance.evidence import (
     bounded_result,
-    compact_records,
     expand_argument_references,
-    map_references,
     reference_aliases,
     tool_result_wire,
 )
@@ -68,6 +72,8 @@ def run_turn(
     now: datetime,
     metrics: dict[str, Any] | None = None,
     progress: ProgressCallback | None = None,
+    routing_client: RoutingClient | None = None,
+    routing_mode: RoutingMode = "off",
 ) -> dict[str, Any]:
     subjects: list[ProgressSubject] = []
 
@@ -116,6 +122,31 @@ def run_turn(
         f"The current campus calendar week is {week_start} through {week_end}.\n"
     )
 
+    routing_calls = 0
+    routed_call: OutputItem | None = None
+    selected_tool: str | None = None
+    if routing_mode != "off" and routing_client is not None:
+        notify("understanding")
+        decision = route_request(
+            messages, data=data, client=routing_client, now=now,
+            timeout=min(RELEASE.routing.timeout_seconds,
+                        max(0, budget.remaining - RELEASE.answer_reserve_seconds)),
+        )
+        routing_calls = decision.calls
+        metrics["routing"] = decision.metrics(routing_mode)
+        metrics["routingCalls"] = routing_calls
+        if routing_mode == "active":
+            selected_tool = decision.tool
+            if decision.arguments is not None and decision.tool is not None:
+                routed_call = OutputItem({
+                    "type": "function_call", "call_id": "call_jev_initial",
+                    "name": decision.tool, "arguments": json.dumps(decision.arguments),
+                })
+    elif routing_mode != "off":
+        metrics["routing"] = {"mode": routing_mode, "fallbackReason": "routing_unavailable",
+                              "directRetrieval": False}
+        metrics["routingCalls"] = 0
+
     def fallback(reason: str, response_model: str) -> dict[str, Any]:
         # Do not splice even apparently supported paragraphs out of a rejected
         # draft. Exact facts can only be added by an independent code renderer.
@@ -141,7 +172,7 @@ def run_turn(
             "metrics": {
                 **metrics,
                 "responseMode": "safe_fallback",
-                "modelCalls": draft_calls + review_calls,
+                "modelCalls": routing_calls + draft_calls + review_calls,
                 "draftCalls": draft_calls,
                 "reviewCalls": review_calls,
                 "toolRequests": len(trace),
@@ -154,12 +185,14 @@ def run_turn(
         }
 
     tools = tool_definitions()
-    for round_index in range(MAX_DRAFT_CALLS):
+    for round_index in range(MAX_DRAFT_CALLS + int(routed_call is not None)):
+        direct = routed_call is not None and round_index == 0
         notify("understanding" if round_index == 0 else "composing")
         timeout = budget.model_timeout("draft")
         answer_only = not budget.can_retrieve
-        budget.note_model("draft")
-        draft_calls += 1
+        if not direct:
+            budget.note_model("draft")
+            draft_calls += 1
         prefix = combine_exact(messages, exact_pieces, fallback=False, allow_remaining=True)
         if prefix is not None:
             try:
@@ -204,7 +237,7 @@ def run_turn(
                 }
             },
             max_output_tokens=RELEASE.draft_output_tokens,
-            reasoning={"effort": RELEASE.draft_effort(round_index)},
+            reasoning={"effort": RELEASE.draft_effort(max(0, draft_calls - 1))},
             store=False,
             timeout=Timeout(timeout, connect=min(2.0, timeout)),
         )
@@ -218,12 +251,21 @@ def run_turn(
                 request["tools"] = []
                 request["tool_choice"] = "none"
                 metrics["contextLimitedTools"] = True
-        try:
-            response = client.create(category="draft", **request)
-        except PaidCallError as error:
-            if error.code == "context_limit" and round_index > 0:
-                raise PaidCallError("retrieval_context_limit") from error
-            raise
+        if direct:
+            assert routed_call is not None
+            response = ModelResponse("jev-routing", RELEASE.routing.model, "completed", "",
+                                     [routed_call], None)
+            metrics["routing"]["directRetrieval"] = True
+        else:
+            if round_index == 0 and selected_tool and not answer_only:
+                request["tools"] = [tool for tool in tools if tool["name"] == selected_tool]
+                request["tool_choice"] = {"type": "function", "name": selected_tool}
+            try:
+                response = client.create(category="draft", **request)
+            except PaidCallError as error:
+                if error.code == "context_limit" and round_index > 0:
+                    raise PaidCallError("retrieval_context_limit") from error
+                raise
         if response.status != "completed":
             raise InvalidAnswer("Incomplete model response", "incomplete_draft")
         calls = [item for item in response.output if item.type == "function_call"]
@@ -275,7 +317,7 @@ def run_turn(
                     "metrics": {
                         **metrics,
                         "responseMode": "general",
-                        "modelCalls": draft_calls,
+                        "modelCalls": routing_calls + draft_calls,
                         "draftCalls": draft_calls,
                         "reviewCalls": 0,
                         "toolRequests": len(trace),
@@ -326,7 +368,7 @@ def run_turn(
                     "responseMode": "exact_plus_reviewed"
                     if prefix is not None
                     else "reviewed_prose",
-                    "modelCalls": draft_calls + review_calls,
+                    "modelCalls": routing_calls + draft_calls + review_calls,
                     "draftCalls": draft_calls,
                     "reviewCalls": review_calls,
                     "toolRequests": len(trace),
@@ -574,7 +616,7 @@ def run_turn(
                 "trace": trace,
                 "metrics": {
                     **metrics,
-                    "modelCalls": draft_calls,
+                    "modelCalls": routing_calls + draft_calls,
                     "draftCalls": draft_calls,
                     "reviewCalls": 0,
                     "toolRequests": len(trace),

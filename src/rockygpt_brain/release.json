@@ -1,5 +1,5 @@
 {
-  "version": "campus-profiles-development-2026-09-21",
+  "version": "jev-routing-development-2026-09-22",
   "provider": "openai",
   "model": "gpt-5.4",
   "draft_reasoning": "low",
@@ -27,5 +27,21 @@
   },
   "max_retrieval_rounds": 2,
   "max_turn_cost_nusd": 800000000,
-  "continuation_reasoning": "medium"
+  "continuation_reasoning": "medium",
+  "routing": {
+    "version": "campus-routing-1",
+    "model": "jev-1.13.0",
+    "timeout_seconds": 2.0,
+    "threshold": 0.9,
+    "max_candidates": 24,
+    "price": {
+      "version": "typesafe-standard-2026-09-22",
+      "valid_from": "2026-09-22",
+      "valid_until": "2026-10-22",
+      "input_nusd": 42,
+      "cached_input_nusd": 42,
+      "output_nusd": 0,
+      "source": "https://docs.typesafe.ai/models"
+    }
+  }
 }

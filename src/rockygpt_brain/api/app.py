@@ -827,8 +827,7 @@ def chat_worker(
     dataset_version: str | None = None
     operational: dict[str, object] = {}
     result: dict[str, object] | JSONResponse | None = None
-    question_text = request.messages[-1].content if request.messages else ""
-    raw_messages = [m.model_dump() for m in request.messages]
+    deployment = None
     try:
         deployment = load_deployment()
         data = CampusData(os.getenv("DATABASE_URL", ""), now)
@@ -841,6 +840,8 @@ def chat_worker(
                 now=now,
                 metrics=operational,
                 progress=progress,
+                routing_mode=deployment.routing_mode,
+                routing_client=gateway if deployment.routing_mode != "off" else None,
             )
             result = turn_result
         outcome = result["status"]
@@ -890,17 +891,8 @@ def chat_worker(
         return failure(502, "invalid_model_output", request_id)
     finally:
         try:
-            answer_text = None
-            citations: Any = []
-            if isinstance(result, dict):
-                answer_text = result.get("answer")
-                citations = result.get("citations", [])
-
             summary = {
                 "requestId": request_id,
-                "question": question_text,
-                "messages": raw_messages,
-                "answer": answer_text,
                 "status": outcome,
                 "datasetVersion": dataset_version or operational.get("datasetVersion"),
                 "toolResults": operational.get("toolResults", []),
@@ -911,7 +903,7 @@ def chat_worker(
                 "fallbackReason": operational.get("fallbackReason"),
                 "validationFailures": operational.get("validationFailures", []),
                 "retrievalMs": operational.get("retrievalMs", 0),
-                "citations": citations,
+                "routing": operational.get("routing"),
                 **(gateway.usage.report() if gateway is not None else {}),
             }
 
