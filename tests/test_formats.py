@@ -8,10 +8,10 @@ from unittest.mock import Mock
 
 import pytest
 
+from rockygpt_brain.campus.formats import combine_exact, exact_search
 from rockygpt_brain.contracts import ChatMessage
-from rockygpt_brain.data import SearchFilters, SearchQuery
-from rockygpt_brain.engine import run_turn
-from rockygpt_brain.formats import combine_exact, exact_search
+from rockygpt_brain.core.engine import run_turn
+from rockygpt_brain.retrieval.data import SearchFilters, SearchQuery
 from test_engine import answer, review, tools
 from test_schedules import NOW, output
 from test_schedules import record as trip
@@ -387,7 +387,10 @@ def test_multipart_keeps_code_facts_and_reviews_only_new_prose(verdict: str) -> 
         assert result["metrics"]["responseMode"] == "safe_fallback"
 
 
-@pytest.mark.parametrize("question", ["What's for dinner?", "what is for dinner today", "what vegan dinner is available today"])
+@pytest.mark.parametrize(
+    "question",
+    ["What's for dinner?", "what is for dinner today", "what vegan dinner is available today"],
+)
 def test_meal_overview_never_bypasses_review_with_a_component_dump(question: str) -> None:
     rows = output(menu("Sliced Tomato"), menu("Ginger"), menu("Garlic Grilled Chicken"))
     assert exact_search(question, messages(question), menu_query(), rows, NOW) is None

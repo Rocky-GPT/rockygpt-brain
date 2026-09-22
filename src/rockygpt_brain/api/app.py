@@ -13,11 +13,10 @@ from typing import Any, cast
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, Field
-
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, Field
 
 from rockygpt_brain.api.graph import router as graph_router
 from rockygpt_brain.api.identities import router as identities_router
@@ -37,6 +36,14 @@ app.include_router(graph_router)
 CAMPUS_TIMEZONE = ZoneInfo("America/New_York")
 TURN_SLOTS = BoundedSemaphore(RELEASE.active_turns)
 HTTP_TURN_SECONDS = RELEASE.http_turn_seconds
+
+
+def _iso_text(value: Any) -> str:
+    # Datetimes render as ISO 8601; anything else, including None, uses str().
+    if hasattr(value, "isoformat"):
+        text: str = value.isoformat()
+        return text
+    return str(value)
 WORKERS: set[asyncio.Task[dict[str, object] | JSONResponse]] = set()
 
 
@@ -110,7 +117,7 @@ def get_logs(limit: int = 50) -> dict[str, Any]:
             for r in rows:
                 s = r["summary"] if isinstance(r["summary"], dict) else json.loads(r["summary"])
                 entries.append({
-                    "timestamp": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+                    "timestamp": _iso_text(r["created_at"]),
                     "requestId": str(r["request_id"]),
                     "question": s.get("question", ""),
                     "messages": s.get("messages", []),
@@ -167,25 +174,32 @@ def submit_feedback(payload: FeedbackPayload) -> dict[str, Any]:
                         )
                         row = cur.fetchone()
                         if row and row.get("summary"):
-                            s = row["summary"] if isinstance(row["summary"], dict) else json.loads(row["summary"])
+                            summary = row["summary"]
+                            s = summary if isinstance(summary, dict) else json.loads(summary)
                             question = question or s.get("question", "")
                             answer = answer or s.get("answer", "")
-                    except Exception:
+                    except Exception:  # noqa: S110 - best effort; feedback is stored regardless
                         pass
 
                 cur.execute(sql.SQL("RESET ROLE"))
                 cur.execute(
                     """
-                    INSERT INTO rockygpt_v2.feedback (request_id, question, answer, rating, category, comments)
+                    INSERT INTO rockygpt_v2.feedback
+                        (request_id, question, answer, rating, category, comments)
                     VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (request_id) DO UPDATE SET
                         rating = EXCLUDED.rating,
                         category = EXCLUDED.category,
                         comments = EXCLUDED.comments,
-                        question = CASE WHEN EXCLUDED.question <> '' THEN EXCLUDED.question ELSE rockygpt_v2.feedback.question END,
-                        answer = CASE WHEN EXCLUDED.answer <> '' THEN EXCLUDED.answer ELSE rockygpt_v2.feedback.answer END
+                        question = CASE WHEN EXCLUDED.question <> ''
+                            THEN EXCLUDED.question ELSE rockygpt_v2.feedback.question END,
+                        answer = CASE WHEN EXCLUDED.answer <> ''
+                            THEN EXCLUDED.answer ELSE rockygpt_v2.feedback.answer END
                     """,
-                    (payload.requestId, question or "N/A", answer or "N/A", rating, payload.category, payload.comments),
+                    (
+                        payload.requestId, question or "N/A", answer or "N/A", rating,
+                        payload.category, payload.comments,
+                    ),
                 )
         return {"success": True}
     except Exception as err:
@@ -233,7 +247,7 @@ def get_feedback(limit: int = 50) -> dict[str, Any]:
                 "rating": r["rating"],
                 "category": r["category"],
                 "comments": r["comments"],
-                "createdAt": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+                "createdAt": _iso_text(r["created_at"]),
             })
         return {"feedback": entries, "total": total}
     except Exception as err:
@@ -269,7 +283,8 @@ def record_eval_run(payload: EvalRunPayload) -> dict[str, Any]:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO brain_ops.eval_runs (run_id, suite, total_tests, passed, failed, duration_ms, summary)
+                    INSERT INTO brain_ops.eval_runs
+                        (run_id, suite, total_tests, passed, failed, duration_ms, summary)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (run_id) DO UPDATE SET
                         total_tests = EXCLUDED.total_tests,
@@ -312,7 +327,8 @@ def get_eval_runs(limit: int = 50) -> dict[str, Any]:
             with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(
                     """
-                    SELECT id, run_id, suite, total_tests, passed, failed, duration_ms, summary, created_at
+                    SELECT id, run_id, suite, total_tests, passed, failed, duration_ms, summary,
+                        created_at
                     FROM brain_ops.eval_runs
                     ORDER BY created_at DESC
                     LIMIT %s
@@ -334,8 +350,10 @@ def get_eval_runs(limit: int = 50) -> dict[str, Any]:
                 "passed": r["passed"],
                 "failed": r["failed"],
                 "durationMs": r["duration_ms"],
-                "summary": r["summary"] if isinstance(r["summary"], dict) else json.loads(r["summary"]),
-                "createdAt": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+                "summary": (
+                    r["summary"] if isinstance(r["summary"], dict) else json.loads(r["summary"])
+                ),
+                "createdAt": _iso_text(r["created_at"]),
             })
         return {"runs": entries, "total": total}
     except Exception as err:
@@ -381,7 +399,7 @@ def get_releases() -> Any:
             dataset_info = {
                 "id": data.dataset.get("id"),
                 "version": data.dataset.get("version"),
-                "activatedAt": activated.isoformat() if hasattr(activated, "isoformat") else str(activated),
+                "activatedAt": _iso_text(activated),
                 "sourcesCount": len(data.sources),
                 "sources": [
                     {
@@ -407,7 +425,9 @@ def get_releases() -> Any:
 CAPABILITIES_CATALOG = [
     {
         "capability": "critical_facts",
-        "describes": "Concise verified campus facts, emergency contacts, action links, and key dates.",
+        "describes": (
+            "Concise verified campus facts, emergency contacts, action links, and key dates."
+        ),
         "filters": [
             {"field": "name", "type": "string", "description": "Fact key or topic"},
         ],
@@ -434,7 +454,10 @@ CAPABILITIES_CATALOG = [
     },
     {
         "capability": "campus_hours",
-        "describes": "Operational opening and closing hours for campus buildings and administrative offices.",
+        "describes": (
+            "Operational opening and closing hours for campus buildings and administrative "
+            "offices."
+        ),
         "filters": [
             {"field": "venue", "type": "string", "description": "Building or facility"},
             {"field": "date", "type": "iso-date", "description": "Date of interest"},
@@ -451,7 +474,9 @@ CAPABILITIES_CATALOG = [
     },
     {
         "capability": "menu",
-        "describes": "Daily campus dining menu offerings, ingredients, allergens, and nutritional info.",
+        "describes": (
+            "Daily campus dining menu offerings, ingredients, allergens, and nutritional info."
+        ),
         "filters": [
             {"field": "date", "type": "iso-date", "description": "Menu date"},
             {"field": "venue", "type": "string", "description": "Dining location"},
@@ -501,7 +526,10 @@ CAPABILITIES_CATALOG = [
     },
     {
         "capability": "program_requirements",
-        "describes": "Degree requirements, graduation rules, and required course sequences for academic programs.",
+        "describes": (
+            "Degree requirements, graduation rules, and required course sequences for academic "
+            "programs."
+        ),
         "filters": [
             {"field": "program", "type": "string", "description": "Degree program name"},
         ],
@@ -509,7 +537,9 @@ CAPABILITIES_CATALOG = [
     },
     {
         "capability": "courses",
-        "describes": "Course catalog offerings, prerequisites, credit hours, and subject descriptions.",
+        "describes": (
+            "Course catalog offerings, prerequisites, credit hours, and subject descriptions."
+        ),
         "filters": [
             {"field": "subject", "type": "string", "description": "Academic discipline"},
         ],
@@ -517,7 +547,9 @@ CAPABILITIES_CATALOG = [
     },
     {
         "capability": "faculty",
-        "describes": "Faculty directory profiles, schools, teaching fields, and research interests.",
+        "describes": (
+            "Faculty directory profiles, schools, teaching fields, and research interests."
+        ),
         "filters": [
             {"field": "name", "type": "string", "description": "Professor or instructor name"},
             {"field": "school", "type": "string", "description": "Academic school"},
@@ -556,7 +588,9 @@ def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any] | JSO
         data = CampusData(database_url, datetime.now(ZoneInfo("America/New_York")))
         data._ensure_loaded()
         if name == "documents":
-            records, _ = data._documents(SearchQuery(collection="documents", query="", limit=min(limit, 100)))
+            records, _ = data._documents(
+                SearchQuery(collection="documents", query="", limit=min(limit, 100))
+            )
         else:
             records = data._load(name)
             if limit:
@@ -603,7 +637,9 @@ def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any] | JSO
 
                     item["phone"] = faculty_phone_display(item["phone"])
                 if name == "programs":
-                    item["record_kind"] = "catalog_convener" if "field_meaning" in item else "program"
+                    item["record_kind"] = (
+                        "catalog_convener" if "field_meaning" in item else "program"
+                    )
                 if r.get("url") and name not in ("dining_hours", "documents"):
                     item["source_url"] = r["url"]
                 if r.get("valid_from"):
@@ -619,7 +655,9 @@ def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any] | JSO
         logging.getLogger(__name__).exception("Capability records lookup failed: %s", name)
         return JSONResponse(
             status_code=503,
-            content={"error": "Campus records could not be loaded. Check the Brain logs for details."},
+            content={
+                "error": "Campus records could not be loaded. Check the Brain logs for details."
+            },
         )
     finally:
         if data is not None:
@@ -645,7 +683,8 @@ def get_documents() -> dict[str, Any]:
             JOIN rockygpt_v2.sources s ON s.id = d.source_id
             LEFT JOIN rockygpt_v2.document_chunks c ON c.document_id = d.id
             WHERE d.dataset_version_id = %s::uuid
-            GROUP BY d.id, d.title, d.content, d.collected_at, d.metadata, s.canonical_url, s.source_key, s.trust_tier
+            GROUP BY d.id, d.title, d.content, d.collected_at, d.metadata, s.canonical_url,
+                s.source_key, s.trust_tier
             ORDER BY d.title
             """,
             (data.dataset["id"],),
@@ -661,7 +700,7 @@ def get_documents() -> dict[str, Any]:
                 "canonicalUrl": r["canonical_url"],
                 "sourceKey": r["source_key"],
                 "trustTier": r["trust_tier"],
-                "collectedAt": collected.isoformat() if hasattr(collected, "isoformat") else str(collected),
+                "collectedAt": _iso_text(collected),
                 "metadata": r.get("metadata") or {},
             })
         return {"documents": documents, "total": len(documents)}
@@ -724,7 +763,7 @@ def get_document(document_id: str) -> dict[str, Any]:
             "canonicalUrl": doc["canonical_url"],
             "sourceKey": doc["source_key"],
             "trustTier": doc["trust_tier"],
-            "collectedAt": collected.isoformat() if hasattr(collected, "isoformat") else str(collected),
+            "collectedAt": _iso_text(collected),
             "metadata": doc.get("metadata") or {},
             "chunkCount": len(chunks),
             "chunks": chunks,
@@ -844,12 +883,12 @@ def chat_worker(
                 routing_client=gateway if deployment.routing_mode != "off" else None,
             )
             result = turn_result
-        outcome = result["status"]
-        dataset_version = result.get("datasetVersion")
-        operational = result["metrics"]
+        outcome = cast(str, result["status"])
+        dataset_version = cast(str | None, result.get("datasetVersion"))
+        operational = cast(dict[str, object], result["metrics"])
         usage = gateway.usage.report()
         # Billing details remain in the operational ledger/log, not student answers.
-        result["metrics"].update(
+        operational.update(
             {key: value for key, value in usage.items() if key not in {"costNusd", "unsettledNusd"}}
         )
         return {**result, "requestId": request_id}

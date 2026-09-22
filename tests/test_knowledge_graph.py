@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+from typing import Any
 from unittest.mock import Mock, patch
 from uuid import UUID
 
@@ -16,17 +17,17 @@ from test_profiles import ENTITY_ID, repository
 
 
 @pytest.fixture
-def data():
+def data() -> Any:
     value = repository()
     value._artifacts["campus-identity-coverage"] = {"unresolved": []}
     value._artifacts['courses'] = [{"code": "CMPS 101", "title": "Intro", "credits": 4}]
     course = {"id": "courses:0", "title": "CMPS 101 — Intro", "source_key": "catalog",
               "source_record_key": "CMPS 101", "fields": {"code": "CMPS 101"}}
-    value._load_artifact_records = Mock(return_value=[course])
+    value._load_artifact_records = Mock(return_value=[course])  # type: ignore[method-assign]
     return value
 
 
-def add_course_link(data, record_id=None):
+def add_course_link(data: Any, record_id: str | None = None) -> None:
     reference = {"collection": "courses", "source_key": "catalog",
                  "source_record_key": "CMPS 101"}
     if record_id is not None:
@@ -38,7 +39,7 @@ def add_course_link(data, record_id=None):
     }]
 
 
-def test_courses_are_stable_source_scoped_entities_with_exact_relationships(data):
+def test_courses_are_stable_source_scoped_entities_with_exact_relationships(data: Any) -> None:
     add_course_link(data)
     graph = KnowledgeGraph(data).index()
     course = next(node for node in graph['nodes'] if node['kind'] == 'course')
@@ -53,7 +54,7 @@ def test_courses_are_stable_source_scoped_entities_with_exact_relationships(data
 
 
 @pytest.mark.parametrize('failure', ['duplicate', 'stale_id', 'missing'])
-def test_ambiguous_or_broken_course_references_do_not_create_edges(data, failure):
+def test_ambiguous_or_broken_course_references_do_not_create_edges(data: Any, failure: str) -> None:
     add_course_link(data, '0' if failure != 'stale_id' else '99')
     if failure == 'duplicate':
         data._load_artifact_records.return_value *= 2
@@ -64,14 +65,14 @@ def test_ambiguous_or_broken_course_references_do_not_create_edges(data, failure
     assert any(issue['reason'] == 'unresolved_relationship' for issue in graph['diagnostics'])
 
 
-def test_matching_property_text_does_not_create_relationship(data):
+def test_matching_property_text_does_not_create_relationship(data: Any) -> None:
     data._load_artifact_records.return_value[0]['title'] = 'Example Center'
     graph = KnowledgeGraph(data).index()
     assert len(graph['nodes']) == 2
     assert graph['edges'] == []
 
 
-def test_properties_keep_sources_conflicts_and_pagination(data):
+def test_properties_keep_sources_conflicts_and_pagination(data: Any) -> None:
     records = [{"id": f"contacts:{index}", "fields": {"phone": phone, "zero": 0,
                 "empty": "", "unknown": None, "enabled": False}, "collected_at": "yesterday",
                 "source_key": f"source-{index}", "raw_record": {"internal": True}}
@@ -90,21 +91,23 @@ def test_properties_keep_sources_conflicts_and_pagination(data):
     browse.assert_called_once_with('contacts', {}, None, 0, 2)
 
 
-def test_course_properties_reuse_exact_catalog_record(data):
+def test_course_properties_reuse_exact_catalog_record(data: Any) -> None:
     node_id = course_id('catalog', 'CMPS 101')
     result = KnowledgeGraph(data).properties(UUID(node_id), None, 0, 8)
     assert result['groups'][0]['records'][0]['fields']['credits'] == 4
     assert result['entity_id'] == node_id
 
 
-def test_properties_cannot_read_unlinked_collections(data):
+def test_properties_cannot_read_unlinked_collections(data: Any) -> None:
     with pytest.raises(HTTPException) as error:
         KnowledgeGraph(data).properties(UUID(ENTITY_ID), 'events', 0, 8)
     assert error.value.status_code == 422
 
 
 @pytest.mark.parametrize('operation', ['knowledge', 'properties'])
-def test_api_development_gate_and_release_pin(data, monkeypatch, operation):
+def test_api_development_gate_and_release_pin(
+    data: Any, monkeypatch: pytest.MonkeyPatch, operation: str,
+) -> None:
     params = {'entity_id': ENTITY_ID, 'dataset_version': 'old'}
     monkeypatch.setenv('BRAIN_ENVIRONMENT', 'production')
     with patch('rockygpt_brain.api.identities.CampusData') as factory:
@@ -117,7 +120,7 @@ def test_api_development_gate_and_release_pin(data, monkeypatch, operation):
     data._load_artifact_records.assert_not_called()
 
 
-def test_missing_property_does_not_hide_other_published_values(data):
+def test_missing_property_does_not_hide_other_published_values(data: Any) -> None:
     record = {"id": "contacts:good", "fields": {"phone": "x123"}}
     with (patch.object(GraphData, 'browse', return_value={
         'records': [{'id': 'contacts:missing'}, record], 'total': 2, 'next_offset': None,
@@ -127,7 +130,7 @@ def test_missing_property_does_not_hide_other_published_values(data):
     assert output['diagnostics'][0]['reason'] == 'linked_property_unavailable'
 
 
-def test_course_property_pagination_does_not_repeat_the_only_record(data):
+def test_course_property_pagination_does_not_repeat_the_only_record(data: Any) -> None:
     output = KnowledgeGraph(data).properties(UUID(course_id('catalog', 'CMPS 101')),
                                             'courses', 1, 8)
     assert output['groups'][0]['records'] == []
@@ -135,7 +138,9 @@ def test_course_property_pagination_does_not_repeat_the_only_record(data):
 
 
 @pytest.mark.parametrize('operation', ['knowledge', 'properties'])
-def test_new_endpoints_return_release_pinned_data_without_model_calls(data, monkeypatch, operation):
+def test_new_endpoints_return_release_pinned_data_without_model_calls(
+    data: Any, monkeypatch: pytest.MonkeyPatch, operation: str,
+) -> None:
     monkeypatch.setenv('BRAIN_ENVIRONMENT', 'development')
     monkeypatch.setenv('DATABASE_URL', 'postgresql://unused')
     params = {'dataset_version': 'test-release',

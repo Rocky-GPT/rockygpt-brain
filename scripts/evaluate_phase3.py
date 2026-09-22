@@ -19,13 +19,20 @@ from uuid import uuid4
 import httpx
 from dotenv import load_dotenv
 
-from rockygpt_brain.accounting import CAMPUS_ZONE, Category, PaidCallError, PostgresLedger, month_at
 from rockygpt_brain.config import RELEASE, configuration_hash, load_deployment
 from rockygpt_brain.contracts import ChatMessage, ChatRequest
-from rockygpt_brain.data import CampusData, ReadQuery, SearchQuery
-from rockygpt_brain.engine import InvalidAnswer, run_turn
-from rockygpt_brain.exact import ContactQuery
-from rockygpt_brain.provider import ModelClient, ModelResponse, open_gateway
+from rockygpt_brain.core.engine import run_turn
+from rockygpt_brain.core.provider import ModelClient, ModelResponse, open_gateway
+from rockygpt_brain.core.render import InvalidAnswer
+from rockygpt_brain.governance.accounting import (
+    CAMPUS_ZONE,
+    Category,
+    PaidCallError,
+    PostgresLedger,
+    month_at,
+)
+from rockygpt_brain.retrieval.data import CampusData, ReadQuery, SearchQuery
+from rockygpt_brain.retrieval.exact import ContactQuery
 
 
 class CapturedModel:

@@ -12,9 +12,9 @@ from fastapi.testclient import TestClient
 
 from rockygpt_brain.api.app import app
 from rockygpt_brain.api.stream import stream_turn
+from rockygpt_brain.campus.progress import ProgressUpdate, TurnCancelled
 from rockygpt_brain.contracts import ChatMessage
-from rockygpt_brain.engine import run_turn
-from rockygpt_brain.progress import ProgressUpdate, TurnCancelled
+from rockygpt_brain.core.engine import run_turn
 from test_api import deployment_environment, gateway_context  # noqa: F401
 from test_engine import NOW, RECORD, answer, review, search, tools
 
@@ -132,7 +132,7 @@ def test_stream_deadline_does_not_cancel_accounted_worker() -> None:
 
 
 def test_sse_final_error_preserves_status_request_id_and_retryability() -> None:
-    from rockygpt_brain.accounting import PaidCallError
+    from rockygpt_brain.governance.accounting import PaidCallError
 
     with (
         patch.dict("os.environ", {"STAGING_SERVICE_TOKEN": ""}),
@@ -213,18 +213,19 @@ def test_menu_context_comes_from_validated_lookup_and_persists_into_review() -> 
         now=NOW,
         progress=updates.append,
     )
-    assert updates[0] == {"stage": "understanding", "subjects": []}
+    fresh_start: ProgressUpdate = {"stage": "understanding", "subjects": []}
+    assert updates[0] == fresh_start
     assert all(update["subjects"] == [] for update in updates)
 
 
 def test_unknown_meal_and_query_prose_never_enter_progress() -> None:
-    from rockygpt_brain.data import SearchQuery
-    from rockygpt_brain.progress import search_subject
+    from rockygpt_brain.campus.progress import search_subject
+    from rockygpt_brain.retrieval.data import SearchFilters, SearchQuery
 
     query = SearchQuery(
         collection="menu",
         query="private user text",
         date_from=NOW.date(),
-        filters={"meal": "arbitrary model prose"},
+        filters=SearchFilters(meal="arbitrary model prose"),
     )
     assert search_subject(query) == {"topic": "menu", "date_from": "2026-09-04"}

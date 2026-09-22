@@ -6,22 +6,19 @@ from rockygpt_brain.campus import calculations as _calculations
 from rockygpt_brain.campus import formats as _formats
 from rockygpt_brain.campus import progress as _progress
 from rockygpt_brain.campus import schedules as _schedules
-
 from rockygpt_brain.contracts import Answer, AnswerPart, ChatMessage, ChatRequest
-
 from rockygpt_brain.core import engine as _engine
 from rockygpt_brain.core import provider as _provider
 from rockygpt_brain.core import render as _render
 from rockygpt_brain.core import reviewer as _reviewer
 from rockygpt_brain.core import tools as _tools
-from rockygpt_brain.core.engine import InvalidAnswer, run_turn
-
+from rockygpt_brain.core.engine import run_turn
+from rockygpt_brain.core.render import InvalidAnswer
 from rockygpt_brain.governance import accounting as _accounting
 from rockygpt_brain.governance import budget as _budget
 from rockygpt_brain.governance import evidence as _evidence
 from rockygpt_brain.governance import limits as _limits
 from rockygpt_brain.governance import reconcile as _reconcile
-
 from rockygpt_brain.retrieval import data as _data
 from rockygpt_brain.retrieval import exact as _exact
 from rockygpt_brain.retrieval import helpers as _helpers

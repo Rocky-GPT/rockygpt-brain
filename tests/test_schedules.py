@@ -6,8 +6,14 @@ from typing import Any
 
 import pytest
 
-from rockygpt_brain.data import SearchQuery
-from rockygpt_brain.schedules import CAMPUS_ZONE, departure_summary, opening_intervals, trip_times, wall_time
+from rockygpt_brain.campus.schedules import (
+    CAMPUS_ZONE,
+    departure_summary,
+    opening_intervals,
+    trip_times,
+    wall_time,
+)
+from rockygpt_brain.retrieval.data import SearchQuery
 
 NOW = datetime(2026, 9, 16, 16, tzinfo=CAMPUS_ZONE)
 QUERY = SearchQuery(collection="shuttle", date_from=NOW.date(), limit=50)
@@ -175,7 +181,9 @@ def test_split_opening_intervals_preserve_the_closed_gap(schedule: Any) -> None:
 
 def test_structured_midnight_and_closure_keep_service_day_meaning() -> None:
     day = date(2026, 9, 21)
-    start, end = opening_intervals([{"open": "08:00", "close": "00:00", "close_day_offset": 1}], day)[0]
+    start, end = opening_intervals(
+        [{"open": "08:00", "close": "00:00", "close_day_offset": 1}], day
+    )[0]
     assert start.date() == day and end.date() == date(2026, 9, 22)
     assert opening_intervals([], day) == opening_intervals("CLOSED", day) == []
 

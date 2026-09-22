@@ -9,18 +9,17 @@ from zoneinfo import ZoneInfo
 import pytest
 from openai import Timeout
 
-from rockygpt_brain.accounting import PaidCallError
 from rockygpt_brain.config import RELEASE
 from rockygpt_brain.contracts import Answer, ChatMessage
-from rockygpt_brain.engine import (
+from rockygpt_brain.core.engine import (
     MAX_DRAFT_CALLS,
     MAX_MODEL_CALLS,
     MAX_TOOL_CALLS,
-    InvalidAnswer,
-    render_answer,
-    review_answer,
     run_turn,
 )
+from rockygpt_brain.core.render import InvalidAnswer, render_answer
+from rockygpt_brain.core.reviewer import review_answer
+from rockygpt_brain.governance.accounting import PaidCallError
 from test_evidence import expand_records
 
 NOW = datetime(2026, 9, 4, 12, tzinfo=ZoneInfo("America/New_York"))
@@ -638,7 +637,7 @@ def test_review_receives_query_coverage_and_published_category(truncated: bool) 
     client, data = Mock(), Mock()
     client.create.side_effect = [
         tools(search()),
-        answer("A department directory entry.", "campus_fact", [record["id"]]),
+        answer("A department directory entry.", "campus_fact", [str(record["id"])]),
         review(),
     ]
     data.search.return_value = {
@@ -976,7 +975,7 @@ def test_overlapping_search_does_not_erase_previously_read_details() -> None:
 def test_slow_retrieval_obeys_reserved_deadline_and_answer_still_gets_reviewed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from rockygpt_brain.engine import ANSWER_RESERVE_SECONDS, TURN_SECONDS
+    from rockygpt_brain.core.engine import ANSWER_RESERVE_SECONDS, TURN_SECONDS
 
     clock = [0.0]
     monkeypatch.setattr("rockygpt_brain.engine.monotonic", lambda: clock[0])
@@ -1256,8 +1255,8 @@ def test_food_safety_inference_is_withheld_even_if_model_approves(kind: str) -> 
 
 
 def test_context_bound_ends_tool_selection_without_discarding_evidence() -> None:
-    from rockygpt_brain.engine import tool_definitions
-    from rockygpt_brain.provider import input_bound, wire_value
+    from rockygpt_brain.core.provider import input_bound, wire_value
+    from rockygpt_brain.core.tools import tool_definitions
 
     client, data = Mock(), Mock()
     long_record = {**RECORD, "content": "Office: D-224\n" + "x" * 31000}
@@ -1295,7 +1294,7 @@ def test_context_bound_ends_tool_selection_without_discarding_evidence() -> None
 
 
 def test_oversized_new_results_preserve_history_and_prior_evidence_with_truthful_coverage() -> None:
-    from rockygpt_brain.provider import input_bound, wire_value
+    from rockygpt_brain.core.provider import input_bound, wire_value
 
     client, data = Mock(), Mock()
     large_records = [

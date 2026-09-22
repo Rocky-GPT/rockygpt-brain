@@ -9,11 +9,11 @@ from unittest.mock import Mock
 import pytest
 from pydantic import ValidationError
 
-from rockygpt_brain.calculations import CalculationQuery, TimeOperand, calculate
+from rockygpt_brain.campus.calculations import CalculationQuery, TimeOperand, calculate
+from rockygpt_brain.campus.schedules import departure_summary, schedule_references
 from rockygpt_brain.contracts import ChatMessage
-from rockygpt_brain.data import SearchQuery
-from rockygpt_brain.engine import run_turn
-from rockygpt_brain.schedules import departure_summary, schedule_references
+from rockygpt_brain.core.engine import run_turn
+from rockygpt_brain.retrieval.data import SearchQuery
 from test_engine import answer, review, tools
 from test_formats import hours, menu, messages
 from test_schedules import NOW, QUERY, output, record

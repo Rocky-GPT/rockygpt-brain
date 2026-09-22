@@ -326,8 +326,8 @@ def dining_data() -> Any:
                  ('today:dinner', 'Dinner', 'Pasta', '2026-09-21'),
                  ('tomorrow:lunch', 'Lunch', 'Salad', '2026-09-22'),
              ]]
-    data._fetch = Mock(side_effect=lambda _sql, params:
-                       schedules if params[2][0] == 'Monday' else menus)  # type: ignore[method-assign]
+    data._fetch = Mock(  # type: ignore[method-assign]
+        side_effect=lambda _sql, params: schedules if params[2][0] == 'Monday' else menus)
     return data
 
 
