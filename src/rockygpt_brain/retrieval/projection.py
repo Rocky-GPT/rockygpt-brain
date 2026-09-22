@@ -281,18 +281,24 @@ class Projection:
                 self.coverage.append(CoverageIssue(reason=diagnostic["reason"],
                                                    collection=diagnostic.get("collection")))
         relationships = []
+        # Repeated identical declarations are separate occurrences, each located
+        # by its own array index (as in the graph export), never the first match.
+        claimed: dict[str, set[int]] = {}
         for edge in index["edges"]:
             if str(entity_id) not in {edge["source"], edge["target"]}:
                 continue
             owner = next(e for e in graph.registry.entities if str(e.id) == edge["source"])
+            used = claimed.setdefault(edge["source"], set())
             relationship_index = next(i for i, r in enumerate(owner.relationships)
-                if r.type == edge["type"] and (
+                if i not in used and r.type == edge["type"] and (
                     str(r.target_entity_id) if r.target_entity_id else
                     course_id(r.target_record.source_key, r.target_record.source_record_key)
                     if r.target_record else None
                 ) == edge["target"] and [ref.model_dump(mode="json", exclude_none=True)
                                          for ref in r.evidence] == edge["evidence"])
-            relationships.append(Relationship(id=stable_id(self.snapshot["identity_hash"], edge),
+            used.add(relationship_index)
+            relationships.append(Relationship(
+                id=stable_id(self.snapshot["identity_hash"], edge["source"], relationship_index),
                 subject=EntitySubject(entity_id=edge["source"]), predicate=edge["type"],
                 target_entity_id=edge["target"],
                 direction="outgoing" if edge["source"] == str(entity_id) else "incoming",
