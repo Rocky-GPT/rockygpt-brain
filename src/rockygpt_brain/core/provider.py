@@ -1,5 +1,6 @@
 """The sole SDK boundary and paid-call gateway. No retries or unaccounted calls."""
 
+import asyncio
 import json
 import math
 from collections.abc import Callable, Iterator
@@ -10,9 +11,11 @@ from time import monotonic
 from typing import Any, Protocol
 from uuid import uuid4
 
+import httpx
 from httpx import Timeout
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, RateLimitError
 
+from rockygpt_brain.config import RELEASE, Deployment, Price, Release, configuration_hash
 from rockygpt_brain.governance.accounting import (
     CAMPUS_ZONE,
     Category,
@@ -21,7 +24,6 @@ from rockygpt_brain.governance.accounting import (
     PostgresLedger,
 )
 from rockygpt_brain.governance.budget import TurnBudget
-from rockygpt_brain.config import RELEASE, Deployment, Price, Release, configuration_hash
 
 
 @dataclass(frozen=True)
@@ -141,8 +143,44 @@ class OpenAIProvider:
         )
 
 
+class JevProvider:
+    """One cancellable HTTP attempt; the deadline includes reading the response body."""
+
+    def __init__(self, api_key: str) -> None:
+        self._api_key = api_key
+
+    def create(self, *, timeout: float, **payload: Any) -> ModelResponse:
+        async def request() -> ModelResponse:
+            async with httpx.AsyncClient(trust_env=False, timeout=timeout) as client:
+                async with client.stream(
+                    "POST", "https://api.typesafe.ai/v1/systemone", json=payload,
+                    headers={"Authorization": "Bearer " + self._api_key},
+                ) as response:
+                    response.raise_for_status()
+                    body = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        body.extend(chunk)
+                        if len(body) > 1_048_576:
+                            raise ValueError("Routing response too large")
+                    raw = json.loads(body)
+                    usage = raw.get("usage", {})
+                    try:
+                        tokens = Usage(usage["input_tokens"], 0, usage["output_tokens"], 0)
+                    except (KeyError, TypeError, ValueError):
+                        tokens = None
+                    return ModelResponse(
+                        response.headers.get("x-request-id", ""), str(raw.get("model", "")),
+                        "completed", json.dumps(raw.get("answers")), [], tokens,
+                    )
+
+        async def bounded() -> ModelResponse:
+            return await asyncio.wait_for(request(), timeout=timeout)
+
+        return asyncio.run(bounded())
+
+
 def provider_error(error: BaseException) -> str:
-    if isinstance(error, (APITimeoutError, TimeoutError)):
+    if isinstance(error, (APITimeoutError, TimeoutError, httpx.TimeoutException)):
         return "model_timeout"
     if isinstance(error, RateLimitError):
         if error.code in {"insufficient_quota", "credit_balance_exhausted"} or (
@@ -192,6 +230,8 @@ class TurnUsage:
             "outputTokens": sum(c.get("output_tokens", 0) for c in self.calls),
             "reasoningTokens": sum(c.get("reasoning_tokens", 0) for c in self.calls),
             "draftModelMs": sum(c["elapsedMs"] for c in self.calls if c["category"] == "draft"),
+            "routingCalls": sum(c["category"] == "routing" for c in self.calls),
+            "routingModelMs": sum(c["elapsedMs"] for c in self.calls if c["category"] == "routing"),
             "reviewModelMs": sum(c["elapsedMs"] for c in self.calls if c["category"] == "review"),
             "costNusd": sum(c.get("costNusd", 0) for c in self.calls),
             "unsettledNusd": sum(c["reservedNusd"] for c in self.calls if not c.get("settled")),
@@ -208,10 +248,12 @@ class PaidGateway:
         *,
         release: Release = RELEASE,
         project: str = "",
+        routing_provider: JevProvider | None = None,
         config_hash: str | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(CAMPUS_ZONE),
     ) -> None:
         self._provider = provider
+        self._routing_provider = routing_provider
         self._ledger = ledger
         self.request_id = request_id
         self.release = release
@@ -231,77 +273,108 @@ class PaidGateway:
             },
         )
 
+    def route(self, payload: dict[str, Any], *, timeout: float) -> dict[str, Any]:
+        response = self.create(category="routing", **payload, timeout=timeout)
+        answers = json.loads(response.output_text)
+        if not isinstance(answers, dict):
+            raise ValueError("Invalid routing answers")
+        return answers
+
     def create(self, *, category: Category, **kwargs: Any) -> ModelResponse:
         started = monotonic()
         now = self.clock()
-        price = self.release.price
+        routing = category == "routing"
+        price = self.release.routing.price if routing else self.release.price
         today = now.astimezone(CAMPUS_ZONE).date()
         if not price.valid_from <= today < price.valid_until:
-            raise PaidCallError("price_unavailable")
-        if category not in {"draft", "review"}:
+            raise PaidCallError("routing_price_unavailable" if routing else "price_unavailable")
+        if category not in {"draft", "review", "routing"}:
             raise PaidCallError("unsupported_model_operation")
         available = self.budget.model_timeout(category)
-        allowed = {
-            "model",
-            "instructions",
-            "input",
-            "tools",
-            "tool_choice",
-            "text",
-            "parallel_tool_calls",
-            "reasoning",
-            "max_output_tokens",
-            "store",
-            "timeout",
-        }
-        if set(kwargs) - allowed or kwargs.get("model") != self.release.model:
-            raise PaidCallError("unsupported_model_operation")
-        output_limit = (
-            self.release.draft_output_tokens
-            if category == "draft"
-            else self.release.review_output_tokens
-        )
-        if kwargs.get("max_output_tokens") != output_limit or kwargs.get("store") is not False:
-            raise PaidCallError("unsupported_model_operation")
-        timeout = kwargs.get("timeout")
-        if isinstance(timeout, (int, float)) and not isinstance(timeout, bool):
-            timeout = Timeout(timeout, connect=min(2.0, timeout))
-        if not isinstance(timeout, Timeout) or any(
-            value is None or not math.isfinite(value) or not 0 < value <= maximum
-            for value, maximum in (
-                (timeout.read, self.release.turn_seconds),
-                (timeout.connect, 2.0),
-                (timeout.write, self.release.turn_seconds),
-                (timeout.pool, self.release.turn_seconds),
+        if routing:
+            if self._routing_provider is None:
+                raise PaidCallError("routing_unavailable")
+            if set(kwargs) != {"model", "state", "questions", "timeout"} or (
+                kwargs["model"] != self.release.routing.model
+            ):
+                raise PaidCallError("unsupported_model_operation")
+            timeout_value = kwargs["timeout"]
+            if type(timeout_value) not in {int, float} or not math.isfinite(timeout_value) or (
+                not 0 < timeout_value <= self.release.routing.timeout_seconds
+            ):
+                raise PaidCallError("unsupported_model_operation")
+            kwargs["timeout"] = min(timeout_value, available)
+            payload = wire_value({key: value for key, value in kwargs.items() if key != "timeout"})
+            questions = payload["questions"]
+            if not isinstance(questions, dict) or not questions or any(
+                input_bound({"state": payload["state"], "question": question}) > 32000
+                for question in questions.values()
+            ):
+                raise PaidCallError("routing_context_limit")
+            output_limit = 0
+            effort = "none"
+        else:
+            allowed = {
+                "model",
+                "instructions",
+                "input",
+                "tools",
+                "tool_choice",
+                "text",
+                "parallel_tool_calls",
+                "reasoning",
+                "max_output_tokens",
+                "store",
+                "timeout",
+            }
+            if set(kwargs) - allowed or kwargs.get("model") != self.release.model:
+                raise PaidCallError("unsupported_model_operation")
+            output_limit = (
+                self.release.draft_output_tokens
+                if category == "draft"
+                else self.release.review_output_tokens
             )
-        ):
-            raise PaidCallError("unsupported_model_operation")
-        assert timeout.read is not None and timeout.connect is not None
-        kwargs["timeout"] = Timeout(
-            min(float(timeout.read), available), connect=min(float(timeout.connect), available)
-        )
-        effort = (
-            self.release.draft_effort(self.budget.draft_calls)
-            if category == "draft"
-            else self.release.review_reasoning
-        )
-        kwargs["reasoning"] = {"effort": effort}
-        # Exclude network timeouts from token estimation; include every wire content field.
-        payload = wire_value({key: value for key, value in kwargs.items() if key != "timeout"})
-        if any(tool.get("type") != "function" for tool in payload.get("tools", [])):
-            raise PaidCallError("unsupported_model_operation")
+            if kwargs.get("max_output_tokens") != output_limit or kwargs.get("store") is not False:
+                raise PaidCallError("unsupported_model_operation")
+            timeout = kwargs.get("timeout")
+            if isinstance(timeout, (int, float)) and not isinstance(timeout, bool):
+                timeout = Timeout(timeout, connect=min(2.0, timeout))
+            if not isinstance(timeout, Timeout) or any(
+                value is None or not math.isfinite(value) or not 0 < value <= maximum
+                for value, maximum in (
+                    (timeout.read, self.release.turn_seconds),
+                    (timeout.connect, 2.0),
+                    (timeout.write, self.release.turn_seconds),
+                    (timeout.pool, self.release.turn_seconds),
+                )
+            ):
+                raise PaidCallError("unsupported_model_operation")
+            assert timeout.read is not None and timeout.connect is not None
+            kwargs["timeout"] = Timeout(
+                min(float(timeout.read), available), connect=min(float(timeout.connect), available)
+            )
+            effort = (
+                self.release.draft_effort(self.budget.draft_calls)
+                if category == "draft"
+                else self.release.review_reasoning
+            )
+            kwargs["reasoning"] = {"effort": effort}
+            # Exclude network timeouts from token estimation; include every wire content field.
+            payload = wire_value({key: value for key, value in kwargs.items() if key != "timeout"})
+            if any(tool.get("type") != "function" for tool in payload.get("tools", [])):
+                raise PaidCallError("unsupported_model_operation")
 
-        def validate_text(item: Any) -> None:
-            if isinstance(item, dict):
-                if item.get("type") in {"input_image", "input_file", "input_audio"}:
-                    raise PaidCallError("unsupported_model_input")
-                for value in item.values():
-                    validate_text(value)
-            elif isinstance(item, list):
-                for value in item:
-                    validate_text(value)
+            def validate_text(item: Any) -> None:
+                if isinstance(item, dict):
+                    if item.get("type") in {"input_image", "input_file", "input_audio"}:
+                        raise PaidCallError("unsupported_model_input")
+                    for value in item.values():
+                        validate_text(value)
+                elif isinstance(item, list):
+                    for value in item:
+                        validate_text(value)
 
-        validate_text(payload)
+            validate_text(payload)
         bound = input_bound(payload)
         usage = self.usage.report()
         reserved = self.budget.admit_cost(
@@ -309,9 +382,9 @@ class PaidGateway:
         )
         operation_id = str(uuid4())
         metadata = {
-            "provider": self.release.provider,
-            "project": self.project,
-            "requested_model": self.release.model,
+            "provider": "typesafe" if routing else self.release.provider,
+            "project": "" if routing else self.project,
+            "requested_model": self.release.routing.model if routing else self.release.model,
             "configuration_hash": self.config_hash,
             "release_version": self.release.version,
             "price": price.model_dump(mode="json"),
@@ -332,9 +405,21 @@ class PaidGateway:
         try:
             # Explicit default service tier prevents priority-rate overrides. No truncation,
             # previous-response retrieval, built-in tools, or hidden conversation state.
-            response = self._provider.create(
-                **payload, timeout=kwargs["timeout"], service_tier="default", truncation="disabled"
-            )
+            if routing:
+                assert self._routing_provider is not None
+                remaining = kwargs["timeout"] - (monotonic() - started)
+                if remaining <= 0:
+                    raise TimeoutError("Routing deadline exceeded")
+                response = self._routing_provider.create(**payload, timeout=remaining)
+                # TypeSafe does not promise a response ID. This is explicitly a local
+                # receipt reference, never misrepresented as a provider-issued ID.
+                if not response.id:
+                    response.id = "local-operation:" + operation_id
+            else:
+                response = self._provider.create(
+                    **payload, timeout=kwargs["timeout"],
+                    service_tier="default", truncation="disabled"
+                )
             item["elapsedMs"] = round((monotonic() - started) * 1000)
             if response.usage is None or not response.id:
                 raise PaidCallError("usage_unknown")
@@ -355,21 +440,33 @@ class PaidGateway:
                     item.update(usage, costNusd=cost, settled=True)
                 raise
             item.update(usage, costNusd=cost, settled=True)
-            if response.model not in {self.release.model, "gpt-5.4-2026-03-05"}:
+            if routing and response.model != self.release.routing.model:
+                raise PaidCallError("routing_model_changed")
+            if not routing and response.model not in {self.release.model, "gpt-5.4-2026-03-05"}:
                 self._ledger.pause()
                 raise PaidCallError("model_identity_changed")
-            if response.usage.input_tokens > bound or response.usage.output_tokens > output_limit:
+            if response.usage.input_tokens > bound or (
+                not routing and response.usage.output_tokens > output_limit
+            ):
                 self._ledger.pause()
                 raise PaidCallError("accounting_bound_exceeded")
             return response
         except BaseException as error:
             item["elapsedMs"] = round((monotonic() - started) * 1000)
-            code = error.code if isinstance(error, PaidCallError) else provider_error(error)
+            code = error.code if isinstance(error, PaidCallError) else (
+                "routing_provider_error" if routing else provider_error(error)
+            )
+            if routing and code == "usage_unknown":
+                code = "routing_usage_unknown"
             item["error"] = code
             if not item["settled"]:
                 # If this update fails, the original durable reservation still holds.
                 self._ledger.uncertain(operation_id, code, item["elapsedMs"])
-            if isinstance(error, PaidCallError) or not isinstance(error, Exception):
+            if isinstance(error, PaidCallError):
+                if routing and error.code == "usage_unknown":
+                    raise PaidCallError(code) from error
+                raise
+            if not isinstance(error, Exception):
                 raise
             raise PaidCallError(code) from error
 
@@ -387,5 +484,8 @@ def open_gateway(deployment: Deployment, request_id: str) -> Iterator[PaidGatewa
             base_url="https://api.openai.com/v1",
         ) as client:
             yield PaidGateway(
-                OpenAIProvider(client), ledger, request_id, project=deployment.project
+                OpenAIProvider(client), ledger, request_id, project=deployment.project,
+                routing_provider=(JevProvider(deployment.typesafe_api_key)
+                                  if deployment.routing_mode != "off"
+                                  and deployment.typesafe_api_key else None),
             )

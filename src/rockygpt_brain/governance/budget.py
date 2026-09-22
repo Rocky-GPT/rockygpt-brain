@@ -8,8 +8,8 @@ policy; a caller cannot bypass limits by invoking the gateway directly.
 from collections.abc import Callable
 from time import monotonic
 
-from rockygpt_brain.governance.accounting import Category, PaidCallError
 from rockygpt_brain.config import RELEASE, Release
+from rockygpt_brain.governance.accounting import Category, PaidCallError
 
 
 class TurnBudget:
@@ -21,6 +21,7 @@ class TurnBudget:
         self.started = clock()
         self.draft_calls = 0
         self.review_calls = 0
+        self.routing_calls = 0
         self.retrieval_rounds = 0
         self.tool_calls = 0
 
@@ -33,6 +34,14 @@ class TurnBudget:
         return self.started + self.release.turn_seconds - self.release.answer_reserve_seconds
 
     def model_timeout(self, category: Category) -> float:
+        if category == "routing":
+            if self.routing_calls or self.draft_calls or self.review_calls:
+                raise PaidCallError("model_call_limit")
+            available = min(self.release.routing.timeout_seconds,
+                            self.remaining - self.release.answer_reserve_seconds)
+            if available <= 0:
+                raise TimeoutError("Insufficient routing time")
+            return available
         if (
             self.draft_calls + self.review_calls >= self.release.max_model_calls
             or (
@@ -49,7 +58,9 @@ class TurnBudget:
         return available
 
     def note_model(self, category: Category) -> None:
-        if category == "draft":
+        if category == "routing":
+            self.routing_calls += 1
+        elif category == "draft":
             self.draft_calls += 1
         else:
             self.review_calls += 1
@@ -81,6 +92,17 @@ class TurnBudget:
         return True
 
     def admit_cost(self, category: Category, input_tokens: int, committed_nusd: int) -> int:
+        if category == "routing":
+            if input_tokens > 64000:
+                raise PaidCallError("routing_context_limit")
+            reservation = input_tokens * self.release.routing.price.input_nusd
+            review_reserve = (
+                self.release.max_input_tokens * self.release.price.input_nusd
+                + self.release.review_output_tokens * self.release.price.output_nusd
+            )
+            if committed_nusd + reservation + review_reserve > self.release.max_turn_cost_nusd:
+                raise PaidCallError("turn_cost_limit")
+            return reservation
         if input_tokens > self.release.max_input_tokens:
             raise PaidCallError("context_limit")
         output_limit = (

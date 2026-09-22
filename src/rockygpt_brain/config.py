@@ -26,7 +26,7 @@ class Price(BaseModel):
     valid_until: date
     input_nusd: int = Field(gt=0)
     cached_input_nusd: int = Field(ge=0)
-    output_nusd: int = Field(gt=0)
+    output_nusd: int = Field(ge=0)
     source: str
 
     @model_validator(mode="after")
@@ -34,6 +34,19 @@ class Price(BaseModel):
         if self.cached_input_nusd > self.input_nusd or self.valid_until <= self.valid_from:
             raise ValueError("Invalid price configuration")
         return self
+
+
+RoutingMode = Literal["off", "shadow", "active"]
+
+
+class RoutingConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    version: str
+    model: Literal["jev-1.13.0"]
+    timeout_seconds: float = Field(gt=0, le=2)
+    threshold: float = Field(ge=0.9, le=1)
+    max_candidates: int = Field(gt=0, le=24)
+    price: Price
 
 
 class Release(BaseModel):
@@ -59,6 +72,7 @@ class Release(BaseModel):
     active_turns: int = Field(gt=0)
     review_policy: Literal["generated_prose_single_check"]
     price: Price
+    routing: RoutingConfig
 
     def draft_effort(self, call_index: int) -> Literal["none", "low", "medium"]:
         return self.draft_reasoning if call_index == 0 else self.continuation_reasoning
@@ -103,6 +117,14 @@ class Deployment(BaseModel):
     api_key: str = Field(repr=False, min_length=1)
     project: str = Field(min_length=1)
     ledger_url: str = Field(repr=False, min_length=1)
+    routing_mode: RoutingMode = "off"
+    typesafe_api_key: str | None = Field(default=None, repr=False)
+
+    @model_validator(mode="after")
+    def routing_credentials(self) -> "Deployment":
+        if self.routing_mode != "off" and not self.typesafe_api_key:
+            raise ValueError("Routing requires a TypeSafe credential")
+        return self
 
 
 def load_deployment() -> Deployment:
@@ -114,6 +136,8 @@ def load_deployment() -> Deployment:
                 "api_key": os.environ["BRAIN_OPENAI_API_KEY"],
                 "project": os.environ["BRAIN_OPENAI_PROJECT"],
                 "ledger_url": os.environ["BRAIN_LEDGER_DATABASE_URL"],
+                "routing_mode": os.getenv("BRAIN_ROUTING_MODE", "off"),
+                "typesafe_api_key": os.getenv("BRAIN_TYPESAFE_API_KEY") or None,
             }
         )
         if os.getenv("OPENAI_CHAT_MODEL", RELEASE.model) != RELEASE.model:

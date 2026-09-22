@@ -421,3 +421,25 @@ def test_clean_exports_preserve_real_titles_and_dining_hours_contract(
     else:
         assert "title" not in result
         assert result["source_url"] == "https://example.edu/source"
+
+
+def test_chat_operational_summary_does_not_store_conversation_text() -> None:
+    context = gateway_context()
+    gateway = context.__enter__.return_value
+    with (
+        patch.dict('os.environ', {'STAGING_SERVICE_TOKEN': '', 'BRAIN_ROUTING_MODE': 'off'}),
+        patch('rockygpt_brain.api.app.open_gateway', return_value=context),
+        patch('rockygpt_brain.api.app.CampusData'),
+        patch('rockygpt_brain.api.app.run_turn', return_value={
+            'answer': 'private answer', 'status': 'answered', 'datasetVersion': None,
+            'citations': [], 'metrics': {'routing': {'mode': 'off'}}, 'trace': [],
+            'elapsedMs': 1, 'model': 'test',
+        }),
+    ):
+        response = TestClient(app).post('/v1/chat', json={
+            'messages': [{'role': 'user', 'content': 'private user message'}],
+        })
+    assert response.status_code == 200
+    summary = gateway.finish.call_args.args[0]
+    assert not {'question', 'messages', 'answer', 'citations'} & summary.keys()
+    assert 'private' not in str(summary)

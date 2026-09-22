@@ -47,6 +47,15 @@ def database() -> str:
                     Path(__file__).parents[1] / "migrations/002_development_monthly_allowance.sql"
                 ).read_text()
             )
+        definition = conn.execute(
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+            "WHERE conrelid='brain_ops.operations'::regclass "
+            "AND conname='operations_category_check'"
+        ).fetchone()
+        if definition and "routing" not in definition[0]:
+            conn.execute(
+                (Path(__file__).parents[1] / "migrations/003_routing_accounting.sql").read_text()
+            )
     return url
 
 
@@ -451,3 +460,41 @@ def test_runtime_cannot_grant_its_own_monthly_supplement(
                 "VALUES ('production', %s, 20000000000, 'Not approved')",
                 (month_at(NOW),),
             )
+
+
+def test_routing_migration_settles_input_only_and_retains_environment_isolation(
+    ledger: PostgresLedger, database: str,
+) -> None:
+    from rockygpt_brain.core.routing import routing_payload
+    from test_routing import ENTITY, messages
+
+    now = NOW.replace(day=22)
+    jev, provider = Mock(), Mock()
+    jev.create.return_value = ModelResponse(
+        '', RELEASE.routing.model, 'completed', '{}', [], Usage(100, 0, 500, 0),
+    )
+    gateway = PaidGateway(provider, ledger, 'jev-postgres', routing_provider=jev, clock=lambda: now)
+    gateway.route(routing_payload(messages(), [ENTITY], now)[0], timeout=2)
+    operation = ledger.operations('jev-postgres')[0]
+    assert operation['category'] == 'routing'
+    assert operation['state'] == 'settled' and operation['cost_nusd'] == 4200
+    assert operation['metadata']['provider'] == 'typesafe'
+    assert operation['metadata']['price']['output_nusd'] == 0
+    assert for_environment(database, 'production').operations('jev-postgres') == []
+    with psycopg.connect(database) as conn:
+        with pytest.raises(psycopg.errors.CheckViolation):
+            conn.execute("UPDATE brain_ops.operations SET category='unaccounted' "
+                         "WHERE request_id='jev-postgres'")
+
+
+def test_routing_monthly_budget_rejects_before_provider_call(ledger: PostgresLedger) -> None:
+    from rockygpt_brain.core.routing import routing_payload
+    from test_routing import ENTITY, messages
+
+    now = NOW.replace(day=22)
+    reserve(ledger, MONTHLY_CAP_NUSD, now=now)
+    jev = Mock()
+    gateway = PaidGateway(Mock(), ledger, 'blocked-jev', routing_provider=jev, clock=lambda: now)
+    with pytest.raises(PaidCallError, match='budget_exhausted'):
+        gateway.route(routing_payload(messages(), [ENTITY], now)[0], timeout=2)
+    jev.create.assert_not_called()

@@ -4,8 +4,10 @@ A student assistant for Ramapo College, grounded in the currently published
 campus dataset. One model-driven conversation loop searches and reads official
 campus evidence. Eligible single contact questions are rendered from validated
 fields and citations in code after one tool-request call. Generated prose is
-checked by a separate evidence review before it is returned. There is no intent classifier,
-phrase routing, vector service, process conversation memory, or generated SQL.
+checked by a separate evidence review before it is returned. Optional Jev routing
+can select tools and directly execute resolved contact/profile lookups; it defaults
+to off. There is no vector service, process conversation memory, or generated SQL.
+See [Jev routing setup and evaluation](docs/routing/README.md).
 
 Combined contact/hours requests can use `lookup_profile`, which resolves a
 published `campus-identities` release artifact and retrieves its exact linked
