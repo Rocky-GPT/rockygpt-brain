@@ -115,3 +115,24 @@ def artifact_value(
         snapshot = _snapshot(data, dataset_version)
         return {**snapshot, **GraphData(data).artifact_value(
             artifact_key, [str(key) for key in segments], offset, limit)}
+
+
+@router.get("/knowledge")
+def knowledge(dataset_version: Version = None) -> dict[str, Any]:
+    from rockygpt_brain.retrieval.knowledge import KnowledgeGraph
+
+    with _campus_data() as data:
+        snapshot = _snapshot(data, dataset_version)
+        return {**snapshot, **KnowledgeGraph(data).index()}
+
+
+@router.get("/properties")
+def properties(
+    entity_id: UUID, collection: Annotated[str | None, Query(max_length=80)] = None,
+    offset: Offset = 0, limit: Limit = 8, dataset_version: Version = None,
+) -> dict[str, Any]:
+    from rockygpt_brain.retrieval.knowledge import KnowledgeGraph
+
+    with _campus_data() as data:
+        snapshot = _snapshot(data, dataset_version)
+        return {**snapshot, **KnowledgeGraph(data).properties(entity_id, collection, offset, limit)}
