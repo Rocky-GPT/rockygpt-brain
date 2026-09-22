@@ -14,7 +14,6 @@ from rockygpt_brain.config import RELEASE
 from rockygpt_brain.contracts import Answer, AnswerPart, ChatMessage, EvidenceReview
 from rockygpt_brain.core.provider import ModelClient
 from rockygpt_brain.core.render import InvalidAnswer
-from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.governance.evidence import compact_records, map_references, reference_aliases
 
 REVIEW_INSTRUCTIONS = files("rockygpt_brain").joinpath("review.md").read_text(encoding="utf-8")

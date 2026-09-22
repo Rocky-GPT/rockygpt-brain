@@ -16,15 +16,15 @@ from httpx import Request, Response
 from openai import APITimeoutError, AuthenticationError
 from phase2_snapshot import load_snapshot, local_database
 
-from rockygpt_brain.accounting import PostgresLedger
 from rockygpt_brain.api.app import app
 from rockygpt_brain.config import MONTHLY_CAP_NUSD, RELEASE, Deployment
 from rockygpt_brain.contracts import ChatMessage
-from rockygpt_brain.data import CampusData, SearchQuery
-from rockygpt_brain.engine import run_turn
-from rockygpt_brain.evidence import map_references, reference_aliases
-from rockygpt_brain.exact import ContactQuery
-from rockygpt_brain.provider import ModelResponse, OutputItem, PaidGateway, Usage, input_bound
+from rockygpt_brain.core.engine import run_turn
+from rockygpt_brain.core.provider import ModelResponse, OutputItem, PaidGateway, Usage, input_bound
+from rockygpt_brain.governance.accounting import PostgresLedger
+from rockygpt_brain.governance.evidence import map_references, reference_aliases
+from rockygpt_brain.retrieval.data import CampusData, SearchQuery
+from rockygpt_brain.retrieval.exact import ContactQuery
 from test_accounting import database as database
 from test_accounting import ledger as ledger
 from test_engine import tools

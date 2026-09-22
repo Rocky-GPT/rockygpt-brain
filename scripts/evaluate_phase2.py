@@ -7,7 +7,7 @@ from pathlib import Path
 
 from phase2_snapshot import ROOT, local_database, snapshot
 
-from rockygpt_brain.data import CampusData, ReadQuery, SearchQuery
+from rockygpt_brain.retrieval.data import CampusData, ReadQuery, SearchQuery
 
 frozen = snapshot()
 cases = json.loads((ROOT / "docs/phase2/retrieval-cases.json").read_text())

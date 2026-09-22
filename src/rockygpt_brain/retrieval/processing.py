@@ -17,6 +17,7 @@ from rockygpt_brain.retrieval.normalization import normalize_record
 
 if TYPE_CHECKING:
     from rockygpt_brain.retrieval.data import CampusData
+    from rockygpt_brain.retrieval.profiles import Identity
 
 
 def build_collection_query(
@@ -50,7 +51,8 @@ def build_collection_query(
     if collection == "contacts":
         extra = sql.SQL(
             ", tsvector_to_array(to_tsvector('english', concat_ws(' ', "
-            "t.name,to_jsonb(t)->>'title',t.department,to_jsonb(t)->>'search_text'))) AS search_terms, "
+            "t.name,to_jsonb(t)->>'title',t.department,to_jsonb(t)->>'search_text'))) "
+            "AS search_terms, "
             "tsvector_to_array(to_tsvector('english', %s)) AS query_terms, "
             "tsvector_to_array(to_tsvector('english', t.name)) AS title_terms"
         )
@@ -64,7 +66,9 @@ def build_collection_query(
     if collection == "contacts":
         params.insert(0, query.query if query else "")
     if query is not None:
-        filter_dict: dict[str, Any] = query.filters.model_dump(exclude_none=True) if query.filters else {}
+        filter_dict: dict[str, Any] = (
+            query.filters.model_dump(exclude_none=True) if query.filters else {}
+        )
         for key, value in filter_dict.items():
             column = (
                 sql.Identifier("r", "name") if key == "route" else sql.Identifier("t", key)
@@ -266,7 +270,9 @@ def enrich_records(
                     fields["schedule"].casefold() in {"closed", "closed (seasonal closure)"}
                     and "unavailable" in original["schedule"].casefold()
                 )
-                matching_clocks = clocks_only(fields["schedule"]) == clocks_only(original["schedule"])
+                matching_clocks = (
+                    clocks_only(fields["schedule"]) == clocks_only(original["schedule"])
+                )
                 if known_lossy_closure or matching_clocks:
                     record["_original_normalized_schedule"] = fields["schedule"]
                     fields["schedule"] = original["schedule"]
@@ -295,7 +301,7 @@ def enrich_records(
         records[:] = [r for r in records if " ".join(
             str(r["fields"].get("name", "")).split()
         ).casefold() != "have a nice day"]
-        venues = {}
+        venues: dict[tuple[str | None, str | None], Identity] = {}
         identity_payload = get_artifact("campus-identities")
         if identity_payload:
             try:

@@ -9,9 +9,9 @@ from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient, Request, Response
 from openai import APIConnectionError, APITimeoutError, RateLimitError
 
-from rockygpt_brain.accounting import PaidCallError
 from rockygpt_brain.api.app import app
-from rockygpt_brain.provider import provider_error
+from rockygpt_brain.core.provider import provider_error
+from rockygpt_brain.governance.accounting import PaidCallError
 
 
 @pytest.mark.parametrize(
@@ -112,9 +112,13 @@ def test_successful_empty_records_remain_a_success() -> None:
     data.return_value.close.assert_called_once()
 
 
-@pytest.mark.parametrize("hours", [None, [], [{"open": "08:00", "close": "00:00", "close_day_offset": 1}]])
+@pytest.mark.parametrize(
+    "hours", [None, [], [{"open": "08:00", "close": "00:00", "close_day_offset": 1}]]
+)
 def test_campus_hours_export_preserves_closed_versus_unknown(hours: object) -> None:
-    fields = {"name": "Example facility", "day": "Monday", "schedule": "source text", "hours": hours}
+    fields = {
+        "name": "Example facility", "day": "Monday", "schedule": "source text", "hours": hours,
+    }
     with (
         patch.dict("os.environ", {"DATABASE_URL": "test"}),
         patch("rockygpt_brain.api.app.CampusData") as data,
@@ -122,7 +126,9 @@ def test_campus_hours_export_preserves_closed_versus_unknown(hours: object) -> N
         data.return_value._load.return_value = [{"id": "campus_hours:stable", "fields": fields}]
         response = TestClient(app).get("/v1/capabilities/campus_hours/records")
     assert response.status_code == 200
-    expected: dict[str, object] = {"id": "campus_hours:stable", "name": "Example facility", "day": "Monday"}
+    expected: dict[str, object] = {
+        "id": "campus_hours:stable", "name": "Example facility", "day": "Monday",
+    }
     if hours is not None:
         expected["hours"] = hours
     assert response.json() == {"returned": 1, "records": [expected]}
@@ -389,7 +395,10 @@ def test_menu_export_has_one_name_numeric_nutrition_and_explicit_label_semantics
         {"id": "menu:two", "title": "French Toash", "valid_from": "2026-09-21",
          "fields": {"name": "French Toash"}},
     ]
-    with patch.dict("os.environ", {"DATABASE_URL": "test"}), patch("rockygpt_brain.api.app.CampusData") as data:
+    with (
+        patch.dict("os.environ", {"DATABASE_URL": "test"}),
+        patch("rockygpt_brain.api.app.CampusData") as data,
+    ):
         data.return_value._load.return_value = rows
         response = TestClient(app).get("/v1/capabilities/menu/records").json()
     one, two = response["records"]
@@ -410,7 +419,10 @@ def test_clean_exports_preserve_real_titles_and_dining_hours_contract(
 ) -> None:
     rows = [{"id": "stable", "title": "Evidence title", "fields": fields,
              "url": "https://example.edu/source"}]
-    with patch.dict("os.environ", {"DATABASE_URL": "test"}), patch("rockygpt_brain.api.app.CampusData") as data:
+    with (
+        patch.dict("os.environ", {"DATABASE_URL": "test"}),
+        patch("rockygpt_brain.api.app.CampusData") as data,
+    ):
         data.return_value._load.return_value = rows
         result = TestClient(app).get(f"/v1/capabilities/{collection}/records").json()["records"][0]
     if collection == "dining_hours":

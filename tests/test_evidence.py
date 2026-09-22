@@ -3,7 +3,7 @@
 import json
 from typing import Any
 
-from rockygpt_brain.evidence import (
+from rockygpt_brain.governance.evidence import (
     compact_records,
     expand_argument_references,
     map_references,
@@ -54,6 +54,12 @@ def test_compaction_is_lossless_for_mixed_sources_and_partial_coverage() -> None
 
 
 def test_nested_defaults_preserve_missing_null_false_and_empty_values() -> None:
+    cases: list[tuple[list[str] | None, dict[str, Any], str]] = [
+        ([], {"vegan": False}, "published"),
+        (None, {"vegan": None}, "unknown"),
+        (["Milk"], {}, "unknown"),
+        ([], {"vegan": 0}, "unknown"),
+    ]
     records = [
         {
             "id": str(index),
@@ -62,14 +68,7 @@ def test_nested_defaults_preserve_missing_null_false_and_empty_values() -> None:
             "fields": {"meal": "Dinner", "venue": "Hall", "allergens": allergens, **flags},
             "coverage": {"scope": "record", "fields": {"meal": "published", "vegan": coverage}},
         }
-        for index, (allergens, flags, coverage) in enumerate(
-            [
-                ([], {"vegan": False}, "published"),
-                (None, {"vegan": None}, "unknown"),
-                (["Milk"], {}, "unknown"),
-                ([], {"vegan": 0}, "unknown"),
-            ]
-        )
+        for index, (allergens, flags, coverage) in enumerate(cases)
     ]
     packed = compact_records(records)
     assert packed[0]["defaults"]["fields"] == {"meal": "Dinner", "venue": "Hall"}
@@ -130,9 +129,9 @@ def test_shared_defaults_keep_distinct_sources_and_qualifiers_on_their_records()
 
 
 def test_delivery_limit_never_leaves_a_schedule_summary_for_omitted_records() -> None:
-    from rockygpt_brain.evidence import bounded_result
+    from rockygpt_brain.governance.evidence import bounded_result
 
-    source = {
+    source: dict[str, Any] = {
         "status": "ok",
         "records": [{"id": "a"}, {"id": "b"}],
         "total_matches": 2,
@@ -148,7 +147,7 @@ def test_delivery_limit_never_leaves_a_schedule_summary_for_omitted_records() ->
 
 
 def test_oversized_record_is_unavailable_not_a_false_no_match_or_partial_record() -> None:
-    from rockygpt_brain.evidence import bounded_result
+    from rockygpt_brain.governance.evidence import bounded_result
 
     result = bounded_result(
         {"status": "ok", "records": [{"id": "a", "content": "qualification"}], "total_matches": 1},

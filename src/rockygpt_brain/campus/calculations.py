@@ -7,8 +7,8 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from rockygpt_brain.contracts import ChatMessage, StrictModel
 from rockygpt_brain.campus.schedules import CAMPUS_ZONE, opening_intervals
+from rockygpt_brain.contracts import ChatMessage, StrictModel
 
 
 class Operand(StrictModel):

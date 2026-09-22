@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from psycopg import sql
 
-from rockygpt_brain.data import CampusData, SearchQuery
+from rockygpt_brain.retrieval.data import CampusData, SearchQuery
 
 load_dotenv()
 now = datetime.now(ZoneInfo("America/New_York"))

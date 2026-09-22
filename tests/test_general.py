@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 
 from rockygpt_brain.contracts import ChatMessage
-from rockygpt_brain.engine import run_turn
+from rockygpt_brain.core.engine import run_turn
 from test_engine import NOW, RECORD, answer, review, search, tools
 
 

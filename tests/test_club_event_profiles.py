@@ -60,7 +60,7 @@ def campus() -> Any:
     }]
     data._artifacts["event-organizers"] = None
     common = {"collected_at": NOW, "valid_from": None, "valid_until": None, "total": 1}
-    data.test_rows = [
+    rows = [
         {**common, "id": "club-one", "source_id": "archway-clubs",
          "source_record_key": "Example Club", "name": "Example Club",
          "category": "Student Organization", "website_url": CLUB_URL},
@@ -70,15 +70,17 @@ def campus() -> Any:
          "start_time": "5 PM", "end_time": "6 PM", "organizer": "Example Club",
          "event_url": EVENT_URL, "description": "The published meeting description."},
     ]
+    # Tests adjust these rows in place through data.test_rows.
+    data.test_rows = rows  # type: ignore[attr-defined]
 
     def fetch(_sql: Any, params: tuple[Any, ...]) -> list[dict[str, Any]]:
         if len(params) < 3:
-            return [row for row in data.test_rows if row["source_id"] == "archway-clubs"]
-        return [row for row in data.test_rows if row["source_id"] == params[1]
+            return [row for row in rows if row["source_id"] == "archway-clubs"]
+        return [row for row in rows if row["source_id"] == params[1]
                 and row["source_record_key"] in params[2]
                 and (len(params) < 4 or row["id"] in params[3])]
 
-    data._fetch = Mock(side_effect=fetch)
+    data._fetch = Mock(side_effect=fetch)  # type: ignore[method-assign]
     return data
 
 

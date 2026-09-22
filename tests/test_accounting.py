@@ -15,12 +15,12 @@ import psycopg
 import pytest
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
-from rockygpt_brain.accounting import PaidCallError, PostgresLedger, month_at, reset_at
 from rockygpt_brain.config import MONTHLY_CAP_NUSD, RELEASE, Deployment, Environment
 from rockygpt_brain.contracts import ChatMessage
-from rockygpt_brain.engine import run_turn
-from rockygpt_brain.provider import ModelResponse, OutputItem, PaidGateway, Usage, open_gateway
-from rockygpt_brain.reconcile import Receipt, reconcile
+from rockygpt_brain.core.engine import run_turn
+from rockygpt_brain.core.provider import ModelResponse, OutputItem, PaidGateway, Usage, open_gateway
+from rockygpt_brain.governance.accounting import PaidCallError, PostgresLedger, month_at, reset_at
+from rockygpt_brain.governance.reconcile import Receipt, reconcile
 
 NOW = datetime(2026, 9, 30, 23, 59, tzinfo=ZoneInfo("America/New_York"))
 

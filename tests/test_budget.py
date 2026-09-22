@@ -4,10 +4,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from rockygpt_brain.accounting import PaidCallError
-from rockygpt_brain.budget import TurnBudget
 from rockygpt_brain.config import RELEASE
-from rockygpt_brain.provider import PaidGateway
+from rockygpt_brain.core.provider import PaidGateway
+from rockygpt_brain.governance.accounting import PaidCallError
+from rockygpt_brain.governance.budget import TurnBudget
 from test_provider import NOW, arguments, response
 
 

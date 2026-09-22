@@ -8,7 +8,7 @@ import math
 import os
 import re
 import time
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import certifi

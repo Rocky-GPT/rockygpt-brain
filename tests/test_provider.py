@@ -11,9 +11,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from rockygpt_brain.accounting import PaidCallError
 from rockygpt_brain.config import RELEASE, ConfigurationError, configuration_hash, load_deployment
-from rockygpt_brain.provider import (
+from rockygpt_brain.core.provider import (
     ModelResponse,
     OpenAIProvider,
     OutputItem,
@@ -22,6 +21,7 @@ from rockygpt_brain.provider import (
     input_bound,
     normalize_usage,
 )
+from rockygpt_brain.governance.accounting import PaidCallError
 
 NOW = datetime(2026, 9, 11, 12, tzinfo=ZoneInfo("America/New_York"))
 

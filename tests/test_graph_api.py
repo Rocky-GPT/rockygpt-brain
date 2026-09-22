@@ -48,7 +48,7 @@ def test_release_mismatch_blocks_every_child_request_before_record_read(
     path: str, params: dict[str, str],
 ) -> None:
     data = repository()
-    data._fetch = Mock(side_effect=AssertionError("Must not read another release"))
+    data._fetch = Mock(side_effect=AssertionError("Must not read another release"))  # type: ignore[method-assign]
     with patch("rockygpt_brain.api.identities.CampusData", return_value=data):
         response = TestClient(app).get(f"/v1/dev/graph/{path}",
                                       params={**params, "dataset_version": "old"})
@@ -139,7 +139,7 @@ def test_link_scopes_pin_ids_and_ambiguous_legacy_events_fail_closed() -> None:
 
 def test_broken_links_and_unknown_collections_are_explicit() -> None:
     data = repository()
-    data._fetch = Mock(return_value=[])
+    data._fetch = Mock(return_value=[])  # type: ignore[method-assign]
     graph = GraphData(data, UUID(ENTITY_ID))
     graph._diagnose("contacts")
     assert graph.diagnostics[0]["reason"] == "broken_identity_link"
@@ -151,7 +151,7 @@ def test_broken_links_and_unknown_collections_are_explicit() -> None:
 
 def test_exact_source_reference_ambiguity_requires_original_id() -> None:
     data = repository()
-    data._fetch = Mock(return_value=[{"id": "a"}, {"id": "b"}])
+    data._fetch = Mock(return_value=[{"id": "a"}, {"id": "b"}])  # type: ignore[method-assign]
     with pytest.raises(HTTPException) as caught:
         GraphData(data).reference("events", "events", "same-key", None)
     assert caught.value.status_code == 422
@@ -169,7 +169,7 @@ def test_missing_group_value_is_parameterized_null_not_a_fabricated_date() -> No
 
 def test_malformed_projection_is_diagnostic_and_original_artifact_remains_available() -> None:
     data = repository()
-    data._load_artifact_records = Mock(side_effect=TypeError("bad artifact"))
+    data._load_artifact_records = Mock(side_effect=TypeError("bad artifact"))  # type: ignore[method-assign]
     graph = GraphData(data)
     result = graph.browse("faculty", {}, None, 0, 24)
     assert result["records"] == []
@@ -179,7 +179,7 @@ def test_malformed_projection_is_diagnostic_and_original_artifact_remains_availa
 
 def test_raw_artifact_null_and_missing_path_are_distinct() -> None:
     data = repository()
-    data._fetch = Mock(return_value=[{"present": True, "kind": "null", "total": 0,
+    data._fetch = Mock(return_value=[{"present": True, "kind": "null", "total": 0,  # type: ignore[method-assign]
                                      "scalar": None, "content_hash": "h", "created_at": NOW}])
     value = GraphData(data).artifact_value("menu", ["unknownLabel"], 0, 24)
     assert value["kind"] == "null" and value["value"] is None
@@ -207,7 +207,7 @@ def test_live_release_full_navigation_is_read_only_and_complete(
     totals = {}
     for collection in catalogue.json()["collections"]:
         name = collection["id"]
-        ids = []
+        ids: list[str] = []
         offset = 0
         while True:
             response = client.get("/v1/dev/graph/browse", params={
@@ -258,7 +258,7 @@ def test_live_release_full_navigation_is_read_only_and_complete(
 @pytest.mark.parametrize("kind,expected", [("object", {}), ("array", [])])
 def test_empty_artifact_containers_keep_their_actual_value(kind: str, expected: Any) -> None:
     data = repository()
-    data._fetch = Mock(side_effect=[
+    data._fetch = Mock(side_effect=[  # type: ignore[method-assign]
         [{"present": True, "kind": kind, "total": 0, "scalar": None,
           "content_hash": "h", "created_at": NOW}], [],
     ])
@@ -268,7 +268,7 @@ def test_empty_artifact_containers_keep_their_actual_value(kind: str, expected: 
 
 def test_artifact_container_labels_preserve_keys_and_never_expose_aggregate_payload() -> None:
     data = repository()
-    data._fetch = Mock(side_effect=[
+    data._fetch = Mock(side_effect=[  # type: ignore[method-assign]
         [{"present": True, "kind": "object", "total": 1, "scalar": None,
           "content_hash": "h", "created_at": NOW}],
         [{"key": "raw_key", "kind": "array", "count": 7, "preview": None,
@@ -283,7 +283,7 @@ def test_artifact_container_labels_preserve_keys_and_never_expose_aggregate_payl
 
 def test_exact_source_reference_passes_original_id_then_preserves_detail() -> None:
     data = repository()
-    data._fetch = Mock(return_value=[{"id": "specific-original-id"}])
+    data._fetch = Mock(return_value=[{"id": "specific-original-id"}])  # type: ignore[method-assign]
     graph = GraphData(data)
     with patch.object(graph, "record", return_value={"id": "events:specific-original-id"}) as read:
         result = graph.reference("events", "events", "same-key", "specific-original-id")
@@ -305,7 +305,7 @@ def test_artifact_children_include_complete_native_leaf_values(
     kind: str, scalar: Any, count: int, expected: Any,
 ) -> None:
     data = repository()
-    data._fetch = Mock(side_effect=[
+    data._fetch = Mock(side_effect=[  # type: ignore[method-assign]
         [{"present": True, "kind": "object", "total": 1, "scalar": None,
           "content_hash": "h", "created_at": NOW}],
         [{"key": "leaf", "kind": kind, "count": count, "scalar": scalar,
@@ -320,7 +320,7 @@ def test_artifact_children_include_complete_native_leaf_values(
 @pytest.mark.parametrize("kind", ["array", "object"])
 def test_artifact_children_omit_nonempty_container_payloads(kind: str) -> None:
     data = repository()
-    data._fetch = Mock(side_effect=[
+    data._fetch = Mock(side_effect=[  # type: ignore[method-assign]
         [{"present": True, "kind": "object", "total": 1, "scalar": None,
           "content_hash": "h", "created_at": NOW}],
         [{"key": "container", "kind": kind, "count": 20, "scalar": None,

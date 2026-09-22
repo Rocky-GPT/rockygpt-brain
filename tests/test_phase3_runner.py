@@ -10,8 +10,8 @@ import evaluate_phase3 as runner
 import httpx
 import pytest
 
-from rockygpt_brain.accounting import PaidCallError
 from rockygpt_brain.contracts import ChatMessage
+from rockygpt_brain.governance.accounting import PaidCallError
 
 
 @pytest.mark.parametrize("quota_failure, limited", [(False, False), (True, False), (False, True)])

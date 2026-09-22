@@ -12,12 +12,14 @@ from unittest.mock import Mock
 import pytest
 from pydantic import ValidationError
 
-from rockygpt_brain.calculations import CalculationQuery, calculate
+from rockygpt_brain.campus.calculations import CalculationQuery, calculate
 from rockygpt_brain.contracts import ChatMessage
-from rockygpt_brain.data import SearchQuery
-from rockygpt_brain.engine import render_answer, run_turn, tool_definitions
-from rockygpt_brain.exact import ContactQuery, contact_answer, requested_fields
-from rockygpt_brain.provider import OutputItem
+from rockygpt_brain.core.engine import run_turn
+from rockygpt_brain.core.provider import OutputItem
+from rockygpt_brain.core.render import render_answer
+from rockygpt_brain.core.tools import tool_definitions
+from rockygpt_brain.retrieval.data import SearchQuery
+from rockygpt_brain.retrieval.exact import ContactQuery, contact_answer, requested_fields
 from test_engine import NOW
 
 
