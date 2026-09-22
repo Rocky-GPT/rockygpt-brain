@@ -208,6 +208,27 @@ def test_relationship_direction_pinned_evidence_and_registry_location(fixture: F
     assert not outgoing.properties_complete
 
 
+def test_repeated_declarations_remain_separate_occurrences(fixture: Fixture) -> None:
+    data, _, _ = fixture
+    evidence = [{"collection": "events", "source_key": "archway-events",
+                 "source_record_key": "occurrence", "source_record_id": EVENT,
+                 "field": "organizer_group_id"}]
+    repeated = {"type": "organized_by", "target_entity_id": CLUB, "evidence": evidence}
+    data._artifacts["campus-identities"]["entities"].extend([
+        {"id": CLUB, "kind": "club", "name": "Test club", "aliases": [], "links": [
+            {"collection": "clubs", "source_key": "clubs", "source_record_keys": ["club"]}]},
+        {"id": EVENT, "kind": "event", "name": "Test event", "aliases": [], "links": [
+            {"collection": "events", "source_key": "events", "source_record_keys": ["event"]}],
+         "relationships": [repeated, dict(repeated)]},
+    ])
+    for projection in (build(fixture, entity=EVENT), build(fixture, entity=CLUB)):
+        located = [(r.id, r.registry_locator.relationship_index) for r in projection.relationships]
+        assert [index for _, index in located] == [0, 1]
+        assert len({identifier for identifier, _ in located}) == 2
+    outgoing, incoming = build(fixture, entity=EVENT), build(fixture, entity=CLUB)
+    assert [r.id for r in outgoing.relationships] == [r.id for r in incoming.relationships]
+
+
 @pytest.mark.parametrize("group,filters,cursor", [
     (None, {"meal": "Lunch"}, None), ("unknown", {}, None),
     ("menu_offerings", {"name": "dish"}, None), ("menu_offerings", {"meal": []}, None),
