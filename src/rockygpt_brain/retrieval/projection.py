@@ -137,7 +137,9 @@ RECORD_SPECS = (
     RecordSpec("menu", "menu_offerings", "Menu offerings", fields(
         ("valid_from", "date"), ("valid_until", "date"), "meal", "station",
     ), fields(
-        "name", ("calories", "number"), "portion_size", ("vegan", "boolean"),
+        "name", "description", "ingredients", ("nutrients", "nutrients"),
+        ("mindful", "isMindful", "boolean"), ("plant_based", "isPlantBased", "boolean"),
+        ("calories", "number"), "portion_size", ("vegan", "boolean"),
         ("vegetarian", "boolean"), ("allergens", "text_list"),
         ("dietary_label_coverage", "label_coverage", "dietary_coverage"),
     ), ("date", "meal", "station")),
@@ -223,6 +225,11 @@ def valid_value(value: Any, kind: str) -> bool:
     if kind == "hours_list":
         return _objects(value, {"open": (str,), "close": (str,), "close_day_offset": (int,)},
                         {"open", "close"})
+    if kind == "nutrients":
+        from rockygpt_brain.retrieval.menu_artifacts import NUTRIENT_FIELDS
+
+        return isinstance(value, dict) and value.keys() <= NUTRIENT_FIELDS and all(
+            type(item) in {str, int, float} for item in value.values())
     if kind == "named_links":
         return _objects(value, {"name": (str,), "url": (str,)}, {"name", "url"})
     if kind == "former_names":
@@ -298,6 +305,10 @@ class Projection:
             if status != "published":
                 limitations.append("This dietary field is not marked published by the source; "
                                    "an empty list or false value does not establish absence.")
+        if record["collection"] == "menu" and spec.source == "nutrients":
+            from rockygpt_brain.retrieval.menu_artifacts import MENU_NUTRIENT_LIMITATION
+
+            limitations.append(MENU_NUTRIENT_LIMITATION)
         return Property(key=spec.key, label=spec.key.replace("_", " "), value_type=spec.value_type,
             assertions=[Assertion(id=f"{source}#{spec.source}", value=value, source_id=source,
                 field_path=[spec.source], limitations=limitations,
