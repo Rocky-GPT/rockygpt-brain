@@ -134,8 +134,8 @@ def load_artifact_records(
     make_evidence: Callable[..., dict[str, Any] | None],
 ) -> list[dict[str, Any]]:
     """Parse static catalog records from release artifacts into evidence dicts."""
-    source_key = {"faculty": "faculty", "buildings": "campus-map"}.get(
-        collection, "academic-programs")
+    source_key = {"faculty": "faculty", "buildings": "campus-map",
+                  "schools": "ramapo-schools"}.get(collection, "academic-programs")
     source = next((s for s in sources.values() if s["source_key"] == source_key), None)
     if not source:
         return []
@@ -151,6 +151,14 @@ def load_artifact_records(
                 "name", "category", "room_prefixes", "map_url", "concept3d_id") if k in value}
             entries.append(
                 (str(value["concept3d_id"]), fields, value["name"], value.get("map_url")))
+    elif collection == "schools":
+        payload = get_artifact("campus-schools") or {}
+        # The official schools page's capture time, not the release that republished it.
+        collected_at = payload.get("captured_at") or collected_at
+        for value in payload.get("schools", []):
+            fields = {k: value[k] for k in (
+                "name", "abbreviation", "url", "legacy_names") if k in value}
+            entries.append((str(value["section"]), fields, value["name"], value.get("url")))
     elif collection == "courses":
         payload = get_artifact("courses") or {}
         for key, value in payload.items():
@@ -249,6 +257,12 @@ def load_artifact_records(
                     "Campus map record. Its room prefixes place published room numbers in this "
                     "building; the people and offices found that way are not a complete building "
                     "directory, a host or a school."
+                )
+            if collection == "schools":
+                record["limitations"].append(
+                    "Official schools page record. Legacy names are reviewed former names the "
+                    "catalog and Archway still publish; the School of Social Science and Human "
+                    "Services was split, so its catalog programs have no single current school."
                 )
             if collection == "faculty" and "courses" in fields:
                 record["limitations"].append(

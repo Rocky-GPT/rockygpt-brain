@@ -168,6 +168,9 @@ def export_graph(data: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
                          "prefix; a location, not a school or appointment.",
             "located_at": "An office's published room has the building's reviewed room prefix; "
                           "only published rooms, not a complete building directory.",
+            "part_of": "A program's catalog school (or its reviewed legacy name) or a person's "
+                       "faculty-profile school names the school; retired and split-school "
+                       "records are not placed.",
             "coverage": "Published report and resolution diagnostics, not a new source audit. "
                         "Issue counts are not counts of unique missing entities.",
             "time": "exported_at is generation time, not source capture time. No date filtering.",
