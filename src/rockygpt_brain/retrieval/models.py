@@ -64,7 +64,7 @@ TABLES: dict[str, tuple[str, tuple[str, ...]]] = {
             "phone_normalization_status",
         ),
     ),
-    "campus_hours": ("campus_hours", ("name", "day", "schedule", "hours")),
+    "campus_hours": ("campus_hours", ("name", "day", "schedule", "hours", "notes")),
     "dining_hours": ("dining_hours", ("name", "day", "schedule")),
     "menu": (
         "menu_items",

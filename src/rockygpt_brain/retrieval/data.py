@@ -229,6 +229,8 @@ class CampusData:
         source = self.sources.get(str(row.get("source_id")))
         if not source:
             return None
+        if collection == "campus_hours" and isinstance(row.get("source_url"), str):
+            url = row["source_url"]
         collected = _instant(row.get("collected_at"))
         source_static = source.get("provenance_status") == "static"
         age = (self.now - collected).total_seconds() / 3600 if collected else None

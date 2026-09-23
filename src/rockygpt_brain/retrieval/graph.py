@@ -244,7 +244,9 @@ class GraphData:
             "title": _title(original, collection), "fields": fields,
             "source_key": source.get("source_key"), "source_id": source.get("id"),
             "source_title": source.get("title"), "trust_tier": source.get("trust_tier"),
-            "url": source.get("canonical_url"),
+            "url": (original.get("source_url") if collection == "campus_hours"
+                    and str(original.get("source_url", "")).startswith("https://")
+                    else source.get("canonical_url")),
             "collected_at": original.get("collected_at", inherited.get("collected_at")),
             "valid_from": original.get("valid_from"), "valid_until": original.get("valid_until"),
             "content_hash": original.get("content_hash"),

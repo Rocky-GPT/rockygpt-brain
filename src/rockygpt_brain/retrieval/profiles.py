@@ -814,7 +814,8 @@ def _course_text(course: dict[str, Any]) -> str:
 
 def _render_rule(rule: dict[str, Any]) -> dict[str, Any]:
     """Compact, faithful view: published condition/count/credits, derived choice, options."""
-    rendered = {key: rule[key] for key in ("condition", "count", "credits", "choose")
+    rendered = {key: rule[key] for key in (
+        "condition", "count", "credits", "choose", "name", "note", "text", "constraints")
                 if rule.get(key) is not None}
     if rule.get("items"):
         rendered["options"] = [
