@@ -79,6 +79,11 @@ def contact_answer(
     output: dict[str, Any],
     today: date,
 ) -> Answer | None:
+    # This legacy fast path validates one directory row shape, not the shared
+    # multi-source entity-property contract. Canonical contacts use the normal
+    # evidence-reviewed answer path until an equivalent exact validator exists.
+    if output.get("match") == "canonical_entity" or "entity_facts" in output:
+        return None
     if len(messages) != 1:
         return None
     requested = requested_fields(messages[0].content, query.entity)

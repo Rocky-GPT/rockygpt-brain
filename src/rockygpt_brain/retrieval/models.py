@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from typing import Literal
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -189,3 +190,13 @@ class SearchQuery(BaseModel):
 class ReadQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
     ids: list[str] = Field(min_length=1, max_length=12)
+
+
+class EntityQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    entity_id: UUID = Field(description="Canonical entity ID returned by discovery or a profile.")
+    properties: list[str] | None = Field(
+        default=None, min_length=1, max_length=32,
+        description=("Requested shared property keys (email, phones, offices, credits, etc.); "
+                     "null for all."),
+    )

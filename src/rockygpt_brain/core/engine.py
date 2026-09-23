@@ -50,7 +50,7 @@ from rockygpt_brain.governance.evidence import (
 )
 from rockygpt_brain.retrieval.data import CampusData
 from rockygpt_brain.retrieval.exact import ContactQuery, contact_answer
-from rockygpt_brain.retrieval.models import COLLECTIONS, ReadQuery, SearchQuery
+from rockygpt_brain.retrieval.models import COLLECTIONS, EntityQuery, ReadQuery, SearchQuery
 from rockygpt_brain.retrieval.profiles import SECTION_COLLECTIONS, ProfileQuery
 
 INSTRUCTIONS = files("rockygpt_brain").joinpath("prompt.md").read_text(encoding="utf-8")
@@ -409,6 +409,12 @@ def run_turn(
                             )
                         except ValueError as error:
                             output = {"status": "invalid_request", "reason": str(error)}
+                    elif call.name == "lookup_entity":
+                        entity_query = EntityQuery.model_validate_json(call_arguments)
+                        notify("retrieving")
+                        arguments = entity_query.model_dump(mode="json")
+                        tool_executions += 1
+                        output = data.lookup_entity(entity_query)
                     elif call.name == "lookup_profile":
                         profile = ProfileQuery.model_validate_json(call_arguments)
                         tool_subjects = [
@@ -546,8 +552,20 @@ def run_turn(
                     "elapsed_ms": round((monotonic() - tool_started) * 1000),
                 }
             )
-            if call.name == "lookup_profile":
+            if call.name in {"lookup_profile", "lookup_contact", "lookup_entity"}:
                 trace[-1]["resolution"] = output.get("resolution")
+                if "entity_facts" in output:
+                    facts = output["entity_facts"]
+                    trace[-1]["entity_facts"] = {
+                        "entity": facts["entity"],
+                        "properties_complete": facts["properties_complete"],
+                        "properties": [{"key": prop["key"], "status": prop["status"],
+                                        "evidence_ids": list(dict.fromkeys(
+                                            evidence_id for value in prop["values"]
+                                            for evidence_id in value["supporting_evidence_ids"]))}
+                                       for prop in facts["properties"]],
+                        "coverage": facts["coverage"],
+                    }
                 if "components" in output:
                     trace[-1]["components"] = {
                         component: {

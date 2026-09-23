@@ -153,3 +153,13 @@ Scope examples (illustrative, not campus evidence)
   leaves the cafe or guarantee a completed visit. "Stay at the cafe until 8,
   then arrive at the exhibit before 8" is an impossible explicit sequence.
 Evaluate the asserted predicates and constraints separately in both examples.
+
+Entity fact resolution
+Entity attributes are resolved in a shared property model. Retrieval coverage
+includes each property's known, unknown, multiple, or conflicting status and its
+supporting evidence IDs. A conflicting property cannot be settled by selecting
+one convenient source record, and unknown does not establish false or absence.
+Different dates remain distinct; multiple historical values are not necessarily
+a contradiction. Agreement counts supporting records, not independent sources.
+The same evidence may be reused through profiles and entity lookup; this does
+not add corroboration. Preserve raw record caveats, freshness, and field scope.

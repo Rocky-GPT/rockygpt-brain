@@ -284,8 +284,9 @@ def test_contact_validity_is_respected_without_erasing_applicable_hours(
 def test_contact_preferences_conflict_on_records_used_by_reviewer() -> None:
     data = repository()
     first, _ = rows()
-    first.update(preferred_contact="email", total=2)
-    second = {**first, "id": "contact-other", "preferred_contact": "phone"}
+    first.update(preferred_contact="email", contact_note="Email preferred", total=2)
+    second = {**first, "id": "contact-other", "preferred_contact": "phone",
+              "contact_note": "Phone preferred"}
     data._fetch = Mock(return_value=[first, second])  # type: ignore[method-assign]
     output = data.lookup_profile(ProfileQuery(entity="EC", include=["contact"]))
     assert output["components"]["contact"]["fields"]["preferred_contact"] == "conflict"

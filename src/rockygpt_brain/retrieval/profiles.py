@@ -984,6 +984,12 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                     if original.get("_relationship_evidence_only"):
                         continue  # Rechecked by the related section, never section content.
                     record = deepcopy(original)
+                    # Keep already hydrated identity fields for the read model's
+                    # derivation metadata without broadening requested facts.
+                    record["_entity_lineage_fields"] = {
+                        key: original["fields"][key] for key in ("name", "school", "email")
+                        if key in original["fields"]
+                    }
                     if record["collection"] == "menu":
                         record["related_to_entity_id"] = str(entity.id)
                         record["relationship_to_entity"] = "offering_at"
@@ -1242,4 +1248,7 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
         component["status"] == "unavailable" for component in result["components"].values()
     ):
         result["status"] = "unavailable"
+    from rockygpt_brain.retrieval.entity_evidence import profile_facts
+
+    result["entity_facts"] = profile_facts(data, result)
     return result

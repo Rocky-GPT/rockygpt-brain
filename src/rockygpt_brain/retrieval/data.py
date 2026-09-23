@@ -32,6 +32,7 @@ from rockygpt_brain.retrieval.models import (
     COLLECTIONS,
     TABLES,
     Collection,
+    EntityQuery,
     ReadQuery,
     SearchFilters,
     SearchQuery,
@@ -288,56 +289,33 @@ class CampusData:
         }
 
     def lookup_contact(self, query: ContactQuery) -> dict[str, Any]:
-        """Bounded parameterized equality lookup; no fuzzy match becomes an exact fact.
+        """Contact convenience interface over the same entity facts as profiles.
 
-        JSON extraction keeps old releases readable before the additive alias migration.
-        An office department is an existing published alternative name; a person's
-        department must never identify that person as the office itself.
+        Source rows remain citation evidence. No directory-only fallback may hide
+        a conflicting faculty value or silently choose one ambiguous identity.
         """
-        self._ensure_loaded()
-        rows = self._fetch(
-            "SELECT t.*, t.id::text AS id, t.source_id::text AS source_id, "
-            "count(*) OVER() AS total FROM rockygpt_v2.campus_contacts t "
-            "JOIN rockygpt_v2.sources s ON s.id=t.source_id "
-            "WHERE t.dataset_version_id=%s::uuid "
-            "AND s.trust_tier IN ('official_primary','official_secondary') "
-            "AND (lower(trim(t.name))=lower(trim(%s)) "
-            "OR (t.source_record_key LIKE 'office:%%' "
-            "AND lower(trim(t.department))=lower(trim(%s))) "
-            "OR EXISTS (SELECT 1 FROM jsonb_array_elements_text("
-            "coalesce(to_jsonb(t)->'aliases','[]'::jsonb)) AS a(value) "
-            "WHERE lower(trim(a.value))=lower(trim(%s)))) ORDER BY t.id LIMIT 51",
-            (self.dataset["id"], query.entity, query.entity, query.entity),
-        )
-        records = []
-        for row in rows:
-            fields = {key: row[key] for key in TABLES["contacts"][1] if row.get(key)}
-            record = self._evidence("contacts", row, fields, row["name"])
-            if record:
-                record["aliases"] = row.get("aliases", [])
-                record["coverage"]["fields"].update(
-                    {
-                        field: "published" if fields.get(field) else "not_published"
-                        for field in query.fields
-                    }
-                )
-                self._seen[record["id"]] = record
-                records.append(self._public(record))
-        return {
-            "status": "ok",
-            "match": "exact",
-            "dataset_version": self.dataset["version"],
-            "records": records,
-            "total_matches": rows[0]["total"] if rows else 0,
-            "truncated": bool(rows and rows[0]["total"] > len(records)),
-            "coverage": {
-                "scope": "exact_name_and_published_aliases",
-                "absence_is_not_nonexistence": True,
-            },
-        }
+        output = self.lookup_profile(ProfileQuery(entity=query.entity, include=["contact"]))
+        output["match"] = "canonical_entity"
+        output["requested_fields"] = list(query.fields)
+        facts = output.get("entity_facts")
+        if facts:
+            requested = {"phone": "phones", "office": "offices", "website": "website_url"}
+            keys = {requested.get(field, field) for field in query.fields} | {"name", "status"}
+            facts["properties"] = [prop for prop in facts["properties"] if prop["key"] in keys]
+            output["field_status"] = {
+                field: next((prop["status"] for prop in facts["properties"]
+                             if prop["key"] == requested.get(field, field)), "unknown")
+                for field in query.fields
+            }
+        return output
 
     def lookup_profile(self, query: ProfileQuery) -> dict[str, Any]:
         return lookup_profile(self, query)
+
+    def lookup_entity(self, query: EntityQuery) -> dict[str, Any]:
+        from rockygpt_brain.retrieval.entity_evidence import lookup_entity
+
+        return lookup_entity(self, query)
 
     def _load(self, collection: str, query: SearchQuery | None = None) -> list[dict[str, Any]]:
         cache_key = collection if query is None else query.model_dump_json()
@@ -566,6 +544,10 @@ class CampusData:
                 # names when semantic interests don't overlap stored keywords.
                 # Names are navigation only; a follow-up search retrieves evidence.
                 discovery_titles = sorted({record["title"] for record in records})
+        from rockygpt_brain.retrieval.entity_evidence import attach_entity_navigation
+
+        navigation = (attach_entity_navigation(self, selected)
+                      if query.collection != "documents" else None)
         for record in selected:
             self._seen[record["id"]] = record
         return {
@@ -576,6 +558,7 @@ class CampusData:
             "truncated": total > len(selected),
             "available_collections": list(COLLECTIONS),
             "discovery_titles": discovery_titles,
+            "entity_navigation": navigation,
             "coverage": {
                 "scope": "matching_records_only",
                 "name_resolution": name_resolution,

@@ -36,6 +36,9 @@ def bounded_result(
             )
             # Derived summaries must not claim coverage of omitted evidence.
             limited.pop("schedule_calculations", None)
+            if "entity_facts" in limited:
+                limited.pop("entity_facts")
+                limited["entity_facts_withheld"] = "retrieval_delivery_limit"
             if "components" in limited:
                 limited.pop("components")
                 limited["components_withheld"] = "retrieval_delivery_limit"
