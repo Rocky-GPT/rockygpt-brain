@@ -317,7 +317,7 @@ class CampusData:
         if collection in self._cache:
             return self._cache[collection]
         records: list[dict[str, Any]] = []
-        if collection in ("courses", "faculty", "program_requirements"):
+        if collection in ("courses", "faculty", "program_requirements", "buildings"):
             records = self._load_artifact_records(collection)
         else:
             names = TABLES[collection][1]

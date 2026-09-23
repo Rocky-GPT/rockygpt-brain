@@ -134,13 +134,24 @@ def load_artifact_records(
     make_evidence: Callable[..., dict[str, Any] | None],
 ) -> list[dict[str, Any]]:
     """Parse static catalog records from release artifacts into evidence dicts."""
-    source_key = "faculty" if collection == "faculty" else "academic-programs"
+    source_key = {"faculty": "faculty", "buildings": "campus-map"}.get(
+        collection, "academic-programs")
     source = next((s for s in sources.values() if s["source_key"] == source_key), None)
     if not source:
         return []
+    collected_at = source.get("completed_at")
     records: list[dict[str, Any]] = []
     entries: list[tuple[str, dict[str, Any], str, str | None]] = []
-    if collection == "courses":
+    if collection == "buildings":
+        payload = get_artifact("campus-buildings") or {}
+        # The map's own collection time, not the release that republished it.
+        collected_at = payload.get("map_generated_at") or collected_at
+        for value in payload.get("buildings", []):
+            fields = {k: value[k] for k in (
+                "name", "category", "room_prefixes", "map_url", "concept3d_id") if k in value}
+            entries.append(
+                (str(value["concept3d_id"]), fields, value["name"], value.get("map_url")))
+    elif collection == "courses":
         payload = get_artifact("courses") or {}
         for key, value in payload.items():
             fields = {
@@ -223,7 +234,7 @@ def load_artifact_records(
                 "id": key,
                 "source_id": source["id"],
                 "source_record_key": source_record_key,
-                "collected_at": source.get("completed_at"),
+                "collected_at": collected_at,
             },
             fields,
             title,
@@ -233,6 +244,12 @@ def load_artifact_records(
             normalize_record(record)
             record["content"] = _json(record["fields"])
             record["source_record_key"] = source_record_key
+            if collection == "buildings":
+                record["limitations"].append(
+                    "Campus map record. Its room prefixes place published room numbers in this "
+                    "building; the people and offices found that way are not a complete building "
+                    "directory, a host or a school."
+                )
             if collection == "faculty" and "courses" in fields:
                 record["limitations"].append(
                     "Faculty-profile course lists are undated. They do not establish "
