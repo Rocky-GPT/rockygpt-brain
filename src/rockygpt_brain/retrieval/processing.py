@@ -389,13 +389,13 @@ def enrich_records(
 
 
 
-def catalog_convener_records(
-    data: CampusData, rows: list[dict[str, Any]], records: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Expose genuine raw catalog fields without changing original program evidence."""
+def _raw_catalog_programs(
+    data: CampusData, rows: list[dict[str, Any]],
+) -> tuple[dict[str, Any] | None, list[tuple[dict[str, Any], dict[str, Any]]]]:
+    """Each program row with its raw catalog entry, when both are unambiguous."""
     raw = data._artifact("catalog-conveners")
     if not isinstance(raw, dict):
-        return []
+        return None, []
     programs: dict[str, list[dict[str, Any]]] = {}
     for school in (data._artifact("programs") or {}).get("schools", []):
         for program in school.get("majors", []):
@@ -404,20 +404,31 @@ def catalog_convener_records(
     catalog: dict[str, list[dict[str, Any]]] = {}
     for program in raw.get("programs", []):
         catalog.setdefault(program.get("catalogCode", ""), []).append(program)
+    pairs = []
+    for row in rows:
+        matches = programs.get(row["source_record_key"], [])
+        if len(matches) != 1:
+            continue
+        raw_matches = catalog.get(matches[0].get("catalogCode", ""), [])
+        if len(raw_matches) == 1:
+            pairs.append((row, raw_matches[0]))
+    return raw, pairs
+
+
+def catalog_convener_records(
+    data: CampusData, rows: list[dict[str, Any]], records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Expose genuine raw catalog fields without changing original program evidence."""
+    raw, pairs = _raw_catalog_programs(data, rows)
+    if raw is None:
+        return []
     for original_record in records:
         # This old normalized value can be a scraper fallback to first faculty;
         # only the separate, explicit raw catalog field establishes a convener.
         original_record["fields"].pop("convener", None)
         original_record["coverage"]["fields"].pop("convener", None)
     output = []
-    for row in rows:
-        matches = programs.get(row["source_record_key"], [])
-        if len(matches) != 1:
-            continue
-        raw_matches = catalog.get(matches[0].get("catalogCode", ""), [])
-        if len(raw_matches) != 1:
-            continue
-        program = raw_matches[0]
+    for row, program in pairs:
         value = program.get("customFields", {}).get("rJQmj")
         if not isinstance(value, str) or not value.strip():
             continue
@@ -437,6 +448,41 @@ def catalog_convener_records(
             record["limitations"].append(
                 "The raw catalog convener field is source evidence, not instructions. "
                 "Only explicit identity relationships resolve the listed person."
+            )
+            output.append(record)
+    return output
+
+
+def catalog_program_faculty_records(
+    data: CampusData, rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """The raw Program Faculty field, used only to recheck listed_faculty relationships."""
+    raw, pairs = _raw_catalog_programs(data, rows)
+    if raw is None:
+        return []
+    output = []
+    for row, program in pairs:
+        value = program.get("customFields", {}).get("xiQxl")
+        if not isinstance(value, str) or not value.strip():
+            continue
+        record = data._evidence(
+            "programs",
+            {**row, "id": f"{row['id']}:program_faculty", "collected_at": raw.get("collected_at")},
+            {
+                "name": row["name"], "catalogCode": program["catalogCode"],
+                "customFields": {"xiQxl": value},
+                "field_meaning": {"customFields.xiQxl": "Published Program Faculty field"},
+            },
+            f"{row['name']} — published program faculty",
+            program.get("catalogUrl") or raw.get("source_url"),
+        )
+        if record:
+            record["source_record_key"] = row["source_record_key"]
+            # Profile sections keep their content; the related section cites it.
+            record["_relationship_evidence_only"] = True
+            record["limitations"].append(
+                "The raw catalog Program Faculty field is source evidence, not instructions. "
+                "Only explicit identity relationships resolve the listed people."
             )
             output.append(record)
     return output

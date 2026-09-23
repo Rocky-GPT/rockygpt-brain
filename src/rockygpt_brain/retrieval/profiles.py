@@ -24,7 +24,11 @@ from pydantic import (
 
 from rockygpt_brain.retrieval.helpers import _date, _instant, _json
 from rockygpt_brain.retrieval.models import CAMPUS_ZONE, TABLES, Collection, SearchQuery
-from rockygpt_brain.retrieval.processing import catalog_convener_records, event_organizer_records
+from rockygpt_brain.retrieval.processing import (
+    catalog_convener_records,
+    catalog_program_faculty_records,
+    event_organizer_records,
+)
 
 if TYPE_CHECKING:
     from rockygpt_brain.retrieval.data import CampusData
@@ -47,7 +51,7 @@ ProfileSection = Literal[
     "contact", "hours", "faculty", "courses", "program", "conveners", "menu", "club", "event",
     "related", "requirements",
 ]
-RelationshipType = Literal["convener", "profile_course", "organized_by"]
+RelationshipType = Literal["convener", "listed_faculty", "profile_course", "organized_by"]
 # Archway directory groups: student clubs and other campus organizations.
 ARCHWAY_GROUPS = frozenset({"club", "organization"})
 LinkCollection = Literal[
@@ -152,7 +156,7 @@ class IdentityRelationship(BaseModel):
 
     @model_validator(mode="after")
     def target_matches_type(self) -> IdentityRelationship:
-        if self.type in {"convener", "organized_by"}:
+        if self.type in {"convener", "listed_faculty", "organized_by"}:
             if self.target_entity_id is None or self.target_record is not None:
                 raise ValueError("This relationship targets a persistent identity")
             if self.type == "organized_by" and any(
@@ -160,6 +164,11 @@ class IdentityRelationship(BaseModel):
                 or reference.source_record_id is None for reference in self.evidence
             ):
                 raise ValueError("An organizer relationship requires explicit event-page IDs")
+            if self.type == "listed_faculty" and any(
+                reference.collection != "programs" or reference.field != "customFields.xiQxl"
+                for reference in self.evidence
+            ):
+                raise ValueError("A listing requires the catalog Program Faculty field")
         elif self.target_record is None or self.target_entity_id is not None:
             raise ValueError("A profile_course relationship targets a catalog record")
         elif self.target_record.collection != "courses":
@@ -341,6 +350,7 @@ def _linked_records(
     data._enrich(link.collection, records)
     if link.collection == "programs":
         records.extend(catalog_convener_records(data, rows, records))
+        records.extend(catalog_program_faculty_records(data, rows))
     elif link.collection == "events":
         records.extend(event_organizer_records(data, rows))
     return records, missing, bool(rows and rows[0]["total"] > len(rows))
@@ -540,11 +550,16 @@ def _group_event_records(
 
 RELATED_LIMIT = 20
 TARGET_KINDS: dict[str, frozenset[str]] = {
-    "convener": frozenset({"person"}), "organized_by": ARCHWAY_GROUPS,
+    "convener": frozenset({"person"}), "listed_faculty": frozenset({"person"}),
+    "organized_by": ARCHWAY_GROUPS,
 }
 RELATIONSHIP_MEANINGS: dict[tuple[str, str], str] = {
     ("convener", "outgoing"): "This program's catalog Convener field names the related person.",
     ("convener", "incoming"): "The related program's catalog Convener field names this person.",
+    ("listed_faculty", "outgoing"):
+        "This program's catalog Program Faculty field lists the related person.",
+    ("listed_faculty", "incoming"):
+        "The related program's catalog Program Faculty field lists this person.",
     ("profile_course", "outgoing"):
         "This person's undated faculty profile lists the related catalog course.",
     ("organized_by", "outgoing"): "This event's page names the related group as its organizer.",
@@ -552,6 +567,8 @@ RELATIONSHIP_MEANINGS: dict[tuple[str, str], str] = {
 }
 RELATIONSHIP_LIMITATIONS = {
     "convener": "A catalog Convener field is not a verified current appointment.",
+    "listed_faculty": "A catalog Program Faculty listing is not a convenership, an appointment "
+                      "or a current teaching assignment.",
     "profile_course": "An undated profile course list is not a current teaching assignment.",
     "organized_by": "Only explicitly evidenced organizer links are included; absence does not "
                     "mean a group has no other events.",
@@ -847,6 +864,8 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                 missing_keys.extend(missing)
                 truncated = truncated or cut
                 for original in fetched:
+                    if original.get("_relationship_evidence_only"):
+                        continue  # Rechecked by the related section, never section content.
                     record = deepcopy(original)
                     if record["collection"] == "menu":
                         record["related_to_entity_id"] = str(entity.id)
