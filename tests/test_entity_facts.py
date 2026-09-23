@@ -301,3 +301,67 @@ def test_an_email_mention_does_not_become_a_preference() -> None:
     facts = {p.key: p for p in canonical_properties(fields, [source("a")])}
     assert facts["prefers_email"].values[0].value is True
     assert facts["preferred_contact"].values[0].value == "email"
+
+
+@pytest.mark.parametrize("collection,kind,url_field,artifact_url,extra,expected", [
+    ("clubs", "club", "website_url", "websiteUrl", {
+        "email": "club@example.edu", "mission": "Our mission.",
+        "memberBenefits": "A community.", "groupmeGroups": [{"name": "Club", "url": "https://groupme.example/join"}],
+    }, {"email", "mission", "member_benefits", "groupme_groups"}),
+    ("events", "event", "event_url", "url", {
+        "location": "Hall 101", "tags": ["Meeting"], "ticketStatus": "FREE",
+        "offersFreeFood": True, "imageUrl": "https://example.edu/event.png",
+    }, {"location", "tags", "ticket_status", "offers_free_food", "image_url"}),
+])
+def test_exact_artifact_fields_reach_entity_lookup_and_keep_original_row(
+    fixture: Fixture, collection: str, kind: str, url_field: str, artifact_url: str,
+    extra: dict[str, Any], expected: set[str],
+) -> None:
+    from rockygpt_brain.retrieval.graph import GraphData
+    from rockygpt_brain.retrieval.models import EntityQuery
+
+    data, snapshot, records = fixture
+    entity = data._artifacts["campus-identities"]["entities"][0]
+    entity.update(kind=kind, links=[{"collection": collection, "source_key": "directory",
+                                     "source_record_keys": ["one"]}])
+    url = "https://example.edu/one"
+    data._artifacts[collection] = [{artifact_url: url, **extra}]
+    raw = {"id": "one", "source_id": "directory", "source_record_key": "one",
+           "collected_at": test_projection.NOW.isoformat(), "name": "Example", url_field: url}
+    if collection == "events":
+        raw.update(title="Example", date_label="Sep 21, 2026",
+                   starts_at="2026-09-21T17:00:00-04:00", start_time="5 PM")
+    original = copy.deepcopy(raw)
+    row = GraphData(data)._record(collection, {"record": raw, "source": data.sources["directory"]})
+    records[collection] = [row]
+    projection = EntityFacts(data, snapshot).build(UUID(ENTITY_ID))
+    props = {prop.key: prop for prop in projection.properties}
+    assert expected <= props.keys()
+    assert row["raw_record"] == raw == original
+    assert projection.sources[0].artifact_key == collection
+    assert projection.sources[0].artifact_path == ["0"]
+    output = data.lookup_entity(EntityQuery(entity_id=UUID(ENTITY_ID)))
+    assert expected <= {prop["key"] for prop in output["entity_facts"]["properties"]}
+    evidence = output["records"][0]
+    for key, value in extra.items():
+        assert evidence["fields"][key] == value
+    assert row["raw_record"] == original
+
+
+@pytest.mark.parametrize("failure", ["missing_url", "wrong_url", "duplicate_url"])
+def test_graph_artifact_enrichment_never_uses_names_or_landing_urls(failure: str) -> None:
+    from rockygpt_brain.retrieval.graph import GraphData
+    from test_club_event_profiles import CLUB_URL, campus
+
+    data = campus()
+    raw = {"id": "one", "name": "Example Club", "website_url": CLUB_URL}
+    if failure == "missing_url":
+        raw.pop("website_url")
+    elif failure == "wrong_url":
+        raw["website_url"] = "https://example.edu/other"
+    else:
+        data._artifacts["clubs"].append(dict(data._artifacts["clubs"][0]))
+    record = GraphData(data)._record("clubs", {"record": raw, "source": {
+        **data.sources["archway-clubs"], "canonical_url": CLUB_URL}})
+    assert "email" not in record["fields"]
+    assert "artifact_path" not in record

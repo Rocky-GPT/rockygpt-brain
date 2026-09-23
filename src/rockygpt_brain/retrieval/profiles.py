@@ -1122,7 +1122,7 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             field_names = ("email", "phone", "office", "title", "courses")
         elif component == "club":
             field_names = ("category", "bucket", "email", "website_url", "instagramUrl",
-                           "groupmeUrls")
+                           "groupmeUrls", "mission", "memberBenefits", "membershipInfo")
         elif component == "building":
             field_names = ("category", "room_prefixes", "map_url")
         elif component == "school":
