@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from rockygpt_brain.api.identities import _campus_data, _require_development
+from rockygpt_brain.retrieval.entity_facts import EntityFactProjection
 from rockygpt_brain.retrieval.graph import GRAPH_COLLECTIONS, GROUP_FIELDS, LABELS, GraphData
 from rockygpt_brain.retrieval.projection_models import EntityProjection
 
@@ -166,3 +167,26 @@ def projection_v2(
         if snapshot["identity_hash"] != identity_hash:
             raise HTTPException(409, "Campus identity links changed; reload the projection")
         return Projection(data, snapshot).build(entity_id, record_group, selection, limit, cursor)
+
+
+@router.get("/projection/v3")
+def projection_v3(
+    entity_id: UUID,
+    dataset_version: Annotated[str, Query(min_length=1, max_length=160)],
+    identity_hash: Annotated[str, Query(min_length=1, max_length=128)],
+    record_group: Annotated[str | None, Query(max_length=80)] = None,
+    filters: Annotated[str, Query(max_length=2000)] = "{}",
+    limit: Limit = 8,
+    cursor: Annotated[str | None, Query(max_length=4000)] = None,
+) -> EntityFactProjection:
+    from rockygpt_brain.retrieval.entity_facts import EntityFacts
+    from rockygpt_brain.retrieval.projection import validate_selection
+
+    selection = _json_arg(filters, dict)
+    validate_selection(record_group, selection, cursor)
+    with _campus_data() as data:
+        snapshot = _snapshot(data, dataset_version)
+        if snapshot["identity_hash"] != identity_hash:
+            raise HTTPException(409, "Campus identity links changed; reload the projection")
+        return EntityFacts(data, snapshot).build(entity_id, include_records=True,
+            group=record_group, filters=selection, limit=limit, cursor=cursor)

@@ -26,6 +26,7 @@ class SourceRecord(Contract):
     source_key: str | None
     source_record_key: str | None
     source_url: str | None
+    derived_from_source_id: str | None = None
     # Artifact-backed records: the artifact and the exact path of the original item.
     artifact_key: str | None = None
     artifact_path: list[str | int] | None = None

@@ -134,7 +134,8 @@ RECORD_SPECS = (
     ), fields("schedule"), ("day",), frozenset({"name"}), SCHEDULE_LIMITATION),
     RecordSpec("campus_hours", "operating_hours", "Operating hours", fields(
         ("weekday", "day", "text"), ("valid_from", "date"), ("valid_until", "date"),
-    ), fields("schedule", ("hours", "hours_list"), "notes"), ("day",), frozenset({"name", "source_url"}),
+    ), fields("schedule", ("hours", "hours_list"), "notes"), ("day",),
+        frozenset({"name", "source_url"}),
         SCHEDULE_LIMITATION),
 )
 MAPPED = {spec.collection for spec in (*PROPERTY_SPECS, *RECORD_SPECS)}
@@ -205,8 +206,8 @@ def valid_value(value: Any, kind: str) -> bool:
                 and all(v in {"published", "not_published"} for v in value.values()
                         if isinstance(v, str)) and all(isinstance(v, str) for v in value.values()))
     if kind == "phone_list":
-        return _objects(value, {key: (str,) for key in ("type", "number", "extension")},
-                        {"number"})
+        return (_objects(value, {key: (str,) for key in ("type", "number", "extension")},
+                         set()) and all("number" in item or "extension" in item for item in value))
     if kind == "hours_list":
         return _objects(value, {"open": (str,), "close": (str,), "close_day_offset": (int,)},
                         {"open", "close"})
@@ -221,11 +222,14 @@ def valid_value(value: Any, kind: str) -> bool:
 
 
 class Projection:
-    def __init__(self, data: Any, snapshot: dict[str, Any]) -> None:
+    def __init__(self, data: Any, snapshot: dict[str, Any], *,
+                 version: str | None = None) -> None:
         self.data = data
         self.snapshot = snapshot
+        self.version = version or PROJECTION_VERSION
         self.coverage: list[CoverageIssue] = []
         self.sources: dict[str, SourceRecord] = {}
+        self.source_records: dict[str, dict[str, Any]] = {}
 
     def _issue(self, reason: str, record: dict[str, Any], **detail: Any) -> None:
         self.coverage.append(CoverageIssue(reason=reason, collection=record["collection"],
@@ -234,6 +238,7 @@ class Projection:
     def _source(self, record: dict[str, Any], limitation: str | None) -> str | None:
         """List the record's source once; its freshness and caveats cover every field."""
         identifier = str(record["id"])
+        self.source_records[identifier] = record
         if identifier in self.sources:
             return identifier
         if record["collection"] in ARTIFACT_COLLECTIONS:
@@ -333,7 +338,7 @@ class Projection:
         return relationships
 
     def build(self, entity_id: UUID, group: str | None, filters: dict[str, Any],
-              limit: int, cursor: str | None) -> EntityProjection:
+              limit: int, cursor: str | None, *, include_records: bool = True) -> EntityProjection:
         graph = release_graph(self.data)
         node = graph.nodes.get(str(entity_id))
         if node is None:
@@ -345,7 +350,7 @@ class Projection:
         selected = next((s for s in RECORD_SPECS if s.key == group), None)
         if selected and selected.collection not in collections:
             raise HTTPException(422, "Record group is not linked to this entity")
-        scope = dict(projection_version=PROJECTION_VERSION,
+        scope = dict(projection_version=self.version,
                      dataset_version=self.snapshot["dataset_version"],
                      identity_hash=self.snapshot["identity_hash"], entity_id=entity_id,
                      group=group or "", filters=filters, limit=limit)
@@ -379,7 +384,7 @@ class Projection:
                     collection=prop_spec.collection,
                     detail=f"Only the first {PROPERTY_RECORD_LIMIT} source records are "
                            "projected as properties."))
-        for spec in RECORD_SPECS:
+        for spec in RECORD_SPECS if include_records else ():
             if spec.collection not in collections or (group and spec.key != group):
                 continue
             page = self._page(reader, spec.collection, filters, offset, limit, None)
@@ -409,7 +414,8 @@ class Projection:
         property_collections = {s.collection for s in PROPERTY_SPECS} | (collections - MAPPED)
         if any(issue.collection in property_collections for issue in self.coverage):
             properties_complete = False
-        return EntityProjection(dataset_version=self.snapshot["dataset_version"],
+        return EntityProjection(projection_version=self.version,
+            dataset_version=self.snapshot["dataset_version"],
             identity_hash=self.snapshot["identity_hash"], entity=Entity(**node),
             selected_record_group=group, properties_complete=properties_complete,
             properties=list(properties.values()), record_groups=groups,

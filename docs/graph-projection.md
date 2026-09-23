@@ -1,4 +1,8 @@
-# Graph projection v2
+# Graph projection v2 (compatibility)
+
+The normal explorer now uses [shared entity facts, schema 3](entity-facts.md).
+This document describes the retained raw-assertion projection for diagnostics
+and compatibility.
 
 The development explorer shows each campus entity through one projection: its
 published properties, its contextual records (menus and hours), its identity
