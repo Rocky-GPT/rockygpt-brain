@@ -134,7 +134,7 @@ RECORD_SPECS = (
     ), fields("schedule"), ("day",), frozenset({"name"}), SCHEDULE_LIMITATION),
     RecordSpec("campus_hours", "operating_hours", "Operating hours", fields(
         ("weekday", "day", "text"), ("valid_from", "date"), ("valid_until", "date"),
-    ), fields("schedule", ("hours", "hours_list")), ("day",), frozenset({"name"}),
+    ), fields("schedule", ("hours", "hours_list"), "notes"), ("day",), frozenset({"name", "source_url"}),
         SCHEDULE_LIMITATION),
 )
 MAPPED = {spec.collection for spec in (*PROPERTY_SPECS, *RECORD_SPECS)}

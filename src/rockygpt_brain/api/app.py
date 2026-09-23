@@ -615,6 +615,8 @@ def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any] | JSO
                 # [] is a published closure. An absent/NULL value is unknown.
                 if f.get("hours") is not None:
                     item["hours"] = f["hours"]
+                if f.get("notes"):
+                    item["notes"] = f["notes"]
                 formatted.append(item)
             elif name == "menu":
                 item = {"id": r.get("id"), **r.get("fields", {}), "date": r.get("valid_from")}

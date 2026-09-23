@@ -151,6 +151,25 @@ def test_a_shared_group_is_one_record_in_the_graph_but_program_scoped_evidence()
     assert len(math['records']) == 1
 
 
+def test_catalog_rule_text_and_constraints_survive_profile_evidence() -> None:
+    data = requirement_data()
+    published = data._artifacts['program-requirement-groups']['groups'][1]
+    published['rule'] = rule('catalogBlock', sub_rules=({
+        **rule('freeformText'), 'name': 'Adviser approval',
+        'text': 'Select a concentration with your adviser.',
+        'note': 'At least one course must be at the 300 level.',
+        'constraints': {'minCourses': 2, 'minCredits': 8},
+    },))
+    record = requirements(data, PROGRAM)['records'][1]
+    assert record['fields']['requirement']['parts'] == [{
+        'condition': 'freeformText', 'name': 'Adviser approval',
+        'text': 'Select a concentration with your adviser.',
+        'note': 'At least one course must be at the 300 level.',
+        'constraints': {'minCourses': 2, 'minCredits': 8},
+    }]
+    assert any('without interpretation' in text for text in record['limitations'])
+
+
 def test_citation_follows_the_exact_published_path_never_names() -> None:
     data = requirement_data()
     data._artifacts['campus-identities']['entities'][1]['name'] = 'Renamed Program'

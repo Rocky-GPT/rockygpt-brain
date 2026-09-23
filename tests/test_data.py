@@ -711,3 +711,17 @@ def test_menu_artifacts_are_filtered_but_components_and_zero_calories_survive(
     data._enrich("menu", rows)
     assert [r["fields"]["calories"] for r in rows] == [0, 307, 537]
     assert rows[0]["fields"]["name"] == "Sliced Tomato"
+
+
+def test_campus_hours_preserve_schedule_conditions_and_facility_citation(data: CampusData) -> None:
+    row = {
+        'id': 'pool-saturday', 'source_id': 'source', 'name': 'Swimming Pool',
+        'day': 'Saturday', 'schedule': '12:30pm-4:00pm',
+        'notes': 'Saturday hours pending varsity swim practice/meets.',
+        'source_url': 'https://ramapoathletics.com/sports/2008/1/21/bradleycenterhours.aspx',
+        'collected_at': NOW,
+    }
+    with patch.object(data, '_fetch', return_value=[row]):
+        records = data._load('campus_hours')
+    assert records[0]['fields']['notes'] == row['notes']
+    assert records[0]['url'] == row['source_url']
