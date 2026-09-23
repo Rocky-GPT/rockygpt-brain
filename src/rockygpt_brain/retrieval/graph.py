@@ -59,15 +59,22 @@ def _page(items: list[Any], total: int, offset: int, limit: int) -> dict[str, An
 
 
 class GraphData:
-    def __init__(self, data: CampusData, entity_id: UUID | None = None) -> None:
+    def __init__(
+        self, data: CampusData, entity_id: UUID | None = None,
+        registry: IdentityRegistry | None = None,
+    ) -> None:
+        """`registry`, when given, is this release's already validated identity registry."""
         self.data = data
         self.entity = None
         self.diagnostics: list[dict[str, Any]] = []
+        self._artifact_cache: dict[str, list[dict[str, Any]]] = {}
         if entity_id is not None:
-            try:
-                registry = IdentityRegistry.model_validate(data._artifact("campus-identities"))
-            except ValueError:
-                raise HTTPException(503, "Campus identity registry is unavailable") from None
+            if registry is None:
+                try:
+                    registry = IdentityRegistry.model_validate(
+                        data._artifact("campus-identities"))
+                except ValueError:
+                    raise HTTPException(503, "Campus identity registry is unavailable") from None
             self.entity = next((e for e in registry.entities if e.id == entity_id), None)
             if self.entity is None:
                 raise HTTPException(404, "Campus identity was not found")
@@ -203,14 +210,18 @@ class GraphData:
                                              "references_truncated": len(values) > 50})
 
     def _artifact_records(self, collection: str) -> list[dict[str, Any]]:
-        try:
-            records = self.data._load_artifact_records(collection)
-        except (AttributeError, KeyError, TypeError, ValueError):
-            diagnostic = {"reason": "artifact_projection_unavailable", "collection": collection,
-                          "message": "Inspect the original published source artifact instead."}
-            if diagnostic not in self.diagnostics:
-                self.diagnostics.append(diagnostic)
-            return []
+        # Parsed once per request: a page read also diagnoses the same links.
+        if collection not in self._artifact_cache:
+            try:
+                self._artifact_cache[collection] = self.data._load_artifact_records(collection)
+            except (AttributeError, KeyError, TypeError, ValueError):
+                diagnostic = {"reason": "artifact_projection_unavailable",
+                              "collection": collection,
+                              "message": "Inspect the original published source artifact instead."}
+                if diagnostic not in self.diagnostics:
+                    self.diagnostics.append(diagnostic)
+                return []
+        records = self._artifact_cache[collection]
         if self.entity is not None:
             links = self._links(collection)
             records = [record for record in records if any(
@@ -293,11 +304,7 @@ class GraphData:
             return {"mode": "records", "records": records, **_page(records, total, offset, limit),
                     "diagnostics": self.diagnostics}
         if collection in ARTIFACT_COLLECTIONS:
-            records = self._artifact_records(collection)
-            records = [r for r in records if all(
-                (r.get(key) if key == "source_key" else r["fields"].get(key)) == value
-                for key, value in filters.items()
-            )]
+            records = self._artifact_matches(collection, filters)
             if group_by:
                 counts = Counter(json.dumps(
                     r.get(group_by) if group_by == "source_key" else r["fields"].get(group_by),
@@ -310,7 +317,6 @@ class GraphData:
                 return {"mode": "groups", "groups": selected,
                         **_page(selected, len(groups), offset, limit),
                         "diagnostics": self.diagnostics}
-            records.sort(key=lambda r: (r["title"].casefold(), r["id"]))
             selected = [self.summary(r) for r in records[offset:offset + limit]]
             return {"mode": "records", "records": selected,
                     **_page(selected, len(records), offset, limit),
@@ -338,19 +344,53 @@ class GraphData:
                     "diagnostics": self.diagnostics}
         total = self.data._fetch(sql.SQL("SELECT count(*) AS total ") + base,
                                 tuple(params))[0]["total"]
-        ordering = (
+        rows = self.data._fetch(self._selection(collection, full=False) + base
+                               + sql.SQL(" ORDER BY {} LIMIT %s OFFSET %s").format(
+                                   self._ordering(collection)), (*params, limit, offset))
+        records = [self.summary(self._record(collection, row)) for row in rows]
+        return {"mode": "records", "records": records, **_page(records, total, offset, limit),
+                "diagnostics": self.diagnostics}
+
+    @staticmethod
+    def _ordering(collection: str) -> sql.Composable:
+        """Deterministic within an immutable release: title, then original row ID."""
+        return (
             sql.SQL("t.document_id, t.chunk_index, t.id") if collection == "document_chunks"
             else sql.SQL("t.route_id, t.sequence, t.id") if collection == "shuttle"
             else sql.SQL("coalesce(to_jsonb(t)->>'name', to_jsonb(t)->>'title', "
                          "to_jsonb(t)->>'fact_key', to_jsonb(t)->>'source_record_key', "
                          "t.id::text), t.id")
         )
-        rows = self.data._fetch(self._selection(collection, full=False) + base
-                               + sql.SQL(" ORDER BY {} LIMIT %s OFFSET %s").format(ordering),
-                               (*params, limit, offset))
-        records = [self.summary(self._record(collection, row)) for row in rows]
-        return {"mode": "records", "records": records, **_page(records, total, offset, limit),
-                "diagnostics": self.diagnostics}
+
+    def _artifact_matches(
+        self, collection: str, filters: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        records = [r for r in self._artifact_records(collection) if all(
+            (r.get(key) if key == "source_key" else r["fields"].get(key)) == value
+            for key, value in filters.items()
+        )]
+        return sorted(records, key=lambda r: (r["title"].casefold(), r["id"]))
+
+    def records(
+        self, collection: str, filters: dict[str, Any], offset: int, limit: int,
+    ) -> dict[str, Any]:
+        """One page of complete records in browse order: one query, not one per row."""
+        self.validate(collection, filters)
+        if collection == "artifacts":
+            raise HTTPException(422, "Artifacts are browsed, not read as records")
+        self._diagnose(collection)
+        if collection in ARTIFACT_COLLECTIONS:
+            matches = self._artifact_matches(collection, filters)
+            page = [self._artifact_record(collection, r) for r in matches[offset:offset + limit]]
+            return {"records": page, **_page(page, len(matches), offset, limit)}
+        base, params = self._filtered_scope(collection, filters)
+        total = self.data._fetch(sql.SQL("SELECT count(*) AS total ") + base,
+                                tuple(params))[0]["total"]
+        rows = self.data._fetch(self._selection(collection, full=True) + base
+                               + sql.SQL(" ORDER BY {} LIMIT %s OFFSET %s").format(
+                                   self._ordering(collection)), (*params, limit, offset))
+        page = [self._record(collection, row) for row in rows]
+        return {"records": page, **_page(page, total, offset, limit)}
 
     @staticmethod
     def summary(record: dict[str, Any]) -> dict[str, Any]:
@@ -380,23 +420,7 @@ class GraphData:
                            if r["id"] == record_id), None)
             if record is None:
                 raise HTTPException(404, "Campus record was not found")
-            artifact = {"faculty": "faculty", "courses": "courses",
-                        "program_requirements": "programs",
-                        "buildings": "campus-buildings", "schools": "campus-schools"}[collection]
-            path = (original_id.split(".") if collection == "program_requirements"
-                    else [original_id])
-            if collection == "program_requirements":
-                path = ["schools", path[0], "majors", path[1], "requirements", path[2]]
-            raw = self.data._artifact(artifact)
-            if collection in {"buildings", "schools"}:
-                key = "concept3d_id" if collection == "buildings" else "section"
-                path = [collection, str(next(
-                    index for index, item in enumerate(raw[collection])
-                    if str(item.get(key)) == original_id))]
-            for segment in path:
-                raw = raw[int(segment)] if isinstance(raw, list) else raw[segment]
-            return {**record, "fields": raw, "source_record_id": original_id,
-                    "artifact_key": artifact, "artifact_path": path, "raw_record": raw}
+            return self._artifact_record(collection, record)
         base, params = self._table_scope(collection)
         rows = self.data._fetch(self._selection(collection, full=True) + base + sql.SQL(
             " AND t.id::text=%s LIMIT 1"
@@ -404,6 +428,27 @@ class GraphData:
         if not rows:
             raise HTTPException(404, "Campus record was not found in this scope")
         return self._record(collection, rows[0])
+
+    def _artifact_record(self, collection: str, record: dict[str, Any]) -> dict[str, Any]:
+        """A parsed artifact record with its original published item and exact path."""
+        original_id = record["id"][len(collection) + 1:]
+        artifact = {"faculty": "faculty", "courses": "courses",
+                    "program_requirements": "programs",
+                    "buildings": "campus-buildings", "schools": "campus-schools"}[collection]
+        path = (original_id.split(".") if collection == "program_requirements"
+                else [original_id])
+        if collection == "program_requirements":
+            path = ["schools", path[0], "majors", path[1], "requirements", path[2]]
+        raw = self.data._artifact(artifact)
+        if collection in {"buildings", "schools"}:
+            key = "concept3d_id" if collection == "buildings" else "section"
+            path = [collection, str(next(
+                index for index, item in enumerate(raw[collection])
+                if str(item.get(key)) == original_id))]
+        for segment in path:
+            raw = raw[int(segment)] if isinstance(raw, list) else raw[segment]
+        return {**record, "fields": raw, "source_record_id": original_id,
+                "artifact_key": artifact, "artifact_path": path, "raw_record": raw}
 
     def reference(
         self, collection: str, source_key: str, source_record_key: str,

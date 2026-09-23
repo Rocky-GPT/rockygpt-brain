@@ -1,39 +1,46 @@
-"""Additive graph projection v1 contract; source records are not canonical entities."""
+"""Graph projection v2 contract; source records are not canonical entities.
+
+Each response lists the source records it reads once, in `sources`. An assertion
+names its source record and the field it was read from; record-level caveats
+(freshness, a collection's limitations) live on the source record, and only
+field-specific caveats stay on the assertion.
+"""
 from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-PROJECTION_VERSION = "dining-contact-1"
+PROJECTION_VERSION = "linked-collections-2"
 
 
 class Contract(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class RowLocator(Contract):
-    kind: Literal["row"] = "row"
+class SourceRecord(Contract):
+    """One original published record: a database row, or an item of a release artifact."""
+    id: str
     collection: str
     row_id: str
-    field_path: list[str | int]
-
-
-class Provenance(Contract):
-    source_key: str
-    source_record_key: str
+    source_key: str | None
+    source_record_key: str | None
     source_url: str | None
-    locator: RowLocator
+    # Artifact-backed records: the artifact and the exact path of the original item.
+    artifact_key: str | None = None
+    artifact_path: list[str | int] | None = None
     collected_at: str | None
     valid_from: str | None
     valid_until: str | None
     freshness: Literal["fresh", "stale", "unknown", "static"]
+    limitations: list[str]
 
 
 class Assertion(Contract):
     id: str
     value: Any
-    provenance: list[Provenance]
+    source_id: str
+    field_path: list[str | int]
     limitations: list[str]
     publication_status: Literal["published", "not_published", "unspecified"] = "unspecified"
 
@@ -50,6 +57,7 @@ class Entity(Contract):
     kind: str
     name: str
     aliases: list[str]
+    status: str | None = None
 
 
 class EntitySubject(Contract):
@@ -84,6 +92,7 @@ class ContextualRecord(Contract):
     id: str
     label: str
     record_type: str
+    source_id: str
     context: list[Property]
     properties: list[Property]
     relationships: list[Relationship] = Field(default_factory=list)
@@ -111,7 +120,7 @@ class CoverageIssue(Contract):
 
 
 class EntityProjection(Contract):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     projection_version: str = PROJECTION_VERSION
     dataset_version: str
     identity_hash: str
@@ -121,4 +130,21 @@ class EntityProjection(Contract):
     properties: list[Property]
     record_groups: list[RecordGroup]
     relationships: list[Relationship]
+    sources: list[SourceRecord]
     coverage: list[CoverageIssue]
+
+    @model_validator(mode="after")
+    def sources_resolve(self) -> EntityProjection:
+        """Every assertion and record names a source record in this response, listed once."""
+        listed = [source.id for source in self.sources]
+        if len(set(listed)) != len(listed):
+            raise ValueError("Source records must be listed once")
+        known = set(listed)
+        records = [record for group in self.record_groups for record in group.records]
+        referenced = {assertion.source_id for prop in [
+            *self.properties,
+            *(prop for record in records for prop in (*record.context, *record.properties)),
+        ] for assertion in prop.assertions} | {record.source_id for record in records}
+        if not referenced <= known:
+            raise ValueError("Assertions must reference a listed source record")
+        return self

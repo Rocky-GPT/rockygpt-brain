@@ -86,6 +86,7 @@ class CampusData:
         self._cache: dict[str, list[dict[str, Any]]] = {}
         self._artifacts: dict[str, Any] = {}
         self._seen: dict[str, dict[str, Any]] = {}
+        self._fingerprint: tuple[str, ...] | None = None
 
     def _time_budget(self) -> float:
         deadline: float | None = getattr(self, "deadline", None)
@@ -159,9 +160,33 @@ class CampusData:
             "available_collections": list(COLLECTIONS),
         }
 
+    def release_fingerprint(self) -> tuple[str, ...] | None:
+        """The database, active release and every artifact's content hash; None offline."""
+        self._ensure_loaded()
+        if self.connection is None:
+            return None
+        if getattr(self, "_fingerprint", None) is None:
+            options = conninfo_to_dict(self._database_url)
+            rows = self._fetch(
+                "SELECT artifact_key, content_hash FROM rockygpt_v2.release_artifacts "
+                "WHERE dataset_version_id=%s::uuid ORDER BY artifact_key",
+                (self.dataset["id"],),
+            )
+            self._fingerprint = (
+                *(str(options.get(key)) for key in ("host", "port", "dbname")),
+                self.dataset["id"], self.dataset["version"], str(self.dataset.get("activated_at")),
+                *(f"{row['artifact_key']}={row['content_hash']}" for row in rows),
+            )
+        return self._fingerprint
+
     def identity_readiness(self) -> dict[str, Any]:
         """Development diagnostics only; old releases remain usable without identities."""
+        from rockygpt_brain.retrieval.release_cache import cached
+
         self._ensure_loaded()
+        return dict(cached(self, "identity-readiness", self._identity_readiness))
+
+    def _identity_readiness(self) -> dict[str, Any]:
         payload = self._artifact("campus-identities")
         if payload is None:
             return {"status": "missing"}

@@ -1,17 +1,13 @@
 """Entity-first projection never converts similar names into factual edges."""
 from __future__ import annotations
 
-import copy
 from typing import Any
 from unittest.mock import Mock, patch
-from uuid import UUID
 
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from rockygpt_brain.api.app import app
-from rockygpt_brain.retrieval.graph import GraphData
 from rockygpt_brain.retrieval.knowledge import KnowledgeGraph, course_id
 from test_profiles import ENTITY_ID, repository
 
@@ -72,74 +68,21 @@ def test_matching_property_text_does_not_create_relationship(data: Any) -> None:
     assert graph['edges'] == []
 
 
-def test_properties_keep_sources_conflicts_and_pagination(data: Any) -> None:
-    records = [{"id": f"contacts:{index}", "fields": {"phone": phone, "zero": 0,
-                "empty": "", "unknown": None, "enabled": False}, "collected_at": "yesterday",
-                "source_key": f"source-{index}", "raw_record": {"internal": True}}
-               for index, phone in enumerate(['x123', 'x456'])]
-    before = copy.deepcopy(records)
-    with (patch.object(GraphData, 'browse', return_value={
-        'records': records, 'total': 7, 'next_offset': 2,
-    }) as browse, patch.object(GraphData, 'record', side_effect=records)):
-        output = KnowledgeGraph(data).properties(UUID(ENTITY_ID), 'contacts', 0, 2)
-    assert output['groups'][0]['total'] == 7
-    assert output['groups'][0]['next_offset'] == 2
-    assert [row['fields']['phone'] for row in output['groups'][0]['records']] == ['x123', 'x456']
-    assert output['groups'][0]['records'][0]['fields']['enabled'] is False
-    assert 'raw_record' not in output['groups'][0]['records'][0]
-    assert records == before
-    browse.assert_called_once_with('contacts', {}, None, 0, 2)
-
-
-def test_course_properties_reuse_exact_catalog_record(data: Any) -> None:
-    node_id = course_id('catalog', 'CMPS 101')
-    result = KnowledgeGraph(data).properties(UUID(node_id), None, 0, 8)
-    assert result['groups'][0]['records'][0]['fields']['credits'] == 4
-    assert result['entity_id'] == node_id
-
-
-def test_properties_cannot_read_unlinked_collections(data: Any) -> None:
-    with pytest.raises(HTTPException) as error:
-        KnowledgeGraph(data).properties(UUID(ENTITY_ID), 'events', 0, 8)
-    assert error.value.status_code == 422
-
-
-@pytest.mark.parametrize('operation', ['knowledge', 'properties'])
-def test_api_development_gate_and_release_pin(
-    data: Any, monkeypatch: pytest.MonkeyPatch, operation: str,
-) -> None:
+def test_api_development_gate_and_release_pin(data: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     params = {'entity_id': ENTITY_ID, 'dataset_version': 'old'}
     monkeypatch.setenv('BRAIN_ENVIRONMENT', 'production')
     with patch('rockygpt_brain.api.identities.CampusData') as factory:
-        assert TestClient(app).get(f'/v1/dev/graph/{operation}', params=params).status_code == 404
+        assert TestClient(app).get('/v1/dev/graph/knowledge', params=params).status_code == 404
         factory.assert_not_called()
     monkeypatch.setenv('BRAIN_ENVIRONMENT', 'development')
     monkeypatch.setenv('DATABASE_URL', 'postgresql://unused')
     with patch('rockygpt_brain.api.identities.CampusData', return_value=data):
-        assert TestClient(app).get(f'/v1/dev/graph/{operation}', params=params).status_code == 409
+        assert TestClient(app).get('/v1/dev/graph/knowledge', params=params).status_code == 409
     data._load_artifact_records.assert_not_called()
 
 
-def test_missing_property_does_not_hide_other_published_values(data: Any) -> None:
-    record = {"id": "contacts:good", "fields": {"phone": "x123"}}
-    with (patch.object(GraphData, 'browse', return_value={
-        'records': [{'id': 'contacts:missing'}, record], 'total': 2, 'next_offset': None,
-    }), patch.object(GraphData, 'record', side_effect=[HTTPException(404, 'Missing'), record])):
-        output = KnowledgeGraph(data).properties(UUID(ENTITY_ID), 'contacts', 0, 8)
-    assert output['groups'][0]['records'] == [record]
-    assert output['diagnostics'][0]['reason'] == 'linked_property_unavailable'
-
-
-def test_course_property_pagination_does_not_repeat_the_only_record(data: Any) -> None:
-    output = KnowledgeGraph(data).properties(UUID(course_id('catalog', 'CMPS 101')),
-                                            'courses', 1, 8)
-    assert output['groups'][0]['records'] == []
-    assert output['groups'][0]['total'] == 1
-
-
-@pytest.mark.parametrize('operation', ['knowledge', 'properties'])
-def test_new_endpoints_return_release_pinned_data_without_model_calls(
-    data: Any, monkeypatch: pytest.MonkeyPatch, operation: str,
+def test_knowledge_is_release_pinned_without_model_calls(
+    data: Any, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv('BRAIN_ENVIRONMENT', 'development')
     monkeypatch.setenv('DATABASE_URL', 'postgresql://unused')
@@ -147,7 +90,7 @@ def test_new_endpoints_return_release_pinned_data_without_model_calls(
               'entity_id': course_id('catalog', 'CMPS 101')}
     with (patch('rockygpt_brain.api.identities.CampusData', return_value=data),
           patch('rockygpt_brain.api.app.open_gateway') as gateway):
-        response = TestClient(app).get(f'/v1/dev/graph/{operation}', params=params)
+        response = TestClient(app).get('/v1/dev/graph/knowledge', params=params)
     assert response.status_code == 200
     assert response.json()['dataset_version'] == 'test-release'
     assert response.json()['identity_hash']
