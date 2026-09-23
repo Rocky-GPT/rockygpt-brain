@@ -54,7 +54,8 @@ def tool_definitions() -> list[dict[str, Any]]:
             "lookup_profile",
             "Resolve a named campus entity through curated identity links and retrieve its "
             "selected contact, faculty, undated profile courses, program, conveners, dated "
-            "campus/dining hours, menu, club, event and related sections. Prefer it for named "
+            "campus/dining hours, menu, club, event, related and requirements sections. Prefer "
+            "it for named "
             "combined requests, "
             "program conveners and their follow-ups. Supply exactly one name/verified alias "
             "or a previously returned entity_id. For follow-ups, resolve the subject of the "
@@ -81,6 +82,11 @@ def tool_definitions() -> list[dict[str, Any]]:
             "Use related to follow other published relationships in either direction, e.g. "
             "relationship='convener', direction='incoming' for the programs a person convenes. "
             "Each related entity has an entity_id to look up for its own details. "
+            "Use requirements for a program's published catalog requirement groups in section "
+            "order, each with its nested all/any/choose-N structure, counts, credits and notes. "
+            "A course listed as one option of a choose-N or either/or group is not required on "
+            "its own; name the choice it belongs to. Conditions without a derived choose stay "
+            "as published. Read a truncated requirement record in full with read_campus. "
             "Organizer/location names alone "
             "do not link identities. An event is neither recurring operating hours nor an "
             "academic program. Missing event times/location remain unknown. "
@@ -125,7 +131,7 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         function_tool(
             "read_campus",
-            "Read details of evidence ids already returned by search_campus.",
+            "Read details of evidence ids already returned by search_campus or lookup_profile.",
             ReadQuery.model_json_schema(),
         ),
     ]

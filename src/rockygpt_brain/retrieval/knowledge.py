@@ -15,8 +15,11 @@ from fastapi import HTTPException
 from rockygpt_brain.retrieval.graph import GraphData
 from rockygpt_brain.retrieval.profiles import IdentityRegistry, IdentityRelationship
 
+COURSE_IDENTITY_FIELDS = ("id", "source_key", "source_record_key")
+
 
 def course_id(source: str, key: str) -> str:
+    """The original course ID derivation; releases now publish these IDs themselves."""
     return str(uuid5(NAMESPACE_URL, json.dumps(["rockygpt", "course", source, key])))
 
 
@@ -29,6 +32,21 @@ class KnowledgeGraph:
         self.course_groups: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
         for course in self.courses:
             self.course_groups[(course["source_key"], course["source_record_key"])].append(course)
+        # The data repository owns course IDs; releases before it published them derive the same.
+        published = data._artifact("catalog-course-identities")
+        self.published_courses: dict[tuple[str, str], str] | None = None
+        if isinstance(published, dict) and isinstance(published.get("courses"), list):
+            self.published_courses = {
+                (course["source_key"], course["source_record_key"]): course["id"]
+                for course in published["courses"]
+                if isinstance(course, dict)
+                and all(isinstance(course.get(key), str) for key in COURSE_IDENTITY_FIELDS)
+            }
+
+    def course_identity(self, source: str, key: str) -> str:
+        if self.published_courses is not None and (source, key) in self.published_courses:
+            return self.published_courses[(source, key)]
+        return course_id(source, key)
 
     def index(self) -> dict[str, Any]:
         nodes = [{"id": str(entity.id), "kind": entity.kind, "name": entity.name,
@@ -40,7 +58,7 @@ class KnowledgeGraph:
                                     "collection": "courses", "source_key": source})
                 continue
             course = records[0]
-            nodes.append({"id": course_id(source, key), "kind": "course",
+            nodes.append({"id": self.course_identity(source, key), "kind": "course",
                           "name": course["title"], "aliases": [key]})
         known = {node["id"] for node in nodes}
         edges = []
@@ -69,7 +87,7 @@ class KnowledgeGraph:
             records = self.course_groups.get((ref.source_key, ref.source_record_key), [])
             if len(records) == 1 and (not ref.source_record_id or
                     records[0]["id"] == f"courses:{ref.source_record_id}"):
-                return course_id(ref.source_key, ref.source_record_key)
+                return self.course_identity(ref.source_key, ref.source_record_key)
         return None
 
     def properties(self, entity_id: UUID, collection: str | None, offset: int,
@@ -97,7 +115,7 @@ class KnowledgeGraph:
             return {"entity_id": str(entity_id), "groups": groups,
                     "diagnostics": reader.diagnostics}
         for (source, key), records in self.course_groups.items():
-            if len(records) == 1 and course_id(source, key) == str(entity_id):
+            if len(records) == 1 and self.course_identity(source, key) == str(entity_id):
                 if collection not in {None, "courses"}:
                     raise HTTPException(422, "Collection is not linked to this entity")
                 record = self.reader.record("courses", records[0]["id"])
