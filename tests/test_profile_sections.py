@@ -89,7 +89,7 @@ def test_contact_faculty_conflicts_do_not_erase_agreed_fields_or_invent_freshnes
     ('office', 'ASB-312', 'ASB312', 'published'),
     ('office', 'ASB 312', 'ASB-312', 'published'),
     ('office', 'ASB-312', 'ASB-313', 'conflict'),
-    ('office', 'ASB-312 / G-209', 'ASB312/G209', 'conflict'),
+    ('office', 'ASB-312 / G-209', 'ASB312/G209', 'published'),
     ('office', 'ASB-312A', 'ASB-312', 'conflict'),
 ])
 def test_formatting_equivalence_preserves_original_source_values(

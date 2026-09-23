@@ -163,7 +163,7 @@ def test_direct_profile_preserves_review_and_allows_more_retrieval() -> None:
     assert result["metrics"]["modelCalls"] == 4
     assert result["model"] == "test-model"
     first = gpt.create.call_args_list[0].kwargs
-    assert first["tool_choice"] == "auto" and len(first["tools"]) == 5
+    assert first["tool_choice"] == "auto" and len(first["tools"]) == 6
     assert first["input"][0] == messages("Tell me about the Registrar")[0].model_dump()
     assert first["input"][1].name == "lookup_profile"
     assert first["input"][2]["call_id"] == first["input"][1].call_id
@@ -210,7 +210,7 @@ def test_confident_route_without_arguments_constrains_only_first_call() -> None:
     first, second = [call.kwargs for call in gpt.create.call_args_list[:2]]
     assert first["tool_choice"] == {"type": "function", "name": "search_campus"}
     assert [tool["name"] for tool in first["tools"]] == ["search_campus"]
-    assert second["tool_choice"] == "auto" and len(second["tools"]) == 5
+    assert second["tool_choice"] == "auto" and len(second["tools"]) == 6
 
 
 @pytest.mark.parametrize(

@@ -1259,7 +1259,9 @@ def test_context_bound_ends_tool_selection_without_discarding_evidence() -> None
     from rockygpt_brain.core.tools import tool_definitions
 
     client, data = Mock(), Mock()
-    long_record = {**RECORD, "content": "Office: D-224\n" + "x" * 31000}
+    # Fits new-evidence delivery including composition reserve; the assertions
+    # below verify that tool schemas alone put the next request over its bound.
+    long_record = {**RECORD, "content": "Office: D-224\n" + "x" * 26000}
     data.search.return_value = {"status": "ok", "records": [long_record]}
     client.create.side_effect = [
         tools(search()),

@@ -7,7 +7,7 @@ from typing import Any
 
 from rockygpt_brain.campus.calculations import CalculationQuery
 from rockygpt_brain.campus.formats import ContactCall, SearchCall
-from rockygpt_brain.retrieval.models import COLLECTIONS, ReadQuery
+from rockygpt_brain.retrieval.models import COLLECTIONS, EntityQuery, ReadQuery
 from rockygpt_brain.retrieval.profiles import ProfileQuery
 
 
@@ -40,6 +40,18 @@ def function_tool(name: str, description: str, schema: dict[str, Any]) -> dict[s
 def tool_definitions() -> list[dict[str, Any]]:
     return [
         function_tool(
+            "lookup_entity",
+            "Read the shared properties of one canonical entity ID returned by discovery, "
+            "a profile, or a relationship. Works for all entity kinds, including catalog courses. "
+            "Supply requested property keys or null for all. Read entity_facts.properties and "
+            "cite supporting_evidence_ids. Sources are original evidence, not competing lookup "
+            "paths. Known is published, not necessarily current: preserve each source's "
+            "freshness and dates. Conflicting values cannot be silently selected; unknown "
+            "does not mean false. Use lookup_profile for date-specific menus, hours, and "
+            "relationship traversal. It uses this same property resolution.",
+            EntityQuery.model_json_schema(),
+        ),
+        function_tool(
             "calculate",
             "Compute arithmetic or ascending sort over explicit user numbers or exact retrieved "
             "calories/credits; count supplied record IDs; compare two verified times or calculate "
@@ -52,7 +64,13 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         function_tool(
             "lookup_profile",
-            "Resolve a named campus entity through curated identity links and retrieve its "
+            "Resolve a named campus entity through curated identity links. Read its shared "
+            "entity_facts.properties for attributes: each value lists supporting_evidence_ids; "
+            "matching source values are one fact, while conflicting values remain explicit. "
+            "records are citation evidence, not alternate authoritative property paths. "
+            "Do not choose a value from a raw source row when the property is conflicting. "
+            "Unknown is not false, and evidence_count counts records, not independent sources. "
+            "Retrieve its "
             "selected contact, faculty, undated profile courses, program, conveners, dated "
             "campus/dining hours, menu, club, event, related, requirements, building, school "
             "and subject sections. Prefer it for named "
@@ -118,13 +136,17 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         function_tool(
             "lookup_contact",
-            "First choice for how to contact a named office/person, contact details, or "
-            "specific phone, email, office, department or other directory fields. "
-            "Look up the exact published name or alias. "
+            "Contact convenience interface to the SAME canonical entity facts as lookup_profile. "
+            "First choice for how to contact a named entity or specific phone, email, office, "
+            "department or other contact fields. Resolve its exact published name or alias; "
+            "read entity_facts.properties and cite their supporting_evidence_ids. "
+            "phones/offices are the shared properties for phone/office requests. "
+            "Two agreeing records support one value; conflicting properties require reporting "
+            "the disagreement, never choosing a convenient raw row. "
             "Include every requested field; for 'contact details' or 'how to contact', "
             "request phone, email, office and department. Hours/fax/website can be uncovered; "
             "never infer them. Empty records do not prove an office does not exist. "
-            "The server may render a complete, validated contact answer directly. "
+            "Ambiguous identities require clarification; unknown fields remain unknown. "
             "For unnamed entities, discover their published names with search_campus first.",
             ContactCall.model_json_schema(),
         ),
@@ -133,6 +155,10 @@ def tool_definitions() -> list[dict[str, Any]]:
             "Search published official campus evidence. Collections: "
             + ", ".join(COLLECTIONS)
             + ". Use short distinctive terms; an empty query browses a collection. "
+            "Source collection searches discover records. When canonical_entity_id or "
+            "entity_navigation identifies an entity, use lookup_entity for its attributes "
+            "so all linked sources contribute to the same properties. A related_to_entity_id "
+            "on menu/hours names their owner, not the identity of the dated record. "
             "Dates are campus-local ISO dates. Always supply date_from for menu, "
             "campus_hours, dining_hours, shuttle and events, using the requested date "
             "or the supplied current campus date. Do not put schedule dates only in keywords. "

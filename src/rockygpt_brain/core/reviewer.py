@@ -123,12 +123,15 @@ def review_answer(
                                 "evidence_ids",
                                 "resolution",
                                 "components",
+                                "entity_facts",
                             )
-                            if key not in {"resolution", "components"} or key in lookup
+                            if key not in {"resolution", "components", "entity_facts"}
+                            or key in lookup
                         }
                         for lookup in (retrievals or [])
                         if lookup.get("tool") in {
-                            "search_campus", "read_campus", "lookup_contact", "lookup_profile"
+                            "search_campus", "read_campus", "lookup_contact", "lookup_profile",
+                            "lookup_entity",
                         }
                     ],
                     aliases,
