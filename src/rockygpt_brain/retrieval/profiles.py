@@ -85,6 +85,11 @@ def _normalize(value: str) -> str:
     return " ".join(value.split()).casefold()
 
 
+def lookup_terms(entity: Identity) -> set[str]:
+    """What a lookup by name compares: the normalized name and every normalized alias."""
+    return {_normalize(value) for value in [entity.name, *entity.aliases]}
+
+
 class ProfileQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
     entity: str | None = Field(default=None, min_length=1, max_length=240)
@@ -485,13 +490,16 @@ def _room_prefixes(value: Any) -> set[str]:
     return {room.group(1) for room in rooms if room} if all(rooms) else set()
 
 
+def narrows_by_date(matches: list[Identity]) -> bool:
+    """Whether a requested date can pick among these matches: several events, no others."""
+    return 1 < len(matches) <= 20 and all(entity.kind == "event" for entity in matches)
+
+
 def _event_date_candidates(
     data: CampusData, matches: list[Identity], query: ProfileQuery,
 ) -> list[Identity]:
     """A requested date can distinguish instances with the same published title."""
-    if query.date is None or not 1 < len(matches) <= 20 or any(
-        entity.kind != "event" for entity in matches
-    ):
+    if query.date is None or not narrows_by_date(matches):
         return matches
     selected = []
     for entity in matches:
@@ -920,7 +928,7 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
         if (query.entity_id is not None and entity.id == query.entity_id)
         or (
             normalized is not None
-            and normalized in {_normalize(value) for value in [entity.name, *entity.aliases]}
+            and normalized in lookup_terms(entity)
         )
     ]
     matches = _event_date_candidates(data, matches, query)

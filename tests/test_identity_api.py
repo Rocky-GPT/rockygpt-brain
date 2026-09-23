@@ -36,6 +36,7 @@ def inspection_data() -> Any:
 @pytest.mark.parametrize("environment", [None, "production", "staging", "Development"])
 @pytest.mark.parametrize("path", [
     "/v1/dev/identities", "/v1/dev/identities/not-a-uuid?menu_limit=1000",
+    "/v1/dev/identities/aliases",
 ])
 def test_identity_inspection_is_hidden_outside_development(
     monkeypatch: pytest.MonkeyPatch, environment: str | None, path: str,
@@ -93,6 +94,90 @@ def test_coverage_for_a_different_identity_count_is_not_displayed() -> None:
         response = TestClient(app).get("/v1/dev/identities")
     assert response.status_code == 200
     assert response.json()["coverage"] is None
+
+
+def alias_data() -> Any:
+    def entity(number: int, kind: str, name: str, aliases: list[str]) -> dict[str, Any]:
+        collection = "events" if kind == "event" else "contacts"
+        return {"id": f"00000000-0000-4000-8000-{number:012d}", "kind": kind, "name": name,
+                "aliases": aliases, "links": [{"collection": collection, "source_key": "directory",
+                                               "source_record_keys": [f"record:{number}"]}]}
+    entities = [
+        entity(1, "venue", "Birch Tree Inn", ["Birch"]),
+        entity(2, "building", "Birch Mansion", []),
+        entity(3, "office", "Public Safety (Emergency)", ["Public Safety"]),
+        entity(4, "office", "Public Safety (Non-Emergency)", ["Public Safety"]),
+        entity(5, "event", "Yoga (2026-09-21)", ["Yoga"]),
+        entity(6, "event", "Yoga (2026-09-28)", ["Yoga"]),
+        entity(7, "person", "Yolanda del\u00a0Amo", ["Yolanda del Amo"]),
+    ]
+    department = {"basis": "department", "evidence": {
+        "collection": "contacts", "source_key": "directory", "source_record_key": "record:3",
+        "field": "department"}}
+    reviewed = {"basis": "human_reviewed", "reviewed_at": "2026-09-23",
+                "note": "Approved: campus language uses it."}
+    data = inspection_data()
+    data._artifacts["campus-identities"] = {"schema_version": 1, "entities": entities}
+    data._artifacts["campus-identity-coverage"].update(identity_count=7, alias_sources=[
+        {"entity_id": entities[0]["id"], "entity": "Birch Tree Inn", "kind": "venue",
+         "alias": "Birch", "sources": [reviewed]},
+        {"entity_id": entities[2]["id"], "alias": "Public Safety", "sources": [department]},
+        {"entity_id": entities[3]["id"], "alias": "Public Safety", "sources": [department]},
+        {"entity_id": entities[4]["id"], "alias": "Yoga", "sources": [{"basis": "event_title"}]},
+        {"entity_id": entities[5]["id"], "alias": "Yoga", "sources": [{"basis": "event_title"}]},
+        {"entity_id": entities[6]["id"], "alias": "Yolanda del Amo",
+         "sources": [{"basis": "record_name"}]},
+    ])
+    return data
+
+
+def test_alias_table_shows_what_a_lookup_finds_and_why_each_alias_exists() -> None:
+    data = alias_data()
+    with patch("rockygpt_brain.api.identities.CampusData", return_value=data):
+        response = TestClient(app).get("/v1/dev/identities/aliases")
+    assert response.status_code == 200
+    output = response.json()
+    assert output["sources_published"] is True
+    assert output["alias_count"] == 6
+    rows = {row["alias"]: row for row in output["aliases"]}
+    assert list(rows) == ["Birch", "Public Safety", "Yoga", "Yolanda del Amo"]
+    # A human-reviewed alias finds its one identity; Birch Mansion keeps its own name.
+    assert rows["Birch"]["lookup"] == "single"
+    assert rows["Birch"]["matches"] == [{
+        "id": "00000000-0000-4000-8000-000000000001", "name": "Birch Tree Inn", "kind": "venue",
+        "by_name": False, "aliases": [{"alias": "Birch", "sources": [{
+            "basis": "human_reviewed", "reviewed_at": "2026-09-23",
+            "note": "Approved: campus language uses it."}]}],
+    }]
+    assert rows["Public Safety"]["lookup"] == "ambiguous"
+    assert [m["name"] for m in rows["Public Safety"]["matches"]] == [
+        "Public Safety (Emergency)", "Public Safety (Non-Emergency)"]
+    # Several dates of one title: a question's date picks among them.
+    assert rows["Yoga"]["lookup"] == "event_dates"
+    # Spacing aside, this alias is the person's own name.
+    assert rows["Yolanda del Amo"]["matches"][0]["by_name"] is True
+
+
+@pytest.mark.parametrize("change", ["missing", "other_alias", "invalid_basis", "other_count"])
+def test_alias_sources_for_another_registry_are_not_shown(change: str) -> None:
+    data = alias_data()
+    coverage = data._artifacts["campus-identity-coverage"]
+    if change == "missing":
+        del coverage["alias_sources"]
+    elif change == "other_alias":
+        coverage["alias_sources"][0]["alias"] = "Birch Mansion"
+    elif change == "invalid_basis":
+        coverage["alias_sources"][0]["sources"][0]["basis"] = "name_similarity"
+    else:
+        coverage["identity_count"] = 8
+    with patch("rockygpt_brain.api.identities.CampusData", return_value=data):
+        response = TestClient(app).get("/v1/dev/identities/aliases")
+    assert response.status_code == 200
+    output = response.json()
+    assert output["sources_published"] is False
+    assert len(output["aliases"]) == 4
+    assert all(alias["sources"] == [] for row in output["aliases"]
+               for match in row["matches"] for alias in match["aliases"])
 
 
 def test_graph_relationship_targets_retrieve_original_convener_evidence() -> None:
