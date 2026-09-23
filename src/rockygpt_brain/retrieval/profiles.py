@@ -195,6 +195,14 @@ class IdentityRelationship(BaseModel):
         return self
 
 
+class IdentityStatus(BaseModel):
+    """A status the identity's own records publish, with the fields that publish it."""
+
+    model_config = ConfigDict(extra="forbid")
+    state: Literal["retired"]
+    evidence: list[RelationshipEvidence] = Field(min_length=1, max_length=32)
+
+
 class Identity(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: UUID
@@ -206,6 +214,7 @@ class Identity(BaseModel):
     aliases: list[IdentityText] = Field(max_length=32)
     links: list[IdentityLink] = Field(min_length=1, max_length=32)
     relationships: list[IdentityRelationship] = Field(default_factory=list, max_length=1000)
+    status: IdentityStatus | None = None
 
     @field_validator("id", mode="before")
     @classmethod
@@ -252,7 +261,11 @@ class IdentityRegistry(BaseModel):
 
 
 def _identity_summary(entity: Identity) -> dict[str, str]:
-    return {"id": str(entity.id), "name": entity.name, "kind": entity.kind}
+    summary = {"id": str(entity.id), "name": entity.name, "kind": entity.kind}
+    if entity.status is not None:
+        # Wherever the entity is named, e.g. as a program's convener, it is shown as retired.
+        summary["status"] = entity.status.state
+    return summary
 
 
 def _comparison_key(field: str, value: Any) -> str:

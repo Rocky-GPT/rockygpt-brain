@@ -108,6 +108,9 @@ def tool_definitions() -> list[dict[str, Any]]:
             "selection the full menu. Answer the requested meal's hours without enumerating "
             "other meal periods unless requested. "
             "Ambiguity needs clarification; no match means no curated identity, not nonexistence. "
+            "A name or alias several entities share (e.g. a program family such as 'Computer "
+            "Science', or 'Public Safety') returns them all as candidates; ask or answer for each. "
+            "An entity with status 'retired' is published as retired; never present it as current. "
             "Each record retains its own source and freshness. Conflicts and unavailable "
             "components do not invalidate independent fields. Operating hours never establish "
             "staff or telephone availability. Generated profile answers require evidence review.",

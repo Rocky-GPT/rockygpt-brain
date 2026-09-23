@@ -50,7 +50,9 @@ class KnowledgeGraph:
 
     def index(self) -> dict[str, Any]:
         nodes = [{"id": str(entity.id), "kind": entity.kind, "name": entity.name,
-                  "aliases": entity.aliases} for entity in self.registry.entities]
+                  "aliases": entity.aliases,
+                  **({"status": entity.status.state} if entity.status else {})}
+                 for entity in self.registry.entities]
         diagnostics = list(self.reader.diagnostics)
         for (source, key), records in self.course_groups.items():
             if len(records) != 1:
