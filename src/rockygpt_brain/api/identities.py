@@ -3,19 +3,30 @@
 from __future__ import annotations
 
 import os
+from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import date as CalendarDate
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from rockygpt_brain.retrieval.data import CampusData
 from rockygpt_brain.retrieval.models import CAMPUS_ZONE
-from rockygpt_brain.retrieval.profiles import SECTION_COLLECTIONS, IdentityRegistry, ProfileQuery
+from rockygpt_brain.retrieval.profiles import (
+    SECTION_COLLECTIONS,
+    Identity,
+    IdentityRegistry,
+    ProfileQuery,
+    RelationshipEvidence,
+    _identity_summary,
+    _normalize,
+    lookup_terms,
+    narrows_by_date,
+)
 
 
 def _require_development() -> None:
@@ -41,6 +52,26 @@ class IdentityCoverage(BaseModel):
     linked_records: dict[str, int]
     relationships: dict[str, int]
     unresolved: list[CoverageIssue]
+
+
+class AliasSource(BaseModel):
+    """Why the data compiler put an alias on an identity (`alias_sources` in the report)."""
+    model_config = ConfigDict(extra="forbid")
+    basis: Literal[
+        "identity_map", "record_name", "school_abbreviation", "school_former_name",
+        "event_title", "department", "abbreviation", "program_family", "human_reviewed",
+    ]
+    evidence: RelationshipEvidence | None = None
+    source_url: str | None = None
+    reviewed_at: str | None = None
+    note: str | None = None
+
+
+class AliasRecord(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    entity_id: UUID
+    alias: str
+    sources: list[AliasSource] = Field(min_length=1)
 
 
 @contextmanager
@@ -92,6 +123,60 @@ def identity_index() -> dict[str, Any]:
                            for entity in registry.entities],
             "coverage": coverage,
         }
+
+
+def _alias_sources(
+    payload: Any, registry: IdentityRegistry,
+) -> dict[tuple[UUID, str], list[dict[str, Any]]] | None:
+    """The report's alias sources, only when every one names an alias in this registry."""
+    if not isinstance(payload, dict) or not isinstance(payload.get("alias_sources"), list):
+        return None
+    if payload.get("identity_count") != len(registry.entities):
+        return None
+    aliases = {(entity.id, alias) for entity in registry.entities for alias in entity.aliases}
+    try:
+        records = [AliasRecord.model_validate(item) for item in payload["alias_sources"]]
+    except ValidationError:
+        return None
+    if any((record.entity_id, record.alias) not in aliases for record in records):
+        return None  # Provenance for a different registry must not be shown as this one's.
+    return {(record.entity_id, record.alias): [
+        source.model_dump(mode="json", exclude_none=True) for source in record.sources
+    ] for record in records}
+
+
+@router.get("/aliases")
+def identity_aliases() -> dict[str, Any]:
+    """Every alias: what a lookup by it finds, and why each identity carries it."""
+    with _campus_data() as data:
+        registry, snapshot = _snapshot(data)
+        sources = _alias_sources(data._artifact("campus-identity-coverage"), registry)
+        matching: dict[str, list[Identity]] = defaultdict(list)
+        for entity in registry.entities:
+            for term in lookup_terms(entity):
+                matching[term].append(entity)
+        spelled: dict[str, str] = {}
+        for entity in registry.entities:
+            for alias in entity.aliases:
+                spelled.setdefault(_normalize(alias), alias)
+        rows = []
+        for term, alias in sorted(spelled.items(), key=lambda item: (item[0], item[1])):
+            matches = matching[term]
+            rows.append({
+                "alias": alias,
+                "lookup": ("single" if len(matches) == 1
+                           else "event_dates" if narrows_by_date(matches) else "ambiguous"),
+                "matches": [{
+                    **_identity_summary(entity),
+                    "by_name": _normalize(entity.name) == term,
+                    "aliases": [{"alias": value,
+                                 "sources": (sources or {}).get((entity.id, value), [])}
+                                for value in entity.aliases if _normalize(value) == term],
+                } for entity in matches],
+            })
+        return {**snapshot, "sources_published": sources is not None,
+                "alias_count": sum(len(entity.aliases) for entity in registry.entities),
+                "aliases": rows}
 
 
 @router.get("/{entity_id}")
