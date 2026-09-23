@@ -12,6 +12,12 @@ from urllib.parse import quote
 from psycopg import sql
 
 from rockygpt_brain.retrieval.helpers import _date, _dining_schedules, _json, _tokens
+from rockygpt_brain.retrieval.menu_artifacts import (
+    MENU_NUTRIENT_LIMITATION,
+    menu_artifact_index,
+    menu_occurrence,
+    supplement_menu,
+)
 from rockygpt_brain.retrieval.models import TABLES, SearchQuery
 from rockygpt_brain.retrieval.normalization import normalize_record
 
@@ -395,7 +401,17 @@ def enrich_records(
             ),
             "",
         )
+        menu_index = (menu_artifact_index(get_artifact("menu-week"))
+                      if any(menu_occurrence(record) for record in records) else {})
         for record in records:
+            supplemental = supplement_menu(record, menu_index)
+            record["fields"].update(supplemental)
+            if ("nutrients" in supplemental
+                    and MENU_NUTRIENT_LIMITATION not in record["limitations"]):
+                record["limitations"].append(MENU_NUTRIENT_LIMITATION)
+            record["coverage"]["fields"].update({
+                key: "not_published" if value in (None, "", {}) else "published"
+                for key, value in supplemental.items()})
             identity = venues.get((record.get("source_key"), record.get("source_record_key")))
             if identity:
                 record["venue_entity_id"] = str(identity.id)

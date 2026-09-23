@@ -11,6 +11,12 @@ from fastapi import HTTPException
 from psycopg import sql
 
 from rockygpt_brain.retrieval.data import CampusData
+from rockygpt_brain.retrieval.menu_artifacts import (
+    MenuIndex,
+    menu_artifact_index,
+    menu_occurrence,
+    supplement_menu,
+)
 from rockygpt_brain.retrieval.models import COLLECTIONS, TABLES
 from rockygpt_brain.retrieval.profiles import IdentityRegistry
 
@@ -70,6 +76,7 @@ class GraphData:
         self.entity = None
         self.diagnostics: list[dict[str, Any]] = []
         self._artifact_cache: dict[str, list[dict[str, Any]]] = {}
+        self._menu_cache: MenuIndex | None = None
         self._archway_cache: dict[str, dict[str, tuple[int, dict[str, Any]]]] = {}
         if entity_id is not None:
             if registry is None:
@@ -269,6 +276,12 @@ class GraphData:
                 fields.update(supplemental)
                 result.update(artifact_key=collection, artifact_path=[str(index)],
                               supplemental_fields=supplemental)
+        if collection == "menu" and menu_occurrence(result):
+            if self._menu_cache is None:
+                self._menu_cache = menu_artifact_index(self.data._artifact("menu-week"))
+            supplemental = supplement_menu(result, self._menu_cache)
+            fields.update(supplemental)
+            result["supplemental_fields"] = supplemental
         if collection == "shuttle":
             result["route"] = row.get("route")
         if collection == "documents":
