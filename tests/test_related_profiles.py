@@ -85,3 +85,54 @@ def test_profile_course_returns_the_catalog_record_as_an_undated_listing() -> No
     course = next(r for r in output["records"] if r["id"] in item["target_evidence_ids"])
     assert course["collection"] == "courses"
     assert any("not a current teaching assignment" in text for text in course["limitations"])
+
+
+LISTING = 'programs:program:program_faculty'
+
+
+def listed(data: Any) -> Any:
+    """The program's catalog Program Faculty field lists the person."""
+    program = data._artifacts['campus-identities']['entities'][1]
+    program['relationships'].append({
+        'type': 'listed_faculty', 'target_entity_id': PERSON,
+        'evidence': [{'collection': 'programs', 'source_key': 'academic-programs',
+                      'source_record_key': 'School:Computer Science',
+                      'field': 'customFields.xiQxl', 'source_url': 'https://example.edu/computing'}],
+    })
+    data._artifacts['catalog-conveners']['programs'][0]['customFields']['xiQxl'] = (
+        '<p><a href="https://example.edu/faculty/ada">Ada Example</a></p>')
+    return data
+
+
+def test_program_faculty_listing_is_followed_both_ways_but_is_not_program_content() -> None:
+    data = listed(program_data())
+    outgoing = related(data, PROGRAM, relationship='listed_faculty')
+    component = outgoing['components']['related']
+    assert [(r['type'], r['direction'], r['entity']['id']) for r in component['relationships']] == [
+        ('listed_faculty', 'outgoing', PERSON),
+    ]
+    assert component['relationships'][0]['evidence_ids'] == [LISTING]
+    evidence = next(r for r in outgoing['records'] if r['id'] == LISTING)
+    assert set(evidence['fields']['customFields']) == {'xiQxl'}
+    assert '_relationship_evidence_only' not in evidence
+    assert any('not a convenership' in text for text in evidence['limitations'])
+    incoming = related(data, PERSON, relationship='listed_faculty', direction='incoming')
+    assert [(r['direction'], r['entity']['id'])
+            for r in incoming['components']['related']['relationships']] == [('incoming', PROGRAM)]
+    for section in ('program', 'conveners'):
+        output = data.lookup_profile(ProfileQuery(entity_id=UUID(PROGRAM), include=[section]))
+        assert LISTING not in output['components'][section]['evidence_ids']
+        assert [r['type'] for r in output['components'][section]['relationships']] == ['convener']
+
+
+def test_a_listing_is_rechecked_and_must_cite_the_program_faculty_field() -> None:
+    data = listed(program_data())
+    del data._artifacts['catalog-conveners']['programs'][0]['customFields']['xiQxl']
+    component = related(data, PROGRAM, relationship='listed_faculty')['components']['related']
+    assert (component['relationships'], component['unverified_relationships']) == ([], 1)
+    data = listed(program_data())
+    evidence = data._artifacts['campus-identities']['entities'][1]['relationships'][-1]['evidence']
+    evidence[0]['field'] = 'customFields.rJQmj'
+    output = related(data, PROGRAM)
+    assert (output['status'], output['reason']) == ('unavailable', 'invalid_identity_registry')
+

@@ -162,6 +162,8 @@ def export_graph(data: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
             "provenance": "Artifact paths and hashes locate published graph assertions. Evidence "
                           "references are exact published selectors, not new factual verification.",
             "profile_course": "Undated profile course list, not a current teaching assignment.",
+            "listed_faculty": "Catalog Program Faculty field listing; not a convenership, "
+                              "appointment or current teaching assignment.",
             "coverage": "Published report and resolution diagnostics, not a new source audit. "
                         "Issue counts are not counts of unique missing entities.",
             "time": "exported_at is generation time, not source capture time. No date filtering.",
