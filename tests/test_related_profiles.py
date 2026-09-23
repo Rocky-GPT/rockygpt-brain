@@ -136,3 +136,19 @@ def test_a_listing_is_rechecked_and_must_cite_the_program_faculty_field() -> Non
     output = related(data, PROGRAM)
     assert (output['status'], output['reason']) == ('unavailable', 'invalid_identity_registry')
 
+
+def test_a_retired_person_is_shown_as_retired_wherever_they_are_named() -> None:
+    data = program_data()
+    person = data._artifacts['campus-identities']['entities'][0]
+    person['status'] = {'state': 'retired', 'evidence': [
+        {'collection': 'contacts', 'source_key': 'directory', 'source_record_key': 'person:ada',
+         'field': 'status'}]}
+    convener = related(data, PROGRAM)['components']['related']['relationships'][0]
+    assert convener['entity'] == {'id': PERSON, 'name': 'Ada Example', 'kind': 'person',
+                                  'status': 'retired'}
+    resolved = data.lookup_profile(ProfileQuery(entity='Ada Example', include=['contact']))
+    assert resolved['resolution']['entity']['status'] == 'retired'
+    person['status']['state'] = 'emeritus'
+    output = related(data, PROGRAM)
+    assert (output['status'], output['reason']) == ('unavailable', 'invalid_identity_registry')
+
