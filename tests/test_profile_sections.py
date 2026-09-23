@@ -174,15 +174,15 @@ def test_artifact_array_reorder_and_source_rename_keep_identity_and_original_evi
     assert after['records'][0]['source_record_key'] == FACULTY_KEY
 
 
-def program_data() -> Any:
+def program_data(record_key: str = 'School:Computer Science') -> Any:
     data = person_data()
     program = {
         'id': PROGRAM, 'kind': 'program', 'name': 'Computer Science', 'aliases': [],
-        'links': [link('programs', 'academic-programs', 'School:Computer Science')],
+        'links': [link('programs', 'academic-programs', record_key)],
         'relationships': [{
             'type': 'convener', 'target_entity_id': PERSON,
             'evidence': [{'collection': 'programs', 'source_key': 'academic-programs',
-                          'source_record_key': 'School:Computer Science',
+                          'source_record_key': record_key,
                           'field': 'customFields.rJQmj',
                           'source_url': 'https://example.edu/computing'}],
         }],
@@ -204,7 +204,7 @@ def program_data() -> Any:
     contact = data._fetch.return_value[0]
     program_row = {
         'id': 'program', 'name': 'Computer Science', 'source_id': 'academic-programs',
-        'source_record_key': 'School:Computer Science', 'total': 1, 'collected_at': NOW,
+        'source_record_key': record_key, 'total': 1, 'collected_at': NOW,
         'valid_from': None, 'valid_until': None,
     }
     data._fetch = Mock(side_effect=lambda _sql, p:
@@ -240,8 +240,11 @@ def test_program_convener_then_person_email_uses_normal_tool_calling_and_review(
     assert review_payload['retrieval_coverage'][0]['components']['conveners']['relationships']
 
 
-def test_raw_catalog_convener_preserves_its_timestamp_and_omits_inferred_legacy_field() -> None:
-    data = program_data()
+@pytest.mark.parametrize('record_key', ['School:Computer Science', 'catalog:TS-BS-COMP'])
+def test_raw_catalog_convener_preserves_its_timestamp_and_omits_inferred_legacy_field(
+    record_key: str,
+) -> None:
+    data = program_data(record_key)
     school = data._artifacts['programs']['schools'][0]
     school['school'] = 'School'
     school['majors'][0].update(catalogCode='TS-BS-COMP', convener={'name': 'Wrong fallback'})
@@ -264,6 +267,39 @@ def test_raw_catalog_convener_preserves_its_timestamp_and_omits_inferred_legacy_
     assert output['components']['conveners']['relationships'][0]['evidence_ids'] == [
         'programs:program:convener',
     ]
+
+
+@pytest.mark.parametrize('record_key,expected', [
+    ('catalog:TS-BS-COMP', 'available'), ('School:Computer Science', 'missing'),
+])
+def test_catalog_code_disambiguates_same_name_programs_without_guessing_legacy_keys(
+    record_key: str, expected: str,
+) -> None:
+    data = program_data(record_key)
+    data._artifacts['programs']['schools'][0]['majors'].append({
+        'name': 'Computer Science', 'catalogCode': 'TS-MS-COMP',
+    })
+    data._artifacts['catalog-conveners']['programs'].append({
+        'catalogCode': 'TS-MS-COMP', 'customFields': {'rJQmj': '<p>Another Person</p>'},
+    })
+    output = data.lookup_profile(ProfileQuery(entity='Computer Science', include=['conveners']))
+    assert output['components']['conveners']['status'] == expected
+    fields = [record['fields']['customFields'] for record in output['records']
+              if 'customFields' in record['fields']]
+    assert fields == ([{'rJQmj': '<p>Ada Example</p>'}] if expected == 'available' else [])
+
+
+@pytest.mark.parametrize('ambiguous_artifact', ['programs', 'catalog-conveners'])
+def test_duplicate_catalog_codes_never_select_the_first_program(ambiguous_artifact: str) -> None:
+    data = program_data('catalog:TS-BS-COMP')
+    if ambiguous_artifact == 'programs':
+        programs = data._artifacts['programs']['schools'][0]['majors']
+    else:
+        programs = data._artifacts['catalog-conveners']['programs']
+    programs.append(dict(programs[0]))
+    output = data.lookup_profile(ProfileQuery(entity='Computer Science', include=['conveners']))
+    assert output['components']['conveners']['status'] == 'missing'
+    assert all('customFields' not in record['fields'] for record in output['records'])
 
 
 @pytest.mark.parametrize('broken', ['target', 'evidence', 'field'])

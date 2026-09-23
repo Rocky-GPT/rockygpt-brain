@@ -9,6 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from rockygpt_brain.retrieval.data import CampusData, ReadQuery, SearchQuery
+from rockygpt_brain.retrieval.processing import build_collection_query
 
 NOW = datetime(2026, 9, 4, 23, tzinfo=UTC)
 
@@ -725,3 +726,37 @@ def test_campus_hours_preserve_schedule_conditions_and_facility_citation(data: C
         records = data._load('campus_hours')
     assert records[0]['fields']['notes'] == row['notes']
     assert records[0]['url'] == row['source_url']
+    assert 'source_url' not in records[0]['fields']
+
+
+@pytest.mark.parametrize("query", [
+    None,
+    SearchQuery(collection="campus_hours", date_from=date(2026, 9, 26)),
+])
+def test_campus_hours_queries_fetch_citations_without_requiring_new_columns(
+    query: SearchQuery | None,
+) -> None:
+    statement, params = build_collection_query("campus_hours", query, "dataset-one")
+    rendered = statement.as_string()
+    # Both graph-wide and dated search reads must actually retrieve citation
+    # metadata; providing it only in a mocked DB row concealed its omission.
+    assert "to_jsonb(t)->>'source_url' AS source_url" in rendered
+    assert "to_jsonb(t)->'notes' AS \"notes\"" in rendered
+    assert '"t"."notes"' not in rendered
+    assert '"t"."source_url"' not in rendered
+    assert 'FROM rockygpt_v2."campus_hours"' in rendered
+    assert 't.dataset_version_id=%s::uuid' in rendered
+    assert params == (("dataset-one", date(2026, 9, 26), date(2026, 9, 26))
+                      if query else ("dataset-one",))
+
+
+def test_campus_hours_legacy_rows_keep_the_published_source(data: CampusData) -> None:
+    row = {
+        "id": "pool-saturday", "source_id": "source", "name": "Swimming Pool",
+        "day": "Saturday", "schedule": "12:30pm-4:00pm", "collected_at": NOW,
+        "notes": None, "source_url": None,
+    }
+    with patch.object(data, "_fetch", return_value=[row]):
+        records = data._load("campus_hours")
+    assert "notes" not in records[0]["fields"]
+    assert records[0]["url"] == data.sources["source"]["canonical_url"]
