@@ -69,7 +69,7 @@ def test_export_preserves_entire_graph_bindings_original_reports_and_evidence(da
         result = export_graph(data, _snapshot(data, None))
     assert result['counts']['nodes'] == 138
     assert result['counts']['nodes_by_kind'] == {'office': 1, 'course': 137}
-    assert [{k: node[k] for k in ('id', 'kind', 'name', 'aliases')}
+    assert [{k: node[k] for k in ('id', 'kind', 'name', 'aliases', 'status') if k in node}
             for node in result['nodes']] == expected['nodes']
     assert [{k: edge[k] for k in ('source', 'target', 'type', 'evidence')}
             for edge in result['edges']] == expected['edges']
@@ -270,7 +270,7 @@ def test_live_export_equals_published_canonical_graph(monkeypatch: pytest.Monkey
     response = TestClient(app).get('/v1/dev/graph/export')
     assert response.status_code == 200, response.text[:500]
     result = response.json()
-    assert [{k: node[k] for k in ('id', 'kind', 'name', 'aliases')}
+    assert [{k: node[k] for k in ('id', 'kind', 'name', 'aliases', 'status') if k in node}
             for node in result['nodes']] == expected['nodes']
     assert [{k: edge[k] for k in ('source', 'target', 'type', 'evidence')}
             for edge in result['edges']] == expected['edges']
