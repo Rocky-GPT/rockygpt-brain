@@ -45,7 +45,7 @@ RecordKey = Annotated[
 
 ProfileSection = Literal[
     "contact", "hours", "faculty", "courses", "program", "conveners", "menu", "club", "event",
-    "related",
+    "related", "requirements",
 ]
 RelationshipType = Literal["convener", "profile_course", "organized_by"]
 # Archway directory groups: student clubs and other campus organizations.
@@ -65,6 +65,7 @@ SECTION_COLLECTIONS: dict[str, tuple[str, ...]] = {
     "club": ("clubs",),
     "event": ("events",),
     "related": (),  # Published relationships, not linked source records.
+    "requirements": (),  # Published requirement groups, not linked source records.
 }
 
 
@@ -76,7 +77,7 @@ class ProfileQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
     entity: str | None = Field(default=None, min_length=1, max_length=240)
     entity_id: UUID | None = None
-    include: list[ProfileSection] = Field(min_length=1, max_length=10)
+    include: list[ProfileSection] = Field(min_length=1, max_length=11)
     date: CalendarDate | None = Field(
         default=None, description=(
             "Campus-local service date; null means today for hours/menu. An event is a dated "
@@ -663,6 +664,129 @@ def _related_records(
     }
 
 
+REQUIREMENT_LIMITATION = (
+    "Catalog requirement structure: a course in a choose-N or either/or group is an option, "
+    "not a required course on its own."
+)
+UNINTERPRETED_LIMITATION = (
+    "Some conditions are shown as published without interpretation; read condition, count "
+    "and credits together."
+)
+UNLINKED_LIMITATION = "Some cited codes are not catalog courses; they are shown as published."
+
+
+def _course_text(course: dict[str, Any]) -> str:
+    return " ".join(str(part) for part in (course.get("code"), course.get("name")) if part)
+
+
+def _render_rule(rule: dict[str, Any]) -> dict[str, Any]:
+    """Compact, faithful view: published condition/count/credits, derived choice, options."""
+    rendered = {key: rule[key] for key in ("condition", "count", "credits", "choose")
+                if rule.get(key) is not None}
+    if rule.get("items"):
+        rendered["options"] = [
+            f" {item.get('logic') or 'and'} ".join(
+                _course_text(course) for course in item.get("courses", []))
+            for item in rule["items"]
+        ]
+    if rule.get("sub_rules"):
+        rendered["parts"] = [_render_rule(sub) for sub in rule["sub_rules"]]
+    return rendered
+
+
+def _uninterpreted(rule: dict[str, Any]) -> bool:
+    return rule.get("choose") is None or any(
+        _uninterpreted(sub) for sub in rule.get("sub_rules", []))
+
+
+def _unlinked(rule: dict[str, Any] | None, listed: dict[str, Any] | None) -> bool:
+    def courses(node: dict[str, Any]) -> list[dict[str, Any]]:
+        own = [course for item in node.get("items", []) for course in item.get("courses", [])]
+        return own + [course for sub in node.get("sub_rules", []) for course in courses(sub)]
+    cited = (courses(rule) if rule else []) + (listed.get("courses", []) if listed else [])
+    return any(course.get("course_id") is None for course in cited)
+
+
+def _requirement_records(
+    data: CampusData, entity: Identity,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """A program's published requirement groups, in catalog section order."""
+    coverage: dict[str, Any] = {"requirement_groups": 0, "shared_requirement_groups": 0,
+                                "missing_requirement_groups": 0}
+    if entity.kind != "program":
+        return [], {**coverage, "reason": "requirements_apply_to_programs"}
+    artifact = data._artifact("program-requirement-groups")
+    if not isinstance(artifact, dict) or not isinstance(artifact.get("groups"), list) \
+            or not isinstance(artifact.get("edges"), list):
+        return [], {**coverage, "reason": "requirement_groups_not_published"}
+    source = next((item for item in data.sources.values()
+                   if item["source_key"] == "academic-programs"), None)
+    if source is None:
+        return [], {**coverage, "reason": "catalog_source_unavailable"}
+    groups = {group.get("id"): group for group in artifact["groups"] if isinstance(group, dict)}
+    links = sorted((edge for edge in artifact["edges"] if isinstance(edge, dict)
+                    and edge.get("type") == "requirement_group"
+                    and edge.get("source", {}).get("entity_id") == str(entity.id)),
+                   key=lambda edge: edge.get("order", 0))
+    programs = data._artifact("programs") or {}
+    records = []
+    for link in links:
+        group = groups.get(link.get("target", {}).get("record_id"))
+        if group is None:
+            coverage["missing_requirement_groups"] += 1
+            continue
+        rule, listed = group.get("rule"), group.get("course_list")
+        requirement = _render_rule(rule) if rule else {
+            key: value for key, value in {
+                "select_count": listed.get("select_count"), "choose": listed.get("choose"),
+                "options": [_course_text(course) for course in listed.get("courses", [])],
+            }.items() if value is not None
+        } if listed else {}
+        fields = {
+            "program": entity.name, "section": group.get("label"),
+            "section_order": link.get("order"), "shape": group.get("shape"),
+            **({"note": group["note"]} if group.get("note") else {}),
+            "requirement": requirement,
+            "shared_by_program_sections": group.get("program_sections"),
+            "requirement_group_id": group.get("id"),
+        }
+        record = data._evidence("program_requirements", {
+            # One record per program, even for a shared group, so program fields never merge.
+            "id": f"{group['id']}@{entity.id}", "source_id": source["id"],
+            "source_record_key": group["id"], "collected_at": source.get("completed_at"),
+        }, fields, f"{entity.name} — {group.get('label')}", _catalog_url(programs, link))
+        if record is None:
+            coverage["missing_requirement_groups"] += 1
+            continue
+        record["related_to_entity_id"] = str(entity.id)
+        record["relationship_to_entity"] = "requirement_group"
+        record["limitations"].append(REQUIREMENT_LIMITATION)
+        if rule and _uninterpreted(rule):
+            record["limitations"].append(UNINTERPRETED_LIMITATION)
+        if _unlinked(rule, listed):
+            record["limitations"].append(UNLINKED_LIMITATION)
+        records.append(record)
+    coverage["requirement_groups"] = len(records)
+    coverage["shared_requirement_groups"] = sum(
+        1 for record in records if (record["fields"].get("shared_by_program_sections") or 0) > 1)
+    return records, coverage
+
+
+def _catalog_url(programs: Any, link: dict[str, Any]) -> str | None:
+    """The program's catalog page, found by the link's exact path, never by name."""
+    path = link.get("path")
+    if not isinstance(path, list) or len(path) != 6 or path[0::2] != [
+            "schools", "majors", "requirements"] or not all(
+            type(index) is int and index >= 0 for index in path[1::2]):
+        return None
+    try:
+        major = programs["schools"][path[1]]["majors"][path[3]]
+    except (KeyError, IndexError, TypeError):
+        return None
+    url = major.get("catalogUrl") or major.get("url") if isinstance(major, dict) else None
+    return url if isinstance(url, str) else None
+
+
 def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
     """Identity links establish identity only, never authority or a missing attribute."""
     data._ensure_loaded()
@@ -764,6 +888,11 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             relationship_missing += related_coverage["unverified_relationships"]
             failed_links += related_coverage["failed_relationships"]
             truncated = truncated or bool(related_coverage["unexamined_relationship_candidates"])
+        requirement_coverage: dict[str, Any] = {}
+        if component == "requirements":
+            requirement_records, requirement_coverage = _requirement_records(data, entity)
+            records.extend(requirement_records)
+            relationship_missing += requirement_coverage["missing_requirement_groups"]
         if component == "event" and entity.kind in ARCHWAY_GROUPS:
             related, relationships, reverse_missing, reverse_failed, reverse_coverage = (
                 _group_event_records(data, entity, registry, query)
@@ -929,6 +1058,9 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             result["components"][component]["temporal_scope"] = "undated_profile_list"
         if component == "related":
             result["components"][component].update(relationships=relationships, **related_coverage)
+        if component == "requirements":
+            result["components"][component].update(
+                **requirement_coverage, limitations=[REQUIREMENT_LIMITATION])
         if component == "club":
             result["components"][component]["limitations"] = [
                 "A directory listing does not establish current meetings, membership, or events."

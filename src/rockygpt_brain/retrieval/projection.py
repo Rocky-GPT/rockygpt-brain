@@ -17,7 +17,7 @@ from fastapi import HTTPException
 from pydantic import Field, ValidationError
 
 from rockygpt_brain.retrieval.graph import GraphData
-from rockygpt_brain.retrieval.knowledge import KnowledgeGraph, course_id
+from rockygpt_brain.retrieval.knowledge import KnowledgeGraph
 from rockygpt_brain.retrieval.projection_models import (
     PROJECTION_VERSION,
     Assertion,
@@ -292,8 +292,9 @@ class Projection:
             relationship_index = next(i for i, r in enumerate(owner.relationships)
                 if i not in used and r.type == edge["type"] and (
                     str(r.target_entity_id) if r.target_entity_id else
-                    course_id(r.target_record.source_key, r.target_record.source_record_key)
-                    if r.target_record else None
+                    graph.course_identity(
+                        r.target_record.source_key, r.target_record.source_record_key
+                    ) if r.target_record else None
                 ) == edge["target"] and [ref.model_dump(mode="json", exclude_none=True)
                                          for ref in r.evidence] == edge["evidence"])
             used.add(relationship_index)

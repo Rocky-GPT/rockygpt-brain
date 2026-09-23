@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 
-from rockygpt_brain.retrieval.knowledge import KnowledgeGraph, course_id
+from rockygpt_brain.retrieval.knowledge import KnowledgeGraph
 
 
 def payload_hash(payload: Any) -> str:
@@ -25,6 +25,8 @@ def export_graph(data: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
     registry = data._artifact("campus-identities")
     courses = data._artifact("courses")
     coverage = data._artifact("campus-identity-coverage")
+    course_identities = data._artifact("catalog-course-identities")
+    requirement_groups = data._artifact("program-requirement-groups")
     if data.identity_readiness().get("status") != "available" or not isinstance(courses, dict):
         raise HTTPException(503, "Published graph inputs unavailable; no partial export produced")
     # Read source provenance within the same transaction as the artifacts, rather
@@ -37,7 +39,11 @@ def export_graph(data: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
         "WHERE s.trust_tier IN ('official_primary', 'official_secondary')", (data.dataset["id"],),
     )}
     hashes = {"campus-identities": payload_hash(registry), "courses": payload_hash(courses),
-              "campus-identity-coverage": payload_hash(coverage) if coverage is not None else None}
+              "campus-identity-coverage": payload_hash(coverage) if coverage is not None else None,
+              "catalog-course-identities": payload_hash(course_identities)
+              if course_identities is not None else None,
+              "program-requirement-groups": payload_hash(requirement_groups)
+              if requirement_groups is not None else None}
     graph = KnowledgeGraph(data)
     index = graph.index()
     # The canonical loader may suppress an unreadable catalog or missing source.
@@ -58,8 +64,11 @@ def export_graph(data: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
     nodes = deepcopy(index["nodes"])
     node_ids = {node["id"] for node in nodes}
     identities = {str(entity.id): (i, entity) for i, entity in enumerate(graph.registry.entities)}
-    course_records = {course_id(source, key): rows[0]
+    course_records = {graph.course_identity(source, key): rows[0]
                       for (source, key), rows in graph.course_groups.items() if len(rows) == 1}
+    published_courses = {course["id"]: index for index, course in enumerate(
+        course_identities["courses"]) if isinstance(course, dict)
+        and isinstance(course.get("id"), str)} if graph.published_courses is not None else {}
     for node in nodes:
         if node["id"] in identities:
             i, _ = identities[node["id"]]
@@ -71,13 +80,19 @@ def export_graph(data: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
         else:
             record = course_records[node["id"]]
             original_id = record["id"].removeprefix("courses:")
-            node["identity_origin"] = "source_scoped_catalog_course"
             node["source_bindings"] = [{"collection": "courses",
                 "source_key": record["source_key"],
                 "source_record_keys": [record["source_record_key"]],
                 "source_record_ids": [original_id]}]
-            node["provenance"] = {"artifact_key": "courses",
-                                  "payload_sha256": hashes["courses"], "path": [original_id]}
+            if node["id"] in published_courses:
+                node["identity_origin"] = "published_catalog_course"
+                node["provenance"] = {"artifact_key": "catalog-course-identities",
+                                      "payload_sha256": hashes["catalog-course-identities"],
+                                      "path": ["courses", published_courses[node["id"]]]}
+            else:
+                node["identity_origin"] = "source_scoped_catalog_course"
+                node["provenance"] = {"artifact_key": "courses",
+                                      "payload_sha256": hashes["courses"], "path": [original_id]}
 
     edges, declarations, unresolved = [], [], []
     for i, entity in enumerate(graph.registry.entities):
@@ -107,12 +122,15 @@ def export_graph(data: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
     # Keep the canonical index's diagnostics in full, and add fully addressable
     # declarations above instead of guessing targets for unresolved statements.
     diagnostics = deepcopy(index["diagnostics"])
+    records, record_edges = contextual_records(
+        requirement_groups, node_ids, hashes["program-requirement-groups"], diagnostics,
+    )
     if coverage is None:
         diagnostics.append({"reason": "identity_coverage_unavailable"})
     elif not isinstance(coverage, dict) or not isinstance(coverage.get("unresolved"), list):
         diagnostics.append({"reason": "identity_coverage_invalid", "raw_report_retained": True})
     exported = {
-        "schema": "rockygpt.published-campus-knowledge-graph", "schema_version": 1,
+        "schema": "rockygpt.published-campus-knowledge-graph", "schema_version": 2,
         "exported_at": data.now.isoformat(),
         "snapshot": {**snapshot, "dataset": metadata[0], "artifacts": manifests,
                      "graph_input_hashes": hashes},
@@ -122,7 +140,8 @@ def export_graph(data: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
             "all_canonical_nodes": True, "all_published_relationship_declarations": True,
             "all_resolved_directed_edges": True, "all_identity_source_bindings": True,
             "coverage_report": "included_in_full" if coverage is not None else "unavailable",
-            "contextual_records": "none_are_explicit_relationship_endpoints_in_this_graph_schema",
+            "contextual_records": "included_in_full" if requirement_groups is not None
+            else "not_published_in_this_release",
             "source_record_bodies": "not_embedded; published_evidence_references_retained_in_full",
         },
         "semantics": {
@@ -131,8 +150,15 @@ def export_graph(data: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
             "source_bindings": "Match collection and source_key, membership in source_record_keys, "
                                "and, when supplied, membership in source_record_ids. Arrays are "
                                "independent constraints; never zip or match by names.",
-            "course_ids": 'UUIDv5(NAMESPACE_URL, json.dumps(["rockygpt", "course", source, key])). '
-                          "Only unambiguous source-scoped catalog keys become canonical nodes.",
+            "course_ids": "Published by the data repository in catalog-course-identities; releases "
+                          'before it derive the same UUIDv5(NAMESPACE_URL, json.dumps(["rockygpt", '
+                          '"course", source, key])). Only unambiguous source-scoped catalog keys '
+                          "become canonical nodes.",
+            "contextual_records": "Requirement groups: one record per distinct published "
+                                  "requirement section, keeping its rule tree, counts and notes. "
+                                  "record_edges connect programs to groups (requirement_group) "
+                                  "and groups to catalog courses (requirement_option); an option "
+                                  "is never an unconditional requirement.",
             "provenance": "Artifact paths and hashes locate published graph assertions. Evidence "
                           "references are exact published selectors, not new factual verification.",
             "profile_course": "Undated profile course list, not a current teaching assignment.",
@@ -155,13 +181,62 @@ def export_graph(data: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
             "registry_entities": len(graph.registry.entities),
             "source_binding_groups": sum(len(node["source_bindings"]) for node in nodes),
             "unresolved_relationships": len(unresolved), "diagnostics": len(diagnostics),
+            "contextual_records": len(records),
+            "contextual_records_by_type": dict(sorted(Counter(
+                record["record_type"] for record in records).items())),
+            "record_edges": len(record_edges),
+            "record_edges_by_type": dict(sorted(Counter(
+                edge["type"] for edge in record_edges).items())),
             "published_coverage_issues": len(coverage["unresolved"])
                 if isinstance(coverage, dict) and isinstance(coverage.get("unresolved"), list)
                 else None,
         },
         "nodes": nodes, "edges": edges, "published_relationships": declarations,
+        "contextual_records": records, "record_edges": record_edges,
         "unresolved_relationships": unresolved, "diagnostics": diagnostics,
         "identity_registry": deepcopy(registry), "coverage": deepcopy(coverage),
         "source_catalog": deepcopy(sorted(data.sources.values(), key=lambda s: s["source_key"])),
     }
     return dict(jsonable_encoder(exported))
+
+
+EDGE_PROPERTIES = ("order", "path", "logic", "code")
+
+
+def contextual_records(
+    artifact: Any, node_ids: set[str], artifact_hash: str | None, diagnostics: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Requirement groups as records, and their edges only where both endpoints exist."""
+    if artifact is None:
+        return [], []
+    if not isinstance(artifact, dict) or not isinstance(artifact.get("groups"), list) \
+            or not isinstance(artifact.get("edges"), list):
+        diagnostics.append({"reason": "requirement_groups_invalid"})
+        return [], []
+    records = []
+    for index, group in enumerate(artifact["groups"]):
+        record = deepcopy(group)
+        record["locator"] = {"artifact_key": "program-requirement-groups",
+                             "payload_sha256": artifact_hash, "path": ["groups", index]}
+        records.append(record)
+    record_ids = {record["id"] for record in records}
+    edges = []
+    for index, edge in enumerate(artifact["edges"]):
+        ends = []
+        for end in (edge.get("source", {}), edge.get("target", {})):
+            kind = "record" if "record_id" in end else "entity"
+            value = end.get("record_id") if kind == "record" else end.get("entity_id")
+            ends.append((kind, value, value in (record_ids if kind == "record" else node_ids)))
+        if not all(found for _, _, found in ends):
+            diagnostics.append({"reason": "unresolved_record_edge", "type": edge.get("type"),
+                                "path": ["edges", index]})
+            continue
+        edges.append({
+            "id": f"record-edge:{index}", "type": edge["type"],
+            "source": ends[0][1], "source_kind": ends[0][0],
+            "target": ends[1][1], "target_kind": ends[1][0],
+            "properties": {key: edge[key] for key in EDGE_PROPERTIES if key in edge},
+            "locator": {"artifact_key": "program-requirement-groups",
+                        "payload_sha256": artifact_hash, "path": ["edges", index]},
+        })
+    return records, edges

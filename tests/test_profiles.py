@@ -54,6 +54,9 @@ def repository() -> CampusData:
         "schema_version": 1,
         "entities": [copy.deepcopy(IDENTITY)],
     }
+    # Releases before the data repository published these artifacts had neither.
+    data._artifacts["catalog-course-identities"] = None
+    data._artifacts["program-requirement-groups"] = None
     return data
 
 

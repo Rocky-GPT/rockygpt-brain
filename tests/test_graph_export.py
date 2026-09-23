@@ -157,6 +157,64 @@ def test_missing_coverage_is_explicit_not_zero_issues(data: Any) -> None:
     assert {'reason': 'identity_coverage_unavailable'} in result['diagnostics']
 
 
+def test_published_course_ids_and_requirement_records_are_exported(data: Any) -> None:
+    published = str(uuid5(NAMESPACE_URL, 'published by the data repository'))
+    data._artifacts['catalog-course-identities'] = {'schema_version': 1, 'courses': [
+        {'id': published if i == 136 else course_id('academic-programs', f'COURSE {i}'),
+         'source_key': 'academic-programs', 'source_record_key': f'COURSE {i}', 'name': None}
+        for i in range(137)]}
+    group = str(uuid5(NAMESPACE_URL, 'requirement group'))
+    group_path = ['schools', 0, 'majors', 0, 'requirements', 3]
+    option_path = ['rule', 'items', 0, 'courses', 0]
+    data._artifacts['program-requirement-groups'] = {'schema_version': 1, 'groups': [
+        {'id': group, 'record_type': 'requirement_group', 'label': 'Electives'},
+    ], 'edges': [
+        {'type': 'requirement_group', 'source': {'entity_id': ENTITY_ID},
+         'target': {'record_id': group}, 'order': 3, 'path': group_path},
+        {'type': 'requirement_option', 'source': {'record_id': group},
+         'target': {'entity_id': published}, 'path': option_path, 'logic': 'and',
+         'code': 'COURSE 136'},
+        {'type': 'requirement_option', 'source': {'record_id': group},
+         'target': {'entity_id': str(uuid5(NAMESPACE_URL, 'unpublished'))}, 'code': 'GONE 1'},
+    ]}
+    result = export_graph(data, _snapshot(data, None))
+    assert result['schema_version'] == 2
+    course = next(n for n in result['nodes'] if n['id'] == published)
+    assert course['identity_origin'] == 'published_catalog_course'
+    assert course['provenance'] == {
+        'artifact_key': 'catalog-course-identities', 'path': ['courses', 136],
+        'payload_sha256': result['snapshot']['graph_input_hashes']['catalog-course-identities']}
+    assert course_id('academic-programs', 'COURSE 136') not in {n['id'] for n in result['nodes']}
+    assert result['edges'][0]['target'] == published
+    assert result['completeness']['contextual_records'] == 'included_in_full'
+    assert result['contextual_records'][0]['locator']['path'] == ['groups', 0]
+    assert [(e['type'], e['source_kind'], e['source'], e['target_kind'], e['target'],
+             e['properties']) for e in result['record_edges']] == [
+        ('requirement_group', 'entity', ENTITY_ID, 'record', group,
+         {'order': 3, 'path': group_path}),
+        ('requirement_option', 'record', group, 'entity', published,
+         {'path': option_path, 'logic': 'and', 'code': 'COURSE 136'}),
+    ]
+    assert {'reason': 'unresolved_record_edge', 'type': 'requirement_option',
+            'path': ['edges', 2]} in result['diagnostics']
+    assert result['counts']['record_edges_by_type'] == {
+        'requirement_group': 1, 'requirement_option': 1}
+    assert result['counts']['contextual_records_by_type'] == {'requirement_group': 1}
+
+
+def test_releases_before_published_ids_and_records_keep_the_original_derivation(
+    data: Any,
+) -> None:
+    result = export_graph(data, _snapshot(data, None))
+    assert result['completeness']['contextual_records'] == 'not_published_in_this_release'
+    assert (result['contextual_records'], result['record_edges']) == ([], [])
+    assert {n['identity_origin'] for n in result['nodes'] if n['kind'] == 'course'} == {
+        'source_scoped_catalog_course'}
+    data._artifacts['program-requirement-groups'] = {'groups': 'not a list', 'edges': []}
+    assert {'reason': 'requirement_groups_invalid'} in export_graph(
+        data, _snapshot(data, None))['diagnostics']
+
+
 def test_release_switched_during_connection_bootstrap_requires_retry(data: Any) -> None:
     original_fetch = data._fetch.side_effect
 

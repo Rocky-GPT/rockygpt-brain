@@ -42,6 +42,7 @@ def fixture() -> Iterator[Fixture]:
     }]}
     data._artifacts["campus-identity-coverage"] = {"unresolved": []}
     data._artifacts["courses"] = {}
+    data._artifacts["catalog-course-identities"] = None
     entity = data._artifacts["campus-identities"]["entities"][0]
     entity.update(kind="venue", name="Test venue", links=[
         {"collection": c, "source_key": s, "source_record_keys": ["k"]}
