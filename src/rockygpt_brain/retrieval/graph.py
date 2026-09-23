@@ -23,6 +23,7 @@ LABELS = {
     "program_requirements": "Program requirements", "courses": "Catalog courses",
     "faculty": "Faculty profiles", "shuttle": "Shuttle trips",
     "shuttle_routes": "Shuttle routes", "artifacts": "Published source artifacts",
+    "buildings": "Campus buildings",
 }
 GROUP_FIELDS = {
     "contacts": ("department", "type"), "campus_hours": ("name", "day"),
@@ -32,9 +33,9 @@ GROUP_FIELDS = {
     "program_requirements": ("program",), "courses": (), "faculty": ("school",),
     "shuttle": ("route", "service_day"), "shuttle_routes": ("service_day",),
     "documents": ("source_key",), "document_chunks": ("document_id",),
-    "critical_facts": (), "artifacts": (),
+    "critical_facts": (), "artifacts": (), "buildings": ("category",),
 }
-ARTIFACT_COLLECTIONS = {"faculty", "courses", "program_requirements"}
+ARTIFACT_COLLECTIONS = {"faculty", "courses", "program_requirements", "buildings"}
 GRAPH_COLLECTIONS = (*COLLECTIONS, "document_chunks", "shuttle_routes", "artifacts")
 META_FIELDS = {
     "id", "source_id", "source_record_key", "dataset_version_id", "collected_at",
@@ -380,12 +381,17 @@ class GraphData:
             if record is None:
                 raise HTTPException(404, "Campus record was not found")
             artifact = {"faculty": "faculty", "courses": "courses",
-                        "program_requirements": "programs"}[collection]
+                        "program_requirements": "programs",
+                        "buildings": "campus-buildings"}[collection]
             path = (original_id.split(".") if collection == "program_requirements"
                     else [original_id])
             if collection == "program_requirements":
                 path = ["schools", path[0], "majors", path[1], "requirements", path[2]]
             raw = self.data._artifact(artifact)
+            if collection == "buildings":
+                path = ["buildings", str(next(
+                    index for index, building in enumerate(raw["buildings"])
+                    if str(building.get("concept3d_id")) == original_id))]
             for segment in path:
                 raw = raw[int(segment)] if isinstance(raw, list) else raw[segment]
             return {**record, "fields": raw, "source_record_id": original_id,

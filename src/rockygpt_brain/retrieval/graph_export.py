@@ -164,6 +164,10 @@ def export_graph(data: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
             "profile_course": "Undated profile course list, not a current teaching assignment.",
             "listed_faculty": "Catalog Program Faculty field listing; not a convenership, "
                               "appointment or current teaching assignment.",
+            "office_at": "A person's published office room has the building's reviewed room "
+                         "prefix; a location, not a school or appointment.",
+            "located_at": "An office's published room has the building's reviewed room prefix; "
+                          "only published rooms, not a complete building directory.",
             "coverage": "Published report and resolution diagnostics, not a new source audit. "
                         "Issue counts are not counts of unique missing entities.",
             "time": "exported_at is generation time, not source capture time. No date filtering.",
