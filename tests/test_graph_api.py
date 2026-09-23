@@ -329,3 +329,50 @@ def test_artifact_children_omit_nonempty_container_payloads(kind: str) -> None:
     child = GraphData(data).artifact_value("menu", [], 0, 24)["children"][0]
     assert "value" not in child and "scalar" not in child
     assert child["count"] == 20
+
+
+def test_a_record_page_is_one_count_and_one_row_query_whatever_its_size() -> None:
+    data = repository()
+    source = {"id": "directory", "source_key": "directory", "title": "Directory",
+              "canonical_url": "https://example.edu/directory", "trust_tier": "official_primary"}
+    rows = [{"record": {"id": f"row-{n}", "source_id": "directory", "source_record_key": "k",
+                        "name": f"Entry {n}", "phone": None, "collected_at": NOW,
+                        "valid_from": None, "valid_until": None}, "source": source}
+            for n in range(3)]
+    data._fetch = Mock(side_effect=[[{"total": 5}], rows])  # type: ignore[method-assign]
+    page = GraphData(data).records("contacts", {}, 0, 3)
+    assert data._fetch.call_count == 2
+    assert "ORDER BY" in str(data._fetch.call_args.args[0])
+    assert data._fetch.call_args.args[1][-2:] == (3, 0)
+    assert (page["total"], page["next_offset"]) == (5, 3)
+    assert [r["id"] for r in page["records"]] == ["contacts:row-0", "contacts:row-1",
+                                                  "contacts:row-2"]
+    # Complete records: original fields, explicit nulls and the original row.
+    assert page["records"][0]["fields"] == {"name": "Entry 0", "phone": None}
+    assert page["records"][0]["raw_record"]["source_record_key"] == "k"
+
+
+def test_an_artifact_page_is_read_in_browse_order_without_queries_or_reparsing() -> None:
+    data = repository()
+    data._fetch = Mock(side_effect=AssertionError("Artifact pages read no rows"))  # type: ignore[method-assign]
+    data._artifacts["campus-schools"] = {"schools": [
+        {"section": "snh", "name": "School of Science", "abbreviation": "SNH"},
+        {"section": "asb", "name": "Anisfield School of Business", "abbreviation": "ASB"},
+    ]}
+    parsed = [{"id": f"schools:{section}", "title": title, "source_key": "ramapo-schools",
+               "source_record_key": section, "fields": {"name": title}}
+              for section, title in [("snh", "School of Science"),
+                                     ("asb", "Anisfield School of Business")]]
+    data._load_artifact_records = Mock(return_value=parsed)  # type: ignore[method-assign]
+    graph = GraphData(data)
+    first = graph.records("schools", {}, 0, 1)
+    second = graph.records("schools", {}, 1, 1)
+    assert data._load_artifact_records.call_count == 1
+    assert [r["id"] for r in [*first["records"], *second["records"]]] == [
+        "schools:asb", "schools:snh"]
+    assert first["records"][0]["artifact_path"] == ["schools", "1"]
+    assert first["records"][0]["raw_record"]["abbreviation"] == "ASB"
+    assert (first["total"], first["next_offset"], second["next_offset"]) == (2, 1, None)
+    with pytest.raises(HTTPException) as caught:
+        graph.records("artifacts", {}, 0, 1)
+    assert caught.value.status_code == 422

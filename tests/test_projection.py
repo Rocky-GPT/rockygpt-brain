@@ -1,11 +1,11 @@
-"""Projection v1 keeps assertions, contextual tuples and identity edges separate."""
+"""Projection v2 keeps assertions, contextual records, sources and identity edges separate."""
 from __future__ import annotations
 
 import copy
 import os
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, get_args
 from unittest.mock import Mock, patch
 from uuid import UUID
 
@@ -16,14 +16,23 @@ from fastapi.testclient import TestClient
 from rockygpt_brain.api.app import app
 from rockygpt_brain.retrieval.data import CampusData
 from rockygpt_brain.retrieval.graph import GraphData
-from rockygpt_brain.retrieval.projection import Projection, validate_selection
-from rockygpt_brain.retrieval.projection_models import EntityProjection, Property
+from rockygpt_brain.retrieval.knowledge import course_id
+from rockygpt_brain.retrieval.profiles import LinkCollection
+from rockygpt_brain.retrieval.projection import (
+    MAPPED,
+    SCHEDULE_LIMITATION,
+    Projection,
+    valid_value,
+    validate_selection,
+)
+from rockygpt_brain.retrieval.projection_models import EntityProjection, Property, SourceRecord
 
 NOW = datetime(2026, 9, 21, 16, tzinfo=UTC)
 ENTITY_ID = "9f4a8a53-67a1-4ce4-b4da-5d19630f135b"
 
 CLUB = "40b259a0-250e-559d-a166-626aad12b6ee"
 EVENT = "00241662-2a28-5c63-a848-4f1de00df57b"
+PERSON = "7f9d3c1e-2b4a-4c6d-8e0f-1a2b3c4d5e6f"
 
 
 Fixture = tuple[CampusData, dict[str, Any], dict[str, list[dict[str, Any]]]]
@@ -64,6 +73,12 @@ def fixture() -> Iterator[Fixture]:
         title=None, office=None, department="Dining", contact_note="", search_text="INTERNAL")
     row("contacts", 2, name="Test venue", email="other@example.edu", phone="two",
         title=None, office=None, department="Dining", contact_note="")
+    for record in records["contacts"]:
+        record["raw_record"].update(type="office", status=None, offices=[], phones=[],
+                                    preferred_contact=None, prefers_email=False, aliases=[])
+        record["fields"].update({k: v for k, v in record["raw_record"].items()
+                                 if k in {"type", "status", "offices", "phones", "aliases",
+                                          "preferred_contact", "prefers_email"}})
     for number, day, meal, calories in [(1, "2026-09-21", "Lunch", 0),
                                        (2, "2026-09-22", "Dinner", 420),
                                        (3, "2026-09-23", "Lunch", None)]:
@@ -75,17 +90,16 @@ def fixture() -> Iterator[Fixture]:
     row("dining_hours", 2, name="Test venue", day="Monday", schedule="Hours unavailable",
         valid_from="2026-09-21", valid_until="2026-09-25")
 
-    def read(_self: Projection, _reader: GraphData, collection: str,
-             filters: dict[str, Any], offset: int, limit: int
-             ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        eligible = [r for r in records[collection] if all(
+    def read(_self: GraphData, collection: str, filters: dict[str, Any], offset: int,
+             limit: int) -> dict[str, Any]:
+        eligible = [r for r in records.get(collection, []) if all(
             (r["raw_record"].get("valid_from") if k == "date" else r["fields"].get(k)) == v
             for k, v in filters.items())]
         end = offset + limit
-        page = {"total": len(eligible), "next_offset": end if end < len(eligible) else None}
-        return page, eligible[offset:end]
+        return {"records": eligible[offset:end], "total": len(eligible),
+                "next_offset": end if end < len(eligible) else None}
 
-    with patch.object(Projection, "_records", read):
+    with patch.object(GraphData, "records", read):
         yield data, snapshot, records
 
 
@@ -99,12 +113,22 @@ def values(properties: list[Property]) -> dict[str, list[Any]]:
     return {p.key: [a.value for a in p.assertions] for p in properties}
 
 
+def source(result: EntityProjection, identifier: str) -> SourceRecord:
+    return next(s for s in result.sources if s.id == identifier)
+
+
+def test_every_linkable_collection_has_an_explicit_mapping() -> None:
+    assert set(get_args(LinkCollection)) == MAPPED
+
+
 def test_three_attachments_preserve_records_conflicts_and_original_data(fixture: Fixture) -> None:
     before = copy.deepcopy(fixture[2])
     result = build(fixture)
     assert values(result.properties)["phone"] == ["one", "two"]
     assert values(result.properties)["name"] == ["Test venue", "Test venue"]
+    assert values(result.properties)["prefers_email"] == [False, False]
     assert "search_text" not in values(result.properties)
+    assert result.properties_complete
     menu = next(g for g in result.record_groups if g.key == "menu_offerings")
     assert menu.total == 3 and menu.returned == 2 and menu.next_cursor
     assert len({r.id for r in menu.records}) == 2
@@ -119,33 +143,53 @@ def test_three_attachments_preserve_records_conflicts_and_original_data(fixture:
     EntityProjection.model_validate_json(result.model_dump_json())
 
 
+def test_each_source_record_is_listed_once_and_every_value_names_it(fixture: Fixture) -> None:
+    result = build(fixture)
+    listed = [s.id for s in result.sources]
+    assert sorted(listed) == sorted({*listed})
+    # Two directory entries, two menu offerings on this page and both hours rows.
+    assert len(listed) == 6
+    phones = next(p for p in result.properties if p.key == "phone").assertions
+    assert [a.source_id for a in phones] == ["contacts:1", "contacts:2"]
+    assert [a.id for a in phones] == ["contacts:1#phone", "contacts:2#phone"]
+    record = result.record_groups[0].records[0]
+    assert {a.source_id for p in [*record.context, *record.properties]
+            for a in p.assertions} == {record.source_id}
+    dumped = result.model_dump(mode="json")
+    dumped["properties"][0]["assertions"][0]["source_id"] = "contacts:missing"
+    with pytest.raises(ValueError, match="listed source record"):
+        EntityProjection.model_validate(dumped)
+
+
 def test_exact_field_row_dates_and_unknown_dietary_status(fixture: Fixture) -> None:
     result = build(fixture)
     menu = result.record_groups[0].records[0]
-    prop = next(p for p in menu.properties if p.key == "allergens")
-    assertion = prop.assertions[0]
+    assertion = next(p for p in menu.properties if p.key == "allergens").assertions[0]
     assert assertion.value == [] and assertion.publication_status == "not_published"
     assert any("does not establish absence" in s for s in assertion.limitations)
-    provenance = assertion.provenance[0]
-    assert provenance.locator.model_dump() == {
-        "kind": "row", "collection": "menu", "row_id": "1", "field_path": ["allergens"]}
-    assert provenance.source_record_key == "k"
-    assert provenance.valid_from == "2026-09-21"
-    assert provenance.freshness == "stale"
-    assert provenance.collected_at == (NOW - timedelta(days=20)).isoformat()
+    assert assertion.field_path == ["allergens"]
+    row = source(result, assertion.source_id)
+    assert (row.collection, row.row_id, row.source_record_key) == ("menu", "1", "k")
+    assert row.valid_from == "2026-09-21"
+    assert row.freshness == "stale"
+    assert row.collected_at == (NOW - timedelta(days=20)).isoformat()
+    # Record-level caveats belong to the source, once, not to each value.
+    assert "Not verified current; do not present as current campus facts." in row.limitations
+    assert not next(p for p in menu.properties if p.key == "calories").assertions[0].limitations
     fixture[2]["menu"][0]["raw_record"]["collected_at"] = None
-    assert build(fixture).record_groups[0].records[0].properties[0].assertions[0].provenance[
-        0].collected_at is None
+    assert source(build(fixture), "menu:1").collected_at is None
 
 
 def test_hours_keep_weekday_schedule_and_exception_validity_together(fixture: Fixture) -> None:
-    group = next(g for g in build(fixture).record_groups if g.key == "dining_hours")
+    result = build(fixture)
+    group = next(g for g in result.record_groups if g.key == "dining_hours")
     assert values(group.records[0].context)["weekday"] == ["Monday"]
     assert values(group.records[0].context)["valid_from"] == [None]
     assert values(group.records[1].context)["valid_until"] == ["2026-09-25"]
     assert values(group.records[1].properties)["schedule"] == ["Hours unavailable"]
     assert "name" not in values(group.records[0].properties)
-    assert all(r.properties[0].assertions[0].limitations for r in group.records)
+    assert all(SCHEDULE_LIMITATION in source(result, r.source_id).limitations
+               for r in group.records)
 
 
 def test_page_cursor_pins_scope_and_preserves_duplicate_dish_boundaries(fixture: Fixture) -> None:
@@ -154,6 +198,7 @@ def test_page_cursor_pins_scope_and_preserves_duplicate_dish_boundaries(fixture:
     assert second.selected_record_group == "menu_offerings"
     assert not second.properties_complete and second.properties == []
     assert second.record_groups[0].next_cursor is None
+    assert [s.id for s in second.sources] == ["menu:3"]
     assert len({r.id for r in [*first.records, *second.record_groups[0].records]}) == 3
     changes: list[dict[str, Any]] = [
         {"group": "dining_hours"}, {"limit": 1}, {"filters": {"meal": "Dinner"}}]
@@ -178,10 +223,83 @@ def test_unknown_and_nested_storage_fields_are_not_blindly_published(fixture: Fi
     row = fixture[2]["menu"][0]
     row["raw_record"]["allergens"] = [{"name": "Egg", "internal": "SECRET"}]
     row["fields"]["future_internal"] = "SECRET"
+    contact = fixture[2]["contacts"][0]
+    contact["raw_record"]["phones"] = [{"number": "201-555-0100", "internal": "SECRET"}]
     result = build(fixture)
     assert "SECRET" not in result.model_dump_json()
-    assert any(c.reason == "unsupported_field_shape" for c in result.coverage)
+    assert {(c.collection, c.fields[0]) for c in result.coverage
+            if c.reason == "unsupported_field_shape"} == {("menu", "allergens"),
+                                                          ("contacts", "phones")}
     assert any(c.fields == ["future_internal"] for c in result.coverage)
+    assert not result.properties_complete
+
+
+@pytest.mark.parametrize("kind,value,valid", [
+    ("phone_list", [{"type": "office", "number": "201-684-9953", "extension": "12"}], True),
+    ("phone_list", [{"type": "office"}], False),
+    ("phone_list", [{"number": 2016849953}], False),
+    ("hours_list", [{"open": "08:00", "close": "00:00", "close_day_offset": 1}], True),
+    ("hours_list", [{"open": "08:00", "close": "17:00", "close_day_offset": True}], False),
+    ("former_names", [{"name": "School of Theoretical and Applied Science",
+                       "evidence": "/tas/ redirects to /snh/"}], True),
+    ("former_names", [{"name": "Former"}], False),
+    ("credits", 4, True), ("credits", {"min": 0, "max": 4, "operator": ""}, True),
+    ("credits", {"min": "0"}, False), ("credits", True, False),
+    ("url", "https://www.ramapo.edu/", True), ("text_list", ["a", 1], False),
+])
+def test_nested_values_follow_their_declared_shape(kind: str, value: Any, valid: bool) -> None:
+    assert valid_value(value, kind) is valid
+
+
+def test_artifact_records_cite_their_artifact_path_and_own_freshness(fixture: Fixture) -> None:
+    data, snapshot, records = fixture
+    data._artifacts["campus-identities"]["entities"].append({
+        "id": PERSON, "kind": "person", "name": "Ada Professor", "aliases": [], "links": [
+            {"collection": "faculty", "source_key": "faculty", "source_record_keys": ["ada"]}]})
+    profile = {"name": "Ada Professor", "title": "Professor", "school": "SNH",
+               "email": "ada@ramapo.edu", "phone": "", "office": "G-201",
+               "profileUrl": "https://www.ramapo.edu/snh/faculty/ada/", "imageUrl": "",
+               "imagePath": "/images/faculty/ada.jpg", "bio": "", "education": ["Ph.D."],
+               "courses": ["CMPS 147"], "teachingInterests": [], "researchInterests": [],
+               "publishedResearch": []}
+    records["faculty"] = [{
+        "id": "faculty:7", "collection": "faculty", "title": "Ada Professor",
+        "source_key": "faculty", "source_record_key": "ada", "source_record_id": "7",
+        "url": profile["profileUrl"], "collected_at": "2026-09-01T00:00:00+00:00",
+        "valid_from": None, "valid_until": None, "freshness": "fresh",
+        "limitations": ["Faculty-profile course lists are undated."],
+        "fields": profile, "raw_record": profile, "artifact_key": "faculty",
+        "artifact_path": ["7"],
+    }]
+    result = Projection(data, snapshot).build(UUID(PERSON), None, {}, 8, None)
+    row = source(result, "faculty:7")
+    assert (row.artifact_key, row.artifact_path, row.freshness) == ("faculty", ["7"], "fresh")
+    assert row.source_url == profile["profileUrl"]
+    assert row.limitations == ["Faculty-profile course lists are undated."]
+    assert values(result.properties)["profile_courses"] == [["CMPS 147"]]
+    assert values(result.properties)["profile_url"] == [profile["profileUrl"]]
+    # A local image path of this repository is not a published campus value.
+    assert "/images/faculty/ada.jpg" not in result.model_dump_json()
+    assert result.properties_complete and result.coverage == []
+
+
+def test_a_catalog_course_node_projects_its_own_record(fixture: Fixture) -> None:
+    data, snapshot, _ = fixture
+    course = {"code": "CMPS 147", "name": "COMPUTER SCIENCE I", "description": "Intro",
+              "credits": 4, "attributes": []}
+    parsed = {"id": "courses:CMPS 147", "collection": "courses",
+              "title": "CMPS 147 — COMPUTER SCIENCE I", "source_key": "academic-programs",
+              "source_record_key": "CMPS 147", "fields": course, "url": "https://catalog",
+              "collected_at": None, "valid_from": None, "valid_until": None,
+              "freshness": "unknown", "limitations": ["Catalog description only."]}
+    data._load_artifact_records = Mock(return_value=[parsed])  # type: ignore[method-assign]
+    data._artifacts["courses"] = {"CMPS 147": course}
+    node = course_id("academic-programs", "CMPS 147")
+    result = Projection(data, snapshot).build(UUID(node), None, {}, 8, None)
+    assert result.entity.kind == "course"
+    assert values(result.properties)["credits"] == [4]
+    assert source(result, "courses:CMPS 147").artifact_path == ["CMPS 147"]
+    assert result.properties_complete
 
 
 def test_relationship_direction_pinned_evidence_and_registry_location(fixture: Fixture) -> None:
@@ -205,8 +323,18 @@ def test_relationship_direction_pinned_evidence_and_registry_location(fixture: F
     assert subject.kind == "entity" and subject.entity_id == EVENT
     assert outgoing.relationships[0].evidence == evidence
     assert outgoing.relationships[0].registry_locator.relationship_index == 0
-    assert outgoing.coverage[0].reason == "collection_not_migrated"
-    assert not outgoing.properties_complete
+    # Events and clubs are mapped collections now; nothing waits for migration.
+    assert not any(c.reason == "collection_not_migrated" for c in outgoing.coverage)
+
+
+def test_an_unmapped_collection_is_reported_and_leaves_properties_incomplete(
+    fixture: Fixture,
+) -> None:
+    with patch("rockygpt_brain.retrieval.projection.MAPPED", MAPPED - {"dining_hours"}):
+        result = build(fixture)
+    assert [c.collection for c in result.coverage
+            if c.reason == "collection_not_migrated"] == ["dining_hours"]
+    assert not result.properties_complete
 
 
 def test_repeated_declarations_remain_separate_occurrences(fixture: Fixture) -> None:
@@ -233,7 +361,7 @@ def test_repeated_declarations_remain_separate_occurrences(fixture: Fixture) -> 
 @pytest.mark.parametrize("group,filters,cursor", [
     (None, {"meal": "Lunch"}, None), ("unknown", {}, None),
     ("menu_offerings", {"name": "dish"}, None), ("menu_offerings", {"meal": []}, None),
-    ("menu_offerings", {}, "invalid!"),
+    ("menu_offerings", {}, "invalid!"), ("operating_hours", {"name": "Library"}, None),
 ])
 def test_invalid_selection_fails_before_read(
     group: str | None, filters: dict[str, Any], cursor: str | None,
@@ -248,7 +376,7 @@ def test_endpoint_is_development_only_pinned_and_does_not_call_models(
 ) -> None:
     data, _, _ = fixture
     client = TestClient(app)
-    path = "/v1/dev/graph/projection/v1"
+    path = "/v1/dev/graph/projection/v2"
     monkeypatch.setenv("BRAIN_ENVIRONMENT", "production")
     with patch("rockygpt_brain.api.identities.CampusData") as factory:
         assert client.get(path).status_code == 404
@@ -261,15 +389,20 @@ def test_endpoint_is_development_only_pinned_and_does_not_call_models(
               "identity_hash": "identity-hash"}
     with (patch("rockygpt_brain.api.identities.CampusData", return_value=data),
           patch("rockygpt_brain.api.app.open_gateway") as gateway):
-        assert client.get(path, params=params).status_code == 200
+        response = client.get(path, params=params)
+        assert response.status_code == 200
+        assert response.json()["schema_version"] == 2
         assert client.get(path, params={**params, "dataset_version": "old"}).status_code == 409
         assert client.get(path, params={**params, "identity_hash": "old"}).status_code == 409
         assert client.get(path, params={**params, "limit": 101}).status_code == 422
+        # The v1 projection and the legacy properties reader are retired.
+        for retired in ("/v1/dev/graph/projection/v1", "/v1/dev/graph/properties"):
+            assert client.get(retired, params=params).status_code == 404
         gateway.assert_not_called()
 
 
 @pytest.mark.skipif(not os.getenv("GRAPH_TEST_DATABASE_URL"), reason="read-only dev DB opt-in")
-def test_live_dining_pagination_provenance_and_unrelated_legacy_views(
+def test_live_projection_matches_original_records_for_every_kind(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("BRAIN_ENVIRONMENT", "development")
@@ -277,55 +410,57 @@ def test_live_dining_pagination_provenance_and_unrelated_legacy_views(
     client = TestClient(app)
     index = client.get("/v1/dev/graph/knowledge").json()
     pins = {"dataset_version": index["dataset_version"], "identity_hash": index["identity_hash"]}
+
+    def originals(result: dict[str, Any], entity_id: str | None) -> None:
+        """Every value equals its original record's field, read through the record API."""
+        sources = {s["id"]: s for s in result["sources"]}
+        raw: dict[str, Any] = {}
+        props = [*result["properties"], *(p for g in result["record_groups"]
+                 for r in g["records"] for p in [*r["context"], *r["properties"]])]
+        for prop in props:
+            for assertion in prop["assertions"]:
+                row = sources[assertion["source_id"]]
+                if row["id"] not in raw:
+                    params = {"collection": row["collection"], "record_id": row["id"],
+                              "dataset_version": index["dataset_version"]}
+                    if entity_id:
+                        params["entity_id"] = entity_id
+                    original = client.get("/v1/dev/graph/record", params=params)
+                    assert original.status_code == 200, original.text
+                    raw[row["id"]] = original.json()["record"]["raw_record"]
+                assert assertion["value"] == raw[row["id"]][assertion["field_path"][0]]
+
     venue = next(e for e in index["nodes"] if e["name"] == "Birch Tree Inn")
     params = {**pins, "entity_id": venue["id"], "limit": 100}
-    initial = client.get("/v1/dev/graph/projection/v1", params=params)
+    initial = client.get("/v1/dev/graph/projection/v2", params=params)
     assert initial.status_code == 200, initial.text
-    for record_group in initial.json()["record_groups"]:
-        sample = record_group["records"][0]
-        assertion = sample["properties"][0]["assertions"][0]
-        locator = assertion["provenance"][0]["locator"]
-        original = client.get("/v1/dev/graph/record", params={
-            "entity_id": venue["id"], "dataset_version": index["dataset_version"],
-            "collection": locator["collection"],
-            "record_id": f"{locator['collection']}:{locator['row_id']}",
-        })
-        assert original.status_code == 200, original.text
-        raw = original.json()["record"]["raw_record"]
-        for prop in sample["context"] + sample["properties"]:
-            value = prop["assertions"][0]
-            assert value["value"] == raw[value["provenance"][0]["locator"]["field_path"][0]]
+    originals(initial.json(), venue["id"])
     hours = next(g for g in initial.json()["record_groups"] if g["key"] == "dining_hours")
     assert len(hours["records"]) == hours["total"] and hours["next_cursor"] is None
     group = next(g for g in initial.json()["record_groups"] if g["key"] == "menu_offerings")
-    ids = []
+    ids: list[str] = []
     while True:
-        for record in group["records"]:
-            ids.append(record["id"])
-            assertions = [p["assertions"][0] for p in record["properties"] + record["context"]]
-            assert len({a["provenance"][0]["locator"]["row_id"] for a in assertions}) == 1
-            assert all(a["provenance"][0]["source_record_key"] for a in assertions)
+        ids.extend(record["id"] for record in group["records"])
         if not group["next_cursor"]:
             break
-        response = client.get("/v1/dev/graph/projection/v1", params={**params,
+        response = client.get("/v1/dev/graph/projection/v2", params={**params,
             "record_group": "menu_offerings", "cursor": group["next_cursor"]})
         assert response.status_code == 200, response.text
         group = response.json()["record_groups"][0]
     assert len(ids) == len(set(ids)) == group["total"] > 100
-    for kind in ["person", "course", "club", "event", "program", "office", "facility"]:
+    for kind in ["person", "course", "club", "organization", "event", "program", "office",
+                 "facility", "venue", "building", "school"]:
         entity = next(e for e in index["nodes"] if e["kind"] == kind)
-        old_params = {"entity_id": entity["id"], "dataset_version": index["dataset_version"]}
-        before = client.get("/v1/dev/graph/properties", params=old_params).json()
-        response = client.get("/v1/dev/graph/projection/v1",
+        response = client.get("/v1/dev/graph/projection/v2",
                               params={**pins, "entity_id": entity["id"]})
         assert response.status_code == 200, response.text
         result = response.json()
+        assert result["properties_complete"], (kind, result["coverage"])
+        originals(result, None if kind == "course" else entity["id"])
         expected = [e for e in index["edges"] if entity["id"] in {e["source"], e["target"]}]
         assert [(r["subject"]["entity_id"], r["target_entity_id"], r["predicate"], r["evidence"])
                 for r in result["relationships"]] == [
                     (e["source"], e["target"], e["type"], e["evidence"]) for e in expected]
-        after = client.get("/v1/dev/graph/properties", params=old_params).json()
-        assert before == after
     assert client.get("/v1/dev/graph/knowledge").json() == index
 
 
@@ -371,6 +506,7 @@ def test_unmapped_nested_fields_and_missing_sources_fail_closed(fixture: Fixture
     assert any(c.reason == "unsupported_field_shape" for c in result.coverage)
     del fixture[0].sources["dining"]
     result = build(fixture)
-    assert all(not r.properties and not r.context
-               for g in result.record_groups for r in g.records)
-    assert any(c.reason == "source_unavailable" for c in result.coverage)
+    # A record whose source cannot be established is not shown at all.
+    assert all(not g.records for g in result.record_groups)
+    assert all(s.collection == "contacts" for s in result.sources)
+    assert sum(c.reason == "source_unavailable" for c in result.coverage) == 4

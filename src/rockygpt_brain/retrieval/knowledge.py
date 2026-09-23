@@ -7,13 +7,13 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Any
-from uuid import NAMESPACE_URL, UUID, uuid5
-
-from fastapi import HTTPException
+from uuid import NAMESPACE_URL, uuid5
 
 from rockygpt_brain.retrieval.graph import GraphData
-from rockygpt_brain.retrieval.profiles import IdentityRegistry, IdentityRelationship
+from rockygpt_brain.retrieval.profiles import Identity, IdentityRegistry, IdentityRelationship
+from rockygpt_brain.retrieval.release_cache import cached
 
 COURSE_IDENTITY_FIELDS = ("id", "source_key", "source_record_key")
 
@@ -92,43 +92,35 @@ class KnowledgeGraph:
                 return self.course_identity(ref.source_key, ref.source_record_key)
         return None
 
-    def properties(self, entity_id: UUID, collection: str | None, offset: int,
-                   limit: int) -> dict[str, Any]:
-        entity = next((item for item in self.registry.entities if item.id == entity_id), None)
-        groups = []
-        if entity:
-            reader = GraphData(self.data, entity_id)
-            collections: list[str] = list(dict.fromkeys(link.collection for link in entity.links))
-            if collection is not None and collection not in collections:
-                raise HTTPException(422, "Collection is not linked to this entity")
-            for key in ([collection] if collection else collections):
-                page = reader.browse(key, {}, None, offset, limit)
-                records = []
-                for row in page["records"]:
-                    try:
-                        records.append(reader.record(key, row["id"]))
-                    except HTTPException as error:
-                        if error.status_code != 404:
-                            raise
-                        reader.diagnostics.append({"reason": "linked_property_unavailable",
-                                                   "collection": key, "record": row["id"]})
-                groups.append({"collection": key, "records": [self._properties(r) for r in records],
-                               "total": page["total"], "next_offset": page["next_offset"]})
-            return {"entity_id": str(entity_id), "groups": groups,
-                    "diagnostics": reader.diagnostics}
-        for (source, key), records in self.course_groups.items():
-            if len(records) == 1 and self.course_identity(source, key) == str(entity_id):
-                if collection not in {None, "courses"}:
-                    raise HTTPException(422, "Collection is not linked to this entity")
-                record = self.reader.record("courses", records[0]["id"])
-                return {"entity_id": str(entity_id), "groups": [{"collection": "courses",
-                        "records": [self._properties(record)] if offset == 0 else [],
-                        "total": 1, "next_offset": None}],
-                        "diagnostics": []}
-        raise HTTPException(404, "Campus entity was not found")
 
-    @staticmethod
-    def _properties(record: dict[str, Any]) -> dict[str, Any]:
-        # Retain separate source values, dates and provenance; never choose a winner.
-        return {key: value for key, value in record.items()
-                if key not in {"raw_record", "navigation", "artifact_path"}}
+@dataclass(frozen=True)
+class ReleaseGraph:
+    """One release's registry and graph index, shared read-only by development requests.
+
+    `courses` maps each course node with exactly one catalog record to that record's
+    source key, source record key and original record ID.
+    """
+    registry: IdentityRegistry
+    identities: dict[str, Identity]
+    index: dict[str, Any]
+    nodes: dict[str, dict[str, Any]]
+    courses: dict[str, tuple[str, str, str]]
+
+
+def release_graph(data: Any) -> ReleaseGraph:
+    """The active release's graph, built once per release (see `release_cache`).
+
+    The complete export builds its own graph instead: it pins every read to one
+    database snapshot.
+    """
+    def build() -> ReleaseGraph:
+        graph = KnowledgeGraph(data)
+        index = graph.index()
+        return ReleaseGraph(
+            registry=graph.registry,
+            identities={str(entity.id): entity for entity in graph.registry.entities},
+            index=index, nodes={node["id"]: node for node in index["nodes"]},
+            courses={graph.course_identity(source, key): (source, key, rows[0]["id"])
+                     for (source, key), rows in graph.course_groups.items() if len(rows) == 1},
+        )
+    return cached(data, "knowledge-graph", build)

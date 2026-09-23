@@ -121,11 +121,11 @@ def artifact_value(
 
 @router.get("/knowledge")
 def knowledge(dataset_version: Version = None) -> dict[str, Any]:
-    from rockygpt_brain.retrieval.knowledge import KnowledgeGraph
+    from rockygpt_brain.retrieval.knowledge import release_graph
 
     with _campus_data() as data:
         snapshot = _snapshot(data, dataset_version)
-        return {**snapshot, **KnowledgeGraph(data).index()}
+        return {**snapshot, **release_graph(data).index}
 
 
 @router.get("/export")
@@ -147,20 +147,8 @@ def graph_export() -> JSONResponse:
         })
 
 
-@router.get("/properties")
-def properties(
-    entity_id: UUID, collection: Annotated[str | None, Query(max_length=80)] = None,
-    offset: Offset = 0, limit: Limit = 8, dataset_version: Version = None,
-) -> dict[str, Any]:
-    from rockygpt_brain.retrieval.knowledge import KnowledgeGraph
-
-    with _campus_data() as data:
-        snapshot = _snapshot(data, dataset_version)
-        return {**snapshot, **KnowledgeGraph(data).properties(entity_id, collection, offset, limit)}
-
-
-@router.get("/projection/v1")
-def projection_v1(
+@router.get("/projection/v2")
+def projection_v2(
     entity_id: UUID,
     dataset_version: Annotated[str, Query(min_length=1, max_length=160)],
     identity_hash: Annotated[str, Query(min_length=1, max_length=128)],
