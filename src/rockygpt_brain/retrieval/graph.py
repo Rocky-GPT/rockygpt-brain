@@ -70,6 +70,7 @@ class GraphData:
         self.entity = None
         self.diagnostics: list[dict[str, Any]] = []
         self._artifact_cache: dict[str, list[dict[str, Any]]] = {}
+        self._archway_cache: dict[str, dict[str, tuple[int, dict[str, Any]]]] = {}
         if entity_id is not None:
             if registry is None:
                 try:
@@ -252,6 +253,22 @@ class GraphData:
             "content_hash": original.get("content_hash"),
             "raw_record": original,
         }
+        url = fields.get("website_url" if collection == "clubs" else "event_url")
+        if collection in {"clubs", "events"} and isinstance(url, str) and url:
+            from rockygpt_brain.retrieval.processing import ARCHWAY_FIELDS, archway_artifact_index
+
+            if collection not in self._archway_cache:
+                self._archway_cache[collection] = archway_artifact_index(
+                    collection, self.data._artifact(collection))
+            matched = self._archway_cache[collection].get(url)
+            if matched:
+                index, item = matched
+                # Keep the SQL row untouched; the exact published artifact item
+                # supplies fields the database's compact table does not store.
+                supplemental = {key: item[key] for key in ARCHWAY_FIELDS[collection] if key in item}
+                fields.update(supplemental)
+                result.update(artifact_key=collection, artifact_path=[str(index)],
+                              supplemental_fields=supplemental)
         if collection == "shuttle":
             result["route"] = row.get("route")
         if collection == "documents":

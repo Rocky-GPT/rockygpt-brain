@@ -492,3 +492,19 @@ def test_group_events_are_examined_soonest_first_and_narrowed_by_date() -> None:
     assert sorted(examined()) == sorted([
         next(key for key, offset in offsets.items() if offset == 3), "Sep22:Welcome Meeting",
     ])
+
+
+def test_club_narrative_artifact_fields_reach_canonical_profile_with_locator() -> None:
+    data = campus()
+    data._artifacts["clubs"][0].update(
+        mission="Support sustainable practices.", memberBenefits="Service projects.",
+        membershipInfo="Lifetime membership")
+    result = data.lookup_profile(ProfileQuery(entity_id=UUID(CLUB), include=["club"]))
+    properties = {item["key"]: item for item in result["entity_facts"]["properties"]}
+    assert properties["email"]["values"][0]["value"] == "club@example.edu"
+    assert properties["mission"]["values"][0]["value"] == "Support sustainable practices."
+    assert properties["member_benefits"]["values"][0]["value"] == "Service projects."
+    assert properties["membership_info"]["values"][0]["value"] == "Lifetime membership"
+    source = result["entity_facts"]["sources"][0]
+    assert source["artifact_key"] == "clubs" and source["artifact_path"] == ["0"]
+    assert result["components"]["club"]["fields"]["mission"] == "published"

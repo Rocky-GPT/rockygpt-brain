@@ -100,10 +100,22 @@ PROPERTY_SPECS = (
     PropertySpec("programs", fields(
         "name", "degree", "program_kind", "school", "description", ("program_url", "url"),
     )),
-    PropertySpec("clubs", fields("name", "category", ("website_url", "url"))),
+    PropertySpec("clubs", fields(
+        "name", "category", "bucket", "email", "mission",
+        ("member_benefits", "memberBenefits", "text"),
+        ("membership_info", "membershipInfo", "text"), ("website_url", "url"),
+        ("external_website_url", "externalWebsiteUrl", "url"),
+        ("logo_url", "logoUrl", "url"), ("instagram_url", "instagramUrl", "url"),
+        ("facebook_url", "facebookUrl", "url"), ("twitter_url", "twitterUrl", "url"),
+        ("linkedin_url", "linkedinUrl", "url"), ("groupme_urls", "groupmeUrls", "text_list"),
+        ("groupme_groups", "groupmeGroups", "named_links"),
+    )),
     PropertySpec("events", fields(
         "title", "date_label", ("starts_at", "datetime"), "start_time", "end_time",
-        "organizer", "description", ("event_url", "url"),
+        "organizer", "description", "location", ("tags", "text_list"),
+        ("ticket_status", "ticketStatus", "text"), "attendance",
+        ("image_url", "imageUrl", "url"), ("offers_free_food", "offersFreeFood", "boolean"),
+        ("food_category", "foodCategory", "text"), ("event_url", "url"),
     )),
     PropertySpec("buildings", fields(
         "name", "category", ("map_url", "url"), ("room_prefixes", "text_list"), "concept3d_id",
@@ -211,6 +223,8 @@ def valid_value(value: Any, kind: str) -> bool:
     if kind == "hours_list":
         return _objects(value, {"open": (str,), "close": (str,), "close_day_offset": (int,)},
                         {"open", "close"})
+    if kind == "named_links":
+        return _objects(value, {"name": (str,), "url": (str,)}, {"name", "url"})
     if kind == "former_names":
         return _objects(value, {"name": (str,), "evidence": (str,)}, {"name", "evidence"})
     if kind == "credits":
@@ -264,7 +278,7 @@ class Projection:
         return identifier
 
     def _field(self, record: dict[str, Any], source: str, spec: FieldSpec) -> Property | None:
-        raw = record["raw_record"]
+        raw = {**record["raw_record"], **record.get("supplemental_fields", {})}
         if spec.source not in raw:
             self._issue("field_unavailable", record, fields=[spec.source])
             return None

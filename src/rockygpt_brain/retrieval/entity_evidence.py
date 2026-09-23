@@ -42,6 +42,7 @@ def profile_facts(data: Any, output: dict[str, Any]) -> dict[str, Any]:
             id=record["id"], collection=record["collection"],
             row_id=record["id"].split(":", 1)[-1], source_key=record.get("source_key"),
             source_record_key=record.get("source_record_key"), source_url=record.get("url"),
+            artifact_key=stored.get("artifact_key"), artifact_path=stored.get("artifact_path"),
             collected_at=record.get("collected_at"), valid_from=record.get("valid_from"),
             valid_until=record.get("valid_until"), freshness=record["freshness"],
             limitations=[note for note in record.get("limitations", [])
@@ -253,7 +254,7 @@ def lookup_entity(data: Any, query: Any) -> dict[str, Any]:
     for source_id, names in supports.items():
         source = source_map[source_id]
         original = reader.source_records[source_id]
-        raw = original["raw_record"]
+        raw = original["fields"]
         fields = {name: raw[name] for name in names if name in raw}
         source_catalog = next((value for value in data.sources.values()
                                if value["source_key"] == source["source_key"]), None)
@@ -305,7 +306,7 @@ def lookup_entity(data: Any, query: Any) -> dict[str, Any]:
         if all(
             assertion["source_id"] in usable
             and usable[assertion["source_id"]]["fields"].get(assertion["field_path"][0])
-            == reader.source_records[assertion["source_id"]]["raw_record"].get(
+            == reader.source_records[assertion["source_id"]]["fields"].get(
                 assertion["field_path"][0])
             for assertion in prop["assertions"]
         ):

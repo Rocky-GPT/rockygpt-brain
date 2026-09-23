@@ -290,6 +290,25 @@ def load_artifact_records(
     return records
 
 
+ARCHWAY_FIELDS = {
+    "clubs": ("email", "bucket", "logoUrl", "externalWebsiteUrl", "instagramUrl",
+              "facebookUrl", "twitterUrl", "linkedinUrl", "groupmeUrls", "groupmeGroups",
+              "mission", "memberBenefits", "membershipInfo"),
+    "events": ("location", "tags", "ticketStatus", "attendance", "imageUrl",
+               "offersFreeFood", "foodCategory"),
+}
+
+
+def archway_artifact_index(collection: str, payload: Any) -> dict[str, tuple[int, dict[str, Any]]]:
+    """Exact, unique source URLs only; ambiguous matches never supply facts."""
+    url_field = "websiteUrl" if collection == "clubs" else "url"
+    by_url: dict[str, list[tuple[int, dict[str, Any]]]] = {}
+    for index, item in enumerate(payload if isinstance(payload, list) else []):
+        if isinstance(item, dict) and isinstance(item.get(url_field), str) and item[url_field]:
+            by_url.setdefault(item[url_field], []).append((index, item))
+    return {url: items[0] for url, items in by_url.items() if len(items) == 1}
+
+
 def enrich_records(
     collection: str,
     records: list[dict[str, Any]],
@@ -393,24 +412,19 @@ def enrich_records(
                 record["url"] = url
             record["content"] = _json(record["fields"])
     elif collection in {"clubs", "events"}:
-        url_field = "websiteUrl" if collection == "clubs" else "url"
-        by_url: dict[str, list[dict[str, Any]]] = {}
-        for item in get_artifact(collection) or []:
-            if isinstance(item, dict) and item.get(url_field):
-                by_url.setdefault(item[url_field], []).append(item)
+        by_url = archway_artifact_index(collection, get_artifact(collection))
         for record in records:
-            # Public evidence URLs can fall back to a source landing page. Only
-            # the original record URL establishes this artifact correspondence.
+            # Public evidence URLs may fall back to a landing page. Only the
+            # stored record URL establishes correspondence with this artifact.
             url = record["fields"].get("website_url" if collection == "clubs" else "event_url")
-            candidates = by_url.get(url, [])
-            item = candidates[0] if len(candidates) == 1 else {}
-            keys = ("email", "bucket", "instagramUrl", "groupmeUrls", "groupmeGroups") if (
-                collection == "clubs"
-            ) else ("location", "tags", "ticketStatus")
-            for key in keys:
-                if key in item:
-                    record["fields"][key] = item[key]
-                    record["coverage"]["fields"][key] = "published"
+            matched = by_url.get(url)
+            if matched:
+                index, item = matched
+                record["artifact_key"], record["artifact_path"] = collection, [str(index)]
+                for key in ARCHWAY_FIELDS[collection]:
+                    if key in item:
+                        record["fields"][key] = item[key]
+                        record["coverage"]["fields"][key] = "published"
             record["content"] = _json(record["fields"])
     elif collection == "programs":
         programs = [
