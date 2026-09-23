@@ -29,6 +29,7 @@ from rockygpt_brain.retrieval.processing import (
     catalog_program_faculty_records,
     event_organizer_records,
 )
+from rockygpt_brain.retrieval.subjects import course_subject
 
 if TYPE_CHECKING:
     from rockygpt_brain.retrieval.data import CampusData
@@ -49,11 +50,11 @@ RecordKey = Annotated[
 
 ProfileSection = Literal[
     "contact", "hours", "faculty", "courses", "program", "conveners", "menu", "club", "event",
-    "related", "requirements", "building", "school",
+    "related", "requirements", "building", "school", "subject",
 ]
 RelationshipType = Literal[
     "convener", "listed_faculty", "profile_course", "organized_by", "office_at", "located_at",
-    "part_of",
+    "part_of", "includes_course",
 ]
 # A published room places its holder in the building that owns the room's prefix.
 ROOM_RELATIONSHIPS = frozenset({"office_at", "located_at"})
@@ -62,7 +63,7 @@ ROOM = re.compile(r"([A-Z]+)-\d{1,4}[A-Z]?")
 ARCHWAY_GROUPS = frozenset({"club", "organization"})
 LinkCollection = Literal[
     "contacts", "campus_hours", "dining_hours", "menu", "faculty", "programs", "courses",
-    "clubs", "events", "buildings", "schools",
+    "clubs", "events", "buildings", "schools", "subjects",
 ]
 SECTION_COLLECTIONS: dict[str, tuple[str, ...]] = {
     "contact": ("contacts", "faculty", "clubs"),
@@ -78,6 +79,7 @@ SECTION_COLLECTIONS: dict[str, tuple[str, ...]] = {
     "requirements": (),  # Published requirement groups, not linked source records.
     "building": ("buildings",),
     "school": ("schools",),
+    "subject": ("subjects",),
 }
 
 
@@ -94,7 +96,7 @@ class ProfileQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
     entity: str | None = Field(default=None, min_length=1, max_length=240)
     entity_id: UUID | None = None
-    include: list[ProfileSection] = Field(min_length=1, max_length=13)
+    include: list[ProfileSection] = Field(min_length=1, max_length=14)
     date: CalendarDate | None = Field(
         default=None, description=(
             "Campus-local service date; null means today for hours/menu. An event is a dated "
@@ -194,9 +196,14 @@ class IdentityRelationship(BaseModel):
             ):
                 raise ValueError("A school placement requires a published school field")
         elif self.target_record is None or self.target_entity_id is not None:
-            raise ValueError("A profile_course relationship targets a catalog record")
+            raise ValueError("A course relationship targets a catalog record")
         elif self.target_record.collection != "courses":
-            raise ValueError("A profile_course target must be a catalog course")
+            raise ValueError("A course relationship's target must be a catalog course")
+        elif self.type == "includes_course" and any(
+            reference.collection != "courses" or reference.field != "code"
+            for reference in self.evidence
+        ):
+            raise ValueError("A subject's course is established by the course's own code")
         return self
 
 
@@ -213,7 +220,7 @@ class Identity(BaseModel):
     id: UUID
     kind: Literal[
         "office", "person", "facility", "venue", "program", "club", "organization", "event",
-        "building", "school",
+        "building", "school", "subject",
     ]
     name: IdentityText
     aliases: list[IdentityText] = Field(max_length=32)
@@ -325,7 +332,7 @@ def _linked_records(
     data: CampusData, link: IdentityLink,
 ) -> tuple[list[dict[str, Any]], list[str], bool]:
     """Read only exact release-validated references, including artifact-backed records."""
-    if link.collection in {"faculty", "courses", "buildings", "schools"}:
+    if link.collection in {"faculty", "courses", "buildings", "schools", "subjects"}:
         records = [
             deepcopy(record) for record in data._load(link.collection)
             if record["source_key"] == link.source_key
@@ -409,7 +416,7 @@ def _applicable(
             # Selecting a persistent event chooses its dated occurrence, including a
             # future or historical occurrence. It does not silently become today's event.
             applicable.extend(group)
-        elif collection in {"buildings", "schools"}:
+        elif collection in {"buildings", "schools", "subjects"}:
             applicable.extend(group)  # Undated reference records; not search collections.
         else:
             selected = data._dates(group, SearchQuery(
@@ -643,6 +650,8 @@ RELATIONSHIP_MEANINGS: dict[tuple[str, str], str] = {
     ("part_of", "incoming"): "The related program's catalog school (or its reviewed legacy name), "
                              "or the related person's faculty profile, names this school.",
     ("organized_by", "incoming"): "The related event's page names this group as its organizer.",
+    ("includes_course", "outgoing"):
+        "The related catalog course's own code starts with this subject's code.",
 }
 RELATIONSHIP_LIMITATIONS = {
     "convener": "A catalog Convener field is not a verified current appointment.",
@@ -657,6 +666,8 @@ RELATIONSHIP_LIMITATIONS = {
                   "published room, not a complete building directory.",
     "part_of": "Programs still published under the split School of Social Science and Human "
                "Services, and retired faculty, are not placed, so a school's list is not complete.",
+    "includes_course": "Catalog courses filed under this subject code; not a schedule of "
+                       "current sections, and a program can include courses of other subjects.",
 }
 
 
@@ -732,6 +743,12 @@ def _related_records(
                 names = {name for link in target.links if link.collection == "schools"
                          for record in fetch(link) for name in _school_names(record)}
                 evidence = [record for record in evidence if _published_school(record) in names]
+            if relation.type == "includes_course":
+                # The cited course's own code must still start with this subject's code.
+                codes = {key for link in entity.links if link.collection == "subjects"
+                         for key in link.source_record_keys}
+                evidence = [record for record in evidence
+                            if course_subject(record["fields"].get("code")) in codes]
             if relation.type in ROOM_RELATIONSHIPS and target is not None:
                 # The cited room's own prefix must still belong to this building.
                 prefixes = {prefix for link in target.links if link.collection == "buildings"
@@ -765,6 +782,8 @@ def _related_records(
             summary["target_evidence_ids"] = [record["id"] for record in targets]
         summaries.append(summary)
         for record in [*evidence, *targets]:
+            if any(kept["id"] == record["id"] for kept in records):
+                continue  # A subject's course is both the evidence and the target.
             copied = deepcopy(record)
             copied["limitations"].append(RELATIONSHIP_LIMITATIONS[relation.type])
             records.append(copied)
@@ -1101,6 +1120,8 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             field_names = ("category", "room_prefixes", "map_url")
         elif component == "school":
             field_names = ("abbreviation", "url", "legacy_names")
+        elif component == "subject":
+            field_names = ("code", "name", "course_count")
         elif component == "event" and entity.kind not in ARCHWAY_GROUPS:
             field_names = ("date_label", "start_time", "end_time", "organizer", "location",
                            "location_access", "event_url", "organizer_group_id", "organizer_url",

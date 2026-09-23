@@ -116,6 +116,10 @@ PROPERTY_SPECS = (
     PropertySpec("courses", fields(
         "code", "name", "description", ("credits", "credits"), ("attributes", "text_list"),
     )),
+    PropertySpec("subjects", fields(
+        "code", "name", "display_name", ("search_terms", "text_list"),
+        ("course_count", "number"),
+    )),
 )
 RECORD_SPECS = (
     RecordSpec("menu", "menu_offerings", "Menu offerings", fields(

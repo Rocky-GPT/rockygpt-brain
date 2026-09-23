@@ -134,8 +134,8 @@ def load_artifact_records(
     make_evidence: Callable[..., dict[str, Any] | None],
 ) -> list[dict[str, Any]]:
     """Parse static catalog records from release artifacts into evidence dicts."""
-    source_key = {"faculty": "faculty", "buildings": "campus-map",
-                  "schools": "ramapo-schools"}.get(collection, "academic-programs")
+    source_key = {"faculty": "faculty", "buildings": "campus-map", "schools": "ramapo-schools",
+                  "subjects": "course-subjects"}.get(collection, "academic-programs")
     source = next((s for s in sources.values() if s["source_key"] == source_key), None)
     if not source:
         return []
@@ -159,6 +159,14 @@ def load_artifact_records(
             fields = {k: value[k] for k in (
                 "name", "abbreviation", "url", "legacy_names") if k in value}
             entries.append((str(value["section"]), fields, value["name"], value.get("url")))
+    elif collection == "subjects":
+        payload = get_artifact("course-subjects") or {}
+        # The catalog department list's capture time, not the release that republished it.
+        collected_at = payload.get("captured_at") or collected_at
+        for value in payload.get("subjects", []):
+            fields = {k: value[k] for k in (
+                "code", "name", "display_name", "search_terms", "course_count") if k in value}
+            entries.append((str(value["code"]), fields, value["display_name"], None))
     elif collection == "courses":
         payload = get_artifact("courses") or {}
         for key, value in payload.items():
@@ -257,6 +265,11 @@ def load_artifact_records(
                     "Campus map record. Its room prefixes place published room numbers in this "
                     "building; the people and offices found that way are not a complete building "
                     "directory, a host or a school."
+                )
+            if collection == "subjects":
+                record["limitations"].append(
+                    "Catalog subject record: the courses filed under this code. A subject is "
+                    "not a department, program or school, and a program can share its name."
                 )
             if collection == "schools":
                 record["limitations"].append(

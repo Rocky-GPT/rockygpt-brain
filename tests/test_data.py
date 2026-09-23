@@ -32,7 +32,8 @@ def data() -> CampusData:
         }
     }
     repository._cache = {}
-    repository._artifacts = {"campus-identities": None}
+    # A release published before identities and course subjects existed.
+    repository._artifacts = {"campus-identities": None, "course-subjects": None}
     repository._seen = {}
     return repository
 

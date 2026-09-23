@@ -27,8 +27,8 @@ the explorer's legacy `EntityGraph` view.
 - **`sources`** lists every original record the response reads, once:
   - its collection and original row ID;
   - its source key, source record key and source URL;
-  - for artifact-backed records (faculty, courses, buildings, schools), the artifact
-    key and the exact path of the item;
+  - for artifact-backed records (faculty, courses, buildings, schools, subjects), the
+    artifact key and the exact path of the item;
   - the capture time, validity interval and freshness;
   - the record's limitations: stale data, the menu's allergy caveat, the
     undated faculty course list, the unresolved schedule applicability.
@@ -70,6 +70,7 @@ recorded in `field_path`.
 | buildings | properties | name, category, map URL, room prefixes, Concept3D ID, identity basis |
 | schools | properties | name, abbreviation, official URL, section, former names |
 | courses | properties | code, name, description, credits, attributes |
+| subjects | properties | code, catalog name, display name, search terms, course count |
 | menu | record group `menu_offerings` | context: validity, meal, station; item name, calories, portion, vegan, vegetarian, allergens, dietary label coverage |
 | dining_hours | record group `dining_hours` | context: weekday, validity; schedule |
 | campus_hours | record group `operating_hours` | context: weekday, validity; schedule, structured hours |
