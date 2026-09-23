@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 
 from rockygpt_brain.api.identities import _campus_data, _snapshot
+from rockygpt_brain.retrieval.entity_facts import EntityFactProjection, EntityFacts
 
 router = APIRouter(prefix="/v1")
 
@@ -44,15 +45,13 @@ def directory() -> dict[str, Any]:
         }
 
 
-@router.get("/entities/{entity_id}/facts")
+@router.get("/entities/{entity_id}/facts", response_model=EntityFactProjection)
 def entity_facts(
     entity_id: UUID,
     dataset_version: Annotated[str, Query(min_length=1, max_length=160)],
     identity_hash: Annotated[str, Query(min_length=1, max_length=128)],
-) -> Any:
+) -> EntityFactProjection:
     """Public published facts only, pinned to the identity index the caller selected."""
-    from rockygpt_brain.retrieval.entity_facts import EntityFacts
-
     with _campus_data() as data:
         _, snapshot = _snapshot(data)
         if (dataset_version != snapshot["dataset_version"]
