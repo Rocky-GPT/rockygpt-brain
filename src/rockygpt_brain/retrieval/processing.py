@@ -27,7 +27,7 @@ def build_collection_query(
 ) -> tuple[sql.Composable, tuple[Any, ...]]:
     """Build parameterized SQL query and arguments for a collection table read."""
     table, names = TABLES[collection]
-    # Optional contact metadata was added after the original directory schema.
+    # Optional record metadata was added after the original database schema.
     # JSON extraction preserves native value types and returns NULL on older releases.
     optional_contact_fields = {
         "prefers_email", "preferred_contact", "contact_note", "phones",
@@ -36,7 +36,7 @@ def build_collection_query(
     fields = [
         sql.SQL("to_jsonb(t)->{} AS {}").format(sql.Literal(name), sql.Identifier(name))
         if (collection == "contacts" and name in optional_contact_fields)
-        or (collection == "campus_hours" and name == "hours")
+        or (collection == "campus_hours" and name in {"hours", "notes"})
         or (collection == "menu" and name == "portion_size")
         else sql.Identifier("t", name)
         for name in names
@@ -48,6 +48,10 @@ def build_collection_query(
     )
     if collection == "menu":
         extra = sql.SQL(", to_jsonb(t)->'label_coverage' AS label_coverage")
+    if collection == "campus_hours":
+        # Citation metadata belongs on the evidence record rather than in its
+        # factual fields. Older release databases have no source_url column.
+        extra = sql.SQL(", to_jsonb(t)->>'source_url' AS source_url")
     if collection == "contacts":
         extra = sql.SQL(
             ", tsvector_to_array(to_tsvector('english', concat_ws(' ', "
@@ -443,6 +447,12 @@ def _raw_catalog_programs(
     programs: dict[str, list[dict[str, Any]]] = {}
     for school in (data._artifact("programs") or {}).get("schools", []):
         for program in school.get("majors", []):
+            # New releases use the source's catalog code so identically named
+            # degrees remain distinct. Keep legacy keys for existing releases,
+            # but never resolve a collision by taking the first program.
+            code = program.get("catalogCode")
+            if isinstance(code, str) and code.strip():
+                programs.setdefault(f"catalog:{code.strip()}", []).append(program)
             key = " ".join(f"{school.get('school', '')}:{program.get('name', '')}".split())
             programs.setdefault(key, []).append(program)
     catalog: dict[str, list[dict[str, Any]]] = {}

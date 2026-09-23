@@ -96,7 +96,7 @@ def listed(data: Any) -> Any:
     program['relationships'].append({
         'type': 'listed_faculty', 'target_entity_id': PERSON,
         'evidence': [{'collection': 'programs', 'source_key': 'academic-programs',
-                      'source_record_key': 'School:Computer Science',
+                      'source_record_key': program['links'][0]['source_record_keys'][0],
                       'field': 'customFields.xiQxl', 'source_url': 'https://example.edu/computing'}],
     })
     data._artifacts['catalog-conveners']['programs'][0]['customFields']['xiQxl'] = (
@@ -104,8 +104,11 @@ def listed(data: Any) -> Any:
     return data
 
 
-def test_program_faculty_listing_is_followed_both_ways_but_is_not_program_content() -> None:
-    data = listed(program_data())
+@pytest.mark.parametrize('record_key', ['School:Computer Science', 'catalog:TS-BS-COMP'])
+def test_program_faculty_listing_is_followed_both_ways_but_is_not_program_content(
+    record_key: str,
+) -> None:
+    data = listed(program_data(record_key))
     outgoing = related(data, PROGRAM, relationship='listed_faculty')
     component = outgoing['components']['related']
     assert [(r['type'], r['direction'], r['entity']['id']) for r in component['relationships']] == [
@@ -151,4 +154,3 @@ def test_a_retired_person_is_shown_as_retired_wherever_they_are_named() -> None:
     person['status']['state'] = 'emeritus'
     output = related(data, PROGRAM)
     assert (output['status'], output['reason']) == ('unavailable', 'invalid_identity_registry')
-
