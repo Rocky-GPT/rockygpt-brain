@@ -266,10 +266,11 @@ def test_default_profile_sections_remain_selective_and_date_defaults_to_campus_t
     output = response.json()["profile"]
     assert set(output["components"]) == {
         "contact", "hours", "faculty", "courses", "program", "conveners", "menu", "club", "event",
-        "related", "requirements", "building", "school",
+        "related", "requirements", "building", "school", "subject",
     }
     assert output["components"]["requirements"]["reason"] == "requirements_apply_to_programs"
     assert output["components"]["building"]["status"] == "missing"
+    assert output["components"]["subject"]["status"] == "missing"
     assert output["components"]["hours"]["service_date"] == data.today.isoformat()
     assert output["components"]["faculty"]["status"] == "missing"
 

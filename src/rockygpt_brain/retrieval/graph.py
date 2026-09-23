@@ -23,7 +23,7 @@ LABELS = {
     "program_requirements": "Program requirements", "courses": "Catalog courses",
     "faculty": "Faculty profiles", "shuttle": "Shuttle trips",
     "shuttle_routes": "Shuttle routes", "artifacts": "Published source artifacts",
-    "buildings": "Campus buildings", "schools": "Schools",
+    "buildings": "Campus buildings", "schools": "Schools", "subjects": "Course subjects",
 }
 GROUP_FIELDS = {
     "contacts": ("department", "type"), "campus_hours": ("name", "day"),
@@ -34,8 +34,10 @@ GROUP_FIELDS = {
     "shuttle": ("route", "service_day"), "shuttle_routes": ("service_day",),
     "documents": ("source_key",), "document_chunks": ("document_id",),
     "critical_facts": (), "artifacts": (), "buildings": ("category",), "schools": (),
+    "subjects": (),
 }
-ARTIFACT_COLLECTIONS = {"faculty", "courses", "program_requirements", "buildings", "schools"}
+ARTIFACT_COLLECTIONS = {"faculty", "courses", "program_requirements", "buildings", "schools",
+                        "subjects"}
 GRAPH_COLLECTIONS = (*COLLECTIONS, "document_chunks", "shuttle_routes", "artifacts")
 META_FIELDS = {
     "id", "source_id", "source_record_key", "dataset_version_id", "collected_at",
@@ -433,15 +435,16 @@ class GraphData:
         """A parsed artifact record with its original published item and exact path."""
         original_id = record["id"][len(collection) + 1:]
         artifact = {"faculty": "faculty", "courses": "courses",
-                    "program_requirements": "programs",
-                    "buildings": "campus-buildings", "schools": "campus-schools"}[collection]
+                    "program_requirements": "programs", "buildings": "campus-buildings",
+                    "schools": "campus-schools", "subjects": "course-subjects"}[collection]
         path = (original_id.split(".") if collection == "program_requirements"
                 else [original_id])
         if collection == "program_requirements":
             path = ["schools", path[0], "majors", path[1], "requirements", path[2]]
         raw = self.data._artifact(artifact)
-        if collection in {"buildings", "schools"}:
-            key = "concept3d_id" if collection == "buildings" else "section"
+        if collection in {"buildings", "schools", "subjects"}:
+            key = {"buildings": "concept3d_id", "schools": "section",
+                   "subjects": "code"}[collection]
             path = [collection, str(next(
                 index for index, item in enumerate(raw[collection])
                 if str(item.get(key)) == original_id))]

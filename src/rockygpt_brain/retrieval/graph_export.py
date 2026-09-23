@@ -171,6 +171,8 @@ def export_graph(data: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
             "part_of": "A program's catalog school (or its reviewed legacy name) or a person's "
                        "faculty-profile school names the school; retired and split-school "
                        "records are not placed.",
+            "includes_course": "A catalog course's own code starts with the subject's code; "
+                               "the subject is not a department, program or school.",
             "coverage": "Published report and resolution diagnostics, not a new source audit. "
                         "Issue counts are not counts of unique missing entities.",
             "time": "exported_at is generation time, not source capture time. No date filtering.",

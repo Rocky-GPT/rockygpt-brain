@@ -30,7 +30,7 @@ FIELDS = ("phone", "email", "office", "department", "fax", "hours", "website")
 # requirements, building and school are chosen by the model until routing evals cover them.
 ROUTED_SECTIONS = tuple(
     section for section in SECTION_COLLECTIONS
-    if section not in {"related", "requirements", "building", "school"})
+    if section not in {"related", "requirements", "building", "school", "subject"})
 ROUTES = {
     "contact": "Contact fields for exactly one named person or office.",
     "profile": "One known campus entity's profile sections, including combined contact/hours.",

@@ -54,8 +54,8 @@ def tool_definitions() -> list[dict[str, Any]]:
             "lookup_profile",
             "Resolve a named campus entity through curated identity links and retrieve its "
             "selected contact, faculty, undated profile courses, program, conveners, dated "
-            "campus/dining hours, menu, club, event, related, requirements, building and school "
-            "sections. Prefer it for named "
+            "campus/dining hours, menu, club, event, related, requirements, building, school "
+            "and subject sections. Prefer it for named "
             "combined requests, "
             "program conveners and their follow-ups. Supply exactly one name/verified alias "
             "or a previously returned entity_id. For follow-ups, resolve the subject of the "
@@ -137,6 +137,9 @@ def tool_definitions() -> list[dict[str, Any]]:
             "campus_hours, dining_hours, shuttle and events, using the requested date "
             "or the supplied current campus date. Do not put schedule dates only in keywords. "
             "Read returned records for missing details. "
+            "For courses, name a subject by its code, catalog name or short form (\"CS\", "
+            "\"Comp Sci\", \"computer science\", \"CMPS\"); it selects that subject's catalog "
+            "courses and coverage.subject_resolution says how it was read. "
             "Search each requested subject; reformulate if no relevant results. "
             "A no-match result may include discovery_titles from a small published collection. "
             "Choose relevant names by meaning and retrieve their records before citing them.",

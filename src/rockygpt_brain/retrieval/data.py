@@ -8,6 +8,7 @@ import math
 import os
 import re
 import time
+from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any
 
@@ -44,6 +45,7 @@ from rockygpt_brain.retrieval.processing import (
     load_artifact_records,
 )
 from rockygpt_brain.retrieval.profiles import ProfileQuery, lookup_profile
+from rockygpt_brain.retrieval.subjects import course_subject, resolve_subjects
 
 __all__ = [
     "CAMPUS_ZONE",
@@ -342,7 +344,8 @@ class CampusData:
         if collection in self._cache:
             return self._cache[collection]
         records: list[dict[str, Any]] = []
-        if collection in ("courses", "faculty", "program_requirements", "buildings", "schools"):
+        if collection in ("courses", "faculty", "program_requirements", "buildings", "schools",
+                          "subjects"):
             records = self._load_artifact_records(collection)
         else:
             names = TABLES[collection][1]
@@ -469,6 +472,7 @@ class CampusData:
         self._ensure_loaded()
         discovery_titles: list[str] = []
         name_resolution = None
+        subject_resolution: list[dict[str, str]] = []
         if query.collection == "documents":
             selected, total = self._documents(query)
         else:
@@ -501,6 +505,16 @@ class CampusData:
                     }
             records = self._dates(loaded, query)
             terms = _tokens(query.query)
+            if query.collection == "courses":
+                # A named subject selects its courses; other words only rank them.
+                mentions, remaining = resolve_subjects(
+                    query.query, self._artifact("course-subjects"))
+                if mentions:
+                    codes = {mention.code for mention in mentions}
+                    records = [r for r in records
+                               if course_subject(r["fields"].get("code")) in codes]
+                    terms = _tokens(remaining)
+                    subject_resolution = [asdict(mention) for mention in mentions]
             if query.collection == "contacts" and records:
                 terms = set(records[0].get("_query_terms") or terms)
             ranked: list[tuple[float, dict[str, Any]]] = []
@@ -529,7 +543,7 @@ class CampusData:
                     body_terms.update(record.get("_search_terms", []))
                     title_terms = set(record.get("_title_terms") or title_terms)
                 matched = terms & (title_terms | body_terms)
-                if terms and not matched:
+                if terms and not matched and not subject_resolution:
                     continue
                 score = (len(matched) / max(1, len(terms))) * 20 + len(terms & title_terms) * 4
                 ranked.append((score, record))
@@ -563,6 +577,7 @@ class CampusData:
             "coverage": {
                 "scope": "matching_records_only",
                 "name_resolution": name_resolution,
+                **({"subject_resolution": subject_resolution} if subject_resolution else {}),
                 "filters": query.model_dump(mode="json"),
                 "absence_is_not_nonexistence": True,
                 "excerpts_truncated": any(
