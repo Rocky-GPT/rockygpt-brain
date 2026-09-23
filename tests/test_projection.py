@@ -449,7 +449,7 @@ def test_live_projection_matches_original_records_for_every_kind(
         group = response.json()["record_groups"][0]
     assert len(ids) == len(set(ids)) == group["total"] > 100
     for kind in ["person", "course", "club", "organization", "event", "program", "office",
-                 "facility", "venue", "building", "school"]:
+                 "facility", "venue", "building", "school", "subject"]:
         entity = next(e for e in index["nodes"] if e["kind"] == kind)
         response = client.get("/v1/dev/graph/projection/v2",
                               params={**pins, "entity_id": entity["id"]})
