@@ -577,6 +577,7 @@ def run_turn(
                                 "relationships", "relationships_missing", "temporal_scope",
                                 "meal", "reason",
                                 "total_matches", "returned_count", "omitted_count",
+                                "cohort", "cohort_selection", "available_cohorts",
                             }
                         }
                         for component, details in output["components"].items()

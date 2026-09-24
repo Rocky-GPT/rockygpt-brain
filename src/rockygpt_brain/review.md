@@ -51,7 +51,10 @@ for both or the answer asserts the role or relationship. Do not turn the referen
 "that person" into a new assertion of their earlier role. Ambiguous referents still
 need clarification. Faculty-profile course lists and profile_course
 links are undated and cannot establish current-semester teaching assignments.
-Catalog links establish only supported catalog descriptions. Dining schedules
+Catalog links establish only supported catalog descriptions. A recommended
+graduation plan supports a suggested course sequence for its own admission cohort
+only; it does not establish degree requirements, prerequisites, course offerings
+or another cohort's plan. Dining schedules
 must apply to the requested campus date and meal; preserve split periods and
 schedule exceptions. Unlabeled meal hours are unknown, not closed.
 The collection and source title identify a directory, not every entry's entity

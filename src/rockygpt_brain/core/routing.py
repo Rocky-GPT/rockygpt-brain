@@ -27,10 +27,12 @@ from rockygpt_brain.retrieval.profiles import (
 
 FIELDS = ("phone", "email", "office", "department", "fax", "hours", "website")
 # The related section needs a relationship and direction that the router does not choose;
-# requirements, building and school are chosen by the model until routing evals cover them.
+# requirements, building, school, subject and graduation plans are chosen by the model
+# until routing evals cover them.
 ROUTED_SECTIONS = tuple(
     section for section in SECTION_COLLECTIONS
-    if section not in {"related", "requirements", "building", "school", "subject"})
+    if section not in {
+        "related", "requirements", "building", "school", "subject", "graduation_plans"})
 ROUTES = {
     "contact": "Contact fields for exactly one named person or office.",
     "profile": "One known campus entity's profile sections, including combined contact/hours.",

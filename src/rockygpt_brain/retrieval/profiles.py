@@ -50,7 +50,7 @@ RecordKey = Annotated[
 
 ProfileSection = Literal[
     "contact", "hours", "faculty", "courses", "program", "conveners", "menu", "club", "event",
-    "related", "requirements", "building", "school", "subject",
+    "related", "requirements", "building", "school", "subject", "graduation_plans",
 ]
 RelationshipType = Literal[
     "convener", "listed_faculty", "profile_course", "organized_by", "office_at", "located_at",
@@ -80,6 +80,7 @@ SECTION_COLLECTIONS: dict[str, tuple[str, ...]] = {
     "building": ("buildings",),
     "school": ("schools",),
     "subject": ("subjects",),
+    "graduation_plans": ("graduation_plans",),
 }
 
 
@@ -96,7 +97,7 @@ class ProfileQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
     entity: str | None = Field(default=None, min_length=1, max_length=240)
     entity_id: UUID | None = None
-    include: list[ProfileSection] = Field(min_length=1, max_length=14)
+    include: list[ProfileSection] = Field(min_length=1, max_length=15)
     date: CalendarDate | None = Field(
         default=None, description=(
             "Campus-local service date; null means today for hours/menu. An event is a dated "
@@ -125,6 +126,13 @@ class ProfileQuery(BaseModel):
             "that point to it (incoming), or null for both."
         ),
     )
+    cohort: str | None = Field(
+        default=None, min_length=1, max_length=40,
+        description=(
+            "With include=['graduation_plans']: the admission cohort as published, e.g. "
+            "'Fall 2024' for students admitted in 2024-2025, or null for the newest cohort."
+        ),
+    )
 
     @model_validator(mode="after")
     def valid_selector(self) -> ProfileQuery:
@@ -138,6 +146,10 @@ class ProfileQuery(BaseModel):
             raise ValueError("meal must not be blank")
         if (self.relationship or self.direction) and "related" not in self.include:
             raise ValueError("relationship and direction apply only to the related section")
+        if self.cohort is not None and not self.cohort.strip():
+            raise ValueError("cohort must not be blank")
+        if self.cohort is not None and "graduation_plans" not in self.include:
+            raise ValueError("cohort applies only to the graduation_plans section")
         return self
 
 
@@ -807,6 +819,45 @@ UNINTERPRETED_LIMITATION = (
     "and credits together."
 )
 UNLINKED_LIMITATION = "Some cited codes are not catalog courses; they are shown as published."
+PLAN_LIMITATION = (
+    "Recommended graduation plans are suggested course sequences, one set per admission cohort. "
+    "A plan applies only to students admitted in its cohort; it is not a degree requirement."
+)
+SEASONS = {"winter": 0, "spring": 1, "summer": 2, "fall": 3}
+
+
+def _cohort_order(label: str) -> tuple[int, int] | None:
+    match = re.fullmatch(r"(winter|spring|summer|fall) (\d{4})", _normalize(label))
+    return (int(match[2]), SEASONS[match[1]]) if match else None
+
+
+def _plan_cohort(
+    data: CampusData, records: list[dict[str, Any]], requested: str | None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """One cohort's plans, never a mix: the requested cohort, or else the newest one."""
+    labels = {str(r["fields"]["cohort"]) for r in records if r["fields"].get("cohort")}
+    ordered = sorted(labels, key=lambda label: (_cohort_order(label) or (0, -1), label),
+                     reverse=True)
+    if requested is None:
+        selected = next((label for label in ordered if _cohort_order(label)), None)
+    else:
+        selected = next((label for label in ordered
+                         if _normalize(label) == _normalize(requested)), None)
+    scope: dict[str, Any] = {
+        "cohort": selected,
+        "cohort_selection": "newest_published" if requested is None else "requested",
+        "available_cohorts": ordered,
+    }
+    if selected is None:
+        if ordered:
+            scope["reason"] = "cohort_not_published" if requested else "cohort_required"
+        return [], scope
+    # The official index's order, which lists a program's plan before its variants.
+    plans = (data._artifact("graduation-plans") or {}).get("plans") or []
+    position = {str(plan.get("id")): index for index, plan in enumerate(plans)
+                if isinstance(plan, dict)}
+    return sorted((r for r in records if r["fields"].get("cohort") == selected),
+                  key=lambda r: position.get(str(r.get("source_record_key")), len(position))), scope
 
 
 def _course_text(course: dict[str, Any]) -> str:
@@ -1019,6 +1070,9 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                 # A broken link must not erase independently available sections.
                 failed_links += 1
         records = _applicable(data, records, query)
+        plan_scope: dict[str, Any] = {}
+        if component == "graduation_plans":
+            records, plan_scope = _plan_cohort(data, records, query.cohort)
         relationships: list[dict[str, Any]] = []
         relationship_missing = 0
         reverse_coverage: dict[str, int] = {}
@@ -1210,6 +1264,8 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
         if component == "requirements":
             result["components"][component].update(
                 **requirement_coverage, limitations=[REQUIREMENT_LIMITATION])
+        if component == "graduation_plans":
+            result["components"][component].update(**plan_scope, limitations=[PLAN_LIMITATION])
         if component == "club":
             result["components"][component]["limitations"] = [
                 "A directory listing does not establish current meetings, membership, or events."
@@ -1230,7 +1286,9 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                 ]
                 if reverse_coverage["unexamined_event_candidates"]:
                     result["components"][component]["reason"] = "event_candidate_limit"
-        result["records"].extend(data._public(record) for record in records)
+        # A plan excerpt would drop semesters, and one cohort's plans fit a turn whole.
+        result["records"].extend(
+            data._public(record, detail=component == "graduation_plans") for record in records)
         result["truncated"] = result["truncated"] or truncated
     # A section may reuse evidence from another section; retain its richest version.
     merged: dict[str, dict[str, Any]] = {}
