@@ -42,7 +42,10 @@ class AnswerPart(StrictModel):
 
 class Answer(StrictModel):
     general_scope: (
-        Literal["stable_explanation", "writing", "study", "conversation", "clarification"] | None
+        Literal[
+            "stable_explanation", "writing", "study", "conversation", "clarification",
+            "urgent_safety",
+        ] | None
     ) = Field(
         default=None,
         description=(

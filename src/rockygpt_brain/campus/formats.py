@@ -169,6 +169,22 @@ def limitation(text: str) -> AnswerPart:
     return AnswerPart(kind="limitation", text=text, evidence_ids=[])
 
 
+# Public Safety's verified numbers by published fact key, in the order they are shown.
+SAFETY_FACTS = (("safety.emergency_phone", "emergency"),
+                ("safety.non_emergency_phone", "non-emergency"))
+
+
+def safety_part(records: list[dict[str, Any]]) -> AnswerPart | None:
+    """Ramapo Public Safety's numbers exactly as their critical-fact records publish them."""
+    by_key = {record.get("fields", {}).get("fact_key"): record for record in records}
+    found = [(label, by_key[key]) for key, label in SAFETY_FACTS
+             if key in by_key and isinstance(by_key[key]["fields"].get("fact_value"), str)]
+    if not found:
+        return None
+    numbers = "; ".join(f"{label} {record['fields']['fact_value']}" for label, record in found)
+    return fact(f"Ramapo College Public Safety: {numbers}.", [record for _, record in found])
+
+
 def menu_parts(
     text: str,
     records: list[dict[str, Any]],
