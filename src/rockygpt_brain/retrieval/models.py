@@ -131,7 +131,8 @@ class SearchQuery(BaseModel):
         description=(
             "Choose by record contents. critical_facts: concise verified campus facts and "
             "official service/action links, selected dates, charges, and emergency contacts. "
-            "documents: campus policy and process passages. contacts: directory phone, "
+            "documents: campus policy, process and program page passages. "
+            "contacts: directory phone, "
             "email, department, and office. campus_hours and dining_hours: dated opening "
             "schedules and exceptions. menu: dated items, meal, dietary flags, and allergens. "
             "calendar: academic dates by term and session. events: dated campus activities. "
