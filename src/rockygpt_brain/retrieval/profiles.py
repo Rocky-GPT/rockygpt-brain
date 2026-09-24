@@ -108,13 +108,7 @@ class ProfileQuery(BaseModel):
         default=None, min_length=1, max_length=80,
         description="Published meal label for menu and dining periods, or null for all meals.",
     )
-    menu_limit: int = Field(
-        default=12, ge=1, le=100,
-        description=(
-            "Maximum menu item records. Use 12 for an ordinary menu summary; raise this "
-            "only for an explicitly requested complete list. Other sections are unaffected."
-        ),
-    )
+    menu_limit: int = Field(default=12, ge=1, le=100, description="Maximum menu item records.")
     relationship: RelationshipType | None = Field(
         default=None,
         description="With include=['related']: only this relationship type, or null for all.",
@@ -128,10 +122,13 @@ class ProfileQuery(BaseModel):
     )
     cohort: str | None = Field(
         default=None, min_length=1, max_length=40,
-        description=(
-            "With include=['graduation_plans']: the admission cohort as published, e.g. "
-            "'Fall 2024' for students admitted in 2024-2025, or null for the newest cohort."
-        ),
+        description="Admission cohort as published, e.g. 'Fall 2024'.",
+    )
+    plan: str | None = Field(
+        default=None, min_length=1, description="A name from available_plans, delivered whole.",
+    )
+    diet: Literal["vegan", "vegetarian"] | None = Field(
+        default=None, description="Only menu items labeled with this diet.",
     )
 
     @model_validator(mode="after")
@@ -150,6 +147,12 @@ class ProfileQuery(BaseModel):
             raise ValueError("cohort must not be blank")
         if self.cohort is not None and "graduation_plans" not in self.include:
             raise ValueError("cohort applies only to the graduation_plans section")
+        if self.plan is not None and not self.plan.strip():
+            raise ValueError("plan must not be blank")
+        if self.plan is not None and "graduation_plans" not in self.include:
+            raise ValueError("plan applies only to the graduation_plans section")
+        if self.diet is not None and "menu" not in self.include:
+            raise ValueError("diet applies only to the menu section")
         return self
 
 
@@ -546,6 +549,23 @@ def _event_date_candidates(
     return selected
 
 
+def _plan_candidates(
+    matches: list[Identity], query: ProfileQuery,
+) -> tuple[list[Identity], list[Identity]]:
+    """A plan request can pick among same-named programs when only one publishes plans.
+
+    'Computer Science' names the BS, MS, Minor and 4+1, and recommended graduation plans
+    are published for the BS alone. The others are returned to be reported, never hidden.
+    """
+    if len(matches) < 2 or "graduation_plans" not in query.include:
+        return matches, []
+    publishing = [entity for entity in matches
+                  if any(link.collection == "graduation_plans" for link in entity.links)]
+    if len(publishing) != 1:
+        return matches, []
+    return publishing, [entity for entity in matches if entity.id != publishing[0].id]
+
+
 EVENT_CANDIDATE_LIMIT = 20
 
 
@@ -823,6 +843,13 @@ PLAN_LIMITATION = (
     "Recommended graduation plans are suggested course sequences, one set per admission cohort. "
     "A plan applies only to students admitted in its cohort; it is not a degree requirement."
 )
+# What a plan summary keeps: that the plan exists, for whom, and its stated totals.
+PLAN_SUMMARY_FIELDS = ("name", "cohort", "variantOf", "applicability", "totalCredits",
+                       "graduateCredits", "gpa", "totals", "url")
+PLAN_SUMMARY_LIMITATION = (
+    "Plan summary: it establishes that this plan is published, for its cohort, with its "
+    "stated totals. Its semesters are not included; request the plan by name to read them."
+)
 SEASONS = {"winter": 0, "spring": 1, "summer": 2, "fall": 3}
 
 
@@ -833,8 +860,14 @@ def _cohort_order(label: str) -> tuple[int, int] | None:
 
 def _plan_cohort(
     data: CampusData, records: list[dict[str, Any]], requested: str | None,
+    plan: str | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """One cohort's plans, never a mix: the requested cohort, or else the newest one."""
+    """One cohort's plans, never a mix: the requested cohort, or else the newest one.
+
+    The program's own plan arrives whole and each variant as a summary, unless a plan is
+    named. When the requested cohort or plan is not published, summaries of the published
+    ones are the evidence for saying so. Summaries are marked `_plan_summary`.
+    """
     labels = {str(r["fields"]["cohort"]) for r in records if r["fields"].get("cohort")}
     ordered = sorted(labels, key=lambda label: (_cohort_order(label) or (0, -1), label),
                      reverse=True)
@@ -848,16 +881,39 @@ def _plan_cohort(
         "cohort_selection": "newest_published" if requested is None else "requested",
         "available_cohorts": ordered,
     }
-    if selected is None:
-        if ordered:
-            scope["reason"] = "cohort_not_published" if requested else "cohort_required"
+    if not ordered:
         return [], scope
     # The official index's order, which lists a program's plan before its variants.
     plans = (data._artifact("graduation-plans") or {}).get("plans") or []
     position = {str(plan.get("id")): index for index, plan in enumerate(plans)
                 if isinstance(plan, dict)}
-    return sorted((r for r in records if r["fields"].get("cohort") == selected),
-                  key=lambda r: position.get(str(r.get("source_record_key")), len(position))), scope
+
+    def cohort_plans(label: str) -> list[dict[str, Any]]:
+        return sorted((r for r in records if r["fields"].get("cohort") == label),
+                      key=lambda r: position.get(str(r.get("source_record_key")), len(position)))
+
+    def summarized(chosen: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for record in chosen:
+            record["_plan_summary"] = True
+        return chosen
+
+    if selected is None:
+        scope["reason"] = "cohort_not_published" if requested else "cohort_required"
+        return summarized([r for label in ordered for r in cohort_plans(label)
+                           if not r["fields"].get("variantOf")]), scope
+    chosen = cohort_plans(selected)
+    scope["available_plans"] = [str(r["fields"].get("name")) for r in chosen]
+    if plan is not None:
+        wanted = _normalize(plan)
+        named = [r for r in chosen if _normalize(str(r["fields"].get("name", ""))) == wanted]
+        if not named:
+            scope["reason"] = "plan_not_published"
+            return summarized(chosen), scope
+        return named, scope
+    for record in chosen:
+        if record["fields"].get("variantOf"):
+            record["_plan_summary"] = True
+    return chosen, scope
 
 
 def _course_text(course: dict[str, Any]) -> str:
@@ -1004,6 +1060,7 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
         )
     ]
     matches = _event_date_candidates(data, matches, query)
+    matches, set_aside = _plan_candidates(matches, query)
     if len(matches) != 1:
         result["resolution"].update(
             status="ambiguous" if matches else "no_match",
@@ -1015,6 +1072,12 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
 
     entity = matches[0]
     result["resolution"].update(status="matched", entity=_identity_summary(entity))
+    if set_aside:
+        # Name the program the plans belong to; the same name also means these.
+        result["resolution"].update(
+            narrowed_by="graduation_plans",
+            other_candidates=[_identity_summary(other) for other in set_aside[:20]],
+        )
     entities = {item.id: item for item in registry.entities}
     cache: dict[str, tuple[list[dict[str, Any]], list[str], bool]] = {}
     matched_record_ids: set[str] = set()
@@ -1070,9 +1133,16 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                 # A broken link must not erase independently available sections.
                 failed_links += 1
         records = _applicable(data, records, query)
+        if component == "menu" and query.diet is not None:
+            # A published label only; an unknown label is dropped, never treated as false.
+            records = [record for record in records if record["fields"].get(query.diet) is True]
         plan_scope: dict[str, Any] = {}
         if component == "graduation_plans":
-            records, plan_scope = _plan_cohort(data, records, query.cohort)
+            records, plan_scope = _plan_cohort(data, records, query.cohort, query.plan)
+            for record in records:
+                if record.get("_plan_summary"):
+                    _select_fields(record, PLAN_SUMMARY_FIELDS)
+                    record["limitations"].append(PLAN_SUMMARY_LIMITATION)
         relationships: list[dict[str, Any]] = []
         relationship_missing = 0
         reverse_coverage: dict[str, int] = {}
@@ -1251,6 +1321,12 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                 service_date=(query.date or data.today).isoformat(),
                 meal=query.meal,
             )
+        if component == "menu" and query.diet is not None:
+            result["components"][component].update(
+                diet=query.diet,
+                limitations=[f"Only items the menu labels {query.diet}; an item with no "
+                             "published label is left out, not established as excluded."],
+            )
         if component == "hours":
             result["components"][component]["availability_scope"] = (
                 "dining_service" if records and all(
@@ -1266,6 +1342,9 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                 **requirement_coverage, limitations=[REQUIREMENT_LIMITATION])
         if component == "graduation_plans":
             result["components"][component].update(**plan_scope, limitations=[PLAN_LIMITATION])
+            if plan_scope.get("reason") in {"cohort_not_published", "plan_not_published"}:
+                # The summaries show what is published; the requested plan is still missing.
+                result["components"][component]["status"] = "missing"
         if component == "club":
             result["components"][component]["limitations"] = [
                 "A directory listing does not establish current meetings, membership, or events."
@@ -1286,9 +1365,10 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                 ]
                 if reverse_coverage["unexamined_event_candidates"]:
                     result["components"][component]["reason"] = "event_candidate_limit"
-        # A plan excerpt would drop semesters, and one cohort's plans fit a turn whole.
+        # A plan excerpt would drop semesters, so a delivered plan arrives whole.
         result["records"].extend(
-            data._public(record, detail=component == "graduation_plans") for record in records)
+            data._public(record, detail=component == "graduation_plans"
+                         and not record.get("_plan_summary")) for record in records)
         result["truncated"] = result["truncated"] or truncated
     # A section may reuse evidence from another section; retain its richest version.
     merged: dict[str, dict[str, Any]] = {}

@@ -248,7 +248,7 @@ def test_tool_runs_through_generated_answer_review() -> None:
     tool = next(tool for tool in tool_definitions() if tool["name"] == "lookup_profile")
     assert set(tool["parameters"]["required"]) == {
         "entity", "entity_id", "include", "date", "meal", "menu_limit", "relationship", "direction",
-        "cohort",
+        "cohort", "plan", "diet",
     }
 
 
