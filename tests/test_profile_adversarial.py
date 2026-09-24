@@ -185,6 +185,66 @@ def test_dated_hours_do_not_override_a_different_sources_disagreement() -> None:
                for record in output["records"])
 
 
+def test_schedules_one_source_lists_apart_are_not_a_conflict() -> None:
+    def hours(source_key: str, key: str, name: str, schedule: str) -> dict[str, Any]:
+        return row(source_key, key, id=key, name=name, day="Monday", schedule=schedule)
+
+    main = hours("hours", "main", "Library (Main Building)", "8:00am-6:00pm")
+    desk = hours("hours", "desk", "Research Help Desk", "Hours unavailable")
+    # Only case and spacing set this name apart from the main building's.
+    variant = hours("hours", "variant", "library (main building) ", "8:00am-5:00pm")
+
+    def profile(*rows: dict[str, Any]) -> dict[str, Any]:
+        by_source: dict[str, list[dict[str, Any]]] = {}
+        for value in rows:
+            by_source.setdefault(value["source_id"], []).append(value)
+        collections = {"dining": "dining_hours"}
+        links = [link(collections.get(source_key, "campus_hours"), source_key,
+                      *[value["source_record_key"] for value in values])
+                 for source_key, values in by_source.items()]
+        data = repository([identity(*links)], dict(by_source))
+        data._artifacts["dining-hours"] = None  # No published meal periods.
+        output: dict[str, Any] = data.lookup_profile(
+            ProfileQuery(entity="CSI", include=["hours"], date=date(2026, 9, 21)))
+        return output
+
+    def disagree(output: dict[str, Any]) -> set[str]:
+        return {record["id"].removesuffix(":2026-09-21") for record in output["records"]
+                if any("disagree" in note for note in record["limitations"])}
+
+    output = profile(main, desk)
+    component = output["components"]["hours"]
+    assert (component["conflicts"], disagree(output)) == ({}, set())
+    assert component["fields"] == {"hours": "not_published", "schedule": "published",
+                                   "periods": "not_published"}
+    # One schedule still disagrees with itself, and only its records say so.
+    output = profile(main, desk, variant)
+    label = "campus_hours.Library (Main Building).schedule"
+    component = output["components"]["hours"]
+    assert set(component["conflicts"]) == {label}
+    assert (component["fields"][label], component["fields"]["schedule"]) == (
+        "conflict", "published")
+    assert disagree(output) == {"campus_hours:main", "campus_hours:variant"}
+    assert {record["id"]: record["coverage"]["fields"]["schedule"]
+            for record in output["records"]} == {
+        "campus_hours:main:2026-09-21": "conflict", "campus_hours:variant:2026-09-21": "conflict",
+        "campus_hours:desk:2026-09-21": "published"}
+    # Another source's name shows nothing about which schedule it is, so it is compared
+    # with every schedule, as it was before.
+    other = hours("office-page", "other", "Library", "8:00am-5:00pm")
+    output = profile(main, desk, other)
+    assert set(output["components"]["hours"]["conflicts"]) == {"schedule"}
+    assert disagree(output) == {"campus_hours:main", "campus_hours:desk", "campus_hours:other"}
+    # A record without a name could be either schedule, so it is compared with both.
+    output = profile(main, desk, hours("hours", "untitled", "", "9:00am-1:00pm"))
+    assert set(output["components"]["hours"]["conflicts"]) == {"schedule"}
+    assert disagree(output) == {"campus_hours:main", "campus_hours:desk", "campus_hours:untitled"}
+    # One schedule per collection keeps the collection as its label.
+    output = profile(main, variant, hours("dining", "cafe", "Cafe", "7:00am-9:00pm"))
+    assert set(output["components"]["hours"]["conflicts"]) == {"campus_hours.schedule"}
+    assert disagree(output) == {"campus_hours:main", "campus_hours:variant"}
+
+
 def test_rename_and_refresh_keep_canonical_id_but_use_new_release_evidence() -> None:
     first = repository(
         [identity(link("contacts", "directory", "office:csi"))],

@@ -1362,22 +1362,44 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
         else:
             field_names = ()
         coverage, conflicts = _field_coverage(records, field_names)
-        # Dining service and general campus hours are distinct scopes.
-        if component == "hours" and len({r["collection"] for r in records}) > 1:
-            conflicts = {}
-            for collection in ("campus_hours", "dining_hours"):
-                _, scoped = _field_coverage(
-                    [r for r in records if r["collection"] == collection], field_names
-                )
-                conflicts.update({f"{collection}.{key}": value for key, value in scoped.items()})
-            coverage = {key: "published" for key in coverage if coverage[key] != "not_published"}
+        # Each record's conflicts, by label, and the record field each label is about.
+        disagreeing = {record["id"]: {key: key for key in conflicts} for record in records}
+        # Each published schedule is its own scope: dining service and general campus hours,
+        # and the named schedules one source lists apart, such as a building and its help
+        # desk. Only records of the same schedule can disagree. Records from different
+        # sources, or without a name, are always compared: a different name there doesn't
+        # show a different schedule.
+        scopes: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        collections: dict[str, list[dict[str, Any]]] = {}
+        if component == "hours":
+            for record in records:
+                collections.setdefault(record["collection"], []).append(record)
+        for collection, members in collections.items():
+            titles = [_normalize(str(record["title"])) for record in members]
+            apart = len({record["source_key"] for record in members}) == 1 and all(titles)
+            for record, title in zip(members, titles, strict=True):
+                scopes.setdefault((collection, title if apart else ""), []).append(record)
+        if len(scopes) > 1:
+            named = Counter(collection for collection, _ in scopes)
+            conflicts, disagreeing = {}, {}
+            for (collection, _), members in scopes.items():
+                _, scoped = _field_coverage(members, field_names)
+                title = members[0]["title"]
+                prefix = f"{collection}.{title}" if named[collection] > 1 else collection
+                for field, values in scoped.items():
+                    conflicts[f"{prefix}.{field}"] = values
+                    for record in members:
+                        disagreeing.setdefault(record["id"], {})[f"{prefix}.{field}"] = field
+            coverage = {key: "not_published" if state == "not_published" else "published"
+                        for key, state in coverage.items()}
             coverage.update({key: "conflict" for key in conflicts})
         for record in records:
+            own = disagreeing.get(record["id"], {})
             # A related building's record is not one of the entity's disagreeing records.
-            if conflicts and record.get("canonical_entity_id") == str(entity.id):
-                record["coverage"]["fields"].update({field: "conflict" for field in conflicts})
+            if own and record.get("canonical_entity_id") == str(entity.id):
+                record["coverage"]["fields"].update({field: "conflict" for field in own.values()})
                 record["limitations"].append(
-                    "Linked records disagree on " + ", ".join(conflicts)
+                    "Linked records disagree on " + ", ".join(own)
                     + "; identity does not establish which value is authoritative."
                 )
             record["content"] = _json(record["fields"])
