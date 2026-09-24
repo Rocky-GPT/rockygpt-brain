@@ -70,7 +70,7 @@ SECTION_COLLECTIONS: dict[str, tuple[str, ...]] = {
     "hours": ("campus_hours", "dining_hours"),
     "faculty": ("faculty",),
     "courses": ("faculty",),
-    "program": ("programs",),
+    "program": ("programs", "major_pages"),
     "conveners": ("programs",),
     "menu": ("menu",),
     "club": ("clubs",),
@@ -349,7 +349,7 @@ def _linked_records(
 ) -> tuple[list[dict[str, Any]], list[str], bool]:
     """Read only exact release-validated references, including artifact-backed records."""
     if link.collection in {"faculty", "courses", "buildings", "schools", "subjects",
-                           "graduation_plans"}:
+                           "graduation_plans", "major_pages"}:
         records = [
             deepcopy(record) for record in data._load(link.collection)
             if record["source_key"] == link.source_key
@@ -433,7 +433,8 @@ def _applicable(
             # Selecting a persistent event chooses its dated occurrence, including a
             # future or historical occurrence. It does not silently become today's event.
             applicable.extend(group)
-        elif collection in {"buildings", "schools", "subjects", "graduation_plans"}:
+        elif collection in {"buildings", "schools", "subjects", "graduation_plans",
+                            "major_pages"}:
             applicable.extend(group)  # Undated reference records; not search collections.
         else:
             selected = data._dates(group, SearchQuery(
