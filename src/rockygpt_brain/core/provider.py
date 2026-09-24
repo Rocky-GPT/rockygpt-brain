@@ -15,7 +15,14 @@ import httpx
 from httpx import Timeout
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, RateLimitError
 
-from rockygpt_brain.config import RELEASE, Deployment, Price, Release, configuration_hash
+from rockygpt_brain.config import (
+    RELEASE,
+    Deployment,
+    Price,
+    Release,
+    RoutingProvider,
+    configuration_hash,
+)
 from rockygpt_brain.governance.accounting import (
     CAMPUS_ZONE,
     Category,
@@ -143,17 +150,32 @@ class OpenAIProvider:
         )
 
 
+JEV_URLS: dict[RoutingProvider, str] = {
+    "typesafe": "https://api.typesafe.ai/v1/systemone",
+    # OpenRouter forwards the same System One request and answers to TypeSafe.
+    "openrouter": "https://openrouter.ai/api/v1/systemone",
+}
+# OpenRouter renames models: pinned model -> (requested ID, reported snapshot).
+OPENROUTER_MODELS = {"jev-1.13.0": ("typesafe/jev-1.13", "typesafe/jev-1.13-20260917")}
+
+
 class JevProvider:
     """One cancellable HTTP attempt; the deadline includes reading the response body."""
 
-    def __init__(self, api_key: str) -> None:
+    def __init__(self, api_key: str, name: RoutingProvider = "typesafe") -> None:
         self._api_key = api_key
+        self.name = name
 
     def create(self, *, timeout: float, **payload: Any) -> ModelResponse:
+        pinned: str = payload["model"]
+        requested, reported = (
+            OPENROUTER_MODELS[pinned] if self.name == "openrouter" else (pinned, pinned)
+        )
+
         async def request() -> ModelResponse:
             async with httpx.AsyncClient(trust_env=False, timeout=timeout) as client:
                 async with client.stream(
-                    "POST", "https://api.typesafe.ai/v1/systemone", json=payload,
+                    "POST", JEV_URLS[self.name], json={**payload, "model": requested},
                     headers={"Authorization": "Bearer " + self._api_key},
                 ) as response:
                     response.raise_for_status()
@@ -168,8 +190,12 @@ class JevProvider:
                         tokens = Usage(usage["input_tokens"], 0, usage["output_tokens"], 0)
                     except (KeyError, TypeError, ValueError):
                         tokens = None
+                    # Only the exact reported snapshot counts as the pinned model. Any other
+                    # name reaches the gateway unchanged, which bills it as drift.
+                    model = str(raw.get("model", ""))
                     return ModelResponse(
-                        response.headers.get("x-request-id", ""), str(raw.get("model", "")),
+                        str(raw.get("id") or response.headers.get("x-request-id", "")),
+                        pinned if model == reported else model,
                         "completed", json.dumps(raw.get("answers")), [], tokens,
                     )
 
@@ -291,9 +317,11 @@ class PaidGateway:
         if category not in {"draft", "review", "routing"}:
             raise PaidCallError("unsupported_model_operation")
         available = self.budget.model_timeout(category)
+        provider_name: str = self.release.provider
         if routing:
             if self._routing_provider is None:
                 raise PaidCallError("routing_unavailable")
+            provider_name = self._routing_provider.name
             if set(kwargs) != {"model", "state", "questions", "timeout"} or (
                 kwargs["model"] != self.release.routing.model
             ):
@@ -382,7 +410,7 @@ class PaidGateway:
         )
         operation_id = str(uuid4())
         metadata = {
-            "provider": "typesafe" if routing else self.release.provider,
+            "provider": provider_name,
             "project": "" if routing else self.project,
             "requested_model": self.release.routing.model if routing else self.release.model,
             "configuration_hash": self.config_hash,
@@ -485,7 +513,8 @@ def open_gateway(deployment: Deployment, request_id: str) -> Iterator[PaidGatewa
         ) as client:
             yield PaidGateway(
                 OpenAIProvider(client), ledger, request_id, project=deployment.project,
-                routing_provider=(JevProvider(deployment.typesafe_api_key)
+                routing_provider=(JevProvider(deployment.routing_api_key,
+                                              deployment.routing_provider)
                                   if deployment.routing_mode != "off"
-                                  and deployment.typesafe_api_key else None),
+                                  and deployment.routing_api_key else None),
             )

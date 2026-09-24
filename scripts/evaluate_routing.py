@@ -191,8 +191,9 @@ def main() -> int:
         report["gates"] = promotion(report, quality)
     else:
         load_dotenv()
+        provider = os.getenv("BRAIN_ROUTING_PROVIDER") or "typesafe"
         required = [
-            "BRAIN_TYPESAFE_API_KEY",
+            "BRAIN_OPENROUTER_API_KEY" if provider == "openrouter" else "BRAIN_TYPESAFE_API_KEY",
             "DATABASE_URL",
             "BRAIN_ENVIRONMENT",
             "BRAIN_OPENAI_API_KEY",
@@ -237,6 +238,7 @@ def main() -> int:
                     "caseSetHash": hashlib.sha256(CASES.read_bytes()).hexdigest(),
                     "configurationHash": configuration_hash(),
                     "routingVersion": RELEASE.routing.version,
+                    "routingProvider": provider,
                     "pairs": pairs,
                 }
                 args.output.write_text(json.dumps(report, indent=2) + "\n")

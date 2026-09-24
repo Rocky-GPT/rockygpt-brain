@@ -435,6 +435,7 @@ def test_elapsed_routing_time_is_inside_existing_turn_budget(
 
 def gateway_setup() -> tuple[PaidGateway, Mock, Mock, Mock]:
     provider, ledger, jev = Mock(), Mock(), Mock()
+    jev.name = "typesafe"
     payload, _ = routing_payload(messages(), [ENTITY], NOW)
     jev.create.return_value = ModelResponse(
         "",
@@ -466,6 +467,13 @@ def test_routing_charges_input_only_and_preserves_gpt_capacity() -> None:
     with pytest.raises(PaidCallError, match="model_call_limit"):
         gateway.route(payload, timeout=2)
     jev.create.assert_called_once()
+
+
+def test_routing_ledger_names_the_provider_that_was_paid() -> None:
+    gateway, _, ledger, jev = gateway_setup()
+    jev.name = "openrouter"
+    gateway.route(routing_payload(messages(), [ENTITY], NOW)[0], timeout=2)
+    assert ledger.reserve.call_args.args[4]["provider"] == "openrouter"
 
 
 def test_uncertain_jev_charge_is_retained_before_gpt_fallback() -> None:
@@ -537,6 +545,12 @@ def test_enabled_routing_requires_credential_and_secrets_stay_out_of_repr() -> N
         {**values, "routing_mode": "active", "typesafe_api_key": "jev-secret"}
     )
     assert "jev-secret" not in repr(deployment)
+    openrouter = {**values, "routing_mode": "active", "routing_provider": "openrouter"}
+    with pytest.raises(ValueError):
+        Deployment.model_validate({**openrouter, "typesafe_api_key": "jev-secret"})
+    deployment = Deployment.model_validate({**openrouter, "openrouter_api_key": "or-secret"})
+    assert deployment.routing_api_key == "or-secret"
+    assert "or-secret" not in repr(deployment)
 
 
 @pytest.mark.parametrize("status", [401, 429, 529])
@@ -562,6 +576,53 @@ def test_jev_http_failures_are_single_attempts(
     assert len(requests) == 1
     assert requests[0].url == "https://api.typesafe.ai/v1/systemone"
     assert requests[0].headers["authorization"] == "Bearer secret"
+
+
+@pytest.mark.parametrize(
+    "reported,model",
+    [
+        ("typesafe/jev-1.13-20260917", RELEASE.routing.model),
+        ("typesafe/jev-1.14-20261001", "typesafe/jev-1.14-20261001"),
+    ],
+)
+def test_openrouter_requests_its_model_name_and_reports_only_the_pinned_snapshot(
+    reported: str, model: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    requests = []
+    answers = {"simple": {"type": "noul", "noul": 0.97}}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "id": "gen-sys-1",
+                "model": reported,
+                "provider": "TypeSafe",
+                "answers": answers,
+                "usage": {"input_tokens": 40, "output_tokens": 3, "cost": 0.00000168},
+            },
+        )
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(handler), **kwargs),
+    )
+    state = {"latest_request": "Is the Registrar open?"}
+    questions = {"simple": {"type": "noul", "instructions": "Is this a simple lookup?"}}
+    response = JevProvider("or-secret", "openrouter").create(
+        timeout=1, model=RELEASE.routing.model, state=state, questions=questions
+    )
+    assert requests[0].url == "https://openrouter.ai/api/v1/systemone"
+    assert requests[0].headers["authorization"] == "Bearer or-secret"
+    assert json.loads(requests[0].content) == {
+        "model": "typesafe/jev-1.13", "state": state, "questions": questions
+    }
+    assert response.id == "gen-sys-1" and response.model == model
+    assert response.usage == Usage(40, 0, 3, 0)
+    assert json.loads(response.output_text) == answers
 
 
 def test_jev_model_drift_is_billed_but_not_used() -> None:

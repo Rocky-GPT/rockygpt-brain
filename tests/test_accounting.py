@@ -470,6 +470,7 @@ def test_routing_migration_settles_input_only_and_retains_environment_isolation(
 
     now = NOW.replace(day=22)
     jev, provider = Mock(), Mock()
+    jev.name = 'typesafe'
     jev.create.return_value = ModelResponse(
         '', RELEASE.routing.model, 'completed', '{}', [], Usage(100, 0, 500, 0),
     )
@@ -494,6 +495,7 @@ def test_routing_monthly_budget_rejects_before_provider_call(ledger: PostgresLed
     now = NOW.replace(day=22)
     reserve(ledger, MONTHLY_CAP_NUSD, now=now)
     jev = Mock()
+    jev.name = 'typesafe'
     gateway = PaidGateway(Mock(), ledger, 'blocked-jev', routing_provider=jev, clock=lambda: now)
     with pytest.raises(PaidCallError, match='budget_exhausted'):
         gateway.route(routing_payload(messages(), [ENTITY], now)[0], timeout=2)
