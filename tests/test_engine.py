@@ -727,7 +727,10 @@ def test_unverified_premise_overrides_approval_without_repair(kind: str) -> None
     )
     assert "it is open now" not in result["answer"]
     assert result["status"] == "unavailable"
-    assert result["citations"] == []
+    # Nothing from the rejected draft is shown: only the page that was checked,
+    # named as checked, so the student has somewhere to go instead of a dead end.
+    assert [citation["url"] for citation in result["citations"]] == [RECORD["url"]]
+    assert result["answer"].endswith("The published pages I checked are linked below.")
     assert result["metrics"]["validationFailures"] == ["unsupported_claim"]
     assert result["metrics"]["reviewCalls"] == 1
     assert result["metrics"]["modelCalls"] == 3
@@ -1248,7 +1251,10 @@ def test_food_safety_inference_is_withheld_even_if_model_approves(kind: str) -> 
     )
     assert "lower risk" not in result["answer"]
     assert result["status"] == "unavailable"
-    assert result["citations"] == []
+    # Nothing from the rejected draft is shown: only the page that was checked,
+    # named as checked, so the student has somewhere to go instead of a dead end.
+    assert [citation["url"] for citation in result["citations"]] == [RECORD["url"]]
+    assert result["answer"].endswith("The published pages I checked are linked below.")
     assert result["metrics"]["validationFailures"] == ["unsupported_claim"]
     assert result["metrics"]["reviewCalls"] == 1
     assert client.create.call_count == 3
@@ -1348,3 +1354,25 @@ def test_oversized_new_results_preserve_history_and_prior_evidence_with_truthful
         assert input_bound(payload) <= RELEASE.max_input_tokens
     reviewed = json.loads(client.create.call_args_list[-1].kwargs["input"])
     assert expand_records(reviewed["evidence"]) == [RECORD, *delivered]
+
+
+def test_rendered_links_sharing_a_title_are_labelled_by_page() -> None:
+    from rockygpt_brain.contracts import Answer
+    from rockygpt_brain.core.render import render_answer
+
+    home = {**RECORD, "id": "dining:home", "url": "https://dining.example.edu/",
+            "source_title": "Campus Dining"}
+    hall = {**RECORD, "id": "dining:hall",
+            "url": "https://dining.example.edu/locations/birch-tree-inn",
+            "source_title": "Campus Dining"}
+    rendered = render_answer(
+        Answer.model_validate({"status": "answered", "parts": [{
+            "kind": "campus_fact", "text": "Dinner is 5 to 8 PM.",
+            "evidence_ids": ["dining:home", "dining:hall"],
+        }]}),
+        {"dining:home": home, "dining:hall": hall},
+    )
+    assert rendered["answer"] == (
+        "Dinner is 5 to 8 PM. [Campus Dining · Home page](https://dining.example.edu/) "
+        "[Campus Dining · Birch Tree Inn](https://dining.example.edu/locations/birch-tree-inn)"
+    )

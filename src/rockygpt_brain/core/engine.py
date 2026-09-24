@@ -38,7 +38,7 @@ from rockygpt_brain.core.provider import (
     input_bound,
     wire_value,
 )
-from rockygpt_brain.core.render import InvalidAnswer, render_answer
+from rockygpt_brain.core.render import InvalidAnswer, consulted_sources, render_answer
 from rockygpt_brain.core.reviewer import review_answer
 from rockygpt_brain.core.routing import RoutingClient, route_request
 from rockygpt_brain.core.tools import function_tool, tool_definitions
@@ -171,13 +171,15 @@ def run_turn(
             rendered = render_answer(supported, evidence) if supported else None
         except InvalidAnswer:
             rendered = None
+        consulted = consulted_sources(evidence)
         return {
             **(
                 rendered
                 or {
-                    "answer": "I couldn't verify a reliable answer from the available information.",
+                    "answer": "I couldn't verify a reliable answer from the available information."
+                    + (" The published pages I checked are linked below." if consulted else ""),
                     "status": "unavailable",
-                    "citations": [],
+                    "citations": consulted,
                 }
             ),
             "model": response_model,
