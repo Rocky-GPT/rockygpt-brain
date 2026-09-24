@@ -642,3 +642,43 @@ def test_a_program_lists_its_graduation_plans_by_cohort_with_their_caveats(
     # The structured semesters and page text remain in the original item, not as gaps.
     assert variant.id and source(result, variant.source_id).artifact_path == ["plans", "1"]
     assert not result.coverage
+
+
+PAGES = {"captured_at": "2026-09-24T17:20:00Z", "pages": [
+    {"id": "cs-page", "url": "https://www.ramapo.edu/majors-minors/majors/computer-science/",
+     "finalUrl": None, "name": "Computer Science", "title": "Computer Science",
+     "degrees": ["Bachelor of Science"], "offers": ["Major", "Minor"],
+     "sections": [{"heading": "About the Computer Science Major", "text": "Technology..."},
+                  {"heading": "Contact", "text": "For questions, email the convener."}],
+     "links": [], "catalogLinks": [], "programCodes": ["SN-BS-CMPS"],
+     "relatedProgramCodes": ["SN-MN-CMPS"], "limitations": []},
+]}
+
+
+def test_a_program_lists_its_public_program_page(fixture: Fixture) -> None:
+    data, snapshot, records = fixture
+    data.sources["major-pages"] = {**data.sources["directory"], "id": "major-pages",
+                                   "source_key": "major-pages"}
+    data._artifacts["major-pages"] = PAGES
+    entity = data._artifacts["campus-identities"]["entities"][0]
+    entity.update(kind="program", links=[{"collection": "major_pages",
+                                          "source_key": "major-pages",
+                                          "source_record_keys": ["cs-page"]}])
+    [loaded] = data._load_artifact_records("major_pages")
+    assert loaded["title"] == "Computer Science"
+    assert loaded["url"] == "https://www.ramapo.edu/majors-minors/majors/computer-science/"
+    captured = datetime(2026, 9, 24, 17, 20, tzinfo=UTC)
+    assert datetime.fromisoformat(loaded["collected_at"]) == captured
+    assert "sections" not in loaded["fields"]
+    assert "searchable as documents" in loaded["limitations"][-1]
+    records["major_pages"] = [GraphData(data)._artifact_record("major_pages", loaded)]
+    result = build(fixture, "program_pages", limit=8)
+    [group] = result.record_groups
+    assert (group.label, group.total) == ("Program pages", 1)
+    [page] = group.records
+    assert values(page.context) == {"offers": [["Major", "Minor"]]}
+    assert values(page.properties) == {
+        "degrees": [["Bachelor of Science"]],
+        "page_url": ["https://www.ramapo.edu/majors-minors/majors/computer-science/"]}
+    assert source(result, page.source_id).artifact_path == ["pages", "0"]
+    assert not result.coverage

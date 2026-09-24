@@ -146,7 +146,7 @@ def load_artifact_records(
     """Parse static catalog records from release artifacts into evidence dicts."""
     source_key = {"faculty": "faculty", "buildings": "campus-map", "schools": "ramapo-schools",
                   "subjects": "course-subjects", "graduation_plans": "graduation-plans",
-                  }.get(collection, "academic-programs")
+                  "major_pages": "major-pages"}.get(collection, "academic-programs")
     source = next((s for s in sources.values() if s["source_key"] == source_key), None)
     if not source:
         return []
@@ -163,6 +163,16 @@ def load_artifact_records(
             caveats[str(value["id"])] = [text for text in value.get("limitations", [])
                                          if isinstance(text, str)]
             entries.append((str(value["id"]), fields, f"{value['name']} — {value['cohort']}",
+                            value.get("finalUrl") or value.get("url")))
+    elif collection == "major_pages":
+        payload = get_artifact("major-pages") or {}
+        # The pages' own capture time, not the release that republished them.
+        collected_at = payload.get("captured_at") or collected_at
+        for value in payload.get("pages", []):
+            fields = {k: value[k] for k in PAGE_FIELDS if k in value}
+            caveats[str(value["id"])] = [text for text in value.get("limitations", [])
+                                         if isinstance(text, str)]
+            entries.append((str(value["id"]), fields, str(value["name"]),
                             value.get("finalUrl") or value.get("url")))
     elif collection == "buildings":
         payload = get_artifact("campus-buildings") or {}
@@ -292,6 +302,11 @@ def load_artifact_records(
                     "building; the people and offices found that way are not a complete building "
                     "directory, a host or a school."
                 )
+            if collection == "major_pages":
+                record["limitations"].append(
+                    "Public program page: the college's own description of the program. Its "
+                    "text is searchable as documents; the catalog states the requirements."
+                )
             if collection == "graduation_plans":
                 record["limitations"].append(
                     "Recommended graduation plan: a suggested course sequence for students "
@@ -327,6 +342,9 @@ ARCHWAY_FIELDS = {
                "offersFreeFood", "foodCategory"),
 }
 
+
+# A public program page's fields; its sections are published whole as documents.
+PAGE_FIELDS = ("name", "degrees", "offers", "url")
 
 # A graduation plan's published fields; its structured semesters stay in the original item.
 PLAN_FIELDS = ("name", "cohort", "variantOf", "applicability", "totalCredits", "graduateCredits",

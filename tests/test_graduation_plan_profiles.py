@@ -151,6 +151,9 @@ def test_a_shared_program_name_resolves_to_the_one_program_that_publishes_plans(
                          'aliases': ['Computer Science'],
                          'links': [{'collection': 'programs', 'source_key': 'catalog',
                                     'source_record_keys': [name]}]})
+    # A release that also links the program's public page must still validate.
+    entities[-3]['links'].append({'collection': 'major_pages', 'source_key': 'major-pages',
+                                  'source_record_keys': ['cs-page']})
     output = data.lookup_profile(
         ProfileQuery(entity='Computer Science', include=['graduation_plans']))
     resolution = output['resolution']

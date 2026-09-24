@@ -63,7 +63,7 @@ ROOM = re.compile(r"([A-Z]+)-\d{1,4}[A-Z]?")
 ARCHWAY_GROUPS = frozenset({"club", "organization"})
 LinkCollection = Literal[
     "contacts", "campus_hours", "dining_hours", "menu", "faculty", "programs", "courses",
-    "clubs", "events", "buildings", "schools", "subjects", "graduation_plans",
+    "clubs", "events", "buildings", "schools", "subjects", "graduation_plans", "major_pages",
 ]
 SECTION_COLLECTIONS: dict[str, tuple[str, ...]] = {
     "contact": ("contacts", "faculty", "clubs"),

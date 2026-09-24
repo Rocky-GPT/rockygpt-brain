@@ -210,6 +210,15 @@ RECORD_SPECS = (
     ), ("cohort",), frozenset({"id", "name", "title", "listing", "finalUrl", "programCodes",
                                "limitations", "terms", "placement", "generalEducation",
                                "introduction", "text"})),
+    # The college's public page for a program; its sections are published as documents.
+    RecordSpec("major_pages", "program_pages", "Program pages", fields(
+        ("offers", "text_list"),
+    ), fields(
+        ("degrees", "text_list"), ("page_url", "url", "url"),
+        # The page's name labels its record; its section text, links and catalog links stay
+        # in the original item.
+    ), (), frozenset({"id", "name", "title", "finalUrl", "sections", "links", "catalogLinks",
+                      "programCodes", "relatedProgramCodes", "limitations"})),
     RecordSpec("menu", "menu_offerings", "Menu offerings", fields(
         ("valid_from", "date"), ("valid_until", "date"), "meal", "station",
     ), fields(
