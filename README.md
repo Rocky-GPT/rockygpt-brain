@@ -80,10 +80,14 @@ The response has `answer` (Markdown with validated source links), `status`
 `requestId`, `datasetVersion`, `elapsedMs`, `trace`, and `metrics`. Each citation includes
 its evidence ID, title, URL, collection, collection timestamp, freshness, trust,
 validity, and limitations. Trace exposes only tool names, arguments, result
-counts, search coverage, statuses, and duration; it does not contain model reasoning.
-Metrics distinguish draft and review model calls, requested and executed tools,
-and fixed validation-failure codes. Rejected answer text and review explanations
-are not returned. Invalid-output logs contain only the request ID and reason code.
+counts, search coverage, statuses, duration, and, for shuttle searches, the
+code-computed next/last departures the reviewer checks against; it does not
+contain model reasoning. Metrics distinguish draft and review model calls,
+requested and executed tools, and fixed validation-failure codes. Rejected answer
+text is not returned. A development Brain also returns the reviewer's reasons in
+`metrics.reviewRejections` so a false rejection can be diagnosed; production never
+does, and the saved turn summary never stores them. Invalid-output logs contain
+only the request ID and reason code.
 
 Clients append the returned answer as an assistant message before the next user
 message. Prior assistant text resolves references but is not authoritative;

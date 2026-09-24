@@ -300,11 +300,52 @@ def test_next_departure_requires_route_origin_and_single_requested_extremum() ->
     piece = exact_search(question, messages(question), query, output(row), NOW)
     assert piece is not None and "5:30 PM" in piece.answer.parts[0].text
     for request in [
-        "next shuttle",
         question.replace("next", "next and last"),
         question.replace("campus", "Station"),
+        "when is the next shuttle to campus",
     ]:
         assert exact_search(request, messages(request), query, output(row), NOW) is None
+
+
+def test_next_shuttle_without_a_route_answers_every_route_from_campus() -> None:
+    # A complete timetable fetched without a route filter covers every route.
+    ramsey = trip(1, "5:30 PM", "5:40 PM", "N/A")
+    ramsey["fields"]["route"] = "Ramsey Route 17"
+    roadrunner = trip(2, "6:10 PM", "6:20 PM", "7:35 PM")
+    roadrunner["fields"]["route"] = "Roadrunner Express"
+    late = trip(0, "4:10 PM", "4:20 PM", "4:40 PM")
+    late["fields"]["route"] = "Ramsey Route 17"
+    query = SearchQuery(collection="shuttle", date_from=NOW.date(), limit=100)
+    rows = output(ramsey, late, roadrunner)
+    assert exact_search(
+        "when's the next bus leaving campus?",
+        messages("when's the next bus leaving campus?"), query, rows, NOW,
+    ) is not None
+    question = "when is the next shuttle"
+    piece = exact_search(question, messages(question), query, rows, NOW)
+    assert piece is not None and piece.complete and piece.answer.status == "answered"
+    first = piece.answer.parts[0]
+    assert first.text == (
+        "The next published departures from campus on 2026-09-16 (America/New_York) are: "
+        "Ramsey Route 17 at 4:10 PM; Roadrunner Express at 6:10 PM."
+    )
+    assert first.evidence_ids == ["shuttle:0", "shuttle:2"]
+
+    at_six = NOW.replace(hour=18)
+    rows = output(ramsey, late, roadrunner)
+    piece = exact_search(question, messages(question), query, rows, at_six)
+    assert piece is not None
+    assert [part.kind for part in piece.answer.parts] == ["campus_fact", "limitation", "limitation"]
+    assert piece.answer.parts[0].text.startswith(
+        "The next published departure from campus on Roadrunner Express is 6:10 PM"
+    )
+    assert "on Ramsey Route 17 on 2026-09-16." in piece.answer.parts[1].text
+
+    filtered = query.model_copy(update={"filters": SearchFilters(route="Ramsey Route 17")})
+    rows = output(ramsey, late)
+    assert exact_search(question, messages(question), filtered, rows, NOW) is None
+    for request in ["when is the next shuttle from the train", "next shuttle to Garden State"]:
+        assert exact_search(request, messages(request), query, rows, NOW) is None
 
 
 def test_failed_format_does_not_mutate_evidence() -> None:

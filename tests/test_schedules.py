@@ -10,6 +10,8 @@ from rockygpt_brain.campus.schedules import (
     CAMPUS_ZONE,
     departure_summary,
     opening_intervals,
+    review_summary,
+    schedule_references,
     trip_times,
     wall_time,
 )
@@ -103,6 +105,110 @@ def test_partial_search_never_establishes_next(change: dict[str, Any]) -> None:
 def test_unverified_records_do_not_support_arithmetic(change: dict[str, Any]) -> None:
     trip = {**record(1, "5:30 PM", "5:40 PM", "6:00 PM"), **change}
     assert departure_summary(output(trip), QUERY, NOW)["status"] == "unavailable"
+
+
+def test_trip_that_does_not_return_ends_at_its_last_stop() -> None:
+    # The published table says N/A under "Arrive on Campus" for the last run to
+    # the train. That trip still departs campus; it just has no return time.
+    final = record(2, "5:30 PM", "5:40 PM", "N/A")
+    earlier = record(1, "4:45 PM", "4:55 PM", "5:27 PM")
+    summary = departure_summary(output(earlier, final), QUERY, NOW)
+    assert summary["status"] == "ok"
+    campus = next(item for item in summary["departures"] if item["origin"] == "campus")
+    assert campus["next"]["departure_at"] == "2026-09-16T16:45:00-04:00"
+    assert campus["last"]["evidence_id"] == "shuttle:2"
+    assert campus["last"]["remaining_stops"] == [
+        {"location": "Station", "scheduled_at": "2026-09-16T17:40:00-04:00"}
+    ]
+    assert campus["last"]["elapsed_minutes_to_return"] is None
+    assert [name for name, _ in trip_times(final["fields"])] == ["campus", "Station"]
+
+
+@pytest.mark.parametrize("returned", ["n/a", " NA "])
+def test_no_return_spellings(returned: str) -> None:
+    trip = record(1, "5:30 PM", "5:40 PM", returned)
+    assert departure_summary(output(trip), QUERY, NOW)["status"] == "ok"
+
+
+@pytest.mark.parametrize("returned", ["TBD", "", "later"])
+def test_other_unreadable_returns_still_fail_closed(returned: str) -> None:
+    trip = record(1, "5:30 PM", "5:40 PM", returned)
+    assert departure_summary(output(trip), QUERY, NOW)["reason"] == "unverified_schedule_time"
+
+
+def test_stop_visited_twice_withholds_only_that_stop() -> None:
+    loop = record(2, "6:10 PM", "6:20 PM", "7:35 PM")
+    loop["fields"]["stops"] = [
+        {"location": "Station", "time": "6:20 PM"},
+        {"location": "Plaza", "time": "6:50 PM"},
+        {"location": "station", "time": "7:25 PM"},
+    ]
+    earlier = record(1, "4:45 PM", "4:55 PM", "5:27 PM")
+    summary = departure_summary(output(earlier, loop), QUERY, NOW)
+    assert summary["status"] == "ok"
+    origins = {item["origin"]: item for item in summary["departures"]}
+    assert set(origins) == {"campus", "Plaza"}
+    assert origins["campus"]["next"]["departure_at"] == "2026-09-16T16:45:00-04:00"
+    assert origins["campus"]["remaining_departure_count"] == 2
+    assert summary["withheld_origins"] == [
+        {"route": "Station route", "origin": "Station", "reason": "ambiguous_stop_identity"}
+    ]
+    assert any("withheld origin" in value for value in summary["limitations"])
+    assert review_summary(summary)["withheld_origins"] == summary["withheld_origins"]
+    # A loop reaches Station twice, so neither time is its arrival there.
+    references = schedule_references(summary)
+    assert ("shuttle:2", "scheduled_arrival", "Station") not in references
+    assert references[("shuttle:2", "scheduled_arrival", "Plaza")] == {"2026-09-16T18:50:00-04:00"}
+
+
+def test_arrive_and_depart_rows_keep_their_meaning() -> None:
+    # Published as two rows for one station: the bus pulls in, then leaves.
+    trip = record(1, "4:45 PM", "4:55 PM", "5:27 PM")
+    trip["fields"]["stops"] = [
+        {"location": "Arrive Train", "time": "4:55 PM"},
+        {"location": "Depart Train", "time": "5:17 PM"},
+    ]
+    summary = departure_summary(output(trip), QUERY, NOW)
+    origins = {item["origin"]: item for item in summary["departures"]}
+    assert set(origins) == {"campus", "Depart Train"}
+    assert origins["Depart Train"]["next"]["departure_at"] == "2026-09-16T17:17:00-04:00"
+    references = schedule_references(summary)
+    assert references[("shuttle:1", "scheduled_arrival", "Arrive Train")] == {
+        "2026-09-16T16:55:00-04:00"
+    }
+    assert ("shuttle:1", "scheduled_arrival", "Depart Train") not in references
+    assert ("shuttle:1", "scheduled_departure", "Arrive Train") not in references
+
+
+def test_reviewer_gets_the_selections_without_stop_lists() -> None:
+    summary = departure_summary(
+        output(
+            record(2, "5:30 PM", "5:40 PM", "6:00 PM"), record(1, "3:50 PM", "4:10 PM", "4:30 PM")
+        ),
+        QUERY,
+        NOW,
+    )
+    lean = review_summary(summary)
+    campus = next(item for item in lean["departures"] if item["origin"] == "campus")
+    assert campus == {
+        "route": "Station route",
+        "origin": "campus",
+        "next": {
+            "evidence_id": "shuttle:2",
+            "departure_at": "2026-09-16T17:30:00-04:00",
+            "origin_restriction": None,
+        },
+        "last": {
+            "evidence_id": "shuttle:2",
+            "departure_at": "2026-09-16T17:30:00-04:00",
+            "origin_restriction": None,
+        },
+        "scheduled_departure_count": 2,
+        "remaining_departure_count": 1,
+    }
+    assert lean["as_of"] == summary["as_of"] and lean["limitations"] == summary["limitations"]
+    unavailable = {"status": "unavailable", "reason": "incomplete_schedule_coverage"}
+    assert review_summary(unavailable) == unavailable
 
 
 def test_conflicting_trips_are_not_silently_chosen() -> None:
