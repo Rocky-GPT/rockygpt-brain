@@ -92,5 +92,6 @@ def test_menu_graph_occurrence_exposes_nutrients_with_preserved_sql_row(fixture:
     assert "no unit may be inferred" in props["nutrients"].assertions[0].limitations[0]
     assert props["plant_based"].values[0].value is True
     source = next(source for source in facts.sources if source.collection == "menu")
-    assert source.artifact_key == "menu-week" and source.artifact_path[-2:] == ["items", "0"]
+    assert source.artifact_key == "menu-week" and source.artifact_path is not None
+    assert source.artifact_path[-2:] == ["items", "0"]
     assert raw == before == records["menu"][0]["raw_record"]
