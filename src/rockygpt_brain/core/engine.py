@@ -11,12 +11,14 @@ from pydantic import ValidationError
 
 from rockygpt_brain.campus.calculations import CalculationQuery, calculate
 from rockygpt_brain.campus.formats import (
+    SAFETY_FACTS,
     ContactCall,
     ExactPiece,
     SearchCall,
     combine_exact,
     exact_contact,
     exact_search,
+    safety_part,
 )
 from rockygpt_brain.campus.progress import (
     ProgressCallback,
@@ -61,6 +63,18 @@ MAX_TOOL_CALLS = RELEASE.max_tool_calls
 TURN_SECONDS = RELEASE.turn_seconds
 REVIEW_RESERVE_SECONDS = RELEASE.review_reserve_seconds
 ANSWER_RESERVE_SECONDS = RELEASE.answer_reserve_seconds
+
+
+def safety_facts(data: CampusData) -> tuple[list[dict[str, Any]], str | None]:
+    """Current Public Safety critical facts: one local read, no model call, never invented."""
+    try:
+        output = data.search(SearchQuery(collection="critical_facts", limit=100))
+    except Exception:
+        return [], None  # The immediate guidance stands without them.
+    keys = {key for key, _ in SAFETY_FACTS}
+    records = [record for record in output.get("records", [])
+               if record.get("fields", {}).get("fact_key") in keys]
+    return records, output.get("dataset_version")
 
 
 def run_turn(
@@ -309,6 +323,20 @@ def run_turn(
             ):
                 if budget.remaining <= 0:
                     raise TimeoutError("Turn deadline exceeded during general answer")
+                response_mode = "general"
+                if candidate.general_scope == "urgent_safety":
+                    # 911 guidance never waits for retrieval. Campus numbers come only
+                    # from verified records, rendered by code after the model's guidance.
+                    records, dataset_version = safety_facts(data)
+                    safety = safety_part(records)
+                    if safety is not None:
+                        evidence.update({record["id"]: record for record in records})
+                        result = render_answer(
+                            candidate.model_copy(update={"parts": [*candidate.parts, safety]}),
+                            evidence,
+                        )
+                        response_mode = "urgent_safety"
+                        metrics["safetyFacts"] = safety.evidence_ids
                 return {
                     **result,
                     "model": response.model,
@@ -316,7 +344,7 @@ def run_turn(
                     "trace": trace,
                     "metrics": {
                         **metrics,
-                        "responseMode": "general",
+                        "responseMode": response_mode,
                         "modelCalls": routing_calls + draft_calls,
                         "draftCalls": draft_calls,
                         "reviewCalls": 0,
