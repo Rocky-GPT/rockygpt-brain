@@ -426,6 +426,9 @@ class GraphData:
             (r.get(key) if key == "source_key" else r["fields"].get(key)) == value
             for key, value in filters.items()
         )]
+        if collection == "graduation_plans":
+            # The index's order: newest cohort first, each major before its variants.
+            return records
         return sorted(records, key=lambda r: (r["title"].casefold(), r["id"]))
 
     def records(

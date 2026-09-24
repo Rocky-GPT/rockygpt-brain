@@ -524,7 +524,9 @@ def test_unmapped_nested_fields_and_missing_sources_fail_closed(fixture: Fixture
 PLANS = {"captured_at": "2026-09-24T02:00:00Z", "plans": [
     {"id": "plan-2026", "name": "Computer Science", "cohort": "Fall 2026", "variantOf": None,
      "url": "https://www.ramapo.edu/plan-2026/", "applicability": "Students admitted in 2026.",
-     "totalCredits": 128, "gpa": "2.0", "planText": "First Year, Fall Semester (16 credits)",
+     "totalCredits": 128, "graduateCredits": None, "gpa": "2.0",
+     "totals": ["Total Credits Required: 128 credits", "GPA: 2.0"],
+     "planText": "First Year, Fall Semester (16 credits)",
      "placementText": "Math Placement: MATH 110-121", "generalEducationText": "Global Awareness",
      "notes": ["WI: Writing Intensive-3 required in the major"],
      "documents": [{"name": "PDF", "url": "https://www.ramapo.edu/plan.pdf"}],
@@ -533,7 +535,7 @@ PLANS = {"captured_at": "2026-09-24T02:00:00Z", "plans": [
      "cohort": "Fall 2023", "variantOf": "Computer Science",
      "url": "https://www.ramapo.edu/plan-2023/", "finalUrl": "https://www.ramapo.edu/moved/",
      "applicability": None, "planText": None, "placementText": None,
-     "generalEducationText": None,
+     "generalEducationText": None, "graduateCredits": 30, "totals": [],
      "totalCredits": None, "gpa": None, "notes": [], "documents": [], "limitations": [
          "This section lists the plan without a major; the index lists the same plan under "
          "Computer Science in another cohort."]},
@@ -574,6 +576,10 @@ def test_a_program_lists_its_graduation_plans_by_cohort_with_their_caveats(
     assert values(variant.context)["variant_of"] == ["Computer Science"]
     props = values(first.properties)
     assert props["total_credits"] == [128] and props["gpa"] == ["2.0"]
+    assert props["totals"] == [["Total Credits Required: 128 credits", "GPA: 2.0"]]
+    assert values(variant.properties)["graduate_credits"] == [30]
+    # The index's order: the Fall 2026 plan before the Fall 2023 variant.
+    assert [record.label for record in group.records][0] == "Computer Science — Fall 2026"
     assert props["documents"] == [[{"name": "PDF", "url": "https://www.ramapo.edu/plan.pdf"}]]
     assert props["notes"] == [["WI: Writing Intensive-3 required in the major"]]
     # The structured semesters and page text remain in the original item, not as gaps.

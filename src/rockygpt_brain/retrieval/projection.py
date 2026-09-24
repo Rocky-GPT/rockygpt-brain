@@ -150,7 +150,8 @@ RECORD_SPECS = (
     RecordSpec("graduation_plans", "graduation_plans", "Graduation plans", fields(
         "cohort", ("variant_of", "variantOf", "text"),
     ), fields(
-        "applicability", ("total_credits", "totalCredits", "number"), "gpa",
+        "applicability", ("total_credits", "totalCredits", "number"),
+        ("graduate_credits", "graduateCredits", "number"), "gpa", ("totals", "text_list"),
         ("semesters", "planText", "text"), ("placement", "placementText", "text"),
         ("general_education", "generalEducationText", "text"), ("notes", "text_list"),
         ("documents", "named_links"), ("plan_url", "url", "url"),
