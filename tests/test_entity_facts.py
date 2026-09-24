@@ -419,3 +419,30 @@ def test_catalog_program_fields_come_only_from_the_exact_catalog_code(
     assert set(row["supplemental_fields"]) == {
         "learningGoalsAndOutcomes", "sampleGraduationPlan", "programLevel", "degreeDesignations",
         "conveningGroups", "catalogConcentrations"}
+
+
+@pytest.mark.parametrize("listed", [True, False])
+def test_a_catalog_entry_that_lists_its_sections_shows_a_missing_field_is_unpublished(
+    fixture: Fixture, listed: bool,
+) -> None:
+    from rockygpt_brain.retrieval.graph import GraphData
+
+    data, snapshot, records = fixture
+    entity = data._artifacts["campus-identities"]["entities"][0]
+    entity.update(kind="program", links=[{"collection": "programs", "source_key": "directory",
+                                          "source_record_keys": ["catalog:SN-BS-CMPS"]}])
+    entry = {key: value for key, value in CATALOG_ENTRY.items() if key != "catalogConcentrations"}
+    if not listed:
+        entry.pop("catalogSections")
+    data._artifacts["programs"] = {"schools": [{"school": "Science", "majors": [entry]}]}
+    raw = {"id": "one", "source_id": "directory", "collected_at": test_projection.NOW.isoformat(),
+           "source_record_key": "catalog:SN-BS-CMPS", "name": "Computer Science BS"}
+    records["programs"] = [GraphData(data)._record(
+        "programs", {"record": raw, "source": data.sources["directory"]})]
+    facts = EntityFacts(data, snapshot).build(UUID(ENTITY_ID))
+    props = {prop.key: prop for prop in facts.properties}
+    missing = [issue for issue in facts.coverage if "catalogConcentrations" in issue.fields]
+    # Listed sections: not displayed, so unknown. An older capture: unavailable, not unknown.
+    concentrations = props.get("concentrations")
+    assert (concentrations is not None and concentrations.status == "unknown") is listed
+    assert bool(missing) is not listed
