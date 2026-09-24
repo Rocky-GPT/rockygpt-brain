@@ -519,3 +519,63 @@ def test_unmapped_nested_fields_and_missing_sources_fail_closed(fixture: Fixture
     assert all(not g.records for g in result.record_groups)
     assert all(s.collection == "contacts" for s in result.sources)
     assert sum(c.reason == "source_unavailable" for c in result.coverage) == 4
+
+
+PLANS = {"captured_at": "2026-09-24T02:00:00Z", "plans": [
+    {"id": "plan-2026", "name": "Computer Science", "cohort": "Fall 2026", "variantOf": None,
+     "url": "https://www.ramapo.edu/plan-2026/", "applicability": "Students admitted in 2026.",
+     "totalCredits": 128, "gpa": "2.0", "planText": "First Year, Fall Semester (16 credits)",
+     "placementText": "Math Placement: MATH 110-121", "generalEducationText": "Global Awareness",
+     "notes": ["WI: Writing Intensive-3 required in the major"],
+     "documents": [{"name": "PDF", "url": "https://www.ramapo.edu/plan.pdf"}],
+     "terms": [{"year": "First Year", "term": "Fall Semester", "items": []}], "limitations": []},
+    {"id": "plan-4-1", "name": "Computer Science with MS in Data Science 4+1",
+     "cohort": "Fall 2023", "variantOf": "Computer Science",
+     "url": "https://www.ramapo.edu/plan-2023/", "finalUrl": "https://www.ramapo.edu/moved/",
+     "applicability": None, "planText": None, "placementText": None,
+     "generalEducationText": None,
+     "totalCredits": None, "gpa": None, "notes": [], "documents": [], "limitations": [
+         "This section lists the plan without a major; the index lists the same plan under "
+         "Computer Science in another cohort."]},
+    {"id": "unlinked", "name": "Undecided", "cohort": "Fall 2026", "limitations": []},
+]}
+
+
+def test_a_program_lists_its_graduation_plans_by_cohort_with_their_caveats(
+    fixture: Fixture,
+) -> None:
+    data, snapshot, records = fixture
+    data.sources["graduation-plans"] = {**data.sources["directory"], "id": "graduation-plans",
+                                        "source_key": "graduation-plans"}
+    data._artifacts["graduation-plans"] = PLANS
+    entity = data._artifacts["campus-identities"]["entities"][0]
+    entity.update(kind="program", links=[{
+        "collection": "graduation_plans", "source_key": "graduation-plans",
+        "source_record_keys": ["plan-2026", "plan-4-1"]}])
+    loaded = data._load_artifact_records("graduation_plans")
+    assert [record["title"] for record in loaded] == [
+        "Computer Science — Fall 2026", "Computer Science with MS in Data Science 4+1 — Fall 2023",
+        "Undecided — Fall 2026"]
+    # The plans' own capture time, the structured semesters left in the original item.
+    assert datetime.fromisoformat(loaded[0]["collected_at"]) == datetime(2026, 9, 24, 2, tzinfo=UTC)
+    assert "terms" not in loaded[0]["fields"]
+    assert loaded[1]["url"] == "https://www.ramapo.edu/moved/"
+    assert "another cohort" in loaded[1]["limitations"][-1]
+    assert "does not replace advising" in loaded[0]["limitations"][-1]
+    reader = GraphData(data)
+    records["graduation_plans"] = [
+        reader._artifact_record("graduation_plans", record) for record in loaded
+        if record["source_record_key"] != "unlinked"]
+    result = build(fixture, "graduation_plans", limit=8)
+    [group] = result.record_groups
+    assert (group.label, group.total) == ("Graduation plans", 2)
+    first, variant = group.records
+    assert values(first.context) == {"cohort": ["Fall 2026"], "variant_of": [None]}
+    assert values(variant.context)["variant_of"] == ["Computer Science"]
+    props = values(first.properties)
+    assert props["total_credits"] == [128] and props["gpa"] == ["2.0"]
+    assert props["documents"] == [[{"name": "PDF", "url": "https://www.ramapo.edu/plan.pdf"}]]
+    assert props["notes"] == [["WI: Writing Intensive-3 required in the major"]]
+    # The structured semesters and page text remain in the original item, not as gaps.
+    assert variant.id and source(result, variant.source_id).artifact_path == ["plans", "1"]
+    assert not result.coverage

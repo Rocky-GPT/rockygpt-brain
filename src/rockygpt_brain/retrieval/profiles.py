@@ -63,7 +63,7 @@ ROOM = re.compile(r"([A-Z]+)-\d{1,4}[A-Z]?")
 ARCHWAY_GROUPS = frozenset({"club", "organization"})
 LinkCollection = Literal[
     "contacts", "campus_hours", "dining_hours", "menu", "faculty", "programs", "courses",
-    "clubs", "events", "buildings", "schools", "subjects",
+    "clubs", "events", "buildings", "schools", "subjects", "graduation_plans",
 ]
 SECTION_COLLECTIONS: dict[str, tuple[str, ...]] = {
     "contact": ("contacts", "faculty", "clubs"),
@@ -332,7 +332,8 @@ def _linked_records(
     data: CampusData, link: IdentityLink,
 ) -> tuple[list[dict[str, Any]], list[str], bool]:
     """Read only exact release-validated references, including artifact-backed records."""
-    if link.collection in {"faculty", "courses", "buildings", "schools", "subjects"}:
+    if link.collection in {"faculty", "courses", "buildings", "schools", "subjects",
+                           "graduation_plans"}:
         records = [
             deepcopy(record) for record in data._load(link.collection)
             if record["source_key"] == link.source_key
@@ -416,7 +417,7 @@ def _applicable(
             # Selecting a persistent event chooses its dated occurrence, including a
             # future or historical occurrence. It does not silently become today's event.
             applicable.extend(group)
-        elif collection in {"buildings", "schools", "subjects"}:
+        elif collection in {"buildings", "schools", "subjects", "graduation_plans"}:
             applicable.extend(group)  # Undated reference records; not search collections.
         else:
             selected = data._dates(group, SearchQuery(

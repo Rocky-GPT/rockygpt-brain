@@ -145,14 +145,26 @@ def load_artifact_records(
 ) -> list[dict[str, Any]]:
     """Parse static catalog records from release artifacts into evidence dicts."""
     source_key = {"faculty": "faculty", "buildings": "campus-map", "schools": "ramapo-schools",
-                  "subjects": "course-subjects"}.get(collection, "academic-programs")
+                  "subjects": "course-subjects", "graduation_plans": "graduation-plans",
+                  }.get(collection, "academic-programs")
     source = next((s for s in sources.values() if s["source_key"] == source_key), None)
     if not source:
         return []
     collected_at = source.get("completed_at")
     records: list[dict[str, Any]] = []
     entries: list[tuple[str, dict[str, Any], str, str | None]] = []
-    if collection == "buildings":
+    caveats: dict[str, list[str]] = {}
+    if collection == "graduation_plans":
+        payload = get_artifact("graduation-plans") or {}
+        # The plan pages' own capture time, not the release that republished them.
+        collected_at = payload.get("captured_at") or collected_at
+        for value in payload.get("plans", []):
+            fields = {k: value[k] for k in PLAN_FIELDS if k in value}
+            caveats[str(value["id"])] = [text for text in value.get("limitations", [])
+                                         if isinstance(text, str)]
+            entries.append((str(value["id"]), fields, f"{value['name']} — {value['cohort']}",
+                            value.get("finalUrl") or value.get("url")))
+    elif collection == "buildings":
         payload = get_artifact("campus-buildings") or {}
         # The map's own collection time, not the release that republished it.
         collected_at = payload.get("map_generated_at") or collected_at
@@ -190,6 +202,10 @@ def load_artifact_records(
                     "attributes",
                     "prerequisites",
                     "corequisites",
+                    "requisites",
+                    "requisitesText",
+                    "conveningGroups",
+                    "school",
                 )
                 if k in value
             }
@@ -276,6 +292,13 @@ def load_artifact_records(
                     "building; the people and offices found that way are not a complete building "
                     "directory, a host or a school."
                 )
+            if collection == "graduation_plans":
+                record["limitations"].append(
+                    "Recommended graduation plan: a suggested course sequence for students "
+                    "admitted in its cohort. It does not replace advising or change the "
+                    "catalog's degree requirements."
+                )
+                record["limitations"].extend(caveats.get(key, []))
             if collection == "subjects":
                 record["limitations"].append(
                     "Catalog subject record: the courses filed under this code. A subject is "
@@ -305,10 +328,14 @@ ARCHWAY_FIELDS = {
 }
 
 
+# A graduation plan's published fields; its structured semesters stay in the original item.
+PLAN_FIELDS = ("name", "cohort", "variantOf", "applicability", "totalCredits", "gpa", "planText",
+               "placementText", "generalEducationText", "notes", "documents", "url")
+
 # Displayed catalog fields a program's table row does not store, taken from its catalog entry.
 CATALOG_PROGRAM_FIELDS = ("learningGoalsAndOutcomes", "sampleGraduationPlan",
                           "catalogConcentrations", "programLevel", "degreeDesignations",
-                          "conveningGroups")
+                          "conveningGroups", "requirementsText")
 
 
 def catalog_program_index(payload: Any) -> dict[str, tuple[list[str], dict[str, Any]]]:
