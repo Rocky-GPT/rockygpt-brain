@@ -13,7 +13,9 @@ import base64
 import binascii
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 from typing import Any, Literal
 from uuid import UUID
 
@@ -33,9 +35,11 @@ from rockygpt_brain.retrieval.projection_models import (
     EntitySubject,
     Property,
     RecordGroup,
+    RecordSection,
     RegistryLocator,
     Relationship,
     SourceRecord,
+    Window,
 )
 
 
@@ -66,6 +70,44 @@ class PropertySpec:
 
 
 @dataclass(frozen=True)
+class SectionSpec:
+    """One level a record group is browsed by, read from the named context fields."""
+    fields: tuple[str, ...]
+    read: Callable[[dict[str, Any], date], RecordSection]
+
+
+def _day(value: Any) -> date | None:
+    try:
+        return date.fromisoformat(str(value)[:10]) if value else None
+    except ValueError:
+        return None
+
+
+def dates(level: str, undated: str) -> SectionSpec:
+    """A section for each published validity window, compared with the campus date."""
+    def read(raw: dict[str, Any], today: date) -> RecordSection:
+        start, until = _day(raw.get("valid_from")), _day(raw.get("valid_until"))
+        if start is None and until is None:
+            return RecordSection(key="dates:", label=undated, level=level, window="undated")
+        label = (f"{start.isoformat()} · {start:%A}" if start is not None and start == until
+                 else f"{start or '…'} – {until or '…'}")
+        window: Window = ("ended" if until is not None and until < today
+                          else "upcoming" if start is not None and start > today else "current")
+        return RecordSection(key=f"dates:{start or ''}:{until or ''}", label=label, level=level,
+                             window=window)
+    return SectionSpec(("valid_from", "valid_until"), read)
+
+
+def published(field: str, level: str, missing: str) -> SectionSpec:
+    """A section for each published value of one text field, exactly as published."""
+    def read(raw: dict[str, Any], today: date) -> RecordSection:
+        value = raw.get(field)
+        text = value.strip() if isinstance(value, str) else ""
+        return RecordSection(key=f"{field}:{text}", label=text or missing, level=level)
+    return SectionSpec((field,), read)
+
+
+@dataclass(frozen=True)
 class RecordSpec:
     """A collection of repeated records, each a context plus its own properties."""
     collection: str
@@ -77,10 +119,18 @@ class RecordSpec:
     ignored: frozenset[str] = frozenset()
     # A caveat about every record in the group, kept on each record's source.
     limitation: str | None = None
+    # How records read when browsed: the context field that titles each record, the
+    # sections records sit in, and the property shown under each title. `ordering`
+    # describes GraphData._ordering, which keeps each section's records together.
+    title: str | None = None
+    sections: tuple[SectionSpec, ...] = ()
+    summary: str | None = None
+    ordering: str = "published record title, then original row ID"
 
 
 SCHEDULE_LIMITATION = ("Published schedule record; applicability and seasonal precedence have "
                        "not been resolved for a selected service date.")
+SCHEDULE_ORDERING = "undated records, then the newest validity dates; each Monday to Sunday"
 PROPERTY_SPECS = (
     PropertySpec("contacts", fields(
         "name", "type", "title", "status", "department", "email", "phone",
@@ -168,15 +218,22 @@ RECORD_SPECS = (
         ("calories", "number"), "portion_size", ("vegan", "boolean"),
         ("vegetarian", "boolean"), ("allergens", "text_list"),
         ("dietary_label_coverage", "label_coverage", "dietary_coverage"),
-    ), ("date", "meal", "station")),
+    ), ("date", "meal", "station"), sections=(
+        dates("Dates", "No date listed"), published("meal", "Meals", "No meal listed"),
+        published("station", "Stations", "No station listed"),
+    ), ordering="date, meal and station, then dish name"),
+    # Every hours record carries its place's name, so the weekday titles it instead.
     RecordSpec("dining_hours", "dining_hours", "Dining hours", fields(
         ("weekday", "day", "text"), ("valid_from", "date"), ("valid_until", "date"),
-    ), fields("schedule"), ("day",), frozenset({"name"}), SCHEDULE_LIMITATION),
+    ), fields("schedule"), ("day",), frozenset({"name"}), SCHEDULE_LIMITATION,
+        title="weekday", sections=(dates("Periods", "Regular hours"),), summary="schedule",
+        ordering=SCHEDULE_ORDERING),
     RecordSpec("campus_hours", "operating_hours", "Operating hours", fields(
         ("weekday", "day", "text"), ("valid_from", "date"), ("valid_until", "date"),
     ), fields("schedule", ("hours", "hours_list"), "notes"), ("day",),
         frozenset({"name", "source_url"}),
-        SCHEDULE_LIMITATION),
+        SCHEDULE_LIMITATION, title="weekday", sections=(dates("Periods", "Regular hours"),),
+        summary="schedule", ordering=SCHEDULE_ORDERING),
 )
 MAPPED = {spec.collection for spec in (*PROPERTY_SPECS, *RECORD_SPECS)}
 PROPERTY_RECORD_LIMIT = 100
@@ -340,6 +397,13 @@ class Projection:
                 field_path=[spec.source], limitations=limitations,
                 publication_status=publication_status)])
 
+    @staticmethod
+    def _title(record: dict[str, Any], spec: RecordSpec) -> str:
+        """The spec's title field when it is published text, else the record's own title."""
+        field = next((f for f in spec.context if f.key == spec.title), None)
+        value = record["raw_record"].get(field.source) if field else None
+        return value.strip() if isinstance(value, str) and value.strip() else str(record["title"])
+
     def _fields(self, record: dict[str, Any], source: str,
                 specs: tuple[FieldSpec, ...]) -> list[Property]:
         return [prop for spec in specs if (prop := self._field(record, source, spec)) is not None]
@@ -445,17 +509,21 @@ class Projection:
                 source = self._source(record, spec.limitation)
                 if source is None:
                     continue
+                raw = {**record["raw_record"], **record.get("supplemental_fields", {})}
                 projected.append(ContextualRecord(
-                    id=record["id"], label=record["title"], record_type=spec.key,
+                    id=record["id"], label=self._title(record, spec), record_type=spec.key,
                     source_id=source, context=self._fields(record, source, spec.context),
-                    properties=self._fields(record, source, spec.properties)))
+                    properties=self._fields(record, source, spec.properties),
+                    sections=[section.read(raw, self.data.today) for section in spec.sections]))
             next_cursor = (Cursor(**{**scope, "group": spec.key},
                                   offset=page["next_offset"]).encode()
                            if page["next_offset"] is not None else None)
             groups.append(RecordGroup(key=spec.key, label=spec.label, record_type=spec.key,
                 records=projected, total=page["total"], returned=len(projected),
                 next_cursor=next_cursor, filters=filters, filter_fields=list(spec.filters),
-                ordering="published record title, then original row ID"))
+                ordering=spec.ordering, title_field=spec.title,
+                section_fields=[key for section in spec.sections for key in section.fields],
+                summary_field=spec.summary))
         for collection in sorted(collections - MAPPED):
             self.coverage.append(CoverageIssue(reason="collection_not_migrated",
                                                collection=collection))

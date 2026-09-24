@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 import os
 from collections.abc import Iterator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, get_args
 from unittest.mock import Mock, patch
 from uuid import UUID
@@ -21,7 +21,10 @@ from rockygpt_brain.retrieval.profiles import LinkCollection
 from rockygpt_brain.retrieval.projection import (
     MAPPED,
     SCHEDULE_LIMITATION,
+    SCHEDULE_ORDERING,
     Projection,
+    dates,
+    published,
     valid_value,
     validate_selection,
 )
@@ -190,6 +193,60 @@ def test_hours_keep_weekday_schedule_and_exception_validity_together(fixture: Fi
     assert "name" not in values(group.records[0].properties)
     assert all(SCHEDULE_LIMITATION in source(result, r.source_id).limitations
                for r in group.records)
+
+
+def test_hours_are_titled_by_weekday_within_their_validity_periods(fixture: Fixture) -> None:
+    group = next(g for g in build(fixture).record_groups if g.key == "dining_hours")
+    # Both rows carry the venue's name; the weekday tells them apart.
+    assert [r.label for r in group.records] == ["Monday", "Monday"]
+    assert [[(s.level, s.label, s.window) for s in r.sections] for r in group.records] == [
+        [("Periods", "Regular hours", "undated")],
+        [("Periods", "2026-09-21 – 2026-09-25", "current")],
+    ]
+    assert (group.title_field, group.section_fields, group.summary_field) == (
+        "weekday", ["valid_from", "valid_until"], "schedule")
+    assert group.ordering == SCHEDULE_ORDERING
+
+
+def test_menu_offerings_keep_dish_titles_under_date_meal_and_station(fixture: Fixture) -> None:
+    menu = next(g for g in build(fixture).record_groups if g.key == "menu_offerings")
+    assert [r.label for r in menu.records] == ["Same dish", "Same dish"]
+    assert [(s.level, s.label, s.window) for s in menu.records[1].sections] == [
+        ("Dates", "2026-09-22 · Tuesday", "upcoming"), ("Meals", "Dinner", None),
+        ("Stations", "Grill", None),
+    ]
+    assert menu.section_fields == ["valid_from", "valid_until", "meal", "station"]
+    assert menu.title_field is None and menu.summary_field is None
+
+
+def test_sections_compare_published_dates_with_the_campus_date_and_keep_values() -> None:
+    today = date(2026, 9, 24)
+    read = dates("Periods", "Regular hours").read
+
+    def window(start: str | None, until: str | None) -> str | None:
+        return read({"valid_from": start, "valid_until": until}, today).window
+
+    assert window(None, None) == "undated"
+    assert window("2026-08-23", "2026-08-25") == "ended"
+    assert window("2026-09-24", "2026-09-24") == "current"
+    assert window(None, "2026-12-15") == "current"
+    assert window("2026-11-25", "2026-11-29") == "upcoming"
+    day = read({"valid_from": "2026-09-24", "valid_until": "2026-09-24"}, today)
+    assert (day.key, day.label) == ("dates:2026-09-24:2026-09-24", "2026-09-24 · Thursday")
+    meal = published("meal", "Meals", "No meal listed").read
+    assert meal({"meal": "Late Night"}, today).label == "Late Night"
+    assert meal({"meal": " "}, today).model_dump() == {
+        "key": "meal:", "label": "No meal listed", "level": "Meals", "window": None}
+
+
+def test_hours_and_menus_are_read_in_section_order() -> None:
+    hours = GraphData._ordering("dining_hours").as_string(None)
+    assert hours.startswith("t.valid_from IS NOT NULL, t.valid_from DESC, t.valid_until DESC")
+    assert "ARRAY['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']" in hours
+    assert GraphData._ordering("campus_hours").as_string(None) == hours
+    menu = GraphData._ordering("menu").as_string(None)
+    assert menu.startswith("t.valid_from, t.valid_until, array_position(ARRAY['Breakfast'")
+    assert "to_jsonb" in GraphData._ordering("contacts").as_string(None)
 
 
 def test_page_cursor_pins_scope_and_preserves_duplicate_dish_boundaries(fixture: Fixture) -> None:

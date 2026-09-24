@@ -216,6 +216,10 @@ def test_projection_v3_reuses_exact_readers_and_preserves_contexts(fixture: Fixt
     assert vegan.values[0].value is False and vegan.status == "known"
     allergens = next(p for p in menu.records[0].properties if p.key == "allergens")
     assert allergens.values[0].value is None and allergens.assertions[0].value == []
+    hours = next(g for g in result.record_groups if g.key == "dining_hours")
+    assert [r.label for r in hours.records] == ["Monday", "Monday"]
+    assert [r.sections[0].window for r in hours.records] == ["undated", "current"]
+    assert (hours.title_field, hours.summary_field) == ("weekday", "schedule")
     assert records == before
     assert set(reader.source_records) == {s.id for s in result.sources}
     EntityFactProjection.model_validate_json(result.model_dump_json())

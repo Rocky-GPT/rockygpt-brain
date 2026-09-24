@@ -410,7 +410,21 @@ class GraphData:
 
     @staticmethod
     def _ordering(collection: str) -> sql.Composable:
-        """Deterministic within an immutable release: title, then original row ID."""
+        """Deterministic within an immutable release: title, then original row ID.
+
+        Hours and menus follow their projection sections instead, so every page keeps a
+        section's records together: hours undated first, then the newest validity dates,
+        each Monday to Sunday; menus by date, meal and station.
+        """
+        if collection in {"campus_hours", "dining_hours"}:
+            return sql.SQL(
+                "t.valid_from IS NOT NULL, t.valid_from DESC, t.valid_until DESC, t.name, "
+                "array_position(ARRAY['Monday','Tuesday','Wednesday','Thursday','Friday',"
+                "'Saturday','Sunday'], t.day), t.day, t.id")
+        if collection == "menu":
+            return sql.SQL(
+                "t.valid_from, t.valid_until, array_position(ARRAY['Breakfast','Brunch',"
+                "'Lunch','Dinner','Late Night'], t.meal), t.meal, t.station, t.name, t.id")
         return (
             sql.SQL("t.document_id, t.chunk_index, t.id") if collection == "document_chunks"
             else sql.SQL("t.route_id, t.sequence, t.id") if collection == "shuttle"

@@ -22,6 +22,7 @@ from rockygpt_brain.retrieval.projection_models import (
     CoverageIssue,
     Entity,
     Property,
+    RecordSection,
     Relationship,
     SourceRecord,
 )
@@ -76,6 +77,7 @@ class FactRecord(Contract):
     context: list[FactProperty]
     properties: list[FactProperty]
     relationships: list[Relationship]
+    sections: list[RecordSection] = Field(default_factory=list)
 
 
 class FactRecordGroup(Contract):
@@ -89,6 +91,9 @@ class FactRecordGroup(Contract):
     filters: dict[str, str | None]
     filter_fields: list[str]
     ordering: str
+    title_field: str | None = None
+    section_fields: list[str] = Field(default_factory=list)
+    summary_field: str | None = None
 
 
 class EntityFactProjection(Contract):

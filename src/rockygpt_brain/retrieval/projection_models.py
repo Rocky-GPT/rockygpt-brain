@@ -89,6 +89,21 @@ class Relationship(Contract):
     registry_locator: RegistryLocator
 
 
+Window = Literal["undated", "current", "upcoming", "ended"]
+
+
+class RecordSection(Contract):
+    """One level of a record's place in its group, outermost first, for browsing.
+
+    `window` compares the section's published validity dates with the campus date. It
+    never resolves which record applies on a date, or seasonal precedence.
+    """
+    key: str
+    label: str
+    level: str
+    window: Window | None = None
+
+
 class ContextualRecord(Contract):
     id: str
     label: str
@@ -97,6 +112,7 @@ class ContextualRecord(Contract):
     context: list[Property]
     properties: list[Property]
     relationships: list[Relationship] = Field(default_factory=list)
+    sections: list[RecordSection] = Field(default_factory=list)
 
 
 class RecordGroup(Contract):
@@ -110,6 +126,11 @@ class RecordGroup(Contract):
     filters: dict[str, str | None]
     filter_fields: list[str]
     ordering: str
+    # How records read: the context field that titles each record, the context fields
+    # its sections stand for, and the property shown under each title.
+    title_field: str | None = None
+    section_fields: list[str] = Field(default_factory=list)
+    summary_field: str | None = None
 
 
 class CoverageIssue(Contract):
