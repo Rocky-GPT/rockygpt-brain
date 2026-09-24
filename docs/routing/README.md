@@ -1,7 +1,7 @@
 # Jev routing
 
-Routing is implemented but defaults to **off**. Live validation is pending a
-`BRAIN_TYPESAFE_API_KEY`; `live-status.json` records the preflight result. No paid
+Routing is implemented but defaults to **off**. Live validation is pending a TypeSafe
+or OpenRouter key; `live-status.json` records the preflight result. No paid
 evaluation calls have been made and no environment has been promoted.
 
 ## Behavior
@@ -49,8 +49,10 @@ paid work. Unknown usage retains its reservation and requires reconciliation.
 1. Apply `migrations/003_routing_accounting.sql` after migrations 001 and 002 using
    the operational database administrator. It only adds `routing` to the operation
    category constraint; balances, row-level security, and campus schemas are unchanged.
-2. Set the server-only `BRAIN_TYPESAFE_API_KEY` for the intended environment. Never
-   expose it through a `NEXT_PUBLIC_` setting. Keep `BRAIN_ROUTING_MODE=off` for rollout.
+2. Set the server-only `BRAIN_TYPESAFE_API_KEY` for the intended environment, or set
+   `BRAIN_ROUTING_PROVIDER=openrouter` and `BRAIN_OPENROUTER_API_KEY` to reach Jev
+   through OpenRouter. Never expose either key through a `NEXT_PUBLIC_` setting. Keep
+   `BRAIN_ROUTING_MODE=off` for rollout.
 3. Update any `BRAIN_EXPECTED_CONFIG_HASH` deployment pin using
    `python -m rockygpt_brain.config`. Routing prompts, code, model and prices are
    covered by the hash; the deployment's off/shadow/active mode is logged separately.
@@ -60,6 +62,22 @@ Pricing is versioned in `release.json`: 42 nanodollars per input token, zero per
 output token, matching [TypeSafe's model documentation](https://docs.typesafe.ai/models).
 Both providers share the existing monthly and per-turn allowances. API documentation:
 [TypeSafe evaluation endpoint](https://docs.typesafe.ai/api).
+
+### Through OpenRouter
+
+`BRAIN_ROUTING_PROVIDER=openrouter` sends the same request to OpenRouter's
+[System One endpoint](https://openrouter.ai/docs/api/api-reference/systemone/submit-a-system-one-request),
+which forwards it to TypeSafe. OpenRouter lists `typesafe/jev-1.13` at the same
+per-token price, so the `release.json` price still applies. Any fee OpenRouter charges
+for buying credits is outside the ledger.
+
+The brain requests `typesafe/jev-1.13` and accepts only the reported snapshot
+`typesafe/jev-1.13-20260917` as `jev-1.13.0`. That snapshot name comes from
+OpenRouter's API reference example, so confirm it on the first paid call. Any other
+reported model is billed, recorded in the ledger and falls back as
+`routing_model_changed`. The ledger names `openrouter` as the provider and keeps
+OpenRouter's generation ID as the receipt. Evaluation reports record `routingProvider`,
+because latency through OpenRouter includes an extra hop.
 
 ## Evaluation and promotion
 

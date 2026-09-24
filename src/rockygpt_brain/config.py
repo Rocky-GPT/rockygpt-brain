@@ -37,6 +37,7 @@ class Price(BaseModel):
 
 
 RoutingMode = Literal["off", "shadow", "active"]
+RoutingProvider = Literal["typesafe", "openrouter"]
 
 
 class RoutingConfig(BaseModel):
@@ -118,12 +119,20 @@ class Deployment(BaseModel):
     project: str = Field(min_length=1)
     ledger_url: str = Field(repr=False, min_length=1)
     routing_mode: RoutingMode = "off"
+    routing_provider: RoutingProvider = "typesafe"
     typesafe_api_key: str | None = Field(default=None, repr=False)
+    openrouter_api_key: str | None = Field(default=None, repr=False)
+
+    @property
+    def routing_api_key(self) -> str | None:
+        if self.routing_provider == "openrouter":
+            return self.openrouter_api_key
+        return self.typesafe_api_key
 
     @model_validator(mode="after")
     def routing_credentials(self) -> "Deployment":
-        if self.routing_mode != "off" and not self.typesafe_api_key:
-            raise ValueError("Routing requires a TypeSafe credential")
+        if self.routing_mode != "off" and not self.routing_api_key:
+            raise ValueError("Routing requires a credential for its provider")
         return self
 
 
@@ -137,7 +146,9 @@ def load_deployment() -> Deployment:
                 "project": os.environ["BRAIN_OPENAI_PROJECT"],
                 "ledger_url": os.environ["BRAIN_LEDGER_DATABASE_URL"],
                 "routing_mode": os.getenv("BRAIN_ROUTING_MODE", "off"),
+                "routing_provider": os.getenv("BRAIN_ROUTING_PROVIDER") or "typesafe",
                 "typesafe_api_key": os.getenv("BRAIN_TYPESAFE_API_KEY") or None,
+                "openrouter_api_key": os.getenv("BRAIN_OPENROUTER_API_KEY") or None,
             }
         )
         if os.getenv("OPENAI_CHAT_MODEL", RELEASE.model) != RELEASE.model:
