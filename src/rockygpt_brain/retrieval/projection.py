@@ -218,7 +218,8 @@ RECORD_SPECS = (
         # The page's name labels its record; its section text, links and catalog links stay
         # in the original item.
     ), (), frozenset({"id", "name", "title", "finalUrl", "sections", "links", "catalogLinks",
-                      "programCodes", "relatedProgramCodes", "limitations"})),
+                      "programCodes", "otherProgramCodes", "relatedProgramCodes",
+                      "limitations"})),
     RecordSpec("menu", "menu_offerings", "Menu offerings", fields(
         ("valid_from", "date"), ("valid_until", "date"), "meal", "station",
     ), fields(

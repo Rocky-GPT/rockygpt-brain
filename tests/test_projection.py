@@ -650,7 +650,7 @@ PAGES = {"captured_at": "2026-09-24T17:20:00Z", "pages": [
      "degrees": ["Bachelor of Science"], "offers": ["Major", "Minor"],
      "sections": [{"heading": "About the Computer Science Major", "text": "Technology..."},
                   {"heading": "Contact", "text": "For questions, email the convener."}],
-     "links": [], "catalogLinks": [], "programCodes": ["SN-BS-CMPS"],
+     "links": [], "catalogLinks": [], "programCodes": ["SN-BS-CMPS"], "otherProgramCodes": [],
      "relatedProgramCodes": ["SN-MN-CMPS"], "limitations": []},
 ]}
 
