@@ -286,7 +286,10 @@ def test_artifact_records_cite_their_artifact_path_and_own_freshness(fixture: Fi
 def test_a_catalog_course_node_projects_its_own_record(fixture: Fixture) -> None:
     data, snapshot, _ = fixture
     course = {"code": "CMPS 147", "name": "COMPUTER SCIENCE I", "description": "Intro",
-              "credits": 4, "attributes": []}
+              "credits": 4, "attributes": [], "school": "Science, Nursing and Health",
+              "conveningGroups": ["Computer Science (CMPS)"],
+              "requisites": [{"section": "Prerequisite", "rule": {"condition": "anyOf"}}],
+              "requisitesText": "Prerequisite\n  any of\n    MATH 110 PRECALCULUS"}
     parsed = {"id": "courses:CMPS 147", "collection": "courses",
               "title": "CMPS 147 — COMPUTER SCIENCE I", "source_key": "academic-programs",
               "source_record_key": "CMPS 147", "fields": course, "url": "https://catalog",
@@ -298,7 +301,13 @@ def test_a_catalog_course_node_projects_its_own_record(fixture: Fixture) -> None
     result = Projection(data, snapshot).build(UUID(node), None, {}, 8, None)
     assert result.entity.kind == "course"
     assert values(result.properties)["credits"] == [4]
+    assert values(result.properties)["prerequisites"] == [course["requisitesText"]]
+    assert values(result.properties)["convening_groups"] == [["Computer Science (CMPS)"]]
+    assert values(result.properties)["school"] == ["Science, Nursing and Health"]
     assert source(result, "courses:CMPS 147").artifact_path == ["CMPS 147"]
+    # The structured rules behind the listing are neither a fact nor a coverage gap.
+    assert "requisites" not in values(result.properties)
+    assert not result.coverage
     assert result.properties_complete
 
 

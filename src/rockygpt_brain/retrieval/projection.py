@@ -99,6 +99,13 @@ PROPERTY_SPECS = (
     ), frozenset({"imagePath"})),
     PropertySpec("programs", fields(
         "name", "degree", "program_kind", "school", "description", ("program_url", "url"),
+        # Catalog page fields supplied from the program's exact catalog entry.
+        ("learning_goals_and_outcomes", "learningGoalsAndOutcomes", "text"),
+        ("sample_graduation_plan", "sampleGraduationPlan", "text"),
+        ("concentrations", "catalogConcentrations", "text"),
+        ("program_level", "programLevel", "text"),
+        ("degree_designations", "degreeDesignations", "text_list"),
+        ("convening_groups", "conveningGroups", "text_list"),
     )),
     PropertySpec("clubs", fields(
         "name", "category", "bucket", "email", "mission",
@@ -127,7 +134,10 @@ PROPERTY_SPECS = (
     )),
     PropertySpec("courses", fields(
         "code", "name", "description", ("credits", "credits"), ("attributes", "text_list"),
-    )),
+        ("prerequisites", "requisitesText", "text"),
+        ("convening_groups", "conveningGroups", "text_list"), "school",
+        # The structured rules behind the prerequisite listing stay in the original item.
+    ), frozenset({"requisites"})),
     PropertySpec("subjects", fields(
         "code", "name", "display_name", ("search_terms", "text_list"),
         ("course_count", "number"),

@@ -365,3 +365,57 @@ def test_graph_artifact_enrichment_never_uses_names_or_landing_urls(failure: str
         **data.sources["archway-clubs"], "canonical_url": CLUB_URL}})
     assert "email" not in record["fields"]
     assert "artifact_path" not in record
+
+
+CATALOG_ENTRY = {
+    "catalogCode": "SN-BS-CMPS", "name": "Computer Science BS",
+    "learningGoalsAndOutcomes": "Graduates will:\n- Program well.",
+    "sampleGraduationPlan": "See the My Graduation Plan page.",
+    "programLevel": "UG - Undergraduate", "degreeDesignations": ["BS - Bachelor of Science"],
+    "conveningGroups": ["Computer Science (CMPS)"], "catalogConcentrations": "Robotics",
+    # Not a displayed program fact; an entry's other fields are never copied.
+    "catalogSections": [{"title": "Details", "fields": []}], "careers": "Excerpt.",
+}
+
+
+@pytest.mark.parametrize("failure", [None, "other_code", "duplicate_code", "name_only"])
+def test_catalog_program_fields_come_only_from_the_exact_catalog_code(
+    fixture: Fixture, failure: str | None,
+) -> None:
+    from rockygpt_brain.retrieval.graph import GraphData
+
+    data, snapshot, records = fixture
+    entity = data._artifacts["campus-identities"]["entities"][0]
+    entity.update(kind="program", links=[{"collection": "programs", "source_key": "directory",
+                                          "source_record_keys": ["catalog:SN-BS-CMPS"]}])
+    majors = [dict(CATALOG_ENTRY)]
+    if failure == "other_code":
+        majors[0]["catalogCode"] = "SN-MN-CMPS"
+    elif failure == "duplicate_code":
+        majors.append(dict(CATALOG_ENTRY))
+    data._artifacts["programs"] = {"schools": [{"school": "Science", "majors": majors}]}
+    raw = {"id": "one", "source_id": "directory", "collected_at": test_projection.NOW.isoformat(),
+           "source_record_key": "name:Computer Science BS" if failure == "name_only"
+           else "catalog:SN-BS-CMPS", "name": "Computer Science BS",
+           "program_url": "https://catalog.ramapo.edu/programs/SN-BS-CMPS"}
+    original = copy.deepcopy(raw)
+    row = GraphData(data)._record("programs", {"record": raw, "source": data.sources["directory"]})
+    if failure == "name_only":
+        entity["links"][0]["source_record_keys"] = ["name:Computer Science BS"]
+    records["programs"] = [row]
+    facts = EntityFacts(data, snapshot).build(UUID(ENTITY_ID))
+    props = {prop.key: prop for prop in facts.properties}
+    assert row["raw_record"] == raw == original
+    catalog = {"learning_goals_and_outcomes", "sample_graduation_plan", "program_level",
+               "degree_designations", "convening_groups", "concentrations"}
+    if failure:
+        assert not catalog & props.keys()
+        assert "artifact_path" not in row
+        return
+    assert catalog <= props.keys()
+    assert props["degree_designations"].values[0].value == ["BS - Bachelor of Science"]
+    assert props["learning_goals_and_outcomes"].category == "academic"
+    assert row["artifact_path"] == ["schools", "0", "majors", "0"]
+    assert set(row["supplemental_fields"]) == {
+        "learningGoalsAndOutcomes", "sampleGraduationPlan", "programLevel", "degreeDesignations",
+        "conveningGroups", "catalogConcentrations"}
