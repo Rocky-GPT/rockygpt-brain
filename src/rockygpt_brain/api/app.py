@@ -10,7 +10,7 @@ from importlib.resources import files
 from threading import BoundedSemaphore, Event
 from time import monotonic
 from typing import Any, cast
-from uuid import uuid4
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
@@ -151,12 +151,15 @@ def get_logs(limit: int = 50) -> dict[str, Any] | JSONResponse:
 
 
 class FeedbackPayload(BaseModel):
-    requestId: str
+    # Bounded like the chat itself: a question is at most 2,000 characters in
+    # the UI and 16,000 here, an answer at most 12,000. The ID is the turn's
+    # UUID, so a malformed one is a 422, not a database error.
+    requestId: UUID
     rating: int
-    category: str | None = None
-    comments: str | None = None
-    question: str | None = None
-    answer: str | None = None
+    category: str | None = Field(default=None, max_length=64)
+    comments: str | None = Field(default=None, max_length=2000)
+    question: str | None = Field(default=None, max_length=16000)
+    answer: str | None = Field(default=None, max_length=12000)
 
 
 @app.post("/v1/feedback")

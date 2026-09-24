@@ -63,3 +63,11 @@ def test_an_operator_review_does_not_replace_student_feedback() -> None:
     )
     assert body["success"] is False
     assert body["error"] == "student_feedback_exists"
+
+
+def test_malformed_feedback_is_refused_before_the_database() -> None:
+    client = TestClient(app)
+    malformed = {"requestId": "not-a-uuid", "rating": 1}
+    assert client.post("/v1/feedback", json=malformed).status_code == 422
+    too_long = {"requestId": REQUEST_ID, "rating": -1, "comments": "x" * 2001}
+    assert client.post("/v1/feedback", json=too_long).status_code == 422
