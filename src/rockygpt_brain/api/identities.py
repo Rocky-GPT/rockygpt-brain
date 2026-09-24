@@ -43,6 +43,9 @@ class CoverageIssue(BaseModel):
     entity: str | None = None
     record: str | None = None
     reason: str
+    # The Data compiler's coverage kind; older releases have none. Any text is kept, so a
+    # new kind shows up instead of invalidating the whole report.
+    kind: str | None = None
 
 
 class IdentityCoverage(BaseModel):

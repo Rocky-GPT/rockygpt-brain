@@ -76,6 +76,20 @@ def test_identity_index_keeps_original_links_relationships_and_release_scope() -
     close.assert_called_once()
 
 
+def test_identity_index_keeps_each_coverage_issue_kind() -> None:
+    data = inspection_data()
+    data._artifacts["campus-identity-coverage"]["unresolved"].append(
+        {"collection": "campus_hours", "record": "Research Help Desk:Friday",
+         "reason": "No reviewed persistent identity selector covers this original record.",
+         "kind": "unlinked_record"})
+    with patch("rockygpt_brain.api.identities.CampusData", return_value=data):
+        response = TestClient(app).get("/v1/dev/identities")
+    assert response.status_code == 200
+    # An issue from a release compiled before kinds existed gets no invented kind.
+    assert [issue.get("kind") for issue in response.json()["coverage"]["unresolved"]] == [
+        None, "unlinked_record"]
+
+
 @pytest.mark.parametrize("payload", [None, {}, {"identity_count": 99}])
 def test_missing_or_invalid_coverage_does_not_claim_complete_coverage(payload: Any) -> None:
     data = inspection_data()
