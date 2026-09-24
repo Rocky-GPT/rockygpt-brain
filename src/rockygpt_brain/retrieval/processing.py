@@ -329,8 +329,9 @@ ARCHWAY_FIELDS = {
 
 
 # A graduation plan's published fields; its structured semesters stay in the original item.
-PLAN_FIELDS = ("name", "cohort", "variantOf", "applicability", "totalCredits", "gpa", "planText",
-               "placementText", "generalEducationText", "notes", "documents", "url")
+PLAN_FIELDS = ("name", "cohort", "variantOf", "applicability", "totalCredits", "graduateCredits",
+               "gpa", "totals", "planText", "placementText", "generalEducationText", "notes",
+               "documents", "url")
 
 # Displayed catalog fields a program's table row does not store, taken from its catalog entry.
 CATALOG_PROGRAM_FIELDS = ("learningGoalsAndOutcomes", "sampleGraduationPlan",
