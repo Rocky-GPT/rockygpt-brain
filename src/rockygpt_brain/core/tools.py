@@ -142,13 +142,14 @@ def tool_definitions() -> list[dict[str, Any]]:
         ),
         function_tool(
             "lookup_contact",
-            "Contact convenience interface to the SAME canonical entity facts as lookup_profile. "
-            "First choice for how to contact a named entity or specific phone, email, office, "
-            "department or other contact fields. Resolve its exact published name or alias; "
+            "Contact interface to the SAME canonical entity facts as lookup_profile. "
+            "First choice for how to contact or find a named entity, or its phone, "
+            "email, office, department or other contact fields; contact.placement cites its "
+            "verified building. Resolve its exact published name or alias; "
             "read entity_facts.properties and cite their supporting_evidence_ids. "
             "phones/offices are the shared properties for phone/office requests. "
-            "Two agreeing records support one value; conflicting properties require reporting "
-            "the disagreement, never choosing a convenient raw row. "
+            "Conflicting properties require reporting the disagreement, never choosing a "
+            "convenient raw row. "
             "Include every requested field; for 'contact details' or 'how to contact', "
             "request phone, email, office and department. Hours/fax/website can be uncovered; "
             "never infer them. Empty records do not prove an office does not exist. "

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
+from rockygpt_brain.retrieval.exact import ContactQuery
 from rockygpt_brain.retrieval.graph import GraphData
 from rockygpt_brain.retrieval.profiles import ProfileQuery, ProfileSection
 from test_profiles import ENTITY_ID, NOW, repository
@@ -197,3 +198,49 @@ def test_a_reviewed_reading_places_only_that_exact_published_office_text() -> No
                            ('Learning Commons 204A', [])):
         component = read(room, readings)
         assert (component['relationships'], component['unverified_relationships']) == ([], 1)
+
+
+def test_contact_names_the_building_its_published_room_places_it_in() -> None:
+    output = profile(building_data(), ENTITY_ID, 'contact')
+    [placement] = output['components']['contact']['placement']
+    assert (placement['type'], placement['entity']['id']) == ('located_at', BUILDING_D)
+    assert (placement['evidence_ids'], placement['target_evidence_ids']) == (
+        ['contacts:contact'], ['buildings:1133371'])
+    contact, building = output['records']
+    assert (contact['fields']['office'], contact['canonical_entity_id']) == ('D-224', ENTITY_ID)
+    assert building['fields']['room_prefixes'] == ['D'] and 'canonical_entity_id' not in building
+    assert any('room number\'s prefix' in text for text in building['limitations'])
+    # The building is where the office is, not a source of the office's own facts.
+    assert {assertion['source_id'] for prop in output['entity_facts']['properties']
+            for assertion in prop['assertions']} == {'contacts:contact'}
+    person = profile(building_data(), PERSON, 'contact')['components']['contact']['placement']
+    assert [(item['type'], item['entity']['id']) for item in person] == [
+        ('office_at', BUILDING_ASB)]
+    moved = profile(building_data('E-100'), ENTITY_ID, 'contact')['components']['contact']
+    assert (moved['placement'], moved['status']) == ([], 'available')
+
+
+def test_contact_places_an_office_with_no_room_by_its_reviewed_statement() -> None:
+    data = reviewed(building_data(''))
+    output = data.lookup_contact(ContactQuery(entity='Example Center', fields=['office']))
+    [placement] = output['components']['contact']['placement']
+    assert placement['evidence_ids'] == placement['target_evidence_ids'] == ['buildings:1133371']
+    assert 'reviewed official statement' in placement['meaning']
+    building = next(record for record in output['records'] if record['collection'] == 'buildings')
+    assert building['fields']['reviewed_locations'][0]['statement'] == (
+        'Example Center in Academic Building D')
+    assert any('it gives no room' in text for text in building['limitations'])
+
+
+def test_a_contact_conflict_is_not_marked_on_the_building() -> None:
+    data = building_data()
+    row = {'collected_at': NOW, 'total': 2, 'valid_from': None, 'valid_until': None,
+           'source_id': 'directory', 'source_record_key': 'office:ec', 'name': 'Example Center',
+           'office': 'D-224'}
+    rows = [{**row, 'id': 'contact', 'phone': '201-555-0100'},
+            {**row, 'id': 'other', 'phone': '201-555-0199'}]
+    data._fetch = lambda _sql, params: rows if params[1] == 'directory' else []
+    output = profile(data, ENTITY_ID, 'contact')
+    assert output['components']['contact']['fields']['phone'] == 'conflict'
+    building = next(record for record in output['records'] if record['collection'] == 'buildings')
+    assert not any('disagree' in text for text in building['limitations'])
