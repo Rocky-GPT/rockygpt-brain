@@ -620,3 +620,15 @@ def test_contact_discovery_uses_same_stemming_for_title_and_query(data: CampusDa
     result = data.search(SearchQuery(collection="contacts", query="library", limit=1))
     assert result["records"][0]["fields"]["name"] == "Library"
     assert all(not key.startswith("_") for key in result["records"][0])
+
+
+def test_documents_rank_passages_by_how_much_of_the_request_they_cover(data: CampusData) -> None:
+    # Catalog passages repeat "course"; the section covering every word comes first.
+    result = data.search(
+        SearchQuery(collection="documents", query="withdraw from a course deadline", limit=4)
+    )
+    assert result["records"][0]["title"].endswith("Withdrawal (Online Courses Only)")
+    assert not any("Course Catalog" in record["title"] for record in result["records"])
+    # Among passages covering the same words, the one whose heading names them leads.
+    form = data.search(SearchQuery(collection="documents", query="declare major form", limit=1))
+    assert form["records"][0]["title"].endswith("Major/Minor Declaration Form")

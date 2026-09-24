@@ -9,7 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from rockygpt_brain.retrieval.data import CampusData, ReadQuery, SearchQuery
-from rockygpt_brain.retrieval.processing import build_collection_query
+from rockygpt_brain.retrieval.processing import build_collection_query, document_query_parts
 
 NOW = datetime(2026, 9, 4, 23, tzinfo=UTC)
 
@@ -760,3 +760,10 @@ def test_campus_hours_legacy_rows_keep_the_published_source(data: CampusData) ->
         records = data._load("campus_hours")
     assert "notes" not in records[0]["fields"]
     assert records[0]["url"] == data.sources["source"]["canonical_url"]
+
+
+def test_a_document_query_counts_each_word_once_with_its_synonyms() -> None:
+    vocabulary = {"groups": [["dorm", "dorms", "room"], ["switch", "change"], "not a group"]}
+    assert document_query_parts("Can I switch dorms?", vocabulary) == [
+        "can", "dorm OR dorms OR room", "i", "change OR switch"]
+    assert document_query_parts("", vocabulary) == []
