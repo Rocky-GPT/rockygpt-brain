@@ -125,7 +125,8 @@ class ProfileQuery(BaseModel):
         description="Admission cohort as published, e.g. 'Fall 2024'.",
     )
     plan: str | None = Field(
-        default=None, min_length=1, description="A name from available_plans, delivered whole.",
+        default=None, min_length=1,
+        description="A plan name, or its distinctive words such as 'Data Science 4+1'.",
     )
     diet: Literal["vegan", "vegetarian"] | None = Field(
         default=None, description="Only menu items labeled with this diet.",
@@ -904,11 +905,19 @@ def _plan_cohort(
     chosen = cohort_plans(selected)
     scope["available_plans"] = [str(r["fields"].get("name")) for r in chosen]
     if plan is not None:
-        wanted = _normalize(plan)
-        named = [r for r in chosen if _normalize(str(r["fields"].get("name", ""))) == wanted]
-        if not named:
-            scope["reason"] = "plan_not_published"
-            return summarized(chosen), scope
+        # This program's own published plan names only: an exact name, or else the one
+        # name containing every requested word ('Data Science 4+1'), never a guess.
+        def words(text: str) -> set[str]:
+            return set(re.findall(r"[\w+]+", _normalize(text)))
+
+        def name(record: dict[str, Any]) -> str:
+            return str(record["fields"].get("name", ""))
+
+        named = [r for r in chosen if _normalize(name(r)) == _normalize(plan)] or [
+            r for r in chosen if words(plan) <= words(name(r))]
+        if len(named) != 1:
+            scope["reason"] = "plan_ambiguous" if named else "plan_not_published"
+            return summarized(named or chosen), scope
         return named, scope
     for record in chosen:
         if record["fields"].get("variantOf"):
@@ -1342,7 +1351,8 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                 **requirement_coverage, limitations=[REQUIREMENT_LIMITATION])
         if component == "graduation_plans":
             result["components"][component].update(**plan_scope, limitations=[PLAN_LIMITATION])
-            if plan_scope.get("reason") in {"cohort_not_published", "plan_not_published"}:
+            if plan_scope.get("reason") in {
+                    "cohort_not_published", "plan_not_published", "plan_ambiguous"}:
                 # The summaries show what is published; the requested plan is still missing.
                 result["components"][component]["status"] = "missing"
         if component == "club":
