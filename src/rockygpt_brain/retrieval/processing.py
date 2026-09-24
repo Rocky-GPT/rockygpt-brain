@@ -305,6 +305,26 @@ ARCHWAY_FIELDS = {
 }
 
 
+# Displayed catalog fields a program's table row does not store, taken from its catalog entry.
+CATALOG_PROGRAM_FIELDS = ("learningGoalsAndOutcomes", "sampleGraduationPlan",
+                          "catalogConcentrations", "programLevel", "degreeDesignations",
+                          "conveningGroups")
+
+
+def catalog_program_index(payload: Any) -> dict[str, tuple[list[str], dict[str, Any]]]:
+    """Entries by exact catalog-code record key; a repeated code never supplies facts."""
+    by_key: dict[str, list[tuple[list[str], dict[str, Any]]]] = {}
+    schools = payload.get("schools") if isinstance(payload, dict) else None
+    for school_index, school in enumerate(schools if isinstance(schools, list) else []):
+        majors = school.get("majors") if isinstance(school, dict) else None
+        for major_index, item in enumerate(majors if isinstance(majors, list) else []):
+            code = item.get("catalogCode") if isinstance(item, dict) else None
+            if isinstance(code, str) and code.strip():
+                path = ["schools", str(school_index), "majors", str(major_index)]
+                by_key.setdefault(f"catalog:{code.strip()}", []).append((path, item))
+    return {key: items[0] for key, items in by_key.items() if len(items) == 1}
+
+
 def archway_artifact_index(collection: str, payload: Any) -> dict[str, tuple[int, dict[str, Any]]]:
     """Exact, unique source URLs only; ambiguous matches never supply facts."""
     url_field = "websiteUrl" if collection == "clubs" else "url"

@@ -78,6 +78,7 @@ class GraphData:
         self._artifact_cache: dict[str, list[dict[str, Any]]] = {}
         self._menu_cache: MenuIndex | None = None
         self._archway_cache: dict[str, dict[str, tuple[int, dict[str, Any]]]] = {}
+        self._catalog_programs: dict[str, tuple[list[str], dict[str, Any]]] | None = None
         if entity_id is not None:
             if registry is None:
                 try:
@@ -276,6 +277,24 @@ class GraphData:
                 fields.update(supplemental)
                 result.update(artifact_key=collection, artifact_path=[str(index)],
                               supplemental_fields=supplemental)
+        if collection == "programs":
+            from rockygpt_brain.retrieval.processing import (
+                CATALOG_PROGRAM_FIELDS,
+                catalog_program_index,
+            )
+
+            if self._catalog_programs is None:
+                self._catalog_programs = catalog_program_index(self.data._artifact("programs"))
+            entry = self._catalog_programs.get(str(original.get("source_record_key") or ""))
+            if entry:
+                path, item = entry
+                # The published catalog entry for this exact code supplies the page's
+                # displayed fields the program table does not store.
+                supplemental = {key: item[key] for key in CATALOG_PROGRAM_FIELDS if key in item}
+                if supplemental:
+                    fields.update(supplemental)
+                    result.update(artifact_key="programs", artifact_path=path,
+                                  supplemental_fields=supplemental)
         if collection == "menu" and menu_occurrence(result):
             if self._menu_cache is None:
                 self._menu_cache = menu_artifact_index(self.data._artifact("menu-week"))

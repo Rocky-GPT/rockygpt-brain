@@ -147,6 +147,13 @@ def _category(key: str) -> Literal["contact", "academic", "links", "details"]:
         "degree",
         "program_kind",
         "credits",
+        "learning_goals_and_outcomes",
+        "sample_graduation_plan",
+        "concentrations",
+        "program_level",
+        "degree_designations",
+        "convening_groups",
+        "prerequisites",
     }:
         return "academic"
     return "details"
