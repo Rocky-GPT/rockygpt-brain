@@ -30,7 +30,7 @@ LABELS = {
     "faculty": "Faculty profiles", "shuttle": "Shuttle trips",
     "shuttle_routes": "Shuttle routes", "artifacts": "Published source artifacts",
     "buildings": "Campus buildings", "schools": "Schools", "subjects": "Course subjects",
-    "graduation_plans": "Graduation plans",
+    "graduation_plans": "Graduation plans", "major_pages": "Program pages",
 }
 GROUP_FIELDS = {
     "contacts": ("department", "type"), "campus_hours": ("name", "day"),
@@ -41,10 +41,10 @@ GROUP_FIELDS = {
     "shuttle": ("route", "service_day"), "shuttle_routes": ("service_day",),
     "documents": ("source_key",), "document_chunks": ("document_id",),
     "critical_facts": (), "artifacts": (), "buildings": ("category",), "schools": (),
-    "subjects": (), "graduation_plans": ("cohort",),
+    "subjects": (), "graduation_plans": ("cohort",), "major_pages": (),
 }
 ARTIFACT_COLLECTIONS = {"faculty", "courses", "program_requirements", "buildings", "schools",
-                        "subjects", "graduation_plans"}
+                        "subjects", "graduation_plans", "major_pages"}
 GRAPH_COLLECTIONS = (*COLLECTIONS, "document_chunks", "shuttle_routes", "artifacts")
 META_FIELDS = {
     "id", "source_id", "source_record_key", "dataset_version_id", "collected_at",
@@ -509,7 +509,8 @@ class GraphData:
         artifact = {"faculty": "faculty", "courses": "courses",
                     "program_requirements": "programs", "buildings": "campus-buildings",
                     "schools": "campus-schools", "subjects": "course-subjects",
-                    "graduation_plans": "graduation-plans"}[collection]
+                    "graduation_plans": "graduation-plans",
+                    "major_pages": "major-pages"}[collection]
         path = (original_id.split(".") if collection == "program_requirements"
                 else [original_id])
         if collection == "program_requirements":
@@ -517,6 +518,9 @@ class GraphData:
         raw = self.data._artifact(artifact)
         if collection == "graduation_plans":
             path = ["plans", str(next(index for index, item in enumerate(raw["plans"])
+                                      if str(item.get("id")) == original_id))]
+        if collection == "major_pages":
+            path = ["pages", str(next(index for index, item in enumerate(raw["pages"])
                                       if str(item.get("id")) == original_id))]
         if collection in {"buildings", "schools", "subjects"}:
             key = {"buildings": "concept3d_id", "schools": "section",
