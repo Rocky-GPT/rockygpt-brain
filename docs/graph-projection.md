@@ -51,6 +51,15 @@ the explorer's legacy `EntityGraph` view.
 - **`record_groups`** hold repeated records: menu offerings, dining hours and
   operating hours. Each record has a context (dates, meal, weekday), its own
   properties and its `source_id`. Assertions never cross a record boundary.
+
+  Each record also lists its `sections`, outermost first: hours by validity period
+  (`Regular hours` when undated), menus by date, meal and station. A section's
+  `window` compares its published dates with the campus date (`undated`, `current`,
+  `upcoming` or `ended`). It is for browsing and never decides which record applies.
+  A group names the context field that titles its records (`title_field`: the weekday
+  for hours, whose rows all carry the place's name), the context fields its sections
+  stand for (`section_fields`) and the property shown under each title
+  (`summary_field`: the schedule for hours).
 - **`relationships`** keep the knowledge index's predicate, direction, exact
   evidence references and registry location (identity hash, owner, array index).
   Names inside properties never create relationships.
@@ -121,7 +130,10 @@ No current-date filter is applied implicitly.
 
 Cursors bind the projection version, release, identity hash, entity, group,
 filters and page size. A malformed cursor is 422; a changed scope is 409. Ordering
-is the reader's deterministic title and row-ID order within an immutable release.
+is deterministic within an immutable release and keeps each section's records
+together across pages: hours undated first, then the newest validity dates, each
+Monday to Sunday; menus by date, meal and station, then dish name; everything else
+by title, then row ID. Each group states its order in `ordering`.
 
 ## Performance
 
