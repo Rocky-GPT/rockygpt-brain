@@ -120,6 +120,27 @@ def test_a_named_plan_arrives_whole_and_an_unpublished_name_summarizes_the_cohor
     assert all('planText' not in record['fields'] for record in unknown['records'])
 
 
+def test_a_plan_can_be_named_by_its_words_only_when_one_plan_has_them_all() -> None:
+    data = plan_data()
+    data._artifacts['graduation-plans']['plans'].insert(1, plan(
+        'cs-am-2026', 'Computer Science with MS in Applied Mathematics 4+1', 'Fall 2026', 158,
+        variantOf='Computer Science'))
+    data._artifacts['campus-identities']['entities'][-1]['links'][0][
+        'source_record_keys'].append('cs-am-2026')
+    by_words = profile(data, plan='data science 4+1')
+    assert [record['title'] for record in by_words['records']] == [
+        'Computer Science with MS in Data Science 4+1 — Fall 2026']
+    assert by_words['records'][0]['fields']['planText'] == SEMESTERS
+    # Both variants have '4+1': the student must say which, and both are summarized.
+    both = profile(data, plan='4+1')
+    component = both['components']['graduation_plans']
+    assert (component['status'], component['reason']) == ('missing', 'plan_ambiguous')
+    assert [record['title'] for record in both['records']] == [
+        'Computer Science with MS in Applied Mathematics 4+1 — Fall 2026',
+        'Computer Science with MS in Data Science 4+1 — Fall 2026']
+    assert all('planText' not in record['fields'] for record in both['records'])
+
+
 def test_a_shared_program_name_resolves_to_the_one_program_that_publishes_plans() -> None:
     data = plan_data()
     entities = data._artifacts['campus-identities']['entities']
