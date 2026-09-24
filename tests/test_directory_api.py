@@ -93,3 +93,36 @@ def test_public_facts_require_both_release_pins() -> None:
         response = TestClient(app).get(f"/v1/entities/{ENTITY_ID}/facts")
     assert response.status_code == 422
     data.assert_not_called()
+
+
+def test_directory_names_the_school_a_person_is_part_of() -> None:
+    data = repository()
+    school_id = "5b0c1f7e-2a4d-4c55-9a3e-1d2f3a4b5c6d"
+    data._artifacts["campus-identities"]["entities"] += [
+        {
+            "id": school_id, "kind": "school", "name": "School of Example Studies", "aliases": [],
+            "links": [{"collection": "programs", "source_key": "programs",
+                       "source_record_keys": ["school:ses"]}],
+        },
+        {
+            "id": "0d9e8f7a-6b5c-4d3e-8f2a-1b0c9d8e7f6a", "kind": "person",
+            "name": "Pat Example", "aliases": [],
+            "links": [{"collection": "faculty", "source_key": "faculty",
+                       "source_record_keys": ["faculty:pat"]}],
+            "relationships": [{
+                "type": "part_of", "target_entity_id": school_id,
+                "evidence": [{"field": "school", "collection": "faculty", "source_key": "faculty",
+                              "source_record_key": "faculty:pat"}],
+            }],
+        },
+    ]
+    with (
+        patch("rockygpt_brain.api.identities.CampusData", return_value=data),
+        patch.object(data, "close"),
+    ):
+        response = TestClient(app).get("/v1/directory")
+    assert response.status_code == 200
+    people = {entry["name"]: entry for entry in response.json()["allContacts"]}
+    assert people["Pat Example"]["context"] == "School of Example Studies"
+    assert "school of example studies" in people["Pat Example"]["searchText"]
+    assert "context" not in people["Example Center"]
