@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import json
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import Mock
 from uuid import UUID
 
+from rockygpt_brain.contracts import ChatMessage
+from rockygpt_brain.core.engine import run_turn
 from rockygpt_brain.retrieval.exact import ContactQuery
 from rockygpt_brain.retrieval.graph import GraphData
 from rockygpt_brain.retrieval.profiles import ProfileQuery, ProfileSection
+from test_engine import answer, review, tools
 from test_profiles import ENTITY_ID, NOW, repository
 
 BUILDING_D = '5b0f7e0c-1f7d-5b52-9a53-3a1f8f4b0c11'
@@ -244,3 +250,21 @@ def test_a_contact_conflict_is_not_marked_on_the_building() -> None:
     assert output['components']['contact']['fields']['phone'] == 'conflict'
     building = next(record for record in output['records'] if record['collection'] == 'buildings')
     assert not any('disagree' in text for text in building['limitations'])
+
+
+def test_the_reviewer_sees_where_a_contact_is() -> None:
+    client = Mock()
+    client.create.side_effect = [
+        tools(SimpleNamespace(type='function_call', name='lookup_contact', call_id='contact',
+                              arguments=json.dumps({'entity': 'Ramapo Example Center',
+                                                    'fields': ['office'], 'request_text': None}))),
+        answer('Example Center is in Academic Building D.', 'campus_fact', ['buildings:1133371']),
+        review('supported'),
+    ]
+    result = run_turn([ChatMessage(role='user', content='Where is Example Center?')],
+                      client=client, data=reviewed(building_data('')), model='test', now=NOW)
+    assert result['status'] == 'answered'
+    # The reviewer's retrieval coverage is this trace.
+    [placement] = result['trace'][0]['components']['contact']['placement']
+    assert (placement['entity']['name'], placement['evidence_ids']) == (
+        'Academic Building D', ['buildings:1133371'])
