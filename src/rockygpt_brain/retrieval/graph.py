@@ -289,8 +289,11 @@ class GraphData:
             if entry:
                 path, item = entry
                 # The published catalog entry for this exact code supplies the page's
-                # displayed fields the program table does not store.
-                supplemental = {key: item[key] for key in CATALOG_PROGRAM_FIELDS if key in item}
+                # displayed fields the program table does not store. An entry that lists
+                # its displayed sections shows that a missing field is not published.
+                listed = isinstance(item.get("catalogSections"), list)
+                supplemental = {key: item.get(key) for key in CATALOG_PROGRAM_FIELDS
+                                if listed or key in item}
                 if supplemental:
                     fields.update(supplemental)
                     result.update(artifact_key="programs", artifact_path=path,
