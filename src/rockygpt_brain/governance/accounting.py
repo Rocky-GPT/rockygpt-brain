@@ -13,7 +13,12 @@ from psycopg import sql
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from rockygpt_brain.config import MONTHLY_CAP_NUSD, ConfigurationError, Environment
+from rockygpt_brain.config import (
+    DEVELOPMENT_SUPPLEMENT_CAP_NUSD,
+    MONTHLY_CAP_NUSD,
+    ConfigurationError,
+    Environment,
+)
 
 CAMPUS_ZONE = ZoneInfo("America/New_York")
 Category = Literal["draft", "review", "routing"]
@@ -146,7 +151,9 @@ class PostgresLedger:
             (self.environment, month_at(now)),
         ).fetchone()
         extra = int(row["extra_nusd"]) if row else 0
-        if not 0 <= extra <= 20_000_000_000 or (extra and self.environment != "development"):
+        if not 0 <= extra <= DEVELOPMENT_SUPPLEMENT_CAP_NUSD or (
+            extra and self.environment != "development"
+        ):
             raise PaidCallError("accounting_unavailable")
         return int(account["cap_nusd"]) + extra
 
