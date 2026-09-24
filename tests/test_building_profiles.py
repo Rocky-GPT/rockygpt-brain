@@ -130,3 +130,51 @@ def test_inspector_locates_a_building_in_its_published_artifact() -> None:
     assert record['artifact_key'] == 'campus-buildings'
     assert record['artifact_path'] == ['buildings', '1']
     assert record['raw_record']['name'] == 'Anisfield School of Business (ASB)'
+
+
+def reviewed(data: Any, entity_id: str = ENTITY_ID) -> Any:
+    """The office has no room; the building's own record carries its reviewed placement."""
+    source = 'https://www.ramapo.edu/about/campus-hours/'
+    data._artifacts['campus-identities']['entities'][0]['relationships'] = [{
+        'type': 'located_at', 'target_entity_id': BUILDING_D, 'evidence': [
+            {'collection': 'buildings', 'source_key': 'campus-map', 'source_record_key': '1133371',
+             'field': 'reviewed_locations', 'source_url': source}]}]
+    data._artifacts['campus-buildings']['buildings'][0]['reviewed_locations'] = [
+        {'entity_id': entity_id, 'entity': 'Example Center', 'reviewed_at': '2026-09-24',
+         'statement': 'Example Center in Academic Building D', 'source_url': source}]
+    return data
+
+
+def test_a_reviewed_statement_places_an_office_that_has_no_room() -> None:
+    data = reviewed(building_data(''))
+    outgoing = profile(data, ENTITY_ID, 'related')['components']['related']
+    [relationship] = outgoing['relationships']
+    assert (relationship['type'], relationship['entity']['id']) == ('located_at', BUILDING_D)
+    assert relationship['evidence_ids'] == ['buildings:1133371']
+    assert 'reviewed official statement' in relationship['meaning']
+    assert [text for text in outgoing['limitations'] if 'room' in text] == [
+        'Placed by an official page\'s statement that a person reviewed, not by a room number; '
+        'it gives no room.']
+    incoming = profile(data, BUILDING_D, 'related', direction='incoming')
+    [relationship] = incoming['components']['related']['relationships']
+    assert (relationship['entity']['id'], relationship['meaning']) == (
+        ENTITY_ID, 'This building\'s campus map record carries a reviewed official statement '
+                   'that places the related office here.')
+    assert incoming['records'][0]['fields']['reviewed_locations'][0]['statement'] == (
+        'Example Center in Academic Building D')
+
+
+def test_a_reviewed_statement_must_name_the_office_on_that_buildings_record() -> None:
+    other = reviewed(building_data(''), PERSON)
+    missing = reviewed(building_data(''))
+    del missing._artifacts['campus-buildings']['buildings'][0]['reviewed_locations']
+    for data in (other, missing):
+        component = profile(data, ENTITY_ID, 'related')['components']['related']
+        assert (component['relationships'], component['unverified_relationships']) == ([], 1)
+    # A building statement is never evidence for a person's office.
+    data = building_data()
+    data._artifacts['campus-identities']['entities'][-1]['relationships'][0]['evidence'][0].update(
+        collection='buildings', source_key='campus-map', source_record_key='1133424',
+        field='reviewed_locations')
+    output = profile(data, PERSON, 'related')
+    assert (output['status'], output['reason']) == ('unavailable', 'invalid_identity_registry')

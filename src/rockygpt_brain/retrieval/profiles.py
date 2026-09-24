@@ -202,10 +202,13 @@ class IdentityRelationship(BaseModel):
             ):
                 raise ValueError("A listing requires the catalog Program Faculty field")
             if self.type in ROOM_RELATIONSHIPS and any(
-                reference.collection != "contacts" or reference.field != "office"
+                (reference.collection, reference.field) != ("contacts", "office")
+                and (self.type, reference.collection, reference.field)
+                != ("located_at", "buildings", "reviewed_locations")
                 for reference in self.evidence
             ):
-                raise ValueError("A room relationship requires a contact's published office")
+                raise ValueError("A room relationship requires a contact's published office "
+                                 "or, for an office, the building's reviewed statement")
             if self.type == "part_of" and any(
                 reference.collection not in {"programs", "faculty"} or reference.field != "school"
                 for reference in self.evidence
@@ -704,6 +707,17 @@ RELATIONSHIP_LIMITATIONS = {
     "includes_course": "Catalog courses filed under this subject code; not a schedule of "
                        "current sections, and a program can include courses of other subjects.",
 }
+# A located_at whose only evidence is a reviewed statement on the building's own record.
+REVIEWED_PLACEMENT_MEANINGS = {
+    "outgoing": "The related building's campus map record carries a reviewed official "
+                "statement that places this office there.",
+    "incoming": "This building's campus map record carries a reviewed official statement that "
+                "places the related office here.",
+}
+REVIEWED_PLACEMENT_LIMITATION = (
+    "Placed by an official page's statement that a person reviewed, not by a room number; it "
+    "gives no room."
+)
 
 
 def _related_records(
@@ -755,6 +769,7 @@ def _related_records(
 
     records: list[dict[str, Any]] = []
     summaries: list[dict[str, Any]] = []
+    limitations: dict[tuple[str, bool], str] = {}
     unverified = failed = 0
     for edge in edges[:RELATED_LIMIT]:
         direction, _, relation = edge
@@ -785,12 +800,19 @@ def _related_records(
                 evidence = [record for record in evidence
                             if course_subject(record["fields"].get("code")) in codes]
             if relation.type in ROOM_RELATIONSHIPS and target is not None:
-                # The cited room's own prefix must still belong to this building.
-                prefixes = {prefix for link in target.links if link.collection == "buildings"
-                            for record in fetch(link)
+                # The cited room's own prefix must still belong to this building, and a
+                # reviewed statement must still be on this building's own record for this
+                # office.
+                buildings = [record for link in target.links if link.collection == "buildings"
+                             for record in fetch(link)]
+                prefixes = {prefix for record in buildings
                             for prefix in record["fields"].get("room_prefixes", [])}
+                own = {record["id"] for record in buildings}
                 evidence = [record for record in evidence
-                            if _room_prefixes(record["fields"].get("office")) & prefixes]
+                            if _room_prefixes(record["fields"].get("office")) & prefixes
+                            or (record["id"] in own and any(
+                                isinstance(item, dict) and item.get("entity_id") == str(edge[1].id)
+                                for item in record["fields"].get("reviewed_locations", [])))]
         except Exception:
             # One broken link must not erase the other relationships.
             failed += 1
@@ -805,9 +827,15 @@ def _related_records(
                 or (course is not None and direction == "outgoing" and not targets)):
             unverified += 1  # Retained in the registry, but not re-established here.
             continue
+        reviewed = relation.type == "located_at" and all(
+            record["collection"] == "buildings" for record in evidence)
+        limitation = (REVIEWED_PLACEMENT_LIMITATION if reviewed
+                      else RELATIONSHIP_LIMITATIONS[relation.type])
+        limitations[(relation.type, reviewed)] = limitation
         summary: dict[str, Any] = {
             "type": relation.type, "direction": direction,
-            "meaning": RELATIONSHIP_MEANINGS[(relation.type, direction)],
+            "meaning": (REVIEWED_PLACEMENT_MEANINGS[direction] if reviewed
+                        else RELATIONSHIP_MEANINGS[(relation.type, direction)]),
             "evidence_ids": [record["id"] for record in evidence],
         }
         if related is not None:
@@ -820,15 +848,14 @@ def _related_records(
             if any(kept["id"] == record["id"] for kept in records):
                 continue  # A subject's course is both the evidence and the target.
             copied = deepcopy(record)
-            copied["limitations"].append(RELATIONSHIP_LIMITATIONS[relation.type])
+            copied["limitations"].append(limitation)
             records.append(copied)
     return records, summaries, {
         "relationship_filter": query.relationship, "direction_filter": query.direction,
         "relationship_candidates": len(edges),
         "unexamined_relationship_candidates": max(0, len(edges) - RELATED_LIMIT),
         "unverified_relationships": unverified, "failed_relationships": failed,
-        "limitations": [RELATIONSHIP_LIMITATIONS[kind] for kind in sorted({
-            summary["type"] for summary in summaries})],
+        "limitations": [limitations[key] for key in sorted(limitations)],
     }
 
 
