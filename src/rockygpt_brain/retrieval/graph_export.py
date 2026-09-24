@@ -165,10 +165,12 @@ def export_graph(data: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
             "listed_faculty": "Catalog Program Faculty field listing; not a convenership, "
                               "appointment or current teaching assignment.",
             "office_at": "A person's published office room has the building's reviewed room "
-                         "prefix; a location, not a school or appointment.",
+                         "prefix, or a person reviewed its exact text as naming the building; "
+                         "a location, not a school or appointment.",
             "located_at": "An office's published room has the building's reviewed room prefix, "
-                          "or the building's record carries a reviewed official statement "
-                          "placing it; not a complete building directory.",
+                          "a person reviewed its exact text as naming the building, or the "
+                          "building's record carries a reviewed official statement placing "
+                          "it; not a complete building directory.",
             "part_of": "A program's catalog school (or its reviewed legacy name) or a person's "
                        "faculty-profile school names the school; retired and split-school "
                        "records are not placed.",
