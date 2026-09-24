@@ -104,9 +104,15 @@ seconds per address; model reads share the remaining turn budget. Timed-out
 workers retain their slot until provider and database cleanup finish. Validation errors use HTTP 422; upstream
 errors use 429/502/503/504 with a safe structured error and a request ID.
 
-Campus panel, feedback, admin-log, and classifier endpoints are not part of this
-Brain. The student and Dev chat interfaces use the contract above. Campus retrieval remains read-only. The separate operational schema records
-reservations, settlements, uncertain usage, and text-free turn metrics.
+The student app's campus panels read the active release through read-only routes:
+`GET /v1/menu`, `/v1/menu/browse?date=`, `/v1/dining-hours?date=`, `/v1/shuttle`,
+`/v1/map`, `/v1/directory`, `/v1/entities/{id}/facts`, and
+`/v1/data/{events|clubs|calendar|programs|courses}`. Menus, dining hours and shuttle
+trips come from the same tables chat retrieval reads, so a panel cannot contradict an
+answer; the rest are published release artifacts, served as released with an ETag.
+Classifier endpoints are not part of this Brain. The student and Dev chat interfaces
+use the contract above. Campus retrieval remains read-only. The separate operational
+schema records reservations, settlements, uncertain usage, and text-free turn metrics.
 
 Budget exhaustion returns HTTP 429 with `error.code=budget_exhausted`,
 `retryable=false`, the next New York month boundary in `resetAt`, and published

@@ -18,6 +18,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from rockygpt_brain.api.campus import router as campus_router
 from rockygpt_brain.api.directory import router as directory_router
 from rockygpt_brain.api.graph import router as graph_router
 from rockygpt_brain.api.identities import router as identities_router
@@ -35,6 +36,7 @@ app.add_middleware(BodyLimitMiddleware)
 app.include_router(identities_router)
 app.include_router(graph_router)
 app.include_router(directory_router)
+app.include_router(campus_router)
 CAMPUS_TIMEZONE = ZoneInfo("America/New_York")
 TURN_SLOTS = BoundedSemaphore(RELEASE.active_turns)
 HTTP_TURN_SECONDS = RELEASE.http_turn_seconds
