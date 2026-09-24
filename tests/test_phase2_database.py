@@ -1,5 +1,6 @@
 """Actual PostgreSQL retrieval and HTTP/accounting path, with only the provider injected."""
 
+import hashlib
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -15,6 +16,7 @@ from fastapi.testclient import TestClient
 from httpx import Request, Response
 from openai import APITimeoutError, AuthenticationError
 from phase2_snapshot import load_snapshot, local_database
+from psycopg.types.json import Jsonb
 
 from rockygpt_brain.api.app import app
 from rockygpt_brain.config import MONTHLY_CAP_NUSD, RELEASE, Deployment
@@ -30,10 +32,46 @@ from test_accounting import ledger as ledger
 from test_engine import tools
 from test_evidence import expand_records
 
+REGISTRAR = "0458a32a-e19c-49e9-8170-1a08a17d1658"
+# The capture predates the identity registry, and contacts resolve only through a
+# canonical entity since 5e8260e. This is the Registrar entry the data publisher
+# compiles today, minus its building relationship (no building is loaded here).
+REGISTRY = {
+    "schema_version": 1,
+    "entities": [
+        {
+            "id": REGISTRAR,
+            "kind": "office",
+            "name": "Registrar",
+            "aliases": ["Office of the Registrar"],
+            "links": [
+                {
+                    "collection": "contacts",
+                    "source_key": "campus-directory",
+                    "source_record_keys": ["office:registrar"],
+                }
+            ],
+        }
+    ],
+}
+
 
 @pytest.fixture(scope="module")
 def frozen(database: str) -> dict[str, Any]:
-    return load_snapshot()
+    loaded = load_snapshot()
+    payload = json.dumps(REGISTRY, sort_keys=True, separators=(",", ":"))
+    with psycopg.connect(local_database()) as conn:
+        conn.execute(
+            "INSERT INTO rockygpt_v2.release_artifacts "
+            "(dataset_version_id,artifact_key,payload,content_hash) VALUES (%s,%s,%s,%s)",
+            (
+                loaded["dataset"]["id"],
+                "campus-identities",
+                Jsonb(REGISTRY),
+                hashlib.sha256(payload.encode()).hexdigest(),
+            ),
+        )
+    return loaded
 
 
 @pytest.fixture
@@ -46,15 +84,15 @@ def data(frozen: dict[str, Any]) -> Iterator[CampusData]:
 def test_actual_contact_sql_pins_identity_aliases_and_fields(data: CampusData) -> None:
     query = ContactQuery(entity="Office of the Registrar", fields=["phone", "email", "fax"])
     output = data.lookup_contact(query)
+    assert output["resolution"]["entity"]["id"] == REGISTRAR
     assert len(output["records"]) == 1
     record = output["records"][0]
     assert record["entity_id"] == "campus-directory:office:registrar"
     assert record["fields"]["phone"] == "201-684-7695"
-    assert record["coverage"]["fields"]["fax"] == "not_published"
+    assert output["field_status"] == {"phone": "known", "email": "known", "fax": "unknown"}
     assert not output["truncated"]
-    assert (
-        data.lookup_contact(ContactQuery(entity="' OR true --", fields=["phone"]))["records"] == []
-    )
+    injected = data.lookup_contact(ContactQuery(entity="' OR true --", fields=["phone"]))
+    assert injected["resolution"]["status"] == "no_match" and injected["records"] == []
     assert data.lookup_contact(ContactQuery(entity="Registrar", fields=["phone"]))["records"]
 
 
@@ -364,13 +402,46 @@ def provider_response(entity: str = "Registrar", fields: list[str] | None = None
     )
 
 
+def text_response(value: dict[str, Any]) -> ModelResponse:
+    return ModelResponse(
+        "fixture-" + str(uuid4()),
+        RELEASE.model,
+        "completed",
+        json.dumps(value),
+        [],
+        Usage(250, 0, 40, 0),
+    )
+
+
+def draft(status: str, kind: str, text: str, *evidence_ids: str) -> dict[str, Any]:
+    return {
+        "status": status,
+        "parts": [{"kind": kind, "text": text, "evidence_ids": list(evidence_ids)}],
+    }
+
+
+SUPPORTED = {
+    "parts": [
+        {
+            "part_index": 0,
+            "verdict": "supported",
+            "reason": "",
+            "unverified_premises": [],
+            "uses_event_for_entity": False,
+            "infers_food_safety": False,
+            "plan_deadlines": [],
+        }
+    ]
+}
+
+
 @pytest.mark.parametrize(
     "scenario",
     [
         "supported",
         "missing",
         "uncovered",
-        "ambiguous",
+        "unlinked_alias",
         "conflict",
         "database",
         "provider",
@@ -385,17 +456,32 @@ def test_http_path_preserves_accounting_for_controlled_failures(
     ledger: PostgresLedger,
 ) -> None:
     now = datetime.fromisoformat(frozen["captured_at"])
-    provider = Mock()
-    provider.create.return_value = provider_response()
-    question = "What is Registrar's phone?"
+    registrar = next(
+        f"contacts:{row['id']}"
+        for row in frozen["tables"]["campus_contacts"]
+        if row["source_record_key"] == "office:registrar"
+    )
+    phone = "The Registrar's phone is 201-684-7695."
+    # Contacts resolve through the canonical entity since 5e8260e, so their answers
+    # are drafted from the delivered entity facts and reviewed: three paid calls.
+    drafts = {
+        "supported": draft("answered", "campus_fact", phone, registrar),
+        "missing": draft("clarification", "clarification", "Which office do you mean?"),
+        "uncovered": draft(
+            "unavailable", "limitation", "The directory doesn't publish a fax number."
+        ),
+        "unlinked_alias": draft("answered", "campus_fact", phone, registrar),
+        "conflict": draft(
+            "unavailable", "limitation", "The directory lists conflicting phone numbers."
+        ),
+    }
+    entity, fields, question = "Registrar", ["phone"], "What is Registrar's phone?"
     if scenario == "missing":
-        provider.create.return_value = provider_response("Unknown Office")
-        question = "What is Unknown Office's phone?"
+        entity, question = "Unknown Office", "What is Unknown Office's phone?"
     if scenario == "uncovered":
-        provider.create.return_value = provider_response(fields=["fax"])
-        question = "What is Registrar's fax?"
+        fields, question = ["fax"], "What is Registrar's fax?"
     injected_id = None
-    if scenario in {"ambiguous", "conflict"}:
+    if scenario in {"unlinked_alias", "conflict"}:
         with psycopg.connect(local_database()) as conn:
             row = conn.execute(
                 "INSERT INTO rockygpt_v2.campus_contacts "
@@ -412,8 +498,28 @@ def test_http_path_preserves_accounting_for_controlled_failures(
             ).fetchone()
             assert row
             injected_id = row[0]
-        provider.create.return_value = provider_response("Office of the Registrar")
-        question = "What is Office of the Registrar's phone?"
+        entity, question = "Office of the Registrar", "What is Office of the Registrar's phone?"
+    calls: list[dict[str, Any]] = []
+    delivered: list[Any] = []
+
+    def create(**kwargs: Any) -> ModelResponse:
+        calls.append(kwargs)
+        if len(calls) == 1:
+            return provider_response(entity, fields)
+        if len(calls) == 2:
+            delivered.extend(
+                json.loads(item["output"])
+                for item in kwargs["input"]
+                if item.get("type") == "function_call_output"
+            )
+            return text_response(drafts[scenario])
+        return text_response(SUPPORTED)
+
+    provider = Mock()
+    if scenario in drafts:
+        provider.create.side_effect = create
+    else:
+        provider.create.return_value = provider_response()
     if scenario == "provider":
         provider.create.side_effect = AuthenticationError(
             "invalid credential",
@@ -471,24 +577,43 @@ def test_http_path_preserves_accounting_for_controlled_failures(
         assert response.status_code == 504
         assert operations[0]["state"] == "uncertain"
         assert summary["unsettledNusd"] > 0
-    else:
+    elif scenario == "database":
         assert response.status_code == 200
         assert provider.create.call_count == 1
         assert payload["metrics"]["reviewCalls"] == 0
+        assert payload["status"] == "unavailable"
         assert operations[0]["state"] == "settled"
         assert operations[0]["request_id"] == payload["requestId"]
         assert summary["costNusd"] == Usage(250, 0, 40, 0).cost(RELEASE.price)
         assert summary["toolResults"][0]["tool"] == "lookup_contact"
-        if scenario == "supported":
+    else:
+        assert response.status_code == 200
+        assert len(calls) == len(operations) == 3
+        assert payload["metrics"]["reviewCalls"] == 1
+        assert all(op["state"] == "settled" for op in operations)
+        assert all(op["request_id"] == payload["requestId"] for op in operations)
+        assert summary["costNusd"] == 3 * Usage(250, 0, 40, 0).cost(RELEASE.price)
+        result = summary["toolResults"][0]
+        assert result["tool"] == "lookup_contact"
+        wire = json.dumps(delivered)
+        if scenario in {"supported", "unlinked_alias"}:
+            # A directory row that only shares the alias is not linked, so it is never read.
+            assert result["resolution"]["entity"]["id"] == REGISTRAR
+            assert result["evidence_ids"] == [payload["citations"][0]["id"]] == [registrar]
             assert payload["status"] == "answered" and "201-684-7695" in payload["answer"]
-            assert summary["toolResults"][0]["evidence_ids"] == [payload["citations"][0]["id"]]
-        else:
-            assert payload["status"] in {"clarification", "unavailable"}
-            if scenario == "conflict":
-                assert "conflicting" in payload["answer"]
-            if scenario == "ambiguous":
-                assert "more than one" in payload["answer"]
-            assert "201-555-0199" not in payload["answer"]
+            assert "201-555-0199" not in wire
+        if scenario == "missing":
+            assert result["resolution"]["status"] == "no_match"
+            assert result["evidence_ids"] == []
+            assert payload["status"] == "clarification"
+        if scenario == "uncovered":
+            assert delivered[0]["field_status"] == {"fax": "unknown"}
+            assert payload["status"] == "unavailable"
+        if scenario == "conflict":
+            phones = next(p for p in result["entity_facts"]["properties"] if p["key"] == "phones")
+            assert phones["status"] == "conflicting"
+            assert "201-684-7695" in wire and "201-555-0199" in wire
+            assert payload["status"] == "unavailable"
 
 
 def test_contact_discovery_uses_same_stemming_for_title_and_query(data: CampusData) -> None:
