@@ -28,6 +28,7 @@ from rockygpt_brain.config import RELEASE, ConfigurationError, configuration_has
 from rockygpt_brain.contracts import ChatRequest
 from rockygpt_brain.core import InvalidAnswer, PaidGateway, open_gateway, run_turn
 from rockygpt_brain.governance import BodyLimitMiddleware, PaidCallError, PostgresLedger
+from rockygpt_brain.governance.redaction import redact
 from rockygpt_brain.retrieval import CampusData
 
 load_dotenv()
@@ -85,8 +86,8 @@ def readiness() -> dict[str, object] | JSONResponse:
         data.close()
 
 
-@app.get("/v1/logs")
-def get_logs(limit: int = 50) -> dict[str, Any]:
+@app.get("/v1/logs", response_model=None)
+def get_logs(limit: int = 50) -> dict[str, Any] | JSONResponse:
     ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
     env = os.getenv("BRAIN_ENVIRONMENT", "development")
     if ledger_url:
@@ -103,37 +104,48 @@ def get_logs(limit: int = 50) -> dict[str, Any]:
             with psycopg.connect(ledger_url, **conn_opts) as conn:
                 with conn.cursor(row_factory=dict_row) as cur:
                     cur.execute(sql.SQL("SET ROLE {}").format(sql.Identifier(f"brain_{env}")))
+                    # Turn summaries stopped carrying student text, so filtering on
+                    # a question hid every turn after 2026-09-21. List them all;
+                    # text-free turns still show status, timing and tools.
                     cur.execute(
                         "SELECT request_id, created_at, summary FROM brain_ops.turns "
-                        "WHERE summary->>'question' IS NOT NULL "
                         "ORDER BY created_at DESC LIMIT %s",
                         (limit,),
                     )
                     rows = cur.fetchall()
-                    cur.execute(
-                        "SELECT count(*) as total FROM brain_ops.turns "
-                        "WHERE summary->>'question' IS NOT NULL"
-                    )
+                    cur.execute("SELECT count(*) as total FROM brain_ops.turns")
                     total_row = cur.fetchone()
                     total = total_row["total"] if total_row else len(rows)
 
             entries = []
             for r in rows:
                 s = r["summary"] if isinstance(r["summary"], dict) else json.loads(r["summary"])
+                tools = [
+                    str(result.get("tool")) for result in s.get("toolResults") or []
+                    if isinstance(result, dict) and result.get("tool")
+                ]
                 entries.append({
                     "timestamp": _iso_text(r["created_at"]),
                     "requestId": str(r["request_id"]),
                     "question": s.get("question", ""),
                     "messages": s.get("messages", []),
                     "answer": s.get("answer"),
+                    "textStored": bool(s.get("question")),
                     "status": s.get("status", "answered"),
                     "elapsedMs": s.get("elapsedMs", 0),
                     "citations": s.get("citations", []),
+                    "tools": tools,
+                    "fallbackReason": s.get("fallbackReason"),
+                    "validationFailures": s.get("validationFailures", []),
+                    "datasetVersion": s.get("datasetVersion"),
                 })
             return {"logs": entries, "total": total}
         except Exception as err:
             logging.getLogger(__name__).warning("Database turns query failed: %s", err)
-            return {"logs": [], "total": 0, "error": str(err)}
+            # A 200 with an error field read as "no logs" in every dashboard.
+            return JSONResponse(
+                status_code=503, content={"logs": [], "total": 0, "error": str(err)}
+            )
 
     return {"logs": [], "total": 0}
 
@@ -164,8 +176,11 @@ def submit_feedback(payload: FeedbackPayload) -> dict[str, Any]:
             conn_opts["sslrootcert"] = certifi.where()
 
         rating = 1 if payload.rating > 0 else -1
-        question = payload.question or ""
+        # The question and comment are the student's own words; the answer is
+        # generated from published data and keeps its public contact details.
+        question = redact(payload.question) or ""
         answer = payload.answer or ""
+        comments = redact(payload.comments)
 
         with psycopg.connect(ledger_url, **conn_opts) as conn:
             with conn.cursor(row_factory=dict_row) as cur:
@@ -186,6 +201,10 @@ def submit_feedback(payload: FeedbackPayload) -> dict[str, Any]:
                         pass
 
                 cur.execute(sql.SQL("RESET ROLE"))
+                # A follow-up carrying only the rating (the first tap before a
+                # reason, or a retry) keeps the reason and comment already
+                # given, and "N/A" never replaces a real question or answer.
+                # An operator review never replaces what a student said.
                 cur.execute(
                     """
                     INSERT INTO rockygpt_v2.feedback
@@ -193,26 +212,41 @@ def submit_feedback(payload: FeedbackPayload) -> dict[str, Any]:
                     VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (request_id) DO UPDATE SET
                         rating = EXCLUDED.rating,
-                        category = EXCLUDED.category,
-                        comments = EXCLUDED.comments,
-                        question = CASE WHEN EXCLUDED.question <> ''
+                        category = CASE WHEN EXCLUDED.rating = rockygpt_v2.feedback.rating
+                            THEN COALESCE(EXCLUDED.category, rockygpt_v2.feedback.category)
+                            ELSE EXCLUDED.category END,
+                        comments = CASE WHEN EXCLUDED.rating = rockygpt_v2.feedback.rating
+                            THEN COALESCE(EXCLUDED.comments, rockygpt_v2.feedback.comments)
+                            ELSE EXCLUDED.comments END,
+                        question = CASE WHEN EXCLUDED.question NOT IN ('', 'N/A')
                             THEN EXCLUDED.question ELSE rockygpt_v2.feedback.question END,
-                        answer = CASE WHEN EXCLUDED.answer <> ''
+                        answer = CASE WHEN EXCLUDED.answer NOT IN ('', 'N/A')
                             THEN EXCLUDED.answer ELSE rockygpt_v2.feedback.answer END
+                    WHERE EXCLUDED.category IS DISTINCT FROM 'operator_review'
+                       OR rockygpt_v2.feedback.category IS NOT DISTINCT FROM 'operator_review'
+                    RETURNING id
                     """,
                     (
                         payload.requestId, question or "N/A", answer or "N/A", rating,
-                        payload.category, payload.comments,
+                        payload.category, comments,
                     ),
                 )
+                stored = cur.fetchone()
+        if stored is None:
+            return {
+                "success": False,
+                "error": "student_feedback_exists",
+                "message": "A student already rated this answer; an operator review does not "
+                "replace it.",
+            }
         return {"success": True}
     except Exception as err:
         logging.getLogger(__name__).warning("Failed to submit feedback: %s", err)
         return {"success": False, "error": str(err)}
 
 
-@app.get("/v1/feedback")
-def get_feedback(limit: int = 50) -> dict[str, Any]:
+@app.get("/v1/feedback", response_model=None)
+def get_feedback(limit: int = 50) -> dict[str, Any] | JSONResponse:
     ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
     if not ledger_url:
         return {"feedback": [], "total": 0}
@@ -256,7 +290,9 @@ def get_feedback(limit: int = 50) -> dict[str, Any]:
         return {"feedback": entries, "total": total}
     except Exception as err:
         logging.getLogger(__name__).warning("Failed to fetch feedback: %s", err)
-        return {"feedback": [], "total": 0, "error": str(err)}
+        return JSONResponse(
+            status_code=503, content={"feedback": [], "total": 0, "error": str(err)}
+        )
 
 
 class EvalRunPayload(BaseModel):
@@ -313,8 +349,8 @@ def record_eval_run(payload: EvalRunPayload) -> dict[str, Any]:
         return {"success": False, "error": str(err)}
 
 
-@app.get("/v1/evals/runs")
-def get_eval_runs(limit: int = 50) -> dict[str, Any]:
+@app.get("/v1/evals/runs", response_model=None)
+def get_eval_runs(limit: int = 50) -> dict[str, Any] | JSONResponse:
     ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
     if not ledger_url:
         return {"runs": [], "total": 0}
@@ -362,7 +398,7 @@ def get_eval_runs(limit: int = 50) -> dict[str, Any]:
         return {"runs": entries, "total": total}
     except Exception as err:
         logging.getLogger(__name__).warning("Failed to fetch eval runs: %s", err)
-        return {"runs": [], "total": 0, "error": str(err)}
+        return JSONResponse(status_code=503, content={"runs": [], "total": 0, "error": str(err)})
 
 
 @app.get("/v1/prompts")
@@ -670,8 +706,8 @@ def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any] | JSO
             data.close()
 
 
-@app.get("/v1/documents")
-def get_documents() -> dict[str, Any]:
+@app.get("/v1/documents", response_model=None)
+def get_documents() -> dict[str, Any] | JSONResponse:
     database_url = os.getenv("DATABASE_URL", "")
     if not database_url:
         return {"documents": [], "total": 0}
@@ -711,17 +747,19 @@ def get_documents() -> dict[str, Any]:
             })
         return {"documents": documents, "total": len(documents)}
     except Exception as e:
-        return {"documents": [], "total": 0, "error": str(e)}
+        return JSONResponse(
+            status_code=503, content={"documents": [], "total": 0, "error": str(e)}
+        )
     finally:
         if data is not None:
             data.close()
 
 
-@app.get("/v1/documents/{document_id}")
-def get_document(document_id: str) -> dict[str, Any]:
+@app.get("/v1/documents/{document_id}", response_model=None)
+def get_document(document_id: str) -> dict[str, Any] | JSONResponse:
     database_url = os.getenv("DATABASE_URL", "")
     if not database_url:
-        return {"error": "Database not configured"}
+        return JSONResponse(status_code=503, content={"error": "Database not configured"})
     data = None
     try:
         data = CampusData(database_url, datetime.now(ZoneInfo("America/New_York")))
@@ -738,7 +776,11 @@ def get_document(document_id: str) -> dict[str, Any]:
             (document_id, data.dataset["id"]),
         )
         if not doc_rows:
-            return {"error": f"Document not found: {document_id}"}
+            # A 200 carrying an error became the selected document in the Dev
+            # document browser, which then crashed reading its missing id.
+            return JSONResponse(
+                status_code=404, content={"error": f"Document not found: {document_id}"}
+            )
 
         doc = doc_rows[0]
         chunks_rows = data._fetch(
@@ -775,7 +817,7 @@ def get_document(document_id: str) -> dict[str, Any]:
             "chunks": chunks,
         }
     except Exception as e:
-        return {"error": str(e)}
+        return JSONResponse(status_code=503, content={"error": str(e)})
     finally:
         if data is not None:
             data.close()
