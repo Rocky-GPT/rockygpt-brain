@@ -418,7 +418,9 @@ def test_catalog_program_fields_come_only_from_the_exact_catalog_code(
     assert row["artifact_path"] == ["schools", "0", "majors", "0"]
     assert set(row["supplemental_fields"]) == {
         "learningGoalsAndOutcomes", "sampleGraduationPlan", "programLevel", "degreeDesignations",
-        "conveningGroups", "catalogConcentrations"}
+        "conveningGroups", "catalogConcentrations", "requirementsText"}
+    # Listed sections without a requirements listing: the fact is known to be unpublished.
+    assert props["requirements"].status == "unknown"
 
 
 @pytest.mark.parametrize("listed", [True, False])
@@ -446,3 +448,22 @@ def test_a_catalog_entry_that_lists_its_sections_shows_a_missing_field_is_unpubl
     concentrations = props.get("concentrations")
     assert (concentrations is not None and concentrations.status == "unknown") is listed
     assert bool(missing) is not listed
+
+
+def test_a_course_fact_shows_the_credits_its_catalog_page_displays(fixture: Fixture) -> None:
+    from rockygpt_brain.retrieval.knowledge import course_id
+
+    data, snapshot, _ = fixture
+    data.sources["academic-programs"] = {**data.sources["directory"], "id": "academic-programs",
+                                         "source_key": "academic-programs"}
+    hours = {"min": 0, "max": 4, "operator": "TO"}
+    data._artifacts["courses"] = {"CMPS 147": {
+        "code": "CMPS 147", "name": "COMPUTER SCIENCE I", "description": "Intro",
+        "credits": 4, "creditHours": hours, "attributes": [], "requisites": [],
+        "requisitesText": None, "conveningGroups": [], "school": None}}
+    facts = EntityFacts(data, snapshot).build(UUID(course_id("academic-programs", "CMPS 147")))
+    credits = next(prop for prop in facts.properties if prop.key == "credits")
+    # The page's displayed credits are the fact; the stored hours are evidence, not a gap.
+    assert [value.value for value in credits.values] == [4]
+    assert "credit_hours" not in {prop.key for prop in facts.properties}
+    assert not facts.coverage

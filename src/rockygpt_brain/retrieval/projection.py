@@ -106,6 +106,7 @@ PROPERTY_SPECS = (
         ("program_level", "programLevel", "text"),
         ("degree_designations", "degreeDesignations", "text_list"),
         ("convening_groups", "conveningGroups", "text_list"),
+        ("requirements", "requirementsText", "text"),
     )),
     PropertySpec("clubs", fields(
         "name", "category", "bucket", "email", "mission",
@@ -136,14 +137,28 @@ PROPERTY_SPECS = (
         "code", "name", "description", ("credits", "credits"), ("attributes", "text_list"),
         ("prerequisites", "requisitesText", "text"),
         ("convening_groups", "conveningGroups", "text_list"), "school",
-        # The structured rules behind the prerequisite listing stay in the original item.
-    ), frozenset({"requisites"})),
+        # The structured rules behind the prerequisite listing, and the stored credit hours
+        # behind the displayed credits, stay in the original item.
+    ), frozenset({"requisites", "creditHours"})),
     PropertySpec("subjects", fields(
         "code", "name", "display_name", ("search_terms", "text_list"),
         ("course_count", "number"),
     )),
 )
 RECORD_SPECS = (
+    # Recommended plans for each entering cohort; the structured semesters stay in the item.
+    RecordSpec("graduation_plans", "graduation_plans", "Graduation plans", fields(
+        "cohort", ("variant_of", "variantOf", "text"),
+    ), fields(
+        "applicability", ("total_credits", "totalCredits", "number"), "gpa",
+        ("semesters", "planText", "text"), ("placement", "placementText", "text"),
+        ("general_education", "generalEducationText", "text"), ("notes", "text_list"),
+        ("documents", "named_links"), ("plan_url", "url", "url"),
+        # The plan's name labels its record; its structured semesters, lists and page text,
+        # and the index bookkeeping behind its program links, stay in the original item.
+    ), ("cohort",), frozenset({"id", "name", "title", "listing", "finalUrl", "programCodes",
+                               "limitations", "terms", "placement", "generalEducation",
+                               "introduction", "text"})),
     RecordSpec("menu", "menu_offerings", "Menu offerings", fields(
         ("valid_from", "date"), ("valid_until", "date"), "meal", "station",
     ), fields(
