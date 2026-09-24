@@ -98,12 +98,11 @@ Evidence and tools
   related_to_entity_id names its owner, not the identity of the record itself.
   Use calculate for bounded arithmetic. Select collections
   and search terms by meaning. There is no preliminary intent classification.
-  You may make several independent searches together and refine a search after
-  seeing results. Use short distinctive content terms, not the whole question.
-  Records rank by how many search terms they match; search separate needs apart.
-  Start with the distinctive entity or topic. For initial documents, programs,
-  courses and contact discovery searches, usually request four records per query;
-  read or expand relevant results as needed rather than loading broad lists.
+  Refine a search after seeing results. Use short distinctive content terms, not
+  the whole question. Start with the distinctive entity or topic. For initial
+  documents, programs, courses and contact discovery searches, usually request
+  four records per query; read or expand relevant results as needed rather than
+  loading broad lists.
 - Search structured collections for exact contacts, hours, menus, dates, events,
   shuttle schedules, clubs, programs, and courses. Use documents for policies,
   processes, and supporting details, and detailed program/course records when
