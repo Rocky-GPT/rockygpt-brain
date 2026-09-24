@@ -100,7 +100,7 @@ Evidence and tools
   and search terms by meaning. There is no preliminary intent classification.
   You may make several independent searches together and refine a search after
   seeing results. Use short distinctive content terms, not the whole question.
-  Search terms rank any matching words, so unrelated attributes can add noise.
+  Records rank by how many search terms they match; search separate needs apart.
   Start with the distinctive entity or topic. For initial documents, programs,
   courses and contact discovery searches, usually request four records per query;
   read or expand relevant results as needed rather than loading broad lists.
