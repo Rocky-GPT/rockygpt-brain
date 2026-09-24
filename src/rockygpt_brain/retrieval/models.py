@@ -144,7 +144,14 @@ class SearchQuery(BaseModel):
             "shuttle: scheduled routes, service days, and ordered stops, not live vehicles."
         )
     )
-    query: str = Field(default="", max_length=500)
+    query: str = Field(
+        default="",
+        max_length=500,
+        description=(
+            "Distinctive words for one need. Search each need separately, together: "
+            "'Computer Science careers' and 'Computer Science contact', not one query."
+        ),
+    )
     date_from: date | None = Field(
         default=None,
         description=(
