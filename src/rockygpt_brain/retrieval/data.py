@@ -398,27 +398,37 @@ class CampusData:
     def _documents(self, query: SearchQuery) -> tuple[list[dict[str, Any]], int]:
         vocabulary = self._artifact("search-vocabulary") or {}
         terms = expand_document_query(query.query, vocabulary)
-        # Passages covering more of the query's words come first, the heading path
-        # counting as part of each passage; a passage that only repeats a common
-        # word must not outrank the section that answers the whole request.
+        # Each query word a passage contains (with its synonyms) scores by how rare the
+        # word is among this release's passages, twice when the heading path names it:
+        # a section about the asked subject outranks passages repeating common words.
         rows = self._fetch(
             "WITH q AS (SELECT websearch_to_tsquery('english', %s) AS term), "
             "parts AS (SELECT DISTINCT websearch_to_tsquery('english', p) AS part "
-            "FROM unnest(%s::text[]) p) "
-            "SELECT c.id::text, c.document_id::text, c.chunk_index, c.content, c.metadata, "
-            "d.source_id::text, d.title, d.collected_at, count(*) OVER() AS total, "
-            "(SELECT count(*) FROM parts WHERE c.lexical_vector @@ part OR h.path @@ part) "
-            "AS covered, (SELECT count(*) FROM parts WHERE h.path @@ part) AS heading_covered, "
-            "ts_rank_cd(c.lexical_vector,q.term) + 2 * ts_rank_cd(h.path,q.term) AS score "
+            "FROM unnest(%s::text[]) p), "
+            # OFFSET 0 keeps each heading vector computed once per passage.
+            "passages AS MATERIALIZED (SELECT c.id, c.lexical_vector AS body, h.path "
             "FROM rockygpt_v2.document_chunks c JOIN rockygpt_v2.documents d ON d.id=c.document_id "
-            "JOIN rockygpt_v2.sources s ON s.id=d.source_id CROSS JOIN q "
-            # OFFSET 0 keeps the heading vector computed once per passage, not per word.
+            "JOIN rockygpt_v2.sources s ON s.id=d.source_id "
             "CROSS JOIN LATERAL (SELECT to_tsvector('english', "
             "coalesce(c.metadata->>'headingPath',d.title)) AS path OFFSET 0) h "
             "WHERE d.dataset_version_id=%s::uuid "
-            "AND s.trust_tier IN ('official_primary','official_secondary') "
-            "AND (%s='' OR c.lexical_vector @@ q.term OR h.path @@ q.term) "
-            "ORDER BY covered DESC,heading_covered DESC,score DESC,c.id LIMIT %s",
+            "AND s.trust_tier IN ('official_primary','official_secondary')), "
+            # Materialized so the rarities are counted once, not again for every passage.
+            "rarities AS MATERIALIZED (SELECT part, ln((SELECT count(*) FROM passages)::float8 "
+            "/ greatest(1, count(*) FILTER (WHERE body @@ part OR path @@ part))) AS rarity "
+            "FROM parts CROSS JOIN passages GROUP BY part), "
+            "ranked AS (SELECT p.id, count(*) OVER() AS total, "
+            "(SELECT coalesce(sum(r.rarity * ((p.body @@ r.part OR p.path @@ r.part)::int "
+            "+ (p.path @@ r.part)::int)), 0) FROM rarities r) AS weight, "
+            "ts_rank_cd(p.body,q.term) + 2 * ts_rank_cd(p.path,q.term) AS score "
+            "FROM passages p CROSS JOIN q "
+            "WHERE %s='' OR p.body @@ q.term OR p.path @@ q.term "
+            "ORDER BY weight DESC,score DESC,p.id LIMIT %s) "
+            "SELECT c.id::text, c.document_id::text, c.chunk_index, c.content, c.metadata, "
+            "d.source_id::text, d.title, d.collected_at, ranked.total "
+            "FROM ranked JOIN rockygpt_v2.document_chunks c ON c.id=ranked.id "
+            "JOIN rockygpt_v2.documents d ON d.id=c.document_id "
+            "ORDER BY ranked.weight DESC,ranked.score DESC,c.id",
             (terms, document_query_parts(query.query, vocabulary), self.dataset["id"], terms,
              query.limit),
         )

@@ -632,3 +632,13 @@ def test_documents_rank_passages_by_how_much_of_the_request_they_cover(data: Cam
     # Among passages covering the same words, the one whose heading names them leads.
     form = data.search(SearchQuery(collection="documents", query="declare major form", limit=1))
     assert form["records"][0]["title"].endswith("Major/Minor Declaration Form")
+
+
+def test_documents_weigh_rare_words_and_the_ones_a_heading_names(data: CampusData) -> None:
+    # Events held at the library also say "location"; the library's own entry names it.
+    library = data.search(
+        SearchQuery(collection="documents", query="Potter Library location", limit=4)
+    )
+    assert library["records"][0]["title"].endswith("› Potter Library")
+    aid = data.search(SearchQuery(collection="documents", query="financial aid office", limit=1))
+    assert aid["records"][0]["title"].endswith("› Financial Aid")
