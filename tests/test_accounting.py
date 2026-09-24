@@ -15,7 +15,13 @@ import psycopg
 import pytest
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
-from rockygpt_brain.config import MONTHLY_CAP_NUSD, RELEASE, Deployment, Environment
+from rockygpt_brain.config import (
+    DEVELOPMENT_SUPPLEMENT_CAP_NUSD,
+    MONTHLY_CAP_NUSD,
+    RELEASE,
+    Deployment,
+    Environment,
+)
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
 from rockygpt_brain.core.provider import ModelResponse, OutputItem, PaidGateway, Usage, open_gateway
@@ -55,6 +61,17 @@ def database() -> str:
         if definition and "routing" not in definition[0]:
             conn.execute(
                 (Path(__file__).parents[1] / "migrations/003_routing_accounting.sql").read_text()
+            )
+        ceiling = conn.execute(
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+            "WHERE conrelid='brain_ops.monthly_allowances'::regclass "
+            "AND conname='monthly_allowances_extra_nusd_check'"
+        ).fetchone()
+        if ceiling and "40000000000" not in ceiling[0]:
+            conn.execute(
+                (
+                    Path(__file__).parents[1] / "migrations/004_development_supplement_ceiling.sql"
+                ).read_text()
             )
     return url
 
@@ -439,6 +456,31 @@ def test_approved_supplement_expires_and_cannot_affect_production(
     with pytest.raises(PaidCallError, match="budget_exhausted"):
         reserve(ledger, 1, now=next_month)
     assert ledger.operations()[0]["metadata"]["monthly_cap_nusd"] == 30_000_000_000
+
+
+def test_the_largest_approved_supplement_gives_development_a_fifty_dollar_month(
+    ledger: PostgresLedger, database: str
+) -> None:
+    with psycopg.connect(database) as conn:
+        with pytest.raises(psycopg.errors.CheckViolation):
+            conn.execute(
+                "INSERT INTO brain_ops.monthly_allowances "
+                "(environment, month, extra_nusd, approval_note) "
+                "VALUES ('development', %s, %s, 'Above the ceiling')",
+                (month_at(NOW), DEVELOPMENT_SUPPLEMENT_CAP_NUSD + 1),
+            )
+    with psycopg.connect(database) as conn:
+        conn.execute(
+            "INSERT INTO brain_ops.monthly_allowances "
+            "(environment, month, extra_nusd, approval_note) "
+            "VALUES ('development', %s, %s, 'Synthetic test authorization')",
+            (month_at(NOW), DEVELOPMENT_SUPPLEMENT_CAP_NUSD),
+        )
+    operation = reserve(ledger, 50_000_000_000)
+    with pytest.raises(PaidCallError, match="budget_exhausted"):
+        reserve(ledger, 1)
+    ledger.settle(operation, 50_000_000_000, {}, "response", "test", 1, NOW)
+    assert ledger.operations()[0]["metadata"]["monthly_cap_nusd"] == 50_000_000_000
 
 
 def test_runtime_cannot_grant_its_own_monthly_supplement(

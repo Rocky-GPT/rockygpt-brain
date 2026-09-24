@@ -13,6 +13,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Environment = Literal["development", "production"]
 MONTHLY_CAP_NUSD = 10_000_000_000
+# One month's administrator-approved development supplement (migrations/004).
+DEVELOPMENT_SUPPLEMENT_CAP_NUSD = 40_000_000_000
 
 
 class ConfigurationError(Exception):
