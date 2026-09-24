@@ -240,6 +240,30 @@ def test_program_convener_then_person_email_uses_normal_tool_calling_and_review(
     assert review_payload['retrieval_coverage'][0]['components']['conveners']['relationships']
 
 
+def test_a_program_section_carries_its_public_page_which_points_to_the_page_text() -> None:
+    data = program_data()
+    data.sources['major-pages'] = {**data.sources['academic-programs'], 'id': 'major-pages',
+                                   'source_key': 'major-pages'}
+    url = 'https://example.edu/majors/computer-science/'
+    data._artifacts['major-pages'] = {'captured_at': '2026-09-24T02:00:00Z', 'pages': [{
+        'id': 'cs-page', 'name': 'Computer Science', 'degrees': ['Bachelor of Science'],
+        'offers': ['Major', 'Minor'], 'url': url, 'finalUrl': None,
+        'sections': [{'heading': 'Contact', 'text': 'Email the convener.'}], 'limitations': [],
+    }]}
+    program = data._artifacts['campus-identities']['entities'][-1]
+    program['links'].append(link('major_pages', 'major-pages', 'cs-page'))
+    output = data.lookup_profile(ProfileQuery(entity_id=UUID(PROGRAM), include=['program']))
+    page = next(record for record in output['records'] if record['collection'] == 'major_pages')
+    assert page['id'] in output['components']['program']['evidence_ids']
+    assert page['url'] == url
+    # The page's text is not copied into the profile; the record says where it is.
+    assert page['fields'] == {'name': 'Computer Science', 'degrees': ['Bachelor of Science'],
+                              'offers': ['Major', 'Minor'], 'url': url}
+    assert any('searchable as documents' in text for text in page['limitations'])
+    conveners = data.lookup_profile(ProfileQuery(entity_id=UUID(PROGRAM), include=['conveners']))
+    assert all(record['collection'] != 'major_pages' for record in conveners['records'])
+
+
 @pytest.mark.parametrize('record_key', ['School:Computer Science', 'catalog:TS-BS-COMP'])
 def test_raw_catalog_convener_preserves_its_timestamp_and_omits_inferred_legacy_field(
     record_key: str,

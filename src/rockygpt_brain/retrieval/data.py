@@ -325,7 +325,7 @@ class CampusData:
             return self._cache[collection]
         records: list[dict[str, Any]] = []
         if collection in ("courses", "faculty", "program_requirements", "buildings", "schools",
-                          "subjects", "graduation_plans"):
+                          "subjects", "graduation_plans", "major_pages"):
             records = self._load_artifact_records(collection)
         else:
             names = TABLES[collection][1]
