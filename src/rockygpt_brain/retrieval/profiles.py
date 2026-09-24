@@ -718,6 +718,21 @@ REVIEWED_PLACEMENT_LIMITATION = (
     "Placed by an official page's statement that a person reviewed, not by a room number; it "
     "gives no room."
 )
+# A room relationship whose exact published office text a person reviewed as a building.
+REVIEWED_READING_MEANINGS = {
+    "outgoing": "A person reviewed this entry's published office text as naming the related "
+                "building.",
+    "incoming": "A person reviewed the related entry's published office text as naming this "
+                "building.",
+}
+REVIEWED_READING_LIMITATION = (
+    "Placed by a person's reading of published office text that is not a room number; the text "
+    "says no more about the room than it shows."
+)
+REVIEWED_BASES: dict[str, tuple[dict[str, str], str]] = {
+    "reading": (REVIEWED_READING_MEANINGS, REVIEWED_READING_LIMITATION),
+    "statement": (REVIEWED_PLACEMENT_MEANINGS, REVIEWED_PLACEMENT_LIMITATION),
+}
 
 
 def _related_records(
@@ -769,11 +784,12 @@ def _related_records(
 
     records: list[dict[str, Any]] = []
     summaries: list[dict[str, Any]] = []
-    limitations: dict[tuple[str, bool], str] = {}
+    limitations: dict[tuple[str, str], str] = {}
     unverified = failed = 0
     for edge in edges[:RELATED_LIMIT]:
         direction, _, relation = edge
         related = other(edge)
+        basis = "published"
         try:
             evidence = [record for reference in relation.evidence for record in fetch(IdentityLink(
                 collection=reference.collection, source_key=reference.source_key,
@@ -800,19 +816,30 @@ def _related_records(
                 evidence = [record for record in evidence
                             if course_subject(record["fields"].get("code")) in codes]
             if relation.type in ROOM_RELATIONSHIPS and target is not None:
-                # The cited room's own prefix must still belong to this building, and a
-                # reviewed statement must still be on this building's own record for this
-                # office.
+                # Each cited room must still belong to this building by its own prefix, or be
+                # an exact published value this building's own record lists as a reviewed
+                # reading. A reviewed statement must still be on that record for this office.
                 buildings = [record for link in target.links if link.collection == "buildings"
                              for record in fetch(link)]
                 prefixes = {prefix for record in buildings
                             for prefix in record["fields"].get("room_prefixes", [])}
+                readings = {room for record in buildings
+                            for room in record["fields"].get("reviewed_rooms", [])}
                 own = {record["id"] for record in buildings}
-                evidence = [record for record in evidence
-                            if _room_prefixes(record["fields"].get("office")) & prefixes
-                            or (record["id"] in own and any(
-                                isinstance(item, dict) and item.get("entity_id") == str(edge[1].id)
-                                for item in record["fields"].get("reviewed_locations", [])))]
+                bases: dict[str, str] = {}
+                for record in evidence:
+                    office = record["fields"].get("office")
+                    if _room_prefixes(office) & prefixes:
+                        bases[record["id"]] = "room"
+                    elif isinstance(office, str) and office.strip() in readings:
+                        bases[record["id"]] = "reading"
+                    elif record["id"] in own and any(
+                            isinstance(item, dict) and item.get("entity_id") == str(edge[1].id)
+                            for item in record["fields"].get("reviewed_locations", [])):
+                        bases[record["id"]] = "statement"
+                evidence = [record for record in evidence if record["id"] in bases]
+                basis = next((kind for kind in ("room", "reading", "statement")
+                              if kind in bases.values()), basis)
         except Exception:
             # One broken link must not erase the other relationships.
             failed += 1
@@ -827,15 +854,15 @@ def _related_records(
                 or (course is not None and direction == "outgoing" and not targets)):
             unverified += 1  # Retained in the registry, but not re-established here.
             continue
-        reviewed = relation.type == "located_at" and all(
-            record["collection"] == "buildings" for record in evidence)
-        limitation = (REVIEWED_PLACEMENT_LIMITATION if reviewed
-                      else RELATIONSHIP_LIMITATIONS[relation.type])
-        limitations[(relation.type, reviewed)] = limitation
+        if basis in REVIEWED_BASES:
+            meanings, limitation = REVIEWED_BASES[basis]
+            meaning = meanings[direction]
+        else:
+            meaning = RELATIONSHIP_MEANINGS[(relation.type, direction)]
+            limitation = RELATIONSHIP_LIMITATIONS[relation.type]
+        limitations[(relation.type, basis)] = limitation
         summary: dict[str, Any] = {
-            "type": relation.type, "direction": direction,
-            "meaning": (REVIEWED_PLACEMENT_MEANINGS[direction] if reviewed
-                        else RELATIONSHIP_MEANINGS[(relation.type, direction)]),
+            "type": relation.type, "direction": direction, "meaning": meaning,
             "evidence_ids": [record["id"] for record in evidence],
         }
         if related is not None:

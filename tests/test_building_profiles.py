@@ -178,3 +178,22 @@ def test_a_reviewed_statement_must_name_the_office_on_that_buildings_record() ->
         field='reviewed_locations')
     output = profile(data, PERSON, 'related')
     assert (output['status'], output['reason']) == ('unavailable', 'invalid_identity_registry')
+
+
+def test_a_reviewed_reading_places_only_that_exact_published_office_text() -> None:
+    def read(room: str, readings: list[str]) -> Any:
+        data = building_data(room)
+        data._artifacts['campus-buildings']['buildings'][0]['reviewed_rooms'] = readings
+        return profile(data, ENTITY_ID, 'related')['components']['related']
+
+    component = read('Learning Commons 204A', ['Learning Commons 204A'])
+    [relationship] = component['relationships']
+    assert (relationship['entity']['id'], relationship['evidence_ids']) == (
+        BUILDING_D, ['contacts:contact'])
+    assert relationship['meaning'] == ('A person reviewed this entry\'s published office text as '
+                                       'naming the related building.')
+    assert any('not a room number' in text for text in component['limitations'])
+    for room, readings in (('Learning Commons 204', ['Learning Commons 204A']),
+                           ('Learning Commons 204A', [])):
+        component = read(room, readings)
+        assert (component['relationships'], component['unverified_relationships']) == ([], 1)
