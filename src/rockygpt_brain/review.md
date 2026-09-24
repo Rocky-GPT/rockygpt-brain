@@ -88,8 +88,20 @@ This does not establish exhaustive coverage of the database or real-world campus
 retrieval_coverage records the actual query, filters, status, counts, truncation,
 and returned IDs for each lookup. A successful untruncated search whose count
 equals total_matches establishes the complete matching result set for THAT query,
-not other dates, filters, venues, or all campus offerings. Failed or truncated
-lookups do not establish complete coverage. Missing coverage is unknown.
+not other dates, filters, venues, or all campus offerings. A failed or truncated
+lookup establishes no coverage and does not undo another lookup's complete
+coverage of its own query. Missing coverage is unknown.
+A shuttle lookup's schedule_calculations are computed by code from that complete
+lookup, and a part citing one of its trips has all of them in citation_scope.
+When ok, each row's next and last are the first and last scheduled
+departures after campus_time for that route and boarding stop in the date range,
+and support that claim together with the cited trip record. A null next or last
+means none remains in that range; it establishes nothing beyond it. Rows select
+by boarding stop, not destination; the cited record shows the stops a trip
+serves. A next, last or none-left claim not limited to one named route must hold
+for every route's row at that stop in a lookup without a route filter; if that
+stop is withheld on any route, the claim is unknown. When unavailable, the
+calculations establish nothing either way.
 An identity lookup's resolution status and candidate labels support a description
 of that lookup outcome and a clarifying question about which identity or date the
 student means. They do not establish event details, current roles, availability,

@@ -435,6 +435,26 @@ def test_clean_exports_preserve_real_titles_and_dining_hours_contract(
         assert result["source_url"] == "https://example.edu/source"
 
 
+@pytest.mark.parametrize("environment", ["development", "production"])
+def test_only_a_development_brain_returns_reviewer_reasons(
+    environment: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("BRAIN_ENVIRONMENT", environment)
+    with (
+        patch.dict('os.environ', {'STAGING_SERVICE_TOKEN': '', 'BRAIN_ROUTING_MODE': 'off'}),
+        patch('rockygpt_brain.api.app.open_gateway', return_value=gateway_context()),
+        patch('rockygpt_brain.api.app.CampusData'),
+        patch('rockygpt_brain.api.app.run_turn', return_value={
+            'answer': 'x', 'status': 'answered', 'datasetVersion': None, 'citations': [],
+            'metrics': {}, 'trace': [], 'elapsedMs': 1, 'model': 'test',
+        }) as run,
+    ):
+        TestClient(app).post('/v1/chat', json={
+            'messages': [{'role': 'user', 'content': 'Hello'}],
+        })
+    assert run.call_args.kwargs['explain_rejections'] is (environment == "development")
+
+
 def test_chat_operational_summary_does_not_store_conversation_text() -> None:
     context = gateway_context()
     gateway = context.__enter__.return_value
@@ -444,8 +464,11 @@ def test_chat_operational_summary_does_not_store_conversation_text() -> None:
         patch('rockygpt_brain.api.app.CampusData'),
         patch('rockygpt_brain.api.app.run_turn', return_value={
             'answer': 'private answer', 'status': 'answered', 'datasetVersion': None,
-            'citations': [], 'metrics': {'routing': {'mode': 'off'}}, 'trace': [],
-            'elapsedMs': 1, 'model': 'test',
+            'citations': [], 'trace': [], 'elapsedMs': 1, 'model': 'test',
+            'metrics': {
+                'routing': {'mode': 'off'},
+                'reviewRejections': [{'part_index': 0, 'reason': 'private reason'}],
+            },
         }),
     ):
         response = TestClient(app).post('/v1/chat', json={

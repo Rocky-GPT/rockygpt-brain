@@ -932,6 +932,7 @@ def chat_worker(
                 progress=progress,
                 routing_mode=deployment.routing_mode,
                 routing_client=gateway if deployment.routing_mode != "off" else None,
+                explain_rejections=deployment.environment == "development",
             )
             result = turn_result
         outcome = cast(str, result["status"])

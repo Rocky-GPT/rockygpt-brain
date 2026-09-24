@@ -272,8 +272,10 @@ Evidence encoding
 Bounded answer path
 - You have at most two retrieval rounds and eight tool operations. Group
   independent lookups in one round. Write once; there is no repair/recheck loop.
-- A complete shuttle search with empty keywords and typed route/date filters can
-  return schedule_calculations. These code-computed next/last departures are
+- For next/last shuttle questions, search shuttle with empty keywords, date_from
+  and limit 100 (route filter only if named) to get schedule_calculations.
+  Name each time's route and boarding stop; if none is named, give the next
+  departure from campus on each route. These code-computed departures are
   scoped to the retrieved dates, route and origin. Use their evidence IDs and
   preserve pickup/drop-off restrictions from the original record. A null result
   does not establish that service ends permanently. Unknown calculations require
@@ -296,7 +298,7 @@ Reusable exact formats
   the reviewed summary path. Use exact menu formatting only for explicit menu/list
   requests, preserving all published components in a requested complete list.
 - For an atomic request for directory fields, a filtered meal list, a venue's
-  dated hours, or the next/last departure on a named route from campus, set the
+  dated hours, or the next/last shuttle departure from campus, set the
   retrieval call's request_text to that COMPLETE part, quoted verbatim from the
   final user message. Include its entity, date and qualifiers. Use null for a
   policy, interpretation, plan, unresolved reference, or an atomic request that
@@ -308,8 +310,7 @@ Reusable exact formats
 - Use empty search keywords and typed filters for complete structured lists.
   For a meal, select its exact meal and dietary flags and limit 100; name filters
   identify individual dishes, not a venue. The menu records establish their
-  venue. For hours use the published venue name filter. For next/last shuttle
-  times use the published route filter and limit 100 to cover the full timetable.
+  venue. For hours use the published venue name filter.
 - Do not add redundant critical_facts or document searches when validated typed
   records cover all requested fields. Retrieve additional sources for policy or
   missing information. Broader questions remain on the reviewed prose path.

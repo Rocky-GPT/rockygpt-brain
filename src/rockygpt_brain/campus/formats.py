@@ -347,8 +347,13 @@ def departure_parts(
     output: dict[str, Any],
     now: datetime,
 ) -> list[AnswerPart]:
-    text, route, named = entity_slot(text, records, "route")
-    if not named:
+    try:
+        text, route, named = entity_slot(text, records, "route")
+    except ValueError:  # A timetable with several routes names none on its own.
+        route, named = "", False
+    # With no route in the question, a complete timetable fetched without a
+    # route filter answers it for every route, each named in the answer.
+    if not named and query.filters is not None and query.filters.route:
         raise ValueError("Unresolved route")
     selections = set(text.split()) & {"last", "next"}
     selection = next(iter(selections)) if len(selections) == 1 else None
@@ -358,47 +363,73 @@ def departure_parts(
         "departure",
         "leave",
         "leaves",
+        "leaving",
     }:
         raise ValueError("No exact departure requested")
-    # Other origins remain in the generated path until their precise published
-    # boarding labels (including pickup/drop-off restrictions) are resolved.
-    text, campus_origin = remove_phrase(text, "from campus")
-    if not campus_origin:
-        raise ValueError("Unresolved boarding stop")
-    for marker in ("next", "last", "shuttle", "bus", "departure", "leave", "leaves", "time"):
+    # Campus is the boarding stop when the question names none. Other origins
+    # remain in the generated path until their precise published boarding
+    # labels (including pickup/drop-off restrictions) are resolved.
+    for phrase in ("from campus", "leave campus", "leaves campus", "leaving campus"):
+        text, _ = remove_phrase(text, phrase)
+    for marker in (
+        "next", "last", "shuttle", "bus", "departure", "leave", "leaves", "leaving", "time",
+    ):
         text, _ = remove_phrase(text, marker)
     if leftovers(text):
         raise ValueError("Unresolved journey qualifiers")
     summary = departure_summary(output, query, now)
     if summary["status"] != "ok":
         raise ValueError("Unverified departure calculation")
-    option = next(
-        item
-        for item in summary["departures"]
-        if item["route"] == route and item["origin"] == "campus"
-    )[selection]
-    if option is None:
-        return [
-            limitation(
-                f"I couldn't find a later scheduled departure from campus on "
-                f"{plain(route)} within {summary['date_from']} to {summary['date_to']}. "
-                "This does not establish that service has ended beyond those dates."
-            )
-        ]
-    selected = [r for r in records if r["id"] == option["evidence_id"]]
-    departure = datetime.fromisoformat(option["departure_at"])
-    return [
-        fact(
-            f"The {selection} published departure from campus on {plain(route)} is "
-            f"{departure.strftime('%I:%M %p').lstrip('0')} on {departure.date()} "
-            "(America/New_York).",
+    routes = [route] if named else sorted({r["fields"]["route"] for r in records})
+    campus = {item["route"]: item for item in summary["departures"] if item["origin"] == "campus"}
+    if not set(routes) <= set(campus):
+        raise ValueError("A route's campus departures are withheld")
+    found = sorted(
+        (campus[name] for name in routes if campus[name][selection] is not None),
+        key=lambda item: datetime.fromisoformat(item[selection]["departure_at"]).timestamp(),
+    )
+
+    def clock(item: dict[str, Any]) -> str:
+        departure = datetime.fromisoformat(item[selection]["departure_at"])
+        return departure.strftime("%I:%M %p").lstrip("0")
+
+    parts: list[AnswerPart] = []
+    selected = [
+        r for item in found for r in records if r["id"] == item[selection]["evidence_id"]
+    ]
+    if len(found) == 1:
+        departure = datetime.fromisoformat(found[0][selection]["departure_at"])
+        parts.append(fact(
+            f"The {selection} published departure from campus on {plain(found[0]['route'])} is "
+            f"{clock(found[0])} on {departure.date()} (America/New_York).",
             selected,
-        ),
-        limitation(
+        ))
+    elif found:
+        parts.append(fact(
+            f"The {selection} published departures from campus on {summary['date_from']} "
+            "(America/New_York) are: "
+            + "; ".join(f"{plain(item['route'])} at {clock(item)}" for item in found)
+            + ".",
+            selected,
+        ))
+    span = (
+        f"on {summary['date_from']}"
+        if summary["date_from"] == summary["date_to"]
+        else f"within {summary['date_from']} to {summary['date_to']}"
+    )
+    for name in routes:
+        if campus[name][selection] is None:
+            parts.append(limitation(
+                f"I couldn't find a later scheduled departure from campus on "
+                f"{plain(name)} {span}. "
+                "This does not establish that service has ended after that."
+            ))
+    if found:
+        parts.append(limitation(
             "This is a published timetable, not live vehicle status. "
             "Delays and holiday operations are not verified."
-        ),
-    ]
+        ))
+    return parts
 
 
 def exact_search(

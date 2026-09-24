@@ -12,6 +12,20 @@ from zoneinfo import ZoneInfo
 from rockygpt_brain.retrieval.models import SearchQuery
 
 CAMPUS_ZONE = ZoneInfo("America/New_York")
+# The published "Arrive on Campus" column says N/A for a trip that ends at its
+# last stop instead of returning. Any other non-clock value stays an error.
+NO_CAMPUS_RETURN = re.compile(r"\s*N/?A\s*", re.IGNORECASE)
+
+
+# Some routes publish one station as an "Arrive X" row and a later "Depart X"
+# row. Students board at the Depart row; the bus reaches the Arrive row.
+ARRIVAL_ROW = re.compile(r"\s*arrive\b", re.IGNORECASE)
+DEPARTURE_ROW = re.compile(r"\s*depart\b", re.IGNORECASE)
+
+
+def returns_to_campus(fields: dict[str, Any]) -> bool:
+    value = fields.get("campus_return")
+    return not (isinstance(value, str) and NO_CAMPUS_RETURN.fullmatch(value))
 
 
 def wall_time(value: str, day: date) -> datetime:
@@ -43,7 +57,10 @@ def trip_times(fields: dict[str, Any], day_offset: int = 0) -> list[tuple[str, d
         raise ValueError("Missing stop sequence")
     points = [("campus", fields["campus_departure"])]
     points.extend((stop["location"], stop["time"]) for stop in stops)
-    points.append(("campus", fields["campus_return"]))
+    if returns_to_campus(fields):
+        points.append(("campus", fields["campus_return"]))
+    elif not stops:
+        raise ValueError("A trip needs a stop or a campus return")
     result: list[tuple[str, datetime]] = []
     for location, value in points:
         if not isinstance(location, str) or not location.strip() or not isinstance(value, str):
@@ -131,6 +148,9 @@ def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime)
         return unavailable
     assert query.date_from is not None
     groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    # A stop visited twice in one trip (a loop back to the train) has no single
+    # departure time, so that route's next/last from that stop is withheld.
+    ambiguous: dict[tuple[str, str], str] = {}
     identities: dict[tuple[str, str, int], str] = {}
     service_clocks: dict[tuple[str, str], tuple[datetime, int]] = {}
     try:
@@ -186,9 +206,16 @@ def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime)
                 day_offset = 1
                 points = trip_times(fields, day_offset)
             service_clocks[service] = (points[0][1], day_offset)
-            if len({name.casefold() for name, _ in points[:-1]}) != len(points) - 1:
-                return {"status": "unavailable", "reason": "ambiguous_stop_identity"}
+            names = [name.casefold() for name, _ in points[:-1]]
+            for name, _ in points[:-1]:
+                if names.count(name.casefold()) > 1:
+                    ambiguous.setdefault((fields["route"], name.casefold()), name)
+            returns = returns_to_campus(fields)
             for index, (origin, departure) in enumerate(points[:-1]):
+                if (fields["route"], origin.casefold()) in ambiguous or (
+                    index and ARRIVAL_ROW.match(origin)
+                ):
+                    continue
                 groups.setdefault((fields["route"], origin), []).append(
                     {
                         "evidence_id": record["id"],
@@ -201,9 +228,10 @@ def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime)
                             for name, instant in points[index + 1 :]
                         ],
                         "elapsed_minutes_to_return": (
-                            points[-1][1].timestamp() - departure.timestamp()
-                        )
-                        / 60,
+                            (points[-1][1].timestamp() - departure.timestamp()) / 60
+                            if returns
+                            else None
+                        ),
                         "origin_restriction": (
                             fields["stops"][index - 1].get("restriction") if index else None
                         ),
@@ -214,6 +242,8 @@ def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime)
         return {"status": "unavailable", "reason": "unverified_schedule_time"}
     result = []
     for (route, origin), trips in sorted(groups.items()):
+        if (route, origin.casefold()) in ambiguous:
+            continue
         trips.sort(key=lambda trip: datetime.fromisoformat(trip["departure_at"]).timestamp())
         remaining = [
             trip
@@ -230,16 +260,62 @@ def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime)
                 "remaining_departure_count": len(remaining),
             }
         )
+    withheld = [
+        {"route": route, "origin": origin, "reason": "ambiguous_stop_identity"}
+        for (route, _), origin in sorted(ambiguous.items())
+    ]
     return {
         "status": "ok",
         "as_of": now.isoformat(),
         "date_from": str(query.date_from),
         "date_to": str(query.date_to or query.date_from),
         "departures": result,
+        "withheld_origins": withheld,
         "limitations": [
             "Scheduled times only; live delays and holiday operations are unknown.",
             "Next and last are within the retrieved dates only; null does not mean service ends.",
             "Preserve source pickup/drop-off restrictions. No walking or eating time is assumed.",
+            *(
+                ["A withheld origin repeats within a trip; its next/last departure is unknown."]
+                if withheld
+                else []
+            ),
+        ],
+    }
+
+
+def review_summary(summary: dict[str, Any]) -> dict[str, Any]:
+    """The calculation a reviewer needs to check a stated next/last departure.
+
+    Stop lists stay in the cited records; the reviewer gets the computed
+    selections and their scope, so it does not redo timetable arithmetic.
+    """
+    if summary.get("status") != "ok":
+        return {"status": summary.get("status"), "reason": summary.get("reason")}
+    return {
+        **{
+            key: summary[key]
+            for key in (
+                "status", "as_of", "date_from", "date_to", "withheld_origins", "limitations"
+            )
+        },
+        "departures": [
+            {
+                "route": group["route"],
+                "origin": group["origin"],
+                **{
+                    selection: None
+                    if group[selection] is None
+                    else {
+                        key: group[selection][key]
+                        for key in ("evidence_id", "departure_at", "origin_restriction")
+                    }
+                    for selection in ("next", "last")
+                },
+                "scheduled_departure_count": group["scheduled_departure_count"],
+                "remaining_departure_count": group["remaining_departure_count"],
+            }
+            for group in summary["departures"]
         ],
     }
 
@@ -260,7 +336,14 @@ def schedule_references(summary: dict[str, Any]) -> dict[tuple[str, str, str], s
                 continue
             reference = (trip["evidence_id"], "scheduled_departure", group["origin"])
             references.setdefault(reference, set()).add(trip["departure_at"])
+            names = [stop["location"].casefold() for stop in trip["remaining_stops"]]
             for stop in trip["remaining_stops"]:
+                # A loop that reaches a stop twice has no single arrival there,
+                # and a "Depart X" row is when the bus leaves, not arrives.
+                if names.count(stop["location"].casefold()) > 1 or DEPARTURE_ROW.match(
+                    stop["location"]
+                ):
+                    continue
                 reference = (trip["evidence_id"], "scheduled_arrival", stop["location"])
                 references.setdefault(reference, set()).add(stop["scheduled_at"])
     return references

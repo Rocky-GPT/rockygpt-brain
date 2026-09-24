@@ -3,6 +3,7 @@
 import json
 from datetime import datetime
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import Mock
 from zoneinfo import ZoneInfo
 
@@ -735,6 +736,132 @@ def test_unverified_premise_overrides_approval_without_repair(kind: str) -> None
     assert result["metrics"]["reviewCalls"] == 1
     assert result["metrics"]["modelCalls"] == 3
     assert client.create.call_count == 3
+
+
+@pytest.mark.parametrize("explain", [False, True])
+def test_rejection_reasons_are_returned_only_when_asked(explain: bool) -> None:
+    office = {**RECORD, "id": "contacts:6ae60e72-e1b6-4b70-93be-860763ecc7ab"}
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(search()),
+        answer("The office is in D-224, so it is open now.", "campus_fact", [office["id"]]),
+        review(unverified_premises=["record_1 lists an office, not current hours."]),
+    ]
+    data.search.return_value = {"status": "ok", "records": [office]}
+    result = run_turn(
+        [ChatMessage(role="user", content="Where is the Registrar and is it open now?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+        explain_rejections=explain,
+    )
+    assert result["status"] == "unavailable"
+    if explain:
+        # The reviewer saw a turn-local name; the developer sees the real ID.
+        premise = f"{office['id']} lists an office, not current hours."
+        assert result["metrics"]["reviewRejections"] == [
+            {
+                "part_index": 0,
+                "verdict": "unsupported_claim",
+                "reason": f"Missing factual support: {premise}",
+                "unverified_premises": [premise],
+            }
+        ]
+    else:
+        assert "reviewRejections" not in result["metrics"]
+
+
+def test_reviewer_sees_the_shuttle_calculation_the_draft_saw() -> None:
+    trip: dict[str, Any] = {
+        "id": "shuttle:trip-9",
+        "entity_id": "trip:9",
+        "source_key": "transportation",
+        "collection": "shuttle",
+        "title": "Roadrunner",
+        "url": "https://www.ramapo.edu/shuttle/",
+        "trust_tier": "official_primary",
+        "freshness": "fresh",
+        "fields": {
+            "sequence": 9,
+            "route": "Roadrunner",
+            "service_day": "weekday",
+            "service_date": "2026-09-04",
+            "campus_departure": "6:10 PM",
+            "campus_return": "N/A",
+            "stops": [{"location": "Train", "time": "6:20 PM"}],
+        },
+    }
+    trip["coverage"] = {"fields": {key: "published" for key in trip["fields"]}}
+    earlier = {
+        **trip,
+        "id": "shuttle:trip-8",
+        "entity_id": "trip:8",
+        "fields": {**trip["fields"], "sequence": 8, "campus_departure": "11:00 AM",
+                   "stops": [{"location": "Train", "time": "11:10 AM"}],
+                   "campus_return": "11:30 AM"},
+    }
+    call = search("timetable", "shuttle", date_from="2026-09-04", limit=100)
+    call.arguments = json.dumps(
+        {**json.loads(call.arguments), "query": ""}
+    )
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(call),
+        answer("The next scheduled departure from campus is 6:10 PM.", "campus_fact", [trip["id"]]),
+        review(),
+    ]
+    data.search.return_value = {
+        "status": "ok", "records": [earlier, trip], "total_matches": 2, "truncated": False,
+    }
+    result = run_turn(
+        [ChatMessage(role="user", content="When is the next shuttle?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    payload = json.loads(client.create.call_args.kwargs["input"])
+    calculation = payload["retrieval_coverage"][0]["schedule_calculations"]
+    assert calculation["status"] == "ok"
+    campus = next(item for item in calculation["departures"] if item["origin"] == "campus")
+    assert campus["next"]["departure_at"] == "2026-09-04T18:10:00-04:00"
+    assert "remaining_stops" not in campus["next"]
+    # "Next" rules out every earlier trip, so the whole timetable is in scope.
+    assert payload["citation_scope"] == {"0": [trip["id"], earlier["id"]]}
+    # The saved turn summary keeps counts and codes, not the timetable.
+    assert "schedule_calculations" not in result["metrics"]["toolResults"][0]
+    assert result["status"] == "answered"
+
+
+@pytest.mark.parametrize("calculation", ["ok", "unavailable"])
+def test_only_a_calculated_timetable_widens_a_trip_citation(calculation: str) -> None:
+    trips = {f"shuttle:trip-{n}": {**RECORD, "id": f"shuttle:trip-{n}"} for n in (8, 9)}
+    candidate = Answer.model_validate({"status": "answered", "parts": [
+        {"kind": "campus_fact", "text": "Next is 6:10 PM.", "evidence_ids": ["shuttle:trip-9"]},
+        {"kind": "campus_fact", "text": "The Registrar is in D-224.",
+         "evidence_ids": [RECORD["id"]]},
+    ]})
+    client = Mock()
+    client.create.return_value = review("supported", "supported")
+    review_answer(
+        candidate,
+        messages=[ChatMessage(role="user", content="When is the next shuttle?")],
+        evidence={**trips, RECORD["id"]: RECORD},
+        client=client,
+        model="test",
+        now=NOW,
+        timeout=10,
+        retrievals=[{
+            "tool": "search_campus", "status": "ok", "evidence_ids": list(trips),
+            "schedule_calculations": {"status": calculation},
+        }],
+    )
+    scope = json.loads(client.create.call_args.kwargs["input"])["citation_scope"]
+    assert scope["0"] == (
+        ["shuttle:trip-9", "shuttle:trip-8"] if calculation == "ok" else ["shuttle:trip-9"]
+    )
+    assert scope["1"] == [RECORD["id"]]
 
 
 @pytest.mark.parametrize("failure", ["incomplete", "malformed", "omitted", "duplicate"])

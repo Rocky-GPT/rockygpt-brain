@@ -1,6 +1,7 @@
 """One bounded model/tool loop over one published campus release."""
 
 import json
+import re
 from datetime import datetime, timedelta
 from importlib.resources import files
 from time import monotonic
@@ -28,7 +29,11 @@ from rockygpt_brain.campus.progress import (
     TurnCancelled,
     search_subject,
 )
-from rockygpt_brain.campus.schedules import departure_summary, schedule_references
+from rockygpt_brain.campus.schedules import (
+    departure_summary,
+    review_summary,
+    schedule_references,
+)
 from rockygpt_brain.config import RELEASE, RoutingMode
 from rockygpt_brain.contracts import Answer, ChatMessage
 from rockygpt_brain.core.provider import (
@@ -88,6 +93,7 @@ def run_turn(
     progress: ProgressCallback | None = None,
     routing_client: RoutingClient | None = None,
     routing_mode: RoutingMode = "off",
+    explain_rejections: bool = False,
 ) -> dict[str, Any]:
     subjects: list[ProgressSubject] = []
 
@@ -385,6 +391,29 @@ def run_turn(
             rejected = [part for part in review.parts if part.verdict != "supported"]
             if rejected:
                 validation_failures.extend(part.verdict for part in rejected)
+                if explain_rejections:
+                    # Development only, in this response: the saved turn summary
+                    # keeps fixed codes, never the reviewer's reason text. The
+                    # reviewer saw turn-local record names; show the real IDs.
+                    named = {
+                        alias: record_id
+                        for record_id, alias in reference_aliases(list(evidence)).items()
+                    }
+
+                    def real_ids(text: str, named: dict[str, str] = named) -> str:
+                        return re.sub(r"\brecord_\d+\b", lambda m: named.get(m[0], m[0]), text)
+
+                    metrics["reviewRejections"] = [
+                        {
+                            "part_index": part.part_index,
+                            "verdict": part.verdict,
+                            "reason": real_ids(part.reason),
+                            "unverified_premises": [
+                                real_ids(premise) for premise in part.unverified_premises
+                            ],
+                        }
+                        for part in rejected
+                    ]
                 return fallback("unsupported_answer", response.model)
             if monotonic() - started >= TURN_SECONDS:
                 raise TimeoutError("Turn deadline exceeded during evidence review")
@@ -582,6 +611,12 @@ def run_turn(
                     "elapsed_ms": round((monotonic() - tool_started) * 1000),
                 }
             )
+            if "schedule_calculations" in output:
+                # The reviewer checks a stated next/last departure against the
+                # same code calculation the draft saw, not its own clock math.
+                trace[-1]["schedule_calculations"] = review_summary(
+                    output["schedule_calculations"]
+                )
             if call.name in {"lookup_profile", "lookup_contact", "lookup_entity"}:
                 trace[-1]["resolution"] = output.get("resolution")
                 if "entity_facts" in output:
@@ -615,7 +650,11 @@ def run_turn(
                     }
             metrics["retrievalMs"] += trace[-1]["elapsed_ms"]
             metrics["toolResults"].append(
-                {key: value for key, value in trace[-1].items() if key != "arguments"}
+                {
+                    key: value
+                    for key, value in trace[-1].items()
+                    if key not in {"arguments", "schedule_calculations"}
+                }
             )
             if call.name == "lookup_contact" and len(calls) == 1 and round_index == 0 and arguments:
                 exact_candidate = contact_answer(
