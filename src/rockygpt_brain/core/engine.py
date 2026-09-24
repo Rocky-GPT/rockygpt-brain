@@ -606,6 +606,7 @@ def run_turn(
                                 "meal", "reason",
                                 "total_matches", "returned_count", "omitted_count",
                                 "cohort", "cohort_selection", "available_cohorts",
+                                "available_plans", "diet",
                             }
                         }
                         for component, details in output["components"].items()

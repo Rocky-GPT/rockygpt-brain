@@ -417,6 +417,26 @@ def test_large_profile_menu_defaults_to_complete_records_with_truthful_section_c
     assert bounded['components_withheld'] == 'retrieval_delivery_limit'
 
 
+def test_profile_menu_dietary_filter_applies_before_the_item_limit() -> None:
+    data = full_dining_data()
+    for record in data._fetch(None, ('dataset', 'dining', ['lunch:dish-00'])):
+        # A false label with no published coverage is unknown, so it is never matched.
+        record['vegan'] = int(record['name'][-2:]) % 10 == 0
+    query = ProfileQuery(entity='Example Dining', include=['menu'], date=date(2026, 9, 21),
+                         meal='Lunch', diet='vegan')
+    output = data.lookup_profile(query)
+    menu = output['components']['menu']
+    assert sorted(record['fields']['name'] for record in output['records']) == [
+        'Dish 00', 'Dish 10', 'Dish 20', 'Dish 30', 'Dish 40', 'Dish 50']
+    assert all(record['fields']['vegan'] is True for record in output['records'])
+    assert menu['status'] == 'available' and not menu['truncated']
+    assert (menu['total_matches'], menu['returned_count'], menu['omitted_count']) == (6, 6, 0)
+    assert menu['diet'] == 'vegan'
+    assert 'reason' not in menu
+    with pytest.raises(ValidationError):
+        ProfileQuery(entity='Example Dining', include=['hours'], diet='vegetarian')
+
+
 def test_large_menu_section_coverage_reaches_normal_answer_review() -> None:
     data = full_dining_data()
     client = Mock()
