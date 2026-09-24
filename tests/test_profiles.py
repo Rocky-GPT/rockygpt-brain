@@ -155,6 +155,34 @@ def test_ambiguity_and_no_match_never_fetch_source_records() -> None:
     fetch.assert_not_called()
 
 
+def test_a_leading_campus_name_is_dropped_only_when_the_name_as_given_matches_nothing() -> None:
+    data = repository()
+    attach_rows(data, *rows())
+
+    def resolve(name: str) -> dict[str, Any]:
+        output = data.lookup_profile(ProfileQuery(entity=name, include=["contact"]))
+        resolution: dict[str, Any] = output["resolution"]
+        return resolution
+
+    for name in ("Ramapo Example Center", "the Ramapo College’s EC", "RCNJ ec",
+                 "Ramapo College of New Jersey Example Center", "The Example Center"):
+        resolution = resolve(name)
+        assert (resolution["status"], resolution["entity"]["id"]) == ("matched", ENTITY_ID), name
+        assert resolution["read_as"] in {"Example Center", "EC", "ec"}
+    assert "read_as" not in resolve("Example Center")
+    # The rest must still be an exact name or alias, and a bare prefix is no name at all.
+    assert resolve("Ramapo Example")["status"] == "no_match"
+    assert "read_as" not in resolve("Ramapo")
+    # A published name that starts with the campus name is matched as given.
+    named = copy.deepcopy(IDENTITY)
+    named.update(id="a8306d1b-0319-477a-88fa-c32e2bab5f4e", name="Ramapo Example Center",
+                 aliases=[], links=[{"collection": "contacts", "source_key": "directory",
+                                     "source_record_keys": ["other"]}])
+    data._artifacts["campus-identities"]["entities"].append(named)
+    resolution = resolve("ramapo example center")
+    assert (resolution["entity"]["id"], "read_as" in resolution) == (named["id"], False)
+
+
 @pytest.mark.parametrize("hours_result", [[], RuntimeError("internal database failure")])
 def test_missing_or_failed_hours_preserve_available_contact(hours_result: Any) -> None:
     data = repository()

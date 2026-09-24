@@ -93,6 +93,20 @@ def lookup_terms(entity: Identity) -> set[str]:
     return {_normalize(value) for value in [entity.name, *entity.aliases]}
 
 
+# A leading article or campus name ("the Ramapo library") names nothing the rest doesn't.
+CAMPUS_PREFIX = re.compile(
+    r"(?:the )?(?:(?:ramapo(?: college)?(?: of new jersey)?|rcnj)(?:'s)? )?", re.IGNORECASE,
+)
+
+
+def _without_campus_prefix(value: str) -> str | None:
+    """The rest of a name after a leading article or campus name, if it has one."""
+    text = " ".join(value.replace("’", "'").split())
+    prefix = CAMPUS_PREFIX.match(text)
+    rest = text[prefix.end():] if prefix else text
+    return rest if rest and rest != text else None
+
+
 class ProfileQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
     entity: str | None = Field(default=None, min_length=1, max_length=240)
@@ -840,6 +854,8 @@ def _related_records(
                 evidence = [record for record in evidence if record["id"] in bases]
                 basis = next((kind for kind in ("room", "reading", "statement")
                               if kind in bases.values()), basis)
+                if direction == "outgoing":
+                    targets = buildings  # The building's own map record names it.
         except Exception:
             # One broken link must not erase the other relationships.
             failed += 1
@@ -870,10 +886,13 @@ def _related_records(
         if course is not None:
             summary["target_record"] = course.model_dump()
             summary["target_evidence_ids"] = [record["id"] for record in targets]
+        elif targets:
+            summary["target_evidence_ids"] = [record["id"] for record in targets]
         summaries.append(summary)
+        # A subject's course, or a statement's building, is both the evidence and the target.
         for record in [*evidence, *targets]:
             if any(kept["id"] == record["id"] for kept in records):
-                continue  # A subject's course is both the evidence and the target.
+                continue
             copied = deepcopy(record)
             copied["limitations"].append(limitation)
             records.append(copied)
@@ -1123,6 +1142,14 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             and normalized in lookup_terms(entity)
         )
     ]
+    read_as = (_without_campus_prefix(query.entity)
+               if query.entity is not None and not matches else None)
+    if read_as is not None:
+        # Only after the name as given matches nothing, and the rest must still be an
+        # exact name or alias.
+        result["resolution"]["read_as"] = read_as
+        matches = [entity for entity in registry.entities
+                   if _normalize(read_as) in lookup_terms(entity)]
     matches = _event_date_candidates(data, matches, query)
     matches, set_aside = _plan_candidates(matches, query)
     if len(matches) != 1:
@@ -1219,6 +1246,16 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             relationship_missing += related_coverage["unverified_relationships"]
             failed_links += related_coverage["failed_relationships"]
             truncated = truncated or bool(related_coverage["unexamined_relationship_candidates"])
+        placement: list[dict[str, Any]] = []
+        if component == "contact":
+            # Where to find the entity: its own building placements, rechecked as in the
+            # related section and cited with each building's map record.
+            for kind in sorted(ROOM_RELATIONSHIPS & {item.type for item in entity.relationships}):
+                placed, summaries, _ = _related_records(data, entity, registry, query.model_copy(
+                    update={"relationship": kind, "direction": "outgoing"}))
+                held = {record["id"] for record in records}
+                records.extend(record for record in placed if record["id"] not in held)
+                placement.extend(summaries)
         requirement_coverage: dict[str, Any] = {}
         if component == "requirements":
             requirement_records, requirement_coverage = _requirement_records(data, entity)
@@ -1336,7 +1373,8 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             coverage = {key: "published" for key in coverage if coverage[key] != "not_published"}
             coverage.update({key: "conflict" for key in conflicts})
         for record in records:
-            if conflicts:
+            # A related building's record is not one of the entity's disagreeing records.
+            if conflicts and record.get("canonical_entity_id") == str(entity.id):
                 record["coverage"]["fields"].update({field: "conflict" for field in conflicts})
                 record["limitations"].append(
                     "Linked records disagree on " + ", ".join(conflicts)
@@ -1401,6 +1439,8 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             result["components"][component]["temporal_scope"] = "undated_profile_list"
         if component == "related":
             result["components"][component].update(relationships=relationships, **related_coverage)
+        if component == "contact":
+            result["components"][component]["placement"] = placement
         if component == "requirements":
             result["components"][component].update(
                 **requirement_coverage, limitations=[REQUIREMENT_LIMITATION])
