@@ -252,8 +252,8 @@ def test_explicit_retirement_is_status_not_a_competing_title() -> None:
     assert facts["status"].assertions[1].field_path == ["title"]
     assert facts["status"].assertions[1].value == "Professor of History - Retired"
     for title in ["Professor Emeritus", "Professor of Retirement Studies"]:
-        facts = canonical_properties([prop("title", title, "b")], [b])
-        assert [p.key for p in facts] == ["title"]
+        listed = canonical_properties([prop("title", title, "b")], [b])
+        assert [p.key for p in listed] == ["title"]
     facts = {p.key: p for p in canonical_properties([prop("title", "Retired", "b")], [b])}
     assert facts["title"].status == "unknown" and facts["status"].values[0].value == "retired"
 

@@ -103,8 +103,8 @@ def test_search_returns_exact_entity_navigation_and_courses_are_followable() -> 
 
 def test_entity_lookup_hydrates_exact_citations_without_reread(fixture: Fixture) -> None:
     data, snapshot, _ = fixture
-    data.identity_readiness = Mock(return_value={'artifact_hash': snapshot['identity_hash']})
-    data._fetch = Mock(side_effect=AssertionError('No second source read is allowed'))
+    data.identity_readiness = Mock(return_value={'artifact_hash': snapshot['identity_hash']})  # type: ignore[method-assign]
+    data._fetch = Mock(side_effect=AssertionError('No second source read is allowed'))  # type: ignore[method-assign]
     output = data.lookup_entity(EntityQuery(entity_id=UUID(ENTITY_ID), properties=['email']))
     assert properties(output)['email']['status'] == 'conflicting'
     assert len(output['records']) == 2
@@ -212,7 +212,7 @@ def test_entity_event_date_never_turns_storage_midnight_into_a_published_clock(
     }
     records['events'] = [GraphData(data)._record(
         'events', {'record': raw, 'source': data.sources['directory']})]
-    data.identity_readiness = Mock(return_value={'artifact_hash': snapshot['identity_hash']})
+    data.identity_readiness = Mock(return_value={'artifact_hash': snapshot['identity_hash']})  # type: ignore[method-assign]
     output = data.lookup_entity(EntityQuery(entity_id=UUID(ENTITY_ID), properties=['starts_at']))
     assert properties(output)['starts_at']['values'][0]['value'] == '2026-09-21'
     assert output['records'][0]['coverage']['fields']['starts_at'] == 'date_only'
