@@ -193,7 +193,8 @@ def load_artifact_records(
         collected_at = payload.get("map_generated_at") or collected_at
         for value in payload.get("buildings", []):
             fields = {k: value[k] for k in (
-                "name", "category", "room_prefixes", "map_url", "concept3d_id") if k in value}
+                "name", "category", "room_prefixes", "map_url", "concept3d_id",
+                "reviewed_locations") if k in value}
             entries.append(
                 (str(value["concept3d_id"]), fields, value["name"], value.get("map_url")))
     elif collection == "schools":
