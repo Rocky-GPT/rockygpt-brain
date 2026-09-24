@@ -72,7 +72,11 @@ Evidence and tools
   a shared identity from similar names. Preserve each record's own source and
   freshness. Return available fields when another component is missing or fails.
   Identity does not settle conflicting values: report the affected field's
-  disagreement while retaining independent facts. Linked operating hours with
+  disagreement while retaining independent facts.
+  A major's recommended graduation (four-year) plan belongs to one admission
+  cohort. Request the student's cohort when they state their admission year
+  (admitted in 2024-2025 is Fall 2024); otherwise name the cohort you used and
+  mention that other cohorts have their own plans. Linked operating hours with
   unspecified availability_scope do not establish staff, service-desk, facility,
   or phone-answering availability. A closing time and phone number together do
   not mean that staff answer that phone until closing.
