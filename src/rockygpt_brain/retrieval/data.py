@@ -40,6 +40,7 @@ from rockygpt_brain.retrieval.models import (
 from rockygpt_brain.retrieval.processing import (
     build_collection_query,
     catalog_convener_records,
+    document_query_parts,
     enrich_records,
     expand_document_query,
     filter_by_dates,
@@ -395,21 +396,31 @@ class CampusData:
         return filter_by_dates(records, query, self.today)
 
     def _documents(self, query: SearchQuery) -> tuple[list[dict[str, Any]], int]:
-        terms = expand_document_query(query.query, self._artifact("search-vocabulary") or {})
+        vocabulary = self._artifact("search-vocabulary") or {}
+        terms = expand_document_query(query.query, vocabulary)
+        # Passages covering more of the query's words come first, the heading path
+        # counting as part of each passage; a passage that only repeats a common
+        # word must not outrank the section that answers the whole request.
         rows = self._fetch(
-            "WITH q AS (SELECT websearch_to_tsquery('english', %s) AS term) "
+            "WITH q AS (SELECT websearch_to_tsquery('english', %s) AS term), "
+            "parts AS (SELECT DISTINCT websearch_to_tsquery('english', p) AS part "
+            "FROM unnest(%s::text[]) p) "
             "SELECT c.id::text, c.document_id::text, c.chunk_index, c.content, c.metadata, "
             "d.source_id::text, d.title, d.collected_at, count(*) OVER() AS total, "
-            "ts_rank_cd(c.lexical_vector,q.term) + 2 * ts_rank_cd(to_tsvector('english', "
-            "coalesce(c.metadata->>'headingPath',d.title)),q.term) AS score "
+            "(SELECT count(*) FROM parts WHERE c.lexical_vector @@ part OR h.path @@ part) "
+            "AS covered, (SELECT count(*) FROM parts WHERE h.path @@ part) AS heading_covered, "
+            "ts_rank_cd(c.lexical_vector,q.term) + 2 * ts_rank_cd(h.path,q.term) AS score "
             "FROM rockygpt_v2.document_chunks c JOIN rockygpt_v2.documents d ON d.id=c.document_id "
             "JOIN rockygpt_v2.sources s ON s.id=d.source_id CROSS JOIN q "
+            # OFFSET 0 keeps the heading vector computed once per passage, not per word.
+            "CROSS JOIN LATERAL (SELECT to_tsvector('english', "
+            "coalesce(c.metadata->>'headingPath',d.title)) AS path OFFSET 0) h "
             "WHERE d.dataset_version_id=%s::uuid "
             "AND s.trust_tier IN ('official_primary','official_secondary') "
-            "AND (%s='' OR c.lexical_vector @@ q.term OR to_tsvector('english', "
-            "coalesce(c.metadata->>'headingPath',d.title)) @@ q.term) "
-            "ORDER BY score DESC,c.id LIMIT %s",
-            (terms, self.dataset["id"], terms, query.limit),
+            "AND (%s='' OR c.lexical_vector @@ q.term OR h.path @@ q.term) "
+            "ORDER BY covered DESC,heading_covered DESC,score DESC,c.id LIMIT %s",
+            (terms, document_query_parts(query.query, vocabulary), self.dataset["id"], terms,
+             query.limit),
         )
         records = []
         for row in rows:

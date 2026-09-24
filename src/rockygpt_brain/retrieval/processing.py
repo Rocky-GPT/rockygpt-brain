@@ -122,19 +122,32 @@ def build_collection_query(
     return full_query, tuple(params)
 
 
+def _synonym_groups(vocabulary: Any) -> list[list[str]]:
+    groups = vocabulary.get("groups", []) if isinstance(vocabulary, dict) else []
+    return [
+        group for group in groups[:100]
+        if isinstance(group, list)
+        and len(group) <= 20
+        and all(isinstance(word, str) and len(word) <= 40 for word in group)
+    ]
+
+
 def expand_document_query(query_text: str, vocabulary: Any) -> str:
     """Expand document query terms with domain synonyms from the release artifact."""
     tokens = _tokens(query_text)
-    groups = vocabulary.get("groups", []) if isinstance(vocabulary, dict) else []
-    for group in groups[:100]:
-        if (
-            isinstance(group, list)
-            and len(group) <= 20
-            and all(isinstance(word, str) and len(word) <= 40 for word in group)
-            and tokens.intersection(group)
-        ):
+    for group in _synonym_groups(vocabulary):
+        if tokens.intersection(group):
             tokens = tokens.union(group)
     return " OR ".join(sorted(tokens))
+
+
+def document_query_parts(query_text: str, vocabulary: Any) -> list[str]:
+    """Each query word with its synonyms: a passage covers the word if it has any of them."""
+    groups = _synonym_groups(vocabulary)
+    return [
+        " OR ".join(sorted({token}.union(*(group for group in groups if token in group))))
+        for token in sorted(_tokens(query_text))
+    ]
 
 
 def load_artifact_records(
