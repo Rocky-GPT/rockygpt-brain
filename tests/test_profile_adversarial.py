@@ -143,6 +143,38 @@ def test_conflicting_phones_do_not_erase_a_consistent_email() -> None:
     assert all("phone" in " ".join(record["limitations"]) for record in output["records"])
 
 
+def test_a_linked_page_published_under_a_reviewed_alias_is_not_a_name_conflict() -> None:
+    def contact(name: str, basis: str = "identity_map") -> dict[str, Any]:
+        data = repository(
+            [identity(link("contacts", "directory", "office:csi"),
+                      link("contacts", "office-page", "csi-contact"))],
+            {"directory": [row("directory", "office:csi", email="csi@example.edu")],
+             "office-page": [row("office-page", "csi-contact", name=name)]},
+        )
+        data._artifacts["campus-identity-coverage"] = {"alias_sources": [
+            {"entity_id": ENTITY_ID, "alias": "CSI", "sources": [{"basis": basis}]}]}
+        output: dict[str, Any] = data.lookup_profile(
+            ProfileQuery(entity="CSI", include=["contact"]))
+        return output
+
+    def name(output: dict[str, Any]) -> dict[str, Any]:
+        found: dict[str, Any] = next(
+            prop for prop in output["entity_facts"]["properties"] if prop["key"] == "name")
+        return found
+
+    output = contact("CSI")
+    assert (name(output)["status"], [value["value"] for value in name(output)["values"]]) == (
+        "known", ["Center for Student Involvement"])
+    assert not any("disagree" in " ".join(record["limitations"])
+                   for record in output["records"])
+    # An alias copied from a linked record's own name, or a name the registry never
+    # recorded, still disagrees, and every record says so.
+    for output in (contact("CSI", basis="record_name"), contact("Student Involvement Office")):
+        assert name(output)["status"] == "conflicting"
+        assert all("disagree on name" in " ".join(record["limitations"])
+                   for record in output["records"])
+
+
 def test_a_missing_field_is_not_a_competing_value() -> None:
     data = repository(
         [identity(link("contacts", "directory", "office:csi"),

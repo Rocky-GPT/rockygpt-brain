@@ -16,9 +16,10 @@ from rockygpt_brain.retrieval.entity_facts import (
     FactProperty,
     _lineage,
     canonical_properties,
+    reviewed_names,
 )
 from rockygpt_brain.retrieval.projection import Projection, valid_value
-from rockygpt_brain.retrieval.projection_models import Assertion, Property, SourceRecord
+from rockygpt_brain.retrieval.projection_models import Assertion, Entity, Property, SourceRecord
 from test_projection import ENTITY_ID, Fixture
 
 fixture = test_projection.fixture
@@ -260,6 +261,77 @@ def test_explicit_retirement_is_status_not_a_competing_title() -> None:
         assert [p.key for p in listed] == ["title"]
     facts = {p.key: p for p in canonical_properties([prop("title", "Retired", "b")], [b])}
     assert facts["title"].status == "unknown" and facts["status"].values[0].value == "retired"
+
+
+def test_a_reviewed_alias_is_the_entitys_name_not_a_competing_name() -> None:
+    a, b = source("a"), source("b")
+    b.collection = "clubs"
+    library = Entity(id=ENTITY_ID, kind="office", name="Library",
+                     aliases=["Potter Library", "Research Help Desk"])
+    reviewed = frozenset({"Potter Library"})
+    names = [prop("name", "Library", "a"), prop("name", "Potter  Library", "b")]
+    (fact,) = canonical_properties(names, [a, b], library, reviewed)
+    assert (fact.status, [value.value for value in fact.values]) == ("known", ["Library"])
+    assert fact.values[0].supporting_evidence_ids == ["a", "b"]
+    # The published text stays in the evidence, and says which reviewed name it was.
+    assert fact.assertions[1].value == "Potter  Library"
+    assert fact.assertions[1].limitations == [
+        "Published as 'Potter Library', one of this entity's reviewed names."]
+    assert names[1].assertions[0].limitations == []
+    # An alias no review backs, a case variant, or no entity: still a disagreement.
+    for other, backed in (("Research Help Desk", reviewed), ("potter library", reviewed),
+                          ("Potter Library", frozenset[str]())):
+        listed = [prop("name", "Library", "a"), prop("name", other, "b")]
+        assert canonical_properties(listed, [a, b], library, backed)[0].status == "conflicting"
+    assert canonical_properties(names, [a, b])[0].status == "conflicting"
+    # A name no source disputes stays exactly as published, with no caveat.
+    (alone,) = canonical_properties([prop("name", "Potter Library", "b")], [b], library,
+                                    reviewed)
+    assert ([value.value for value in alone.values], alone.assertions[0].limitations) == (
+        ["Potter Library"], [])
+    # Only the name: another field with an alias's text keeps its own value.
+    (department,) = canonical_properties([prop("department", "Potter Library", "a")], [a],
+                                         library, reviewed)
+    assert department.values[0].value == "Potter Library"
+    # Whitespace in the registry name is not a different name.
+    spaced = Entity(id=ENTITY_ID, kind="person", name="Yolanda del\xa0Amo",
+                    aliases=["Yolanda del Amo"])
+    (person,) = canonical_properties([prop("name", "Yolanda del Amo", "a")], [a], spaced,
+                                     frozenset({"Yolanda del Amo"}))
+    assert ([value.value for value in person.values], person.assertions[0].limitations) == (
+        ["Yolanda del Amo"], [])
+
+
+def test_only_aliases_a_person_or_the_directory_gave_can_settle_names() -> None:
+    library = Entity(id=ENTITY_ID, kind="office", name="Library",
+                     aliases=["Potter Library", "Research Help Desk", "Library West"])
+
+    class Release:
+        reads = 0
+
+        def _artifact(self, key: str) -> Any:
+            assert key == "campus-identity-coverage"
+            self.reads += 1
+            return {"alias_sources": [
+                {"entity_id": ENTITY_ID, "alias": alias, "sources": [{"basis": basis}]}
+                for alias, basis in (("Potter Library", "department"),
+                                     ("Research Help Desk", "record_name"),
+                                     ("Library West", "human_reviewed"))
+            ] + [{"entity_id": "another", "alias": "Library West",
+                  "sources": [{"basis": "identity_map"}]}]}
+
+    release = Release()
+    published = [prop("name", name, "a") for name in
+                 ("Library", "Potter Library", "Research Help Desk", "Library West")]
+    assert reviewed_names(release, library, published) == {"Potter Library", "Library West"}
+    # With only one published name, or without the entity's own name, nothing is read.
+    for names in (["Potter Library"], ["Potter Library", "Research Help Desk"]):
+        assert reviewed_names(release, library, [prop("name", n, "a") for n in names]) == set()
+    # An alias that is the entity's own name apart from whitespace needs no read either.
+    spaced = Entity(id=ENTITY_ID, kind="person", name="Yolanda del\xa0Amo",
+                    aliases=["Yolanda del Amo"])
+    assert reviewed_names(release, spaced, [prop("name", "Yolanda del Amo", "a")]) == set()
+    assert release.reads == 1
 
 
 def test_source_cleanup_and_date_only_events_are_shared_semantics() -> None:
