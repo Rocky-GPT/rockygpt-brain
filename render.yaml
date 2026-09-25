@@ -1,0 +1,40 @@
+# The production Brain (https://rockygpt-brain.onrender.com).
+#
+# No Blueprint is connected to the live service; this file records its shape.
+# Secret values live only in the Render dashboard, so every key is
+# `sync: false`: applying this file declares a key and never overwrites a value.
+#
+# Leave these unset in production: OPENAI_CHAT_MODEL (anything but gpt-5.4
+# stops chat), BRAIN_ROUTING_MODE (routing needs migrations/003 first),
+# BRAIN_EXPECTED_CONFIG_HASH, and STAGING_SERVICE_TOKEN unless Vercel sends
+# the same value.
+services:
+  - type: web
+    name: rockygpt-brain
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      # Render injects PORT; the Dockerfile's start command binds it.
+      # Exactly `production`.
+      - key: BRAIN_ENVIRONMENT
+        sync: false
+      # A key and project for production only, with gpt-5.4 access.
+      - key: BRAIN_OPENAI_API_KEY
+        sync: false
+      - key: BRAIN_OPENAI_PROJECT
+        sync: false
+      # A login granted only brain_production (migrations/001), plus SELECT,
+      # INSERT and UPDATE on rockygpt_v2.feedback.
+      - key: BRAIN_LEDGER_DATABASE_URL
+        sync: false
+      # Read-only campus data.
+      - key: DATABASE_URL
+        sync: false
+      # Nothing in src/ reads this; the UI uses the same value to rate-limit
+      # without storing raw addresses, and rockygpt-infra keeps both in step.
+      - key: ABUSE_HASH_KEY
+        sync: false

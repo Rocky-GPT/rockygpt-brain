@@ -14,13 +14,14 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from rockygpt_brain.api.campus import router as campus_router
 from rockygpt_brain.api.directory import router as directory_router
 from rockygpt_brain.api.graph import router as graph_router
+from rockygpt_brain.api.identities import _require_development
 from rockygpt_brain.api.identities import router as identities_router
 from rockygpt_brain.api.stream import stream_turn
 from rockygpt_brain.campus.progress import ProgressCallback, ProgressUpdate, TurnCancelled
@@ -32,7 +33,15 @@ from rockygpt_brain.governance.redaction import redact
 from rockygpt_brain.retrieval import CampusData
 
 load_dotenv()
-app = FastAPI(title="RockyGPT Brain", version="1.0.0")
+# The API schema and the operator routes below (turn logs, stored feedback, eval
+# runs, prompts, raw records) are for the Dev control room, which only talks to a
+# development Brain. The public production host answers 404 for all of them.
+app = FastAPI(
+    title="RockyGPT Brain",
+    version="1.0.0",
+    openapi_url="/openapi.json" if os.getenv("BRAIN_ENVIRONMENT") == "development" else None,
+)
+DEVELOPMENT_ONLY = [Depends(_require_development)]
 app.add_middleware(BodyLimitMiddleware)
 app.include_router(identities_router)
 app.include_router(graph_router)
@@ -80,13 +89,18 @@ def readiness() -> dict[str, object] | JSONResponse:
                 "identities": data.identity_readiness(),
             }
         return result
-    except Exception:
+    except ConfigurationError as error:
+        logging.getLogger(__name__).warning("Brain is not ready: %s", error)
+        return JSONResponse(status_code=503, content={"status": "unavailable"})
+    except Exception as error:
+        # The class only: a connection error can carry a host and login name.
+        logging.getLogger(__name__).warning("Brain is not ready: %s", type(error).__name__)
         return JSONResponse(status_code=503, content={"status": "unavailable"})
     finally:
         data.close()
 
 
-@app.get("/v1/logs", response_model=None)
+@app.get("/v1/logs", response_model=None, dependencies=DEVELOPMENT_ONLY)
 def get_logs(limit: int = 50) -> dict[str, Any] | JSONResponse:
     ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
     env = os.getenv("BRAIN_ENVIRONMENT", "development")
@@ -245,10 +259,11 @@ def submit_feedback(payload: FeedbackPayload) -> dict[str, Any]:
         return {"success": True}
     except Exception as err:
         logging.getLogger(__name__).warning("Failed to submit feedback: %s", err)
-        return {"success": False, "error": str(err)}
+        # The student UI hands this body to the browser, so no database detail.
+        return {"success": False, "error": "feedback_unavailable"}
 
 
-@app.get("/v1/feedback", response_model=None)
+@app.get("/v1/feedback", response_model=None, dependencies=DEVELOPMENT_ONLY)
 def get_feedback(limit: int = 50) -> dict[str, Any] | JSONResponse:
     ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
     if not ledger_url:
@@ -308,7 +323,7 @@ class EvalRunPayload(BaseModel):
     summary: dict[str, Any] = Field(default_factory=dict)
 
 
-@app.post("/v1/evals/runs")
+@app.post("/v1/evals/runs", dependencies=DEVELOPMENT_ONLY)
 def record_eval_run(payload: EvalRunPayload) -> dict[str, Any]:
     ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
     if not ledger_url:
@@ -352,7 +367,7 @@ def record_eval_run(payload: EvalRunPayload) -> dict[str, Any]:
         return {"success": False, "error": str(err)}
 
 
-@app.get("/v1/evals/runs", response_model=None)
+@app.get("/v1/evals/runs", response_model=None, dependencies=DEVELOPMENT_ONLY)
 def get_eval_runs(limit: int = 50) -> dict[str, Any] | JSONResponse:
     ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
     if not ledger_url:
@@ -404,7 +419,7 @@ def get_eval_runs(limit: int = 50) -> dict[str, Any] | JSONResponse:
         return JSONResponse(status_code=503, content={"runs": [], "total": 0, "error": str(err)})
 
 
-@app.get("/v1/prompts")
+@app.get("/v1/prompts", dependencies=DEVELOPMENT_ONLY)
 def get_prompts() -> dict[str, Any]:
     prompt_md = files("rockygpt_brain").joinpath("prompt.md").read_text(encoding="utf-8")
     review_md = files("rockygpt_brain").joinpath("review.md").read_text(encoding="utf-8")
@@ -417,7 +432,7 @@ def get_prompts() -> dict[str, Any]:
     }
 
 
-@app.get("/v1/config")
+@app.get("/v1/config", dependencies=DEVELOPMENT_ONLY)
 def get_config() -> dict[str, Any]:
     from rockygpt_brain.config import MONTHLY_CAP_NUSD
     return {
@@ -428,7 +443,7 @@ def get_config() -> dict[str, Any]:
     }
 
 
-@app.get("/v1/releases")
+@app.get("/v1/releases", dependencies=DEVELOPMENT_ONLY)
 def get_releases() -> Any:
     release_json = files("rockygpt_brain").joinpath("release.json").read_text(encoding="utf-8")
     config_release = json.loads(release_json)
@@ -610,12 +625,14 @@ CAPABILITIES_CATALOG = [
 ]
 
 
-@app.get("/v1/capabilities")
+@app.get("/v1/capabilities", dependencies=DEVELOPMENT_ONLY)
 def get_capabilities() -> dict[str, Any]:
     return {"capabilities": CAPABILITIES_CATALOG}
 
 
-@app.get("/v1/capabilities/{name}/records", response_model=None)
+@app.get(
+    "/v1/capabilities/{name}/records", response_model=None, dependencies=DEVELOPMENT_ONLY
+)
 def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any] | JSONResponse:
     from rockygpt_brain.retrieval.models import COLLECTIONS, SearchQuery
 
@@ -709,7 +726,7 @@ def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any] | JSO
             data.close()
 
 
-@app.get("/v1/documents", response_model=None)
+@app.get("/v1/documents", response_model=None, dependencies=DEVELOPMENT_ONLY)
 def get_documents() -> dict[str, Any] | JSONResponse:
     database_url = os.getenv("DATABASE_URL", "")
     if not database_url:
@@ -758,7 +775,9 @@ def get_documents() -> dict[str, Any] | JSONResponse:
             data.close()
 
 
-@app.get("/v1/documents/{document_id}", response_model=None)
+@app.get(
+    "/v1/documents/{document_id}", response_model=None, dependencies=DEVELOPMENT_ONLY
+)
 def get_document(document_id: str) -> dict[str, Any] | JSONResponse:
     database_url = os.getenv("DATABASE_URL", "")
     if not database_url:
@@ -841,7 +860,8 @@ async def chat(
     request_id = str(uuid4())
     try:
         load_deployment()
-    except ConfigurationError:
+    except ConfigurationError as error:
+        logging.getLogger(__name__).warning("Brain is not configured: %s", error)
         return failure(503, "model_not_configured", request_id)
     slots = TURN_SLOTS
     if not slots.acquire(blocking=False):
@@ -947,7 +967,8 @@ def chat_worker(
     except TurnCancelled:
         outcome = "request_cancelled"
         return failure(499, "request_cancelled", request_id)
-    except ConfigurationError:
+    except ConfigurationError as error:
+        logging.getLogger(__name__).warning("Brain is not configured: %s", error)
         return failure(503, "model_not_configured", request_id)
     except PaidCallError as error:
         outcome = error.code

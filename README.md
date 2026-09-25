@@ -62,6 +62,12 @@ supplements expire at the end of their approved month; see [Phase 3](docs/phase3
 If `STAGING_SERVICE_TOKEN` is set, chat requires the matching
 `x-rockygpt-environment-token` header. Keep it identical in UI and Dev.
 
+Production runs the `Dockerfile` on Render (`render.yaml` lists the settings it
+needs), started with `uvicorn rockygpt_brain.api.app:app --host 0.0.0.0 --port $PORT`.
+Operator routes (turn logs, stored feedback, eval runs, prompts, config, releases,
+raw records and documents) and `/openapi.json` answer 404 unless
+`BRAIN_ENVIRONMENT=development`.
+
 ## HTTP contract
 
 - `GET /health` and `HEAD /health`: process liveness, independent of dependencies.
@@ -69,7 +75,7 @@ If `STAGING_SERVICE_TOKEN` is set, chat requires the matching
   and a read-only campus connection with an active release. This does not call the model or prove every
   source is fresh; freshness is checked when records are retrieved.
 - `POST /v1/chat`: one JSON response, with the complete conversation supplied
-  on every request. The generated schema is served at `/openapi.json`.
+  on every request. A development Brain serves the generated schema at `/openapi.json`.
 
 ```json
 {"messages":[{"role":"user","content":"How do I contact Financial Aid?"}]}

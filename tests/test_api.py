@@ -376,6 +376,60 @@ def test_legacy_credentials_do_not_enable_unmetered_requests(
     gateway.assert_not_called()
 
 
+@pytest.mark.parametrize("change,logged", [
+    ({"BRAIN_OPENAI_PROJECT": None}, "BRAIN_OPENAI_PROJECT is not set"),
+    ({"BRAIN_ENVIRONMENT": "staging"}, "environment: Input should be"),
+    ({"OPENAI_CHAT_MODEL": "gpt-4.1-mini"}, "Environment model override"),
+])
+def test_a_misconfigured_brain_logs_which_setting_without_its_value(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+    change: dict[str, str | None], logged: str,
+) -> None:
+    monkeypatch.setenv("BRAIN_OPENAI_API_KEY", "sk-secret-value")
+    for key, value in change.items():
+        if value is None:
+            monkeypatch.delenv(key)
+        else:
+            monkeypatch.setenv(key, value)
+    with patch("rockygpt_brain.api.app.open_gateway") as gateway:
+        response = TestClient(app).post(
+            "/v1/chat", json={"messages": [{"role": "user", "content": "Hello"}]}
+        )
+    assert response.json()["reason"] == "model_not_configured"
+    assert logged in caplog.text
+    assert "sk-secret-value" not in caplog.text
+    gateway.assert_not_called()
+
+
+@pytest.mark.parametrize("environment", [None, "production"])
+@pytest.mark.parametrize("method,path", [
+    ("GET", "/v1/logs"), ("GET", "/v1/feedback"), ("GET", "/v1/evals/runs"),
+    ("POST", "/v1/evals/runs"), ("GET", "/v1/prompts"), ("GET", "/v1/config"),
+    ("GET", "/v1/releases"), ("GET", "/v1/capabilities"),
+    ("GET", "/v1/capabilities/contacts/records"), ("GET", "/v1/documents"),
+    ("GET", "/v1/documents/00000000-0000-0000-0000-000000000000"),
+])
+def test_operator_routes_are_hidden_outside_development(
+    monkeypatch: pytest.MonkeyPatch, environment: str | None, method: str, path: str,
+) -> None:
+    if environment is None:
+        monkeypatch.delenv("BRAIN_ENVIRONMENT")
+    else:
+        monkeypatch.setenv("BRAIN_ENVIRONMENT", environment)
+    run = {"runId": "r", "suite": "s", "totalTests": 1, "passed": 1, "failed": 0,
+           "durationMs": 1}
+    with (
+        patch("psycopg.connect") as connect,
+        patch("rockygpt_brain.api.app.CampusData") as data,
+    ):
+        response = TestClient(app).request(
+            method, path, json=run if method == "POST" else None
+        )
+    assert response.status_code == 404
+    connect.assert_not_called()
+    data.assert_not_called()
+
+
 def test_client_cannot_select_a_budget_namespace() -> None:
     response = TestClient(app).post(
         "/v1/chat",
