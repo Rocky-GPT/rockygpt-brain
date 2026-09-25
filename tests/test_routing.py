@@ -19,6 +19,7 @@ from rockygpt_brain.core.engine import run_turn
 from rockygpt_brain.core.provider import JevProvider, ModelResponse, PaidGateway, Usage
 from rockygpt_brain.core.routing import (
     interpret,
+    named,
     route_request,
     routing_payload,
     shortlist,
@@ -303,6 +304,49 @@ def test_duplicate_aliases_never_select_an_arbitrary_identity() -> None:
     payload, day = routing_payload(messages(), [ENTITY, other], NOW)
     result = interpret(answers_for(payload), [ENTITY, other], day, messages())
     assert result.arguments is None and result.tool is None
+
+
+def identity(number: int, kind: str, name: str, *aliases: str) -> Identity:
+    return ENTITY.model_copy(
+        update={"id": UUID(int=number), "kind": kind, "name": name, "aliases": list(aliases)}
+    )
+
+
+CS_BS = identity(2, "program", "Computer Science BS", "Computer Science")
+CS_MS = identity(3, "program", "Computer Science MS", "Computer Science")
+CS_CLUB = identity(4, "club", "Computer Science Club")
+BIRCH = identity(5, "venue", "Birch Tree Inn", "Birch")
+MANSION = identity(6, "building", "Birch Mansion")
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Who is the convener of the Computer Science BS program?", [CS_BS]),
+        ("Tell me about the Computer Science Club.", [CS_CLUB]),
+        ("Where is Birch Mansion?", [MANSION]),
+        ("What's the phone number for Birch?", [BIRCH]),
+        ("Who convenes Computer Science?", [CS_BS, CS_MS]),
+        ("Compare the Computer Science BS and the Computer Science MS.", [CS_BS, CS_MS]),
+        # A separate mention of the shorter name still counts.
+        ("Tell me about Computer Science and the Computer Science Club.", [CS_BS, CS_MS, CS_CLUB]),
+    ],
+)
+def test_a_longer_name_hides_only_the_names_inside_it(text: str, expected: list[Identity]) -> None:
+    assert named(text, [CS_BS, CS_MS, CS_CLUB, BIRCH, MANSION]) == expected
+
+
+def test_one_named_entity_among_overlapping_names_can_route_directly() -> None:
+    request = messages("Who is the convener of the Computer Science BS program?")
+    candidates = [CS_BS, CS_MS, CS_CLUB]
+    payload, day = routing_payload(request, candidates, NOW)
+    answers = answers_for(payload, route="profile", entity=str(CS_BS.id), section_conveners=1.0)
+    result = interpret(answers, candidates, day, request)
+    assert result.arguments is not None and result.arguments["entity_id"] == str(CS_BS.id)
+    # Jev must select the entity the request names; any other leaves the arguments to GPT.
+    answers = answers_for(payload, route="profile", entity=str(CS_MS.id), section_conveners=1.0)
+    result = interpret(answers, candidates, day, request)
+    assert result.arguments is None and result.tool == "lookup_profile"
 
 
 def test_shortlist_prioritizes_latest_exact_match_and_caps_candidates() -> None:
