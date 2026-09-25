@@ -62,7 +62,8 @@ class AliasSource(BaseModel):
     model_config = ConfigDict(extra="forbid")
     basis: Literal[
         "identity_map", "record_name", "school_abbreviation", "school_former_name",
-        "event_title", "department", "abbreviation", "program_family", "human_reviewed",
+        "event_title", "department", "abbreviation", "program_family", "subject_code",
+        "human_reviewed",
     ]
     evidence: RelationshipEvidence | None = None
     source_url: str | None = None

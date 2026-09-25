@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, date, datetime
-from typing import Any
+from pathlib import Path
+from typing import Any, get_args
 from unittest.mock import Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from rockygpt_brain.api.app import app
+from rockygpt_brain.api.identities import AliasSource
 from test_profile_sections import PERSON, PROGRAM, full_dining_data, program_data
 from test_profiles import ENTITY_ID, attach_rows, repository, rows
 
@@ -170,6 +173,39 @@ def test_alias_table_shows_what_a_lookup_finds_and_why_each_alias_exists() -> No
     assert rows["Yoga"]["lookup"] == "event_dates"
     # Spacing aside, this alias is the person's own name.
     assert rows["Yolanda del Amo"]["matches"][0]["by_name"] is True
+
+
+def test_a_subject_code_alias_shows_its_source() -> None:
+    data = alias_data()
+    subject = {"id": "00000000-0000-4000-8000-000000000008", "kind": "subject",
+               "name": "Accounting (ACCT)", "aliases": ["ACCT"],
+               "links": [{"collection": "subjects", "source_key": "course-subjects",
+                          "source_record_keys": ["ACCT"]}]}
+    data._artifacts["campus-identities"]["entities"].append(subject)
+    coverage = data._artifacts["campus-identity-coverage"]
+    coverage["identity_count"] = 8
+    coverage["alias_sources"].append({"entity_id": subject["id"], "alias": "ACCT",
+                                      "sources": [{"basis": "subject_code"}]})
+    with patch("rockygpt_brain.api.identities.CampusData", return_value=data):
+        response = TestClient(app).get("/v1/dev/identities/aliases")
+    assert response.status_code == 200
+    output = response.json()
+    assert output["sources_published"] is True
+    row = next(row for row in output["aliases"] if row["alias"] == "ACCT")
+    assert row["matches"][0]["aliases"] == [
+        {"alias": "ACCT", "sources": [{"basis": "subject_code"}]}]
+
+
+def test_alias_bases_match_the_data_compiler() -> None:
+    # One basis the compiler writes and the Brain does not know hides every alias source.
+    compiler = (Path(__file__).resolve().parents[2]
+                / "rockygpt-data" / "src" / "data-v2" / "identity-aliases.ts")
+    if not compiler.exists():
+        pytest.skip("rockygpt-data is not checked out beside the Brain")
+    union = re.search(r"export type AliasBasis =(.*?);", compiler.read_text(), re.DOTALL)
+    assert union is not None
+    written = set(re.findall(r"\|\s*'([a-z_]+)'", union.group(1)))
+    assert written == set(get_args(AliasSource.model_fields["basis"].annotation))
 
 
 @pytest.mark.parametrize("change", ["missing", "other_alias", "invalid_basis", "other_count"])
