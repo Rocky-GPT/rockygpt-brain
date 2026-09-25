@@ -14,8 +14,30 @@ def bounded_result(
     Never alter an individual record's facts or silently treat an omitted result
     as absent. A caller's prior evidence/history is outside this function.
     """
+    # The records a placement merged into, as they were before; never delivered.
+    unplaced = output.get("_unplaced_records") or {}
+    output = {key: value for key, value in output.items() if key != "_unplaced_records"}
     if fits(output):
         return output
+    if output.get("placement"):
+        # A placement is an addition: shed it, the records only it cites and what it
+        # merged into the others, before anything the rest of the result relies on.
+        cited = {identifier for item in output["placement"]
+                 for identifier in [*item.get("evidence_ids", []),
+                                    *item.get("target_evidence_ids", [])]}
+        supporting = {identifier
+                      for prop in (output.get("entity_facts") or {}).get("properties", [])
+                      for value in prop.get("values", [])
+                      for identifier in value.get("supporting_evidence_ids", [])}
+        shed = {key: value for key, value in output.items() if key != "placement"}
+        shed["records"] = [unplaced.get(record["id"], record)
+                           for record in output.get("records", [])
+                           if record["id"] not in cited - supporting]
+        output = {**shed, "placement_withheld": "retrieval_delivery_limit"}
+        # Without room for the marker, the result as it was before the placement.
+        for candidate in (output, shed):
+            if fits(candidate):
+                return candidate
     records = output.get("records", [])
     titles = output.get("discovery_titles", [])
     limited = {**output}
@@ -42,6 +64,9 @@ def bounded_result(
             if "components" in limited:
                 limited.pop("components")
                 limited["components_withheld"] = "retrieval_delivery_limit"
+            if "placement" in limited:
+                limited.pop("placement")
+                limited["placement_withheld"] = "retrieval_delivery_limit"
             if not count:
                 limited["status"] = "unavailable"
         if fits(limited):

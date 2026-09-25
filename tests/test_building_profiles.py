@@ -3,18 +3,23 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock
 from uuid import UUID
 
+import test_projection
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
+from rockygpt_brain.governance.evidence import bounded_result
 from rockygpt_brain.retrieval.exact import ContactQuery
 from rockygpt_brain.retrieval.graph import GraphData
+from rockygpt_brain.retrieval.models import EntityQuery
 from rockygpt_brain.retrieval.profiles import ProfileQuery, ProfileSection
 from test_engine import answer, review, tools
 from test_profiles import ENTITY_ID, NOW, repository
+from test_projection import Fixture
 
 BUILDING_D = '5b0f7e0c-1f7d-5b52-9a53-3a1f8f4b0c11'
 BUILDING_ASB = '5b0f7e0c-1f7d-5b52-9a53-3a1f8f4b0c12'
@@ -268,3 +273,134 @@ def test_the_reviewer_sees_where_a_contact_is() -> None:
     [placement] = result['trace'][0]['components']['contact']['placement']
     assert (placement['entity']['name'], placement['evidence_ids']) == (
         'Academic Building D', ['buildings:1133371'])
+
+
+fixture = test_projection.fixture
+
+
+def placed_venue(fixture: Fixture, evidence: dict[str, Any], **building_fields: Any) -> Any:
+    """The projection fixture's venue, placed in Academic Building D."""
+    data: Any = fixture[0]
+    snapshot = fixture[1]
+    data.identity_readiness = Mock(return_value={'artifact_hash': snapshot['identity_hash']})
+    data.sources['campus-map'] = {
+        **data.sources['directory'], 'id': 'campus-map', 'source_key': 'campus-map',
+        'provenance_status': 'static', 'completed_at': NOW}
+    entities = data._artifacts['campus-identities']['entities']
+    entities[0]['relationships'] = [
+        {'type': 'located_at', 'target_entity_id': BUILDING_D, 'evidence': [evidence]}]
+    entities.append(building(BUILDING_D, 'Academic Building D', '1133371'))
+    data._artifacts['campus-buildings'] = {
+        'schema_version': 1, 'map_generated_at': MAP_TIME, 'buildings': [
+            {'concept3d_id': '1133371', 'name': 'Academic Building D',
+             'category': 'Academic Buildings', 'room_prefixes': ['D'],
+             'map_url': 'https://map.ramapo.edu/?id=2292#!m/1133371?sbc/', **building_fields}]}
+    return data
+
+
+def test_entity_lookup_names_the_building_a_reviewed_statement_places_it_in(
+        fixture: Fixture) -> None:
+    source = 'https://www.ramapo.edu/about/campus-hours/'
+    data = placed_venue(fixture, {
+        'collection': 'buildings', 'source_key': 'campus-map', 'source_record_key': '1133371',
+        'field': 'reviewed_locations', 'source_url': source,
+    }, reviewed_locations=[{'entity_id': ENTITY_ID, 'entity': 'Test venue',
+                            'statement': 'Test venue in Academic Building D',
+                            'source_url': source, 'reviewed_at': '2026-09-24'}])
+    # The building's map record is an artifact: no second source read.
+    data._fetch = Mock(side_effect=AssertionError('No SQL read is allowed'))
+    output = data.lookup_entity(EntityQuery(entity_id=UUID(ENTITY_ID), properties=['email']))
+    [placement] = output['placement']
+    assert (placement['type'], placement['entity']['name']) == (
+        'located_at', 'Academic Building D')
+    assert placement['evidence_ids'] == placement['target_evidence_ids'] == ['buildings:1133371']
+    building_record = next(r for r in output['records'] if r['id'] == 'buildings:1133371')
+    assert building_record['fields']['reviewed_locations'][0]['statement'] == (
+        'Test venue in Academic Building D')
+    assert any('it gives no room' in text for text in building_record['limitations'])
+    assert 'buildings:1133371' in data._seen
+    # The venue's own facts come only from its own records.
+    assert {a['source_id'] for p in output['entity_facts']['properties']
+            for a in p['assertions']} == {'contacts:1', 'contacts:2'}
+    # The reviewer's retrieval coverage is the turn's trace, which carries the placement.
+    client = Mock()
+    client.create.side_effect = [
+        tools(SimpleNamespace(type='function_call', name='lookup_entity', call_id='entity',
+                              arguments=json.dumps({'entity_id': ENTITY_ID,
+                                                    'properties': None}))),
+        answer('Test venue is in Academic Building D.', 'campus_fact', ['buildings:1133371']),
+        review('supported'),
+    ]
+    result = run_turn([ChatMessage(role='user', content='Where is the test venue?')],
+                      client=client, data=data, model='test', now=NOW)
+    assert result['status'] == 'answered'
+    assert [item['entity']['name'] for item in result['trace'][0]['placement']] == [
+        'Academic Building D']
+
+
+def test_entity_lookup_adds_only_the_room_that_places_it(fixture: Fixture) -> None:
+    data = placed_venue(fixture, {'collection': 'contacts', 'source_key': 'directory',
+                                  'source_record_key': 'k', 'field': 'office'})
+    for place in ('raw_record', 'fields'):
+        fixture[2]['contacts'][0][place]['office'] = 'D-224'
+    row = {'id': '1', 'source_id': 'directory', 'source_record_key': 'k', 'total': 1,
+           'collected_at': NOW, 'valid_from': None, 'valid_until': None,
+           'name': 'Test venue', 'email': 'venue@example.edu', 'phone': 'one', 'office': 'D-224'}
+    data._fetch = Mock(return_value=[row])
+
+    def lookup(*properties: str) -> dict[str, Any]:
+        output: dict[str, Any] = data.lookup_entity(
+            EntityQuery(entity_id=UUID(ENTITY_ID), properties=list(properties)))
+        return output
+
+    output = lookup('email')
+    [placement] = output['placement']
+    assert (placement['evidence_ids'], placement['target_evidence_ids']) == (
+        ['contacts:1'], ['buildings:1133371'])
+    # The contact record stays the venue's own, with only the room added: an unrequested
+    # phone, which the venue's records disagree on, is not delivered as settled.
+    contact = next(r for r in output['records'] if r['id'] == 'contacts:1')
+    assert contact['canonical_entity_id'] == ENTITY_ID
+    assert contact['fields'] == {'email': 'venue@example.edu', 'office': 'D-224'}
+    assert contact['coverage']['fields']['office'] == 'published'
+    # Where the venue's records disagree on the room, the added room says so.
+    for place in ('raw_record', 'fields'):
+        fixture[2]['contacts'][1][place]['office'] = 'E-100'
+    contact = next(r for r in lookup('email')['records'] if r['id'] == 'contacts:1')
+    assert contact['coverage']['fields']['office'] == 'conflict'
+    assert any('disagree on offices' in text for text in contact['limitations'])
+    for place in ('raw_record', 'fields'):
+        fixture[2]['contacts'][1][place]['office'] = None
+    assert [r['id'] for r in output['records']] == [
+        'contacts:1', 'contacts:2', 'buildings:1133371']
+    assert output['total_matches'] == 2
+    # A record already shared this turn is replaced, never edited in place.
+    shared = data._seen['contacts:1']
+    before = deepcopy(shared)
+    lookup('email')
+    assert shared == before
+    # A placing record the lookup did not return comes with its room alone.
+    output = lookup('website_url')
+    contact = next(r for r in output['records'] if r['id'] == 'contacts:1')
+    assert (contact['fields'], contact['canonical_entity_id']) == ({'office': 'D-224'}, ENTITY_ID)
+    # Out of room, the placement goes first, and the venue's records return to what they
+    # were: at exactly the size before the placement, the facts still arrive whole.
+    output = lookup('email')
+    before = {key: value for key, value in output.items()
+              if key not in {'placement', '_unplaced_records'}}
+    before['records'] = [output['_unplaced_records'].get(r['id'], r) for r in output['records']
+                         if r['id'] != 'buildings:1133371']
+    size = len(json.dumps(before))
+    assert bounded_result(output, lambda value: len(json.dumps(value)) <= size) == before
+    assert before['records'][0]['fields'] == {'email': 'venue@example.edu'}
+    delivered = bounded_result(lookup('email'),
+                               lambda value: len(json.dumps(value)) <= size + 100)
+    assert (delivered['placement_withheld'], 'entity_facts' in delivered) == (
+        'retrieval_delivery_limit', True)
+    # The copies kept for that are never delivered.
+    assert '_unplaced_records' not in bounded_result(lookup('email'), lambda value: True)
+    # A placement that fails to load is reported, not shown as no building.
+    data._fetch = Mock(side_effect=RuntimeError('database unavailable'))
+    output = lookup('email')
+    assert ('placement' in output, output['placement_withheld']) == (
+        False, 'placement_unavailable')

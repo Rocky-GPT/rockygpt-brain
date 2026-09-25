@@ -135,10 +135,11 @@ def review_answer(
                                 "resolution",
                                 "components",
                                 "entity_facts",
+                                "placement",
                                 "schedule_calculations",
                             )
                             if key not in {
-                                "resolution", "components", "entity_facts",
+                                "resolution", "components", "entity_facts", "placement",
                                 "schedule_calculations",
                             }
                             or key in lookup

@@ -235,6 +235,8 @@ def lookup_entity(data: Any, query: Any) -> dict[str, Any]:
 
     from rockygpt_brain.retrieval.entity_facts import EntityFacts
     from rockygpt_brain.retrieval.helpers import _json
+    from rockygpt_brain.retrieval.knowledge import release_graph
+    from rockygpt_brain.retrieval.profiles import entity_placements
 
     data._ensure_loaded()
     result: dict[str, Any] = {
@@ -252,6 +254,8 @@ def lookup_entity(data: Any, query: Any) -> dict[str, Any]:
             return result
         raise
     facts = projection.model_dump(mode="json")
+    offices = next((prop["status"] for prop in facts["properties"] if prop["key"] == "offices"),
+                   "unknown")
     if query.properties is not None:
         wanted = set(query.properties)
         facts["properties"] = [p for p in facts["properties"] if p["key"] in wanted]
@@ -330,4 +334,58 @@ def lookup_entity(data: Any, query: Any) -> dict[str, Any]:
     apply_entity_coverage(data, result, facts)
     result["entity_facts"] = facts
     result["total_matches"] = len(result["records"])
+    identity = release_graph(data).identities.get(str(query.entity_id))
+    if identity is None:
+        return result
+    # Where to find it, as a profile's contact section gives it: each verified building
+    # placement, cited with the building's own map record.
+    placed, placement, failed = entity_placements(data, identity, release_graph(data).registry)
+    if failed:
+        result["placement_withheld"] = "placement_unavailable"
+        return result
+    result["placement"] = placement
+    own = {source["id"] for source in facts["sources"]}
+    unplaced: dict[str, dict[str, Any]] = {}
+    for record in placed:
+        if record["id"] in own:
+            # The entity's own record: add only the room that places it, marked as the
+            # entity's facts mark its offices, never the rest of an unrequested row.
+            state = {"conflicting": "conflict", "unknown": "not_published"}.get(
+                offices, "published")
+            record["fields"] = {"office": record["fields"].get("office")}
+            record["coverage"]["fields"] = {"office": state}
+            if state == "conflict":
+                record["limitations"].append(
+                    "Linked records disagree on offices; identity does not establish an "
+                    "authoritative value.")
+            record["canonical_entity_id"] = str(query.entity_id)
+        record["content"] = _json(record["fields"])
+        public = data._public(record, detail=True)
+        kept = next((item for item in result["records"] if item["id"] == record["id"]), None)
+        if kept is None:
+            result["records"].append(public)
+        else:
+            unplaced.setdefault(kept["id"], deepcopy(kept))
+            kept["fields"] = {**public["fields"], **kept["fields"]}
+            kept["coverage"]["fields"] = {
+                **public["coverage"]["fields"], **kept["coverage"]["fields"]}
+            kept["limitations"] = list(dict.fromkeys(
+                kept["limitations"] + public["limitations"]))
+        stored = data._seen.get(record["id"])
+        if stored is None:
+            data._seen[record["id"]] = record
+        else:
+            # A new record, never an edit of one a search or profile already shared.
+            fields = {**record["fields"], **stored["fields"]}
+            data._seen[record["id"]] = {
+                **stored, "fields": fields, "content": _json(fields),
+                "coverage": {**stored["coverage"], "fields": {
+                    **record["coverage"]["fields"], **stored["coverage"]["fields"]}},
+                "limitations": list(dict.fromkeys(
+                    stored["limitations"] + record["limitations"])),
+            }
+    if unplaced:
+        # For bounded_result only: it restores these if it sheds the placement, and never
+        # delivers them.
+        result["_unplaced_records"] = unplaced
     return result
