@@ -68,6 +68,92 @@ __all__ = [
 ]
 
 
+# Document search. Each query word a passage contains (with its synonyms) scores by how
+# rare the word is among this release's passages, twice when the heading path names it:
+# a section about the asked subject outranks passages repeating common words. Equal
+# weights fall to ts_rank_cd, then to the passage id. Both queries rank identically.
+#
+# With rockygpt-data's document_chunks_heading_path_idx (migration 025), the query finds
+# matching passages through indexes and builds heading vectors and scores only for those.
+_DOCUMENT_SEARCH_WITH_HEADING_INDEX = (
+    "WITH q AS (SELECT websearch_to_tsquery('english', %s) AS term), "
+    "parts AS (SELECT DISTINCT websearch_to_tsquery('english', p) AS part "
+    "FROM unnest(%s::text[]) p), "
+    "docs AS MATERIALIZED (SELECT d.id, d.title FROM rockygpt_v2.documents d "
+    "JOIN rockygpt_v2.sources s ON s.id=d.source_id WHERE d.dataset_version_id=%s::uuid "
+    "AND s.trust_tier IN ('official_primary','official_secondary')), "
+    # The passages matching the query, found through the text and heading path indexes.
+    # Those indexes cover every retained release, so the document list narrows their
+    # matches (through the document_id index) before any passage is read. A passage
+    # without a heading path is matched by its document's title instead.
+    "hit_ids AS (SELECT c.id FROM q, rockygpt_v2.document_chunks c "
+    "WHERE (c.lexical_vector @@ q.term "
+    "OR to_tsvector('english', c.metadata->>'headingPath') @@ q.term) "
+    "AND c.document_id = ANY((SELECT array_agg(id) FROM docs)::uuid[]) "
+    "UNION SELECT c.id FROM q, docs JOIN rockygpt_v2.document_chunks c ON c.document_id=docs.id "
+    "WHERE %s='' OR (c.metadata->>'headingPath' IS NULL "
+    "AND to_tsvector('english', docs.title) @@ q.term)), "
+    "hits AS MATERIALIZED (SELECT c.id, c.lexical_vector AS body, "
+    "to_tsvector('english', coalesce(c.metadata->>'headingPath', docs.title)) AS path "
+    "FROM hit_ids h JOIN rockygpt_v2.document_chunks c ON c.id=h.id "
+    "JOIN docs ON docs.id=c.document_id), "
+    "passage_count AS (SELECT count(*) AS n FROM rockygpt_v2.document_chunks c "
+    "JOIN docs ON docs.id=c.document_id), "
+    # Every passage having a query word matches the whole query (each word is one of
+    # its alternatives), so counting among the matches counts among all passages.
+    "rarities AS MATERIALIZED (SELECT part, ln((SELECT n FROM passage_count)::float8 "
+    "/ greatest(1, count(*) FILTER (WHERE body @@ part OR path @@ part))) AS rarity "
+    "FROM parts CROSS JOIN hits GROUP BY part), "
+    "weights AS MATERIALIZED (SELECT h.id, h.body, h.path, "
+    "(SELECT coalesce(sum(r.rarity * ((h.body @@ r.part OR h.path @@ r.part)::int "
+    "+ (h.path @@ r.part)::int)), 0) FROM rarities r) AS weight FROM hits h), "
+    # Only a passage weighing at least the limit-th weight can be listed, so only those
+    # need the tie-breaking score.
+    "threshold AS (SELECT coalesce((SELECT weight FROM weights ORDER BY weight DESC "
+    "OFFSET greatest(%s - 1, 0) LIMIT 1), '-Infinity'::float8) AS weight), "
+    "ranked AS (SELECT w.id, (SELECT count(*) FROM hits) AS total, w.weight, "
+    "ts_rank_cd(w.body,q.term) + 2 * ts_rank_cd(w.path,q.term) AS score "
+    "FROM weights w CROSS JOIN threshold t CROSS JOIN q WHERE w.weight >= t.weight "
+    "ORDER BY w.weight DESC,score DESC,w.id LIMIT %s) "
+    "SELECT c.id::text, c.document_id::text, c.chunk_index, c.content, c.metadata, "
+    "d.source_id::text, d.title, d.collected_at, ranked.total "
+    "FROM ranked JOIN rockygpt_v2.document_chunks c ON c.id=ranked.id "
+    "JOIN rockygpt_v2.documents d ON d.id=c.document_id "
+    "ORDER BY ranked.weight DESC,ranked.score DESC,c.id"
+)
+
+# Without that index (a database whose schema predates it), the query builds a heading
+# vector for every passage of the release.
+_DOCUMENT_SEARCH_SCANNING_HEADINGS = (
+    "WITH q AS (SELECT websearch_to_tsquery('english', %s) AS term), "
+    "parts AS (SELECT DISTINCT websearch_to_tsquery('english', p) AS part "
+    "FROM unnest(%s::text[]) p), "
+    # OFFSET 0 keeps each heading vector computed once per passage.
+    "passages AS MATERIALIZED (SELECT c.id, c.lexical_vector AS body, h.path "
+    "FROM rockygpt_v2.document_chunks c JOIN rockygpt_v2.documents d ON d.id=c.document_id "
+    "JOIN rockygpt_v2.sources s ON s.id=d.source_id "
+    "CROSS JOIN LATERAL (SELECT to_tsvector('english', "
+    "coalesce(c.metadata->>'headingPath',d.title)) AS path OFFSET 0) h "
+    "WHERE d.dataset_version_id=%s::uuid "
+    "AND s.trust_tier IN ('official_primary','official_secondary')), "
+    # Materialized so the rarities are counted once, not again for every passage.
+    "rarities AS MATERIALIZED (SELECT part, ln((SELECT count(*) FROM passages)::float8 "
+    "/ greatest(1, count(*) FILTER (WHERE body @@ part OR path @@ part))) AS rarity "
+    "FROM parts CROSS JOIN passages GROUP BY part), "
+    "ranked AS (SELECT p.id, count(*) OVER() AS total, "
+    "(SELECT coalesce(sum(r.rarity * ((p.body @@ r.part OR p.path @@ r.part)::int "
+    "+ (p.path @@ r.part)::int)), 0) FROM rarities r) AS weight, "
+    "ts_rank_cd(p.body,q.term) + 2 * ts_rank_cd(p.path,q.term) AS score "
+    "FROM passages p CROSS JOIN q "
+    "WHERE %s='' OR p.body @@ q.term OR p.path @@ q.term "
+    "ORDER BY weight DESC,score DESC,p.id LIMIT %s) "
+    "SELECT c.id::text, c.document_id::text, c.chunk_index, c.content, c.metadata, "
+    "d.source_id::text, d.title, d.collected_at, ranked.total "
+    "FROM ranked JOIN rockygpt_v2.document_chunks c ON c.id=ranked.id "
+    "JOIN rockygpt_v2.documents d ON d.id=c.document_id "
+    "ORDER BY ranked.weight DESC,ranked.score DESC,c.id"
+)
+
 
 class CampusData:
     def resources(self) -> list[dict[str, str]]:
@@ -91,6 +177,7 @@ class CampusData:
         self._artifacts: dict[str, Any] = {}
         self._seen: dict[str, dict[str, Any]] = {}
         self._fingerprint: tuple[str, ...] | None = None
+        self._has_heading_path_index: bool | None = None
 
     def _time_budget(self) -> float:
         deadline: float | None = getattr(self, "deadline", None)
@@ -118,13 +205,18 @@ class CampusData:
         # enforce the same boundary without depending on backend session state.
         self.connection.read_only = True
         try:
+            # The heading path index decides which document search runs; asking here costs
+            # no extra round trip.
             datasets = self._fetch(
-                "SELECT id::text, version, activated_at FROM rockygpt_v2.dataset_versions "
+                "SELECT id::text, version, activated_at, "
+                "to_regclass('rockygpt_v2.document_chunks_heading_path_idx') IS NOT NULL "
+                "AS heading_path_index FROM rockygpt_v2.dataset_versions "
                 "WHERE status = 'active' LIMIT 1"
             )
             if not datasets:
                 raise RuntimeError("No active published campus dataset")
             dataset = datasets[0]
+            self._has_heading_path_index = bool(dataset.pop("heading_path_index", False))
             sources = {
                 row["id"]: row
                 for row in self._fetch(
@@ -398,40 +490,17 @@ class CampusData:
     def _documents(self, query: SearchQuery) -> tuple[list[dict[str, Any]], int]:
         vocabulary = self._artifact("search-vocabulary") or {}
         terms = expand_document_query(query.query, vocabulary)
-        # Each query word a passage contains (with its synonyms) scores by how rare the
-        # word is among this release's passages, twice when the heading path names it:
-        # a section about the asked subject outranks passages repeating common words.
-        rows = self._fetch(
-            "WITH q AS (SELECT websearch_to_tsquery('english', %s) AS term), "
-            "parts AS (SELECT DISTINCT websearch_to_tsquery('english', p) AS part "
-            "FROM unnest(%s::text[]) p), "
-            # OFFSET 0 keeps each heading vector computed once per passage.
-            "passages AS MATERIALIZED (SELECT c.id, c.lexical_vector AS body, h.path "
-            "FROM rockygpt_v2.document_chunks c JOIN rockygpt_v2.documents d ON d.id=c.document_id "
-            "JOIN rockygpt_v2.sources s ON s.id=d.source_id "
-            "CROSS JOIN LATERAL (SELECT to_tsvector('english', "
-            "coalesce(c.metadata->>'headingPath',d.title)) AS path OFFSET 0) h "
-            "WHERE d.dataset_version_id=%s::uuid "
-            "AND s.trust_tier IN ('official_primary','official_secondary')), "
-            # Materialized so the rarities are counted once, not again for every passage.
-            "rarities AS MATERIALIZED (SELECT part, ln((SELECT count(*) FROM passages)::float8 "
-            "/ greatest(1, count(*) FILTER (WHERE body @@ part OR path @@ part))) AS rarity "
-            "FROM parts CROSS JOIN passages GROUP BY part), "
-            "ranked AS (SELECT p.id, count(*) OVER() AS total, "
-            "(SELECT coalesce(sum(r.rarity * ((p.body @@ r.part OR p.path @@ r.part)::int "
-            "+ (p.path @@ r.part)::int)), 0) FROM rarities r) AS weight, "
-            "ts_rank_cd(p.body,q.term) + 2 * ts_rank_cd(p.path,q.term) AS score "
-            "FROM passages p CROSS JOIN q "
-            "WHERE %s='' OR p.body @@ q.term OR p.path @@ q.term "
-            "ORDER BY weight DESC,score DESC,p.id LIMIT %s) "
-            "SELECT c.id::text, c.document_id::text, c.chunk_index, c.content, c.metadata, "
-            "d.source_id::text, d.title, d.collected_at, ranked.total "
-            "FROM ranked JOIN rockygpt_v2.document_chunks c ON c.id=ranked.id "
-            "JOIN rockygpt_v2.documents d ON d.id=c.document_id "
-            "ORDER BY ranked.weight DESC,ranked.score DESC,c.id",
-            (terms, document_query_parts(query.query, vocabulary), self.dataset["id"], terms,
-             query.limit),
-        )
+        parts = document_query_parts(query.query, vocabulary)
+        if self._has_heading_path_index:
+            rows = self._fetch(
+                _DOCUMENT_SEARCH_WITH_HEADING_INDEX,
+                (terms, parts, self.dataset["id"], terms, query.limit, query.limit),
+            )
+        else:
+            rows = self._fetch(
+                _DOCUMENT_SEARCH_SCANNING_HEADINGS,
+                (terms, parts, self.dataset["id"], terms, query.limit),
+            )
         records = []
         for row in rows:
             metadata = row.get("metadata") or {}
