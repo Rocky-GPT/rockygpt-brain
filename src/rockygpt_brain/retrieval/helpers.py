@@ -97,6 +97,19 @@ def _bounded(value: Any, budget: int) -> Any:
     return value
 
 
+def _meal_key(value: Any) -> str:
+    """A meal or venue label as published hours and menus both spell it."""
+    return " ".join(str(value).split()).casefold()
+
+
+def _meal_position(orders: dict[tuple[str, str], list[str]], record: dict[str, Any]) -> int:
+    """A menu record's place in its venue and date's meal order (0 where it has none)."""
+    key = (str(record["fields"].get("venue", "")), str(record.get("valid_from") or ""))
+    order = [_meal_key(meal) for meal in orders.get(key, [])]
+    meal = _meal_key(record["fields"].get("meal", ""))
+    return order.index(meal) if meal in order else len(order)
+
+
 def _dining_periods(value: Any) -> dict[tuple[Any, ...], list[dict[str, str]]]:
     """Index only fully matched published venue/day/window/interval descriptions."""
     indexed: dict[tuple[Any, ...], list[dict[str, str]]] = {}

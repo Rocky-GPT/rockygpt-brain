@@ -24,6 +24,8 @@ from rockygpt_brain.retrieval.helpers import (
     _dining_periods,
     _instant,
     _json,
+    _meal_key,
+    _meal_position,
     _tokens,
     _values,
 )
@@ -487,6 +489,41 @@ class CampusData:
     def _dates(self, records: list[dict[str, Any]], query: SearchQuery) -> list[dict[str, Any]]:
         return filter_by_dates(records, query, self.today)
 
+    def _meal_orders(self, records: list[dict[str, Any]]) -> dict[tuple[str, str], list[str]]:
+        """Each menu venue and date's meals, in service or next first (campus time).
+
+        The venue's published hours for that date place the meals. A venue and date is
+        ordered only when those hours place every meal it has dishes for (an exception
+        week's "Dinner (no late night)" places no "Dinner") and can be read at all: the
+        order only helps a bounded selection, so it never costs the menu itself.
+        """
+        from rockygpt_brain.campus.schedules import meal_order  # campus imports retrieval
+
+        meals: dict[tuple[str, str], set[str]] = {}
+        for record in records:
+            key = (str(record["fields"].get("venue", "")), str(record.get("valid_from") or ""))
+            meals.setdefault(key, set()).add(_meal_key(record["fields"].get("meal", "")))
+        orders: dict[tuple[str, str], list[str]] = {}
+        for (venue, served), present in meals.items():
+            day = _date(served)
+            if not venue or day is None:
+                continue
+            query = SearchQuery(collection="dining_hours", date_from=day, date_to=day)
+            try:
+                hours = self._dates(self._load("dining_hours", query), query)
+            except (psycopg.Error, TimeoutError):
+                continue
+            periods = [
+                period for row in hours
+                if _meal_key(row["fields"].get("name", "")) == _meal_key(venue)
+                for period in row["fields"].get("periods") or []
+            ]
+            order = [meal for meal in meal_order(periods, day, self.now)
+                     if _meal_key(meal) in present]
+            if {_meal_key(meal) for meal in order} == present:
+                orders[(venue, served)] = order
+        return orders
+
     def _documents(self, query: SearchQuery) -> tuple[list[dict[str, Any]], int]:
         vocabulary = self._artifact("search-vocabulary") or {}
         terms = expand_document_query(query.query, vocabulary)
@@ -617,9 +654,16 @@ class CampusData:
                     continue
                 score = (len(matched) / max(1, len(terms))) * 20 + len(terms & title_terms) * 4
                 ranked.append((score, record))
+            # A menu with no meal filter leads with the meal in service or next, so a
+            # bounded selection shows the meal a student asking now can still eat.
+            orders = (self._meal_orders([record for _, record in ranked])
+                      if query.collection == "menu" and not (query.filters and query.filters.meal)
+                      else {})
             ranked.sort(
                 key=lambda pair: (
                     -pair[0],
+                    str(pair[1].get("valid_from") or "") if orders else "",
+                    _meal_position(orders, pair[1]),
                     str(pair[1]["fields"].get("starts_at", "")),
                     str(pair[1]["fields"].get("service_date", "")),
                     pair[1]["title"],
