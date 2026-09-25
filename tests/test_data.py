@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import psycopg
 import pytest
 from pydantic import ValidationError
 
@@ -169,6 +170,7 @@ def test_name_prefix_uniqueness_precedes_date_and_dietary_filtering(
             valid_until="2026-09-05",
         ),
     ]
+    data._cache["dining_hours"] = []  # No published hours: meals keep their order.
     result = data.search(
         SearchQuery.model_validate(
             {
@@ -460,6 +462,100 @@ def test_shuttle_browse_uses_published_sequence_not_random_ids(data: CampusData)
     assert [r["fields"]["departure"] for r in result["records"]] == ["9 AM", "11 AM"]
 
 
+def cedar_menu(data: CampusData, *dishes: tuple[str, str, str]) -> None:
+    data._cache["menu"] = [
+        record(data, "menu", name, {"name": name, "venue": "Cedar Hall", "meal": meal},
+               f"dish-{index}", valid_from=day, valid_until=day)
+        for index, (name, meal, day) in enumerate(dishes)
+    ]
+
+
+def cedar_hours(data: CampusData, day: str, *periods: tuple[str, str, str]) -> dict[str, Any]:
+    return record(data, "dining_hours", "Cedar Hall", {
+        "name": "Cedar Hall", "day": day,
+        "periods": [{"label": label, "start": start, "end": end}
+                    for label, start, end in periods]}, f"hours-{day}")
+
+
+def menu_titles(data: CampusData, first: str, last: str | None = None) -> list[str]:
+    result = data.search(SearchQuery.model_validate(
+        {"collection": "menu", "date_from": first, "date_to": last}))
+    return [r["title"] for r in result["records"]]
+
+
+FRIDAY_HOURS = (("Breakfast", "08:00 AM", "10:30 AM"), ("Continental", "10:30 AM", "11:00 AM"),
+                ("Lunch", "11:00 AM", "02:00 PM"), ("Dinner", "05:00 PM", "08:00 PM"))
+
+
+def test_an_unfiltered_menu_leads_with_the_meal_in_service_or_next(data: CampusData) -> None:
+    day = "2026-09-04"  # a Friday
+    cedar_menu(data, ("Apple Pie", "Dinner", day), ("Bagel", "Breakfast", day),
+               ("Chili", "Lunch", day))
+    data._cache["dining_hours"] = [
+        cedar_hours(data, "Friday", *FRIDAY_HOURS),
+        record(data, "dining_hours", "Other Cafe", {"name": "Other Cafe", "day": "Friday",
+               "periods": [{"label": "Dinner", "start": "06:00 AM", "end": "07:00 AM"}]},
+               "other"),
+    ]
+    data.now = datetime(2026, 9, 4, 10, tzinfo=UTC)  # 6:00 AM on campus
+    assert menu_titles(data, day) == ["Bagel", "Chili", "Apple Pie"]
+    data.now = datetime(2026, 9, 4, 16, 30, tzinfo=UTC)  # 12:30 PM
+    assert menu_titles(data, day) == ["Chili", "Apple Pie", "Bagel"]
+    # In the Continental hour, which has no dishes, lunch leads.
+    data.now = datetime(2026, 9, 4, 14, 40, tzinfo=UTC)  # 10:40 AM
+    assert menu_titles(data, day) == ["Chili", "Apple Pie", "Bagel"]
+    # A requested meal is already selected, so nothing is reordered.
+    lunch = data.search(SearchQuery.model_validate(
+        {"collection": "menu", "date_from": day, "filters": {"meal": "Lunch"}}))
+    assert [r["title"] for r in lunch["records"]] == ["Chili"]
+    assert "meal_order" not in lunch["coverage"]
+
+
+def test_an_evening_menu_over_two_days_keeps_each_day_in_its_own_order(
+    data: CampusData,
+) -> None:
+    friday, saturday = "2026-09-04", "2026-09-05"
+    cedar_menu(data, ("Apple Pie", "Dinner", friday), ("Bagel", "Breakfast", friday),
+               ("Churro", "Late Night", friday), ("Aioli Toast", "Brunch", saturday),
+               ("Burger", "Dinner", saturday))
+    data._cache["dining_hours"] = [
+        cedar_hours(data, "Friday", ("Breakfast", "08:00 AM", "10:30 AM"),
+                    ("Dinner", "05:00 PM", "08:00 PM"), ("Late Night", "09:00 PM", "11:00 PM")),
+        cedar_hours(data, "Saturday", ("Brunch", "10:30 AM", "03:00 PM"),
+                    ("Dinner", "05:00 PM", "07:00 PM")),
+    ]
+    # 9:30 PM Friday on campus is already Saturday in UTC.
+    data.now = datetime(2026, 9, 5, 1, 30, tzinfo=UTC)
+    assert menu_titles(data, friday, saturday) == [
+        "Churro", "Bagel", "Apple Pie", "Aioli Toast", "Burger"]
+
+
+@pytest.mark.parametrize("dinner_label", ["Dinner (no late night)", None])
+def test_a_menu_its_hours_cannot_place_in_full_keeps_its_published_order(
+    data: CampusData, dinner_label: str | None,
+) -> None:
+    day = "2026-09-04"
+    cedar_menu(data, ("Apple Pie", "Dinner", day), ("Bagel", "Breakfast", day),
+               ("Chili", "Lunch", day))
+    periods = [("Breakfast", "08:00 AM", "09:00 AM"), ("Lunch", "12:00 PM", "02:00 PM")]
+    if dinner_label:  # An exception week's own label, as the dining source publishes it.
+        periods.append((dinner_label, "05:30 PM", "07:00 PM"))
+    data._cache["dining_hours"] = [cedar_hours(data, "Friday", *periods)]
+    data.now = datetime(2026, 9, 4, 22, tzinfo=UTC)  # 6:00 PM, dinner in service
+    # Ordering only the placed meals would push the dinner being served behind both.
+    assert menu_titles(data, day) == ["Apple Pie", "Bagel", "Chili"]
+
+
+def test_a_failed_hours_read_keeps_the_menu_in_its_published_order(data: CampusData) -> None:
+    day = "2026-09-04"
+    cedar_menu(data, ("Apple Pie", "Dinner", day), ("Bagel", "Breakfast", day))
+    data.now = datetime(2026, 9, 4, 10, tzinfo=UTC)
+    with patch.object(data, "_fetch", side_effect=psycopg.OperationalError("timeout")):
+        assert menu_titles(data, day) == ["Apple Pie", "Bagel"]
+    with patch.object(data, "_fetch", side_effect=TimeoutError("budget")):
+        assert menu_titles(data, day) == ["Apple Pie", "Bagel"]
+
+
 def test_menu_venue_and_url_come_from_published_metadata(data: CampusData) -> None:
     data._artifacts["menu-context"] = {
         "content": '---\nsource_url: "https://dining.example.edu/cedar"\n---\n# Cedar Hall Menu\n'
@@ -471,6 +567,7 @@ def test_menu_venue_and_url_come_from_published_metadata(data: CampusData) -> No
     ]
     data._enrich("menu", meals)
     data._cache["menu"] = meals
+    data._cache["dining_hours"] = []
     result = data.search(
         SearchQuery(collection="menu", query="Cedar vegan dinner", date_from=date(2026, 9, 4))
     )

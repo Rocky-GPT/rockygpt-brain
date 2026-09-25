@@ -1,7 +1,7 @@
 """Timetable extrema, endpoint meaning, coverage, overnight and DST boundaries."""
 
 from copy import deepcopy
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import pytest
@@ -9,6 +9,7 @@ import pytest
 from rockygpt_brain.campus.schedules import (
     CAMPUS_ZONE,
     departure_summary,
+    meal_order,
     opening_intervals,
     review_summary,
     schedule_references,
@@ -305,3 +306,38 @@ def test_structured_midnight_and_closure_keep_service_day_meaning() -> None:
 def test_unknown_or_invalid_opening_hours_never_mean_closed(schedule: Any) -> None:
     with pytest.raises(ValueError):
         opening_intervals(schedule, date(2026, 9, 21))
+
+
+FRIDAY_MEALS = [
+    {"label": "Breakfast", "start": "08:00 AM", "end": "10:30 AM"},
+    {"label": "Continental", "start": "10:30 AM", "end": "11:00 AM"},
+    {"label": "Lunch", "start": "11:00 AM", "end": "02:00 PM"},
+    {"label": "Dinner", "start": "05:00 PM", "end": "08:00 PM"},
+    {"label": "Late Night", "start": "09:00 PM", "end": "11:00 PM"},
+]
+
+
+@pytest.mark.parametrize("clock,expected", [
+    ("06:00", ["Breakfast", "Continental", "Lunch", "Dinner", "Late Night"]),
+    ("10:40", ["Continental", "Lunch", "Dinner", "Late Night", "Breakfast"]),
+    ("12:30", ["Lunch", "Dinner", "Late Night", "Breakfast", "Continental"]),
+    ("20:30", ["Late Night", "Breakfast", "Continental", "Lunch", "Dinner"]),
+    ("23:30", ["Breakfast", "Continental", "Lunch", "Dinner", "Late Night"]),
+])
+def test_meal_order_leads_with_the_meal_in_service_or_next(clock: str, expected: list[str]) -> None:
+    now = datetime.fromisoformat(f"2026-09-25T{clock}:00").replace(tzinfo=CAMPUS_ZONE)
+    assert meal_order(FRIDAY_MEALS, date(2026, 9, 25), now) == expected
+
+
+def test_meal_order_keeps_start_order_on_another_day_and_skips_unreadable_periods() -> None:
+    now = datetime(2026, 9, 25, 16, 30, tzinfo=UTC)  # 12:30 PM on campus
+    unreadable = [{"label": "Brunch", "start": "noon", "end": "03:00 PM"},
+                  {"label": " ", "start": "01:00 PM", "end": "02:00 PM"}]
+    assert meal_order([*FRIDAY_MEALS, *unreadable], date(2026, 9, 26), now) == [
+        "Breakfast", "Continental", "Lunch", "Dinner", "Late Night"]
+    assert meal_order(FRIDAY_MEALS, date(2026, 9, 25), now)[0] == "Lunch"
+    # Service past midnight is in service until it ends.
+    late = [{"label": "Dinner", "start": "05:00 PM", "end": "08:00 PM"},
+            {"label": "Late Night", "start": "09:00 PM", "end": "01:00 AM"}]
+    at = datetime(2026, 9, 25, 23, 30, tzinfo=CAMPUS_ZONE)
+    assert meal_order(late, date(2026, 9, 25), at) == ["Late Night", "Dinner"]

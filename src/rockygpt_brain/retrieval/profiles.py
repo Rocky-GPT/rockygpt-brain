@@ -22,7 +22,12 @@ from pydantic import (
     model_validator,
 )
 
-from rockygpt_brain.retrieval.helpers import _date, _instant, _json
+from rockygpt_brain.retrieval.helpers import (
+    _date,
+    _instant,
+    _json,
+    _meal_position,
+)
 from rockygpt_brain.retrieval.models import CAMPUS_ZONE, TABLES, Collection, SearchQuery
 from rockygpt_brain.retrieval.processing import (
     catalog_convener_records,
@@ -1332,7 +1337,10 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             # A normal profile request needs a bounded, cited selection, as an
             # ordinary search does. Stable published station/name ordering adds
             # no inferred food category or ranking and keeps every record whole.
+            # With no meal requested, the meal in service or next leads.
+            orders = data._meal_orders(records) if query.meal is None else {}
             records.sort(key=lambda record: (
+                _meal_position(orders, record),
                 _normalize(str(record["fields"].get("station", ""))),
                 _normalize(str(record["fields"].get("name", ""))), record["id"],
             ))

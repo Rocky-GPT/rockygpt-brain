@@ -10,6 +10,7 @@ from typing import Any
 from unittest.mock import Mock, patch
 from uuid import UUID
 
+import psycopg
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -386,9 +387,58 @@ def dining_data() -> Any:
                  ('today:dinner', 'Dinner', 'Pasta', '2026-09-21'),
                  ('tomorrow:lunch', 'Lunch', 'Salad', '2026-09-22'),
              ]]
+    # Linked records are fetched by key; a menu's meal order reads the day's hours.
     data._fetch = Mock(  # type: ignore[method-assign]
-        side_effect=lambda _sql, params: schedules if params[2][0] == 'Monday' else menus)
+        side_effect=lambda _sql, params: menus if isinstance(params[2], list)
+        and params[2][0] != 'Monday' else schedules)
     return data
+
+
+def hours_dining_data() -> Any:
+    """Published meal periods: the dated exception ends lunch at 1 PM, the regular week at 2."""
+    data = dining_data()
+    enrich = data._enrich
+
+    def with_periods(collection: str, records: list[dict[str, Any]]) -> None:
+        enrich(collection, records)
+        for record in records if collection == 'dining_hours' else []:
+            end = '01:00 PM' if record['valid_from'] else '02:00 PM'
+            record['fields']['periods'] = [
+                {'label': 'Lunch', 'start': '11:30 AM', 'end': end},
+                {'label': 'Dinner', 'start': '05:00 PM', 'end': '12:00 AM'}]
+    data._enrich = with_periods
+    return data
+
+
+def test_profile_menu_without_a_meal_leads_with_the_meal_in_service_or_next() -> None:
+    data = hours_dining_data()
+    query = ProfileQuery(entity='Example Dining', include=['menu'], date=date(2026, 9, 21))
+    data.now = datetime(2026, 9, 21, 12, tzinfo=UTC)  # 8 AM: lunch is next
+    assert [r['fields']['name'] for r in data.lookup_profile(query)['records']] == [
+        'Soup', 'Pasta']
+    # 1:30 PM: the dated exception ended lunch at 1 PM, although the regular week runs to 2.
+    data.now = datetime(2026, 9, 21, 17, 30, tzinfo=UTC)
+    assert [r['fields']['name'] for r in data.lookup_profile(query)['records']] == [
+        'Pasta', 'Soup']
+    dinner = data.lookup_profile(query.model_copy(update={'meal': 'Dinner'}))
+    assert [r['fields']['name'] for r in dinner['records']] == ['Pasta']
+
+
+def test_a_failed_hours_read_for_meal_order_keeps_every_profile_section() -> None:
+    data = hours_dining_data()
+    fetch = data._fetch
+
+    def failing(sql: Any, params: tuple[Any, ...]) -> Any:
+        if not isinstance(params[2], list):  # The day's hours, read only to order meals.
+            raise psycopg.OperationalError('canceling statement due to statement timeout')
+        return fetch(sql, params)
+    data._fetch = failing
+    output = data.lookup_profile(ProfileQuery(entity='Example Dining', include=['hours', 'menu'],
+                                              date=date(2026, 9, 21)))
+    assert output['components']['hours']['status'] == 'available'
+    assert output['components']['menu']['status'] == 'available'
+    assert [r['fields']['name'] for r in output['records'] if r['collection'] == 'menu'] == [
+        'Pasta', 'Soup']
 
 
 def full_dining_data() -> Any:

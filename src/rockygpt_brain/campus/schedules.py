@@ -49,6 +49,31 @@ def wall_time(value: str, day: date) -> datetime:
     return local
 
 
+def meal_order(periods: list[dict[str, Any]], day: date, now: datetime) -> list[str]:
+    """One day's published meal labels in the order a student asking now needs them.
+
+    On the campus date of `now`: the meal in service, then later meals by start, then
+    meals already served. Another day keeps start order. A period whose clocks cannot
+    be read establishes no position and is left out.
+    """
+    today = now.astimezone(CAMPUS_ZONE).date() == day
+    keys: dict[str, tuple[int, datetime]] = {}
+    for period in periods:
+        label = period.get("label")
+        if not isinstance(label, str) or not label.strip():
+            continue
+        try:
+            start = wall_time(str(period.get("start", "")), day)
+            end = wall_time(str(period.get("end", "")), day)
+            if end <= start:  # Service past midnight ends the next day.
+                end = wall_time(str(period.get("end", "")), day + timedelta(days=1))
+        except ValueError:
+            continue
+        state = 0 if not today or start <= now < end else 1 if now < start else 2
+        keys[label] = min(keys.get(label, (state, start)), (state, start))
+    return sorted(keys, key=keys.__getitem__)
+
+
 def trip_times(fields: dict[str, Any], day_offset: int = 0) -> list[tuple[str, datetime]]:
     """Preserve endpoint meaning and stop order, including explicit overnight trips."""
     day = date.fromisoformat(fields["service_date"]) + timedelta(days=day_offset)
