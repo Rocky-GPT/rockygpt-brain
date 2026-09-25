@@ -45,7 +45,7 @@ from rockygpt_brain.core.provider import (
 )
 from rockygpt_brain.core.render import InvalidAnswer, consulted_sources, render_answer
 from rockygpt_brain.core.reviewer import review_answer
-from rockygpt_brain.core.routing import RoutingClient, route_request
+from rockygpt_brain.core.routing import GRAPH_TOOLS, RoutingClient, graph_first, route_request
 from rockygpt_brain.core.tools import function_tool, tool_definitions
 from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.governance.budget import TurnBudget
@@ -166,6 +166,11 @@ def run_turn(
         metrics["routing"] = {"mode": routing_mode, "fallbackReason": "routing_unavailable",
                               "directRetrieval": False}
         metrics["routingCalls"] = 0
+    # Active routing makes its own first-call choice; otherwise a request that names one
+    # curated identity reads the graph before anything else.
+    start_with_graph = routing_mode != "active" and graph_first(messages, data)
+    if start_with_graph:
+        metrics["graphFirst"] = True
 
     def fallback(reason: str, response_model: str) -> dict[str, Any]:
         # Do not splice even apparently supported paragraphs out of a rejected
@@ -282,6 +287,11 @@ def run_turn(
             if round_index == 0 and selected_tool and not answer_only:
                 request["tools"] = [tool for tool in tools if tool["name"] == selected_tool]
                 request["tool_choice"] = {"type": "function", "name": selected_tool}
+            elif round_index == 0 and start_with_graph and not answer_only:
+                # GPT still chooses the lookup, sections, date and meal; later calls regain
+                # every tool.
+                request["tools"] = [tool for tool in tools if tool["name"] in GRAPH_TOOLS]
+                request["tool_choice"] = "required"
             try:
                 response = client.create(category="draft", **request)
             except PaidCallError as error:

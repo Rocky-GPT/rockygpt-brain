@@ -11,6 +11,14 @@ GPT tool selection. `active` allows Jev to choose the first tool or directly exe
 a validated contact/profile lookup. Both modes incur paid calls. `off` makes no
 Jev calls and needs no TypeSafe credential.
 
+Without active routing, one free rule makes the first-call choice instead: when the
+latest request names exactly one curated identity by its longest name or alias,
+GPT's first call must be `lookup_profile` or `lookup_contact`. GPT still picks the
+sections, date and meal, and later calls regain every tool. Subjects don't count,
+because a subject's profile lists no courses, and a follow-up that names nothing
+keeps every tool. `metrics.graphFirst` and the turn summary record when the rule
+applied. Shadow mode applies it too, so the paired evaluation compares Jev with it.
+
 Jev sees the accepted conversation with the current request separated from prior
 messages. Candidates come from the active release's curated identities, capped at
 24 and ranked by current exact name/alias matches, previous mentions, then lexical

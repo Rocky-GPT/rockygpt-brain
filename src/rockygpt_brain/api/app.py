@@ -995,6 +995,7 @@ def chat_worker(
                 "validationFailures": operational.get("validationFailures", []),
                 "retrievalMs": operational.get("retrievalMs", 0),
                 "routing": operational.get("routing"),
+                "graphFirst": operational.get("graphFirst", False),
                 **(gateway.usage.report() if gateway is not None else {}),
             }
 
