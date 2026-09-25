@@ -23,11 +23,17 @@ single-entity lookup is representable. Ambiguity, unsupported qualifiers, comple
 dates, and unresolved arguments defer to GPT. Simple dates reuse the existing
 campus-local resolver; meal labels are request filters, never proof of availability.
 
-Contact and all existing profile sections can run directly. Every lookup still uses
-the ordinary schema validation, read-only retrieval, context bounds, evidence
-collection, trace, and exact-answer checks. Eligible contact requests can complete
-without GPT. Other direct results feed GPT synthesis and the existing evidence
-review. Jev never certifies a factual answer or resolves conflicting evidence.
+A request names an entity by its longest matching name or alias: "Computer Science
+BS" names that program, not every program sharing the "Computer Science" alias.
+Naming two entities defers, and Jev must select the entity the request names.
+
+Contact and every profile section except related, requirements, building, school,
+subject and graduation plans can run directly. Every lookup still uses the ordinary
+schema validation, read-only retrieval, context bounds, evidence collection, trace,
+and exact-answer checks. Direct results feed GPT synthesis and the existing evidence
+review: the exact contact answer skips canonical entities (`retrieval/exact.py`), so
+a direct lookup saves GPT's first call, not the answer or its review. Jev never
+certifies a factual answer or resolves conflicting evidence.
 
 When only a tool is resolved, GPT's first call is constrained to that tool; later
 calls regain all tools. Uncertain, general, and mixed routes retain the ordinary
@@ -87,12 +93,17 @@ Run from the Brain directory, with development credentials and the migration app
 .venv/bin/python scripts/evaluate_routing.py --output /tmp/jev-comparison.json
 ```
 
-This runs the 30 fixed synthetic cases in `cases.json` three times, pairing off and
+This runs the 40 fixed synthetic cases in `cases.json` three times, pairing off and
 active modes and alternating their order. Both halves of a pair use the same campus
 time. Every paid call goes through the ledger. Missing credentials stop before any
 paid work; paid-call errors stop the run. Reports include answers/citations for
 review, request costs including Jev, elapsed time, selected route, and dataset version.
 These are synthetic evaluation artifacts, not stored student conversations.
+
+Case expectations follow the published identities, last checked against
+`dev-profiles-offices-20260924-r3`. A case marked `eligible_direct` must name exactly
+one entity; when identities or aliases change, recheck them. Follow-ups keep
+`eligible_direct` false even when prior messages resolve the entity.
 
 Review each paired answer against its cited evidence and the original fixture.
 Check completeness, current subject, dates, unsupported assertions, and honest

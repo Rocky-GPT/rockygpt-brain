@@ -62,16 +62,17 @@
         }
       ],
       "routes": [
-        "contact"
+        "contact",
+        "unresolved"
       ],
-      "eligible_direct": true
+      "eligible_direct": false
     },
     {
-      "id": "public-safety-contact",
+      "id": "public-safety-non-emergency-phone",
       "messages": [
         {
           "role": "user",
-          "content": "How can I contact Public Safety?"
+          "content": "What is the Public Safety non-emergency phone number?"
         }
       ],
       "routes": [
@@ -80,11 +81,11 @@
       "eligible_direct": true
     },
     {
-      "id": "student-accounts-phone",
+      "id": "it-services-phone",
       "messages": [
         {
           "role": "user",
-          "content": "What is the Student Accounts phone?"
+          "content": "What is the Information Technology Services phone?"
         }
       ],
       "routes": [
@@ -101,9 +102,10 @@
         }
       ],
       "routes": [
-        "contact"
+        "contact",
+        "search"
       ],
-      "eligible_direct": true
+      "eligible_direct": false
     },
     {
       "id": "contact-hours",
@@ -163,6 +165,20 @@
         {
           "role": "user",
           "content": "Who are the Computer Science conveners?"
+        }
+      ],
+      "routes": [
+        "profile",
+        "unresolved"
+      ],
+      "eligible_direct": false
+    },
+    {
+      "id": "program-convener-exact",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Who is the convener of the Computer Science BS program?"
         }
       ],
       "routes": [
@@ -409,6 +425,149 @@
       ],
       "routes": [
         "general"
+      ],
+      "eligible_direct": false
+    },
+    {
+      "id": "library-saturday-hours",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What are the library's regular Saturday hours?"
+        }
+      ],
+      "routes": [
+        "profile"
+      ],
+      "eligible_direct": true
+    },
+    {
+      "id": "library-sunday-followup",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What are the library's regular Saturday hours?"
+        },
+        {
+          "role": "assistant",
+          "content": "The subject is the Library."
+        },
+        {
+          "role": "user",
+          "content": "And Sunday?"
+        }
+      ],
+      "routes": [
+        "profile"
+      ],
+      "eligible_direct": false
+    },
+    {
+      "id": "library-location",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Where is the library?"
+        }
+      ],
+      "routes": [
+        "contact",
+        "profile"
+      ],
+      "eligible_direct": false
+    },
+    {
+      "id": "research-help-desk-hours",
+      "messages": [
+        {
+          "role": "user",
+          "content": "When is the Research Help Desk open tomorrow?"
+        }
+      ],
+      "routes": [
+        "profile"
+      ],
+      "eligible_direct": true
+    },
+    {
+      "id": "ramapo-library-hours-contact",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What hours does the Ramapo library have on Saturday, and how can I contact it?"
+        }
+      ],
+      "routes": [
+        "profile"
+      ],
+      "eligible_direct": true
+    },
+    {
+      "id": "library-and-financial-aid",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Where is the library, and where should I go to ask someone about financial aid?"
+        }
+      ],
+      "routes": [
+        "unresolved"
+      ],
+      "eligible_direct": false
+    },
+    {
+      "id": "birch-closing-followup",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What vegetarian options are on Birch's dinner menu today?"
+        },
+        {
+          "role": "assistant",
+          "content": "The subject is Birch Tree Inn."
+        },
+        {
+          "role": "user",
+          "content": "What time does it close that day?"
+        }
+      ],
+      "routes": [
+        "profile"
+      ],
+      "eligible_direct": false
+    },
+    {
+      "id": "convener-email-followup",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Who is the convener of the Computer Science BS program?"
+        },
+        {
+          "role": "assistant",
+          "content": "The catalog lists Scott Frees as the Computer Science BS convener."
+        },
+        {
+          "role": "user",
+          "content": "What's their email and office?"
+        }
+      ],
+      "routes": [
+        "contact"
+      ],
+      "eligible_direct": false
+    },
+    {
+      "id": "birch-mansion-location",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Where is Birch Mansion?"
+        }
+      ],
+      "routes": [
+        "profile",
+        "search"
       ],
       "eligible_direct": false
     }

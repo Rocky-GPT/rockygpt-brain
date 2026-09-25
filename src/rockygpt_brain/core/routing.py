@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from time import monotonic
 from typing import Any, Protocol
+from uuid import UUID
 
 import psycopg
 from pydantic import ValidationError
@@ -93,8 +94,32 @@ class RouteDecision:
         }
 
 
-def contains(text: str, name: str) -> bool:
-    return f" {words(name)} " in f" {words(text)} "
+def named(text: str, entities: list[Identity]) -> list[Identity]:
+    """The entities whose name or alias the text contains, where a longer match wins.
+
+    A name inside a longer matched name does not count on its own: "Computer
+    Science BS" names that program, not every program sharing the "Computer
+    Science" alias, and "Birch Mansion" is not "Birch". A separate mention does.
+    """
+    tokens = words(text).split()
+    spans: list[tuple[int, int, UUID]] = []
+    for entity in entities:
+        for name in [entity.name, *entity.aliases]:
+            target = words(name).split()
+            spans.extend(
+                (start, start + len(target), entity.id)
+                for start in range(len(tokens) - len(target) + 1)
+                if target and tokens[start : start + len(target)] == target
+            )
+    shown = {
+        entity_id
+        for start, end, entity_id in spans
+        if not any(
+            first <= start and end <= last and last - first > end - start
+            for first, last, _ in spans
+        )
+    }
+    return [entity for entity in entities if entity.id in shown]
 
 
 def shortlist(
@@ -316,14 +341,13 @@ def interpret(
     entity = next((item for item in candidates if str(item.id) == entity_id), None)
     if entity is None:
         return decision
-    explicit = [
-        item
-        for item in candidates
-        if any(contains(messages[-1].content, name) for name in [item.name, *item.aliases])
-    ]
+    explicit = named(messages[-1].content, candidates)
     if len(explicit) > 1:
         decision.tool = None
         decision.reason = "ambiguous_entities"
+        return decision
+    if explicit and entity not in explicit:
+        # Prior messages may resolve a reference, never replace the entity the request names.
         return decision
     if route == "contact":
         fields = included(answers, "field_", FIELDS)
