@@ -5,12 +5,14 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from time import monotonic
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock
-from uuid import UUID
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import httpx
+import psycopg
 import pytest
 
 from rockygpt_brain.config import RELEASE, Deployment
@@ -18,6 +20,8 @@ from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
 from rockygpt_brain.core.provider import JevProvider, ModelResponse, PaidGateway, Usage
 from rockygpt_brain.core.routing import (
+    GRAPH_TOOLS,
+    graph_first,
     interpret,
     named,
     route_request,
@@ -81,12 +85,14 @@ def answers_for(payload: dict[str, Any], **selections: Any) -> dict[str, Any]:
     return answers
 
 
-def data_mock() -> Mock:
+def data_mock(*entities: Identity) -> Mock:
     data = Mock()
     data.deadline = None
+    # Like an offline repository: no release to fingerprint, so nothing is cached.
+    data.release_fingerprint.return_value = None
     data._artifact.return_value = {
         "schema_version": 1,
-        "entities": [ENTITY.model_dump(mode="json")],
+        "entities": [entity.model_dump(mode="json") for entity in entities or [ENTITY]],
     }
     return data
 
@@ -185,7 +191,11 @@ def test_off_and_shadow_do_not_change_tool_selection(mode: Any) -> None:
         routing_mode=mode,
     )
     data.lookup_contact.assert_not_called()
-    assert gpt.create.call_args_list[0].kwargs["tool_choice"] == "auto"
+    # Jev chose lookup_contact alone; both modes ignore it and apply only the
+    # graph-first rule, since the request names the Registrar.
+    first = gpt.create.call_args_list[0].kwargs
+    assert first["tool_choice"] == "required"
+    assert [tool["name"] for tool in first["tools"]] == list(GRAPH_TOOLS)
     assert router.route.call_count == (mode == "shadow")
     assert result["metrics"]["modelCalls"] == 2 + (mode == "shadow")
 
@@ -307,8 +317,21 @@ def test_duplicate_aliases_never_select_an_arbitrary_identity() -> None:
 
 
 def identity(number: int, kind: str, name: str, *aliases: str) -> Identity:
-    return ENTITY.model_copy(
-        update={"id": UUID(int=number), "kind": kind, "name": name, "aliases": list(aliases)}
+    # Each identity links its own record, so several can share one valid registry.
+    return Identity.model_validate(
+        {
+            "id": str(UUID(int=number)),
+            "kind": kind,
+            "name": name,
+            "aliases": list(aliases),
+            "links": [
+                {
+                    "collection": "contacts",
+                    "source_key": "directory",
+                    "source_record_keys": [f"entity-{number}"],
+                }
+            ],
+        }
     )
 
 
@@ -347,6 +370,102 @@ def test_one_named_entity_among_overlapping_names_can_route_directly() -> None:
     answers = answers_for(payload, route="profile", entity=str(CS_MS.id), section_conveners=1.0)
     result = interpret(answers, candidates, day, request)
     assert result.arguments is None and result.tool == "lookup_profile"
+
+
+MATH = identity(7, "subject", "Mathematics (MATH)", "MATH")
+
+
+def profile_call(entity: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        type="function_call",
+        name="lookup_profile",
+        call_id="profile",
+        arguments=json.dumps({"entity": entity, "include": ["contact"]}),
+    )
+
+
+def test_a_request_naming_one_identity_reads_the_graph_first() -> None:
+    data, gpt = data_mock(), Mock()
+    record = contact_record()
+    data.lookup_profile.return_value = result_for([record])
+    gpt.create.side_effect = [
+        tools(profile_call("Registrar")),
+        answer("Office D-224", "campus_fact", [record["id"]]),
+        review(),
+    ]
+    result = run_turn(
+        messages("Tell me about the Registrar"), client=gpt, data=data, model=RELEASE.model, now=NOW
+    )
+    first, second = [call.kwargs for call in gpt.create.call_args_list[:2]]
+    assert first["tool_choice"] == "required"
+    assert [tool["name"] for tool in first["tools"]] == ["lookup_profile", "lookup_contact"]
+    assert second["tool_choice"] == "auto" and len(second["tools"]) == 6
+    assert result["metrics"]["graphFirst"] is True
+    data.lookup_profile.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "conversation",
+    [
+        messages("What are the shuttle departures tomorrow?"),
+        messages("Compare the Registrar and the Computer Science BS."),
+        messages("Which MATH courses are in the catalog?"),
+        [
+            *messages(),
+            ChatMessage(role="assistant", content="The Registrar's phone is published."),
+            ChatMessage(role="user", content="What is their email?"),
+        ],
+    ],
+    ids=["no identity", "two identities", "a subject only", "unnamed follow-up"],
+)
+def test_other_requests_keep_every_tool_in_the_first_call(
+    conversation: list[ChatMessage],
+) -> None:
+    data, gpt = data_mock(ENTITY, CS_BS, MATH), Mock()
+    gpt.create.side_effect = [answer(), review()]
+    result = run_turn(conversation, client=gpt, data=data, model=RELEASE.model, now=NOW)
+    first = gpt.create.call_args_list[0].kwargs
+    assert first["tool_choice"] == "auto" and len(first["tools"]) == 6
+    assert "graphFirst" not in result["metrics"]
+
+
+def test_a_subject_beside_one_identity_still_starts_with_the_graph() -> None:
+    request = messages("How many MATH electives does the Computer Science BS require?")
+    assert graph_first(request, data_mock(ENTITY, CS_BS, MATH))
+
+
+def test_active_routing_replaces_the_graph_first_rule() -> None:
+    data, gpt = data_mock(), Mock()
+    gpt.create.side_effect = [answer(), review()]
+    result = run_turn(
+        messages(),
+        client=gpt,
+        data=data,
+        model=RELEASE.model,
+        now=NOW,
+        routing_client=router_mock(route="unresolved"),
+        routing_mode="active",
+    )
+    first = gpt.create.call_args_list[0].kwargs
+    assert first["tool_choice"] == "auto" and len(first["tools"]) == 6
+    assert "graphFirst" not in result["metrics"]
+
+
+def test_an_unreadable_registry_keeps_the_ordinary_first_call() -> None:
+    data = data_mock()
+    data.release_fingerprint.side_effect = psycopg.OperationalError("campus database unavailable")
+    assert not graph_first(messages(), data)
+    for payload in ({"schema_version": 1, "entities": "invalid"}, None):
+        data = data_mock()
+        data._artifact.return_value = payload
+        assert not graph_first(messages(), data)
+
+
+def test_the_name_index_is_built_once_per_release() -> None:
+    data = data_mock()
+    data.release_fingerprint.return_value = ("test-release", str(uuid4()))
+    assert graph_first(messages(), data) and graph_first(messages(), data)
+    data._artifact.assert_called_once_with("campus-identities")
 
 
 def test_shortlist_prioritizes_latest_exact_match_and_caps_candidates() -> None:

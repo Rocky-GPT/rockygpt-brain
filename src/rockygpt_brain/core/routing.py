@@ -1,8 +1,12 @@
-"""Bounded Jev decisions select existing retrieval operations, never evidence."""
+"""Bounded Jev decisions select existing retrieval operations, never evidence.
+
+Without active routing, the graph-first rule makes the only first-call choice.
+"""
 
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from time import monotonic
@@ -25,8 +29,11 @@ from rockygpt_brain.retrieval.profiles import (
     IdentityRegistry,
     ProfileQuery,
 )
+from rockygpt_brain.retrieval.release_cache import cached
 
 FIELDS = ("phone", "email", "office", "department", "fax", "hours", "website")
+# Without active routing, a request that names one curated identity starts with these.
+GRAPH_TOOLS = ("lookup_profile", "lookup_contact")
 # The related section needs a relationship and direction that the router does not choose;
 # requirements, building, school, subject and graduation plans are chosen by the model
 # until routing evals cover them.
@@ -101,17 +108,25 @@ def named(text: str, entities: list[Identity]) -> list[Identity]:
     Science BS" names that program, not every program sharing the "Computer
     Science" alias, and "Birch Mansion" is not "Birch". A separate mention does.
     """
+    shown = longest_names(
+        text, ((entity.id, [entity.name, *entity.aliases]) for entity in entities)
+    )
+    return [entity for entity in entities if entity.id in shown]
+
+
+def longest_names(text: str, names: Iterable[tuple[UUID, Iterable[str]]]) -> set[UUID]:
+    """The IDs `named` keeps, from each ID's names."""
     tokens = words(text).split()
     spans: list[tuple[int, int, UUID]] = []
-    for entity in entities:
-        for name in [entity.name, *entity.aliases]:
+    for entity_id, entity_names in names:
+        for name in entity_names:
             target = words(name).split()
             spans.extend(
-                (start, start + len(target), entity.id)
+                (start, start + len(target), entity_id)
                 for start in range(len(tokens) - len(target) + 1)
                 if target and tokens[start : start + len(target)] == target
             )
-    shown = {
+    return {
         entity_id
         for start, end, entity_id in spans
         if not any(
@@ -119,7 +134,41 @@ def named(text: str, entities: list[Identity]) -> list[Identity]:
             for first, last, _ in spans
         )
     }
-    return [entity for entity in entities if entity.id in shown]
+
+
+def graph_first(messages: list[ChatMessage], data: CampusData) -> bool:
+    """Whether the latest request names exactly one curated identity, so GPT's first
+    call should read the graph.
+
+    Follow-ups that name nothing stay with GPT. Subjects never count: a subject's
+    profile lists no courses, so course questions start with the catalog search. A
+    name only selects the first tools; it is never evidence. The rule is optional,
+    so a registry that cannot be read leaves the first call unchanged.
+    """
+
+    def index() -> tuple[tuple[UUID, str, tuple[str, ...]], ...]:
+        payload = data._artifact("campus-identities")
+        if payload is None:
+            return ()  # Older releases have no identities.
+        return tuple(
+            (entity.id, entity.kind, tuple(words(name) for name in [entity.name, *entity.aliases]))
+            for entity in IdentityRegistry.model_validate(payload).entities
+        )
+
+    try:
+        entities = cached(data, "graph-first-names", index)
+    except (psycopg.Error, RuntimeError, TimeoutError, ValueError, TypeError, KeyError,
+            AttributeError):
+        return False
+    text = messages[-1].content
+    latest = f" {words(text)} "
+    # A substring test finds the few candidates; longest_names then weighs their spans.
+    present = [
+        (entity_id, kind, names) for entity_id, kind, names in entities
+        if any(name and f" {name} " in latest for name in names)
+    ]
+    shown = longest_names(text, ((entity_id, names) for entity_id, _, names in present))
+    return sum(kind != "subject" for entity_id, kind, _ in present if entity_id in shown) == 1
 
 
 def shortlist(
