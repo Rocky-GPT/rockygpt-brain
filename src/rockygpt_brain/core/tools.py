@@ -48,7 +48,7 @@ def tool_definitions() -> list[dict[str, Any]]:
             "paths. Known is published, not necessarily current: preserve each source's "
             "freshness and dates. Conflicting values cannot be silently selected; unknown "
             "does not mean false. Use lookup_profile for date-specific menus, hours, and "
-            "relationship traversal. It uses this same property resolution.",
+            "relationship traversal. placement gives its verified building.",
             EntityQuery.model_json_schema(),
         ),
         function_tool(

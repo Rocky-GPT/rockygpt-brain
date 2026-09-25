@@ -629,6 +629,8 @@ def run_turn(
                 )
             if call.name in {"lookup_profile", "lookup_contact", "lookup_entity"}:
                 trace[-1]["resolution"] = output.get("resolution")
+                if "placement" in output:
+                    trace[-1]["placement"] = output["placement"]
                 if "entity_facts" in output:
                     facts = output["entity_facts"]
                     trace[-1]["entity_facts"] = {

@@ -910,6 +910,27 @@ def _related_records(
     }
 
 
+def entity_placements(
+    data: CampusData, entity: Identity, registry: IdentityRegistry,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int]:
+    """Where to find an entity: its own building placements, rechecked as in the related
+    section and cited with each building's map record. Returns records, summaries and
+    the number of placements that failed to load."""
+    records: list[dict[str, Any]] = []
+    summaries: list[dict[str, Any]] = []
+    failed = 0
+    for kind in sorted(ROOM_RELATIONSHIPS & {item.type for item in entity.relationships}):
+        placed, found, coverage = _related_records(data, entity, registry, ProfileQuery(
+            entity_id=entity.id, include=["related"],
+            relationship=cast(RelationshipType, kind), direction="outgoing",
+        ))
+        held = {record["id"] for record in records}
+        records.extend(record for record in placed if record["id"] not in held)
+        summaries.extend(found)
+        failed += coverage["failed_relationships"]
+    return records, summaries, failed
+
+
 REQUIREMENT_LIMITATION = (
     "Catalog requirement structure: a course in a choose-N or either/or group is an option, "
     "not a required course on its own."
@@ -1253,14 +1274,10 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             truncated = truncated or bool(related_coverage["unexamined_relationship_candidates"])
         placement: list[dict[str, Any]] = []
         if component == "contact":
-            # Where to find the entity: its own building placements, rechecked as in the
-            # related section and cited with each building's map record.
-            for kind in sorted(ROOM_RELATIONSHIPS & {item.type for item in entity.relationships}):
-                placed, summaries, _ = _related_records(data, entity, registry, query.model_copy(
-                    update={"relationship": kind, "direction": "outgoing"}))
-                held = {record["id"] for record in records}
-                records.extend(record for record in placed if record["id"] not in held)
-                placement.extend(summaries)
+            placed, placement, failed = entity_placements(data, entity, registry)
+            held = {record["id"] for record in records}
+            records.extend(record for record in placed if record["id"] not in held)
+            failed_links += failed
         requirement_coverage: dict[str, Any] = {}
         if component == "requirements":
             requirement_records, requirement_coverage = _requirement_records(data, entity)
