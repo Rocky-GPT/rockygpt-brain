@@ -310,6 +310,9 @@ CREATE TABLE IF NOT EXISTS rockygpt_v2.document_chunks (
 CREATE INDEX IF NOT EXISTS document_chunks_lexical_idx
   ON rockygpt_v2.document_chunks USING GIN (lexical_vector);
 
+CREATE INDEX IF NOT EXISTS document_chunks_heading_path_idx
+  ON rockygpt_v2.document_chunks USING GIN (to_tsvector('english', metadata->>'headingPath'));
+
 -- Versioned UI projections let browser surfaces and chat pin the same release
 -- during the gradual migration away from checked-in public/data files.
 CREATE TABLE IF NOT EXISTS rockygpt_v2.release_artifacts (

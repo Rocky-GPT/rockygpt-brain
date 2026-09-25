@@ -634,6 +634,123 @@ def test_documents_rank_passages_by_how_much_of_the_request_they_cover(data: Cam
     assert form["records"][0]["title"].endswith("Major/Minor Declaration Form")
 
 
+DOCUMENT_QUERIES = [
+    "withdraw from a course deadline", "declare major form", "Potter Library location",
+    "financial aid office", "library hours", "counseling appointment", "parking permit",
+    "meal plan", "transcript request", "tuition or fees", "switch dorm rooms", "Ramapo College",
+    "student", "the", "", "zzzxqy",
+    "financial aid FAFSA scholarships grants loans tuition bill refund",
+]
+
+
+@contextmanager
+def _documents_edited(dataset_id: str) -> Iterator[None]:
+    """Passages without a heading path, Counseling passages whose heading path omits their
+    title, the Housing document under a community source, and a retired release holding a
+    copy of every document; all undone afterwards."""
+    retired, community = uuid4(), uuid4()
+    with psycopg.connect(local_database(), autocommit=True) as conn:
+        saved = conn.execute("SELECT id, metadata FROM rockygpt_v2.document_chunks").fetchall()
+        housing = conn.execute(
+            "SELECT id, source_id FROM rockygpt_v2.documents "
+            "WHERE dataset_version_id = %s AND title = 'Housing'",
+            (dataset_id,),
+        ).fetchone()
+        assert housing is not None
+        try:
+            conn.execute(
+                "UPDATE rockygpt_v2.document_chunks SET metadata = metadata - 'headingPath' "
+                "WHERE mod(chunk_index, 3) = 0 "
+                "OR document_id = (SELECT id FROM rockygpt_v2.documents ORDER BY id LIMIT 1)"
+            )
+            conn.execute(
+                "UPDATE rockygpt_v2.document_chunks c "
+                "SET metadata = c.metadata || '{\"headingPath\": \"Overview\"}' "
+                "FROM rockygpt_v2.documents d "
+                "WHERE d.id = c.document_id AND d.title = 'Ramapo Counseling Services'"
+            )
+            conn.execute(
+                "INSERT INTO rockygpt_v2.sources "
+                "(id, source_key, title, canonical_url, trust_tier, freshness_sla_hours, domain) "
+                "VALUES (%s, %s, 'Community notes', 'https://example.org/', 'community', 24, "
+                "'housing')",
+                (community, f"community-{community}"),
+            )
+            conn.execute(
+                "UPDATE rockygpt_v2.documents SET source_id = %s WHERE id = %s",
+                (community, housing[0]),
+            )
+            conn.execute(
+                "INSERT INTO rockygpt_v2.dataset_versions (id, version, status) "
+                "VALUES (%s, %s, 'retired')",
+                (retired, f"retired-copy-{retired}"),
+            )
+            conn.execute(
+                "INSERT INTO rockygpt_v2.documents "
+                "(id, dataset_version_id, source_id, title, content, metadata, collected_at) "
+                "SELECT md5(id::text || 'copy')::uuid, %s, source_id, title, content, metadata, "
+                "collected_at FROM rockygpt_v2.documents WHERE dataset_version_id = %s",
+                (retired, dataset_id),
+            )
+            conn.execute(
+                "INSERT INTO rockygpt_v2.document_chunks "
+                "(document_id, chunk_index, content, content_hash, metadata) "
+                "SELECT md5(c.document_id::text || 'copy')::uuid, c.chunk_index, c.content, "
+                "c.content_hash, c.metadata FROM rockygpt_v2.document_chunks c "
+                "JOIN rockygpt_v2.documents d ON d.id = c.document_id "
+                "WHERE d.dataset_version_id = %s",
+                (dataset_id,),
+            )
+            yield
+        finally:
+            conn.execute("DELETE FROM rockygpt_v2.dataset_versions WHERE id = %s", (retired,))
+            conn.execute(
+                "UPDATE rockygpt_v2.documents SET source_id = %s WHERE id = %s",
+                (housing[1], housing[0]),
+            )
+            conn.execute("DELETE FROM rockygpt_v2.sources WHERE id = %s", (community,))
+            with conn.cursor() as cursor:
+                cursor.executemany(
+                    "UPDATE rockygpt_v2.document_chunks SET metadata = %s WHERE id = %s",
+                    [(Jsonb(metadata), chunk_id) for chunk_id, metadata in saved],
+                )
+
+
+def test_documents_rank_the_same_with_and_without_the_heading_path_index(
+    data: CampusData, frozen: dict[str, Any]
+) -> None:
+    # With rockygpt-data's heading path index the search finds matching passages through
+    # indexes; without it, every heading vector is built. Both must list the same passages,
+    # also after edits the snapshot lacks: passages matched by their document's title,
+    # heading paths that omit the title, a community document to leave out, and another
+    # release's copy of every passage in the same tables.
+    def compare() -> list[dict[str, Any]]:
+        scanned: list[dict[str, Any]] = []
+        for query in DOCUMENT_QUERIES:
+            # The scanning order (weight, score, id) is total, so its top 40 holds every
+            # smaller list as a prefix.
+            data._has_heading_path_index = False
+            full = data.search(SearchQuery(collection="documents", query=query, limit=40))
+            data._has_heading_path_index = True
+            for limit in (1, 6, 40):
+                indexed = data.search(SearchQuery(collection="documents", query=query, limit=limit))
+                if limit == 40:
+                    assert indexed == full, query
+                else:
+                    assert indexed["records"] == full["records"][:limit], (query, limit)
+                    assert indexed["total_matches"] == full["total_matches"], (query, limit)
+            scanned.append(full)
+        return scanned
+
+    data.search(SearchQuery(collection="documents", query="library", limit=1))
+    assert data._has_heading_path_index is True
+    snapshot = compare()
+    assert sum(len(result["records"]) for result in snapshot) > 200
+    with _documents_edited(frozen["dataset"]["id"]):
+        edited = compare()
+    assert edited != snapshot
+
+
 def test_documents_weigh_rare_words_and_the_ones_a_heading_names(data: CampusData) -> None:
     # Events held at the library also say "location"; the library's own entry names it.
     library = data.search(
