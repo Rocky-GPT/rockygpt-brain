@@ -9,7 +9,7 @@ from importlib.resources import files
 from importlib.resources.abc import Traversable
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 Environment = Literal["development", "production"]
 MONTHLY_CAP_NUSD = 10_000_000_000
@@ -159,8 +159,17 @@ def load_deployment() -> Deployment:
         if expected and expected != configuration_hash():
             raise ValueError("Release identity mismatch")
         return deployment
-    except (KeyError, ValueError) as error:
-        raise ConfigurationError("Brain deployment is not configured") from error
+    except KeyError as error:
+        raise ConfigurationError(f"{error.args[0]} is not set") from error
+    except ValidationError as error:
+        # Names and reasons only; a rejected value may be a credential.
+        problems = "; ".join(
+            f"{'.'.join(map(str, item['loc'])) or 'deployment'}: {item['msg']}"
+            for item in error.errors()
+        )
+        raise ConfigurationError(problems) from error
+    except ValueError as error:
+        raise ConfigurationError(str(error)) from error
 
 
 if __name__ == "__main__":

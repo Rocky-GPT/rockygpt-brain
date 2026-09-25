@@ -65,6 +65,15 @@ def test_an_operator_review_does_not_replace_student_feedback() -> None:
     assert body["error"] == "student_feedback_exists"
 
 
+def test_a_database_failure_reaches_the_student_as_a_fixed_code() -> None:
+    failure = RuntimeError('password authentication failed for user "rockygpt_brain"')
+    with patch("psycopg.connect", side_effect=failure):
+        body = TestClient(app).post(
+            "/v1/feedback", json={"requestId": REQUEST_ID, "rating": 1}
+        ).json()
+    assert body == {"success": False, "error": "feedback_unavailable"}
+
+
 def test_malformed_feedback_is_refused_before_the_database() -> None:
     client = TestClient(app)
     malformed = {"requestId": "not-a-uuid", "rating": 1}
