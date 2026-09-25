@@ -74,6 +74,18 @@ Declared representation aliases are shared backend rules:
   retaining the original title assertion. No suffix does not mean active.
 - Event dates without a published clock remain date-only values with a caveat;
   parser-generated midnight is never exposed as an established start time.
+- When a source publishes the entity's own registry name, another source's name
+  that is exactly one of its reviewed aliases, apart from whitespace, is the same
+  name: that assertion keeps its published text with a caveat naming it. An
+  office's directory entry "Library" and its Archway page "Potter Library" are one
+  name, since the directory publishes Potter Library as its department. An alias
+  counts only if a person wrote it or the entity's directory entry publishes it as
+  its department (`identity_map`, `human_reviewed` and `department` in the identity
+  report's `alias_sources`). An alias copied from a linked record's own name can't
+  settle a disagreement among those records, and family, former-name, code and
+  title aliases name something else. A name no source disputes stays as published,
+  case still matters, and every other name still conflicts. The rule covers only
+  the entity's own `name`; a record inside it, such as a schedule, keeps its title.
 
 Department and school are separate concepts; source contact type is not entity
 kind. Other property mappings retain their existing meanings.

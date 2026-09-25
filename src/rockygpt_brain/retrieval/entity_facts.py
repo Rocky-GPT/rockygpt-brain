@@ -289,14 +289,56 @@ def _overlap(a: FactValue, b: FactValue) -> bool:
     )
 
 
+# Alias bases that make a published name the entity's own: a person wrote the alias
+# (identity_map, human_reviewed), or the entity's directory entry publishes it as its
+# department. An alias copied from a linked record's name can't settle a disagreement
+# among those same records, and family, former-name, code and title aliases name
+# something else.
+NAME_ALIAS_BASES = frozenset({"identity_map", "human_reviewed", "department"})
+
+
+def _collapsed(value: str) -> str:
+    return " ".join(value.split())
+
+
+def reviewed_names(data: Any, entity: Entity, properties: list[Property]) -> frozenset[str]:
+    """The entity's aliases that can settle a disagreement with its own published name.
+
+    The alias report is read only when the entity's name and one of its aliases are
+    both published, so an entity with one published name needs no read.
+    """
+    published = {_collapsed(a.value) for p in properties if p.key == "name"
+                 for a in p.assertions if isinstance(a.value, str)}
+    canonical = _collapsed(entity.name)
+    aliases = ({_collapsed(alias) for alias in entity.aliases} - {canonical}) & published
+    if canonical not in published or not aliases:
+        return frozenset()
+    report = data._artifact("campus-identity-coverage")
+    items = report.get("alias_sources") if isinstance(report, dict) else None
+    if not isinstance(items, list):
+        return frozenset()
+    return frozenset(
+        _collapsed(item["alias"]) for item in items
+        if isinstance(item, dict) and item.get("entity_id") == entity.id
+        and isinstance(item.get("alias"), str) and _collapsed(item["alias"]) in aliases
+        and any(isinstance(source, dict) and source.get("basis") in NAME_ALIAS_BASES
+                for source in item.get("sources") or [])
+    )
+
+
 def canonical_properties(
-    properties: list[Property], sources: list[SourceRecord]
+    properties: list[Property], sources: list[SourceRecord], entity: Entity | None = None,
+    reviewed: frozenset[str] = frozenset(),
 ) -> list[FactProperty]:
     """Resolve already entity-scoped assertions; callers must not pass unrelated rows.
 
     Only declared representation aliases are combined. Unknown observations are
     retained as provenance and do not contradict published values. Date intervals
     remain separate; differing overlapping values are an explicit disagreement.
+    Given the entity and its `reviewed_names`, a published name that is one of those
+    aliases is the same name as the entity's own, when a source publishes that too.
+    Pass them only for the entity's own properties, never for its records: a
+    schedule titled with an alias is still that schedule's title.
     """
     source_map = {s.id: s for s in sources}
     # Reuse the existing conservative source cleanup for all consumers. It operates
@@ -352,9 +394,19 @@ def canonical_properties(
     result = []
     for key, prop in merged.items():
         groups: dict[str, FactValue] = {}
-        for assertion in prop.assertions:
+        values = [_normalized(key, a, source_map[a.source_id], normalized[a.source_id])
+                  for a in prop.assertions]
+        canonical = _collapsed(entity.name) if entity is not None else None
+        # A reviewed alias only settles a disagreement with the entity's own name; a
+        # name no source disputes stays exactly as published.
+        settles = key == "name" and bool(reviewed) and canonical in values
+        for assertion, value in zip(prop.assertions, values, strict=True):
             source = source_map[assertion.source_id]
-            value = _normalized(key, assertion, source, normalized[source.id])
+            if settles and isinstance(value, str) and value != canonical and value in reviewed:
+                assertion.limitations.append(
+                    f"Published as {value!r}, one of this entity's reviewed names."
+                )
+                value = canonical
             if key == "starts_at" and source.collection == "events":
                 prop.value_type = "date_or_datetime"
             if key == "prefers_email" and source.collection == "contacts":
@@ -502,7 +554,10 @@ class EntityFacts:
             )
         return EntityFactProjection(
             **payload,
-            properties=canonical_properties(projection.properties, sources),
+            properties=canonical_properties(
+                projection.properties, sources, projection.entity,
+                reviewed_names(self.data, projection.entity, projection.properties),
+            ),
             record_groups=groups,
             sources=sources,
         )

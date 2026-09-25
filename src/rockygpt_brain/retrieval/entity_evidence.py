@@ -10,11 +10,18 @@ from copy import deepcopy
 from typing import Any
 
 from rockygpt_brain.retrieval.projection import PROPERTY_SPECS, valid_value
-from rockygpt_brain.retrieval.projection_models import Assertion, Property, SourceRecord
+from rockygpt_brain.retrieval.projection_models import Assertion, Entity, Property, SourceRecord
 
 
-def profile_facts(data: Any, output: dict[str, Any]) -> dict[str, Any]:
-    from rockygpt_brain.retrieval.entity_facts import _lineage, canonical_properties
+def profile_facts(
+    data: Any, output: dict[str, Any], aliases: list[str] | None = None,
+) -> dict[str, Any]:
+    """`aliases` are the resolved entity's registry aliases."""
+    from rockygpt_brain.retrieval.entity_facts import (
+        _lineage,
+        canonical_properties,
+        reviewed_names,
+    )
 
     entity = output["resolution"]["entity"]
     specs = {spec.collection: spec for spec in PROPERTY_SPECS}
@@ -74,12 +81,16 @@ def profile_facts(data: Any, output: dict[str, Any]) -> dict[str, Any]:
         if component["status"] in {"partial", "unavailable"}:
             issues.append({"reason": "profile_component_incomplete", "component": section})
     sources = _lineage([*properties.values(), *lineage], sources)
+    named = Entity(id=entity["id"], kind=entity["kind"], name=entity["name"],
+                   aliases=aliases or [])
     facts = {
         "schema_version": 3, "projection_version": "entity-facts-1",
         "dataset_version": output["dataset_version"], "entity": entity,
         "properties_complete": not issues,
-        "properties": [prop.model_dump(mode="json")
-                       for prop in canonical_properties(list(properties.values()), sources)],
+        "properties": [prop.model_dump(mode="json") for prop in canonical_properties(
+            list(properties.values()), sources, named,
+            reviewed_names(data, named, list(properties.values())),
+        )],
         "sources": [source.model_dump(mode="json") for source in sources], "coverage": issues,
         "scope": "requested_profile_sections_only",
     }

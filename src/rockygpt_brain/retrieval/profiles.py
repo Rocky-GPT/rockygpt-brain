@@ -1516,5 +1516,5 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
         result["status"] = "unavailable"
     from rockygpt_brain.retrieval.entity_evidence import profile_facts
 
-    result["entity_facts"] = profile_facts(data, result)
+    result["entity_facts"] = profile_facts(data, result, entity.aliases)
     return result
