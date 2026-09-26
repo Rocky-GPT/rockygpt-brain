@@ -2,7 +2,7 @@
 
 import json
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, time
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -23,7 +23,9 @@ from rockygpt_brain.core.provider import (
 )
 from rockygpt_brain.governance.accounting import PaidCallError
 
-NOW = datetime(2026, 9, 11, 12, tzinfo=ZoneInfo("America/New_York"))
+# Noon on the first day of the release's verified price window, so renewing
+# the window does not strand the tests outside it.
+NOW = datetime.combine(RELEASE.price.valid_from, time(12), ZoneInfo("America/New_York"))
 
 
 def arguments() -> dict[str, Any]:
@@ -173,7 +175,8 @@ def test_unbounded_or_unpriced_work_is_rejected_before_reservation(change: dict[
 def test_prices_expire_closed_and_all_calls_share_a_cap() -> None:
     provider, ledger = Mock(), Mock()
     provider.create.return_value = response()
-    gateway = PaidGateway(provider, ledger, "turn", clock=lambda: NOW.replace(month=11))
+    expired = datetime.combine(RELEASE.price.valid_until, time(12), NOW.tzinfo)
+    gateway = PaidGateway(provider, ledger, "turn", clock=lambda: expired)
     with pytest.raises(PaidCallError, match="price_unavailable"):
         gateway.create(category="draft", **arguments())
     gateway.clock = lambda: NOW

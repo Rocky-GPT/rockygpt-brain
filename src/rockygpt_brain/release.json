@@ -17,9 +17,9 @@
   "active_turns": 4,
   "review_policy": "generated_prose_single_check",
   "price": {
-    "version": "openai-standard-2026-09-11",
-    "valid_from": "2026-09-11",
-    "valid_until": "2026-10-11",
+    "version": "openai-standard-2026-09-26",
+    "valid_from": "2026-09-26",
+    "valid_until": "2026-10-26",
     "input_nusd": 2500,
     "cached_input_nusd": 250,
     "output_nusd": 15000,

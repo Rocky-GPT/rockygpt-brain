@@ -70,6 +70,18 @@ def test_health_does_not_require_services() -> None:
     assert TestClient(app).head("/health").status_code == 200
 
 
+def test_health_fails_when_the_deployment_settings_do_not_load(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+) -> None:
+    # Render only switches traffic to a deploy whose health check passes.
+    monkeypatch.delenv("BRAIN_LEDGER_DATABASE_URL")
+    response = TestClient(app).get("/health")
+    assert response.status_code == 503
+    assert response.json() == {"status": "misconfigured"}
+    assert TestClient(app).head("/health").status_code == 503
+    assert "BRAIN_LEDGER_DATABASE_URL is not set" in caplog.text
+
+
 def test_records_without_database_are_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
     response = TestClient(app).get("/v1/capabilities/contacts/records")

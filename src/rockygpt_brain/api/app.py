@@ -61,9 +61,17 @@ def _iso_text(value: Any) -> str:
 WORKERS: set[asyncio.Task[dict[str, object] | JSONResponse]] = set()
 
 
-@app.get("/health")
-@app.head("/health", include_in_schema=False)
-def health() -> dict[str, str]:
+@app.get("/health", response_model=None)
+@app.head("/health", include_in_schema=False, response_model=None)
+def health() -> dict[str, str] | JSONResponse:
+    # Render switches traffic to a deploy once this answers. A Brain that cannot
+    # load its settings reports unhealthy, so the previous instance keeps serving.
+    # Settings only: a database or model outage must not restart the process.
+    try:
+        load_deployment()
+    except ConfigurationError as error:
+        logging.getLogger(__name__).warning("Brain is not configured: %s", error)
+        return JSONResponse(status_code=503, content={"status": "misconfigured"})
     return {"status": "ok"}
 
 

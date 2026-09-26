@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from pathlib import Path
 from time import monotonic
 from types import SimpleNamespace
@@ -35,7 +35,11 @@ from test_engine import answer, review, search, tools
 from test_phase2 import result_for
 from test_provider import arguments
 
-NOW = datetime(2026, 9, 22, 12, tzinfo=ZoneInfo("America/New_York"))
+# Noon on the first day both verified price windows (GPT and Jev) cover.
+NOW = datetime.combine(
+    max(RELEASE.price.valid_from, RELEASE.routing.price.valid_from), time(12),
+    ZoneInfo("America/New_York"),
+)
 ENTITY = Identity.model_validate(
     {
         "id": "00000000-0000-0000-0000-000000000001",

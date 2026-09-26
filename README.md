@@ -70,7 +70,8 @@ raw records and documents) and `/openapi.json` answer 404 unless
 
 ## HTTP contract
 
-- `GET /health` and `HEAD /health`: process liveness, independent of dependencies.
+- `GET /health` and `HEAD /health`: liveness plus the deployment settings (503 when they do
+  not load, so Render keeps the previous deploy); no database or model call.
 - `GET /readiness`: checks deployment configuration, price validity, the operational ledger,
   and a read-only campus connection with an active release. This does not call the model or prove every
   source is fresh; freshness is checked when records are retrieved.
