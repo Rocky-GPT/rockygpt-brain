@@ -66,6 +66,39 @@ def test_readiness_checks_actual_data_connection() -> None:
     data.return_value.close.assert_called_once()
 
 
+def test_storage_is_measured_once_a_minute_and_served_in_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("rockygpt_brain.api.app._storage_summary", None)
+    monkeypatch.setenv("BRAIN_ENVIRONMENT", "production")
+    with (
+        patch.dict("os.environ", {"DATABASE_URL": "test"}),
+        patch("rockygpt_brain.api.app.CampusData") as data,
+    ):
+        data.return_value.storage.return_value = {"database": {"bytes": 1}}
+        first = TestClient(app).get("/v1/storage")
+        second = TestClient(app).get("/v1/storage")
+    assert first.status_code == 200
+    assert first.json()["database"] == {"bytes": 1}
+    assert first.json()["environment"] == "production" and first.json()["measuredAt"]
+    assert second.json() == first.json()
+    data.return_value.storage.assert_called_once()
+    data.return_value.close.assert_called_once()
+
+
+def test_storage_failure_is_unavailable_without_details(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("rockygpt_brain.api.app._storage_summary", None)
+    with (
+        patch.dict("os.environ", {"DATABASE_URL": "test"}),
+        patch("rockygpt_brain.api.app.CampusData") as data,
+    ):
+        data.return_value.storage.side_effect = RuntimeError("SECRET host")
+        response = TestClient(app).get("/v1/storage")
+    assert response.status_code == 503
+    assert response.json() == {"error": "storage_unavailable"}
+    data.return_value.close.assert_called_once()
+
+
 def test_health_does_not_require_services() -> None:
     assert TestClient(app).get("/health").json() == {"status": "ok"}
     assert TestClient(app).head("/health").status_code == 200
