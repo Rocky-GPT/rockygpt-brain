@@ -45,7 +45,7 @@ DEFAULT_USAGE = Usage(100, 20, 40, 30)
 
 
 def response(usage: Usage | None = DEFAULT_USAGE) -> ModelResponse:
-    return ModelResponse("response-1", "gpt-5.4-2026-03-05", "completed", "answer", [], usage)
+    return ModelResponse("response-1", RELEASE.model, "completed", "answer", [], usage)
 
 
 def test_reservation_precedes_execution_and_settlement_releases_only_unused_amount() -> None:
@@ -73,7 +73,10 @@ def test_reservation_precedes_execution_and_settlement_releases_only_unused_amou
 
 
 def test_cached_and_reasoning_tokens_are_not_double_charged() -> None:
-    assert Usage(100, 20, 40, 30).cost(RELEASE.price) == 805000
+    price = RELEASE.price
+    # Cached input at its own rate; reasoning is already inside the 40 output tokens.
+    expected = 80 * price.input_nusd + 20 * price.cached_input_nusd + 40 * price.output_nusd
+    assert Usage(100, 20, 40, 30).cost(price) == expected
     assert asdict(Usage(0, 0, 0, 0)) == {
         "input_tokens": 0,
         "cached_input_tokens": 0,
@@ -224,13 +227,13 @@ def test_sdk_usage_is_normalized_and_output_identity_is_retained() -> None:
     item.model_dump.return_value = {"type": "reasoning", "id": "r1", "summary": []}
     client.responses.create.return_value = SimpleNamespace(
         id="response-1",
-        model="gpt-5.4",
+        model=RELEASE.model,
         status="completed",
         output_text="Hi",
         output=[item],
         usage=raw,
     )
-    result = OpenAIProvider(client).create(model="gpt-5.4")
+    result = OpenAIProvider(client).create(model=RELEASE.model)
     assert result.usage == Usage(100, 20, 40, 30)
     assert result.output[0].model_dump() == item.model_dump.return_value
 
@@ -245,7 +248,7 @@ def test_environment_credentials_cannot_silently_fall_back(monkeypatch: pytest.M
         "BRAIN_OPENAI_API_KEY": "dev-secret",
         "BRAIN_OPENAI_PROJECT": "dev-project",
         "BRAIN_LEDGER_DATABASE_URL": "dev-db",
-        "OPENAI_CHAT_MODEL": "gpt-5.4",
+        "OPENAI_CHAT_MODEL": RELEASE.model,
     }.items():
         monkeypatch.setenv(key, value)
     monkeypatch.delenv("BRAIN_EXPECTED_CONFIG_HASH", raising=False)
@@ -268,7 +271,7 @@ def test_sdk_calls_exist_only_in_the_paid_adapter() -> None:
 def test_changed_provider_model_is_billed_then_blocks_further_paid_work() -> None:
     provider, ledger = Mock(), Mock()
     provider.create.return_value = response()
-    provider.create.return_value.model = "gpt-5.4-new-unreviewed-snapshot"
+    provider.create.return_value.model = f"{RELEASE.model}-new-unreviewed-snapshot"
     gateway = PaidGateway(provider, ledger, "turn", clock=lambda: NOW)
     with pytest.raises(PaidCallError, match="model_identity_changed"):
         gateway.create(category="draft", **arguments())
@@ -312,12 +315,12 @@ def test_only_one_completed_final_message_becomes_structured_answer(
     client = Mock()
     client.responses.create.return_value = SimpleNamespace(
         id="response-phases",
-        model="gpt-5.4",
+        model=RELEASE.model,
         status="completed",
         usage=None,
         output=[ResponseOutputMessage.model_validate(item) for item in payloads],
     )
-    result = OpenAIProvider(client).create(model="gpt-5.4")
+    result = OpenAIProvider(client).create(model=RELEASE.model)
     assert result.output_text == expected
     assert [item.payload.get("phase") for item in result.output] == phases
     assert [item.payload["status"] for item in result.output] == statuses
@@ -342,12 +345,12 @@ def test_identical_completed_final_messages_are_one_candidate() -> None:
     ]
     client.responses.create.return_value = SimpleNamespace(
         id="duplicate-final",
-        model="gpt-5.4",
+        model=RELEASE.model,
         status="completed",
         usage=None,
         output=[ResponseOutputMessage.model_validate(item) for item in payloads],
     )
-    result = OpenAIProvider(client).create(model="gpt-5.4")
+    result = OpenAIProvider(client).create(model=RELEASE.model)
     assert result.output_text == '{"answer":"candidate"}'
     assert len(result.output) == 2  # Preserve the provider's replay items unchanged.
 

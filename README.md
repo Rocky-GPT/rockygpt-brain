@@ -52,8 +52,8 @@ retains read-only SELECT access to published `rockygpt_v2` tables. The operation
 connection receives only its matching `brain_development` or `brain_production`
 role. Missing accounting configuration stops paid calls.
 
-The bundled `release.json` fixes the shared baseline at `gpt-5.4`, explicit `none`
-draft reasoning and `medium` review reasoning. No model comparison or selection
+The bundled `release.json` fixes the shared baseline at `gpt-6-luna`, `medium` draft
+and review reasoning. No model comparison or selection
 is part of Phase 1. Legacy API-key fallback is removed; a conflicting
 `OPENAI_CHAT_MODEL` override is rejected. Each environment has an independent
 $10 default monthly allowance. Explicit administrator-recorded development

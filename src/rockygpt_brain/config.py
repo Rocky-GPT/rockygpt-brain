@@ -56,7 +56,7 @@ class Release(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     version: str
     provider: Literal["openai"]
-    model: Literal["gpt-5.4"]
+    model: Literal["gpt-6-luna"]
     draft_reasoning: Literal["none", "low", "medium"]
     continuation_reasoning: Literal["none", "low", "medium"]
     review_reasoning: Literal["medium"]
