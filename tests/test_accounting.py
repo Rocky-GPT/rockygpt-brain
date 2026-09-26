@@ -430,7 +430,7 @@ def test_complete_turn_accounts_for_lookup_draft_and_review(ledger: PostgresLedg
     assert gateway.usage.report()["inputTokens"] == 300
     assert gateway.usage.report()["reasoningTokens"] == 30
     wire_history = provider.create.call_args_list[1].kwargs["input"]
-    assert wire_history[1]["call_id"] == wire_history[2]["call_id"] == "lookup"
+    assert wire_history[2]["call_id"] == wire_history[3]["call_id"] == "lookup"
 
 
 def test_approved_supplement_expires_and_cannot_affect_production(

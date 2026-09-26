@@ -176,9 +176,9 @@ def test_direct_profile_preserves_review_and_allows_more_retrieval() -> None:
     first = gpt.create.call_args_list[0].kwargs
     assert first["tool_choice"] == "auto" and len(first["tools"]) == 6
     assert first["input"][0] == messages("Tell me about the Registrar")[0].model_dump()
-    assert first["input"][1].name == "lookup_profile"
-    assert first["input"][2]["call_id"] == first["input"][1].call_id
-    assert record["url"] in first["input"][2]["output"]
+    assert first["input"][2].name == "lookup_profile"
+    assert first["input"][3]["call_id"] == first["input"][2].call_id
+    assert record["url"] in first["input"][3]["output"]
 
 
 @pytest.mark.parametrize("mode", ["off", "shadow"])

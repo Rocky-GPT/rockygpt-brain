@@ -136,8 +136,13 @@ def run_turn(
     dataset_version: str | None = None
     week_start = now.date() - timedelta(days=now.weekday())
     week_end = week_start + timedelta(days=6)
-    instructions = INSTRUCTIONS + (
-        f"\nCurrent campus time: {now.isoformat()} (America/New_York).\n"
+    # The instructions and tools stay byte-identical across requests so the provider
+    # can reuse its prompt cache. The clock and per-call guidance follow the
+    # conversation, before this turn's tool transcript: a changing developer message at
+    # the start of the input left the whole prompt uncached.
+    context_at = len(messages)
+    campus_clock = (
+        f"Current campus time: {now.isoformat()} (America/New_York).\n"
         f"Today is {now.strftime('%A, %B %d, %Y')}. "
         f"The current campus calendar week is {week_start} through {week_end}.\n"
     )
@@ -248,10 +253,11 @@ def run_turn(
             if prefix is not None
             else ""
         )
+        context = {"role": "developer", "content": campus_clock + composition}
         request: dict[str, Any] = dict(
             model=model,
-            instructions=instructions + composition,
-            input=list(history),
+            instructions=INSTRUCTIONS,
+            input=[*history[:context_at], context, *history[context_at:]],
             tools=[] if answer_only else tools,
             tool_choice="none" if answer_only else "auto",
             parallel_tool_calls=True,
@@ -567,7 +573,14 @@ def run_turn(
                 {key: value for key, value in request.items() if key != "timeout"}
             )
             next_payload.update(
-                tools=[], tool_choice="none", input=[*wire_value(history), *pending_outputs]
+                tools=[],
+                tool_choice="none",
+                input=[
+                    *wire_value(history[:context_at]),
+                    context,
+                    *wire_value(history[context_at:]),
+                    *pending_outputs,
+                ],
             )
             delivery_limit = budget.retrieval_context_limit(
                 input_bound(next_payload), len(pending_outputs)
