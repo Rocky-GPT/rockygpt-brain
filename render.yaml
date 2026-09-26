@@ -4,8 +4,9 @@
 # Secret values live only in the Render dashboard, so every key is
 # `sync: false`: applying this file declares a key and never overwrites a value.
 #
-# Leave these unset in production: OPENAI_CHAT_MODEL (anything but gpt-5.4
-# stops chat), BRAIN_ROUTING_MODE (routing needs migrations/003 first),
+# Leave these unset in production: OPENAI_CHAT_MODEL (anything but the
+# release model, gpt-6-luna, fails /health, so the deploy never goes live),
+# BRAIN_ROUTING_MODE (routing needs migrations/003 first),
 # BRAIN_EXPECTED_CONFIG_HASH, and STAGING_SERVICE_TOKEN unless Vercel sends
 # the same value.
 services:
@@ -22,7 +23,8 @@ services:
       # Exactly `production`.
       - key: BRAIN_ENVIRONMENT
         sync: false
-      # A key and project for production only, with gpt-5.4 access.
+      # A key and project for production only. If the project limits which
+      # models it may call, gpt-6-luna (release.json) must be allowed.
       - key: BRAIN_OPENAI_API_KEY
         sync: false
       - key: BRAIN_OPENAI_PROJECT
