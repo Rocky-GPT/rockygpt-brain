@@ -778,6 +778,108 @@ def test_rejection_reasons_are_returned_only_when_asked(explain: bool) -> None:
         assert "reviewRejections" not in result["metrics"]
 
 
+def draft(*parts: tuple[str, str, list[str]], status: str = "answered") -> SimpleNamespace:
+    reply = answer()
+    reply.output_text = json.dumps(
+        {
+            "status": status,
+            "parts": [
+                {"kind": kind, "text": text, "evidence_ids": ids} for kind, text, ids in parts
+            ],
+        }
+    )
+    return reply
+
+
+def test_failed_paragraph_is_dropped_and_supported_ones_are_kept() -> None:
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(search()),
+        draft(
+            ("guidance", "Bring your student ID.", []),
+            ("campus_fact", "The Registrar is in D-224.", [RECORD["id"]]),
+            ("campus_fact", "It is open until 9 PM tonight.", [RECORD["id"]]),
+        ),
+        review("supported", "supported", "unsupported_claim"),
+    ]
+    data.search.return_value = {"status": "ok", "records": [RECORD]}
+    result = run_turn(
+        [ChatMessage(role="user", content="Where is the Registrar and when does it close?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    assert result["answer"].startswith("Bring your student ID.\n\nThe Registrar is in D-224.")
+    assert "9 PM" not in result["answer"]
+    assert result["answer"].endswith(
+        "I left out part of this answer because I couldn't verify it against "
+        "published campus information."
+    )
+    assert result["status"] == "partial"
+    assert [citation["id"] for citation in result["citations"]] == [RECORD["id"]]
+    assert result["metrics"]["responseMode"] == "reviewed_prose"
+    assert result["metrics"]["fallbackUsed"] is False
+    assert "fallbackReason" not in result["metrics"]
+    assert result["metrics"]["validationFailures"] == ["unsupported_claim"]
+    assert result["metrics"]["reviewDroppedParts"] == [2]
+    # Nothing is rewritten or checked again.
+    assert client.create.call_count == 3
+
+
+def test_uncited_paragraph_after_a_failed_one_is_dropped_too() -> None:
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(search()),
+        draft(
+            ("campus_fact", "The Registrar is open until 9 PM tonight.", [RECORD["id"]]),
+            ("guidance", "So you can still go after class.", []),
+            ("campus_fact", "Its office is D-224.", [RECORD["id"]]),
+        ),
+        review("unsupported_claim", "supported", "supported"),
+    ]
+    data.search.return_value = {"status": "ok", "records": [RECORD]}
+    result = run_turn(
+        [ChatMessage(role="user", content="Can I still visit the Registrar today?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    # The uncited paragraph was checked against the dropped one's sources.
+    assert "after class" not in result["answer"]
+    assert "9 PM" not in result["answer"]
+    assert result["answer"].startswith("Its office is D-224.")
+    assert result["status"] == "partial"
+    assert result["metrics"]["reviewDroppedParts"] == [0, 1]
+
+
+def test_only_caveats_left_falls_back_to_the_safe_answer() -> None:
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(search()),
+        draft(
+            ("campus_fact", "The Registrar is open until 9 PM tonight.", [RECORD["id"]]),
+            ("limitation", "I could not verify weekend hours.", [RECORD["id"]]),
+            status="partial",
+        ),
+        review("unsupported_claim", "supported"),
+    ]
+    data.search.return_value = {"status": "ok", "records": [RECORD]}
+    result = run_turn(
+        [ChatMessage(role="user", content="When is the Registrar open?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    assert "9 PM" not in result["answer"]
+    assert "weekend" not in result["answer"]
+    assert result["status"] == "unavailable"
+    assert result["metrics"]["fallbackReason"] == "unsupported_answer"
+    assert "reviewDroppedParts" not in result["metrics"]
+
+
 def test_reviewer_sees_the_shuttle_calculation_the_draft_saw() -> None:
     trip: dict[str, Any] = {
         "id": "shuttle:trip-9",
