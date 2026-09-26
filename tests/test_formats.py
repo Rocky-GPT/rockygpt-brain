@@ -414,8 +414,8 @@ def test_multipart_keeps_code_facts_and_reviews_only_new_prose(verdict: str) -> 
     assert "Lentil stew" in result["answer"] and "cross-contact" in result["answer"]
     assert client.create.call_count == 3
     writing = client.create.call_args_list[1].kwargs
-    assert "Write only the remaining" in writing["instructions"]
-    assert quote in writing["instructions"]
+    assert "Write only the remaining" in writing["input"][1]["content"]
+    assert quote in writing["input"][1]["content"]
     checking = json.loads(client.create.call_args_list[2].kwargs["input"])
     assert len(checking["candidate"]["parts"]) == 1
     assert checking["verified_prefix"][0]["kind"] == "campus_fact"

@@ -13,6 +13,7 @@ from openai import Timeout
 from rockygpt_brain.config import RELEASE
 from rockygpt_brain.contracts import Answer, ChatMessage
 from rockygpt_brain.core.engine import (
+    INSTRUCTIONS,
     MAX_DRAFT_CALLS,
     MAX_MODEL_CALLS,
     MAX_TOOL_CALLS,
@@ -159,11 +160,16 @@ def test_full_conversation_is_preserved_and_evidence_is_cited() -> None:
     data.search.return_value = {"status": "ok", "dataset_version": "release-1", "records": [RECORD]}
     result = run_turn(messages, client=client, data=data, model="test", now=NOW)
     first = client.create.call_args_list[0].kwargs
+    # Instructions stay byte-identical for the provider's prompt cache; the clock
+    # follows the conversation instead.
+    assert first["instructions"] == INSTRUCTIONS
     assert first["input"][:3] == [message.model_dump() for message in messages]
+    clock = first["input"][3]
+    assert clock["role"] == "developer"
     assert first["store"] is False
-    assert NOW.isoformat() in first["instructions"]
-    assert "Friday, September 04, 2026" in first["instructions"]
-    assert "2026-08-31 through 2026-09-06" in first["instructions"]
+    assert NOW.isoformat() in clock["content"]
+    assert "Friday, September 04, 2026" in clock["content"]
+    assert "2026-08-31 through 2026-09-06" in clock["content"]
     second = client.create.call_args_list[1].kwargs["input"]
     assert [
         x["call_id"]
