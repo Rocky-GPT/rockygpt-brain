@@ -19,7 +19,7 @@
   "price": {
     "version": "openai-standard-gpt-6-luna-2026-09-26",
     "valid_from": "2026-09-11",
-    "valid_until": "2026-10-26",
+    "valid_until": "2026-12-25",
     "input_nusd": 100,
     "cached_input_nusd": 10,
     "output_nusd": 500,
