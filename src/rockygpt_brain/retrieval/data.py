@@ -258,6 +258,93 @@ class CampusData:
             "available_collections": list(COLLECTIONS),
         }
 
+    def storage(self) -> dict[str, Any]:
+        """How big the database is and what uses it: sizes and counts, never content.
+
+        A release's stored bytes are its on-disk (compressed) column sizes. Indexes and
+        reusable free space belong to no one release; they appear only in table sizes.
+        """
+        self._ensure_loaded()
+        database = self._fetch(
+            "SELECT current_database() AS name, pg_database_size(current_database()) AS bytes, "
+            "(SELECT coalesce(sum(pg_database_size(datname)), 0) FROM pg_database "
+            "WHERE datallowconn AND has_database_privilege(datname, 'CONNECT')) AS all_bytes"
+        )[0]
+        tables = self._fetch(
+            "SELECT n.nspname AS schema, c.relname AS name, "
+            "pg_total_relation_size(c.oid) AS bytes, pg_indexes_size(c.oid) AS index_bytes, "
+            "greatest(c.reltuples, 0)::bigint AS rows "
+            "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "WHERE c.relkind IN ('r', 'p', 'm') "
+            "AND n.nspname NOT IN ('pg_catalog', 'information_schema') "
+            "AND n.nspname NOT LIKE 'pg\\_toast%%' ORDER BY 3 DESC, 1, 2 LIMIT 15"
+        )
+        releases = self._fetch(
+            "WITH documents AS (SELECT dataset_version_id, count(*) AS n, "
+            "sum(pg_column_size(content) + coalesce(pg_column_size(metadata), 0)) AS bytes "
+            "FROM rockygpt_v2.documents GROUP BY 1), "
+            "passages AS (SELECT d.dataset_version_id, count(*) AS n, "
+            "sum(pg_column_size(c.content) + pg_column_size(c.lexical_vector) "
+            "+ coalesce(pg_column_size(c.metadata), 0)) AS bytes "
+            "FROM rockygpt_v2.document_chunks c "
+            "JOIN rockygpt_v2.documents d ON d.id = c.document_id GROUP BY 1), "
+            "artifacts AS (SELECT dataset_version_id, count(*) AS n, "
+            "sum(pg_column_size(payload)) AS bytes FROM rockygpt_v2.release_artifacts GROUP BY 1) "
+            "SELECT v.version, v.status, v.created_at, v.activated_at, "
+            "coalesce(p.n, 0) AS passages, coalesce(p.bytes, 0) AS passage_bytes, "
+            "coalesce(d.n, 0) AS documents, coalesce(d.bytes, 0) AS document_bytes, "
+            "coalesce(a.n, 0) AS artifacts, coalesce(a.bytes, 0) AS artifact_bytes "
+            "FROM rockygpt_v2.dataset_versions v "
+            "LEFT JOIN passages p ON p.dataset_version_id = v.id "
+            "LEFT JOIN documents d ON d.dataset_version_id = v.id "
+            "LEFT JOIN artifacts a ON a.dataset_version_id = v.id "
+            "ORDER BY coalesce(v.activated_at, v.created_at) DESC, v.version"
+        )
+        artifacts = self._fetch(
+            "SELECT artifact_key AS key, pg_column_size(payload) AS bytes "
+            "FROM rockygpt_v2.release_artifacts WHERE dataset_version_id = %s::uuid "
+            "ORDER BY 2 DESC, 1 LIMIT 10",
+            (self.dataset["id"],),
+        )
+        return {
+            "database": {
+                "name": database["name"],
+                "bytes": int(database["bytes"]),
+                "allDatabasesBytes": int(database["all_bytes"]),
+            },
+            "tables": [
+                {
+                    "schema": row["schema"],
+                    "name": row["name"],
+                    "bytes": int(row["bytes"]),
+                    "indexBytes": int(row["index_bytes"]),
+                    "estimatedRows": int(row["rows"]),
+                }
+                for row in tables
+            ],
+            "releases": [
+                {
+                    "version": row["version"],
+                    "status": row["status"],
+                    "createdAt": _instant(row["created_at"]),
+                    "activatedAt": _instant(row["activated_at"]),
+                    "passages": int(row["passages"]),
+                    "documents": int(row["documents"]),
+                    "artifacts": int(row["artifacts"]),
+                    "storedBytes": {
+                        "passages": int(row["passage_bytes"]),
+                        "documents": int(row["document_bytes"]),
+                        "artifacts": int(row["artifact_bytes"]),
+                    },
+                }
+                for row in releases
+            ],
+            "activeRelease": self.dataset["version"],
+            "activeArtifacts": [
+                {"key": row["key"], "bytes": int(row["bytes"])} for row in artifacts
+            ],
+        }
+
     def release_fingerprint(self) -> tuple[str, ...] | None:
         """The database, active release and every artifact's content hash; None offline."""
         self._ensure_loaded()

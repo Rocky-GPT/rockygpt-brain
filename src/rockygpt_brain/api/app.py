@@ -5,9 +5,9 @@ import hmac
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from importlib.resources import files
-from threading import BoundedSemaphore, Event
+from threading import BoundedSemaphore, Event, Lock
 from time import monotonic
 from typing import Any, cast
 from uuid import UUID, uuid4
@@ -106,6 +106,47 @@ def readiness() -> dict[str, object] | JSONResponse:
         return JSONResponse(status_code=503, content={"status": "unavailable"})
     finally:
         data.close()
+
+
+# One measurement serves every storage request for a minute: counting passages reads
+# the whole passage table, and this route is public in production.
+STORAGE_SECONDS = 60.0
+_storage_lock = Lock()
+_storage_summary: tuple[float, dict[str, Any]] | None = None
+
+
+@app.get("/v1/storage", response_model=None)
+def storage() -> dict[str, Any] | JSONResponse:
+    """How big the campus database is and what uses it: sizes and counts, never content.
+
+    Production serves it too, so the local Dev control room can watch the hosted
+    database's free-plan storage limit.
+    """
+    global _storage_summary
+    if not os.getenv("DATABASE_URL"):
+        return JSONResponse(status_code=503, content={"error": "storage_unavailable"})
+    with _storage_lock:
+        if _storage_summary is None or monotonic() - _storage_summary[0] >= STORAGE_SECONDS:
+            data = CampusData(os.environ["DATABASE_URL"], datetime.now(CAMPUS_TIMEZONE))
+            try:
+                summary = data.storage()
+            except Exception as error:
+                # The class only: a connection error can carry a host and login name.
+                logging.getLogger(__name__).warning(
+                    "Storage summary failed: %s", type(error).__name__
+                )
+                return JSONResponse(status_code=503, content={"error": "storage_unavailable"})
+            finally:
+                data.close()
+            _storage_summary = (
+                monotonic(),
+                {
+                    **summary,
+                    "environment": os.getenv("BRAIN_ENVIRONMENT", "development"),
+                    "measuredAt": datetime.now(UTC).isoformat(),
+                },
+            )
+        return _storage_summary[1]
 
 
 @app.get("/v1/logs", response_model=None, dependencies=DEVELOPMENT_ONLY)

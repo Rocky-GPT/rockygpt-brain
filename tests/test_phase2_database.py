@@ -81,6 +81,20 @@ def data(frozen: dict[str, Any]) -> Iterator[CampusData]:
     repository.close()
 
 
+def test_storage_reports_sizes_and_counts_without_content(data: CampusData) -> None:
+    summary = data.storage()
+    assert summary["database"]["allDatabasesBytes"] >= summary["database"]["bytes"] > 0
+    assert ("rockygpt_v2", "document_chunks") in {
+        (table["schema"], table["name"]) for table in summary["tables"]
+    }
+    active = next(r for r in summary["releases"] if r["version"] == summary["activeRelease"])
+    assert active["status"] == "active" and active["artifacts"] >= 1
+    assert active["storedBytes"]["artifacts"] > 0
+    assert "campus-identities" in {artifact["key"] for artifact in summary["activeArtifacts"]}
+    # Sizes and counts only: no record, passage or artifact text leaves the database.
+    assert "Registrar" not in json.dumps(summary, default=str)
+
+
 def test_actual_contact_sql_pins_identity_aliases_and_fields(data: CampusData) -> None:
     query = ContactQuery(entity="Office of the Registrar", fields=["phone", "email", "fax"])
     output = data.lookup_contact(query)
