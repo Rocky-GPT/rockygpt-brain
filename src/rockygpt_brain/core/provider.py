@@ -470,7 +470,7 @@ class PaidGateway:
             item.update(usage, costNusd=cost, settled=True)
             if routing and response.model != self.release.routing.model:
                 raise PaidCallError("routing_model_changed")
-            if not routing and response.model not in {self.release.model, "gpt-5.4-2026-03-05"}:
+            if not routing and response.model != self.release.model:
                 self._ledger.pause()
                 raise PaidCallError("model_identity_changed")
             if response.usage.input_tokens > bound or (

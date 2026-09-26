@@ -1,8 +1,8 @@
 {
-  "version": "campus-subjects-development-2026-09-23",
+  "version": "gpt-6-luna-development-2026-09-26",
   "provider": "openai",
-  "model": "gpt-5.4",
-  "draft_reasoning": "low",
+  "model": "gpt-6-luna",
+  "draft_reasoning": "medium",
   "review_reasoning": "medium",
   "draft_output_tokens": 2400,
   "review_output_tokens": 4096,
@@ -17,13 +17,13 @@
   "active_turns": 4,
   "review_policy": "generated_prose_single_check",
   "price": {
-    "version": "openai-standard-2026-09-26",
+    "version": "openai-standard-gpt-6-luna-2026-09-26",
     "valid_from": "2026-09-11",
     "valid_until": "2026-10-26",
-    "input_nusd": 2500,
-    "cached_input_nusd": 250,
-    "output_nusd": 15000,
-    "source": "https://developers.openai.com/api/docs/models/gpt-5.4"
+    "input_nusd": 100,
+    "cached_input_nusd": 10,
+    "output_nusd": 500,
+    "source": "https://developers.openai.com/api/docs/models/gpt-6-luna"
   },
   "max_retrieval_rounds": 2,
   "max_turn_cost_nusd": 800000000,

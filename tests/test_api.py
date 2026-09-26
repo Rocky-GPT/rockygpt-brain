@@ -10,6 +10,7 @@ from httpx import ASGITransport, AsyncClient, Request, Response
 from openai import APIConnectionError, APITimeoutError, RateLimitError
 
 from rockygpt_brain.api.app import app
+from rockygpt_brain.config import RELEASE
 from rockygpt_brain.core.provider import provider_error
 from rockygpt_brain.governance.accounting import PaidCallError
 
@@ -40,7 +41,7 @@ def deployment_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         "BRAIN_OPENAI_API_KEY": "test",
         "BRAIN_OPENAI_PROJECT": "test-project",
         "BRAIN_LEDGER_DATABASE_URL": "test",
-        "OPENAI_CHAT_MODEL": "gpt-5.4",
+        "OPENAI_CHAT_MODEL": RELEASE.model,
     }.items():
         monkeypatch.setenv(key, value)
     monkeypatch.delenv("BRAIN_EXPECTED_CONFIG_HASH", raising=False)

@@ -321,7 +321,7 @@ def test_reconciliation_uses_original_price_and_audits_receipt(ledger: PostgresL
     receipt = Receipt(
         operation_id=operation,
         provider_response_id="verified-response",
-        returned_model="gpt-5.4",
+        returned_model=RELEASE.model,
         evidence_reference="provider-export:row-123",
         input_tokens=10,
         cached_input_tokens=0,
@@ -331,7 +331,7 @@ def test_reconciliation_uses_original_price_and_audits_receipt(ledger: PostgresL
     reconcile(ledger, receipt, NOW.replace(month=12, day=1))
     reconcile(ledger, receipt, NOW.replace(month=12, day=1))
     row = ledger.operations()[0]
-    assert row["cost_nusd"] == 325000
+    assert row["cost_nusd"] == 10 * RELEASE.price.input_nusd + 20 * RELEASE.price.output_nusd
     assert row["metadata"]["reconciliation_reference"] == "provider-export:row-123"
     assert row["error_code"] == "usage_unknown"
 
