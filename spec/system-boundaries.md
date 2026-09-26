@@ -146,7 +146,11 @@ Other semantic support, including negative claims and faithful
 schedule interpretation, is checked by the reviewer against full records and
 the actual request. A rejected draft can be repaired within the shared budget, but the
 revision must pass another review. Code never returns a rejected or unreviewed
-revision and does not splice unreviewed paragraph combinations together.
+revision. When some paragraphs fail review, code drops them and keeps the ones that
+passed, adds a fixed note that part of the answer was left out, and marks the answer
+partial. A paragraph with no citations of its own that follows a failed one is dropped
+too, since it was checked against the sources cited before it. If only caveats would
+remain, the turn falls back as if every paragraph had failed. Nothing is rewritten.
 The verifier uses medium reasoning effort to compare relationships, source categories,
 and the supplied campus clock. A review can use up to 30 seconds within the remaining
 turn budget; the overall 50-second execution and 52-second HTTP limits still fit
