@@ -349,7 +349,7 @@ def trace_summary(trace: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def profile_case(case: dict[str, Any], mode: str, now: datetime,
                  keep_answers: bool) -> dict[str, Any]:
-    from rockygpt_brain.config import RELEASE, load_deployment
+    from rockygpt_brain.config import RELEASE, load_deployment  # noqa: F401 (model name only)
     from rockygpt_brain.contracts import ChatMessage
     from rockygpt_brain.core.engine import run_turn
     from rockygpt_brain.core.provider import open_gateway
@@ -413,19 +413,53 @@ def profile_case(case: dict[str, Any], mode: str, now: datetime,
     return turn
 
 
+EFFORTS = ("none", "minimal", "low", "medium", "high")
+
+
+def apply_efforts(draft: str | None, continuation: str | None, review: str | None) -> Any:
+    """Experiment only: the same release with other reasoning efforts, in this process.
+
+    The gateway sets each call's effort from its release, so the gateway default changes
+    too. The configuration hash in the report changes with it.
+    """
+    from rockygpt_brain import config
+    from rockygpt_brain.core import engine, provider, reviewer
+
+    updates = {key: value for key, value in (("draft_reasoning", draft),
+                                             ("continuation_reasoning", continuation),
+                                             ("review_reasoning", review)) if value}
+    if not updates:
+        return config.RELEASE
+    release = config.RELEASE.model_copy(update=updates)
+    config.RELEASE = release
+    engine.RELEASE = release  # type: ignore[attr-defined]
+    reviewer.RELEASE = release  # type: ignore[attr-defined]
+    defaults = provider.PaidGateway.__init__.__kwdefaults__
+    assert defaults is not None
+    defaults["release"] = release
+    return release
+
+
+def efforts(release: Any) -> dict[str, str]:
+    return {"draft": release.draft_reasoning, "continuation": release.continuation_reasoning,
+            "review": release.review_reasoning}
+
+
 def turns(output: Path, *, repeats: int, mode: str, only: list[str] | None,
           keep_answers: bool) -> dict[str, Any]:
-    from rockygpt_brain.config import RELEASE, configuration_hash
+    from rockygpt_brain import config
 
     if os.getenv("BRAIN_ENVIRONMENT") != "development":
         raise SystemExit("Profiling makes paid calls and requires BRAIN_ENVIRONMENT=development")
     instrument()
+    RELEASE, configuration_hash = config.RELEASE, config.configuration_hash
     cases = json.loads(CASES.read_text())["cases"]
     if only:
         cases = [case for case in cases if case["id"] in only]
     report: dict[str, Any] = {
         "kind": "turns", "status": "incomplete", "mode": mode, "repeats": repeats,
         "configurationHash": configuration_hash(), "release": RELEASE.version,
+        "efforts": efforts(RELEASE),
         "startedAt": datetime.now(CAMPUS_ZONE).isoformat(), "turns": [],
     }
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -446,6 +480,99 @@ def turns(output: Path, *, repeats: int, mode: str, only: list[str] | None,
     report["summary"] = summarize_turns(report["turns"])
     output.write_text(json.dumps(report, indent=2) + "\n")
     return report
+
+
+def reviews(corpus: Path, output: Path, *, repeats: int) -> dict[str, Any]:
+    """The evidence review alone on rockygpt-evals' labeled evidence-gate cases: whether
+    each verdict matches the label, and how long and how many tokens each review takes."""
+    import datetime as dt
+
+    from rockygpt_brain import config
+    from rockygpt_brain.contracts import Answer, ChatMessage
+    from rockygpt_brain.core.provider import open_gateway
+    from rockygpt_brain.core.reviewer import review_answer
+    from rockygpt_brain.governance.accounting import PaidCallError
+
+    deployment = config.load_deployment()
+    if deployment.environment != "development":
+        raise SystemExit("Review checks make paid calls and require BRAIN_ENVIRONMENT=development")
+    cases = json.loads(corpus.read_text())["cases"]
+    report: dict[str, Any] = {
+        "kind": "reviews", "status": "incomplete", "repeats": repeats,
+        "efforts": efforts(config.RELEASE), "configurationHash": config.configuration_hash(),
+        "startedAt": datetime.now(CAMPUS_ZONE).isoformat(), "results": [],
+    }
+    output.parent.mkdir(parents=True, exist_ok=True)
+    for repeat in range(repeats):
+        for case in cases:
+            item: dict[str, Any] = {"id": case["id"], "repeat": repeat,
+                                    "expectedSupported": case["expected"]["supported"]}
+            started = time.perf_counter()
+            try:
+                with open_gateway(deployment, "review-check-" + str(uuid4())) as client:
+                    try:
+                        review = review_answer(
+                            Answer.model_validate(case["candidate"]),
+                            messages=[ChatMessage.model_validate(message)
+                                      for message in case["messages"]],
+                            evidence={record["id"]: record for record in case["evidence"]},
+                            client=client, model=config.RELEASE.model,
+                            now=dt.datetime.fromisoformat(case["campus_time"]),
+                            timeout=config.RELEASE.turn_seconds,
+                            retrievals=case.get("search_coverage"),
+                        )
+                        verdicts = {part.part_index: part.verdict == "supported"
+                                    for part in review.parts}
+                        supported = all(verdicts.values())
+                        item.update(supported=supported, passed=(
+                            supported == case["expected"]["supported"] and all(
+                                verdicts[expected["part_index"]] == expected["supported"]
+                                for expected in case["expected"]["parts"])))
+                    except PaidCallError as error:
+                        item["error"] = error.code
+                    except Exception as error:
+                        item["error"] = type(error).__name__
+                    finally:
+                        item["calls"] = [
+                            {key: call.get(key) for key in (
+                                "elapsedMs", "input_tokens", "cached_input_tokens",
+                                "output_tokens", "reasoning_tokens", "costNusd")}
+                            for call in client.usage.calls
+                        ]
+                        client.finish({"evaluation": "profile-reviews",
+                                       "status": "passed" if item.get("passed") else "failed"})
+            except PaidCallError as error:
+                item["error"] = error.code
+            item["elapsedMs"] = _ms(started)
+            report["results"].append(item)
+            output.write_text(json.dumps(report, indent=2) + "\n")
+            print(json.dumps({key: item.get(key) for key in (
+                "id", "repeat", "passed", "error", "elapsedMs")}), flush=True)
+            if item.get("error") in {"budget_exhausted", "accounting_unavailable",
+                                     "accounting_paused", "model_quota_exhausted"}:
+                raise SystemExit(f"Stopped: {item['error']}")
+    report["status"] = "complete"
+    report["summary"] = summarize_reviews(report["results"])
+    output.write_text(json.dumps(report, indent=2) + "\n")
+    return report
+
+
+def summarize_reviews(results: list[dict[str, Any]]) -> dict[str, Any]:
+    ran = [item for item in results if "error" not in item]
+    bad = [item for item in ran if not item["expectedSupported"]]
+    good = [item for item in ran if item["expectedSupported"]]
+    calls = [call for item in ran for call in item.get("calls", [])]
+    return {
+        "reviews": len(results), "errors": len(results) - len(ran),
+        "passed": sum(bool(item.get("passed")) for item in ran),
+        "badAnswersRejected": f"{sum(not item['supported'] for item in bad)}/{len(bad)}",
+        "goodAnswersAccepted": f"{sum(bool(item['supported']) for item in good)}/{len(good)}",
+        "failedCases": sorted({item["id"] for item in ran if not item.get("passed")}),
+        "elapsedMs": spread([item["elapsedMs"] for item in ran]),
+        "modelMs": spread([float(call.get("elapsedMs") or 0) for call in calls]),
+        "reasoningTokens": spread([float(call.get("reasoning_tokens") or 0) for call in calls]),
+        "costNusd": spread([float(call.get("costNusd") or 0) for call in calls]),
+    }
 
 
 # ---------------------------------------------------------------------------------------
@@ -532,6 +659,8 @@ def summarize(path: Path) -> dict[str, Any]:
     loaded = json.loads(path.read_text())
     if isinstance(loaded, dict) and loaded.get("kind") == "turns":
         result = summarize_turns(loaded["turns"])
+    elif isinstance(loaded, dict) and loaded.get("kind") == "reviews":
+        result = summarize_reviews(loaded["results"])
     elif isinstance(loaded, list):
         result = summarize_responses(loaded)
     else:
@@ -553,23 +682,37 @@ def main() -> int:
                               default=os.getenv("BRAIN_ROUTING_MODE") or "off")
     turns_parser.add_argument("--only", nargs="*", help="Case IDs from docs/routing/cases.json")
     turns_parser.add_argument("--keep-answers", action="store_true")
+    review_parser = commands.add_parser("reviews")
+    review_parser.add_argument("--corpus", type=Path, required=True,
+                               help="rockygpt-evals brain-reset/evidence-gate-cases.json")
+    review_parser.add_argument("--output", type=Path, required=True)
+    review_parser.add_argument("--repeats", type=int, default=1)
     summarize_parser = commands.add_parser("summarize")
     summarize_parser.add_argument("report", type=Path)
-    for command in (probe_parser, turns_parser):
+    for command in (probe_parser, turns_parser, review_parser):
         command.add_argument("--env-file", type=Path,
                              help="Settings file to load (default: .env in the working directory)")
+    for command in (turns_parser, review_parser):
+        for name in ("draft", "continuation", "review"):
+            command.add_argument(f"--{name}-effort", choices=EFFORTS,
+                                 help="Experiment: override this reasoning effort")
     args = parser.parse_args()
-    if args.command in {"probe", "turns"}:
+    if args.command in {"probe", "turns", "reviews"}:
         from dotenv import load_dotenv
 
         load_dotenv(args.env_file)
-    if args.command == "probe":
-        probe(args.output)
-    elif args.command == "turns":
+    if args.command in {"turns", "reviews"}:
         if not 1 <= args.repeats <= 5:
             parser.error("--repeats must be between 1 and 5")
         if args.output.exists():
             parser.error("--output exists; reports are never overwritten")
+        apply_efforts(args.draft_effort, args.continuation_effort, args.review_effort)
+    if args.command == "probe":
+        probe(args.output)
+    elif args.command == "reviews":
+        print(json.dumps(reviews(args.corpus, args.output, repeats=args.repeats)["summary"],
+                         indent=2))
+    elif args.command == "turns":
         report = turns(args.output, repeats=args.repeats, mode=args.mode, only=args.only,
                        keep_answers=args.keep_answers)
         print(json.dumps(report["summary"], indent=2))
