@@ -22,7 +22,7 @@ from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.provider import input_bound
 from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.retrieval.data import CampusData
-from rockygpt_brain.retrieval.exact import ContactQuery
+from rockygpt_brain.retrieval.exact import CONTACT_FIELDS, ContactQuery
 from rockygpt_brain.retrieval.profiles import (
     SECTION_COLLECTIONS,
     Identity,
@@ -32,6 +32,9 @@ from rockygpt_brain.retrieval.profiles import (
 from rockygpt_brain.retrieval.release_cache import cached
 
 FIELDS = ("phone", "email", "office", "department", "fax", "hours", "website")
+# A yes/no answer below this leans against a detail, so the lookup leaves it out; between
+# this and the routing threshold Jev is torn, and the lookup defers to GPT.
+LEANS_AGAINST = 0.5
 # Without active routing, a request that names one curated identity starts with these.
 GRAPH_TOOLS = ("lookup_profile", "lookup_contact")
 # The related section needs a relationship and direction that the router does not choose;
@@ -41,13 +44,20 @@ ROUTED_SECTIONS = tuple(
     section for section in SECTION_COLLECTIONS
     if section not in {
         "related", "requirements", "building", "school", "subject", "graduation_plans"})
+# Keep the options apart: when two descriptions overlap, Jev splits its answer between
+# them and neither clears the threshold.
 ROUTES = {
-    "contact": "Contact fields for exactly one named person or office.",
-    "profile": "One known campus entity's profile sections, including combined contact/hours.",
-    "search": "Discover campus information, policies, schedules, events or unknown entities.",
+    "contact": "Only how to reach exactly one named person or office: its phone, email, "
+    "office location, department, fax or website.",
+    "profile": "Facts about exactly one named place, office, program or club beyond how to "
+    "reach it, such as when it is open, a dining venue's menu, its conveners or its events, "
+    "including those facts asked together with its contact details.",
+    "search": "Finding campus information that is not about one named entity: events "
+    "across campus, policies, shuttles, or an entity the request does not name.",
     "calculate": "Arithmetic over numbers supplied by the user; no missing campus evidence.",
     "general": "Conversation or general help requiring no campus facts.",
-    "unresolved": "Mixed independent subjects, ambiguous intent, or none of these routes.",
+    "unresolved": "Two or more independent subjects, comparisons, ambiguous intent, or none "
+    "of these routes.",
 }
 TOOLS = {
     "contact": "lookup_contact",
@@ -281,10 +291,15 @@ def routing_payload(
             "Does latest_request explicitly ask for the complete menu or all dishes?"
         ),
     }
+    # One question covers general contact details, so Jev isn't asked to guess each field.
+    questions["general_contact"] = noul(
+        "Does latest_request ask in general how to contact or reach the entity, or for its "
+        "contact information, without limiting the answer to particular details?"
+    )
     for field in FIELDS:
         questions["field_" + field] = noul(
-            f"Does latest_request request the contact field '{field}'? For general contact "
-            "details include phone, email, office and department; otherwise only explicit fields."
+            f"Does latest_request specifically ask for the contact field '{field}'? A general "
+            "request to contact or reach the entity does not ask for any particular field."
         )
     for section in ROUTED_SECTIONS:
         questions["section_" + section] = noul(
@@ -352,14 +367,27 @@ def selected(answers: dict[str, Any], key: str) -> str | None:
     return value
 
 
-def included(answers: dict[str, Any], prefix: str, options: Any) -> list[str] | None:
+def wanted(answer: dict[str, Any]) -> bool | None:
+    """Whether a yes/no detail is wanted, or None while Jev is torn."""
+    value: float = answer["noul"]
+    if value >= RELEASE.routing.threshold:
+        return True
+    if value < LEANS_AGAINST:
+        return False
+    return None
+
+
+def included(
+    answers: dict[str, Any], prefix: str, options: Iterable[str], given: tuple[str, ...] = ()
+) -> list[str] | None:
+    """The wanted options, in order, with `given` ones wanted whatever Jev said of them."""
     result = []
     for option in options:
-        value = answers[prefix + option]["noul"]
-        if value >= RELEASE.routing.threshold:
-            result.append(option)
-        elif value > round(1 - RELEASE.routing.threshold, 10):
+        want = option in given or wanted(answers[prefix + option])
+        if want is None:
             return None
+        if want:
+            result.append(option)
     return result
 
 
@@ -399,7 +427,10 @@ def interpret(
         # Prior messages may resolve a reference, never replace the entity the request names.
         return decision
     if route == "contact":
-        fields = included(answers, "field_", FIELDS)
+        general = wanted(answers["general_contact"])
+        if general is None:
+            return decision
+        fields = included(answers, "field_", FIELDS, CONTACT_FIELDS if general else ())
         if not fields or len(entity.name) > 160:
             return decision
         # Contact lookup accepts a name, so do not force a UUID into that interface.
@@ -421,10 +452,10 @@ def interpret(
                 return decision
             arguments["meal"] = None if meal == "unspecified" else meal
         if "menu" in sections:
-            complete = answers["complete_menu"]["noul"]
-            if round(1 - RELEASE.routing.threshold, 10) < complete < RELEASE.routing.threshold:
+            complete = wanted(answers["complete_menu"])
+            if complete is None:
                 return decision
-            arguments["menu_limit"] = 100 if complete >= RELEASE.routing.threshold else 12
+            arguments["menu_limit"] = 100 if complete else 12
         decision.arguments = ProfileQuery.model_validate(arguments).model_dump(mode="json")
     decision.reason = None
     return decision
