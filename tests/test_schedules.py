@@ -320,9 +320,10 @@ FRIDAY_MEALS = [
 @pytest.mark.parametrize("clock,expected", [
     ("06:00", ["Breakfast", "Continental", "Lunch", "Dinner", "Late Night"]),
     ("10:40", ["Continental", "Lunch", "Dinner", "Late Night", "Breakfast"]),
-    ("12:30", ["Lunch", "Dinner", "Late Night", "Breakfast", "Continental"]),
-    ("20:30", ["Late Night", "Breakfast", "Continental", "Lunch", "Dinner"]),
-    ("23:30", ["Breakfast", "Continental", "Lunch", "Dinner", "Late Night"]),
+    ("12:30", ["Lunch", "Dinner", "Late Night", "Continental", "Breakfast"]),
+    ("20:30", ["Late Night", "Dinner", "Lunch", "Continental", "Breakfast"]),
+    # Once every meal has been served, the latest leads, so dinner comes before breakfast.
+    ("23:30", ["Late Night", "Dinner", "Lunch", "Continental", "Breakfast"]),
 ])
 def test_meal_order_leads_with_the_meal_in_service_or_next(clock: str, expected: list[str]) -> None:
     now = datetime.fromisoformat(f"2026-09-25T{clock}:00").replace(tzinfo=CAMPUS_ZONE)

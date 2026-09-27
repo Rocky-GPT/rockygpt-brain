@@ -57,6 +57,7 @@ def person_data() -> Any:
         'COMP 101': {'code': 'COMP 101', 'name': 'Introduction to Computing', 'credits': '4'},
     }
     data._artifacts['catalog-conveners'] = None
+    data._artifacts['campus-identity-coverage'] = None  # No alias report published.
     contact, _ = rows()
     contact.update(id='ada', name='Ada Example', source_record_key='person:ada',
                    email='ada@example.edu', office='A-101')

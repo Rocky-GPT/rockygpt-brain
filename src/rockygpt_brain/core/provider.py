@@ -234,14 +234,16 @@ def wire_value(value: Any) -> Any:
 
 
 def input_bound(payload: dict[str, Any]) -> int:
-    """Text-only byte ceiling with doubled content and generous framing overhead.
+    """Text-only byte ceiling with generous framing overhead.
 
     Never use characters/4: Unicode, schemas, tools, and replayed reasoning items
-    must be included. This deliberately over-reserves; measured usage releases
-    the difference. Enforced context bounds keep this below long-context rates.
+    must be included. No token is shorter than one byte, so a byte per token
+    already over-reserves about fourfold for English; counting each byte twice
+    left GPT half the evidence room it had. Measured usage releases the
+    difference. Enforced context bounds keep this below long-context rates.
     """
     serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    return 2 * len(serialized.encode("utf-8")) + 8192
+    return len(serialized.encode("utf-8")) + 8192
 
 
 @dataclass

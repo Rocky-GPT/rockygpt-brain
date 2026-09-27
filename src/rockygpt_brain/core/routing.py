@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from time import monotonic
 from typing import Any, Protocol
 from uuid import UUID
@@ -23,31 +23,62 @@ from rockygpt_brain.core.provider import input_bound
 from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.retrieval.data import CampusData
 from rockygpt_brain.retrieval.exact import ContactQuery
-from rockygpt_brain.retrieval.profiles import (
-    SECTION_COLLECTIONS,
-    Identity,
-    IdentityRegistry,
-    ProfileQuery,
-)
+from rockygpt_brain.retrieval.profiles import Identity, IdentityRegistry, ProfileQuery
 from rockygpt_brain.retrieval.release_cache import cached
 
+# A direct contact lookup fetches every field: they are small, and Jev's yes/no answers
+# about single fields sat between 0.5 and 0.8 whether or not the field was asked.
 FIELDS = ("phone", "email", "office", "department", "fax", "hours", "website")
+# A request that names one entity needs Jev's pick of it to reach only this.
+LEANS_TOWARD = 0.5
 # Without active routing, a request that names one curated identity starts with these.
 GRAPH_TOOLS = ("lookup_profile", "lookup_contact")
-# The related section needs a relationship and direction that the router does not choose;
-# requirements, building, school, subject and graduation plans are chosen by the model
-# until routing evals cover them.
+# What a profile request asks about, as one Jev choice. Each topic fetches its sections.
+TOPICS = {
+    "hours": "When it is open: its operating hours on a day, not staff availability.",
+    "menu": "Food it serves: dishes on its menu for a meal or a day.",
+    "complete_menu": "Its whole menu: every dish, the full or complete menu.",
+    "contact": "How to reach it: phone, email, office room, department or website.",
+    "location": "Where it is: its building or room.",
+    "events": "Its events, or the date, time or place of an event.",
+    "about": "Who or what it is: who leads, convenes, teaches or belongs to it, its courses, "
+    "or its program or club details.",
+    "unresolved": "Something none of these covers, or unclear.",
+}
+TOPIC_SECTIONS = {
+    "hours": ("hours",),
+    "menu": ("menu", "hours"),
+    "complete_menu": ("menu", "hours"),
+    "contact": ("contact",),
+    "location": ("building", "contact"),
+    "events": ("event",),
+    "about": ("faculty", "courses", "program", "conveners", "club"),
+}
+# Related needs a relationship and direction the router does not choose; requirements,
+# school, subject and graduation plans stay with GPT until routing evals cover them.
 ROUTED_SECTIONS = tuple(
-    section for section in SECTION_COLLECTIONS
-    if section not in {
-        "related", "requirements", "building", "school", "subject", "graduation_plans"})
+    dict.fromkeys(section for sections in TOPIC_SECTIONS.values() for section in sections)
+)
+# The lookup keeps Jev's leading topics until they hold this much of its answer, at most
+# MAX_TOPICS of them. When they don't, or one is unresolved, it fetches every section.
+TOPIC_COVERAGE = 0.9
+MAX_TOPICS = 3
+# Keep the options apart: when two descriptions overlap, Jev splits its answer between
+# them and neither clears the threshold.
 ROUTES = {
-    "contact": "Contact fields for exactly one named person or office.",
-    "profile": "One known campus entity's profile sections, including combined contact/hours.",
-    "search": "Discover campus information, policies, schedules, events or unknown entities.",
+    "contact": "The request asks only how to reach exactly one named person or office: "
+    "phone, email, office location or department.",
+    "profile": "The request names exactly one campus place, office, program, club, dining "
+    "hall, building or person and asks about it: hours on a day, today's or tomorrow's "
+    "menu, where it is, who leads or convenes it, its events, or its contact details "
+    "together with any of these.",
+    "search": "No single named entity answers it: finding events, policies, schedules, "
+    "shuttles, or things the request does not name, or an entity not in the supplied "
+    "identities.",
     "calculate": "Arithmetic over numbers supplied by the user; no missing campus evidence.",
     "general": "Conversation or general help requiring no campus facts.",
-    "unresolved": "Mixed independent subjects, ambiguous intent, or none of these routes.",
+    "unresolved": "Two or more independent subjects, comparisons, ambiguous intent, or none "
+    "of these routes.",
 }
 TOOLS = {
     "contact": "lookup_contact",
@@ -63,6 +94,14 @@ MEALS = {
     "lunch": "Lunch",
     "dinner": "Dinner",
     "unresolved": "Another meal, ambiguous meal, or meal inferred only from the time",
+}
+# Whether the request describes danger, as one Jev choice. Its top pick is enough: a
+# danger pick only adds the safety block and never removes anything GPT writes.
+DANGER = {
+    "self_harm": "The student may hurt or kill themselves, or doesn't want to be alive.",
+    "danger": "The student or someone else is in danger right now: a threat, an "
+    "emergency or an injury.",
+    "none": "No one is described as being in danger.",
 }
 SOFT_ERRORS = {
     "routing_context_limit",
@@ -85,6 +124,7 @@ class RouteDecision:
     tool: str | None = None
     arguments: dict[str, Any] | None = None
     reason: str | None = None
+    danger: str | None = None
     calls: int = 0
     elapsed_ms: int = 0
 
@@ -97,6 +137,7 @@ class RouteDecision:
             "confidence": self.confidence,
             "directRetrieval": False,
             "fallbackReason": self.reason,
+            "danger": self.danger,
             "elapsedMs": self.elapsed_ms,
         }
 
@@ -221,10 +262,6 @@ def choice(instructions: str, criteria: dict[str, Any]) -> dict[str, Any]:
     return {"type": "choice", "instructions": instructions, "criteria": criteria}
 
 
-def noul(instructions: str) -> dict[str, Any]:
-    return {"type": "noul", "instructions": instructions}
-
-
 def routing_payload(
     messages: list[ChatMessage], candidates: list[Identity], now: datetime
 ) -> tuple[dict[str, Any], str | None]:
@@ -269,31 +306,17 @@ def routing_payload(
         "meal": choice(
             "Choose the explicit requested meal label; never infer it from a time.", MEALS
         ),
-        "simple": noul(
-            "Is latest_request a straightforward lookup for exactly one entity whose complete "
-            "retrieval needs are representable by the supplied entity, contact fields, profile "
-            "sections, date and meal choices? No for multiple subjects, comparisons, negations, "
-            "planning, policy interpretation, safety judgments, unresolved references, "
-            "date ranges, complex dates or unsupported qualifiers. "
-            "A request for all menu items is representable."
+        "topic": choice(
+            "What does latest_request ask about the chosen entity? Choose unresolved only "
+            "when none of these covers it.",
+            TOPICS,
         ),
-        "complete_menu": noul(
-            "Does latest_request explicitly ask for the complete menu or all dishes?"
+        "danger": choice(
+            "Is the student in latest_request describing danger right now? Prior messages "
+            "may explain what it refers to.",
+            DANGER,
         ),
     }
-    for field in FIELDS:
-        questions["field_" + field] = noul(
-            f"Does latest_request request the contact field '{field}'? For general contact "
-            "details include phone, email, office and department; otherwise only explicit fields."
-        )
-    for section in ROUTED_SECTIONS:
-        questions["section_" + section] = noul(
-            f"Does latest_request request the profile section '{section}'? Select only requested "
-            "sections. Courses means an undated faculty profile course list, not current teaching. "
-            "Conveners means the published program conveners. Event is an occurrence or a club's "
-            "or campus organization's linked events. Hours means operating hours, not phone or "
-            "staff availability."
-        )
     return {
         "model": RELEASE.routing.model,
         "state": {
@@ -321,25 +344,40 @@ def validate_answers(answers: dict[str, Any], questions: dict[str, Any]) -> None
     if answers.keys() != questions.keys():
         raise ValueError("Incomplete routing response")
     for key, question in questions.items():
-        answer = answers[key]
-        if not isinstance(answer, dict) or answer.get("type") != question["type"]:
-            raise ValueError("Invalid answer type")
-        if question["type"] == "noul":
-            number(answer.get("noul"))
-        else:
-            options = question["criteria"]
-            probabilities = answer.get("probabilities")
-            if not isinstance(probabilities, dict) or probabilities.keys() != options.keys():
-                raise ValueError("Invalid routing options")
-            values = [number(value) for value in probabilities.values()]
-            number(answer.get("confidence"))
-            selected = answer.get("choice")
-            if (
-                selected not in options
-                or abs(sum(values) - 1) > 0.001
-                or (probabilities[selected] < max(values))
-            ):
-                raise ValueError("Invalid routing distribution")
+        validate_answer(answers[key], question)
+
+
+def validate_answer(answer: Any, question: dict[str, Any]) -> None:
+    if not isinstance(answer, dict) or answer.get("type") != question["type"]:
+        raise ValueError("Invalid answer type")
+    if question["type"] == "noul":
+        number(answer.get("noul"))
+    else:
+        options = question["criteria"]
+        probabilities = answer.get("probabilities")
+        if not isinstance(probabilities, dict) or probabilities.keys() != options.keys():
+            raise ValueError("Invalid routing options")
+        values = [number(value) for value in probabilities.values()]
+        number(answer.get("confidence"))
+        selected = answer.get("choice")
+        if (
+            selected not in options
+            or abs(sum(values) - 1) > 0.001
+            or (probabilities[selected] < max(values))
+        ):
+            raise ValueError("Invalid routing distribution")
+
+
+def danger_pick(answers: Any, question: dict[str, Any]) -> str | None:
+    """Jev's danger pick, read on its own: an invalid answer to another question, or a
+    late reply, drops the lookup but never the safety block."""
+    try:
+        answer = answers["danger"]
+        validate_answer(answer, question)
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return None
+    value: str = answer["choice"]
+    return None if value == "none" else value
 
 
 def selected(answers: dict[str, Any], key: str) -> str | None:
@@ -352,15 +390,19 @@ def selected(answers: dict[str, Any], key: str) -> str | None:
     return value
 
 
-def included(answers: dict[str, Any], prefix: str, options: Any) -> list[str] | None:
-    result = []
-    for option in options:
-        value = answers[prefix + option]["noul"]
-        if value >= RELEASE.routing.threshold:
-            result.append(option)
-        elif value > round(1 - RELEASE.routing.threshold, 10):
-            return None
-    return result
+def topics(answer: dict[str, Any]) -> list[str] | None:
+    """Jev's leading topics, most likely first, or None when it spreads its answer too thin."""
+    ranked = sorted(answer["probabilities"].items(), key=lambda item: item[1], reverse=True)
+    kept: list[str] = []
+    covered = 0.0
+    for topic, probability in ranked[:MAX_TOPICS]:
+        kept.append(topic)
+        covered = round(covered + probability, 6)  # 0.6 + 0.3 must reach 0.9.
+        if covered >= TOPIC_COVERAGE:
+            break
+    if covered < TOPIC_COVERAGE or "unresolved" in kept:
+        return None
+    return kept
 
 
 def interpret(
@@ -380,52 +422,54 @@ def interpret(
         return decision
     if route not in {"contact", "profile"}:
         return decision
-    # A clear route alone can constrain GPT; only fully resolved slots permit direct execution.
+    # Until a lookup is resolved, GPT keeps every tool: the request may need more than one.
+    decision.tool = None
     decision.reason = "arguments_unresolved"
-    if answers["simple"]["noul"] < RELEASE.routing.threshold:
-        # Complex requests must keep all tools, even if the coarse route is confident.
-        decision.tool = None
+    if len(messages) > 1:
+        # A follow-up leans on earlier turns, so GPT runs the lookup even when Jev is sure.
+        decision.reason = "follow_up"
         return decision
+    explicit = named(messages[-1].content, candidates)
     entity_id = selected(answers, "entity")
+    if entity_id is None and len(explicit) == 1:
+        # The request names this entity itself, so Jev need only lean the same way.
+        leading = answers["entity"]["choice"]
+        if (leading == str(explicit[0].id)
+                and answers["entity"]["probabilities"][leading] >= LEANS_TOWARD):
+            entity_id = leading
     entity = next((item for item in candidates if str(item.id) == entity_id), None)
     if entity is None:
         return decision
-    explicit = named(messages[-1].content, candidates)
     if len(explicit) > 1:
-        decision.tool = None
         decision.reason = "ambiguous_entities"
         return decision
     if explicit and entity not in explicit:
         # Prior messages may resolve a reference, never replace the entity the request names.
         return decision
     if route == "contact":
-        fields = included(answers, "field_", FIELDS)
-        if not fields or len(entity.name) > 160:
+        if len(entity.name) > 160:
             return decision
         # Contact lookup accepts a name, so do not force a UUID into that interface.
-        query = ContactQuery.model_validate({"entity": entity.name, "fields": fields})
+        query = ContactQuery.model_validate({"entity": entity.name, "fields": list(FIELDS)})
         decision.arguments = {**query.model_dump(mode="json"), "request_text": None}
     else:
-        sections = included(answers, "section_", ROUTED_SECTIONS)
-        if not sections:
-            return decision
+        chosen = topics(answers["topic"])
+        sections = list(dict.fromkeys(
+            section for topic in chosen for section in TOPIC_SECTIONS[topic]
+        )) if chosen else list(ROUTED_SECTIONS)
         arguments: dict[str, Any] = {"entity_id": entity_id, "include": sections}
         if set(sections) & {"hours", "menu", "event"}:
-            date_option = selected(answers, "date")
-            if date_option is None or (date_option == "explicit" and day is None):
+            # The campus resolver reads simple dates; Jev only flags the ones it can't.
+            if answers["date"]["choice"] == "unresolved":
                 return decision
-            arguments["date"] = day if date_option == "explicit" else None
+            arguments["date"] = day
         if set(sections) & {"hours", "menu"}:
             meal = selected(answers, "meal")
-            if meal is None:
-                return decision
-            arguments["meal"] = None if meal == "unspecified" else meal
+            arguments["meal"] = None if meal in {None, "unspecified"} else meal
         if "menu" in sections:
-            complete = answers["complete_menu"]["noul"]
-            if round(1 - RELEASE.routing.threshold, 10) < complete < RELEASE.routing.threshold:
-                return decision
-            arguments["menu_limit"] = 100 if complete >= RELEASE.routing.threshold else 12
+            arguments["menu_limit"] = 100 if chosen and chosen[0] == "complete_menu" else 12
         decision.arguments = ProfileQuery.model_validate(arguments).model_dump(mode="json")
+    decision.tool = TOOLS[route]
     decision.reason = None
     return decision
 
@@ -470,11 +514,20 @@ def route_request(
             return decision
         decision.calls = 1
         answers = client.route(payload, timeout=remaining)
+        danger = danger_pick(answers, payload["questions"]["danger"])
+        decision.danger = danger
         validate_answers(answers, payload["questions"])
         decision = interpret(answers, candidates, day, messages)
+        if (decision.arguments is not None and day is not None
+                and decision.arguments.get("date") == day and date.fromisoformat(day) < now.date()):
+            # The resolver keeps a weekday in this calendar week even once it has passed:
+            # asked on a Sunday, "Saturday" is yesterday. GPT decides which one is meant.
+            decision = RouteDecision(route=decision.route, confidence=decision.confidence,
+                                     reason="past_date")
         decision.calls = 1
         if monotonic() >= deadline:
             decision = RouteDecision(reason="routing_timeout", calls=1)
+        decision.danger = danger
     except PaidCallError as error:
         if error.code not in SOFT_ERRORS:
             raise  # Accounting, budget, and admission errors never become unpaid fallback.
