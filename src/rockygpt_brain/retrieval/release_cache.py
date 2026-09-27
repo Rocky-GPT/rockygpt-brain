@@ -17,9 +17,10 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 T = TypeVar("T")
-# A few releases at most: the active one, plus any a deploy is switching between.
+# A few releases at most: the active one, plus any a deploy is switching between. Each
+# release keeps all of its structures, so adding a structure never evicts another.
 LIMIT = 4
-_entries: OrderedDict[tuple[Any, ...], Any] = OrderedDict()
+_entries: OrderedDict[tuple[Any, ...], dict[str, Any]] = OrderedDict()
 _lock = threading.Lock()
 
 
@@ -28,16 +29,16 @@ def cached(data: Any, name: str, build: Callable[[], T]) -> T:
     fingerprint = data.release_fingerprint()
     if fingerprint is None:
         return build()
-    key = (name, *fingerprint)
     with _lock:
-        if key in _entries:
-            _entries.move_to_end(key)
-            value: T = _entries[key]
-            return value
+        if fingerprint in _entries:
+            _entries.move_to_end(fingerprint)
+            if name in _entries[fingerprint]:
+                value: T = _entries[fingerprint][name]
+                return value
     value = build()
     with _lock:
-        _entries[key] = value
-        _entries.move_to_end(key)
+        _entries.setdefault(fingerprint, {})[name] = value
+        _entries.move_to_end(fingerprint)
         while len(_entries) > LIMIT:
             _entries.popitem(last=False)
     return value
