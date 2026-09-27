@@ -880,6 +880,103 @@ def test_only_caveats_left_falls_back_to_the_safe_answer() -> None:
     assert "reviewDroppedParts" not in result["metrics"]
 
 
+MENU: dict[str, Any] = {
+    "id": "menu:bowl",
+    "title": "Ultimate Mediterranean Bowl",
+    "url": "https://www.ramapo.edu/dining/",
+    "collection": "menu",
+    "freshness": "fresh",
+    "fields": {"name": "Ultimate Mediterranean Bowl", "meal": "Dinner", "venue": "Birch Tree Inn"},
+}
+BUILDING: dict[str, Any] = {
+    "id": "buildings:1133371",
+    "title": "Academic Building D",
+    "url": "https://map.ramapo.edu/?id=2292#!m/1133371?sbc/",
+    "collection": "buildings",
+    "freshness": "static",
+}
+
+
+def mixed_turn(*verdicts: str, caveat_ids: list[str] | None = None) -> dict[str, Any]:
+    """"Registrar phone and tonight's menu": each subject has its own lookup and paragraph."""
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(
+            SimpleNamespace(type="function_call", name="lookup_contact", call_id="contact",
+                            arguments=json.dumps({"entity": "Registrar", "fields": ["phone"],
+                                                  "request_text": None})),
+            SimpleNamespace(type="function_call", name="lookup_profile", call_id="menu",
+                            arguments=json.dumps({"entity": "Birch Tree Inn",
+                                                  "include": ["menu"], "meal": "Dinner"})),
+        ),
+        draft(
+            ("campus_fact", "The Registrar's phone number is (201) 684-7695.", [RECORD["id"]]),
+            ("campus_fact", "Dinner at Birch Tree Inn tonight includes the Ultimate "
+             "Mediterranean Bowl.", [MENU["id"]]),
+            ("limitation", "That is only part of tonight's published menu.", caveat_ids or []),
+            status="partial",
+        ),
+        review(*verdicts),
+    ]
+    # The contact lookup also returns the office's building, as it does live.
+    data.lookup_contact.return_value = {
+        "status": "ok", "match": "canonical_entity", "records": [RECORD, BUILDING],
+    }
+    data.lookup_profile.return_value = {
+        "status": "ok", "records": [MENU], "truncated": True, "total_matches": 40,
+    }
+    return run_turn(
+        [ChatMessage(role="user",
+                     content="Give me the Registrar phone and the dining menu for tonight.")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+
+
+def test_two_part_answer_keeps_the_phone_when_the_menu_fails() -> None:
+    result = mixed_turn("supported", "unsupported_claim", "supported")
+    assert result["answer"].startswith("The Registrar's phone number is (201) 684-7695.")
+    assert "Mediterranean" not in result["answer"]
+    # The menu's caveat was checked against the dropped menu's sources, so it goes too.
+    assert "only part" not in result["answer"]
+    assert result["status"] == "partial"
+    assert result["metrics"]["reviewDroppedParts"] == [1, 2]
+    assert [citation["id"] for citation in result["citations"]] == [RECORD["id"]]
+
+
+def test_two_part_answer_keeps_the_menu_when_the_phone_fails() -> None:
+    result = mixed_turn("unsupported_claim", "supported", "supported")
+    assert "684-7695" not in result["answer"]
+    assert result["answer"].startswith("Dinner at Birch Tree Inn tonight includes")
+    assert result["status"] == "partial"
+    assert result["metrics"]["reviewDroppedParts"] == [0, 2]
+    assert [citation["id"] for citation in result["citations"]] == [MENU["id"]]
+
+
+def test_a_cited_caveat_about_the_dropped_paragraph_goes_with_it() -> None:
+    # Seen live: the menu paragraph failed and "these are examples" stayed, about nothing.
+    result = mixed_turn("supported", "unsupported_claim", "supported", caveat_ids=[MENU["id"]])
+    assert "only part" not in result["answer"]
+    assert result["metrics"]["reviewDroppedParts"] == [1, 2]
+    assert [citation["id"] for citation in result["citations"]] == [RECORD["id"]]
+
+
+def test_a_cited_caveat_about_a_kept_paragraph_stays() -> None:
+    result = mixed_turn("unsupported_claim", "supported", "supported", caveat_ids=[MENU["id"]])
+    assert "Mediterranean" in result["answer"] and "only part" in result["answer"]
+    assert result["metrics"]["reviewDroppedParts"] == [0]
+
+
+def test_a_fallback_links_pages_it_checked_not_what_the_draft_cited() -> None:
+    # No paragraph cited the building, but it was looked at, so its page is linked.
+    result = mixed_turn("unsupported_claim", "unsupported_claim", "supported")
+    assert result["status"] == "unavailable"
+    assert [citation["id"] for citation in result["citations"]] == [
+        RECORD["id"], BUILDING["id"], MENU["id"]]
+
+
 def test_reviewer_sees_the_shuttle_calculation_the_draft_saw() -> None:
     trip: dict[str, Any] = {
         "id": "shuttle:trip-9",
