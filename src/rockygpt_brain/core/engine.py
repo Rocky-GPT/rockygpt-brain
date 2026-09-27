@@ -550,15 +550,18 @@ def answer_turn(
             budget.note_model("review")
             review_calls += 1
             try:
+                # The reviewer sees the safety block the student sees above the answer,
+                # so a reference to it is not an unsupported claim.
                 review = review_answer(
                     candidate,
                     messages=messages,
-                    evidence=evidence,
+                    evidence={**net.evidence(), **evidence},
                     client=client,
                     model=model,
                     now=now,
                     timeout=timeout,
-                    verified_prefix=prefix.parts if prefix is not None else None,
+                    verified_prefix=[*net.parts(), *(prefix.parts if prefix is not None else [])]
+                    or None,
                     retrievals=trace,
                 )
             except PaidCallError as error:
