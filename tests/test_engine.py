@@ -778,6 +778,205 @@ def test_rejection_reasons_are_returned_only_when_asked(explain: bool) -> None:
         assert "reviewRejections" not in result["metrics"]
 
 
+def draft(*parts: tuple[str, str, list[str]], status: str = "answered") -> SimpleNamespace:
+    reply = answer()
+    reply.output_text = json.dumps(
+        {
+            "status": status,
+            "parts": [
+                {"kind": kind, "text": text, "evidence_ids": ids} for kind, text, ids in parts
+            ],
+        }
+    )
+    return reply
+
+
+def test_failed_paragraph_is_dropped_and_supported_ones_are_kept() -> None:
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(search()),
+        draft(
+            ("guidance", "Bring your student ID.", []),
+            ("campus_fact", "The Registrar is in D-224.", [RECORD["id"]]),
+            ("campus_fact", "It is open until 9 PM tonight.", [RECORD["id"]]),
+        ),
+        review("supported", "supported", "unsupported_claim"),
+    ]
+    data.search.return_value = {"status": "ok", "records": [RECORD]}
+    result = run_turn(
+        [ChatMessage(role="user", content="Where is the Registrar and when does it close?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    assert result["answer"].startswith("Bring your student ID.\n\nThe Registrar is in D-224.")
+    assert "9 PM" not in result["answer"]
+    assert result["answer"].endswith(
+        "I left out part of this answer because I couldn't verify it against "
+        "published campus information."
+    )
+    assert result["status"] == "partial"
+    assert [citation["id"] for citation in result["citations"]] == [RECORD["id"]]
+    assert result["metrics"]["responseMode"] == "reviewed_prose"
+    assert result["metrics"]["fallbackUsed"] is False
+    assert "fallbackReason" not in result["metrics"]
+    assert result["metrics"]["validationFailures"] == ["unsupported_claim"]
+    assert result["metrics"]["reviewDroppedParts"] == [2]
+    # Nothing is rewritten or checked again.
+    assert client.create.call_count == 3
+
+
+def test_uncited_paragraph_after_a_failed_one_is_dropped_too() -> None:
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(search()),
+        draft(
+            ("campus_fact", "The Registrar is open until 9 PM tonight.", [RECORD["id"]]),
+            ("guidance", "So you can still go after class.", []),
+            ("campus_fact", "Its office is D-224.", [RECORD["id"]]),
+        ),
+        review("unsupported_claim", "supported", "supported"),
+    ]
+    data.search.return_value = {"status": "ok", "records": [RECORD]}
+    result = run_turn(
+        [ChatMessage(role="user", content="Can I still visit the Registrar today?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    # The uncited paragraph was checked against the dropped one's sources.
+    assert "after class" not in result["answer"]
+    assert "9 PM" not in result["answer"]
+    assert result["answer"].startswith("Its office is D-224.")
+    assert result["status"] == "partial"
+    assert result["metrics"]["reviewDroppedParts"] == [0, 1]
+
+
+def test_only_caveats_left_falls_back_to_the_safe_answer() -> None:
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(search()),
+        draft(
+            ("campus_fact", "The Registrar is open until 9 PM tonight.", [RECORD["id"]]),
+            ("limitation", "I could not verify weekend hours.", [RECORD["id"]]),
+            status="partial",
+        ),
+        review("unsupported_claim", "supported"),
+    ]
+    data.search.return_value = {"status": "ok", "records": [RECORD]}
+    result = run_turn(
+        [ChatMessage(role="user", content="When is the Registrar open?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    assert "9 PM" not in result["answer"]
+    assert "weekend" not in result["answer"]
+    assert result["status"] == "unavailable"
+    assert result["metrics"]["fallbackReason"] == "unsupported_answer"
+    assert "reviewDroppedParts" not in result["metrics"]
+
+
+MENU: dict[str, Any] = {
+    "id": "menu:bowl",
+    "title": "Ultimate Mediterranean Bowl",
+    "url": "https://www.ramapo.edu/dining/",
+    "collection": "menu",
+    "freshness": "fresh",
+    "fields": {"name": "Ultimate Mediterranean Bowl", "meal": "Dinner", "venue": "Birch Tree Inn"},
+}
+BUILDING: dict[str, Any] = {
+    "id": "buildings:1133371",
+    "title": "Academic Building D",
+    "url": "https://map.ramapo.edu/?id=2292#!m/1133371?sbc/",
+    "collection": "buildings",
+    "freshness": "static",
+}
+
+
+def mixed_turn(*verdicts: str, caveat_ids: list[str] | None = None) -> dict[str, Any]:
+    """"Registrar phone and tonight's menu": each subject has its own lookup and paragraph."""
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(
+            SimpleNamespace(type="function_call", name="lookup_contact", call_id="contact",
+                            arguments=json.dumps({"entity": "Registrar", "fields": ["phone"],
+                                                  "request_text": None})),
+            SimpleNamespace(type="function_call", name="lookup_profile", call_id="menu",
+                            arguments=json.dumps({"entity": "Birch Tree Inn",
+                                                  "include": ["menu"], "meal": "Dinner"})),
+        ),
+        draft(
+            ("campus_fact", "The Registrar's phone number is (201) 684-7695.", [RECORD["id"]]),
+            ("campus_fact", "Dinner at Birch Tree Inn tonight includes the Ultimate "
+             "Mediterranean Bowl.", [MENU["id"]]),
+            ("limitation", "That is only part of tonight's published menu.", caveat_ids or []),
+            status="partial",
+        ),
+        review(*verdicts),
+    ]
+    # The contact lookup also returns the office's building, as it does live.
+    data.lookup_contact.return_value = {
+        "status": "ok", "match": "canonical_entity", "records": [RECORD, BUILDING],
+    }
+    data.lookup_profile.return_value = {
+        "status": "ok", "records": [MENU], "truncated": True, "total_matches": 40,
+    }
+    return run_turn(
+        [ChatMessage(role="user",
+                     content="Give me the Registrar phone and the dining menu for tonight.")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+
+
+def test_two_part_answer_keeps_the_phone_when_the_menu_fails() -> None:
+    result = mixed_turn("supported", "unsupported_claim", "supported")
+    assert result["answer"].startswith("The Registrar's phone number is (201) 684-7695.")
+    assert "Mediterranean" not in result["answer"]
+    # The menu's caveat was checked against the dropped menu's sources, so it goes too.
+    assert "only part" not in result["answer"]
+    assert result["status"] == "partial"
+    assert result["metrics"]["reviewDroppedParts"] == [1, 2]
+    assert [citation["id"] for citation in result["citations"]] == [RECORD["id"]]
+
+
+def test_two_part_answer_keeps_the_menu_when_the_phone_fails() -> None:
+    result = mixed_turn("unsupported_claim", "supported", "supported")
+    assert "684-7695" not in result["answer"]
+    assert result["answer"].startswith("Dinner at Birch Tree Inn tonight includes")
+    assert result["status"] == "partial"
+    assert result["metrics"]["reviewDroppedParts"] == [0, 2]
+    assert [citation["id"] for citation in result["citations"]] == [MENU["id"]]
+
+
+def test_a_cited_caveat_about_the_dropped_paragraph_goes_with_it() -> None:
+    # Seen live: the menu paragraph failed and "these are examples" stayed, about nothing.
+    result = mixed_turn("supported", "unsupported_claim", "supported", caveat_ids=[MENU["id"]])
+    assert "only part" not in result["answer"]
+    assert result["metrics"]["reviewDroppedParts"] == [1, 2]
+    assert [citation["id"] for citation in result["citations"]] == [RECORD["id"]]
+
+
+def test_a_cited_caveat_about_a_kept_paragraph_stays() -> None:
+    result = mixed_turn("unsupported_claim", "supported", "supported", caveat_ids=[MENU["id"]])
+    assert "Mediterranean" in result["answer"] and "only part" in result["answer"]
+    assert result["metrics"]["reviewDroppedParts"] == [0]
+
+
+def test_a_fallback_links_pages_it_checked_not_what_the_draft_cited() -> None:
+    # No paragraph cited the building, but it was looked at, so its page is linked.
+    result = mixed_turn("unsupported_claim", "unsupported_claim", "supported")
+    assert result["status"] == "unavailable"
+    assert [citation["id"] for citation in result["citations"]] == [
+        RECORD["id"], BUILDING["id"], MENU["id"]]
+
+
 def test_reviewer_sees_the_shuttle_calculation_the_draft_saw() -> None:
     trip: dict[str, Any] = {
         "id": "shuttle:trip-9",
