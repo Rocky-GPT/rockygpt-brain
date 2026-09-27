@@ -578,3 +578,7 @@ def test_chat_operational_summary_does_not_store_conversation_text() -> None:
     summary = gateway.finish.call_args.args[0]
     assert not {'question', 'messages', 'answer', 'citations'} & summary.keys()
     assert 'private' not in str(summary)
+    # The worker's own CPU time, in the summary and the response, separates a slow host
+    # from slow services.
+    assert isinstance(summary['cpuMs'], int) and summary['cpuMs'] >= 0
+    assert isinstance(response.json()['metrics']['cpuMs'], int)
