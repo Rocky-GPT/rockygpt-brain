@@ -2,6 +2,7 @@
 
 import json
 import re
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from importlib.resources import files
 from time import monotonic
@@ -13,6 +14,7 @@ from pydantic import ValidationError
 from rockygpt_brain.campus.calculations import CalculationQuery, calculate
 from rockygpt_brain.campus.formats import (
     SAFETY_FACTS,
+    SAFETY_NET,
     ContactCall,
     ExactPiece,
     SearchCall,
@@ -145,6 +147,29 @@ def safety_facts(data: CampusData) -> tuple[list[dict[str, Any]], str | None]:
     return records, output.get("dataset_version")
 
 
+@dataclass
+class SafetyNet:
+    """Jev's danger pick under active routing, with the Public Safety records read for it."""
+
+    kind: str | None = None
+    records: list[dict[str, Any]] = field(default_factory=list)
+    dataset_version: str | None = None
+
+    def block(self) -> dict[str, Any] | None:
+        """The safety help shown first, or None when Jev read no danger."""
+        if self.kind is None:
+            return None
+        guidance = AnswerPart(kind="guidance", text=SAFETY_NET[self.kind], evidence_ids=[])
+        numbers = safety_part(self.records)
+        evidence = {record["id"]: record for record in self.records}
+        if numbers is not None:
+            try:
+                return render_answer(Answer(status="answered", parts=[guidance, numbers]), evidence)
+            except InvalidAnswer:
+                pass  # The 911 and 988 guidance stands without the campus numbers.
+        return render_answer(Answer(status="answered", parts=[guidance]), evidence)
+
+
 def run_turn(
     messages: list[ChatMessage],
     *,
@@ -157,6 +182,68 @@ def run_turn(
     routing_client: RoutingClient | None = None,
     routing_mode: RoutingMode = "off",
     explain_rejections: bool = False,
+) -> dict[str, Any]:
+    """Answer one turn. When Jev reads danger, the safety block comes first, even when
+    the answer fails. An answer GPT already marked as urgent safety has its own numbers."""
+    started = monotonic()
+    metrics = metrics if metrics is not None else {}
+    net = SafetyNet()
+    try:
+        result = answer_turn(
+            messages, client=client, data=data, model=model, now=now, metrics=metrics,
+            progress=progress, routing_client=routing_client, routing_mode=routing_mode,
+            explain_rejections=explain_rejections, net=net,
+        )
+    except (InvalidAnswer, TimeoutError, PaidCallError) as error:
+        block = net.block()
+        if block is None:
+            raise
+        reason = "model_timeout" if isinstance(error, TimeoutError) else error.code
+        return {
+            **block,
+            "status": "partial",
+            "model": RELEASE.routing.model,
+            "datasetVersion": net.dataset_version,
+            "trace": [],
+            "metrics": {
+                **metrics,
+                "responseMode": "safety_net",
+                "safetyNet": {"kind": net.kind, "shown": True},
+                "fallbackUsed": True,
+                "fallbackReason": reason,
+            },
+            "elapsedMs": round((monotonic() - started) * 1000),
+        }
+    block = net.block()
+    if block is None:
+        return result
+    shown = result["metrics"].get("responseMode") != "urgent_safety"
+    result["metrics"]["safetyNet"] = {"kind": net.kind, "shown": shown}
+    if not shown:
+        return result
+    cited = {citation["id"] for citation in result["citations"]}
+    return {
+        **result,
+        "answer": block["answer"] + "\n\n" + result["answer"],
+        "status": "partial" if result["status"] == "unavailable" else result["status"],
+        "citations": [*(citation for citation in block["citations"] if citation["id"] not in cited),
+                      *result["citations"]],
+    }
+
+
+def answer_turn(
+    messages: list[ChatMessage],
+    *,
+    client: ModelClient,
+    data: CampusData,
+    model: str,
+    now: datetime,
+    metrics: dict[str, Any],
+    progress: ProgressCallback | None,
+    routing_client: RoutingClient | None,
+    routing_mode: RoutingMode,
+    explain_rejections: bool,
+    net: SafetyNet,
 ) -> dict[str, Any]:
     subjects: list[ProgressSubject] = []
 
@@ -177,7 +264,6 @@ def run_turn(
                 update["draft"] = draft
             progress(update)
 
-    metrics = metrics if metrics is not None else {}
     metrics["retrievalMs"] = 0
     metrics["toolResults"] = []
     started = monotonic()
@@ -224,6 +310,9 @@ def run_turn(
         metrics["routing"] = decision.metrics(routing_mode)
         metrics["routingCalls"] = routing_calls
         if routing_mode == "active":
+            if decision.danger is not None:
+                net.kind = decision.danger
+                net.records, net.dataset_version = safety_facts(data)
             selected_tool = decision.tool
             if decision.arguments is not None and decision.tool is not None:
                 routed_call = OutputItem({
