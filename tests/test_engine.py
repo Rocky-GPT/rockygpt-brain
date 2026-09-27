@@ -880,7 +880,7 @@ def test_only_caveats_left_falls_back_to_the_safe_answer() -> None:
     assert "reviewDroppedParts" not in result["metrics"]
 
 
-MENU = {
+MENU: dict[str, Any] = {
     "id": "menu:bowl",
     "title": "Ultimate Mediterranean Bowl",
     "url": "https://www.ramapo.edu/dining/",
@@ -888,7 +888,7 @@ MENU = {
     "freshness": "fresh",
     "fields": {"name": "Ultimate Mediterranean Bowl", "meal": "Dinner", "venue": "Birch Tree Inn"},
 }
-BUILDING = {
+BUILDING: dict[str, Any] = {
     "id": "buildings:1133371",
     "title": "Academic Building D",
     "url": "https://map.ramapo.edu/?id=2292#!m/1133371?sbc/",
@@ -897,7 +897,7 @@ BUILDING = {
 }
 
 
-def mixed_turn(*verdicts: str) -> dict[str, Any]:
+def mixed_turn(*verdicts: str, caveat_ids: list[str] | None = None) -> dict[str, Any]:
     """"Registrar phone and tonight's menu": each subject has its own lookup and paragraph."""
     client, data = Mock(), Mock()
     client.create.side_effect = [
@@ -913,7 +913,7 @@ def mixed_turn(*verdicts: str) -> dict[str, Any]:
             ("campus_fact", "The Registrar's phone number is (201) 684-7695.", [RECORD["id"]]),
             ("campus_fact", "Dinner at Birch Tree Inn tonight includes the Ultimate "
              "Mediterranean Bowl.", [MENU["id"]]),
-            ("limitation", "That is only part of tonight's published menu.", []),
+            ("limitation", "That is only part of tonight's published menu.", caveat_ids or []),
             status="partial",
         ),
         review(*verdicts),
@@ -953,6 +953,20 @@ def test_two_part_answer_keeps_the_menu_when_the_phone_fails() -> None:
     assert result["status"] == "partial"
     assert result["metrics"]["reviewDroppedParts"] == [0, 2]
     assert [citation["id"] for citation in result["citations"]] == [MENU["id"]]
+
+
+def test_a_cited_caveat_about_the_dropped_paragraph_goes_with_it() -> None:
+    # Seen live: the menu paragraph failed and "these are examples" stayed, about nothing.
+    result = mixed_turn("supported", "unsupported_claim", "supported", caveat_ids=[MENU["id"]])
+    assert "only part" not in result["answer"]
+    assert result["metrics"]["reviewDroppedParts"] == [1, 2]
+    assert [citation["id"] for citation in result["citations"]] == [RECORD["id"]]
+
+
+def test_a_cited_caveat_about_a_kept_paragraph_stays() -> None:
+    result = mixed_turn("unsupported_claim", "supported", "supported", caveat_ids=[MENU["id"]])
+    assert "Mediterranean" in result["answer"] and "only part" in result["answer"]
+    assert result["metrics"]["reviewDroppedParts"] == [0]
 
 
 def test_a_fallback_links_pages_it_checked_not_what_the_draft_cited() -> None:
