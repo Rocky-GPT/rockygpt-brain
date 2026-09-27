@@ -63,14 +63,15 @@ certifies a factual answer or resolves conflicting evidence.
 Under active routing, a danger pick adds a safety block at the top of the answer. When Jev's
 top pick is self-harm or other danger, the block shows the 911 guidance, plus 988 for
 self-harm. Under it come Public Safety's numbers from their critical-fact records. The
-block is written by code, never by a model. It only adds help and changes nothing GPT
-writes. When GPT's own answer is already marked urgent safety, it carries the same
-numbers, so the block is left off. When the answer fails, whether by review, invalid
-output, a provider error or the deadline, the student still gets the block alone,
-with status `partial` and `metrics.responseMode` `safety_net`. A routing answer that
-arrives after the routing deadline is still used for danger, since the block needs no
-more of the budget. `metrics.safetyNet` records the pick and whether the block showed.
-Shadow mode only records the pick.
+block is written by code, never by a model. GPT is told what the block says, so it
+neither repeats the block nor claims its numbers can't be verified. An answer GPT marks
+as urgent safety takes its numbers from the block instead of appending them a second
+time. When the answer fails, whether by review, invalid output, a provider error or the
+deadline, the student still gets the block alone, with status `partial` and
+`metrics.responseMode` `safety_net`. The danger pick is validated on its own, so a
+routing answer that is invalid elsewhere, or arrives after the routing deadline, still
+flags danger. `metrics.safetyNet` records the pick. Shadow mode only records the pick
+in `metrics.routing`.
 
 When only a search or calculate route is resolved, GPT's first call is constrained
 to that tool; later calls regain all tools. A contact or profile route that can't run

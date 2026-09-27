@@ -709,7 +709,34 @@ def test_jevs_danger_pick_puts_the_safety_block_first(danger: str) -> None:
     assert [citation["id"] for citation in result["citations"]] == SAFETY_IDS
     assert result["status"] == "answered"
     assert result["metrics"]["responseMode"] == "reviewed_prose"
-    assert result["metrics"]["safetyNet"] == {"kind": danger, "shown": True}
+    assert result["metrics"]["safetyNet"] == danger
+    [developer] = [item for item in gpt.create.call_args_list[0].kwargs["input"]
+                   if isinstance(item, dict) and item.get("role") == "developer"]
+    assert SAFETY_NET[danger] in developer["content"] and "201-684-6666" in developer["content"]
+
+
+def test_gpt_is_not_told_about_a_block_it_wont_see() -> None:
+    gpt = Mock()
+    gpt.create.side_effect = [answer("Talking with someone you trust can help."), review()]
+    safety_turn(gpt, danger="none")
+    [developer] = [item for item in gpt.create.call_args_list[0].kwargs["input"]
+                   if isinstance(item, dict) and item.get("role") == "developer"]
+    assert "safety message" not in developer["content"]
+
+
+def test_a_danger_pick_survives_an_invalid_answer_elsewhere() -> None:
+    router = Mock()
+
+    def broken(payload: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        answers = answers_for(payload, danger="danger")
+        entity = answers["entity"]
+        entity["probabilities"] = {key: 0.0 for key in entity["probabilities"]}
+        return answers
+
+    router.route.side_effect = broken
+    decision = route_request(messages(), data=data_mock(), client=router, now=NOW, timeout=2)
+    assert decision.reason == "routing_invalid_response" and decision.tool is None
+    assert decision.danger == "danger"
 
 
 def test_an_unverified_answer_still_shows_the_safety_block() -> None:
@@ -747,14 +774,17 @@ def test_a_failed_answer_leaves_only_the_safety_block(failure: Any, reason: str)
         safety_turn(gpt, danger="none")
 
 
-def test_gpts_own_urgent_safety_answer_is_not_repeated() -> None:
+def test_an_urgent_safety_answer_gets_the_numbers_once_from_the_block() -> None:
     gpt = Mock()
-    gpt.create.return_value = urgent("Call 911 now and move toward a busy, staffed place.")
+    gpt.create.return_value = urgent("Move toward a busy, staffed place.")
     result = safety_turn(gpt, danger="danger")
-    assert result["answer"].count("Public Safety") == 1
-    assert SAFETY_NET["danger"] not in result["answer"]
+    guidance, numbers, reply = result["answer"].split("\n\n")
+    assert guidance == SAFETY_NET["danger"] and numbers.startswith(PUBLIC_SAFETY)
+    assert reply == "Move toward a busy, staffed place."
+    assert [citation["id"] for citation in result["citations"]] == SAFETY_IDS
+    assert result["datasetVersion"] == "v1"
     assert result["metrics"]["responseMode"] == "urgent_safety"
-    assert result["metrics"]["safetyNet"] == {"kind": "danger", "shown": False}
+    assert result["metrics"]["safetyNet"] == "danger"
 
 
 def test_shadow_routing_records_danger_without_showing_the_block() -> None:
