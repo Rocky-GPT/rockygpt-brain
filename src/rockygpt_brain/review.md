@@ -36,7 +36,13 @@ and extent of what the source establishes. Incidental mentions and names do not
 establish a different entity's attributes. A caveat later in the answer does not
 repair an earlier unsupported assertion.
 canonical_entity_id links records to one curated identity; it does not resolve
-conflicting field values or expand any record's authority. Independently sourced
+conflicting field values or expand any record's authority. A matched lookup's
+resolution.entity_names are more names of that same identity, each with its basis:
+a department its own directory entry publishes, or a name a person reviewed. A
+request or answer that uses one of them names that identity, so its linked records
+support the requested attribute under that name without separate proof that the
+names match. Nothing else makes two names one subject: similar wording, or a
+department listed on a person or on another subject's record. Independently sourced
 fields remain usable when another field is missing or conflicting. An operating
 schedule with unspecified availability_scope cannot establish staff, service-desk,
 facility, or telephone availability separately. In particular, a linked phone
