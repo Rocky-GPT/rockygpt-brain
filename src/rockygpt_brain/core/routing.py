@@ -23,7 +23,7 @@ from rockygpt_brain.core.provider import input_bound
 from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.retrieval.data import CampusData
 from rockygpt_brain.retrieval.exact import ContactQuery
-from rockygpt_brain.retrieval.profiles import Identity, IdentityRegistry, ProfileQuery
+from rockygpt_brain.retrieval.profiles import Identity, ProfileQuery
 from rockygpt_brain.retrieval.release_cache import cached
 
 # A direct contact lookup fetches every field: they are small, and Jev's yes/no answers
@@ -188,12 +188,12 @@ def graph_first(messages: list[ChatMessage], data: CampusData) -> bool:
     """
 
     def index() -> tuple[tuple[UUID, str, tuple[str, ...]], ...]:
-        payload = data._artifact("campus-identities")
-        if payload is None:
+        registry = data.identity_registry()
+        if registry is None:
             return ()  # Older releases have no identities.
         return tuple(
             (entity.id, entity.kind, tuple(words(name) for name in [entity.name, *entity.aliases]))
-            for entity in IdentityRegistry.model_validate(payload).entities
+            for entity in registry.entities
         )
 
     try:
@@ -497,7 +497,10 @@ def route_request(
         data.deadline = min(old_deadline or deadline, deadline)
         try:
             data._ensure_loaded()
-            entities = IdentityRegistry.model_validate(data._artifact("campus-identities")).entities
+            registry = data.identity_registry()
+            if registry is None:
+                raise ValueError("No identity registry in this release")
+            entities = registry.entities
         except (ValidationError, ValueError):
             entities = []  # Tool routing still works on older releases without identities.
         candidates = shortlist(entities, messages, deadline=deadline)

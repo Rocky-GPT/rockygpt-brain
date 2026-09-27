@@ -2,7 +2,7 @@
 
 import json
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import UTC, datetime
 from multiprocessing import get_context
@@ -186,6 +186,34 @@ def test_paid_gateway_reuses_ledger_session_for_readiness_reserve_and_settle(
             gateway.finish({"status": "answered"})
         assert connect.call_count == 1
     assert ledger.operations("session-test")[0]["state"] == "settled"
+
+
+def test_paid_call_bookkeeping_needs_few_database_round_trips(ledger: PostgresLedger) -> None:
+    # The ledger can be far from the Brain (about 90 ms from the development laptop),
+    # so every message it waits on is paid again by each model call.
+    identity = str(uuid4())
+    steps: dict[str, Callable[[], object]] = {
+        "readiness": ledger.readiness,
+        "reserve": lambda: reserve(ledger, 100, operation_id=identity),
+        "settle": lambda: ledger.settle(
+            identity, 100, {"input_tokens": 1}, "response", "model", 5, NOW
+        ),
+        "record_turn": lambda: ledger.record_turn("turn", {"status": "answered"}),
+        "uncertain": lambda: ledger.uncertain(str(uuid4()), "timeout", 5),
+    }
+    trips = {}
+    with (
+        ledger.session(),
+        patch.object(
+            psycopg.Cursor, "execute", autospec=True, side_effect=psycopg.Cursor.execute
+        ) as sent,
+    ):
+        for name, step in steps.items():
+            sent.reset_mock()
+            step()
+            trips[name] = sent.call_count
+    assert trips == {"readiness": 1, "reserve": 2, "settle": 2, "record_turn": 1, "uncertain": 2}
+    assert [row["state"] for row in ledger.operations()] == ["settled"]
 
 
 def race_admission(url: str) -> str:

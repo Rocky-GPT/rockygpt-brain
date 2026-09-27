@@ -399,8 +399,13 @@ def enrich_records(
     collection: str,
     records: list[dict[str, Any]],
     get_artifact: Callable[[str], Any],
+    identity_registry: Callable[[], Any] | None = None,
 ) -> None:
-    """Enrich collection records with supplementary artifact data in-place."""
+    """Enrich collection records with supplementary artifact data in-place.
+
+    `identity_registry` returns the release's validated registry (or None); without it
+    the registry is validated from its artifact here.
+    """
     if collection == "dining_hours":
         schedules = _dining_schedules(get_artifact("dining-hours"))
         def clocks_only(schedule: str) -> str:
@@ -455,18 +460,21 @@ def enrich_records(
             str(r["fields"].get("name", "")).split()
         ).casefold() != "have a nice day"]
         venues: dict[tuple[str | None, str | None], Identity] = {}
-        identity_payload = get_artifact("campus-identities")
-        if identity_payload:
-            try:
-                registry = IdentityRegistry.model_validate(identity_payload)
+        try:
+            if identity_registry is not None:
+                registry = identity_registry()
+            else:
+                payload = get_artifact("campus-identities")
+                registry = IdentityRegistry.model_validate(payload) if payload else None
+            if registry is not None:
                 venues = {
                     (link.source_key, key): entity
                     for entity in registry.entities if entity.kind == "venue"
                     for link in entity.links if link.collection == "menu"
                     for key in link.source_record_keys
                 }
-            except ValidationError:
-                venues = {}  # Unvalidated identities never establish a venue link.
+        except ValidationError:
+            venues = {}  # Unvalidated identities never establish a venue link.
         context = (get_artifact("menu-context") or {}).get("content", "")
         # This is the published artifact's Markdown metadata, not user text.
         heading = next(
