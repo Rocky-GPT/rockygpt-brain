@@ -1599,7 +1599,7 @@ def test_context_bound_ends_tool_selection_without_discarding_evidence() -> None
     client, data = Mock(), Mock()
     # Fits new-evidence delivery including composition reserve; the assertions
     # below verify that tool schemas alone put the next request over its bound.
-    long_record = {**RECORD, "content": "Office: D-224\n" + "x" * 26000}
+    long_record = {**RECORD, "content": "Office: D-224\n" + "x" * 80000}
     data.search.return_value = {"status": "ok", "records": [long_record]}
     client.create.side_effect = [
         tools(search()),
@@ -1642,7 +1642,7 @@ def test_oversized_new_results_preserve_history_and_prior_evidence_with_truthful
             **RECORD,
             "id": f"documents:{index}",
             "collection": "documents",
-            "content": f"Qualified policy {index}. " * 1000,
+            "content": f"Qualified policy {index}. " * 2000,
         }
         for index in range(4)
     ]
@@ -1686,6 +1686,36 @@ def test_oversized_new_results_preserve_history_and_prior_evidence_with_truthful
         assert input_bound(payload) <= RELEASE.max_input_tokens
     reviewed = json.loads(client.create.call_args_list[-1].kwargs["input"])
     assert expand_records(reviewed["evidence"]) == [RECORD, *delivered]
+
+
+def test_a_two_part_question_gets_the_whole_menu_it_asked_for() -> None:
+    # Three lookups at once share the evidence room; twelve dishes and the hours still fit.
+    client, data = Mock(), Mock()
+    dishes = [
+        {**RECORD, "id": f"menu:dish-{index}", "title": f"Dish {index}", "collection": "menu",
+         "content": f"Dish {index}. " + "Published station, labels and allergens. " * 30}
+        for index in range(12)
+    ]
+    hours = {**RECORD, "id": "dining_hours:birch", "collection": "dining_hours",
+             "content": "Dinner 5:00-7:00 PM"}
+    data.search.side_effect = [
+        {"status": "ok", "records": [RECORD]},
+        {"status": "ok", "records": dishes, "total_matches": 12},
+        {"status": "ok", "records": [hours]},
+    ]
+    client.create.side_effect = [
+        tools(search("phone"), search("menu", "menu", date_from="2026-09-04", limit=12),
+              search("hours", "dining_hours", date_from="2026-09-04")),
+        answer("The contact is D-224.", "campus_fact", [RECORD["id"]]),
+        review(),
+    ]
+    result = run_turn(
+        [ChatMessage(role="user",
+                     content="Give me the Registrar phone and the dining menu for tonight.")],
+        client=client, data=data, model="test", now=NOW,
+    )
+    assert [step["result_count"] for step in result["trace"]] == [1, 12, 1]
+    assert not result["metrics"].get("contextLimitedResults")
 
 
 def test_rendered_links_sharing_a_title_are_labelled_by_page() -> None:
