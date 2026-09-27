@@ -606,6 +606,21 @@ def test_a_profile_lookup_fetches_jevs_leading_topics(
     assert (arguments["menu_limit"] if "menu" in include else None) == menu_limit
 
 
+def test_a_weekday_that_has_passed_this_week_is_left_to_gpt() -> None:
+    # Asked on a Sunday, "Saturday" resolved to the day before and fetched past hours.
+    data, router = data_mock(), router_mock(route="profile", topic="hours")
+    yesterday, tomorrow = NOW - timedelta(days=1), NOW + timedelta(days=1)
+    assert yesterday.weekday() < NOW.weekday() < tomorrow.weekday()  # All in one week.
+    request = messages(f"When is the Registrar open on {yesterday:%A}?")
+    decision = route_request(request, data=data, client=router, now=NOW, timeout=2)
+    assert decision.arguments is None and decision.tool is None
+    assert decision.route == "profile" and decision.reason == "past_date"
+    request = messages(f"When is the Registrar open on {tomorrow:%A}?")
+    decision = route_request(request, data=data, client=router, now=NOW, timeout=2)
+    assert decision.arguments is not None
+    assert decision.arguments["date"] == tomorrow.date().isoformat()
+
+
 def test_a_topic_without_a_date_ignores_an_unreadable_date() -> None:
     # "Who convenes the program the week after Thanksgiving?" needs no date to look up.
     request = messages("Who convenes the Registrar the week after Thanksgiving?")

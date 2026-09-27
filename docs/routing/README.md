@@ -38,7 +38,8 @@ every routed section instead. GPT still writes and reviews the answer from what 
 fetched, so an extra section costs context, not accuracy. The complete-menu topic
 raises the menu limit only when it leads. Simple dates reuse the existing campus-local
 resolver, and a lookup that needs a date defers when Jev's leading date choice is
-unresolved, as for "the week after Thanksgiving". A meal filter applies only when
+unresolved, as for "the week after Thanksgiving", or when the resolver's weekday
+has already passed this week, as for "Saturday" asked on a Sunday. A meal filter applies only when
 Jev's meal choice clears 0.90; otherwise every meal is fetched. Meal labels are request
 filters, never proof of availability. Follow-ups never run a lookup directly, since
 they lean on earlier turns. Mixed or ambiguous requests defer through the route and
