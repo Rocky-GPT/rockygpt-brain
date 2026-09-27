@@ -25,10 +25,12 @@ messages. Candidates come from the active release's curated identities, capped a
 overlap. Candidates are selectors, not evidence or new identity links.
 
 The router uses one request to pinned `jev-1.13.0`. Decisions require probability
-and confidence ≥0.90. Field/section probabilities ≥0.90 include, ≤0.10 exclude,
-and intermediate values defer. A separate question checks whether a complete
-single-entity lookup is representable. Ambiguity, unsupported qualifiers, complex
-dates, and unresolved arguments defer to GPT. Simple dates reuse the existing
+and confidence ≥0.90. Field/section probabilities ≥0.90 include, below 0.50 exclude
+(Jev leans against them), and values in between defer. One question asks whether the
+request wants general contact details, which means phone, email, office and
+department; the field questions then ask only about fields named specifically. A
+separate question checks whether a complete single-entity lookup is representable.
+Ambiguity, unsupported qualifiers, complex dates, and unresolved arguments defer to GPT. Simple dates reuse the existing
 campus-local resolver; meal labels are request filters, never proof of availability.
 
 A request names an entity by its longest matching name or alias: "Computer Science
