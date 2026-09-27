@@ -46,18 +46,20 @@ ROUTED_SECTIONS = tuple(
         "related", "requirements", "building", "school", "subject", "graduation_plans"})
 # Keep the options apart: when two descriptions overlap, Jev splits its answer between
 # them and neither clears the threshold.
+# This wording also lifted Jev's answer to the `simple` question on plain lookups.
 ROUTES = {
-    "contact": "Only how to reach exactly one named person or office: its phone, email, "
-    "office location, department, fax or website.",
-    "profile": "Facts about exactly one named place, office, program or club beyond how to "
-    "reach it, such as when it is open, a dining venue's menu, its conveners or its events, "
-    "including those facts asked together with its contact details.",
-    "search": "Finding campus information that is not about one named entity: events "
-    "across campus, policies, shuttles, or an entity the request does not name.",
+    "contact": "The request asks only how to reach exactly one named person or office: "
+    "phone, email, office location or department.",
+    "profile": "The request names exactly one campus place, office, program, club, dining "
+    "hall, building or person and asks about it: hours on a day, today's or tomorrow's "
+    "menu, where it is, who leads or convenes it, its events, or its contact details "
+    "together with any of these.",
+    "search": "No single named entity answers it: finding events, policies, schedules, "
+    "shuttles, or things the request does not name, or an entity not in the supplied "
+    "identities.",
     "calculate": "Arithmetic over numbers supplied by the user; no missing campus evidence.",
     "general": "Conversation or general help requiring no campus facts.",
-    "unresolved": "Two or more independent subjects, comparisons, ambiguous intent, or none "
-    "of these routes.",
+    "unresolved": "Mixed independent subjects, ambiguous intent, or none of these routes.",
 }
 TOOLS = {
     "contact": "lookup_contact",
@@ -414,11 +416,17 @@ def interpret(
         # Complex requests must keep all tools, even if the coarse route is confident.
         decision.tool = None
         return decision
+    explicit = named(messages[-1].content, candidates)
     entity_id = selected(answers, "entity")
+    if entity_id is None and len(explicit) == 1:
+        # The request names this entity itself, so Jev need only lean the same way.
+        leading = answers["entity"]["choice"]
+        if (leading == str(explicit[0].id)
+                and answers["entity"]["probabilities"][leading] >= LEANS_AGAINST):
+            entity_id = leading
     entity = next((item for item in candidates if str(item.id) == entity_id), None)
     if entity is None:
         return decision
-    explicit = named(messages[-1].content, candidates)
     if len(explicit) > 1:
         decision.tool = None
         decision.reason = "ambiguous_entities"
