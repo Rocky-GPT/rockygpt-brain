@@ -37,6 +37,7 @@ from rockygpt_brain.campus.schedules import (
 from rockygpt_brain.config import RELEASE, RoutingMode
 from rockygpt_brain.contracts import Answer, AnswerPart, ChatMessage, EvidenceReview
 from rockygpt_brain.core.provider import (
+    CHAT_INSTRUCTIONS,
     ModelClient,
     ModelResponse,
     OutputItem,
@@ -213,6 +214,7 @@ def run_turn(
     routing_calls = 0
     routed_call: OutputItem | None = None
     selected_tool: str | None = None
+    chat_first = False
     if routing_mode != "off" and routing_client is not None:
         notify("understanding")
         decision = route_request(
@@ -225,6 +227,7 @@ def run_turn(
         metrics["routingCalls"] = routing_calls
         if routing_mode == "active":
             selected_tool = decision.tool
+            chat_first = decision.route == "general"
             if decision.arguments is not None and decision.tool is not None:
                 routed_call = OutputItem({
                     "type": "function_call", "call_id": "call_jev_initial",
@@ -282,6 +285,9 @@ def run_turn(
     tools = tool_definitions()
     for round_index in range(MAX_DRAFT_CALLS + int(routed_call is not None)):
         direct = routed_call is not None and round_index == 0
+        # Jev's general route first tries a short chat prompt with no tools. An answer
+        # that isn't general help is discarded and the full prompt runs next.
+        chat = chat_first and round_index == 0
         notify("understanding" if round_index == 0 else "composing")
         timeout = budget.model_timeout("draft")
         answer_only = not budget.can_retrieve
@@ -353,7 +359,12 @@ def run_turn(
                                      [routed_call], None)
             metrics["routing"]["directRetrieval"] = True
         else:
-            if round_index == 0 and selected_tool and not answer_only:
+            if chat:
+                request.update(
+                    instructions=CHAT_INSTRUCTIONS, tools=[], tool_choice="none",
+                    reasoning={"effort": RELEASE.chat_reasoning},
+                )
+            elif round_index == 0 and selected_tool and not answer_only:
                 request["tools"] = [tool for tool in tools if tool["name"] == selected_tool]
                 request["tool_choice"] = {"type": "function", "name": selected_tool}
             elif round_index == 0 and start_with_graph and not answer_only:
@@ -367,6 +378,12 @@ def run_turn(
                 if error.code == "context_limit" and round_index > 0:
                     raise PaidCallError("retrieval_context_limit") from error
                 raise
+        if chat and (
+            response.status != "completed"
+            or any(item.type == "function_call" for item in response.output)
+        ):
+            metrics["chatShortcut"] = "missed"
+            continue
         if response.status != "completed":
             raise InvalidAnswer("Incomplete model response", "incomplete_draft")
         calls = [item for item in response.output if item.type == "function_call"]
@@ -377,6 +394,9 @@ def run_turn(
                 )
                 result = render_answer(with_prefix(candidate, prefix), evidence)
             except (ValidationError, InvalidAnswer, json.JSONDecodeError) as error:
+                if chat:
+                    metrics["chatShortcut"] = "missed"
+                    continue
                 code = (
                     "answer_schema"
                     if isinstance(error, (ValidationError, json.JSONDecodeError))
@@ -414,6 +434,8 @@ def run_turn(
                         )
                         response_mode = "urgent_safety"
                         metrics["safetyFacts"] = safety.evidence_ids
+                if chat:
+                    metrics["chatShortcut"] = "answered"
                 return {
                     **result,
                     "model": response.model,
@@ -432,6 +454,9 @@ def run_turn(
                     },
                     "elapsedMs": round((monotonic() - started) * 1000),
                 }
+            if chat:
+                metrics["chatShortcut"] = "missed"
+                continue
             # The student requested a labeled preview during review. Only the
             # schema-checked answer text is shown, never model reasoning or tool output.
             notify("reviewing", draft="\n\n".join(part.text for part in candidate.parts))

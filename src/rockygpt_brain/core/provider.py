@@ -7,6 +7,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from importlib.resources import files
 from time import monotonic
 from typing import Any, Protocol
 from uuid import uuid4
@@ -31,6 +32,9 @@ from rockygpt_brain.governance.accounting import (
     PostgresLedger,
 )
 from rockygpt_brain.governance.budget import TurnBudget
+
+# The short prompt active routing sends when Jev is sure a request is general conversation.
+CHAT_INSTRUCTIONS = files("rockygpt_brain").joinpath("chat.md").read_text(encoding="utf-8")
 
 
 @dataclass(frozen=True)
@@ -384,9 +388,11 @@ class PaidGateway:
                 min(float(timeout.read), available), connect=min(float(timeout.connect), available)
             )
             effort = (
-                self.release.draft_effort(self.budget.draft_calls)
-                if category == "draft"
-                else self.release.review_reasoning
+                self.release.review_reasoning if category != "draft"
+                # Only the fixed chat prompt, which answers general conversation without
+                # tools, runs at the release's lighter chat effort.
+                else self.release.chat_reasoning if kwargs.get("instructions") == CHAT_INSTRUCTIONS
+                else self.release.draft_effort(self.budget.draft_calls)
             )
             kwargs["reasoning"] = {"effort": effort}
             # Exclude network timeouts from token estimation; include every wire content field.

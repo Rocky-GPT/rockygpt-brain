@@ -61,7 +61,16 @@ certifies a factual answer or resolves conflicting evidence.
 
 When only a search or calculate route is resolved, GPT's first call is constrained
 to that tool; later calls regain all tools. A contact or profile route that can't run
-directly, and uncertain, general and mixed routes, retain the ordinary flow. No new frontend flow or request field is required.
+directly, and uncertain and mixed routes, retain the ordinary flow.
+
+When Jev is sure a request is general conversation, GPT's first call uses the short
+`chat.md` prompt with no tools, at the release's `chat_reasoning` effort. It answers
+greetings, thanks, study and writing help, and urgent-safety guidance (the server
+still adds the verified Public Safety numbers). Only an answer that passes the
+existing general-answer check is returned. Anything else, including a request the
+chat prompt says needs campus facts, is discarded and the full prompt runs with every
+tool; that miss uses one of the turn's draft calls. `metrics.chatShortcut` records
+`answered` or `missed`. No new frontend flow or request field is required.
 
 The routing deadline is two seconds, includes preparation, and gives the HTTP
 attempt only its remaining allowance. HTTP cancellation covers the entire response

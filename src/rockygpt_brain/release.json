@@ -3,6 +3,7 @@
   "provider": "openai",
   "model": "gpt-6-luna",
   "draft_reasoning": "medium",
+  "chat_reasoning": "low",
   "review_reasoning": "medium",
   "draft_output_tokens": 2400,
   "review_output_tokens": 4096,

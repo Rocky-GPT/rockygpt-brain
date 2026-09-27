@@ -17,8 +17,14 @@ import pytest
 
 from rockygpt_brain.config import RELEASE, Deployment
 from rockygpt_brain.contracts import ChatMessage
-from rockygpt_brain.core.engine import run_turn
-from rockygpt_brain.core.provider import JevProvider, ModelResponse, PaidGateway, Usage
+from rockygpt_brain.core.engine import INSTRUCTIONS, run_turn
+from rockygpt_brain.core.provider import (
+    CHAT_INSTRUCTIONS,
+    JevProvider,
+    ModelResponse,
+    PaidGateway,
+    Usage,
+)
 from rockygpt_brain.core.routing import (
     FIELDS,
     GRAPH_TOOLS,
@@ -652,6 +658,84 @@ def test_a_follow_up_never_looks_things_up_itself() -> None:
     result = interpret(answers_for(payload), [ENTITY], day, followup)
     assert result.arguments is None
     assert result.tool is None and result.reason == "follow_up"
+
+
+def general(text: str = "Hi! What can I help you with?") -> SimpleNamespace:
+    response = answer(text)
+    payload = json.loads(response.output_text)
+    payload["general_scope"] = "conversation"
+    response.output_text = json.dumps(payload)
+    return response
+
+
+def test_jevs_general_route_answers_with_the_short_chat_prompt() -> None:
+    data, gpt = data_mock(), Mock()
+    gpt.create.return_value = general()
+    result = run_turn(
+        messages("Hello!"), client=gpt, data=data, model=RELEASE.model, now=NOW,
+        routing_client=router_mock(route="general", entity="unresolved"), routing_mode="active",
+    )
+    [call] = gpt.create.call_args_list
+    assert call.kwargs["instructions"] == CHAT_INSTRUCTIONS
+    assert call.kwargs["tools"] == [] and call.kwargs["tool_choice"] == "none"
+    assert call.kwargs["reasoning"] == {"effort": RELEASE.chat_reasoning}
+    assert result["status"] == "answered" and result["answer"] == "Hi! What can I help you with?"
+    assert result["metrics"]["chatShortcut"] == "answered"
+    assert result["metrics"]["reviewCalls"] == 0
+
+
+def incomplete() -> SimpleNamespace:
+    return SimpleNamespace(status="incomplete", model="test-model", output=[], output_text="")
+
+
+def not_json() -> SimpleNamespace:
+    return SimpleNamespace(status="completed", model="test-model", output=[], output_text="{")
+
+
+@pytest.mark.parametrize(
+    "first",
+    [
+        # The chat prompt returns general_scope null when the request needs a campus fact.
+        lambda: answer("This needs a campus lookup.", "limitation", status="unavailable"),
+        incomplete,
+        not_json,
+    ],
+    ids=["needs campus facts", "incomplete", "invalid answer"],
+)
+def test_anything_but_general_help_goes_back_to_the_full_prompt(first: Any) -> None:
+    data, gpt = data_mock(), Mock()
+    gpt.create.side_effect = [first(), general()]
+    result = run_turn(
+        messages("Hello!"), client=gpt, data=data, model=RELEASE.model, now=NOW,
+        routing_client=router_mock(route="general", entity="unresolved"), routing_mode="active",
+    )
+    second = gpt.create.call_args_list[1].kwargs
+    assert second["instructions"] == INSTRUCTIONS and len(second["tools"]) == 6
+    assert result["status"] == "answered"
+    assert result["metrics"]["chatShortcut"] == "missed"
+    assert result["metrics"]["validationFailures"] == []
+
+
+def test_shadow_routing_never_uses_the_chat_prompt() -> None:
+    data, gpt = data_mock(), Mock()
+    gpt.create.return_value = general()
+    run_turn(
+        messages("Hello!"), client=gpt, data=data, model=RELEASE.model, now=NOW,
+        routing_client=router_mock(route="general", entity="unresolved"), routing_mode="shadow",
+    )
+    assert gpt.create.call_args.kwargs["instructions"] == INSTRUCTIONS
+
+
+def test_only_the_chat_prompt_runs_at_the_chat_effort() -> None:
+    gateway, provider, ledger, _ = gateway_setup()
+    provider.create.return_value = ModelResponse(
+        "gpt-id", RELEASE.model, "completed", "", [], Usage(10, 0, 10, 0)
+    )
+    gateway.create(category="draft", **{**arguments(), "instructions": CHAT_INSTRUCTIONS})
+    assert provider.create.call_args.kwargs["reasoning"] == {"effort": RELEASE.chat_reasoning}
+    assert ledger.reserve.call_args.args[4]["reasoning_effort"] == RELEASE.chat_reasoning
+    gateway.create(category="draft", **arguments())
+    assert provider.create.call_args.kwargs["reasoning"] == {"effort": RELEASE.draft_reasoning}
 
 
 @pytest.mark.parametrize("mutation", ["missing", "nan", "unknown", "sum", "bool", "wrong_type"])

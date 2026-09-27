@@ -59,6 +59,8 @@ class Release(BaseModel):
     model: Literal["gpt-6-luna"]
     draft_reasoning: Literal["none", "low", "medium"]
     continuation_reasoning: Literal["none", "low", "medium"]
+    # The short chat prompt that answers what Jev routes as general conversation.
+    chat_reasoning: Literal["none", "low", "medium"]
     review_reasoning: Literal["medium"]
     draft_output_tokens: int = Field(gt=0, le=128000)
     review_output_tokens: int = Field(gt=0, le=128000)
