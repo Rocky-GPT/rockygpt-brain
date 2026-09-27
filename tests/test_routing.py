@@ -20,7 +20,9 @@ from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
 from rockygpt_brain.core.provider import JevProvider, ModelResponse, PaidGateway, Usage
 from rockygpt_brain.core.routing import (
+    FIELDS,
     GRAPH_TOOLS,
+    ROUTED_SECTIONS,
     graph_first,
     interpret,
     named,
@@ -67,9 +69,7 @@ def answers_for(payload: dict[str, Any], **selections: Any) -> dict[str, Any]:
         "entity": str(ENTITY.id),
         "date": "unspecified",
         "meal": "unspecified",
-        "simple": 1.0,
-        "field_phone": 1.0,
-        "section_contact": 1.0,
+        "topic": "contact",
         **selections,
     }
     answers: dict[str, Any] = {}
@@ -291,47 +291,18 @@ def test_choice_requires_both_probability_and_confidence(score: float, confident
         assert (interpret(answers, [ENTITY], day, messages()).arguments is not None) == confident
 
 
-@pytest.mark.parametrize(
-    "value,fields",
-    [(0.18, ["phone"]), (0.4999, ["phone"]), (0.5, None), (0.8999, None),
-     (0.9, ["phone", "email"])],
-)
-def test_details_jev_leans_against_are_left_out(value: float, fields: list[str] | None) -> None:
-    # Jev was 18% sure "What is the Registrar phone?" also wanted an email; that no longer
-    # blocks the lookup. Only a torn answer defers.
+def test_a_contact_lookup_fetches_every_field() -> None:
+    # Jev's yes/no answers about single fields sat between 0.5 and 0.8 whether or not the
+    # field was asked, so the payload no longer asks them.
     payload, day = routing_payload(messages(), [ENTITY], NOW)
-    result = interpret(answers_for(payload, field_email=value), [ENTITY], day, messages())
-    assert (result.arguments or {}).get("fields") == fields
-    assert result.tool == "lookup_contact"
-    assert result.reason == (None if fields else "arguments_unresolved")
+    assert {question["type"] for question in payload["questions"].values()} == {"choice"}
+    result = interpret(answers_for(payload), [ENTITY], day, messages())
+    assert result.arguments is not None and result.arguments["fields"] == list(FIELDS)
+    assert result.tool == "lookup_contact" and result.reason is None
 
 
-@pytest.mark.parametrize(
-    "changes,fields",
-    [
-        # Jev was 50/50 on each field for "How can I contact Financial Aid?".
-        ({"general_contact": 0.95, "field_phone": 0.5, "field_email": 0.5, "field_office": 0.5,
-          "field_department": 0.5}, ["phone", "email", "office", "department"]),
-        ({"general_contact": 0.95, "field_phone": 0.0, "field_website": 0.95},
-         ["phone", "email", "office", "department", "website"]),
-        ({"general_contact": 0.95, "field_phone": 0.0, "field_fax": 0.6}, None),
-        ({"general_contact": 0.7}, None),
-        ({"general_contact": 0.3}, ["phone"]),
-    ],
-)
-def test_general_contact_is_one_question(
-    changes: dict[str, Any], fields: list[str] | None
-) -> None:
-    request = messages("How can I contact Registrar?")
-    payload, day = routing_payload(request, [ENTITY], NOW)
-    assert payload["questions"]["general_contact"]["type"] == "noul"
-    result = interpret(answers_for(payload, **changes), [ENTITY], day, request)
-    assert (result.arguments or {}).get("fields") == fields
-
-
-def test_a_general_contact_request_is_answered_by_jev_alone() -> None:
+def test_a_contact_request_is_looked_up_by_jev_alone() -> None:
     data, gpt = data_mock(), Mock()
-    router = router_mock(general_contact=0.97, field_phone=0.5, field_email=0.5)
     record = contact_record()
     data.lookup_contact.return_value = result_for([record])
     result = run_turn(
@@ -340,25 +311,21 @@ def test_a_general_contact_request_is_answered_by_jev_alone() -> None:
         data=data,
         model=RELEASE.model,
         now=NOW,
-        routing_client=router,
+        routing_client=router_mock(),
         routing_mode="active",
     )
-    query = data.lookup_contact.call_args.args[0]
-    assert query.fields == ["phone", "email", "office", "department"]
-    assert result["status"] == "answered" and "201-684-7695" in result["answer"]
+    assert data.lookup_contact.call_args.args[0].fields == list(FIELDS)
+    assert "201-684-7695" in result["answer"]
     assert result["metrics"]["routing"]["directRetrieval"] is True
     gpt.create.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    "changes", [{"simple": 0.89}, {"entity": "unresolved"}, {"route": "unresolved"}]
-)
+@pytest.mark.parametrize("changes", [{"entity": "unresolved"}, {"route": "unresolved"}])
 def test_ambiguity_and_mixed_requests_defer(changes: dict[str, Any]) -> None:
     payload, day = routing_payload(messages(), [ENTITY], NOW)
     result = interpret(answers_for(payload, **changes), [ENTITY], day, messages())
-    assert result.arguments is None
-    if "simple" in changes or "route" in changes:
-        assert result.tool is None
+    # GPT keeps every tool, since the request may need more than one lookup.
+    assert result.arguments is None and result.tool is None
 
 
 def test_duplicate_aliases_never_select_an_arbitrary_identity() -> None:
@@ -459,13 +426,13 @@ def test_one_named_entity_among_overlapping_names_can_route_directly() -> None:
     request = messages("Who is the convener of the Computer Science BS program?")
     candidates = [CS_BS, CS_MS, CS_CLUB]
     payload, day = routing_payload(request, candidates, NOW)
-    answers = answers_for(payload, route="profile", entity=str(CS_BS.id), section_conveners=1.0)
+    answers = answers_for(payload, route="profile", entity=str(CS_BS.id), topic="about")
     result = interpret(answers, candidates, day, request)
     assert result.arguments is not None and result.arguments["entity_id"] == str(CS_BS.id)
-    # Jev must select the entity the request names; any other leaves the arguments to GPT.
-    answers = answers_for(payload, route="profile", entity=str(CS_MS.id), section_conveners=1.0)
+    # Jev must select the entity the request names; any other leaves the lookup to GPT.
+    answers = answers_for(payload, route="profile", entity=str(CS_MS.id), topic="about")
     result = interpret(answers, candidates, day, request)
-    assert result.arguments is None and result.tool == "lookup_profile"
+    assert result.arguments is None and result.tool is None
 
 
 MATH = identity(7, "subject", "Mathematics (MATH)", "MATH")
@@ -582,47 +549,94 @@ def test_shortlist_prioritizes_latest_exact_match_and_caps_candidates() -> None:
     assert payload["state"]["prior_messages"] == [message.model_dump() for message in followup[:-1]]
 
 
-def test_dates_meals_all_sections_and_complete_menu_are_bounded() -> None:
+def spread(answers: dict[str, Any], key: str, **probabilities: float) -> dict[str, Any]:
+    """Jev splits `key` as given, with any remainder spread over the other options."""
+    options = answers[key]["probabilities"]
+    rest = (1 - sum(probabilities.values())) / (len(options) - len(probabilities))
+    distribution = {option: probabilities.get(option, rest) for option in options}
+    leading = max(distribution, key=lambda option: distribution[option])
+    answers[key].update(
+        choice=leading, confidence=distribution[leading], probabilities=distribution
+    )
+    return answers
+
+
+def test_dates_meals_and_complete_menu_are_bounded() -> None:
     request = messages("Registrar menu and hours tomorrow for dinner")
     payload, day = routing_payload(request, [ENTITY], NOW)
     assert day == (NOW.date() + timedelta(days=1)).isoformat()
     answers = answers_for(
-        payload,
-        route="profile",
-        date="explicit",
-        meal="dinner",
-        section_menu=1.0,
-        section_hours=1.0,
-        complete_menu=1.0,
+        payload, route="profile", date="explicit", meal="dinner", topic="complete_menu"
     )
+    validate_answers(answers, payload["questions"])
     result = interpret(answers, [ENTITY], day, request)
     assert result.arguments is not None
     assert result.arguments["date"] == day and result.arguments["meal"] == "dinner"
     assert result.arguments["menu_limit"] == 100
-    assert set(result.arguments["include"]) == {"contact", "menu", "hours"}
+    assert result.arguments["include"] == ["menu", "hours"]
+    # Jev only has to flag a date the resolver can't read.
     answers["date"]["choice"] = "unresolved"
     assert interpret(answers, [ENTITY], day, request).arguments is None
 
 
 @pytest.mark.parametrize(
-    "hours,complete,expected",
-    [(0.3, 0.3, ({"contact", "menu"}, 12)), (0.3, 0.6, None), (0.6, 0.0, None)],
+    "probabilities,include,menu_limit",
+    [
+        ({"hours": 0.95}, ["hours"], None),
+        # Jev split "Library hours and phone number" between two topics.
+        ({"hours": 0.6, "contact": 0.3}, ["hours", "contact"], None),
+        ({"menu": 0.7, "complete_menu": 0.25}, ["menu", "hours"], 12),
+        ({"complete_menu": 0.6, "menu": 0.35}, ["menu", "hours"], 100),
+        ({"location": 0.92}, ["building", "contact"], None),
+        ({"about": 0.93}, ["faculty", "courses", "program", "conveners", "club"], None),
+        # Too spread out, or partly unresolved: fetch everything the router may fetch.
+        ({"hours": 0.4, "contact": 0.3, "events": 0.15}, list(ROUTED_SECTIONS), 12),
+        ({"hours": 0.7, "unresolved": 0.25}, list(ROUTED_SECTIONS), 12),
+    ],
 )
-def test_profile_details_jev_leans_against_are_left_out(
-    hours: float, complete: float, expected: tuple[set[str], int] | None
+def test_a_profile_lookup_fetches_jevs_leading_topics(
+    probabilities: dict[str, float], include: list[str], menu_limit: int | None
 ) -> None:
-    request = messages("What is the dinner menu at the Registrar today?")
+    request = messages("What does the Registrar have today?")
     payload, day = routing_payload(request, [ENTITY], NOW)
-    answers = answers_for(
-        payload, route="profile", date="explicit", meal="dinner", section_menu=1.0,
-        section_hours=hours, complete_menu=complete,
-    )
+    answers = spread(answers_for(payload, route="profile"), "topic", **probabilities)
+    validate_answers(answers, payload["questions"])
     arguments = interpret(answers, [ENTITY], day, request).arguments
-    if expected is None:
-        assert arguments is None
-    else:
-        assert arguments is not None
-        assert (set(arguments["include"]), arguments["menu_limit"]) == expected
+    assert arguments is not None and arguments["include"] == include
+    assert (arguments["menu_limit"] if "menu" in include else None) == menu_limit
+
+
+def test_a_topic_without_a_date_ignores_an_unreadable_date() -> None:
+    # "Who convenes the program the week after Thanksgiving?" needs no date to look up.
+    request = messages("Who convenes the Registrar the week after Thanksgiving?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    answers = answers_for(payload, route="profile", topic="about", date="unresolved")
+    assert interpret(answers, [ENTITY], day, request).arguments is not None
+    answers = answers_for(payload, route="profile", topic="hours", date="unresolved")
+    assert interpret(answers, [ENTITY], day, request).arguments is None
+
+
+def test_a_building_location_reads_the_building() -> None:
+    # "Where is Birch Mansion?" found nothing when the router could not fetch buildings.
+    request = messages("Where is Birch Mansion?")
+    payload, day = routing_payload(request, [MANSION], NOW)
+    answers = answers_for(payload, route="profile", entity=str(MANSION.id), topic="location")
+    arguments = interpret(answers, [MANSION], day, request).arguments
+    assert arguments is not None and "building" in arguments["include"]
+
+
+def test_a_follow_up_never_looks_things_up_itself() -> None:
+    # "Actually, what is the Financial Aid phone?" names its entity, but still follows a
+    # conversation, so GPT runs the lookup.
+    followup = [
+        *messages(),
+        ChatMessage(role="assistant", content="The Registrar's phone is 201-684-7695."),
+        ChatMessage(role="user", content="Actually, what is the Registrar phone?"),
+    ]
+    payload, day = routing_payload(followup, [ENTITY], NOW)
+    result = interpret(answers_for(payload), [ENTITY], day, followup)
+    assert result.arguments is None
+    assert result.tool is None and result.reason == "follow_up"
 
 
 @pytest.mark.parametrize("mutation", ["missing", "nan", "unknown", "sum", "bool", "wrong_type"])
