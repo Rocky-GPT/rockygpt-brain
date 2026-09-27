@@ -24,14 +24,26 @@ messages. Candidates come from the active release's curated identities, capped a
 24 and ranked by current exact name/alias matches, previous mentions, then lexical
 overlap. Candidates are selectors, not evidence or new identity links.
 
-The router uses one request to pinned `jev-1.13.0`. Decisions require probability
-and confidence ≥0.90. Field/section probabilities ≥0.90 include, below 0.50 exclude
-(Jev leans against them), and values in between defer. One question asks whether the
-request wants general contact details, which means phone, email, office and
-department; the field questions then ask only about fields named specifically. A
-separate question checks whether a complete single-entity lookup is representable.
-Ambiguity, unsupported qualifiers, complex dates, and unresolved arguments defer to GPT. Simple dates reuse the existing
-campus-local resolver; meal labels are request filters, never proof of availability.
+The router uses one request to pinned `jev-1.13.0` and asks only choices: the route,
+the entity, the date, the meal and, for a profile, the topic. It asks no yes/no
+questions, because Jev's yes/no answers about single details sat between 0.50 and 0.80
+whether or not the detail was asked, so a lookup gated on them never ran. The route
+and entity require probability and confidence ≥0.90.
+
+A direct contact lookup fetches every field. A direct profile lookup keeps Jev's
+leading topics (hours, menu, complete menu, contact, location, events, or about)
+until they hold 90% of its answer, at most three, and fetches their sections. When
+Jev spreads its answer wider, or one of those topics is unresolved, the lookup fetches
+every routed section instead. GPT still writes and reviews the answer from what was
+fetched, so an extra section costs context, not accuracy. The complete-menu topic
+raises the menu limit only when it leads. Simple dates reuse the existing campus-local
+resolver, and a lookup that needs a date defers when Jev's leading date choice is
+unresolved, as for "the week after Thanksgiving", or when the resolver's weekday
+has already passed this week, as for "Saturday" asked on a Sunday. A meal filter applies only when
+Jev's meal choice clears 0.90; otherwise every meal is fetched. Meal labels are request
+filters, never proof of availability. Follow-ups never run a lookup directly, since
+they lean on earlier turns. Mixed or ambiguous requests defer through the route and
+entity choices.
 
 A request names an entity by its longest matching name or alias: "Computer Science
 BS" names that program, not every program sharing the "Computer Science" alias.
@@ -39,17 +51,17 @@ Naming two entities defers, and Jev must select the entity the request names. Wh
 the request names exactly one entity, Jev's pick of that same entity stands once its
 probability reaches 0.50, since the name itself backs it.
 
-Contact and every profile section except related, requirements, building, school,
-subject and graduation plans can run directly. Every lookup still uses the ordinary
+Contact and every profile section except related, requirements, school, subject and
+graduation plans can run directly. Every lookup still uses the ordinary
 schema validation, read-only retrieval, context bounds, evidence collection, trace,
 and exact-answer checks. Direct results feed GPT synthesis and the existing evidence
 review: the exact contact answer skips canonical entities (`retrieval/exact.py`), so
 a direct lookup saves GPT's first call, not the answer or its review. Jev never
 certifies a factual answer or resolves conflicting evidence.
 
-When only a tool is resolved, GPT's first call is constrained to that tool; later
-calls regain all tools. Uncertain, general, and mixed routes retain the ordinary
-flow. No new frontend flow or request field is required.
+When only a search or calculate route is resolved, GPT's first call is constrained
+to that tool; later calls regain all tools. A contact or profile route that can't run
+directly, and uncertain, general and mixed routes, retain the ordinary flow. No new frontend flow or request field is required.
 
 The routing deadline is two seconds, includes preparation, and gives the HTTP
 attempt only its remaining allowance. HTTP cancellation covers the entire response
