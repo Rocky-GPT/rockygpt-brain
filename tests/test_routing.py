@@ -15,10 +15,12 @@ import httpx
 import psycopg
 import pytest
 
+from rockygpt_brain.campus.formats import SAFETY_NET
 from rockygpt_brain.config import RELEASE, Deployment
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
 from rockygpt_brain.core.provider import JevProvider, ModelResponse, PaidGateway, Usage
+from rockygpt_brain.core.render import InvalidAnswer
 from rockygpt_brain.core.routing import (
     FIELDS,
     GRAPH_TOOLS,
@@ -34,6 +36,7 @@ from rockygpt_brain.core.routing import (
 from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.retrieval.profiles import Identity
 from test_engine import answer, review, search, tools
+from test_general import SAFETY, urgent
 from test_phase2 import result_for
 from test_provider import arguments
 
@@ -70,6 +73,7 @@ def answers_for(payload: dict[str, Any], **selections: Any) -> dict[str, Any]:
         "date": "unspecified",
         "meal": "unspecified",
         "topic": "contact",
+        "danger": "none",
         **selections,
     }
     answers: dict[str, Any] = {}
@@ -652,6 +656,147 @@ def test_a_follow_up_never_looks_things_up_itself() -> None:
     result = interpret(answers_for(payload), [ENTITY], day, followup)
     assert result.arguments is None
     assert result.tool is None and result.reason == "follow_up"
+
+
+@pytest.mark.parametrize("pick,danger", [("self_harm", "self_harm"), ("danger", "danger"),
+                                         ("none", None)])
+def test_jevs_danger_pick_is_its_top_choice(pick: str, danger: str | None) -> None:
+    decision = route_request(messages("I don't want to be alive anymore."), data=data_mock(),
+                             client=router_mock(route="unresolved", entity="unresolved",
+                                                danger=pick), now=NOW, timeout=2)
+    assert decision.danger == danger
+    assert decision.metrics("active")["danger"] == danger
+
+
+def test_a_late_routing_answer_still_flags_danger(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = [0.0]
+    monkeypatch.setattr("rockygpt_brain.core.routing.monotonic", lambda: clock[0])
+    router = Mock()
+
+    def late(payload: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        clock[0] = 10.0  # Jev answers after the routing deadline.
+        return answers_for(payload, danger="danger")
+
+    router.route.side_effect = late
+    decision = route_request(messages(), data=data_mock(), client=router, now=NOW, timeout=2)
+    assert decision.reason == "routing_timeout" and decision.tool is None
+    assert decision.danger == "danger"
+
+
+def safety_turn(client: Mock, *, danger: str = "self_harm", mode: Any = "active",
+                text: str = "I don't want to be alive anymore.") -> dict[str, Any]:
+    data = data_mock()
+    data.search.return_value = {"status": "ok", "dataset_version": "v1", "records": SAFETY}
+    return run_turn(messages(text), client=client, data=data, model=RELEASE.model, now=NOW,
+                    routing_client=router_mock(route="unresolved", entity="unresolved",
+                                               danger=danger),
+                    routing_mode=mode)
+
+
+PUBLIC_SAFETY = "Ramapo College Public Safety: emergency 201-684-6666; non-emergency 201-684-7432."
+SAFETY_IDS = ["critical_facts:safety.emergency_phone", "critical_facts:safety.non_emergency_phone"]
+
+
+@pytest.mark.parametrize("danger", ["self_harm", "danger"])
+def test_jevs_danger_pick_puts_the_safety_block_first(danger: str) -> None:
+    gpt = Mock()
+    gpt.create.side_effect = [answer("Talking with someone you trust can help."), review()]
+    result = safety_turn(gpt, danger=danger)
+    guidance, numbers, reply = result["answer"].split("\n\n")
+    assert guidance == SAFETY_NET[danger]
+    assert numbers.startswith(PUBLIC_SAFETY)
+    assert reply == "Talking with someone you trust can help."
+    assert [citation["id"] for citation in result["citations"]] == SAFETY_IDS
+    assert result["status"] == "answered"
+    assert result["metrics"]["responseMode"] == "reviewed_prose"
+    assert result["metrics"]["safetyNet"] == danger
+    [developer] = [item for item in gpt.create.call_args_list[0].kwargs["input"]
+                   if isinstance(item, dict) and item.get("role") == "developer"]
+    assert SAFETY_NET[danger] in developer["content"] and "201-684-6666" in developer["content"]
+    shown_above = json.loads(gpt.create.call_args_list[1].kwargs["input"])["verified_prefix"]
+    assert [part["text"] for part in shown_above][0] == SAFETY_NET[danger]
+    assert shown_above[1]["text"] == PUBLIC_SAFETY
+
+
+def test_gpt_is_not_told_about_a_block_it_wont_see() -> None:
+    gpt = Mock()
+    gpt.create.side_effect = [answer("Talking with someone you trust can help."), review()]
+    safety_turn(gpt, danger="none")
+    [developer] = [item for item in gpt.create.call_args_list[0].kwargs["input"]
+                   if isinstance(item, dict) and item.get("role") == "developer"]
+    assert "safety message" not in developer["content"]
+
+
+def test_a_danger_pick_survives_an_invalid_answer_elsewhere() -> None:
+    router = Mock()
+
+    def broken(payload: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        answers = answers_for(payload, danger="danger")
+        entity = answers["entity"]
+        entity["probabilities"] = {key: 0.0 for key in entity["probabilities"]}
+        return answers
+
+    router.route.side_effect = broken
+    decision = route_request(messages(), data=data_mock(), client=router, now=NOW, timeout=2)
+    assert decision.reason == "routing_invalid_response" and decision.tool is None
+    assert decision.danger == "danger"
+
+
+def test_an_unverified_answer_still_shows_the_safety_block() -> None:
+    gpt = Mock()
+    gpt.create.side_effect = [answer("Rocky can see your records."), review("unsupported_claim")]
+    result = safety_turn(gpt)
+    assert result["answer"].startswith(SAFETY_NET["self_harm"] + "\n\n" + PUBLIC_SAFETY)
+    assert result["answer"].endswith("I couldn't verify a reliable answer from the available "
+                                     "information.")
+    assert result["status"] == "partial"
+    assert result["metrics"]["responseMode"] == "safe_fallback"
+
+
+@pytest.mark.parametrize(
+    "failure,reason",
+    [
+        (SimpleNamespace(status="incomplete", model="test-model", output=[], output_text=""),
+         "incomplete_draft"),
+        (PaidCallError("model_provider_error"), "model_provider_error"),
+        (TimeoutError("Turn deadline exceeded"), "model_timeout"),
+    ],
+)
+def test_a_failed_answer_leaves_only_the_safety_block(failure: Any, reason: str) -> None:
+    gpt = Mock()
+    gpt.create.side_effect = [failure]
+    result = safety_turn(gpt, danger="danger")
+    guidance, numbers = result["answer"].split("\n\n")
+    assert guidance == SAFETY_NET["danger"] and numbers.startswith(PUBLIC_SAFETY)
+    assert result["status"] == "partial"
+    assert result["datasetVersion"] == "v1"
+    assert result["metrics"]["responseMode"] == "safety_net"
+    assert result["metrics"]["fallbackReason"] == reason
+    gpt.create.side_effect = [failure]
+    with pytest.raises((InvalidAnswer, PaidCallError, TimeoutError)):
+        safety_turn(gpt, danger="none")
+
+
+def test_an_urgent_safety_answer_gets_the_numbers_once_from_the_block() -> None:
+    gpt = Mock()
+    gpt.create.return_value = urgent("Move toward a busy, staffed place.")
+    result = safety_turn(gpt, danger="danger")
+    guidance, numbers, reply = result["answer"].split("\n\n")
+    assert guidance == SAFETY_NET["danger"] and numbers.startswith(PUBLIC_SAFETY)
+    assert reply == "Move toward a busy, staffed place."
+    assert [citation["id"] for citation in result["citations"]] == SAFETY_IDS
+    assert result["datasetVersion"] == "v1"
+    assert result["metrics"]["responseMode"] == "urgent_safety"
+    assert result["metrics"]["safetyNet"] == "danger"
+
+
+def test_shadow_routing_records_danger_without_showing_the_block() -> None:
+    gpt = Mock()
+    gpt.create.side_effect = [answer("Talking with someone you trust can help."), review()]
+    result = safety_turn(gpt, mode="shadow")
+    assert result["answer"] == "Talking with someone you trust can help."
+    assert result["metrics"]["routing"]["danger"] == "self_harm"
+    assert "safetyNet" not in result["metrics"]
 
 
 @pytest.mark.parametrize("mutation", ["missing", "nan", "unknown", "sum", "bool", "wrong_type"])
