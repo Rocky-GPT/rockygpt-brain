@@ -53,11 +53,12 @@ def meal_order(periods: list[dict[str, Any]], day: date, now: datetime) -> list[
     """One day's published meal labels in the order a student asking now needs them.
 
     On the campus date of `now`: the meal in service, then later meals by start, then
-    meals already served. Another day keeps start order. A period whose clocks cannot
+    meals already served, most recent first, so a late question about tonight finds
+    dinner before breakfast. Another day keeps start order. A period whose clocks cannot
     be read establishes no position and is left out.
     """
     today = now.astimezone(CAMPUS_ZONE).date() == day
-    keys: dict[str, tuple[int, datetime]] = {}
+    keys: dict[str, tuple[int, float]] = {}
     for period in periods:
         label = period.get("label")
         if not isinstance(label, str) or not label.strip():
@@ -70,7 +71,8 @@ def meal_order(periods: list[dict[str, Any]], day: date, now: datetime) -> list[
         except ValueError:
             continue
         state = 0 if not today or start <= now < end else 1 if now < start else 2
-        keys[label] = min(keys.get(label, (state, start)), (state, start))
+        position = (state, -start.timestamp() if state == 2 else start.timestamp())
+        keys[label] = min(keys.get(label, position), position)
     return sorted(keys, key=keys.__getitem__)
 
 
