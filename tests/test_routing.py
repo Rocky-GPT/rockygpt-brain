@@ -15,12 +15,16 @@ import httpx
 import psycopg
 import pytest
 
+from rockygpt_brain.campus.formats import SAFETY_NET
 from rockygpt_brain.config import RELEASE, Deployment
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
 from rockygpt_brain.core.provider import JevProvider, ModelResponse, PaidGateway, Usage
+from rockygpt_brain.core.render import InvalidAnswer
 from rockygpt_brain.core.routing import (
+    FIELDS,
     GRAPH_TOOLS,
+    ROUTED_SECTIONS,
     graph_first,
     interpret,
     named,
@@ -32,6 +36,7 @@ from rockygpt_brain.core.routing import (
 from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.retrieval.profiles import Identity
 from test_engine import answer, review, search, tools
+from test_general import SAFETY, urgent
 from test_phase2 import result_for
 from test_provider import arguments
 
@@ -67,9 +72,8 @@ def answers_for(payload: dict[str, Any], **selections: Any) -> dict[str, Any]:
         "entity": str(ENTITY.id),
         "date": "unspecified",
         "meal": "unspecified",
-        "simple": 1.0,
-        "field_phone": 1.0,
-        "section_contact": 1.0,
+        "topic": "contact",
+        "danger": "none",
         **selections,
     }
     answers: dict[str, Any] = {}
@@ -291,24 +295,41 @@ def test_choice_requires_both_probability_and_confidence(score: float, confident
         assert (interpret(answers, [ENTITY], day, messages()).arguments is not None) == confident
 
 
-@pytest.mark.parametrize(
-    "value,direct", [(0.1, True), (0.1001, False), (0.8999, False), (0.9, True)]
-)
-def test_uncertain_field_selection_defers(value: float, direct: bool) -> None:
+def test_a_contact_lookup_fetches_every_field() -> None:
+    # Jev's yes/no answers about single fields sat between 0.5 and 0.8 whether or not the
+    # field was asked, so the payload no longer asks them.
     payload, day = routing_payload(messages(), [ENTITY], NOW)
-    result = interpret(answers_for(payload, field_email=value), [ENTITY], day, messages())
-    assert (result.arguments is not None) == direct
+    assert {question["type"] for question in payload["questions"].values()} == {"choice"}
+    result = interpret(answers_for(payload), [ENTITY], day, messages())
+    assert result.arguments is not None and result.arguments["fields"] == list(FIELDS)
+    assert result.tool == "lookup_contact" and result.reason is None
 
 
-@pytest.mark.parametrize(
-    "changes", [{"simple": 0.89}, {"entity": "unresolved"}, {"route": "unresolved"}]
-)
+def test_a_contact_request_is_looked_up_by_jev_alone() -> None:
+    data, gpt = data_mock(), Mock()
+    record = contact_record()
+    data.lookup_contact.return_value = result_for([record])
+    result = run_turn(
+        messages("How can I contact Registrar?"),
+        client=gpt,
+        data=data,
+        model=RELEASE.model,
+        now=NOW,
+        routing_client=router_mock(),
+        routing_mode="active",
+    )
+    assert data.lookup_contact.call_args.args[0].fields == list(FIELDS)
+    assert "201-684-7695" in result["answer"]
+    assert result["metrics"]["routing"]["directRetrieval"] is True
+    gpt.create.assert_not_called()
+
+
+@pytest.mark.parametrize("changes", [{"entity": "unresolved"}, {"route": "unresolved"}])
 def test_ambiguity_and_mixed_requests_defer(changes: dict[str, Any]) -> None:
     payload, day = routing_payload(messages(), [ENTITY], NOW)
     result = interpret(answers_for(payload, **changes), [ENTITY], day, messages())
-    assert result.arguments is None
-    if "simple" in changes or "route" in changes:
-        assert result.tool is None
+    # GPT keeps every tool, since the request may need more than one lookup.
+    assert result.arguments is None and result.tool is None
 
 
 def test_duplicate_aliases_never_select_an_arbitrary_identity() -> None:
@@ -318,6 +339,48 @@ def test_duplicate_aliases_never_select_an_arbitrary_identity() -> None:
     payload, day = routing_payload(messages(), [ENTITY, other], NOW)
     result = interpret(answers_for(payload), [ENTITY, other], day, messages())
     assert result.arguments is None and result.tool is None
+
+
+def leaning(answers: dict[str, Any], leading: str, probability: float) -> dict[str, Any]:
+    """Jev picks `leading` at `probability` and spreads the rest over the other options."""
+    options = answers["entity"]["probabilities"]
+    rest = (1 - probability) / (len(options) - 1)
+    answers["entity"].update(
+        choice=leading,
+        confidence=probability,
+        probabilities={option: probability if option == leading else rest for option in options},
+    )
+    return answers
+
+
+OTHER = Identity.model_validate(
+    {**ENTITY.model_dump(mode="json"), "id": str(UUID(int=2)), "name": "Bursar", "aliases": []}
+)
+
+
+@pytest.mark.parametrize(
+    "text,leading,probability,direct",
+    [
+        # Jev was 79% sure "What is the Registrar phone?" meant the Registrar.
+        ("What is the Registrar phone?", str(ENTITY.id), 0.79, True),
+        ("What is the Registrar phone?", str(ENTITY.id), 0.5, True),
+        ("What is the Registrar phone?", str(ENTITY.id), 0.4999, False),
+        ("What is the Registrar phone?", "unresolved", 0.79, False),
+        # Jev leaning toward an entity the request doesn't name never replaces the named one.
+        ("What is the Registrar phone?", str(OTHER.id), 0.79, False),
+        # A follow-up names nothing, so Jev's own pick must clear the threshold.
+        ("What is their phone?", str(ENTITY.id), 0.79, False),
+    ],
+)
+def test_a_named_entity_needs_only_jevs_leaning_pick(
+    text: str, leading: str, probability: float, direct: bool
+) -> None:
+    request = messages(text)
+    payload, day = routing_payload(request, [ENTITY, OTHER], NOW)
+    answers = leaning(answers_for(payload), leading, probability)
+    validate_answers(answers, payload["questions"])
+    result = interpret(answers, [ENTITY, OTHER], day, request)
+    assert (result.arguments is not None) == direct
 
 
 def identity(number: int, kind: str, name: str, *aliases: str) -> Identity:
@@ -367,13 +430,13 @@ def test_one_named_entity_among_overlapping_names_can_route_directly() -> None:
     request = messages("Who is the convener of the Computer Science BS program?")
     candidates = [CS_BS, CS_MS, CS_CLUB]
     payload, day = routing_payload(request, candidates, NOW)
-    answers = answers_for(payload, route="profile", entity=str(CS_BS.id), section_conveners=1.0)
+    answers = answers_for(payload, route="profile", entity=str(CS_BS.id), topic="about")
     result = interpret(answers, candidates, day, request)
     assert result.arguments is not None and result.arguments["entity_id"] == str(CS_BS.id)
-    # Jev must select the entity the request names; any other leaves the arguments to GPT.
-    answers = answers_for(payload, route="profile", entity=str(CS_MS.id), section_conveners=1.0)
+    # Jev must select the entity the request names; any other leaves the lookup to GPT.
+    answers = answers_for(payload, route="profile", entity=str(CS_MS.id), topic="about")
     result = interpret(answers, candidates, day, request)
-    assert result.arguments is None and result.tool == "lookup_profile"
+    assert result.arguments is None and result.tool is None
 
 
 MATH = identity(7, "subject", "Mathematics (MATH)", "MATH")
@@ -490,26 +553,250 @@ def test_shortlist_prioritizes_latest_exact_match_and_caps_candidates() -> None:
     assert payload["state"]["prior_messages"] == [message.model_dump() for message in followup[:-1]]
 
 
-def test_dates_meals_all_sections_and_complete_menu_are_bounded() -> None:
+def spread(answers: dict[str, Any], key: str, **probabilities: float) -> dict[str, Any]:
+    """Jev splits `key` as given, with any remainder spread over the other options."""
+    options = answers[key]["probabilities"]
+    rest = (1 - sum(probabilities.values())) / (len(options) - len(probabilities))
+    distribution = {option: probabilities.get(option, rest) for option in options}
+    leading = max(distribution, key=lambda option: distribution[option])
+    answers[key].update(
+        choice=leading, confidence=distribution[leading], probabilities=distribution
+    )
+    return answers
+
+
+def test_dates_meals_and_complete_menu_are_bounded() -> None:
     request = messages("Registrar menu and hours tomorrow for dinner")
     payload, day = routing_payload(request, [ENTITY], NOW)
     assert day == (NOW.date() + timedelta(days=1)).isoformat()
     answers = answers_for(
-        payload,
-        route="profile",
-        date="explicit",
-        meal="dinner",
-        section_menu=1.0,
-        section_hours=1.0,
-        complete_menu=1.0,
+        payload, route="profile", date="explicit", meal="dinner", topic="complete_menu"
     )
+    validate_answers(answers, payload["questions"])
     result = interpret(answers, [ENTITY], day, request)
     assert result.arguments is not None
     assert result.arguments["date"] == day and result.arguments["meal"] == "dinner"
     assert result.arguments["menu_limit"] == 100
-    assert set(result.arguments["include"]) == {"contact", "menu", "hours"}
+    assert result.arguments["include"] == ["menu", "hours"]
+    # Jev only has to flag a date the resolver can't read.
     answers["date"]["choice"] = "unresolved"
     assert interpret(answers, [ENTITY], day, request).arguments is None
+
+
+@pytest.mark.parametrize(
+    "probabilities,include,menu_limit",
+    [
+        ({"hours": 0.95}, ["hours"], None),
+        # Jev split "Library hours and phone number" between two topics.
+        ({"hours": 0.6, "contact": 0.3}, ["hours", "contact"], None),
+        ({"menu": 0.7, "complete_menu": 0.25}, ["menu", "hours"], 12),
+        ({"complete_menu": 0.6, "menu": 0.35}, ["menu", "hours"], 100),
+        ({"location": 0.92}, ["building", "contact"], None),
+        ({"about": 0.93}, ["faculty", "courses", "program", "conveners", "club"], None),
+        # Too spread out, or partly unresolved: fetch everything the router may fetch.
+        ({"hours": 0.4, "contact": 0.3, "events": 0.15}, list(ROUTED_SECTIONS), 12),
+        ({"hours": 0.7, "unresolved": 0.25}, list(ROUTED_SECTIONS), 12),
+    ],
+)
+def test_a_profile_lookup_fetches_jevs_leading_topics(
+    probabilities: dict[str, float], include: list[str], menu_limit: int | None
+) -> None:
+    request = messages("What does the Registrar have today?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    answers = spread(answers_for(payload, route="profile"), "topic", **probabilities)
+    validate_answers(answers, payload["questions"])
+    arguments = interpret(answers, [ENTITY], day, request).arguments
+    assert arguments is not None and arguments["include"] == include
+    assert (arguments["menu_limit"] if "menu" in include else None) == menu_limit
+
+
+def test_a_weekday_that_has_passed_this_week_is_left_to_gpt() -> None:
+    # Asked on a Sunday, "Saturday" resolved to the day before and fetched past hours.
+    data, router = data_mock(), router_mock(route="profile", topic="hours")
+    yesterday, tomorrow = NOW - timedelta(days=1), NOW + timedelta(days=1)
+    assert yesterday.weekday() < NOW.weekday() < tomorrow.weekday()  # All in one week.
+    request = messages(f"When is the Registrar open on {yesterday:%A}?")
+    decision = route_request(request, data=data, client=router, now=NOW, timeout=2)
+    assert decision.arguments is None and decision.tool is None
+    assert decision.route == "profile" and decision.reason == "past_date"
+    request = messages(f"When is the Registrar open on {tomorrow:%A}?")
+    decision = route_request(request, data=data, client=router, now=NOW, timeout=2)
+    assert decision.arguments is not None
+    assert decision.arguments["date"] == tomorrow.date().isoformat()
+
+
+def test_a_topic_without_a_date_ignores_an_unreadable_date() -> None:
+    # "Who convenes the program the week after Thanksgiving?" needs no date to look up.
+    request = messages("Who convenes the Registrar the week after Thanksgiving?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    answers = answers_for(payload, route="profile", topic="about", date="unresolved")
+    assert interpret(answers, [ENTITY], day, request).arguments is not None
+    answers = answers_for(payload, route="profile", topic="hours", date="unresolved")
+    assert interpret(answers, [ENTITY], day, request).arguments is None
+
+
+def test_a_building_location_reads_the_building() -> None:
+    # "Where is Birch Mansion?" found nothing when the router could not fetch buildings.
+    request = messages("Where is Birch Mansion?")
+    payload, day = routing_payload(request, [MANSION], NOW)
+    answers = answers_for(payload, route="profile", entity=str(MANSION.id), topic="location")
+    arguments = interpret(answers, [MANSION], day, request).arguments
+    assert arguments is not None and "building" in arguments["include"]
+
+
+def test_a_follow_up_never_looks_things_up_itself() -> None:
+    # "Actually, what is the Financial Aid phone?" names its entity, but still follows a
+    # conversation, so GPT runs the lookup.
+    followup = [
+        *messages(),
+        ChatMessage(role="assistant", content="The Registrar's phone is 201-684-7695."),
+        ChatMessage(role="user", content="Actually, what is the Registrar phone?"),
+    ]
+    payload, day = routing_payload(followup, [ENTITY], NOW)
+    result = interpret(answers_for(payload), [ENTITY], day, followup)
+    assert result.arguments is None
+    assert result.tool is None and result.reason == "follow_up"
+
+
+@pytest.mark.parametrize("pick,danger", [("self_harm", "self_harm"), ("danger", "danger"),
+                                         ("none", None)])
+def test_jevs_danger_pick_is_its_top_choice(pick: str, danger: str | None) -> None:
+    decision = route_request(messages("I don't want to be alive anymore."), data=data_mock(),
+                             client=router_mock(route="unresolved", entity="unresolved",
+                                                danger=pick), now=NOW, timeout=2)
+    assert decision.danger == danger
+    assert decision.metrics("active")["danger"] == danger
+
+
+def test_a_late_routing_answer_still_flags_danger(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = [0.0]
+    monkeypatch.setattr("rockygpt_brain.core.routing.monotonic", lambda: clock[0])
+    router = Mock()
+
+    def late(payload: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        clock[0] = 10.0  # Jev answers after the routing deadline.
+        return answers_for(payload, danger="danger")
+
+    router.route.side_effect = late
+    decision = route_request(messages(), data=data_mock(), client=router, now=NOW, timeout=2)
+    assert decision.reason == "routing_timeout" and decision.tool is None
+    assert decision.danger == "danger"
+
+
+def safety_turn(client: Mock, *, danger: str = "self_harm", mode: Any = "active",
+                text: str = "I don't want to be alive anymore.") -> dict[str, Any]:
+    data = data_mock()
+    data.search.return_value = {"status": "ok", "dataset_version": "v1", "records": SAFETY}
+    return run_turn(messages(text), client=client, data=data, model=RELEASE.model, now=NOW,
+                    routing_client=router_mock(route="unresolved", entity="unresolved",
+                                               danger=danger),
+                    routing_mode=mode)
+
+
+PUBLIC_SAFETY = "Ramapo College Public Safety: emergency 201-684-6666; non-emergency 201-684-7432."
+SAFETY_IDS = ["critical_facts:safety.emergency_phone", "critical_facts:safety.non_emergency_phone"]
+
+
+@pytest.mark.parametrize("danger", ["self_harm", "danger"])
+def test_jevs_danger_pick_puts_the_safety_block_first(danger: str) -> None:
+    gpt = Mock()
+    gpt.create.side_effect = [answer("Talking with someone you trust can help."), review()]
+    result = safety_turn(gpt, danger=danger)
+    guidance, numbers, reply = result["answer"].split("\n\n")
+    assert guidance == SAFETY_NET[danger]
+    assert numbers.startswith(PUBLIC_SAFETY)
+    assert reply == "Talking with someone you trust can help."
+    assert [citation["id"] for citation in result["citations"]] == SAFETY_IDS
+    assert result["status"] == "answered"
+    assert result["metrics"]["responseMode"] == "reviewed_prose"
+    assert result["metrics"]["safetyNet"] == danger
+    [developer] = [item for item in gpt.create.call_args_list[0].kwargs["input"]
+                   if isinstance(item, dict) and item.get("role") == "developer"]
+    assert SAFETY_NET[danger] in developer["content"] and "201-684-6666" in developer["content"]
+    shown_above = json.loads(gpt.create.call_args_list[1].kwargs["input"])["verified_prefix"]
+    assert [part["text"] for part in shown_above][0] == SAFETY_NET[danger]
+    assert shown_above[1]["text"] == PUBLIC_SAFETY
+
+
+def test_gpt_is_not_told_about_a_block_it_wont_see() -> None:
+    gpt = Mock()
+    gpt.create.side_effect = [answer("Talking with someone you trust can help."), review()]
+    safety_turn(gpt, danger="none")
+    [developer] = [item for item in gpt.create.call_args_list[0].kwargs["input"]
+                   if isinstance(item, dict) and item.get("role") == "developer"]
+    assert "safety message" not in developer["content"]
+
+
+def test_a_danger_pick_survives_an_invalid_answer_elsewhere() -> None:
+    router = Mock()
+
+    def broken(payload: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        answers = answers_for(payload, danger="danger")
+        entity = answers["entity"]
+        entity["probabilities"] = {key: 0.0 for key in entity["probabilities"]}
+        return answers
+
+    router.route.side_effect = broken
+    decision = route_request(messages(), data=data_mock(), client=router, now=NOW, timeout=2)
+    assert decision.reason == "routing_invalid_response" and decision.tool is None
+    assert decision.danger == "danger"
+
+
+def test_an_unverified_answer_still_shows_the_safety_block() -> None:
+    gpt = Mock()
+    gpt.create.side_effect = [answer("Rocky can see your records."), review("unsupported_claim")]
+    result = safety_turn(gpt)
+    assert result["answer"].startswith(SAFETY_NET["self_harm"] + "\n\n" + PUBLIC_SAFETY)
+    assert result["answer"].endswith("I couldn't verify a reliable answer from the available "
+                                     "information.")
+    assert result["status"] == "partial"
+    assert result["metrics"]["responseMode"] == "safe_fallback"
+
+
+@pytest.mark.parametrize(
+    "failure,reason",
+    [
+        (SimpleNamespace(status="incomplete", model="test-model", output=[], output_text=""),
+         "incomplete_draft"),
+        (PaidCallError("model_provider_error"), "model_provider_error"),
+        (TimeoutError("Turn deadline exceeded"), "model_timeout"),
+    ],
+)
+def test_a_failed_answer_leaves_only_the_safety_block(failure: Any, reason: str) -> None:
+    gpt = Mock()
+    gpt.create.side_effect = [failure]
+    result = safety_turn(gpt, danger="danger")
+    guidance, numbers = result["answer"].split("\n\n")
+    assert guidance == SAFETY_NET["danger"] and numbers.startswith(PUBLIC_SAFETY)
+    assert result["status"] == "partial"
+    assert result["datasetVersion"] == "v1"
+    assert result["metrics"]["responseMode"] == "safety_net"
+    assert result["metrics"]["fallbackReason"] == reason
+    gpt.create.side_effect = [failure]
+    with pytest.raises((InvalidAnswer, PaidCallError, TimeoutError)):
+        safety_turn(gpt, danger="none")
+
+
+def test_an_urgent_safety_answer_gets_the_numbers_once_from_the_block() -> None:
+    gpt = Mock()
+    gpt.create.return_value = urgent("Move toward a busy, staffed place.")
+    result = safety_turn(gpt, danger="danger")
+    guidance, numbers, reply = result["answer"].split("\n\n")
+    assert guidance == SAFETY_NET["danger"] and numbers.startswith(PUBLIC_SAFETY)
+    assert reply == "Move toward a busy, staffed place."
+    assert [citation["id"] for citation in result["citations"]] == SAFETY_IDS
+    assert result["datasetVersion"] == "v1"
+    assert result["metrics"]["responseMode"] == "urgent_safety"
+    assert result["metrics"]["safetyNet"] == "danger"
+
+
+def test_shadow_routing_records_danger_without_showing_the_block() -> None:
+    gpt = Mock()
+    gpt.create.side_effect = [answer("Talking with someone you trust can help."), review()]
+    result = safety_turn(gpt, mode="shadow")
+    assert result["answer"] == "Talking with someone you trust can help."
+    assert result["metrics"]["routing"]["danger"] == "self_harm"
+    assert "safetyNet" not in result["metrics"]
 
 
 @pytest.mark.parametrize("mutation", ["missing", "nan", "unknown", "sum", "bool", "wrong_type"])
