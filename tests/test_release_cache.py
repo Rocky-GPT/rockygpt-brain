@@ -6,10 +6,12 @@ from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from rockygpt_brain.retrieval import release_cache
 from rockygpt_brain.retrieval.data import CampusData
 from rockygpt_brain.retrieval.knowledge import KnowledgeGraph, release_graph
+from rockygpt_brain.retrieval.profiles import IdentityRegistry
 from rockygpt_brain.retrieval.release_cache import cached
 from test_profiles import NOW, repository
 
@@ -99,3 +101,36 @@ def test_requests_on_one_release_share_its_graph_and_identity_hash() -> None:
         # Callers receive a copy; the cached answer cannot be changed through one.
         first.identity_readiness()["status"] = "changed"
         assert second.identity_readiness()["status"] == "available"
+
+
+def test_a_release_keeps_every_structure_however_many_there_are() -> None:
+    release = Release(("db", "release-1"))
+    names = [f"structure-{number}" for number in range(release_cache.LIMIT + 2)]
+    first = {name: cached(release, name, object) for name in names}
+    build = Mock(side_effect=object)
+    assert {name: cached(release, name, build) for name in names} == first
+    assert build.call_count == 0
+
+
+def test_the_identity_registry_is_fetched_and_validated_once_per_release() -> None:
+    first, second = request(("db", "release-1")), request(("db", "release-1"))
+    first._fetch = Mock(side_effect=AssertionError("fetched again"))
+    second._fetch = Mock(side_effect=AssertionError("fetched again"))
+    with patch("rockygpt_brain.retrieval.data.IdentityRegistry.model_validate",
+               wraps=IdentityRegistry.model_validate) as validated:
+        registry = first.identity_registry()
+        assert registry is not None and registry.entities[0].name == "Example Center"
+        assert second.identity_registry() is registry
+        assert request(("db", "release-2")).identity_registry() is not registry
+    assert validated.call_count == 2
+
+
+def test_a_release_without_or_with_an_invalid_registry() -> None:
+    data = request(("db", "release-1"))
+    data._artifacts["campus-identities"] = None
+    assert data.identity_registry() is None
+    broken = request(("db", "release-2"))
+    broken._artifacts["campus-identities"] = {"schema_version": 1, "entities": "invalid"}
+    for _ in range(2):  # Never cached: each request sees the same failure.
+        with pytest.raises(ValidationError):
+            broken.identity_registry()

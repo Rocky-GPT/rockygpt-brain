@@ -157,17 +157,20 @@ def attach_entity_navigation(data: Any, records: list[dict[str, Any]]) -> dict[s
     """Point collection discovery at exact identities without treating names as joins."""
     from pydantic import ValidationError
 
-    from rockygpt_brain.retrieval.profiles import IdentityRegistry, _identity_summary
+    from rockygpt_brain.retrieval.profiles import _identity_summary
     from rockygpt_brain.retrieval.release_cache import cached
 
     if not records:
         return {"status": "not_requested", "entities": []}
-    if data._artifact("campus-identities") is None:
+    try:
+        registry = data.identity_registry()
+    except (ValidationError, TypeError):
+        registry = None
+    if registry is None:
         return {"status": "unavailable", "entities": [],
                 "reason": "identity_registry_unavailable"}
 
     def index() -> dict[tuple[str, str, str], list[tuple[Any, list[str] | None]]]:
-        registry = IdentityRegistry.model_validate(data._artifact("campus-identities"))
         by_record: dict[tuple[str, str, str], list[tuple[Any, list[str] | None]]] = {}
         for entity in registry.entities:
             for link in entity.links:
@@ -176,11 +179,7 @@ def attach_entity_navigation(data: Any, records: list[dict[str, Any]]) -> dict[s
                         (entity, link.source_record_ids))
         return by_record
 
-    try:
-        by_record = cached(data, "entity-source-navigation", index)
-    except (ValidationError, TypeError):
-        return {"status": "unavailable", "entities": [],
-                "reason": "identity_registry_unavailable"}
+    by_record = cached(data, "entity-source-navigation", index)
     entities: dict[str, dict[str, Any]] = {}
     for record in records:
         key = record.get("source_record_key")
