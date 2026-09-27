@@ -95,6 +95,14 @@ MEALS = {
     "dinner": "Dinner",
     "unresolved": "Another meal, ambiguous meal, or meal inferred only from the time",
 }
+# Whether the request describes danger, as one Jev choice. Its top pick is enough: a
+# danger pick only adds the safety block and never removes anything GPT writes.
+DANGER = {
+    "self_harm": "The student may hurt or kill themselves, or doesn't want to be alive.",
+    "danger": "The student or someone else is in danger right now: a threat, an "
+    "emergency or an injury.",
+    "none": "No one is described as being in danger.",
+}
 SOFT_ERRORS = {
     "routing_context_limit",
     "routing_unavailable",
@@ -116,6 +124,7 @@ class RouteDecision:
     tool: str | None = None
     arguments: dict[str, Any] | None = None
     reason: str | None = None
+    danger: str | None = None
     calls: int = 0
     elapsed_ms: int = 0
 
@@ -128,6 +137,7 @@ class RouteDecision:
             "confidence": self.confidence,
             "directRetrieval": False,
             "fallbackReason": self.reason,
+            "danger": self.danger,
             "elapsedMs": self.elapsed_ms,
         }
 
@@ -301,6 +311,11 @@ def routing_payload(
             "when none of these covers it.",
             TOPICS,
         ),
+        "danger": choice(
+            "Is the student in latest_request describing danger right now? Prior messages "
+            "may explain what it refers to.",
+            DANGER,
+        ),
     }
     return {
         "model": RELEASE.routing.model,
@@ -329,25 +344,40 @@ def validate_answers(answers: dict[str, Any], questions: dict[str, Any]) -> None
     if answers.keys() != questions.keys():
         raise ValueError("Incomplete routing response")
     for key, question in questions.items():
-        answer = answers[key]
-        if not isinstance(answer, dict) or answer.get("type") != question["type"]:
-            raise ValueError("Invalid answer type")
-        if question["type"] == "noul":
-            number(answer.get("noul"))
-        else:
-            options = question["criteria"]
-            probabilities = answer.get("probabilities")
-            if not isinstance(probabilities, dict) or probabilities.keys() != options.keys():
-                raise ValueError("Invalid routing options")
-            values = [number(value) for value in probabilities.values()]
-            number(answer.get("confidence"))
-            selected = answer.get("choice")
-            if (
-                selected not in options
-                or abs(sum(values) - 1) > 0.001
-                or (probabilities[selected] < max(values))
-            ):
-                raise ValueError("Invalid routing distribution")
+        validate_answer(answers[key], question)
+
+
+def validate_answer(answer: Any, question: dict[str, Any]) -> None:
+    if not isinstance(answer, dict) or answer.get("type") != question["type"]:
+        raise ValueError("Invalid answer type")
+    if question["type"] == "noul":
+        number(answer.get("noul"))
+    else:
+        options = question["criteria"]
+        probabilities = answer.get("probabilities")
+        if not isinstance(probabilities, dict) or probabilities.keys() != options.keys():
+            raise ValueError("Invalid routing options")
+        values = [number(value) for value in probabilities.values()]
+        number(answer.get("confidence"))
+        selected = answer.get("choice")
+        if (
+            selected not in options
+            or abs(sum(values) - 1) > 0.001
+            or (probabilities[selected] < max(values))
+        ):
+            raise ValueError("Invalid routing distribution")
+
+
+def danger_pick(answers: Any, question: dict[str, Any]) -> str | None:
+    """Jev's danger pick, read on its own: an invalid answer to another question, or a
+    late reply, drops the lookup but never the safety block."""
+    try:
+        answer = answers["danger"]
+        validate_answer(answer, question)
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return None
+    value: str = answer["choice"]
+    return None if value == "none" else value
 
 
 def selected(answers: dict[str, Any], key: str) -> str | None:
@@ -484,6 +514,8 @@ def route_request(
             return decision
         decision.calls = 1
         answers = client.route(payload, timeout=remaining)
+        danger = danger_pick(answers, payload["questions"]["danger"])
+        decision.danger = danger
         validate_answers(answers, payload["questions"])
         decision = interpret(answers, candidates, day, messages)
         if (decision.arguments is not None and day is not None
@@ -495,6 +527,7 @@ def route_request(
         decision.calls = 1
         if monotonic() >= deadline:
             decision = RouteDecision(reason="routing_timeout", calls=1)
+        decision.danger = danger
     except PaidCallError as error:
         if error.code not in SOFT_ERRORS:
             raise  # Accounting, budget, and admission errors never become unpaid fallback.
