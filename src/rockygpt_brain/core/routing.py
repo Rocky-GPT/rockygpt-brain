@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from time import monotonic
 from typing import Any, Protocol
 from uuid import UUID
@@ -486,6 +486,12 @@ def route_request(
         answers = client.route(payload, timeout=remaining)
         validate_answers(answers, payload["questions"])
         decision = interpret(answers, candidates, day, messages)
+        if (decision.arguments is not None and day is not None
+                and decision.arguments.get("date") == day and date.fromisoformat(day) < now.date()):
+            # The resolver keeps a weekday in this calendar week even once it has passed:
+            # asked on a Sunday, "Saturday" is yesterday. GPT decides which one is meant.
+            decision = RouteDecision(route=decision.route, confidence=decision.confidence,
+                                     reason="past_date")
         decision.calls = 1
         if monotonic() >= deadline:
             decision = RouteDecision(reason="routing_timeout", calls=1)
