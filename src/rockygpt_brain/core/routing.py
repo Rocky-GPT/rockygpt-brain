@@ -95,6 +95,14 @@ MEALS = {
     "dinner": "Dinner",
     "unresolved": "Another meal, ambiguous meal, or meal inferred only from the time",
 }
+# Whether the request describes danger, as one Jev choice. Its top pick is enough: a
+# danger pick only adds the safety block and never removes anything GPT writes.
+DANGER = {
+    "self_harm": "The student may hurt or kill themselves, or doesn't want to be alive.",
+    "danger": "The student or someone else is in danger right now: a threat, an "
+    "emergency or an injury.",
+    "none": "No one is described as being in danger.",
+}
 SOFT_ERRORS = {
     "routing_context_limit",
     "routing_unavailable",
@@ -116,6 +124,7 @@ class RouteDecision:
     tool: str | None = None
     arguments: dict[str, Any] | None = None
     reason: str | None = None
+    danger: str | None = None
     calls: int = 0
     elapsed_ms: int = 0
 
@@ -128,6 +137,7 @@ class RouteDecision:
             "confidence": self.confidence,
             "directRetrieval": False,
             "fallbackReason": self.reason,
+            "danger": self.danger,
             "elapsedMs": self.elapsed_ms,
         }
 
@@ -300,6 +310,11 @@ def routing_payload(
             "What does latest_request ask about the chosen entity? Choose unresolved only "
             "when none of these covers it.",
             TOPICS,
+        ),
+        "danger": choice(
+            "Is the student in latest_request describing danger right now? Prior messages "
+            "may explain what it refers to.",
+            DANGER,
         ),
     }
     return {
@@ -493,8 +508,11 @@ def route_request(
             decision = RouteDecision(route=decision.route, confidence=decision.confidence,
                                      reason="past_date")
         decision.calls = 1
+        danger = answers["danger"]["choice"]
         if monotonic() >= deadline:
             decision = RouteDecision(reason="routing_timeout", calls=1)
+        # A late answer still flags danger: the safety block needs no more of the budget.
+        decision.danger = None if danger == "none" else danger
     except PaidCallError as error:
         if error.code not in SOFT_ERRORS:
             raise  # Accounting, budget, and admission errors never become unpaid fallback.

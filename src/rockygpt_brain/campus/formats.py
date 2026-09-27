@@ -172,6 +172,13 @@ def limitation(text: str) -> AnswerPart:
 # Public Safety's verified numbers by published fact key, in the order they are shown.
 SAFETY_FACTS = (("safety.emergency_phone", "emergency"),
                 ("safety.non_emergency_phone", "non-emergency"))
+# Shown first when Jev reads danger in a request, above whatever else the answer says.
+# Written by code, never by a model; Public Safety's numbers follow from their records.
+SAFETY_NET = {
+    "self_harm": "If you might hurt yourself, please get help now. Call or text 988 "
+    "(Suicide & Crisis Lifeline) any time, or call 911 if you're in immediate danger.",
+    "danger": "If you're in danger right now, call 911.",
+}
 
 
 def safety_part(records: list[dict[str, Any]]) -> AnswerPart | None:

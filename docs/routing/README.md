@@ -25,7 +25,8 @@ messages. Candidates come from the active release's curated identities, capped a
 overlap. Candidates are selectors, not evidence or new identity links.
 
 The router uses one request to pinned `jev-1.13.0` and asks only choices: the route,
-the entity, the date, the meal and, for a profile, the topic. It asks no yes/no
+the entity, the date, the meal, for a profile the topic, and whether the student
+describes danger. It asks no yes/no
 questions, because Jev's yes/no answers about single details sat between 0.50 and 0.80
 whether or not the detail was asked, so a lookup gated on them never ran. The route
 and entity require probability and confidence ≥0.90.
@@ -58,6 +59,18 @@ and exact-answer checks. Direct results feed GPT synthesis and the existing evid
 review: the exact contact answer skips canonical entities (`retrieval/exact.py`), so
 a direct lookup saves GPT's first call, not the answer or its review. Jev never
 certifies a factual answer or resolves conflicting evidence.
+
+Under active routing, a danger pick adds a safety block at the top of the answer. When Jev's
+top pick is self-harm or other danger, the block shows the 911 guidance, plus 988 for
+self-harm. Under it come Public Safety's numbers from their critical-fact records. The
+block is written by code, never by a model. It only adds help and changes nothing GPT
+writes. When GPT's own answer is already marked urgent safety, it carries the same
+numbers, so the block is left off. When the answer fails, whether by review, invalid
+output, a provider error or the deadline, the student still gets the block alone,
+with status `partial` and `metrics.responseMode` `safety_net`. A routing answer that
+arrives after the routing deadline is still used for danger, since the block needs no
+more of the budget. `metrics.safetyNet` records the pick and whether the block showed.
+Shadow mode only records the pick.
 
 When only a search or calculate route is resolved, GPT's first call is constrained
 to that tool; later calls regain all tools. A contact or profile route that can't run
@@ -163,7 +176,7 @@ migration can remain applied; existing routing charges retain their audit histor
 ## Observability and privacy
 
 `metrics.routing` contains mode, model, version, route, confidence, direct retrieval,
-fallback reason, and elapsed milliseconds. `routingCalls` and `routingModelMs` count
+fallback reason, the danger pick, and elapsed milliseconds. `routingCalls` and `routingModelMs` count
 actual admitted calls at the paid boundary; `modelCalls` includes both providers.
 Direct exact answers identify Jev in the existing `model` field; GPT-written answers
 continue identifying GPT. Billing amounts remain operational metadata.
