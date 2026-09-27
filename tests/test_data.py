@@ -504,6 +504,9 @@ def test_an_unfiltered_menu_leads_with_the_meal_in_service_or_next(data: CampusD
     # In the Continental hour, which has no dishes, lunch leads.
     data.now = datetime(2026, 9, 4, 14, 40, tzinfo=UTC)  # 10:40 AM
     assert menu_titles(data, day) == ["Chili", "Apple Pie", "Bagel"]
+    # After the last meal, the latest one served leads: tonight's dinner, not breakfast.
+    data.now = datetime(2026, 9, 5, 3, 30, tzinfo=UTC)  # 11:30 PM
+    assert menu_titles(data, day) == ["Apple Pie", "Chili", "Bagel"]
     # A requested meal is already selected, so nothing is reordered.
     lunch = data.search(SearchQuery.model_validate(
         {"collection": "menu", "date_from": day, "filters": {"meal": "Lunch"}}))
@@ -527,7 +530,7 @@ def test_an_evening_menu_over_two_days_keeps_each_day_in_its_own_order(
     # 9:30 PM Friday on campus is already Saturday in UTC.
     data.now = datetime(2026, 9, 5, 1, 30, tzinfo=UTC)
     assert menu_titles(data, friday, saturday) == [
-        "Churro", "Bagel", "Apple Pie", "Aioli Toast", "Burger"]
+        "Churro", "Apple Pie", "Bagel", "Aioli Toast", "Burger"]
 
 
 @pytest.mark.parametrize("dinner_label", ["Dinner (no late night)", None])
