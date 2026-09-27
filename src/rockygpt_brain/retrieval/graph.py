@@ -83,8 +83,9 @@ class GraphData:
         if entity_id is not None:
             if registry is None:
                 try:
-                    registry = IdentityRegistry.model_validate(
-                        data._artifact("campus-identities"))
+                    registry = data.identity_registry()
+                    if registry is None:
+                        raise ValueError("No identity registry in this release")
                 except ValueError:
                     raise HTTPException(503, "Campus identity registry is unavailable") from None
             self.entity = next((e for e in registry.entities if e.id == entity_id), None)

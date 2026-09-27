@@ -34,6 +34,7 @@ from rockygpt_brain.core.routing import (
     validate_answers,
 )
 from rockygpt_brain.governance.accounting import PaidCallError
+from rockygpt_brain.retrieval.data import CampusData
 from rockygpt_brain.retrieval.profiles import Identity
 from test_engine import answer, review, search, tools
 from test_general import SAFETY, urgent
@@ -102,6 +103,8 @@ def data_mock(*entities: Identity) -> Mock:
         "schema_version": 1,
         "entities": [entity.model_dump(mode="json") for entity in entities or [ENTITY]],
     }
+    # The real registry lookup, reading this mock's artifact.
+    data.identity_registry.side_effect = lambda: CampusData.identity_registry(data)
     return data
 
 

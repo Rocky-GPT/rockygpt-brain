@@ -48,7 +48,7 @@ from rockygpt_brain.retrieval.processing import (
     filter_by_dates,
     load_artifact_records,
 )
-from rockygpt_brain.retrieval.profiles import ProfileQuery, lookup_profile
+from rockygpt_brain.retrieval.profiles import IdentityRegistry, ProfileQuery, lookup_profile
 from rockygpt_brain.retrieval.subjects import course_subject, resolve_subjects
 
 __all__ = [
@@ -348,7 +348,7 @@ class CampusData:
     def release_fingerprint(self) -> tuple[str, ...] | None:
         """The database, active release and every artifact's content hash; None offline."""
         self._ensure_loaded()
-        if self.connection is None:
+        if getattr(self, "connection", None) is None:
             return None
         if getattr(self, "_fingerprint", None) is None:
             options = conninfo_to_dict(self._database_url)
@@ -370,6 +370,21 @@ class CampusData:
 
         self._ensure_loaded()
         return dict(cached(self, "identity-readiness", self._identity_readiness))
+
+    def identity_registry(self) -> IdentityRegistry | None:
+        """The release's validated identity registry, or None for a release without one.
+
+        Built once per release and shared by every request, so its 1.7 MB payload is
+        neither fetched nor validated again per question; treat it as read-only. An
+        invalid registry raises ValidationError each time and is never cached.
+        """
+        from rockygpt_brain.retrieval.release_cache import cached
+
+        def build() -> IdentityRegistry | None:
+            payload = self._artifact("campus-identities")
+            return None if payload is None else IdentityRegistry.model_validate(payload)
+
+        return cached(self, "identity-registry", build)
 
     def _identity_readiness(self) -> dict[str, Any]:
         payload = self._artifact("campus-identities")
@@ -571,7 +586,7 @@ class CampusData:
         return load_artifact_records(collection, self.sources, self._artifact, self._evidence)
 
     def _enrich(self, collection: str, records: list[dict[str, Any]]) -> None:
-        enrich_records(collection, records, self._artifact)
+        enrich_records(collection, records, self._artifact, self.identity_registry)
 
     def _dates(self, records: list[dict[str, Any]], query: SearchQuery) -> list[dict[str, Any]]:
         return filter_by_dates(records, query, self.today)
