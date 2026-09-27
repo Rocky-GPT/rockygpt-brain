@@ -25,7 +25,14 @@ from rockygpt_brain.config import (
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
 from rockygpt_brain.core.provider import ModelResponse, OutputItem, PaidGateway, Usage, open_gateway
-from rockygpt_brain.governance.accounting import PaidCallError, PostgresLedger, month_at, reset_at
+from rockygpt_brain.governance.accounting import (
+    PaidCallError,
+    PostgresLedger,
+    close_ledger_pools,
+    ledger_pool,
+    month_at,
+    reset_at,
+)
 from rockygpt_brain.governance.reconcile import Receipt, reconcile
 
 NOW = datetime(2026, 9, 30, 23, 59, tzinfo=ZoneInfo("America/New_York"))
@@ -83,7 +90,9 @@ def ledger(database: str) -> Iterator[PostgresLedger]:
         conn.execute(
             "UPDATE brain_ops.accounts SET paused = false, cap_nusd = %s", (MONTHLY_CAP_NUSD,)
         )
+    close_ledger_pools()  # Each test counts connections from an empty pool.
     yield for_environment(database, "development")
+    close_ledger_pools()
 
 
 def for_environment(url: str, environment: Environment) -> PostgresLedger:
@@ -135,8 +144,12 @@ def test_session_reuses_connection_without_holding_account_locks(
             ).fetchone() == ("development",)
         with ledger.transaction() as second:
             assert first is second
-    assert first.closed
-    # Telemetry after gateway exit still works on a fresh connection.
+    # The session hands its connection back to the pool idle, not in a transaction.
+    assert not first.closed
+    assert first.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
+    # Telemetry after gateway exit reuses it instead of opening another connection.
+    with ledger.transaction() as telemetry:
+        assert telemetry is first
     assert str(ledger.operations()[0]["operation_id"]) == identity
 
 
@@ -154,7 +167,8 @@ def test_session_rolls_back_failed_transaction_and_preserves_committed_holds(
                 assert ledger.account(recovered)["environment"] == "development"
             assert str(ledger.operations()[0]["operation_id"]) == identity
             raise RuntimeError("turn cancelled")
-    assert failed.closed
+    # The cancelled turn left nothing open on the connection it returned.
+    assert failed.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
     assert ledger.operations()[0]["state"] == "reserved"
 
 
@@ -166,9 +180,7 @@ def test_request_session_cannot_be_shared_between_workers(ledger: PostgresLedger
         reserve(ledger, 100)
 
 
-def test_paid_gateway_reuses_ledger_session_for_readiness_reserve_and_settle(
-    ledger: PostgresLedger,
-) -> None:
+def test_turns_reuse_one_pooled_ledger_connection(ledger: PostgresLedger) -> None:
     from test_provider import arguments, response
 
     deployment = Deployment(
@@ -176,16 +188,30 @@ def test_paid_gateway_reuses_ledger_session_for_readiness_reserve_and_settle(
     )
     provider = Mock()
     provider.create.return_value = response()
-    with (
-        patch("rockygpt_brain.provider.OpenAIProvider", return_value=provider),
-        patch("rockygpt_brain.accounting.psycopg.connect", wraps=psycopg.connect) as connect,
-    ):
-        with open_gateway(deployment, "session-test") as gateway:
-            gateway.clock = lambda: datetime(2026, 9, 11, tzinfo=ZoneInfo("America/New_York"))
-            gateway.create(category="draft", **arguments())
+    with patch("rockygpt_brain.provider.OpenAIProvider", return_value=provider):
+        for request_id in ("session-test", "session-test-2"):
+            with open_gateway(deployment, request_id) as gateway:
+                gateway.clock = lambda: datetime(2026, 9, 11, tzinfo=ZoneInfo("America/New_York"))
+                gateway.create(category="draft", **arguments())
+            # chat_worker records the turn after the gateway's session has closed.
             gateway.finish({"status": "answered"})
-        assert connect.call_count == 1
-    assert ledger.operations("session-test")[0]["state"] == "settled"
+    # Two turns' readiness, reserve, settle and turn records opened one connection.
+    assert ledger_pool(ledger.url).get_stats()["connections_num"] == 1
+    for request_id in ("session-test", "session-test-2"):
+        assert ledger.operations(request_id)[0]["state"] == "settled"
+
+
+def test_pool_replaces_a_connection_the_server_closed(
+    ledger: PostgresLedger, database: str
+) -> None:
+    # Neon closes idle connections when it scales to zero; the next turn must not fail.
+    with ledger.transaction() as conn:
+        pid = conn.info.backend_pid
+    with psycopg.connect(database, autocommit=True) as admin:
+        admin.execute("SELECT pg_terminate_backend(%s)", (pid,))
+    ledger.readiness()
+    with ledger.transaction() as replacement:
+        assert replacement.info.backend_pid != pid
 
 
 def test_paid_call_bookkeeping_needs_few_database_round_trips(ledger: PostgresLedger) -> None:
