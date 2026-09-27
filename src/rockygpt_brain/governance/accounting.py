@@ -1,10 +1,11 @@
 """Durable reservation accounting in a separate PostgreSQL schema. Amounts are USD nanodollars."""
 
 import json
+import logging
 from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext, suppress
 from datetime import date, datetime
-from threading import get_ident
+from threading import Lock, get_ident
 from typing import Any, Literal, Protocol
 from zoneinfo import ZoneInfo
 
@@ -12,10 +13,12 @@ import psycopg
 from psycopg import sql
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
+from psycopg_pool import ConnectionPool
 
 from rockygpt_brain.config import (
     DEVELOPMENT_SUPPLEMENT_CAP_NUSD,
     MONTHLY_CAP_NUSD,
+    RELEASE,
     ConfigurationError,
     Environment,
 )
@@ -24,6 +27,52 @@ CAMPUS_ZONE = ZoneInfo("America/New_York")
 Category = Literal["draft", "review", "routing"]
 Statement = tuple[str | sql.Composable, tuple[Any, ...]]
 IDLE = psycopg.pq.TransactionStatus.IDLE
+LedgerConnection = psycopg.Connection[dict[str, Any]]
+# The pool's warnings print a connection's host and login name; the Brain logs error
+# classes only, and a failed checkout still surfaces as accounting_unavailable.
+for _pool_logger in ("psycopg.pool", "psycopg_pool"):
+    logging.getLogger(_pool_logger).setLevel(logging.ERROR)
+_POOLS: dict[str, ConnectionPool[LedgerConnection]] = {}
+_POOLS_LOCK = Lock()
+
+
+def ledger_pool(url: str) -> ConnectionPool[LedgerConnection]:
+    """Ledger connections kept open between turns, one pool per database URL.
+
+    Opening a connection costs TCP, TLS and login round trips (about 0.6 s from the
+    development laptop), and every turn used to open two: one for its session and
+    one to record the turn after it. A pooled connection costs one round trip to
+    check it still works, and a broken one is replaced. Neon counts only running
+    queries as activity, so idle pooled connections don't keep it awake; it closes
+    them when it scales to zero, and the check catches that. The pool also closes
+    connections left unused for a few minutes. Each turn holds one at a time.
+    """
+    with _POOLS_LOCK:
+        pool = _POOLS.get(url)
+        if pool is None:
+            pool = ConnectionPool(
+                url,
+                connection_class=LedgerConnection,
+                kwargs={"connect_timeout": 2, "row_factory": dict_row, "autocommit": True},
+                min_size=0,
+                max_size=RELEASE.active_turns + 2,
+                max_idle=240,
+                timeout=3,
+                check=ConnectionPool.check_connection,
+                name="ledger",
+                open=True,
+            )
+            _POOLS[url] = pool
+        return pool
+
+
+def close_ledger_pools() -> None:
+    """Close every pooled ledger connection; tests use it to start from an empty pool."""
+    with _POOLS_LOCK:
+        pools = list(_POOLS.values())
+        _POOLS.clear()
+    for pool in pools:
+        pool.close()
 
 
 class PaidCallError(Exception):
@@ -79,7 +128,7 @@ class PostgresLedger:
     def __init__(self, url: str, environment: Environment) -> None:
         self.url = url
         self.environment = environment
-        self._session: psycopg.Connection[dict[str, Any]] | None = None
+        self._session: LedgerConnection | None = None
         self._session_thread: int | None = None
 
     @contextmanager
@@ -88,9 +137,7 @@ class PostgresLedger:
         if self._session is not None:
             raise PaidCallError("accounting_unavailable")
         try:
-            with psycopg.connect(
-                self.url, connect_timeout=2, row_factory=dict_row, autocommit=True
-            ) as conn:
+            with ledger_pool(self.url).connection() as conn:
                 self._session = conn
                 self._session_thread = get_ident()
                 try:
@@ -142,9 +189,7 @@ class PostgresLedger:
             connection = (
                 nullcontext(self._session)
                 if self._session is not None
-                else psycopg.connect(
-                    self.url, connect_timeout=2, row_factory=dict_row, autocommit=True
-                )
+                else ledger_pool(self.url).connection()
             )
             with connection as conn:
                 try:
