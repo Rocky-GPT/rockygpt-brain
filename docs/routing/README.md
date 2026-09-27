@@ -35,7 +35,9 @@ campus-local resolver; meal labels are request filters, never proof of availabil
 
 A request names an entity by its longest matching name or alias: "Computer Science
 BS" names that program, not every program sharing the "Computer Science" alias.
-Naming two entities defers, and Jev must select the entity the request names.
+Naming two entities defers, and Jev must select the entity the request names. When
+the request names exactly one entity, Jev's pick of that same entity stands once its
+probability reaches 0.50, since the name itself backs it.
 
 Contact and every profile section except related, requirements, building, school,
 subject and graduation plans can run directly. Every lookup still uses the ordinary

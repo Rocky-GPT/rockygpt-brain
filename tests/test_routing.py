@@ -370,6 +370,48 @@ def test_duplicate_aliases_never_select_an_arbitrary_identity() -> None:
     assert result.arguments is None and result.tool is None
 
 
+def leaning(answers: dict[str, Any], leading: str, probability: float) -> dict[str, Any]:
+    """Jev picks `leading` at `probability` and spreads the rest over the other options."""
+    options = answers["entity"]["probabilities"]
+    rest = (1 - probability) / (len(options) - 1)
+    answers["entity"].update(
+        choice=leading,
+        confidence=probability,
+        probabilities={option: probability if option == leading else rest for option in options},
+    )
+    return answers
+
+
+OTHER = Identity.model_validate(
+    {**ENTITY.model_dump(mode="json"), "id": str(UUID(int=2)), "name": "Bursar", "aliases": []}
+)
+
+
+@pytest.mark.parametrize(
+    "text,leading,probability,direct",
+    [
+        # Jev was 79% sure "What is the Registrar phone?" meant the Registrar.
+        ("What is the Registrar phone?", str(ENTITY.id), 0.79, True),
+        ("What is the Registrar phone?", str(ENTITY.id), 0.5, True),
+        ("What is the Registrar phone?", str(ENTITY.id), 0.4999, False),
+        ("What is the Registrar phone?", "unresolved", 0.79, False),
+        # Jev leaning toward an entity the request doesn't name never replaces the named one.
+        ("What is the Registrar phone?", str(OTHER.id), 0.79, False),
+        # A follow-up names nothing, so Jev's own pick must clear the threshold.
+        ("What is their phone?", str(ENTITY.id), 0.79, False),
+    ],
+)
+def test_a_named_entity_needs_only_jevs_leaning_pick(
+    text: str, leading: str, probability: float, direct: bool
+) -> None:
+    request = messages(text)
+    payload, day = routing_payload(request, [ENTITY, OTHER], NOW)
+    answers = leaning(answers_for(payload), leading, probability)
+    validate_answers(answers, payload["questions"])
+    result = interpret(answers, [ENTITY, OTHER], day, request)
+    assert (result.arguments is not None) == direct
+
+
 def identity(number: int, kind: str, name: str, *aliases: str) -> Identity:
     # Each identity links its own record, so several can share one valid registry.
     return Identity.model_validate(
