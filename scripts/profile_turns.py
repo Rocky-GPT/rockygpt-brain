@@ -420,7 +420,8 @@ def apply_efforts(draft: str | None, continuation: str | None, review: str | Non
     """Experiment only: the same release with other reasoning efforts, in this process.
 
     The gateway sets each call's effort from its release, so the gateway default changes
-    too. The configuration hash in the report changes with it.
+    too. The configuration hash in the report changes with it, so the environment's
+    expected hash is checked against the unchanged code first and then set aside.
     """
     from rockygpt_brain import config
     from rockygpt_brain.core import engine, provider, reviewer
@@ -430,6 +431,9 @@ def apply_efforts(draft: str | None, continuation: str | None, review: str | Non
                                              ("review_reasoning", review)) if value}
     if not updates:
         return config.RELEASE
+    expected = os.environ.pop("BRAIN_EXPECTED_CONFIG_HASH", None)
+    if expected and expected != config.configuration_hash():
+        raise SystemExit("This checkout is not the release the environment expects")
     release = config.RELEASE.model_copy(update=updates)
     config.RELEASE = release
     engine.RELEASE = release  # type: ignore[attr-defined]
