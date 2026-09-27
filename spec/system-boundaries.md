@@ -149,8 +149,10 @@ revision must pass another review. Code never returns a rejected or unreviewed
 revision. When some paragraphs fail review, code drops them and keeps the ones that
 passed, adds a fixed note that part of the answer was left out, and marks the answer
 partial. A paragraph with no citations of its own that follows a failed one is dropped
-too, since it was checked against the sources cited before it. If only caveats would
-remain, the turn falls back as if every paragraph had failed. Nothing is rewritten.
+too, since it was checked against the sources cited before it. So is a caveat or
+question citing only sources of dropped paragraphs and none of a kept one, since it was
+about what was dropped. If only caveats would remain, the turn falls back as if every
+paragraph had failed. Nothing is rewritten.
 The verifier uses medium reasoning effort to compare relationships, source categories,
 and the supplied campus clock. A review can use up to 30 seconds within the remaining
 turn budget; the overall 50-second execution and 52-second HTTP limits still fit

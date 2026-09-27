@@ -85,7 +85,9 @@ def supported_parts(candidate: Answer, review: EvidenceReview) -> list[int]:
     The reviewer judges each paragraph's own claims, so a supported paragraph stays
     true without its neighbours. One without citations of its own was judged against
     the sources cited before it; after an earlier paragraph fails it may lean on what
-    was dropped, so it goes too. Only caveats left over means nothing was answered.
+    was dropped, so it goes too. A caveat or question whose sources were all cited by
+    dropped paragraphs, and none by a kept one, was about what was dropped ("these are
+    examples"), so it goes too. Only caveats left over means nothing was answered.
     """
     verdicts = {part.part_index: part.verdict for part in review.parts}
     kept: list[int] = []
@@ -95,7 +97,24 @@ def supported_parts(candidate: Answer, review: EvidenceReview) -> list[int]:
             earlier_failed = True
         elif part.evidence_ids or not earlier_failed:
             kept.append(index)
-    if not any(candidate.parts[index].kind in {"campus_fact", "guidance"} for index in kept):
+    content = {"campus_fact", "guidance"}
+    dropped_sources = {
+        evidence_id for index, part in enumerate(candidate.parts) if index not in kept
+        for evidence_id in part.evidence_ids
+    }
+    kept_sources = {
+        evidence_id for index in kept if candidate.parts[index].kind in content
+        for evidence_id in candidate.parts[index].evidence_ids
+    }
+
+    def still_about_something(index: int) -> bool:
+        part = candidate.parts[index]
+        cited = set(part.evidence_ids)
+        return (part.kind in content or not cited or not cited <= dropped_sources
+                or bool(cited & kept_sources))
+
+    kept = [index for index in kept if still_about_something(index)]
+    if not any(candidate.parts[index].kind in content for index in kept):
         return []
     return kept
 
