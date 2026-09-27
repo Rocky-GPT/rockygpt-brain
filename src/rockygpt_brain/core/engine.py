@@ -35,7 +35,7 @@ from rockygpt_brain.campus.schedules import (
     schedule_references,
 )
 from rockygpt_brain.config import RELEASE, RoutingMode
-from rockygpt_brain.contracts import Answer, ChatMessage
+from rockygpt_brain.contracts import Answer, AnswerPart, ChatMessage, EvidenceReview
 from rockygpt_brain.core.provider import (
     ModelClient,
     ModelResponse,
@@ -68,6 +68,69 @@ MAX_TOOL_CALLS = RELEASE.max_tool_calls
 TURN_SECONDS = RELEASE.turn_seconds
 REVIEW_RESERVE_SECONDS = RELEASE.review_reserve_seconds
 ANSWER_RESERVE_SECONDS = RELEASE.answer_reserve_seconds
+
+
+# Written by code, not the model: it only says that something was left out.
+DROPPED_NOTE = AnswerPart(
+    kind="limitation",
+    text="I left out part of this answer because I couldn't verify it against "
+    "published campus information.",
+    evidence_ids=[],
+)
+
+
+def supported_parts(candidate: Answer, review: EvidenceReview) -> list[int]:
+    """Indexes of the paragraphs that can stand once the failed ones are dropped.
+
+    The reviewer judges each paragraph's own claims, so a supported paragraph stays
+    true without its neighbours. One without citations of its own was judged against
+    the sources cited before it; after an earlier paragraph fails it may lean on what
+    was dropped, so it goes too. A caveat or question whose sources were all cited by
+    dropped paragraphs, and none by a kept one, was about what was dropped ("these are
+    examples"), so it goes too. Only caveats left over means nothing was answered.
+    """
+    verdicts = {part.part_index: part.verdict for part in review.parts}
+    kept: list[int] = []
+    earlier_failed = False
+    for index, part in enumerate(candidate.parts):
+        if verdicts[index] != "supported":
+            earlier_failed = True
+        elif part.evidence_ids or not earlier_failed:
+            kept.append(index)
+    content = {"campus_fact", "guidance"}
+    dropped_sources = {
+        evidence_id for index, part in enumerate(candidate.parts) if index not in kept
+        for evidence_id in part.evidence_ids
+    }
+    kept_sources = {
+        evidence_id for index in kept if candidate.parts[index].kind in content
+        for evidence_id in candidate.parts[index].evidence_ids
+    }
+
+    def still_about_something(index: int) -> bool:
+        part = candidate.parts[index]
+        cited = set(part.evidence_ids)
+        return (part.kind in content or not cited or not cited <= dropped_sources
+                or bool(cited & kept_sources))
+
+    kept = [index for index in kept if still_about_something(index)]
+    if not any(candidate.parts[index].kind in content for index in kept):
+        return []
+    return kept
+
+
+def with_prefix(candidate: Answer, prefix: Answer | None) -> Answer:
+    """The server's exact facts come first; the combined status is the weaker one."""
+    if prefix is None:
+        return candidate
+    return Answer.model_validate(
+        {
+            "status": "partial"
+            if candidate.status != "answered" or prefix.status != "answered"
+            else "answered",
+            "parts": [*prefix.parts, *candidate.parts],
+        }
+    )
 
 
 def safety_facts(data: CampusData) -> tuple[list[dict[str, Any]], str | None]:
@@ -178,8 +241,8 @@ def run_turn(
         metrics["graphFirst"] = True
 
     def fallback(reason: str, response_model: str) -> dict[str, Any]:
-        # Do not splice even apparently supported paragraphs out of a rejected
-        # draft. Exact facts can only be added by an independent code renderer.
+        # Nothing from the rejected draft is shown here. Exact facts can only be
+        # added by an independent code renderer.
         if monotonic() - started >= TURN_SECONDS:
             raise TimeoutError("Turn deadline exceeded during answer validation")
         supported = combine_exact(messages, exact_pieces, fallback=True)
@@ -312,17 +375,7 @@ def run_turn(
                 candidate = Answer.model_validate(
                     expand_argument_references(json.loads(response.output_text), original_ids)
                 )
-                assembled = candidate
-                if prefix is not None:
-                    assembled = Answer.model_validate(
-                        {
-                            "status": "partial"
-                            if candidate.status != "answered" or prefix.status != "answered"
-                            else "answered",
-                            "parts": [*prefix.parts, *candidate.parts],
-                        }
-                    )
-                result = render_answer(assembled, evidence)
+                result = render_answer(with_prefix(candidate, prefix), evidence)
             except (ValidationError, InvalidAnswer, json.JSONDecodeError) as error:
                 code = (
                     "answer_schema"
@@ -430,7 +483,26 @@ def run_turn(
                         }
                         for part in rejected
                     ]
-                return fallback("unsupported_answer", response.model)
+                # Keep the paragraphs that passed and drop only the ones that failed.
+                # The student is told something was left out; nothing is rewritten.
+                kept = supported_parts(candidate, review)
+                if not kept:
+                    return fallback("unsupported_answer", response.model)
+                metrics["reviewDroppedParts"] = [
+                    index for index in range(len(candidate.parts)) if index not in kept
+                ]
+                candidate = candidate.model_copy(
+                    update={
+                        "status": "partial" if candidate.status == "answered"
+                        else candidate.status,
+                        "parts": [*(candidate.parts[index] for index in kept), DROPPED_NOTE],
+                    }
+                )
+                try:
+                    result = render_answer(with_prefix(candidate, prefix), evidence)
+                except InvalidAnswer as error:
+                    validation_failures.append(error.code)
+                    return fallback(error.code, response.model)
             if monotonic() - started >= TURN_SECONDS:
                 raise TimeoutError("Turn deadline exceeded during evidence review")
             return {
