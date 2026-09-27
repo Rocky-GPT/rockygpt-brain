@@ -3,10 +3,12 @@
 import asyncio
 import json
 import math
+import ssl
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from functools import cache, lru_cache
 from time import monotonic
 from typing import Any, Protocol
 from uuid import uuid4
@@ -159,6 +161,13 @@ JEV_URLS: dict[RoutingProvider, str] = {
 OPENROUTER_MODELS = {"jev-1.13.0": ("typesafe/jev-1.13", "typesafe/jev-1.13-20260917")}
 
 
+@cache
+def jev_tls() -> ssl.SSLContext:
+    """httpx's default verification, built once: loading the CA bundle for every
+    routing call cost about 20 ms of CPU."""
+    return httpx.create_ssl_context(trust_env=False)
+
+
 class JevProvider:
     """One cancellable HTTP attempt; the deadline includes reading the response body."""
 
@@ -173,7 +182,9 @@ class JevProvider:
         )
 
         async def request() -> ModelResponse:
-            async with httpx.AsyncClient(trust_env=False, timeout=timeout) as client:
+            async with httpx.AsyncClient(
+                trust_env=False, timeout=timeout, verify=jev_tls()
+            ) as client:
                 async with client.stream(
                     "POST", JEV_URLS[self.name], json={**payload, "model": requested},
                     headers={"Authorization": "Bearer " + self._api_key},
@@ -501,22 +512,30 @@ class PaidGateway:
             raise PaidCallError(code) from error
 
 
+@lru_cache(maxsize=4)
+def openai_client(api_key: str, project: str) -> OpenAI:
+    """One thread-safe client per key, shared by every turn in the process. Building one
+    loads the CA bundle (about 45 ms of CPU), and a shared pool can reuse a connection a
+    recent call left open instead of opening a new TLS connection."""
+    return OpenAI(
+        api_key=api_key,
+        project=project,
+        max_retries=0,
+        timeout=RELEASE.turn_seconds,
+        base_url="https://api.openai.com/v1",
+    )
+
+
 @contextmanager
 def open_gateway(deployment: Deployment, request_id: str) -> Iterator[PaidGateway]:
     ledger = PostgresLedger(deployment.ledger_url, deployment.environment)
     with ledger.session():
         ledger.readiness()
-        with OpenAI(
-            api_key=deployment.api_key,
-            project=deployment.project,
-            max_retries=0,
-            timeout=RELEASE.turn_seconds,
-            base_url="https://api.openai.com/v1",
-        ) as client:
-            yield PaidGateway(
-                OpenAIProvider(client), ledger, request_id, project=deployment.project,
-                routing_provider=(JevProvider(deployment.routing_api_key,
-                                              deployment.routing_provider)
-                                  if deployment.routing_mode != "off"
-                                  and deployment.routing_api_key else None),
-            )
+        yield PaidGateway(
+            OpenAIProvider(openai_client(deployment.api_key, deployment.project)), ledger,
+            request_id, project=deployment.project,
+            routing_provider=(JevProvider(deployment.routing_api_key,
+                                          deployment.routing_provider)
+                              if deployment.routing_mode != "off"
+                              and deployment.routing_api_key else None),
+        )
