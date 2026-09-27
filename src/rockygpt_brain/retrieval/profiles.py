@@ -1152,10 +1152,9 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
         "coverage": {"scope": "curated_identity_links_only", "absence_is_not_nonexistence": True},
     }
     try:
-        payload = data._artifact("campus-identities")
-        if payload is None:
+        registry = data.identity_registry()
+        if registry is None:
             return {**result, "status": "unavailable", "reason": "identity_registry_unavailable"}
-        registry = IdentityRegistry.model_validate(payload)
     except ValidationError:
         return {**result, "status": "unavailable", "reason": "invalid_identity_registry"}
     normalized = _normalize(query.entity) if query.entity is not None else None

@@ -1,6 +1,7 @@
 """Paid boundaries exercised with fake responses, never API credits."""
 
 import json
+import ssl
 from dataclasses import asdict
 from datetime import datetime, time
 from pathlib import Path
@@ -19,7 +20,9 @@ from rockygpt_brain.core.provider import (
     PaidGateway,
     Usage,
     input_bound,
+    jev_tls,
     normalize_usage,
+    openai_client,
 )
 from rockygpt_brain.governance.accounting import PaidCallError
 
@@ -370,3 +373,12 @@ def test_gateway_enforces_initial_and_continuation_effort_and_records_both() -> 
         RELEASE.continuation_reasoning,
     ]
     assert ledger.settle.call_count == 2
+
+
+def test_turns_share_one_openai_client_and_one_jev_tls_context() -> None:
+    # Building either loads the CA bundle, tens of milliseconds of CPU on every turn.
+    client = openai_client("key", "project")
+    assert openai_client("key", "project") is client
+    assert openai_client("other-key", "project") is not client
+    assert jev_tls() is jev_tls()
+    assert jev_tls().verify_mode == ssl.CERT_REQUIRED and jev_tls().check_hostname

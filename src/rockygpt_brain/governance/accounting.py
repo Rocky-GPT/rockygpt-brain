@@ -2,7 +2,7 @@
 
 import json
 from collections.abc import Iterator
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager, nullcontext, suppress
 from datetime import date, datetime
 from threading import get_ident
 from typing import Any, Literal, Protocol
@@ -22,6 +22,8 @@ from rockygpt_brain.config import (
 
 CAMPUS_ZONE = ZoneInfo("America/New_York")
 Category = Literal["draft", "review", "routing"]
+Statement = tuple[str | sql.Composable, tuple[Any, ...]]
+IDLE = psycopg.pq.TransactionStatus.IDLE
 
 
 class PaidCallError(Exception):
@@ -99,8 +101,41 @@ class PostgresLedger:
         except psycopg.Error as error:
             raise PaidCallError("accounting_unavailable") from error
 
+    @staticmethod
+    def batch(
+        conn: psycopg.Connection[dict[str, Any]], *statements: Statement
+    ) -> list[list[dict[str, Any]]]:
+        """Run statements in order as one message: one network round trip, not one each.
+
+        The ledger database can be far from the Brain (the development laptop reaches it
+        in about 90 ms), so the number of trips sets the ledger's share of every paid
+        call. psycopg binds each statement's parameters on the client. Returns each
+        statement's rows, empty for commands. An error stops the rest of the message.
+        """
+        query = sql.SQL("; ").join(
+            sql.SQL(text) if isinstance(text, str) else text for text, _ in statements
+        )
+        params = [value for _, values in statements for value in values]
+        results: list[list[dict[str, Any]]] = []
+        with psycopg.ClientCursor(conn, row_factory=dict_row) as cursor:
+            cursor.execute(query, params or None)
+            while True:
+                results.append(cursor.fetchall() if cursor.description else [])
+                if not cursor.nextset():
+                    break
+        return results
+
     @contextmanager
-    def transaction(self) -> Iterator[psycopg.Connection[dict[str, Any]]]:
+    def opened(
+        self, *statements: Statement
+    ) -> Iterator[tuple[psycopg.Connection[dict[str, Any]], list[list[dict[str, Any]]]]]:
+        """A transaction whose first message also carries `statements`; yields their rows.
+
+        One round trip opens the transaction, applies its role and limits and runs the
+        statements. A failed setup stops the message before any statement runs and never
+        exposes the transaction. Leaving the block commits, unless a statement already
+        did; an exception rolls back.
+        """
         if self._session is not None and self._session_thread != get_ident():
             raise PaidCallError("accounting_unavailable")
         try:
@@ -111,46 +146,74 @@ class PostgresLedger:
                     self.url, connect_timeout=2, row_factory=dict_row, autocommit=True
                 )
             )
-            with connection as conn, conn.transaction():
-                # Synchronize all setup results before exposing the transaction.
-                # Account locking and budget reads retain their original ordering.
-                with conn.pipeline():
-                    conn.execute(
-                        sql.SQL("SET LOCAL ROLE {}").format(
-                            sql.Identifier("brain_" + self.environment)
-                        )
-                    )
-                    conn.execute("SET LOCAL statement_timeout = '2000ms'")
-                    conn.execute("SET LOCAL lock_timeout = '1500ms'")
-                yield conn
+            with connection as conn:
+                try:
+                    setup: list[Statement] = [
+                        ("BEGIN", ()),
+                        (sql.SQL("SET LOCAL ROLE {}").format(
+                            sql.Identifier("brain_" + self.environment)), ()),
+                        ("SET LOCAL statement_timeout = '2000ms'", ()),
+                        ("SET LOCAL lock_timeout = '1500ms'", ()),
+                    ]
+                    results = self.batch(conn, *setup, *statements)
+                    yield conn, results[len(setup):]
+                except BaseException:
+                    if not conn.closed and conn.info.transaction_status != IDLE:
+                        with suppress(psycopg.Error):
+                            conn.execute("ROLLBACK")
+                    raise
+                if conn.info.transaction_status != IDLE:
+                    conn.execute("COMMIT")
         except psycopg.Error as error:
             raise PaidCallError("accounting_unavailable") from error
 
-    def account(self, conn: psycopg.Connection[dict[str, Any]]) -> dict[str, Any]:
-        row = conn.execute(
+    @contextmanager
+    def transaction(self) -> Iterator[psycopg.Connection[dict[str, Any]]]:
+        with self.opened() as (conn, _):
+            yield conn
+
+    def lock_account(self) -> Statement:
+        """Serializes all writers for this environment; reads batched after it see
+        everything committed before the lock was granted."""
+        return (
             "SELECT * FROM brain_ops.accounts WHERE environment = %s FOR UPDATE",
             (self.environment,),
-        ).fetchone()
+        )
+
+    @staticmethod
+    def checked_account(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        row = rows[0] if rows else None
         if row is None or not 0 < row["cap_nusd"] <= MONTHLY_CAP_NUSD:
             raise PaidCallError("accounting_unavailable")
         return row
 
+    def account(self, conn: psycopg.Connection[dict[str, Any]]) -> dict[str, Any]:
+        return self.checked_account(self.batch(conn, self.lock_account())[0])
+
     def readiness(self) -> None:
-        with self.transaction() as conn:
-            self.account(conn)
-            conn.execute("SELECT month FROM brain_ops.monthly_allowances LIMIT 0")
-            conn.execute("SELECT operation_id FROM brain_ops.operations LIMIT 0")
-            conn.execute("SELECT request_id FROM brain_ops.turns LIMIT 0")
+        with self.opened(
+            self.lock_account(),
+            ("SELECT month FROM brain_ops.monthly_allowances LIMIT 0", ()),
+            ("SELECT operation_id FROM brain_ops.operations LIMIT 0", ()),
+            ("SELECT request_id FROM brain_ops.turns LIMIT 0", ()),
+            ("COMMIT", ()),  # Read-only, so checking after the commit changes nothing.
+        ) as (_, (account, *_)):
+            self.checked_account(account)
+
+    def allowance(self, now: datetime) -> Statement:
+        return (
+            "SELECT extra_nusd FROM brain_ops.monthly_allowances "
+            "WHERE environment = %s AND month = %s",
+            (self.environment, month_at(now)),
+        )
 
     def monthly_cap(
         self, conn: psycopg.Connection[dict[str, Any]], account: dict[str, Any], now: datetime
     ) -> int:
-        row = conn.execute(
-            "SELECT extra_nusd FROM brain_ops.monthly_allowances "
-            "WHERE environment = %s AND month = %s",
-            (self.environment, month_at(now)),
-        ).fetchone()
-        extra = int(row["extra_nusd"]) if row else 0
+        return self.cap_with(account, self.batch(conn, self.allowance(now))[0])
+
+    def cap_with(self, account: dict[str, Any], rows: list[dict[str, Any]]) -> int:
+        extra = int(rows[0]["extra_nusd"]) if rows else 0
         if not 0 <= extra <= DEVELOPMENT_SUPPLEMENT_CAP_NUSD or (
             extra and self.environment != "development"
         ):
@@ -158,12 +221,12 @@ class PostgresLedger:
         return int(account["cap_nusd"]) + extra
 
     def pause(self) -> None:
-        with self.transaction() as conn:
-            self.account(conn)
-            conn.execute(
-                "UPDATE brain_ops.accounts SET paused = true WHERE environment = %s",
-                (self.environment,),
-            )
+        with self.opened(
+            self.lock_account(),
+            ("UPDATE brain_ops.accounts SET paused = true WHERE environment = %s",
+             (self.environment,)),
+        ) as (_, (account, _)):
+            self.checked_account(account)  # Otherwise the update rolls back.
 
     def reserve(
         self,
@@ -176,41 +239,36 @@ class PostgresLedger:
     ) -> None:
         if amount <= 0:
             raise PaidCallError("price_unavailable")
-        with self.transaction() as conn:
-            account = self.account(conn)  # Serializes all writers for this environment.
-            cap = self.monthly_cap(conn, account, now)
-            existing = conn.execute(
-                "SELECT operation_id FROM brain_ops.operations "
-                "WHERE environment = %s AND operation_id = %s",
-                (self.environment, operation_id),
-            ).fetchone()
-            if existing is not None:
+        # One round trip opens the transaction, takes the account lock and runs the
+        # reads that must follow it; a second carries the hold and its COMMIT.
+        with self.opened(
+            self.lock_account(),
+            self.allowance(now),
+            ("SELECT operation_id FROM brain_ops.operations "
+             "WHERE environment = %s AND operation_id = %s",
+             (self.environment, operation_id)),
+            ("SELECT COALESCE(SUM(CASE WHEN state <> 'settled' THEN reserved_nusd "
+             "WHEN charged_month >= %s THEN cost_nusd ELSE 0 END), 0) AS committed "
+             "FROM brain_ops.operations WHERE environment = %s",
+             (month_at(now), self.environment)),
+        ) as (conn, (locked, allowance, existing, totals)):
+            account = self.checked_account(locked)
+            cap = self.cap_with(account, allowance)
+            if existing:
                 # Never execute an operation a second time, including after a crash.
                 raise PaidCallError("operation_already_admitted")
-            totals = conn.execute(
-                "SELECT COALESCE(SUM(CASE WHEN state <> 'settled' THEN reserved_nusd "
-                "WHEN charged_month >= %s THEN cost_nusd ELSE 0 END), 0) AS committed "
-                "FROM brain_ops.operations WHERE environment = %s",
-                (month_at(now), self.environment),
-            ).fetchone()
-            assert totals is not None
             if account["paused"]:
                 raise PaidCallError("accounting_paused")
-            if int(totals["committed"]) + amount > cap:
+            if int(totals[0]["committed"]) + amount > cap:
                 raise PaidCallError("budget_exhausted", reset_at=reset_at(now))
-            conn.execute(
-                "INSERT INTO brain_ops.operations "
-                "(environment, operation_id, request_id, category, admitted_month, "
-                "reserved_nusd, metadata) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (
-                    self.environment,
-                    operation_id,
-                    request_id,
-                    category,
-                    month_at(now),
-                    amount,
-                    Jsonb({**metadata, "monthly_cap_nusd": cap}),
-                ),
+            self.batch(
+                conn,
+                ("INSERT INTO brain_ops.operations "
+                 "(environment, operation_id, request_id, category, admitted_month, "
+                 "reserved_nusd, metadata) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                 (self.environment, operation_id, request_id, category, month_at(now), amount,
+                  Jsonb({**metadata, "monthly_cap_nusd": cap}))),
+                ("COMMIT", ()),
             )
 
     def settle(
@@ -227,14 +285,15 @@ class PostgresLedger:
         if cost < 0:
             raise PaidCallError("invalid_usage")
         overrun = False
-        with self.transaction() as conn:
-            self.account(conn)
-            row = conn.execute(
-                "SELECT * FROM brain_ops.operations WHERE environment = %s AND operation_id = %s",
-                (self.environment, operation_id),
-            ).fetchone()
-            if row is None:
+        with self.opened(
+            self.lock_account(),
+            ("SELECT * FROM brain_ops.operations WHERE environment = %s AND operation_id = %s",
+             (self.environment, operation_id)),
+        ) as (conn, (locked, rows)):
+            self.checked_account(locked)
+            if not rows:
                 raise PaidCallError("operation_not_found")
+            row = rows[0]
             if row["state"] == "settled":
                 if (
                     row["cost_nusd"],
@@ -247,46 +306,35 @@ class PostgresLedger:
             # Delayed usage is charged conservatively in the settlement month.
             # Its original admission month is retained for provider reconciliation.
             charged_month = max(row["admitted_month"], month_at(now))
-            conn.execute(
-                "UPDATE brain_ops.operations SET state = 'settled', cost_nusd = %s, "
-                "usage = %s, charged_month = %s, provider_response_id = %s, returned_model = %s, "
-                "elapsed_ms = %s, metadata = metadata || %s, updated_at = clock_timestamp() "
-                "WHERE environment = %s AND operation_id = %s",
-                (
-                    cost,
-                    Jsonb(usage),
-                    charged_month,
-                    response_id,
-                    model,
-                    elapsed_ms,
-                    Jsonb(
-                        {"reconciliation_reference": reconciliation_reference}
-                        if reconciliation_reference
-                        else {}
-                    ),
-                    self.environment,
-                    operation_id,
-                ),
-            )
             overrun = cost > row["reserved_nusd"]
-            if overrun:
+            self.batch(
+                conn,
+                ("UPDATE brain_ops.operations SET state = 'settled', cost_nusd = %s, "
+                 "usage = %s, charged_month = %s, provider_response_id = %s, "
+                 "returned_model = %s, elapsed_ms = %s, metadata = metadata || %s, "
+                 "updated_at = clock_timestamp() "
+                 "WHERE environment = %s AND operation_id = %s",
+                 (cost, Jsonb(usage), charged_month, response_id, model, elapsed_ms,
+                  Jsonb({"reconciliation_reference": reconciliation_reference}
+                        if reconciliation_reference else {}),
+                  self.environment, operation_id)),
                 # Record the actual liability even when the provider breaks the bound.
-                conn.execute(
-                    "UPDATE brain_ops.accounts SET paused = true WHERE environment = %s",
-                    (self.environment,),
-                )
+                *((("UPDATE brain_ops.accounts SET paused = true WHERE environment = %s",
+                    (self.environment,)),) if overrun else ()),
+                ("COMMIT", ()),
+            )
         if overrun:
             raise PaidCallError("accounting_bound_exceeded")
 
     def uncertain(self, operation_id: str, code: str, elapsed_ms: int) -> None:
-        with self.transaction() as conn:
-            self.account(conn)
-            conn.execute(
-                "UPDATE brain_ops.operations SET state = 'uncertain', error_code = %s, "
-                "elapsed_ms = %s, updated_at = clock_timestamp() "
-                "WHERE environment = %s AND operation_id = %s AND state <> 'settled'",
-                (code, elapsed_ms, self.environment, operation_id),
-            )
+        with self.opened(
+            self.lock_account(),
+            ("UPDATE brain_ops.operations SET state = 'uncertain', error_code = %s, "
+             "elapsed_ms = %s, updated_at = clock_timestamp() "
+             "WHERE environment = %s AND operation_id = %s AND state <> 'settled'",
+             (code, elapsed_ms, self.environment, operation_id)),
+        ) as (_, (account, _)):
+            self.checked_account(account)  # Otherwise the update rolls back.
 
     def operations(self, request_id: str | None = None) -> list[dict[str, Any]]:
         """Operational report only: contains no prompts, student text, or raw responses."""
@@ -298,13 +346,14 @@ class PostgresLedger:
             ).fetchall()
 
     def record_turn(self, request_id: str, summary: dict[str, Any]) -> None:
-        with self.transaction() as conn:
-            conn.execute(
-                "INSERT INTO brain_ops.turns (environment, request_id, summary) "
-                "VALUES (%s, %s, %s) "
-                "ON CONFLICT (environment, request_id) DO UPDATE SET summary = EXCLUDED.summary",
-                (self.environment, request_id, Jsonb(summary)),
-            )
+        with self.opened(
+            ("INSERT INTO brain_ops.turns (environment, request_id, summary) "
+             "VALUES (%s, %s, %s) "
+             "ON CONFLICT (environment, request_id) DO UPDATE SET summary = EXCLUDED.summary",
+             (self.environment, request_id, Jsonb(summary))),
+            ("COMMIT", ()),
+        ):
+            pass
 
 
 def main() -> None:

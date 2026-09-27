@@ -8,7 +8,7 @@ import os
 from datetime import UTC, datetime
 from importlib.resources import files
 from threading import BoundedSemaphore, Event, Lock
-from time import monotonic
+from time import monotonic, thread_time
 from typing import Any, cast
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -982,6 +982,8 @@ def chat_worker(
     data: CampusData | None = None
     gateway: PaidGateway | None = None
     started = monotonic()
+    # This thread's own CPU time, to tell a slow host apart from slow services.
+    cpu_started = thread_time()
     outcome = "unavailable"
     dataset_version: str | None = None
     operational: dict[str, object] = {}
@@ -1012,6 +1014,7 @@ def chat_worker(
         operational.update(
             {key: value for key, value in usage.items() if key not in {"costNusd", "unsettledNusd"}}
         )
+        operational["cpuMs"] = round((thread_time() - cpu_started) * 1000)
         return {**result, "requestId": request_id}
     except TurnCancelled:
         outcome = "request_cancelled"
@@ -1059,6 +1062,7 @@ def chat_worker(
                 "toolResults": operational.get("toolResults", []),
                 "responseMode": operational.get("responseMode"),
                 "elapsedMs": round((monotonic() - started) * 1000),
+                "cpuMs": round((thread_time() - cpu_started) * 1000),
                 "fallbackUsed": operational.get("fallbackUsed", False)
                 or outcome in {"unavailable", "budget_exhausted"},
                 "fallbackReason": operational.get("fallbackReason"),
