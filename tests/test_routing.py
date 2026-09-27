@@ -292,12 +292,62 @@ def test_choice_requires_both_probability_and_confidence(score: float, confident
 
 
 @pytest.mark.parametrize(
-    "value,direct", [(0.1, True), (0.1001, False), (0.8999, False), (0.9, True)]
+    "value,fields",
+    [(0.18, ["phone"]), (0.4999, ["phone"]), (0.5, None), (0.8999, None),
+     (0.9, ["phone", "email"])],
 )
-def test_uncertain_field_selection_defers(value: float, direct: bool) -> None:
+def test_details_jev_leans_against_are_left_out(value: float, fields: list[str] | None) -> None:
+    # Jev was 18% sure "What is the Registrar phone?" also wanted an email; that no longer
+    # blocks the lookup. Only a torn answer defers.
     payload, day = routing_payload(messages(), [ENTITY], NOW)
     result = interpret(answers_for(payload, field_email=value), [ENTITY], day, messages())
-    assert (result.arguments is not None) == direct
+    assert (result.arguments or {}).get("fields") == fields
+    assert result.tool == "lookup_contact"
+    assert result.reason == (None if fields else "arguments_unresolved")
+
+
+@pytest.mark.parametrize(
+    "changes,fields",
+    [
+        # Jev was 50/50 on each field for "How can I contact Financial Aid?".
+        ({"general_contact": 0.95, "field_phone": 0.5, "field_email": 0.5, "field_office": 0.5,
+          "field_department": 0.5}, ["phone", "email", "office", "department"]),
+        ({"general_contact": 0.95, "field_phone": 0.0, "field_website": 0.95},
+         ["phone", "email", "office", "department", "website"]),
+        ({"general_contact": 0.95, "field_phone": 0.0, "field_fax": 0.6}, None),
+        ({"general_contact": 0.7}, None),
+        ({"general_contact": 0.3}, ["phone"]),
+    ],
+)
+def test_general_contact_is_one_question(
+    changes: dict[str, Any], fields: list[str] | None
+) -> None:
+    request = messages("How can I contact Registrar?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    assert payload["questions"]["general_contact"]["type"] == "noul"
+    result = interpret(answers_for(payload, **changes), [ENTITY], day, request)
+    assert (result.arguments or {}).get("fields") == fields
+
+
+def test_a_general_contact_request_is_answered_by_jev_alone() -> None:
+    data, gpt = data_mock(), Mock()
+    router = router_mock(general_contact=0.97, field_phone=0.5, field_email=0.5)
+    record = contact_record()
+    data.lookup_contact.return_value = result_for([record])
+    result = run_turn(
+        messages("How can I contact Registrar?"),
+        client=gpt,
+        data=data,
+        model=RELEASE.model,
+        now=NOW,
+        routing_client=router,
+        routing_mode="active",
+    )
+    query = data.lookup_contact.call_args.args[0]
+    assert query.fields == ["phone", "email", "office", "department"]
+    assert result["status"] == "answered" and "201-684-7695" in result["answer"]
+    assert result["metrics"]["routing"]["directRetrieval"] is True
+    gpt.create.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -510,6 +560,27 @@ def test_dates_meals_all_sections_and_complete_menu_are_bounded() -> None:
     assert set(result.arguments["include"]) == {"contact", "menu", "hours"}
     answers["date"]["choice"] = "unresolved"
     assert interpret(answers, [ENTITY], day, request).arguments is None
+
+
+@pytest.mark.parametrize(
+    "hours,complete,expected",
+    [(0.3, 0.3, ({"contact", "menu"}, 12)), (0.3, 0.6, None), (0.6, 0.0, None)],
+)
+def test_profile_details_jev_leans_against_are_left_out(
+    hours: float, complete: float, expected: tuple[set[str], int] | None
+) -> None:
+    request = messages("What is the dinner menu at the Registrar today?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    answers = answers_for(
+        payload, route="profile", date="explicit", meal="dinner", section_menu=1.0,
+        section_hours=hours, complete_menu=complete,
+    )
+    arguments = interpret(answers, [ENTITY], day, request).arguments
+    if expected is None:
+        assert arguments is None
+    else:
+        assert arguments is not None
+        assert (set(arguments["include"]), arguments["menu_limit"]) == expected
 
 
 @pytest.mark.parametrize("mutation", ["missing", "nan", "unknown", "sum", "bool", "wrong_type"])
