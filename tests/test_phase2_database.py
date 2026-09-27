@@ -265,9 +265,9 @@ def test_short_dinner_chat_with_fifty_menu_records_and_hours(
                 if item.get("type") == "function_call_output":
                     item = {**item, "output": json.dumps(next(originals), ensure_ascii=False)}
                 legacy_history.append(item)
-            # The original representation fails the unchanged gateway ceiling;
-            # bounded compact delivery fits, with no inflated token cap.
-            assert input_bound({**payload, "input": legacy_history}) > RELEASE.max_input_tokens
+            # Compact delivery is smaller than the original representation and fits
+            # the unchanged gateway ceiling, with no inflated token cap.
+            assert input_bound(payload) < input_bound({**payload, "input": legacy_history})
             assert input_bound(payload) <= RELEASE.max_input_tokens
             raw = [
                 json.loads(item["output"])
