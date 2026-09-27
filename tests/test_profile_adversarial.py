@@ -15,6 +15,7 @@ from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
 from rockygpt_brain.governance.evidence import bounded_result
 from rockygpt_brain.retrieval.data import CampusData
+from rockygpt_brain.retrieval.exact import ContactQuery
 from rockygpt_brain.retrieval.profiles import ProfileQuery
 from test_engine import answer, review, tools
 from test_evidence import expand_records
@@ -73,6 +74,7 @@ def repository(
     data.dataset = {"id": "pinned-dataset", "version": "published-one", "activated_at": NOW}
     data.sources = {key: source(key) for key in records_by_source}
     data._artifacts["campus-identities"] = {"schema_version": 1, "entities": deepcopy(entities)}
+    data._artifacts["campus-identity-coverage"] = None  # No alias report published.
 
     def fetch(query: Any, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
         statement = query.as_string()
@@ -387,6 +389,71 @@ def test_profile_review_receives_identity_resolution_conflicts_and_hours_scope()
     assert coverage["tool"] == "lookup_profile"
     assert coverage["resolution"]["status"] == "matched"
     assert coverage["resolution"]["entity"]["id"] == ENTITY_ID
+
+
+def help_desk_repository(report: bool = True) -> CampusData:
+    data = repository(
+        [identity(link("contacts", "directory", "office:it-help-desk"), name="IT Help Desk",
+                  aliases=["Information Technology Services", "Help Desk"])],
+        {"directory": [row("directory", "office:it-help-desk", name="IT Help Desk",
+                           department="Information Technology Services",
+                           phone="201-684-7777")]},
+    )
+    if report:
+        department = {"collection": "contacts", "source_key": "directory",
+                      "source_record_key": "office:it-help-desk", "field": "department"}
+        data._artifacts["campus-identity-coverage"] = {"alias_sources": [
+            {"entity_id": ENTITY_ID, "alias": "Information Technology Services",
+             "sources": [{"basis": "department", "evidence": department}]},
+            {"entity_id": ENTITY_ID, "alias": "Help Desk", "sources": [{"basis": "record_name"}]},
+        ]}
+    return data
+
+
+def test_a_lookup_names_the_department_its_own_directory_entry_publishes() -> None:
+    # "Information Technology Services" finds the IT Help Desk because the Help Desk's
+    # own entry publishes it as its department. The lookup says so, whichever name it
+    # was asked by, so a reader doesn't take them for two subjects.
+    names = [{"name": "Information Technology Services", "basis": ["department"],
+              "evidence_ids": ["contacts:directory-row"]}]
+    for entity in ("Information Technology Services", "IT Help Desk"):
+        output = help_desk_repository().lookup_contact(ContactQuery(entity=entity,
+                                                                    fields=["phone"]))
+        assert output["resolution"]["entity"]["name"] == "IT Help Desk"
+        assert output["resolution"]["entity_names"] == names, entity
+    # A name copied from a linked record's title isn't one, and without the alias report
+    # nothing is claimed.
+    output = help_desk_repository(report=False).lookup_contact(
+        ContactQuery(entity="Information Technology Services", fields=["phone"]))
+    assert output["resolution"]["status"] == "matched"
+    assert "entity_names" not in output["resolution"]
+
+
+def test_the_reviewer_sees_that_the_asked_name_is_the_help_desks_own() -> None:
+    client = Mock()
+    client.create.side_effect = [
+        tools(SimpleNamespace(
+            type="function_call", name="lookup_contact", call_id="contact",
+            arguments=json.dumps({"entity": "Information Technology Services",
+                                  "fields": ["phone"]}))),
+        answer("Information Technology Services' phone is 201-684-7777.",
+               "campus_fact", ["contacts:directory-row"]),
+        review("supported"),
+    ]
+    result = run_turn(
+        [ChatMessage(role="user", content="What is the Information Technology Services phone?")],
+        client=client, data=help_desk_repository(), model="test", now=NOW,
+    )
+    assert result["status"] == "answered"
+    review_input = json.loads(client.create.call_args_list[-1].kwargs["input"])
+    resolution = review_input["retrieval_coverage"][0]["resolution"]
+    (record,) = expand_records(review_input["evidence"])
+    assert resolution["entity"]["name"] == "IT Help Desk"
+    assert resolution["entity_names"] == [{
+        "name": "Information Technology Services", "basis": ["department"],
+        "evidence_ids": [review_input["candidate"]["parts"][0]["evidence_ids"][0]],
+    }]
+    assert record["fields"]["department"] == "Information Technology Services"
 
 
 def test_profile_draft_cannot_bypass_review_of_unsupported_staff_availability() -> None:

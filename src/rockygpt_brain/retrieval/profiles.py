@@ -1534,6 +1534,14 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             record["coverage"]["fields"].update(previous["coverage"]["fields"])
         merged[record["id"]] = record
     result["records"] = list(merged.values())
+    from rockygpt_brain.retrieval.entity_facts import own_names
+
+    try:
+        names = own_names(data, entity, result["records"])
+    except Exception:
+        names = []  # An unreadable alias report must not erase the delivered records.
+    if names:
+        result["resolution"]["entity_names"] = names
     result["total_matches"] = len(matched_record_ids)
     if not result["records"] and any(
         component["status"] == "unavailable" for component in result["components"].values()

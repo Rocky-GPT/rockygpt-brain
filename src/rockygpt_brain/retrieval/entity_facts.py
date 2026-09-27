@@ -326,6 +326,51 @@ def reviewed_names(data: Any, entity: Entity, properties: list[Property]) -> fro
     )
 
 
+def own_names(data: Any, entity: Any, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The entity's aliases that are its own names, with why and the records stating them.
+
+    A lookup finds "Information Technology Services" as the IT Help Desk, because the
+    Help Desk's own directory entry publishes it as its department. A reader who sees
+    only the lookup can't tell that from a different subject's name, so the lookup says
+    so. Only NAME_ALIAS_BASES count; without a readable alias report there are none.
+    """
+    canonical = _collapsed(entity.name)
+    aliases = {_collapsed(alias) for alias in entity.aliases} - {canonical}
+    if not aliases:
+        return []
+    report = data._artifact("campus-identity-coverage")
+    items = report.get("alias_sources") if isinstance(report, dict) else None
+    if not isinstance(items, list):
+        return []
+    names: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if not (isinstance(item, dict) and item.get("entity_id") == str(entity.id)
+                and isinstance(item.get("alias"), str) and _collapsed(item["alias"]) in aliases):
+            continue
+        sources = [source for source in item.get("sources") or []
+                   if isinstance(source, dict) and source.get("basis") in NAME_ALIAS_BASES]
+        if not sources:
+            continue
+        alias = _collapsed(item["alias"])
+        name = names.setdefault(alias, {"name": alias, "basis": [], "evidence_ids": []})
+        for source in sources:
+            if source["basis"] not in name["basis"]:
+                name["basis"].append(source["basis"])
+            evidence = source.get("evidence")
+            if not isinstance(evidence, dict) or not isinstance(evidence.get("field"), str):
+                continue
+            # Cite only a delivered record that publishes this very name in that field.
+            record_key = f"{evidence.get('source_key')}:{evidence.get('source_record_key')}"
+            name["evidence_ids"].extend(
+                record["id"] for record in records
+                if record.get("collection") == evidence.get("collection")
+                and record.get("entity_id") == record_key
+                and isinstance(value := record.get("fields", {}).get(evidence["field"]), str)
+                and _collapsed(value) == alias and record["id"] not in name["evidence_ids"]
+            )
+    return list(names.values())
+
+
 def canonical_properties(
     properties: list[Property], sources: list[SourceRecord], entity: Entity | None = None,
     reviewed: frozenset[str] = frozenset(),
