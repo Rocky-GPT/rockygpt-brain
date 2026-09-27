@@ -713,6 +713,9 @@ def test_jevs_danger_pick_puts_the_safety_block_first(danger: str) -> None:
     [developer] = [item for item in gpt.create.call_args_list[0].kwargs["input"]
                    if isinstance(item, dict) and item.get("role") == "developer"]
     assert SAFETY_NET[danger] in developer["content"] and "201-684-6666" in developer["content"]
+    shown_above = json.loads(gpt.create.call_args_list[1].kwargs["input"])["verified_prefix"]
+    assert [part["text"] for part in shown_above][0] == SAFETY_NET[danger]
+    assert shown_above[1]["text"] == PUBLIC_SAFETY
 
 
 def test_gpt_is_not_told_about_a_block_it_wont_see() -> None:
