@@ -97,6 +97,7 @@ def readiness() -> dict[str, object] | JSONResponse:
         if deployment.environment == "development":
             result["development"] = {
                 "release_version": RELEASE.version,
+                "revision": brain_revision(),
                 "configurationHash": configuration_hash(),
                 "identities": data.identity_readiness(),
             }
@@ -905,10 +906,36 @@ def get_document(document_id: str) -> dict[str, Any] | JSONResponse:
 
 
 
+def brain_revision() -> str | None:
+    """The commit this Brain runs: the local deploy script sets BRAIN_REVISION, Render
+    sets RENDER_GIT_COMMIT. A working-tree Brain from run-local.sh has neither."""
+    return os.getenv("BRAIN_REVISION") or os.getenv("RENDER_GIT_COMMIT") or None
+
+
+def brain_identity() -> dict[str, str | None]:
+    """Which Brain answered, for diagnostics."""
+    return {"revision": brain_revision(), "release": RELEASE.version,
+            "configurationHash": configuration_hash()}
+
+
+def diagnostics_body(diagnostics: dict[str, Any]) -> dict[str, Any]:
+    """A JSON-ready copy: records carry datetimes, and a timed-out worker may still be
+    adding to the original."""
+    try:
+        snapshot = dict(diagnostics)
+        if isinstance(snapshot.get("evidence"), dict):
+            snapshot["evidence"] = list(snapshot["evidence"].values())
+        body: dict[str, Any] = json.loads(json.dumps(snapshot, default=str))
+        return body
+    except RuntimeError:  # Changed while being copied.
+        return {key: diagnostics[key] for key in ("brain", "startedAt") if key in diagnostics}
+
+
 @app.post("/v1/chat", response_model=None)
 async def chat(
     request: ChatRequest,
     x_rockygpt_environment_token: str | None = Header(default=None),
+    x_rockygpt_diagnostics: str | None = Header(default=None),
     accept: str | None = Header(default=None),
 ) -> dict[str, object] | JSONResponse | StreamingResponse:
     expected_token = os.getenv("STAGING_SERVICE_TOKEN", "").strip()
@@ -918,7 +945,7 @@ async def chat(
         raise HTTPException(status_code=401, detail="Environment access token required")
     request_id = str(uuid4())
     try:
-        load_deployment()
+        deployment = load_deployment()
     except ConfigurationError as error:
         logging.getLogger(__name__).warning("Brain is not configured: %s", error)
         return failure(503, "model_not_configured", request_id)
@@ -926,6 +953,14 @@ async def chat(
     if not slots.acquire(blocking=False):
         return failure(429, "busy", request_id)
     now = datetime.now(CAMPUS_TIMEZONE)
+    # Development only, when the Dev control room asks: which Brain answered, and the
+    # evidence and drafts behind the answer. Students' requests never ask, production
+    # never answers, and the saved turn summary never stores any of it.
+    diagnostics: dict[str, Any] | None = (
+        {"brain": brain_identity(), "startedAt": now.isoformat()}
+        if deployment.environment == "development" and x_rockygpt_diagnostics == "1"
+        else None
+    )
     updates: asyncio.Queue[ProgressUpdate] = asyncio.Queue(maxsize=32)
     stopped = Event()
     loop = asyncio.get_running_loop()
@@ -945,7 +980,8 @@ async def chat(
     streaming = bool(accept and "text/event-stream" in accept.lower())
     worker = asyncio.create_task(
         asyncio.to_thread(
-            chat_worker, request, request_id, now, slots, progress if streaming else None
+            chat_worker, request, request_id, now, slots, progress if streaming else None,
+            diagnostics,
         )
     )
     WORKERS.add(worker)
@@ -963,7 +999,8 @@ async def chat(
                 updates,
                 stopped,
                 HTTP_TURN_SECONDS,
-                lambda status, reason: failure(status, reason, request_id),
+                lambda status, reason: failure(status, reason, request_id,
+                                               diagnostics=diagnostics),
             ),
             media_type="text/event-stream",
             headers={
@@ -977,7 +1014,7 @@ async def chat(
         # finish. Shielding also prevents cancelling a worker queued to start.
         return await asyncio.wait_for(asyncio.shield(worker), timeout=HTTP_TURN_SECONDS)
     except TimeoutError:
-        return failure(504, "model_timeout", request_id)
+        return failure(504, "model_timeout", request_id, diagnostics=diagnostics)
 
 
 
@@ -988,6 +1025,7 @@ def chat_worker(
     now: datetime,
     slots: BoundedSemaphore,
     progress: ProgressCallback | None = None,
+    diagnostics: dict[str, Any] | None = None,
 ) -> dict[str, object] | JSONResponse:
     data: CampusData | None = None
     gateway: PaidGateway | None = None
@@ -1014,6 +1052,7 @@ def chat_worker(
                 routing_mode=deployment.routing_mode,
                 routing_client=gateway if deployment.routing_mode != "off" else None,
                 explain_rejections=deployment.environment == "development",
+                diagnostics=diagnostics,
             )
             result = turn_result
         outcome = cast(str, result["status"])
@@ -1025,13 +1064,16 @@ def chat_worker(
             {key: value for key, value in usage.items() if key not in {"costNusd", "unsettledNusd"}}
         )
         operational["cpuMs"] = round((thread_time() - cpu_started) * 1000)
+        if diagnostics is not None:
+            return {**result, "requestId": request_id,
+                    "diagnostics": diagnostics_body(diagnostics)}
         return {**result, "requestId": request_id}
     except TurnCancelled:
         outcome = "request_cancelled"
         return failure(499, "request_cancelled", request_id)
     except ConfigurationError as error:
         logging.getLogger(__name__).warning("Brain is not configured: %s", error)
-        return failure(503, "model_not_configured", request_id)
+        return failure(503, "model_not_configured", request_id, diagnostics=diagnostics)
     except PaidCallError as error:
         outcome = error.code
         status = {
@@ -1053,17 +1095,18 @@ def chat_worker(
             except Exception:
                 resources = []  # Budget responses also work without campus data.
         return failure(status, error.code, request_id, reset_at=error.reset_at,
-                       resources=resources, data=data)
+                       resources=resources, data=data, diagnostics=diagnostics)
     except TimeoutError:
         outcome = "model_timeout"
-        return failure(504, "model_timeout", request_id, data=data)
+        return failure(504, "model_timeout", request_id, data=data, diagnostics=diagnostics)
     except InvalidAnswer as error:
         outcome = "invalid_model_output"
         # Fixed reason codes only: no student text, raw model output, or provider secrets.
         logging.getLogger(__name__).warning(
             "Brain answer rejected request_id=%s reason=%s", request_id, error.code
         )
-        return failure(502, "invalid_model_output", request_id, data=data)
+        return failure(502, "invalid_model_output", request_id, data=data,
+                       diagnostics=diagnostics)
     finally:
         try:
             summary = {
@@ -1142,6 +1185,7 @@ def failure(
     reset_at: str | None = None,
     resources: list[dict[str, str]] | None = None,
     data: CampusData | None = None,
+    diagnostics: dict[str, Any] | None = None,
 ) -> JSONResponse:
     message = (
         "RockyGPT is currently unavailable. Please use Ramapo's official resources "
@@ -1199,5 +1243,6 @@ def failure(
             },
             "reason": reason,
             "requestId": request_id,
+            **({"diagnostics": diagnostics_body(diagnostics)} if diagnostics is not None else {}),
         },
     )
