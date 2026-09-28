@@ -16,12 +16,7 @@ from typing import Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from rockygpt_brain.campus.formats import (
-    SAFETY_NET,
-    ExactPiece,
-    exact_search,
-    safety_part,
-)
+from rockygpt_brain.campus.formats import ExactPiece, exact_search, safety_part
 from rockygpt_brain.campus.profile_answers import (
     DIET_LIMITATION,
     hours_answer,
@@ -48,16 +43,16 @@ Group = Literal["jev", "gpt", "fixed"]
 Evidence = dict[str, dict[str, Any]]
 
 GROUPS = [
-    {"id": "jev", "name": "Jev picks, code writes",
+    {"id": "jev", "name": "Jev picks, code writes", "sharedChecks": True,
      "summary": "Jev decides the question is plain. Code looks it up, checks the records "
      "and writes the answer. GPT is never called."},
-    {"id": "gpt", "name": "GPT finds, code writes",
+    {"id": "gpt", "name": "GPT finds, code writes", "sharedChecks": True,
      "summary": "GPT picks the lookup and quotes the question word for word. Code checks the "
      "wording and the records, then writes the answer, so no checker is needed."},
-    {"id": "fixed", "name": "Set wording",
+    {"id": "fixed", "name": "Set wording", "sharedChecks": False,
      "summary": "Fixed text code adds for safety, or when an answer can't be verified."},
 ]
-# What every code-written answer also passes on its way out, like GPT's.
+# What every answer in a group with sharedChecks also passes on its way out, like GPT's.
 COMMON_CHECKS = [
     "Every fact cites a fresh source with a safe https link.",
     "The answer fits in 12 paragraphs and 12,000 characters.",
@@ -82,7 +77,7 @@ class Condition:
 
 
 @dataclass(frozen=True)
-class Template:
+class AnswerTemplate:
     id: str
     name: str
     group: Group
@@ -97,7 +92,9 @@ class Template:
     code: str
     note: str = ""
     sample_note: str = "Sample records, not today's data."
-    extra: dict[str, Any] = field(default_factory=dict)
+    # More examples: another question the same template answers.
+    more: list[tuple[str, Callable[[], tuple[Answer | None, Evidence]]]] = field(
+        default_factory=list)
 
 
 def _record(record_id: str, collection: str, title: str, fields: dict[str, Any],
@@ -306,8 +303,8 @@ SAFETY_RECORDS: list[dict[str, Any]] = [
 ]
 
 
-def _safety_block() -> tuple[Answer | None, Evidence]:
-    net = SafetyNet(kind="self_harm", records=SAFETY_RECORDS)
+def _safety_block(kind: str) -> tuple[Answer | None, Evidence]:
+    net = SafetyNet(kind=kind, records=SAFETY_RECORDS)
     return Answer(status="answered", parts=net.parts()), net.evidence()
 
 
@@ -332,7 +329,7 @@ def _choices(values: set[str]) -> str:
     return ", ".join(ordered[:-1]) + " or " + ordered[-1] if len(ordered) > 1 else ordered[0]
 
 
-def templates() -> list[Template]:
+def templates() -> list[AnswerTemplate]:
     payload, _ = routing_payload([ChatMessage(role="user", content="What's for lunch today?")],
                                  [], NOW)
 
@@ -377,7 +374,7 @@ def templates() -> list[Template]:
         "At most 50 dishes a station and 12 paragraphs.",
     ]
     return [
-        Template(
+        AnswerTemplate(
             id="menu", name="Meal menu", group="jev", mode="exact_menu",
             summary="Lists a meal's dishes station by station, then counts the extras Jev "
             "left out.",
@@ -398,7 +395,7 @@ def templates() -> list[Template]:
             "pick_dishes",
             sample_note="Sample records, not today's data. The dish pick stands in for Jev's.",
         ),
-        Template(
+        AnswerTemplate(
             id="full_menu", name="Full meal menu", group="jev", mode="exact_menu",
             summary="Lists every item a meal serves, station by station.",
             when=[*menu_when,
@@ -412,7 +409,7 @@ def templates() -> list[Template]:
             example=lambda: _menu(full=True),
             code="campus/profile_answers.py: menu_answer; core/routing.py: written_by_code",
         ),
-        Template(
+        AnswerTemplate(
             id="hours", name="Hours on a day", group="jev", mode="exact_hours",
             summary="States a place's published hours for one day, or one meal's hours.",
             when=[
@@ -440,9 +437,9 @@ def templates() -> list[Template]:
             question="When is Birch Tree Inn open today?",
             example=lambda: _hours(None),
             code="campus/profile_answers.py: hours_answer; core/routing.py: written_by_code",
-            extra={"examples": [("When is lunch at Birch Tree Inn today?", "lunch")]},
+            more=[("When is lunch at Birch Tree Inn today?", partial(_hours, "lunch"))],
         ),
-        Template(
+        AnswerTemplate(
             id="contact_facts", name="Contact details", group="jev", mode="exact_facts",
             summary="States an office's phone, email or office room from the shared facts.",
             when=[
@@ -478,7 +475,7 @@ def templates() -> list[Template]:
             code="retrieval/exact.py: fact_contact_answer; core/routing.py: answer_fields",
             sample_note="The Registrar's directory entry as published on September 16.",
         ),
-        Template(
+        AnswerTemplate(
             id="directory_contact", name="Directory contact", group="gpt",
             mode="exact_contact",
             summary="States an office's details from one campus directory entry.",
@@ -507,7 +504,7 @@ def templates() -> list[Template]:
             code="retrieval/exact.py: contact_answer",
             sample_note="The Registrar's directory entry as published on September 16.",
         ),
-        Template(
+        AnswerTemplate(
             id="menu_list", name="Menu list", group="gpt", mode="exact_records",
             summary="Lists every item of one meal that a menu search found.",
             when=[
@@ -532,7 +529,7 @@ def templates() -> list[Template]:
             example=_menu_list,
             code="campus/formats.py: exact_search, menu_parts",
         ),
-        Template(
+        AnswerTemplate(
             id="hours_list", name="Hours from a search", group="gpt", mode="exact_records",
             summary="States a place's hours, or when it closes, from an hours search.",
             when=[
@@ -556,7 +553,7 @@ def templates() -> list[Template]:
             example=_hours_list,
             code="campus/formats.py: exact_search, hours_parts",
         ),
-        Template(
+        AnswerTemplate(
             id="shuttle", name="Next or last shuttle", group="gpt", mode="exact_records",
             summary="States the next or last departure from campus, route by route.",
             when=[
@@ -579,7 +576,7 @@ def templates() -> list[Template]:
             example=_shuttle,
             code="campus/formats.py: exact_search, departure_parts; campus/schedules.py",
         ),
-        Template(
+        AnswerTemplate(
             id="safety_block", name="Safety block", group="fixed", mode="safety_net",
             summary="Shown first when Jev reads danger, above whatever else the answer says.",
             when=[
@@ -595,13 +592,14 @@ def templates() -> list[Template]:
                 "Jev's templates stand down: GPT writes the rest.",
             ],
             question="I don't want to be alive anymore",
-            example=_safety_block,
+            example=partial(_safety_block, "self_harm"),
+            more=[("Someone is following me on campus right now",
+                   partial(_safety_block, "danger"))],
             code="campus/formats.py: SAFETY_NET, safety_part; core/engine.py: SafetyNet",
             note="Logged as safetyNet on any answer; the mode is safety_net only when the "
             "rest fails.",
-            extra={"variants": {kind: text for kind, text in SAFETY_NET.items()}},
         ),
-        Template(
+        AnswerTemplate(
             id="safety_numbers", name="Public Safety numbers", group="fixed",
             mode="urgent_safety",
             summary="Adds Public Safety's numbers under GPT's urgent safety guidance.",
@@ -621,7 +619,7 @@ def templates() -> list[Template]:
             code="campus/formats.py: safety_part; core/engine.py",
             note="GPT's guidance comes first; code adds this line under it.",
         ),
-        Template(
+        AnswerTemplate(
             id="unverified", name="Couldn't verify", group="fixed", mode="safe_fallback",
             summary="What a student sees when nothing drafted could be verified.",
             when=[
@@ -639,7 +637,7 @@ def templates() -> list[Template]:
             code="core/engine.py: fallback",
             sample_note="The second sentence appears only when a page was looked at.",
         ),
-        Template(
+        AnswerTemplate(
             id="left_out", name="Left-out note", group="fixed", mode="reviewed_prose",
             summary="Added under GPT's answer when the checker drops some paragraphs.",
             when=[
@@ -682,9 +680,8 @@ def _example(question: str, build: Callable[[], tuple[Answer | None, Evidence]],
 def template_catalog() -> dict[str, Any]:
     entries = []
     for template in templates():
-        examples = [_example(template.question, template.example, template.sample_note)]
-        for question, meal in template.extra.get("examples", []):
-            examples.append(_example(question, partial(_hours, meal), template.sample_note))
+        examples = [_example(question, build, template.sample_note) for question, build in
+                    [(template.question, template.example), *template.more]]
         entries.append({
             "id": template.id, "name": template.name, "group": template.group,
             "mode": template.mode, "summary": template.summary, "note": template.note or None,
