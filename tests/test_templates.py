@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from rockygpt_brain.api.app import app
+from rockygpt_brain.campus.formats import SAFETY_NET
 from rockygpt_brain.campus.profile_answers import Template
 from rockygpt_brain.core.routing import COMPLETE_MENU, DETAILS, DISH, MENU_CONDITION
 from rockygpt_brain.core.templates import template_catalog
@@ -37,7 +38,9 @@ def test_every_example_is_written_by_its_template() -> None:
     assert answers["menu_list"].startswith("Published dinner menu at Birch Tree Inn")
     assert "scheduled to close at 11:00 PM" in answers["hours_list"]
     assert "Ramsey Route 17 at 12:30 PM" in answers["shuttle"]
-    assert answers["safety_block"].startswith("If you might hurt yourself")
+    # Each kind of danger Jev can read shows its own safety block.
+    blocks = [example["answer"] for example in templates["safety_block"]["examples"]]
+    assert all(any(block.startswith(text) for block in blocks) for text in SAFETY_NET.values())
 
 
 def test_every_mode_and_jev_template_the_brain_writes_is_listed() -> None:
