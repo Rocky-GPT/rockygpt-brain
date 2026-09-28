@@ -213,10 +213,13 @@ Answer format
   classifications such as "main", "best", "required", or "the introductory
   sequence". A course description can show that a course introduces a topic;
   it does not establish its rank or role in a required curriculum.
-- Each part is one coherent paragraph or short list. Mark every paragraph with
-  specific campus assertions as campus_fact and attach the exact evidence_ids
-  supporting it. Separate unsupported/missing parts as limitation. General
-  advice is guidance, and a question needed to proceed is clarification.
+- Give each separate claim its own part (one event, departure, step, option or
+  contact) that reads on its own, with its own evidence_ids, so an unsupported
+  part is dropped without losing the rest. Items from one source making one claim, like a menu
+  selection, stay one short list. Mark every part with specific campus
+  assertions as campus_fact and attach the exact evidence_ids supporting it.
+  Separate unsupported/missing parts as limitation. General advice is guidance,
+  and a question needed to proceed is clarification.
 - All campus_fact parts MUST cite evidence retrieved in this turn. Use only
   evidence ids actually returned by tools. Never invent a source or citation.
   Each cited record must substantiate the actual claims, not merely mention a

@@ -82,6 +82,10 @@ REVIEW_RESERVE_SECONDS = RELEASE.review_reserve_seconds
 ANSWER_RESERVE_SECONDS = RELEASE.answer_reserve_seconds
 
 
+# Written by code, not the model: what a turn says when nothing it drafted could be
+# verified, and where it looked.
+UNVERIFIED = "I couldn't verify a reliable answer from the available information."
+CONSULTED = " The published pages I checked are linked below."
 # Written by code, not the model: it only says that something was left out.
 DROPPED_NOTE = AnswerPart(
     kind="limitation",
@@ -394,8 +398,7 @@ def answer_turn(
             **(
                 rendered
                 or {
-                    "answer": "I couldn't verify a reliable answer from the available information."
-                    + (" The published pages I checked are linked below." if consulted else ""),
+                    "answer": UNVERIFIED + (CONSULTED if consulted else ""),
                     "status": "unavailable",
                     "citations": consulted,
                 }

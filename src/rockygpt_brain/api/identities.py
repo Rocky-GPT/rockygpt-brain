@@ -23,8 +23,8 @@ from rockygpt_brain.retrieval.profiles import (
     ProfileQuery,
     RelationshipEvidence,
     _identity_summary,
-    _normalize,
     lookup_terms,
+    name_key,
     narrows_by_date,
 )
 
@@ -162,7 +162,7 @@ def identity_aliases() -> dict[str, Any]:
         spelled: dict[str, str] = {}
         for entity in registry.entities:
             for alias in entity.aliases:
-                spelled.setdefault(_normalize(alias), alias)
+                spelled.setdefault(name_key(alias), alias)
         rows = []
         for term, alias in sorted(spelled.items(), key=lambda item: (item[0], item[1])):
             matches = matching[term]
@@ -172,10 +172,10 @@ def identity_aliases() -> dict[str, Any]:
                            else "event_dates" if narrows_by_date(matches) else "ambiguous"),
                 "matches": [{
                     **_identity_summary(entity),
-                    "by_name": _normalize(entity.name) == term,
+                    "by_name": name_key(entity.name) == term,
                     "aliases": [{"alias": value,
                                  "sources": (sources or {}).get((entity.id, value), [])}
-                                for value in entity.aliases if _normalize(value) == term],
+                                for value in entity.aliases if name_key(value) == term],
                 } for entity in matches],
             })
         return {**snapshot, "sources_published": sources is not None,

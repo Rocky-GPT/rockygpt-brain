@@ -26,7 +26,12 @@ from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.retrieval.data import CampusData
 from rockygpt_brain.retrieval.exact import ContactQuery
 from rockygpt_brain.retrieval.models import SearchFilters, SearchQuery
-from rockygpt_brain.retrieval.profiles import Identity, ProfileQuery
+from rockygpt_brain.retrieval.profiles import (
+    Identity,
+    ProfileQuery,
+    spoken_names,
+    variant_base,
+)
 from rockygpt_brain.retrieval.release_cache import cached
 
 # A direct contact lookup fetches every field: they are small and asked together.
@@ -209,7 +214,11 @@ MEALS: dict[str, str | None] = {
     "dinner": None,
     "other": "A meal not listed here, such as a late-night snack",
 }
-MEAL_FILTERS = {"breakfast", "brunch", "lunch", "dinner"}
+# Jev reads "late night" as a meal it doesn't list ("other", 0.94-0.99 on 09-28), so a late
+# night menu fetched a dozen of the whole day's items. Birch publishes "Late Night" as a
+# meal of its own, so code reads it, for menus only.
+LATE_NIGHT = "late night"
+MEAL_FILTERS = {"breakfast", "brunch", "lunch", "dinner", LATE_NIGHT}
 # Whether the request describes danger, as one Jev choice. Its top pick is enough: a
 # danger pick only adds the safety block and never removes anything GPT writes.
 DANGER = {
@@ -223,12 +232,17 @@ DANGER = {
 HELPS = ("Gives some or all of what `latest_request` asks for, or a fact needed to answer it",
          "Is about something else, or gives nothing `latest_request` asks for")
 # Whether a menu item is a dish a student would choose, as one Jev yes/no per item. A plain
-# "what's for lunch" lists the ones it doesn't rule out, with how many items there are.
+# "what's for lunch" lists the ones Jev leans toward calling a dish, with how many items
+# there are.
 DISH = ("Is `item` a dish someone would choose to eat, rather than something added to one?",
         "A dish or side someone would choose: an entrée, sandwich, pizza, soup, salad, bowl, "
         "pasta dish, fries, rice or dessert",
         "Something added to a dish: a topping, sauce, dressing, condiment, cheese slice, "
         "garnish or single raw ingredient such as sliced tomato")
+# Over nine Birch meals (09-28 to 10-04), every item Jev put between 0.1 and 0.5 was a
+# topping, spread, filling or bun, like Dill Pickle Chip, sliced deli meats, pie filling and
+# taco meat, and every dish scored 0.67 or more. "Not ruled out" (0.1) kept them all.
+DISH_BAR = 0.5
 # Record keys that say where a record came from, not what it says.
 PROVENANCE = {"id", "limitations", "coverage", "trust_tier", "collected_at", "freshness",
               "valid_from", "valid_until", "source_url"}
@@ -296,7 +310,7 @@ def named(text: str, entities: list[Identity]) -> list[Identity]:
     Science" alias, and "Birch Mansion" is not "Birch". A separate mention does.
     """
     shown = longest_names(
-        text, ((entity.id, [entity.name, *entity.aliases]) for entity in entities)
+        text, ((entity.id, spoken_names(entity)) for entity in entities)
     )
     return [entity for entity in entities if entity.id in shown]
 
@@ -338,7 +352,7 @@ def graph_first(messages: list[ChatMessage], data: CampusData) -> bool:
         if registry is None:
             return ()  # Older releases have no identities.
         return tuple(
-            (entity.id, entity.kind, tuple(words(name) for name in [entity.name, *entity.aliases]))
+            (entity.id, entity.kind, tuple(words(name) for name in spoken_names(entity)))
             for entity in registry.entities
         )
 
@@ -391,7 +405,7 @@ def shortlist(
     for entity in entities:
         if deadline is not None and monotonic() >= deadline:
             raise TimeoutError("Candidate preparation exceeded routing deadline")
-        names = [words(name) for name in [entity.name, *entity.aliases]]
+        names = [words(name) for name in spoken_names(entity)]
         rank = (
             int(any(f" {name} " in latest for name in names)),
             int(any(f" {name} " in context for name in names)),
@@ -565,8 +579,12 @@ EVENING = {"tonight", "tonight's", "evening"}
 
 def meal_asked(answers: dict[str, Any], messages: list[ChatMessage], menu: bool) -> str | None:
     meal = selected(answers, "meal")
+    latest = words(messages[-1].content)
+    # "Late night menu tonight" is the Late Night meal, not dinner.
+    if menu and meal in {None, "none", "other"} and f" {LATE_NIGHT} " in f" {latest} ":
+        return LATE_NIGHT
     # Jev may also be unsure of a meal no word names: "the dining menu for tonight".
-    if menu and meal in {None, "none"} and EVENING & set(words(messages[-1].content).split()):
+    if menu and meal in {None, "none"} and EVENING & set(latest.split()):
         return "dinner"
     return meal
 
@@ -810,9 +828,17 @@ def interpret(
                 and answers["entity"]["probabilities"][leading] >= LEANS_TOWARD):
             entity_id = leading
     entity = next((item for item in candidates if str(item.id) == entity_id), None)
+    # Lines of one name the request names together, like Public Safety's Emergency and
+    # Non-Emergency numbers ("campus police"), are one lookup by that name, which returns
+    # every line, so Jev need not pick one. Before, Jev's pick made it GPT's to look up.
+    shared = variant_base(explicit) if len(explicit) > 1 else None
+    if shared is not None and (entity is None or entity in explicit):
+        entity = explicit[0]
+    else:
+        shared = None
     if entity is None:
         return decision
-    if len(explicit) > 1:
+    if len(explicit) > 1 and shared is None:
         decision.reason = "ambiguous_entities"
         return decision
     if explicit and entity not in explicit:
@@ -822,12 +848,15 @@ def interpret(
         if len(entity.name) > 160:
             return decision
         # Contact lookup accepts a name, so do not force a UUID into that interface.
-        query = ContactQuery.model_validate({"entity": entity.name, "fields": list(FIELDS)})
+        query = ContactQuery.model_validate({"entity": shared or entity.name,
+                                             "fields": list(FIELDS)})
         decision.arguments = {**query.model_dump(mode="json"), "request_text": None}
         decision.answer_fields = answer_fields(answers)
     else:
         sections = sections_asked(answers)
-        arguments: dict[str, Any] = {"entity_id": entity_id, "include": sections}
+        arguments: dict[str, Any] = {
+            **({"entity": shared} if shared else {"entity_id": str(entity.id)}),
+            "include": sections}
         if set(sections) & {"hours", "menu", "event"}:
             # The campus resolver reads simple dates. Jev must be sure the student means
             # the day it read, or names none: "next Saturday" also reads as Saturday.
@@ -940,7 +969,7 @@ def route_request(
 def pick_dishes(
     records: list[dict[str, Any]], client: FilterClient
 ) -> tuple[set[str] | None, dict[str, Any]]:
-    """The IDs of the menu items Jev doesn't rule out as dishes, and what it did.
+    """The IDs of the menu items Jev leans toward calling dishes, and what it did.
 
     None when the check fails: the answer then lists every item. Accounting and budget
     errors still stop the turn.
@@ -976,7 +1005,7 @@ def pick_dishes(
     except (ValueError, TypeError, KeyError, AttributeError):
         return None, {"items": len(records), "reason": "invalid_response"}
     kept = {record["id"] for record, value in zip(records, values, strict=True)
-            if value > RULED_OUT}
+            if value > DISH_BAR}
     return kept, {"items": len(records), "dishes": len(kept),
                   "elapsedMs": round((monotonic() - started) * 1000)}
 
