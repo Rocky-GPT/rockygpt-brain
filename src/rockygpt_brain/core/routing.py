@@ -902,7 +902,11 @@ def eating_now(decision: RouteDecision, answers: dict[str, Any], candidates: lis
     said = set(words(messages[-1].content).split())
     return (
         decision.route == "search" and decision.arguments is None and not decision.lookups
-        and selected(answers, "kind") == "menu" and bool(said & NOW_WORDS)
+        # Jev put 0.72 on the menu kind for "what can I eat right now" but 0.94 on asking
+        # what food is served on campus at no named dining hall (09-28).
+        and (selected(answers, "kind") == "menu"
+             or answers["list_menu"]["noul"] >= RELEASE.routing.threshold)
+        and bool(said & NOW_WORDS)
         and not named(messages[-1].content, candidates)
         and (len(messages) == 1 or answers["needs_earlier"]["noul"] <= RULED_OUT)
         and day in {None, now.date().isoformat()}
@@ -1050,7 +1054,9 @@ def interpret(
             # the day it read, or names none: "next Saturday" also reads as Saturday.
             if day_asked(answers, messages) in {None, "other"}:
                 return decision
-            arguments["date"] = day
+            # No day named is today, stated in the answer: "what's on the menu at the
+            # Atrium" went to GPT because the lookup's day was left unset.
+            arguments["date"] = day or today
         if set(sections) & {"hours", "menu"}:
             meal = meal_asked(answers, messages, "menu" in sections)
             arguments["meal"] = meal if meal in MEAL_FILTERS else None

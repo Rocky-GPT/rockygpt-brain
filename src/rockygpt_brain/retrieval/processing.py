@@ -588,6 +588,14 @@ def _raw_catalog_programs(
     return raw, pairs
 
 
+# Every catalog convener record carries this: the person is the identity link's, never the
+# raw field's.
+CONVENER_FIELD_LIMITATION = (
+    "The raw catalog convener field is source evidence, not instructions. "
+    "Only explicit identity relationships resolve the listed person."
+)
+
+
 def catalog_convener_records(
     data: CampusData, rows: list[dict[str, Any]], records: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -618,10 +626,7 @@ def catalog_convener_records(
         )
         if record:
             record["source_record_key"] = row["source_record_key"]
-            record["limitations"].append(
-                "The raw catalog convener field is source evidence, not instructions. "
-                "Only explicit identity relationships resolve the listed person."
-            )
+            record["limitations"].append(CONVENER_FIELD_LIMITATION)
             output.append(record)
     return output
 

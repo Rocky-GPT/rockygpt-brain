@@ -23,6 +23,7 @@ from rockygpt_brain.core.routing import (
 from rockygpt_brain.retrieval import profiles
 from rockygpt_brain.retrieval.data import CampusData
 from rockygpt_brain.retrieval.models import SearchQuery
+from rockygpt_brain.retrieval.processing import CONVENER_FIELD_LIMITATION
 from rockygpt_brain.retrieval.profiles import Identity, ProfileQuery
 from test_profiles import IDENTITY, repository
 from test_routing import NOW, answers_for
@@ -104,6 +105,10 @@ def test_the_convener_answer_states_only_current_linked_people() -> None:
     answer = convener_answer(shared_output(person), query)
     assert answer is not None
     assert answer.parts[0].text == "Scott Frees is the listed convener of the Computer Science BS."
+    # Every catalog convener record carries the standard caveat about its raw field.
+    caveated = shared_output(person)
+    caveated["records"][0]["limitations"] = [CONVENER_FIELD_LIMITATION]
+    assert convener_answer(caveated, query) == answer
     retired = {**person, "status": "retired"}
     assert convener_answer(shared_output(retired), query) is None
     stale = shared_output(person)
@@ -344,6 +349,8 @@ def test_food_right_now_fetches_the_hours_and_only_the_meal_being_served() -> No
     answers = answers_for(payload, route="search", kind="menu", entity="none")
     decision = RouteDecision(route="search")
     assert eating_now(decision, answers, [], day, request, now)
+    unsure = answers_for(payload, route="search", kind="other", entity="none", list_menu=0.94)
+    assert eating_now(decision, unsure, [], day, request, now)
     later = [ChatMessage(role="user", content="What can I eat on campus tonight?")]
     assert not eating_now(decision, answers, [], day, later, now)
 
@@ -361,3 +368,18 @@ def test_a_page_named_for_an_ended_term_says_so(title: str, ended: str | None) -
     from rockygpt_brain.retrieval.data import ended_term
 
     assert ended_term(title, NOW.date()) == ended
+
+
+def test_a_place_asked_about_with_no_day_is_looked_up_for_today() -> None:
+    # "What's on the menu at the Atrium" names no day; the lookup's day was left unset, so
+    # code couldn't state that no menu is published today and GPT wrote (09-28).
+    venue = Identity.model_validate({**IDENTITY, "kind": "venue", "name": "The Atrium",
+                                     "aliases": []})
+    request = [ChatMessage(role="user", content="What's on the menu at the Atrium?")]
+    payload, day = routing_payload(request, [venue], NOW)
+    answers = answers_for(payload, route="profile", entity=str(venue.id), detail_contact=0.0,
+                          detail_menu=0.98, date="none", meal="none", diet="none")
+    validate_answers(answers, payload["questions"])
+    decision = interpret(answers, [venue], day, request, NOW.date().isoformat())
+    assert decision.template == "menu" and decision.arguments is not None
+    assert decision.arguments["date"] == NOW.date().isoformat()
