@@ -450,7 +450,8 @@ def test_a_misconfigured_brain_logs_which_setting_without_its_value(
 @pytest.mark.parametrize("environment", [None, "production"])
 @pytest.mark.parametrize("method,path", [
     ("GET", "/v1/logs"), ("GET", "/v1/feedback"), ("GET", "/v1/evals/runs"),
-    ("POST", "/v1/evals/runs"), ("GET", "/v1/prompts"), ("GET", "/v1/config"),
+    ("POST", "/v1/evals/runs"), ("GET", "/v1/prompts"), ("GET", "/v1/templates"),
+    ("GET", "/v1/config"),
     ("GET", "/v1/releases"), ("GET", "/v1/capabilities"),
     ("GET", "/v1/capabilities/contacts/records"), ("GET", "/v1/documents"),
     ("GET", "/v1/documents/00000000-0000-0000-0000-000000000000"),

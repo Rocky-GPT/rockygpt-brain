@@ -28,14 +28,16 @@ from rockygpt_brain.campus.progress import ProgressCallback, ProgressUpdate, Tur
 from rockygpt_brain.config import RELEASE, ConfigurationError, configuration_hash, load_deployment
 from rockygpt_brain.contracts import ChatRequest
 from rockygpt_brain.core import InvalidAnswer, PaidGateway, open_gateway, run_turn
+from rockygpt_brain.core.templates import template_catalog
 from rockygpt_brain.governance import BodyLimitMiddleware, PaidCallError, PostgresLedger
 from rockygpt_brain.governance.redaction import redact
 from rockygpt_brain.retrieval import CampusData
 
 load_dotenv()
 # The API schema and the operator routes below (turn logs, stored feedback, eval
-# runs, prompts, raw records) are for the Dev control room, which only talks to a
-# development Brain. The public production host answers 404 for all of them.
+# runs, prompts, answer templates, raw records) are for the Dev control room, which
+# only talks to a development Brain. The public production host answers 404 for all
+# of them.
 app = FastAPI(
     title="RockyGPT Brain",
     version="1.0.0",
@@ -479,6 +481,12 @@ def get_prompts() -> dict[str, Any]:
         "draftReasoning": RELEASE.draft_reasoning,
         "reviewReasoning": RELEASE.review_reasoning,
     }
+
+
+@app.get("/v1/templates", dependencies=DEVELOPMENT_ONLY)
+def get_templates() -> dict[str, Any]:
+    """Every answer code writes itself: what picks it, what it checks, and an example."""
+    return template_catalog()
 
 
 @app.get("/v1/config", dependencies=DEVELOPMENT_ONLY)
