@@ -207,9 +207,10 @@ def dining_router(**values: Any) -> Mock:
                "detail_menu": 0.99, "detail_contact": 0.0, **values}
     router = Mock()
     router.route.side_effect = lambda payload, **kwargs: answers_for(payload, **choices)
-    # Jev says every fourth item is a dish.
+    # Jev says every fourth item is a dish, and is unsure about the next one, the way it
+    # scores a pickle chip or sliced deli turkey: those are left out too.
     router.filter.side_effect = lambda payload, **kwargs: {
-        key: {"type": "noul", "noul": 0.97 if int(key.split("_")[1]) % 4 == 0 else 0.02}
+        key: {"type": "noul", "noul": {0: 0.97, 1: 0.3}.get(int(key.split("_")[1]) % 4, 0.02)}
         for key in payload["questions"]}
     return router
 
