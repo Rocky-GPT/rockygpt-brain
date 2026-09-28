@@ -30,6 +30,7 @@ from rockygpt_brain.core.routing import (
     DETAILS,
     DIET_FILTERS,
     DISH,
+    LATE_NIGHT,
     MEAL_FILTERS,
     ROUTE_BAR,
     RULED_OUT,
@@ -350,14 +351,15 @@ def templates() -> list[AnswerTemplate]:
                   jev("date")),
     ]
     no_danger = Condition("Jev", "Reads no danger", "none", jev("danger"))
-    meals = _choices(set(MEAL_FILTERS))
+    meals = _choices(MEAL_FILTERS - {LATE_NIGHT})
     menu_when = [
         *place,
         Condition("Jev", "Asks what food is served", "yes", jev("detail_menu")),
         Condition("Jev", nothing_else("menu", "hours") + " (hours may come along)", "no",
                   others("menu", "hours")),
         Condition("Jev", "Adds no condition about the food", "no", jev("menu_condition")),
-        Condition("Jev", "Names one meal (code reads \"tonight\" as dinner)", meals,
+        Condition("Jev", "Names one meal (code reads \"tonight\" as dinner and \"late "
+                  "night\" as Late Night)", meals,
                   jev("meal")),
         Condition("Jev", "Names no diet, or vegan or vegetarian",
                   _choices({"none", *DIET_FILTERS}), jev("diet")),
