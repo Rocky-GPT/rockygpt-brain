@@ -51,13 +51,16 @@ def _clock(value: str) -> str:
 def _entity(output: dict[str, Any], query: ProfileQuery) -> dict[str, Any] | None:
     resolution = output.get("resolution") or {}
     entity = resolution.get("entity")
+    # A menu lookup of a building answers for the one dining place in it.
+    asked = {entity.get("id") if isinstance(entity, dict) else None,
+             (resolution.get("located_in") or {}).get("id")}
     if (
         output.get("status") != "ok"
         or resolution.get("status") != "matched"
         or not isinstance(entity, dict)
         or not isinstance(entity.get("name"), str)
         or not entity["name"].strip()
-        or (query.entity_id is not None and entity.get("id") != str(query.entity_id))
+        or (query.entity_id is not None and str(query.entity_id) not in asked)
     ):
         return None
     return entity
@@ -289,7 +292,8 @@ def hours_answer(output: dict[str, Any], query: ProfileQuery) -> Answer | None:
             f"{plain(period['label'])} {_clock(period['start'])} to {_clock(period['end'])}"
             for period in periods) + "."
     else:
-        text = f"{name}'s published hours on {_day(day)}: {plain(schedule)}."
+        owner = f"{name}'" if name.endswith("s") else f"{name}'s"
+        text = f"{owner} published hours on {_day(day)}: {plain(schedule)}."
     # A note is the hours page's own words and can qualify them ("the front doors are
     # locked 15 minutes before closing"), so it is stated word for word.
     notes = dict.fromkeys(" ".join(str(record["fields"].get("notes") or "").split())
@@ -387,6 +391,9 @@ def no_menu_answer(output: dict[str, Any], query: ProfileQuery) -> Answer | None
     component = (output.get("components") or {}).get("menu")
     if (
         entity is None
+        # Only a dining place can lack a menu. "The dining place in the Learning Commons"
+        # named the building, and code said the building had no menu (09-28).
+        or entity.get("kind") != "venue"
         or not isinstance(component, dict)
         or component.get("status") != "missing"
         or component.get("complete") is not True
@@ -396,8 +403,11 @@ def no_menu_answer(output: dict[str, Any], query: ProfileQuery) -> Answer | None
         or component.get("service_date") != query.date.isoformat()
     ):
         return None
+    building = (output.get("resolution") or {}).get("located_in") or {}
+    where = f", in the {plain(building['name'])}," if building.get("name") else ""
     parts = [AnswerPart(kind="limitation", evidence_ids=[], text=(
-        f"I couldn't find a published menu for {plain(entity['name'])} on {_day(query.date)}."))]
+        f"I couldn't find a published menu for {plain(entity['name'])}{where} on "
+        f"{_day(query.date)}."))]
     hours = hours_answer(output, query) if "hours" in query.include else None
     if hours is not None:
         parts.extend(hours.parts)

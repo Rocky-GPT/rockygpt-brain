@@ -192,6 +192,11 @@ def test_a_place_with_no_menu_that_day_says_so_and_nothing_else() -> None:
         assert no_menu_answer(venue_output({**missing, **broken}), query) is None
     lunch = query.model_copy(update={"meal": "lunch"})
     assert no_menu_answer(venue_output(missing), lunch) is None
+    # A building has no menu of its own: "the dining place in the Learning Commons" is
+    # about a place inside it, which GPT finds.
+    building = venue_output(missing)
+    building["resolution"]["entity"]["kind"] = "building"
+    assert no_menu_answer(building, query) is None
 
 
 def event(index: int, title: str, start: str, end: str | None, location: str | None,
@@ -397,3 +402,33 @@ def test_a_plain_day_of_events_is_listed_even_when_jev_doubts_the_kind() -> None
     assert decision.template == "events" and decision.arguments is not None
     assert decision.arguments["collection"] == "events"
     assert decision.arguments["date_from"] == NOW.date().isoformat()
+
+
+def test_a_building_lookup_names_the_places_located_in_it() -> None:
+    # "The dining place in the Learning Commons" found the building, whose profile has no
+    # menu, and GPT offered Birch instead (09-28).
+    data = repository()
+    building = {**IDENTITY, "id": "00000000-0000-4000-8000-00000000b001", "kind": "building",
+                "name": "Example Learning Commons", "aliases": ["Learning Commons"],
+                "links": [{"collection": "buildings", "source_key": "map",
+                           "source_record_keys": ["1133431"]}]}
+    venue = {**IDENTITY, "kind": "venue", "name": "Example Cafe", "aliases": [],
+             "relationships": [{"type": "located_at", "target_entity_id": building["id"],
+                                "evidence": [{"collection": "buildings", "source_key": "map",
+                                              "source_record_key": "1133431",
+                                              "field": "reviewed_locations"}]}]}
+    office = {**venue, "id": "00000000-0000-4000-8000-00000000b002", "kind": "office",
+              "name": "Example Library", "links": [
+                  {"collection": "contacts", "source_key": "directory",
+                   "source_record_keys": ["office:library"]}]}
+    data._artifacts["campus-identities"]["entities"] = [building, venue, office]
+    data._load = Mock(return_value=[])  # type: ignore[method-assign]
+    # A menu question about the building is about its one dining place.
+    menu = data.lookup_profile(ProfileQuery(entity="Learning Commons", include=["menu"]))
+    assert menu["resolution"]["entity"]["name"] == "Example Cafe"
+    assert menu["resolution"]["located_in"]["name"] == "Example Learning Commons"
+    # Anything else lists what's inside, and says to look the right one up.
+    other = data.lookup_profile(ProfileQuery(entity="Learning Commons", include=["contact"]))
+    assert [item["name"] for item in other["resolution"]["located_here"]] == [
+        "Example Cafe", "Example Library"]
+    assert "located_here" in other["next_step"]
