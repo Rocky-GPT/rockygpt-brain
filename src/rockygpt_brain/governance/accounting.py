@@ -94,6 +94,59 @@ def reset_at(now: datetime) -> str:
     return datetime(year, number, 1, tzinfo=CAMPUS_ZONE).isoformat()
 
 
+# Admits a hold in one statement. It runs after the account lock, so it sees every hold
+# committed before it. Parameters: the allowance's environment and month; the duplicate
+# check's environment and operation; the committed spend's month and environment; the
+# account's environment; the new row; then the account cap ceiling, the supplement
+# ceiling, whether supplements apply to this environment, and the amount.
+RESERVE = (
+    "WITH facts AS ("
+    " SELECT account.cap_nusd, account.paused,"
+    " (SELECT extra_nusd FROM brain_ops.monthly_allowances"
+    "  WHERE environment = %s AND month = %s) AS extra_nusd,"
+    " EXISTS (SELECT 1 FROM brain_ops.operations"
+    "  WHERE environment = %s AND operation_id = %s) AS existing,"
+    " (SELECT COALESCE(SUM(CASE WHEN state <> 'settled' THEN reserved_nusd"
+    "  WHEN charged_month >= %s THEN cost_nusd ELSE 0 END), 0)"
+    "  FROM brain_ops.operations WHERE environment = %s) AS committed"
+    " FROM brain_ops.accounts AS account WHERE account.environment = %s"
+    "), limits AS ("
+    " SELECT facts.*, COALESCE(facts.extra_nusd, 0) AS extra,"
+    " facts.cap_nusd + COALESCE(facts.extra_nusd, 0) AS cap FROM facts"
+    "), admitted AS ("
+    " INSERT INTO brain_ops.operations (environment, operation_id, request_id, category,"
+    " admitted_month, reserved_nusd, metadata)"
+    " SELECT %s, %s, %s, %s, %s, %s, %s || jsonb_build_object('monthly_cap_nusd', cap)"
+    " FROM limits WHERE cap_nusd > 0 AND cap_nusd <= %s"
+    " AND extra BETWEEN 0 AND %s AND (extra = 0 OR %s)"
+    " AND NOT existing AND NOT paused AND committed + %s <= cap"
+    " RETURNING operation_id"
+    ") SELECT facts.*, EXISTS (SELECT 1 FROM admitted) AS admitted FROM facts"
+)
+
+
+# Settles a hold in one statement. Delayed usage is charged conservatively in the
+# settlement month; the admission month is kept for provider reconciliation. An overrun
+# still records the actual liability, and pauses the account. Parameters: the settled
+# values, the operation, the account cap ceiling, then the account and the cost.
+SETTLE = (
+    "WITH settled AS ("
+    " UPDATE brain_ops.operations SET state = 'settled', cost_nusd = %s, usage = %s,"
+    " charged_month = GREATEST(admitted_month, %s), provider_response_id = %s,"
+    " returned_model = %s, elapsed_ms = %s, metadata = metadata || %s,"
+    " updated_at = clock_timestamp()"
+    " WHERE environment = %s AND operation_id = %s AND state <> 'settled'"
+    " AND EXISTS (SELECT 1 FROM brain_ops.accounts"
+    "  WHERE environment = %s AND cap_nusd > 0 AND cap_nusd <= %s)"
+    " RETURNING reserved_nusd"
+    "), paused AS ("
+    " UPDATE brain_ops.accounts SET paused = true"
+    " WHERE environment = %s AND EXISTS (SELECT 1 FROM settled WHERE reserved_nusd < %s)"
+    " RETURNING environment"
+    ") SELECT (SELECT count(*) FROM settled) AS settled"
+)
+
+
 class Ledger(Protocol):
     def reserve(
         self,
@@ -284,37 +337,32 @@ class PostgresLedger:
     ) -> None:
         if amount <= 0:
             raise PaidCallError("price_unavailable")
-        # One round trip opens the transaction, takes the account lock and runs the
-        # reads that must follow it; a second carries the hold and its COMMIT.
+        # One round trip: the account lock, then a statement that reads what the checks
+        # need and inserts the hold only if they all pass, then COMMIT. The lock is never
+        # held across a trip. The checks below repeat the insert's conditions in the same
+        # order, only to name the refusal.
         with self.opened(
             self.lock_account(),
-            self.allowance(now),
-            ("SELECT operation_id FROM brain_ops.operations "
-             "WHERE environment = %s AND operation_id = %s",
-             (self.environment, operation_id)),
-            ("SELECT COALESCE(SUM(CASE WHEN state <> 'settled' THEN reserved_nusd "
-             "WHEN charged_month >= %s THEN cost_nusd ELSE 0 END), 0) AS committed "
-             "FROM brain_ops.operations WHERE environment = %s",
-             (month_at(now), self.environment)),
-        ) as (conn, (locked, allowance, existing, totals)):
+            (RESERVE, (
+                self.environment, month_at(now), self.environment, operation_id,
+                month_at(now), self.environment, self.environment,
+                self.environment, operation_id, request_id, category, month_at(now), amount,
+                Jsonb(metadata), MONTHLY_CAP_NUSD, DEVELOPMENT_SUPPLEMENT_CAP_NUSD,
+                self.environment == "development", amount,
+            )),
+            ("COMMIT", ()),
+        ) as (_, (locked, (decided,), _)):
             account = self.checked_account(locked)
-            cap = self.cap_with(account, allowance)
-            if existing:
+            cap = self.cap_with(account, [] if decided["extra_nusd"] is None else [decided])
+            if decided["existing"]:
                 # Never execute an operation a second time, including after a crash.
                 raise PaidCallError("operation_already_admitted")
             if account["paused"]:
                 raise PaidCallError("accounting_paused")
-            if int(totals[0]["committed"]) + amount > cap:
+            if int(decided["committed"]) + amount > cap:
                 raise PaidCallError("budget_exhausted", reset_at=reset_at(now))
-            self.batch(
-                conn,
-                ("INSERT INTO brain_ops.operations "
-                 "(environment, operation_id, request_id, category, admitted_month, "
-                 "reserved_nusd, metadata) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                 (self.environment, operation_id, request_id, category, month_at(now), amount,
-                  Jsonb({**metadata, "monthly_cap_nusd": cap}))),
-                ("COMMIT", ()),
-            )
+            if not decided["admitted"]:
+                raise PaidCallError("accounting_unavailable")
 
     def settle(
         self,
@@ -329,12 +377,23 @@ class PostgresLedger:
     ) -> None:
         if cost < 0:
             raise PaidCallError("invalid_usage")
-        overrun = False
+        # One round trip: the account lock, the row as it was, then a statement that
+        # settles it and pauses the account on an overrun, then COMMIT. It changes nothing
+        # when the account is invalid or the row is missing or already settled; the checks
+        # below name those cases.
         with self.opened(
             self.lock_account(),
             ("SELECT * FROM brain_ops.operations WHERE environment = %s AND operation_id = %s",
              (self.environment, operation_id)),
-        ) as (conn, (locked, rows)):
+            (SETTLE, (
+                cost, Jsonb(usage), month_at(now), response_id, model, elapsed_ms,
+                Jsonb({"reconciliation_reference": reconciliation_reference}
+                      if reconciliation_reference else {}),
+                self.environment, operation_id, self.environment, MONTHLY_CAP_NUSD,
+                self.environment, cost,
+            )),
+            ("COMMIT", ()),
+        ) as (_, (locked, rows, (outcome,), _)):
             self.checked_account(locked)
             if not rows:
                 raise PaidCallError("operation_not_found")
@@ -348,27 +407,9 @@ class PostgresLedger:
                 ) != (cost, usage, response_id, model):
                     raise PaidCallError("settlement_conflict")
                 return
-            # Delayed usage is charged conservatively in the settlement month.
-            # Its original admission month is retained for provider reconciliation.
-            charged_month = max(row["admitted_month"], month_at(now))
-            overrun = cost > row["reserved_nusd"]
-            self.batch(
-                conn,
-                ("UPDATE brain_ops.operations SET state = 'settled', cost_nusd = %s, "
-                 "usage = %s, charged_month = %s, provider_response_id = %s, "
-                 "returned_model = %s, elapsed_ms = %s, metadata = metadata || %s, "
-                 "updated_at = clock_timestamp() "
-                 "WHERE environment = %s AND operation_id = %s",
-                 (cost, Jsonb(usage), charged_month, response_id, model, elapsed_ms,
-                  Jsonb({"reconciliation_reference": reconciliation_reference}
-                        if reconciliation_reference else {}),
-                  self.environment, operation_id)),
-                # Record the actual liability even when the provider breaks the bound.
-                *((("UPDATE brain_ops.accounts SET paused = true WHERE environment = %s",
-                    (self.environment,)),) if overrun else ()),
-                ("COMMIT", ()),
-            )
-        if overrun:
+            if not outcome["settled"]:
+                raise PaidCallError("accounting_unavailable")
+        if cost > row["reserved_nusd"]:
             raise PaidCallError("accounting_bound_exceeded")
 
     def uncertain(self, operation_id: str, code: str, elapsed_ms: int) -> None:
