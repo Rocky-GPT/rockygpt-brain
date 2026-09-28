@@ -26,7 +26,7 @@ from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.retrieval.data import CampusData
 from rockygpt_brain.retrieval.exact import ContactQuery
 from rockygpt_brain.retrieval.models import SearchFilters, SearchQuery
-from rockygpt_brain.retrieval.profiles import Identity, ProfileQuery
+from rockygpt_brain.retrieval.profiles import Identity, ProfileQuery, variant_base
 from rockygpt_brain.retrieval.release_cache import cached
 
 # A direct contact lookup fetches every field: they are small and asked together.
@@ -823,9 +823,17 @@ def interpret(
                 and answers["entity"]["probabilities"][leading] >= LEANS_TOWARD):
             entity_id = leading
     entity = next((item for item in candidates if str(item.id) == entity_id), None)
+    # Lines of one name the request names together, like Public Safety's Emergency and
+    # Non-Emergency numbers ("campus police"), are one lookup by that name, which returns
+    # every line, so Jev need not pick one. Before, Jev's pick made it GPT's to look up.
+    shared = variant_base(explicit) if len(explicit) > 1 else None
+    if shared is not None and (entity is None or entity in explicit):
+        entity = explicit[0]
+    else:
+        shared = None
     if entity is None:
         return decision
-    if len(explicit) > 1:
+    if len(explicit) > 1 and shared is None:
         decision.reason = "ambiguous_entities"
         return decision
     if explicit and entity not in explicit:
@@ -835,12 +843,15 @@ def interpret(
         if len(entity.name) > 160:
             return decision
         # Contact lookup accepts a name, so do not force a UUID into that interface.
-        query = ContactQuery.model_validate({"entity": entity.name, "fields": list(FIELDS)})
+        query = ContactQuery.model_validate({"entity": shared or entity.name,
+                                             "fields": list(FIELDS)})
         decision.arguments = {**query.model_dump(mode="json"), "request_text": None}
         decision.answer_fields = answer_fields(answers)
     else:
         sections = sections_asked(answers)
-        arguments: dict[str, Any] = {"entity_id": entity_id, "include": sections}
+        arguments: dict[str, Any] = {
+            **({"entity": shared} if shared else {"entity_id": str(entity.id)}),
+            "include": sections}
         if set(sections) & {"hours", "menu", "event"}:
             # The campus resolver reads simple dates. Jev must be sure the student means
             # the day it read, or names none: "next Saturday" also reads as Saturday.
