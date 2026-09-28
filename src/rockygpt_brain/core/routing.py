@@ -231,6 +231,7 @@ PROVENANCE = {"id", "limitations", "coverage", "trust_tier", "collected_at", "fr
 SOFT_ERRORS = {
     "routing_context_limit",
     "routing_unavailable",
+    "routing_paused",
     "routing_price_unavailable",
     "routing_provider_error",
     "routing_usage_unknown",
@@ -909,6 +910,7 @@ def route_request(
         decision.reason = error.code
         if error.code in {
             "routing_context_limit",
+            "routing_paused",
             "routing_price_unavailable",
             "routing_unavailable",
         }:

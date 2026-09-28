@@ -4,6 +4,7 @@ import asyncio
 import json
 import math
 import ssl
+import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
@@ -168,6 +169,54 @@ def jev_tls() -> ssl.SSLContext:
     return httpx.create_ssl_context(trust_env=False)
 
 
+class JevPause:
+    """Stop waiting on Jev for a while once it stops answering.
+
+    On 2026-09-28 Typesafe's servers took 1.5 to 10 s on about 1 in 5 calls and answered
+    almost nothing for ten minutes (scripts/jev_latency.py). Each of those calls held the
+    turn for its whole window before the Brain fell back to GPT. After `limit` misses in
+    a row, calls are refused at once for `seconds`; the first call after that tries Jev
+    again, and one more miss pauses it again.
+    """
+
+    def __init__(self, limit: int = 3, seconds: float = 60.0,
+                 clock: Callable[[], float] = monotonic) -> None:
+        self.limit = limit
+        self.seconds = seconds
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._misses = 0
+        self._until = 0.0
+
+    def paused(self) -> bool:
+        with self._lock:
+            return self._clock() < self._until
+
+    def record(self, answered: bool) -> None:
+        with self._lock:
+            self._misses = 0 if answered else self._misses + 1
+            if self._misses >= self.limit:
+                self._until = self._clock() + self.seconds
+
+    def reset(self) -> None:
+        with self._lock:
+            self._misses, self._until = 0, 0.0
+
+
+# One pause per provider, shared by every turn in the process.
+JEV_PAUSES: dict[RoutingProvider, JevPause] = {"typesafe": JevPause(), "openrouter": JevPause()}
+# Answered calls took under 1 s and slow ones at least 1.46 s, so a call given less
+# time than this that runs out says nothing about Jev.
+JEV_FAIR_WAIT = 1.0
+
+
+def jev_missed(error: BaseException) -> bool:
+    """Jev didn't answer: a timeout, no connection, rate limiting, or a server error."""
+    if isinstance(error, httpx.HTTPStatusError):
+        return error.response.status_code == 429 or error.response.status_code >= 500
+    return isinstance(error, (TimeoutError, httpx.TransportError))
+
+
 class JevProvider:
     """One cancellable HTTP attempt; the deadline includes reading the response body."""
 
@@ -176,6 +225,18 @@ class JevProvider:
         self.name = name
 
     def create(self, *, timeout: float, **payload: Any) -> ModelResponse:
+        pause = JEV_PAUSES[self.name]
+        try:
+            response = self._request(timeout=timeout, **payload)
+        except BaseException as error:
+            timed_out = isinstance(error, (TimeoutError, httpx.TimeoutException))
+            if jev_missed(error) and (timeout >= JEV_FAIR_WAIT or not timed_out):
+                pause.record(answered=False)
+            raise
+        pause.record(answered=True)
+        return response
+
+    def _request(self, *, timeout: float, **payload: Any) -> ModelResponse:
         pinned: str = payload["model"]
         requested, reported = (
             OPENROUTER_MODELS[pinned] if self.name == "openrouter" else (pinned, pinned)
@@ -347,6 +408,8 @@ class PaidGateway:
             if self._routing_provider is None:
                 raise PaidCallError("routing_unavailable")
             provider_name = self._routing_provider.name
+            if JEV_PAUSES[self._routing_provider.name].paused():
+                raise PaidCallError("routing_paused")  # Before reserving: nothing is sent.
             if set(kwargs) != {"model", "state", "questions", "timeout"} or (
                 kwargs["model"] != self.release.routing.model
             ):

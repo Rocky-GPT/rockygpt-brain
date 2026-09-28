@@ -260,6 +260,23 @@ If gates fail or validation is incomplete, keep active routing off.
 To roll back, set `BRAIN_ROUTING_MODE=off` and restart the Brain. The additive ledger
 migration can remain applied; existing routing charges retain their audit history.
 
+## When Jev stops answering
+
+On 2026-09-28 about 1 in 5 routing calls ran out their 2 s window. `scripts/jev_latency.py`
+showed the time went to Typesafe's servers, not our questions: a one-question control
+call was slow at the same moments, every slow call sat waiting for the reply with
+connecting and sending normal, and Typesafe's own `x-envoy-upstream-service-time`
+header read 0.6 to 10.5 s. For ten minutes it answered almost nothing. Answered calls
+took under 1 s; slow ones took at least 1.46 s.
+
+Each process now pauses Jev after three misses in a row (a timeout on a wait of at least
+1 s, no connection, a 429, or a 5xx such as Cloudflare's 520). For the next 60 s every
+Jev call, including search filters and dish picks, is refused before it is reserved or
+sent, with the fallback reason `routing_paused`, so the turn goes to GPT at once instead
+of waiting out the window. The first call after that tries Jev again, and one more miss
+pauses it again. `scripts/jev_latency.py --hedge SECONDS` measures whether a copy of a
+slow call, sent that many seconds later, answers in time.
+
 ## Observability and privacy
 
 `metrics.routing` contains mode, model, version, route, confidence, direct retrieval,
