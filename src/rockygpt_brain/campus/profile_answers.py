@@ -248,6 +248,9 @@ def hours_answer(output: dict[str, Any], query: ProfileQuery) -> Answer | None:
             not _proven(record, {"campus_hours", "dining_hours"}, entity["id"], day,
                         HOURS_CAVEATS | {UNLABELED_MEAL_LIMITATION}, ("name", "schedule"))
             or fields.get("service_date") != day.isoformat()
+            # A note can qualify the hours ("the front doors close at 11:45 PM"), so GPT
+            # writes any schedule that has one.
+            or str(fields.get("notes") or "").strip()
         ):
             return None
         schedules.add((record["collection"], " ".join(fields["schedule"].split())))
