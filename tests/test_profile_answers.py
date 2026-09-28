@@ -15,6 +15,7 @@ from rockygpt_brain.config import RELEASE
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
 from rockygpt_brain.core.render import render_answer
+from rockygpt_brain.retrieval.helpers import TRUNCATED
 from rockygpt_brain.retrieval.profiles import ProfileQuery
 from test_engine import answer, review
 from test_profile_sections import full_dining_data
@@ -25,8 +26,12 @@ DAY = date(2026, 9, 21)  # A Monday; the dated exception ends lunch at 1 PM.
 CAMPUS = ZoneInfo("America/New_York")
 
 
-def birch(*, periods_published: bool = False) -> Any:
-    """Example Dining's 52 lunch dishes at four stations, with its meal periods."""
+def birch(*, periods_published: bool = False, long_dish: bool = False) -> Any:
+    """Example Dining's 52 lunch dishes at four stations, with its meal periods.
+
+    `long_dish` gives Dish 00 what the weekly menu adds to a composed bowl: a description,
+    a long ingredient list and its nutrients.
+    """
     data = full_dining_data()
     enrich = data._enrich
 
@@ -39,6 +44,14 @@ def birch(*, periods_published: bool = False) -> Any:
                 {"label": "Dinner", "start": "05:00 PM", "end": "12:00 AM"}]
             if periods_published:
                 record["coverage"]["fields"]["periods"] = "published"
+        for record in records if collection == "menu" and long_dish else []:
+            if record["fields"]["name"] == "Dish 00":
+                record["fields"].update(
+                    description="Hummus, farro, roasted vegetables and feta.",
+                    ingredients="Chickpeas (Water, Chickpeas), Tahini (Sesame Seeds), " * 30,
+                    nutrients={name: {"value": "12.5", "unit": "g"} for name in (
+                        "calories", "fat", "saturatedFat", "transFat", "cholesterol", "sodium",
+                        "carbohydrates", "dietaryFiber", "sugar", "protein", "potassium")})
     data._enrich = with_periods
     return data
 
@@ -119,6 +132,29 @@ def test_anything_the_lookup_does_not_prove_goes_to_gpt(case: str) -> None:
     assert menu_answer(output, query, full=True) is None
 
 
+def test_a_dish_too_long_for_the_model_s_view_is_still_listed_by_code() -> None:
+    output = birch(long_dish=True).lookup_profile(lunch())
+    bowl = next(record for record in output["records"] if record["id"] == "menu:dish-00")
+    # The lookup cut the bowl's ingredients to fit; its name, meal and station are whole.
+    assert bowl["content_truncated"] and bowl["fields"]["ingredients"].endswith(TRUNCATED)
+    text = rendered(output, menu_answer(output, lunch(), full=True))
+    assert "- **Published Station 0:** Dish 00, Dish 04, Dish 08" in text
+    assert "That's all 52 lunch items on the published menu." in text
+
+
+@pytest.mark.parametrize("cut", ["name", "station", "station left out"])
+def test_a_field_the_answer_states_that_arrived_cut_goes_to_gpt(cut: str) -> None:
+    output = birch().lookup_profile(lunch())
+    fields = next(record for record in output["records"]
+                  if record["id"] == "menu:dish-00")["fields"]
+    if cut == "station left out":
+        del fields["station"]
+        fields["_truncated"] = True
+    else:
+        fields[cut] = fields[cut][:4] + TRUNCATED
+    assert menu_answer(output, lunch(), full=True) is None
+
+
 def test_a_day_s_hours_list_its_published_meal_periods() -> None:
     query = ProfileQuery(entity_id=UUID(ENTITY_ID), include=["hours"], date=DAY)
     output = birch().lookup_profile(query)
@@ -159,6 +195,11 @@ def test_hours_code_cannot_verify_go_to_gpt() -> None:
     # A meal the schedule doesn't label.
     brunch = query.model_copy(update={"meal": "Brunch"})
     assert hours_answer(birch().lookup_profile(brunch), brunch) is None
+    # A note the lookup cut short would be stated with a piece missing.
+    output = birch().lookup_profile(query)
+    for record in output["records"]:
+        record["fields"]["notes"] = "Please note that the front doors" + TRUNCATED
+    assert hours_answer(output, query) is None
 
 
 def dining_router(**values: Any) -> Mock:
