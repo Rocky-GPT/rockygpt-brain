@@ -804,6 +804,10 @@ def test_tonights_menu_is_dinner_when_jev_reads_no_meal() -> None:
     arguments = interpret(browse_answers(payload, kind="menu", meal="none"), [ENTITY], day,
                           request).arguments
     assert arguments is not None and arguments["filters"]["meal"] == "Dinner"
+    unsure = browse_answers(payload, kind="menu", meal="none")
+    unsure["meal"]["confidence"] = 0.5
+    arguments = interpret(unsure, [ENTITY], day, request).arguments
+    assert arguments is not None and arguments["filters"]["meal"] == "Dinner"
     # Hours tonight still mean every service, not the end of dinner.
     request = messages("Which dining halls are open tonight?")
     payload, day = routing_payload(request, [ENTITY], NOW)

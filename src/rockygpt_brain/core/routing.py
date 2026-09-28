@@ -518,7 +518,8 @@ EVENING = {"tonight", "tonight's", "evening"}
 
 def meal_asked(answers: dict[str, Any], messages: list[ChatMessage], menu: bool) -> str | None:
     meal = selected(answers, "meal")
-    if menu and meal == "none" and EVENING & set(words(messages[-1].content).split()):
+    # Jev may also be unsure of a meal no word names: "the dining menu for tonight".
+    if menu and meal in {None, "none"} and EVENING & set(words(messages[-1].content).split()):
         return "dinner"
     return meal
 
