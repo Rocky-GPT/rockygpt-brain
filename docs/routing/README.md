@@ -100,7 +100,17 @@ menu), that a whole list is asked for, and of the day, and the request names no 
 entity. Code then searches that collection for that day with no search words, which only
 GPT writes, and filters a menu by a meal Jev is sure of. Otherwise, when only a search or
 calculate route is resolved, GPT's first call is constrained to that tool; later calls
-regain all tools. A contact or profile route that can't run
+regain all tools.
+
+Under active routing, Jev also reads every search result before GPT does, one yes/no per
+record: "Does `record` help answer `latest_request`?", with what counts as yes and no.
+Results it answers 0.10 or less for are dropped; ones it isn't sure about are kept, and
+all are kept when it rules out every one, so GPT decides what the search found. On 121
+results from the routing cases it dropped 23 and nothing a real answer used. The check is
+billed as routing and budgeted on its own: at most three a turn, never into the writer's
+and review's time. A timeout, an invalid answer or its own call limit keeps the results as
+they were; budget and accounting errors still stop the turn. `metrics.searchFilter` lists
+each check's record count, drops and any reason it kept everything. A contact or profile route that can't run
 directly, and uncertain, general and mixed routes, retain the ordinary flow. No new frontend flow or request field is required.
 
 The routing deadline is two seconds, includes preparation, and gives the HTTP
@@ -108,7 +118,8 @@ attempt only its remaining allowance. HTTP cancellation covers the entire respon
 body, not just individual socket reads. There are no automatic retries. Durable
 accounting cleanup must finish before further paid work. Routing consumes the
 existing 45-second turn allowance; the four-call GPT ceiling and review reserves
-remain unchanged, with at most one additional paid routing call.
+remain unchanged, with at most one additional paid routing call before GPT's first call
+and at most three search-filter calls after it.
 
 Provider failures, invalid answers, oversized context, expired routing prices, and
 late decisions fall back. Accounting failures and exhausted spending limits stop
