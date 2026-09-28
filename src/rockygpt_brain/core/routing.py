@@ -5,6 +5,7 @@ Without active routing, the graph-first rule makes the only first-call choice.
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -31,6 +32,10 @@ from rockygpt_brain.retrieval.release_cache import cached
 FIELDS = ("phone", "email", "office", "department", "fax", "hours", "website")
 # A request that names one entity needs Jev's pick of it to reach only this.
 LEANS_TOWARD = 0.5
+# The route pick needs only this. Over four runs of the routing cases, top route picks
+# at 0.70-0.90 were right 21 of 21 times (nine questions); under 0.70, 17 of 19. Every
+# other pick still needs RELEASE.routing.threshold, and a lookup still needs its entity.
+ROUTE_BAR = 0.7
 # Without active routing, a request that names one curated identity starts with these.
 GRAPH_TOOLS = ("lookup_profile", "lookup_contact")
 # What a profile request asks about, as one Jev yes/no each: (question, yes, no, sections).
@@ -88,8 +93,43 @@ NEEDS_EARLIER = ("Does `latest_request` need the earlier messages to make sense?
                  "It refers back to something earlier, such as 'their', 'it', 'that day', "
                  "'what about' or 'and Sunday?'",
                  "It makes sense on its own")
+# Which contact details a contact request asks for, and whether it adds a purpose, each
+# one Jev yes/no. Code states the details itself only for a plain request: on the
+# routing cases these were 0.95+ when asked and 0.04 or less when not, and "for
+# transcripts" or "after hours" came back 0.98+ for a purpose.
+CONTACT_ASKS = {
+    "phone": ("Does `latest_request` ask for a phone number?",
+              "Asks for a phone number, or who or what number to call",
+              "Asks for something else, such as an email address, hours or a location"),
+    "email": ("Does `latest_request` ask for an email address?",
+              "Asks for an email address",
+              "Asks for something else, such as a phone number, hours or a location"),
+}
+ADDS_PURPOSE = ("Does `latest_request` add a purpose or condition to what it asks, such as "
+                "'for transcripts', 'after hours' or 'if my aid is cancelled'?",
+                "Adds a purpose or condition beyond the office's name",
+                "Asks plainly for the detail, with no purpose or condition")
 # Entity options that name no single identity.
 NO_ENTITY = {"none", "several"}
+# A request with several parts, like "When is the library open today, what's the
+# Registrar's phone, and when is the next shuttle?", asks one yes/no per detail of each
+# place it names, and one per whole list. Each part becomes its own lookup or search.
+# (idea about `place`, sections fetched). On 8 two- to four-part requests these were clear
+# and right 110 times; "events at `place`" was too vague to keep.
+PART_DETAILS = {
+    "hours": ("ask when `place` is open", ("hours",)),
+    "phone": ("ask for the phone number of `place`", ("contact",)),
+    "email": ("ask for the email address of `place`", ("contact",)),
+    "location": ("ask where `place` is", ("building", "contact")),
+    "menu": ("ask what food `place` serves", ("menu", "hours")),
+}
+PART_LISTS = {
+    "events": "all events on a day",
+    "shuttle": "shuttle times",
+    "menu": "what food is served on campus, without naming a dining hall",
+    "campus_hours": "what is open on campus, without naming a place",
+}
+MAX_PARTS = 4
 # What kind of campus information a request asks for, as one Jev choice. A whole list of
 # one of these kinds on one day is a search code can run itself: no search words needed.
 KINDS = {
@@ -150,6 +190,13 @@ DANGER = {
     "emergency or an injury.",
     "none": "No one is described as being in danger.",
 }
+# Whether a search result helps, as one Jev yes/no per record. On 121 results from the
+# routing cases it dropped 23 and nothing a real answer used.
+HELPS = ("Gives some or all of what `latest_request` asks for, or a fact needed to answer it",
+         "Is about something else, or gives nothing `latest_request` asks for")
+# Record keys that say where a record came from, not what it says.
+PROVENANCE = {"id", "limitations", "coverage", "trust_tier", "collected_at", "freshness",
+              "valid_from", "valid_until", "source_url"}
 SOFT_ERRORS = {
     "routing_context_limit",
     "routing_unavailable",
@@ -164,6 +211,10 @@ class RoutingClient(Protocol):
     def route(self, payload: dict[str, Any], *, timeout: float) -> dict[str, Any]: ...
 
 
+class FilterClient(Protocol):
+    def filter(self, payload: dict[str, Any], *, timeout: float) -> dict[str, Any]: ...
+
+
 @dataclass
 class RouteDecision:
     route: str = "unresolved"
@@ -172,6 +223,10 @@ class RouteDecision:
     arguments: dict[str, Any] | None = None
     reason: str | None = None
     danger: str | None = None
+    # Contact details code may state itself, when Jev says the request is that plain.
+    answer_fields: list[str] | None = None
+    # Several lookups and searches, one per part of a multi-part request.
+    lookups: list[dict[str, Any]] | None = None
     calls: int = 0
     elapsed_ms: int = 0
 
@@ -305,6 +360,11 @@ def shortlist(
     return [entity for _, entity in ranked[: RELEASE.routing.max_candidates]]
 
 
+def parts_named(messages: list[ChatMessage], candidates: list[Identity]) -> list[Identity]:
+    """The places a multi-part request names, in candidate order: at most MAX_PARTS."""
+    return named(messages[-1].content, candidates)[:MAX_PARTS]
+
+
 def choice(instructions: str, criteria: dict[str, Any]) -> dict[str, Any]:
     return {"type": "choice", "instructions": instructions, "criteria": criteria}
 
@@ -356,6 +416,21 @@ def routing_payload(
             },
         ),
         "needs_earlier": noul(*NEEDS_EARLIER),
+        **{"asks_" + field: noul(*question) for field, question in CONTACT_ASKS.items()},
+        "adds_purpose": noul(*ADDS_PURPOSE),
+        **{
+            f"part_{index}_{detail}": {
+                "type": "noul",
+                "instructions": {"place": place.name, "question": f"Does `latest_request` {idea}?"},
+            }
+            for index, place in enumerate(parts_named(messages, candidates))
+            for detail, (idea, _) in PART_DETAILS.items()
+        },
+        **{
+            "list_" + kind: {"type": "noul",
+                             "instructions": f"Does `latest_request` ask for {idea}?"}
+            for kind, idea in PART_LISTS.items()
+        },
         "kind": choice("What kind of campus information does `latest_request` ask for?", KINDS),
         "whole_list": noul(*WHOLE_LIST),
         "date": choice("Which day does `latest_request` ask about?", dates),
@@ -460,15 +535,45 @@ def sections_asked(answers: dict[str, Any]) -> list[str]:
     ))
 
 
-def lookup_route(answers: dict[str, Any]) -> str | None:
-    """A lookup of one entity when Jev splits between contact and profile, which both are.
+def answer_fields(answers: dict[str, Any]) -> list[str] | None:
+    """The contact details a plain contact request asks for, or None when GPT should write.
+
+    Every contact yes/no must be clear, the request must add no purpose, and nothing but
+    contact details or the office's location may be asked. "How can I contact the
+    Registrar?" asks no single detail, so it gets phone, email and office.
+    """
+    values = {field: answers["asks_" + field]["noul"] for field in CONTACT_ASKS}
+    location = answers["detail_location"]["noul"]
+    others = [answers["detail_" + detail]["noul"] for detail in DETAILS
+              if detail not in {"contact", "location"}]
+    if answers["adds_purpose"]["noul"] > RULED_OUT or max(others) > RULED_OUT:
+        return None
+    threshold = RELEASE.routing.threshold
+    asked = [field for field, value in values.items() if value >= threshold]
+    if location >= threshold:
+        asked.append("office")
+    if not asked and answers["detail_contact"]["noul"] >= threshold:
+        return ["phone", "email", "office"]  # How to reach it, in general.
+    if not asked or RULED_OUT < location < threshold or any(
+        RULED_OUT < value < threshold for value in values.values()
+    ):
+        return None
+    return asked
+
+
+def picked_route(answers: dict[str, Any]) -> str | None:
+    """Jev's route when its top pick reaches ROUTE_BAR, or one lookup when Jev splits
+    between contact and profile, which both are, and the two together reach it.
 
     "What is the Registrar phone number and when is the office open today?" split 0.90
-    profile and 0.05 contact, so neither alone was sure. The profile lookup fetches contact
-    details too, so contact is kept only when it leads and contact is all that's asked.
+    profile and 0.05 contact. In a split the profile lookup fetches contact details too,
+    so contact is kept only when it leads and contact is all that's asked.
     """
     probabilities = answers["route"]["probabilities"]
-    if probabilities["contact"] + probabilities["profile"] < RELEASE.routing.threshold:
+    top: str = answers["route"]["choice"]
+    if top != "unresolved" and probabilities[top] >= ROUTE_BAR:
+        return top
+    if probabilities["contact"] + probabilities["profile"] < ROUTE_BAR:
         return None
     if probabilities["contact"] > probabilities["profile"] and sections_asked(answers) == [
         "contact"
@@ -504,6 +609,67 @@ def browse(
     return {**query.model_dump(mode="json"), "request_text": None}
 
 
+def multi_part(
+    answers: dict[str, Any],
+    candidates: list[Identity],
+    day: str | None,
+    messages: list[ChatMessage],
+) -> list[dict[str, Any]] | None:
+    """One lookup or search per part of a request Jev reads as several, or None.
+
+    A part is a named place with a detail Jev says yes to, or a whole list. Details it
+    isn't sure about are fetched too. These only prefetch: GPT still writes, reviews,
+    and may look up anything a part missed.
+    """
+    if len(messages) > 1 and answers["needs_earlier"]["noul"] > RULED_OUT:
+        return None
+    threshold = RELEASE.routing.threshold
+    lookups: list[dict[str, Any]] = []
+    dated = False
+    for index, place in enumerate(parts_named(messages, candidates)):
+        values = {detail: answers[f"part_{index}_{detail}"]["noul"] for detail in PART_DETAILS}
+        if max(values.values()) < threshold:
+            continue  # Named only in passing.
+        sections = list(dict.fromkeys(
+            section for detail, value in values.items() if value > RULED_OUT
+            for section in PART_DETAILS[detail][1]
+        ))
+        dated = dated or bool(set(sections) & {"hours", "menu"})
+        lookups.append({"tool": "lookup_profile", "arguments": {
+            "entity_id": str(place.id), "include": sections,
+        }})
+    lists = [kind for kind in PART_LISTS if answers["list_" + kind]["noul"] >= threshold]
+    if len(lookups) + len(lists) < 2 or len(lookups) + len(lists) > MAX_PARTS:
+        return None
+    if dated or lists:
+        # One sure day for every part, or GPT works the days out: "the library's hours
+        # tomorrow and today's events" names two, which the resolver reports as a conflict.
+        try:
+            request_date(words(messages[-1].content), datetime.now())
+        except ValueError:
+            return None
+        if day is None or selected(answers, "date") in {None, "other"}:
+            return None
+    meal = selected(answers, "meal")
+    for lookup in lookups:
+        arguments = lookup["arguments"]
+        if set(arguments["include"]) & {"hours", "menu"}:
+            arguments["date"] = day
+        if set(arguments["include"]) & {"hours", "menu"}:
+            arguments["meal"] = meal if meal in MEAL_FILTERS else None
+        lookup["arguments"] = ProfileQuery.model_validate(arguments).model_dump(mode="json")
+    for kind in lists:
+        filters = None
+        if kind == "menu" and meal in MEAL_FILTERS:
+            filters = SearchFilters(name=None, meal=meal.title(), vegan=None, vegetarian=None,
+                                    term=None, session=None, route=None)
+        query = SearchQuery.model_validate({"collection": kind, "query": "", "date_from": day,
+                                            "date_to": day, "limit": 100, "filters": filters})
+        lookups.append({"tool": "search_campus",
+                        "arguments": {**query.model_dump(mode="json"), "request_text": None}})
+    return lookups
+
+
 def interpret(
     answers: dict[str, Any],
     candidates: list[Identity],
@@ -511,7 +677,12 @@ def interpret(
     messages: list[ChatMessage],
     today: str | None = None,
 ) -> RouteDecision:
-    route = selected(answers, "route") or lookup_route(answers)
+    route = picked_route(answers)
+    if route in {None, "unresolved"} or selected(answers, "entity") == "several":
+        lookups = multi_part(answers, candidates, day or today, messages)
+        if lookups:
+            return RouteDecision(route="unresolved", confidence=answers["route"]["confidence"],
+                                 lookups=lookups)
     decision = RouteDecision(
         route=route or "unresolved",
         confidence=answers["route"]["confidence"],
@@ -562,6 +733,7 @@ def interpret(
         # Contact lookup accepts a name, so do not force a UUID into that interface.
         query = ContactQuery.model_validate({"entity": entity.name, "fields": list(FIELDS)})
         decision.arguments = {**query.model_dump(mode="json"), "request_text": None}
+        decision.answer_fields = answer_fields(answers)
     else:
         sections = sections_asked(answers)
         arguments: dict[str, Any] = {"entity_id": entity_id, "include": sections}
@@ -630,10 +802,12 @@ def route_request(
         decision.danger = danger
         validate_answers(answers, payload["questions"])
         decision = interpret(answers, candidates, day, messages, now.date().isoformat())
-        dated = decision.arguments and (
-            decision.arguments.get("date") or decision.arguments.get("date_from")
-        )
-        if day is not None and dated == day and date.fromisoformat(day) < now.date():
+        dated = {
+            arguments.get("date") or arguments.get("date_from")
+            for arguments in [decision.arguments or {},
+                              *(lookup["arguments"] for lookup in decision.lookups or [])]
+        }
+        if day is not None and day in dated and date.fromisoformat(day) < now.date():
             # The resolver keeps a weekday in this calendar week even once it has passed:
             # asked on a Sunday, "Saturday" is yesterday. GPT decides which one is meant.
             decision = RouteDecision(route=decision.route, confidence=decision.confidence,
@@ -662,3 +836,54 @@ def route_request(
         data.deadline = old_deadline
         decision.elapsed_ms = round((monotonic() - started) * 1000)
     return decision
+
+
+def filter_records(
+    output: dict[str, Any], messages: list[ChatMessage], client: FilterClient
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Search results without the ones Jev says don't help, and what it did.
+
+    Jev reads each record beside the latest request. A record it isn't sure about is
+    kept, and so is every record when it rules them all out: GPT then decides what the
+    search found. Any failure keeps the results as they were, since the filter only
+    trims reading; accounting and budget errors still stop the turn.
+    """
+    records = output["records"]
+    payload = {
+        "model": RELEASE.routing.model,
+        "state": {"latest_request": messages[-1].content},
+        "questions": {
+            f"record_{index}": {
+                "type": "noul",
+                "instructions": {
+                    "record": json.dumps(
+                        {key: value for key, value in record.items() if key not in PROVENANCE},
+                        default=str, ensure_ascii=False,
+                    )[:1500],
+                    "question": "Does `record` help answer `latest_request`?",
+                },
+                "criteria": {"true": HELPS[0], "false": HELPS[1]},
+            }
+            for index, record in enumerate(records)
+        },
+    }
+    started = monotonic()
+    try:
+        if input_bound(payload) > 64000:
+            return output, {"records": len(records), "reason": "context_limit"}
+        answers = client.filter(payload, timeout=RELEASE.routing.timeout_seconds)
+        values = [number(answers[f"record_{index}"]["noul"]) for index in range(len(records))]
+    except PaidCallError as error:
+        if error.code not in SOFT_ERRORS | {"model_call_limit"}:
+            raise
+        return output, {"records": len(records), "reason": error.code}
+    except TimeoutError:
+        return output, {"records": len(records), "reason": "timeout"}
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return output, {"records": len(records), "reason": "invalid_response"}
+    kept = [record for record, value in zip(records, values, strict=True) if value > RULED_OUT]
+    report = {"records": len(records), "dropped": len(records) - len(kept),
+              "elapsedMs": round((monotonic() - started) * 1000)}
+    if not kept:
+        return output, {**report, "dropped": 0, "reason": "all_ruled_out"}
+    return {**output, "records": kept}, report

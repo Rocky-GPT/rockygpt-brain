@@ -206,3 +206,89 @@ def contact_answer(
             "parts": parts,
         }
     )
+
+
+# Contact details code can state from the shared entity facts: field -> (property, label).
+FACT_FIELDS = {"phone": ("phones", "Phone"), "email": ("email", "Email"),
+               "office": ("offices", "Office")}
+PHONE_KEYS = {"number", "extension", "type"}
+
+
+def fact_value(value: Any, field: str) -> str | None:
+    """A fact value as published text, or None when its shape isn't a plain one."""
+    if field == "email":
+        return plain(value) if isinstance(value, str) and value.strip() else None
+    if not isinstance(value, list) or not value:
+        return None
+    if field == "office":
+        if not all(isinstance(item, str) and item.strip() for item in value):
+            return None
+        return ", ".join(plain(item) for item in value)
+    phones = []
+    for phone in value:
+        if not isinstance(phone, dict) or set(phone) - PHONE_KEYS or not isinstance(
+            phone.get("number"), str
+        ):
+            return None
+        text = plain(phone["number"])
+        if phone.get("extension"):
+            text += f" ext. {plain(str(phone['extension']))}"
+        if phone.get("type"):
+            text += f" ({plain(str(phone['type']))})"
+        phones.append(text)
+    return ", ".join(phones)
+
+
+def fact_contact_answer(output: dict[str, Any], fields: list[str]) -> Answer | None:
+    """The requested contact details stated from the shared entity facts, or None for GPT.
+
+    Only a `known` fact with one value, no caveats and fresh, untruncated support is
+    stated. Unknown, conflicting or multiple values, and anything else unusual, go to
+    GPT, which explains them. The resolver picks no winner, and neither does this.
+    """
+    facts = output.get("entity_facts")
+    if (
+        output.get("status") != "ok"
+        or output.get("truncated")
+        or not isinstance(facts, dict)
+        or facts.get("properties_complete") is not True
+        or not isinstance(facts.get("entity"), dict)
+        or not fields
+        or set(fields) - set(FACT_FIELDS)
+    ):
+        return None
+    properties = {item.get("key"): item for item in facts.get("properties", [])}
+    sources = {item.get("id"): item for item in facts.get("sources", [])}
+    records = {record.get("id") for record in output.get("records", [])}
+    lines = [plain(str(facts["entity"].get("name", "")))]
+    evidence: list[str] = []
+    for field in fields:
+        key, label = FACT_FIELDS[field]
+        fact = properties.get(key)
+        if not fact or fact.get("status") != "known":
+            return None
+        values = [item for item in fact.get("values", []) if item.get("value") is not None]
+        if len(values) != 1:
+            return None
+        support = values[0].get("supporting_evidence_ids") or []
+        assertions = {item.get("id"): item for item in fact.get("assertions", [])}
+        if not support or not set(support) <= records or any(
+            assertions.get(assertion, {}).get("limitations")
+            for assertion in values[0].get("assertion_ids", [])
+        ) or any(
+            sources.get(source, {}).get("freshness") not in {"fresh", "static"}
+            or sources.get(source, {}).get("limitations")
+            for source in support
+        ):
+            return None
+        text = fact_value(values[0]["value"], field)
+        if text is None:
+            return None
+        lines.append(f"{label}: {text}")
+        evidence.extend(item for item in support if item not in evidence)
+    if not lines[0]:
+        return None
+    return Answer.model_validate({
+        "status": "answered",
+        "parts": [{"kind": "campus_fact", "text": "\n\n".join(lines), "evidence_ids": evidence}],
+    })
