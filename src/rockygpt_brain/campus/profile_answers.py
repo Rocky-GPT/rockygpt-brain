@@ -248,9 +248,6 @@ def hours_answer(output: dict[str, Any], query: ProfileQuery) -> Answer | None:
             not _proven(record, {"campus_hours", "dining_hours"}, entity["id"], day,
                         HOURS_CAVEATS | {UNLABELED_MEAL_LIMITATION}, ("name", "schedule"))
             or fields.get("service_date") != day.isoformat()
-            # A note can qualify the hours ("the front doors close at 11:45 PM"), so GPT
-            # writes any schedule that has one.
-            or str(fields.get("notes") or "").strip()
         ):
             return None
         schedules.add((record["collection"], " ".join(fields["schedule"].split())))
@@ -270,6 +267,13 @@ def hours_answer(output: dict[str, Any], query: ProfileQuery) -> Answer | None:
             for period in periods) + "."
     else:
         text = f"{name}'s published hours on {_day(day)}: {plain(schedule)}."
+    # A note is the hours page's own words and can qualify them ("the front doors are
+    # locked 15 minutes before closing"), so it is stated word for word.
+    notes = dict.fromkeys(" ".join(str(record["fields"].get("notes") or "").split())
+                          for record in records)
+    notes.pop("", None)
+    if notes:
+        text += " The hours page adds: " + " ".join(plain(note) for note in notes)
     parts = [_fact(text, records)]
     if all(not record.get("valid_from") and not record.get("valid_until") for record in records):
         parts.append(AnswerPart(

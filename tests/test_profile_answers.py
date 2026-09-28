@@ -137,6 +137,18 @@ def test_a_day_s_hours_list_its_published_meal_periods() -> None:
         "Lunch at Example Dining on Monday, September 21 is 11:30 AM to 1:00 PM.")
 
 
+def test_a_note_on_the_hours_page_is_stated_word_for_word() -> None:
+    query = ProfileQuery(entity_id=UUID(ENTITY_ID), include=["hours"], date=DAY)
+    output = birch().lookup_profile(query)
+    for record in output["records"]:
+        record["fields"]["notes"] = ("Fall Semester (Aug. 26 - Dec. 15, 2026). Please note that "
+                                     "the front doors are locked 15 minutes before closing.")
+    assert rendered(output, hours_answer(output, query)).startswith(
+        "Example Dining's published hours on Monday, September 21: 11:30 AM - 01:00 PM; "
+        "05:00 PM - 12:00 AM. The hours page adds: Fall Semester (Aug. 26 - Dec. 15, 2026). "
+        "Please note that the front doors are locked 15 minutes before closing.")
+
+
 def test_hours_code_cannot_verify_go_to_gpt() -> None:
     query = ProfileQuery(entity_id=UUID(ENTITY_ID), include=["hours"], date=DAY)
     data = birch()
@@ -147,11 +159,6 @@ def test_hours_code_cannot_verify_go_to_gpt() -> None:
     # A meal the schedule doesn't label.
     brunch = query.model_copy(update={"meal": "Brunch"})
     assert hours_answer(birch().lookup_profile(brunch), brunch) is None
-    # A note beside the schedule.
-    output = birch().lookup_profile(query)
-    for record in output["records"]:
-        record["fields"]["notes"] = "Please note that the front doors close at 11:45 PM."
-    assert hours_answer(output, query) is None
 
 
 def dining_router(**values: Any) -> Mock:
