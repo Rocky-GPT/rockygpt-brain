@@ -105,9 +105,15 @@ def _normalize(value: str) -> str:
     return " ".join(value.split()).casefold()
 
 
+def name_key(value: str) -> str:
+    """A name as a lookup compares it, with apostrophes dropped: students type "Dunkin"
+    for the venue published as "Dunkin'"."""
+    return _normalize(value.replace("'", "").replace("\u2019", ""))
+
+
 def lookup_terms(entity: Identity) -> set[str]:
     """What a lookup by name compares: the normalized name and every normalized alias."""
-    return {_normalize(value) for value in [entity.name, *entity.aliases]}
+    return {name_key(value) for value in [entity.name, *entity.aliases]}
 
 
 # A leading article or campus name ("the Ramapo library") names nothing the rest doesn't.
@@ -1200,10 +1206,12 @@ MAX_VARIANTS = 3
 
 
 def _named_variants(matches: list[Identity], name: str | None) -> list[Identity]:
+    """Every match when all are one name plus a parenthesized qualifier: "Public Safety"
+    and its "Campus Police" alias both name the Emergency and Non-Emergency lines."""
     if name is None or not 2 <= len(matches) <= MAX_VARIANTS:
         return []
-    base = re.escape(_normalize(name))
-    if all(re.fullmatch(rf"{base} \([^()]+\)", _normalize(entity.name)) for entity in matches):
+    bases = {re.fullmatch(r"(.+?) \([^()]+\)", _normalize(entity.name)) for entity in matches}
+    if None not in bases and len({base.group(1) for base in bases if base}) == 1:
         return matches
     return []
 
@@ -1231,9 +1239,16 @@ def _variant_profiles(
         answer_with="every variant",
     )
     result["variants"] = [
-        {"entity": profile["resolution"].get("entity"), "components": profile["components"]}
+        {"entity": profile["resolution"].get("entity"), "components": profile["components"],
+         "entity_names": profile["resolution"].get("entity_names", [])}
         for profile in profiles
     ]
+    # The names every variant carries, such as a reviewed "Campus Police", support the
+    # request's wording for each of them, as a matched lookup's names do.
+    shared = [name for name in result["variants"][0]["entity_names"]
+              if all(name["name"] in {other["name"] for other in variant["entity_names"]}
+                     for variant in result["variants"][1:])]
+    result["resolution"]["entity_names"] = shared
     return result
 
 
@@ -1256,7 +1271,7 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             return {**result, "status": "unavailable", "reason": "identity_registry_unavailable"}
     except ValidationError:
         return {**result, "status": "unavailable", "reason": "invalid_identity_registry"}
-    normalized = _normalize(query.entity) if query.entity is not None else None
+    normalized = name_key(query.entity) if query.entity is not None else None
     matches = [
         entity
         for entity in registry.entities
@@ -1273,7 +1288,7 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
         # exact name or alias.
         result["resolution"]["read_as"] = read_as
         matches = [entity for entity in registry.entities
-                   if _normalize(read_as) in lookup_terms(entity)]
+                   if name_key(read_as) in lookup_terms(entity)]
     matches = _event_date_candidates(data, matches, query)
     matches, set_aside = _plan_candidates(matches, query)
     variants = _named_variants(matches, read_as or query.entity)
