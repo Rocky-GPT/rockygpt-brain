@@ -13,6 +13,7 @@ from typing import Any, Literal
 
 from rockygpt_brain.contracts import Answer, AnswerPart
 from rockygpt_brain.retrieval.exact import plain
+from rockygpt_brain.retrieval.helpers import TRUNCATED
 from rockygpt_brain.retrieval.menu_artifacts import MENU_NUTRIENT_LIMITATION
 from rockygpt_brain.retrieval.profiles import (
     SCHEDULE_LIMITATION,
@@ -70,21 +71,39 @@ def _applies(record: dict[str, Any], day: date) -> bool:
     return (start is None or start <= day) and (end is None or day <= end)
 
 
+def _whole(value: Any) -> bool:
+    """A value the lookup sent in full: no text cut short and no entries left out."""
+    if isinstance(value, str):
+        return not value.endswith(TRUNCATED)
+    if isinstance(value, dict):
+        return not value.get("_truncated") and all(_whole(child) for child in value.values())
+    if isinstance(value, list):
+        return all(_whole(child) for child in value)
+    return True
+
+
 def _proven(record: dict[str, Any], collections: set[str], entity_id: str, day: date,
-            caveats: set[str], fields: tuple[str, ...]) -> bool:
-    """A fresh official record of this entity for this day, publishing these fields."""
+            caveats: set[str], fields: tuple[str, ...], states: tuple[str, ...] = ()) -> bool:
+    """A fresh official record of this entity for this day, publishing these fields.
+
+    The lookup cuts a long record to fit the model's view (a dish's ingredients and
+    nutrients), so what counts is that every field the answer states, `fields` and the
+    optional `states`, arrived whole. When the cut left fields out, each must be there.
+    """
     coverage = record.get("coverage", {}).get("fields", {})
+    values = record["fields"]
+    stated = (*fields, *states)
     return (
         record.get("collection") in collections
         and record.get("trust_tier") in TRUSTED
         and record.get("freshness") in CURRENT
-        and not record.get("content_truncated")
+        and all(_whole(values.get(field)) for field in stated)
+        and (not values.get("_truncated") or all(field in values for field in stated))
         and set(record.get("limitations", [])) <= caveats
         and entity_id in {record.get("related_to_entity_id"), record.get("canonical_entity_id")}
         and _applies(record, day)
         and all(coverage.get(field) == "published" for field in fields)
-        and all(isinstance(record["fields"].get(field), str)
-                and record["fields"][field].strip() for field in fields)
+        and all(isinstance(values.get(field), str) and values[field].strip() for field in fields)
     )
 
 
@@ -123,7 +142,8 @@ def _meal_period(output: dict[str, Any], query: ProfileQuery, entity_id: str,
     for record in records:
         fields = record["fields"]
         if (
-            not _proven(record, {"dining_hours"}, entity_id, day, HOURS_CAVEATS, ("name",))
+            not _proven(record, {"dining_hours"}, entity_id, day, HOURS_CAVEATS, ("name",),
+                        ("requested_meal_periods",))
             or fields.get("service_date") != day.isoformat()
             or fields.get("meal_coverage") != "published"
         ):
@@ -165,7 +185,8 @@ def menu_answer(output: dict[str, Any], query: ProfileQuery, *, full: bool,
     for record in records:
         fields = record["fields"]
         if (
-            not _proven(record, {"menu"}, entity["id"], day, MENU_CAVEATS, ("name", "meal"))
+            not _proven(record, {"menu"}, entity["id"], day, MENU_CAVEATS, ("name", "meal"),
+                        ("station",))
             or record.get("valid_from") != day.isoformat()
             or _normalized(fields["meal"]) != _normalized(query.meal)
             or (query.diet is not None and (
@@ -246,7 +267,8 @@ def hours_answer(output: dict[str, Any], query: ProfileQuery) -> Answer | None:
         fields = record["fields"]
         if (
             not _proven(record, {"campus_hours", "dining_hours"}, entity["id"], day,
-                        HOURS_CAVEATS | {UNLABELED_MEAL_LIMITATION}, ("name", "schedule"))
+                        HOURS_CAVEATS | {UNLABELED_MEAL_LIMITATION}, ("name", "schedule"),
+                        ("periods", "notes"))
             or fields.get("service_date") != day.isoformat()
         ):
             return None
