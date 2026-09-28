@@ -69,12 +69,15 @@ def _instant(value: Any) -> datetime | None:
     return None
 
 
+TRUNCATED = " [truncated; read for details]"
+
+
 def _bounded(value: Any, budget: int) -> Any:
     """Bound nested artifact fields while retaining valid JSON and truncation markers."""
     if len(_json(value)) <= budget:
         return value
     if isinstance(value, str):
-        return value[: max(0, budget - 30)] + " [truncated; read for details]"
+        return value[: max(0, budget - 30)] + TRUNCATED
     if isinstance(value, dict):
         result: dict[str, Any] = {}
         remaining = budget

@@ -23,6 +23,7 @@ from rockygpt_brain.campus.formats import (
     exact_search,
     safety_part,
 )
+from rockygpt_brain.campus.profile_answers import Template, profile_answer
 from rockygpt_brain.campus.progress import (
     ProgressCallback,
     ProgressStage,
@@ -49,10 +50,12 @@ from rockygpt_brain.core.render import InvalidAnswer, consulted_sources, render_
 from rockygpt_brain.core.reviewer import review_answer
 from rockygpt_brain.core.routing import (
     GRAPH_TOOLS,
+    UNANSWERED,
     FilterClient,
     RoutingClient,
     filter_records,
     graph_first,
+    pick_dishes,
     route_request,
 )
 from rockygpt_brain.core.tools import function_tool, tool_definitions
@@ -326,6 +329,8 @@ def answer_turn(
     routed_calls: list[OutputItem] = []
     selected_tool: str | None = None
     fact_fields: list[str] | None = None
+    template: Template | None = None
+    jev_answered = False
     if routing_mode != "off" and routing_client is not None:
         notify("understanding")
         decision = route_request(
@@ -334,6 +339,7 @@ def answer_turn(
                         max(0, budget.remaining - RELEASE.answer_reserve_seconds)),
         )
         routing_calls = decision.calls
+        jev_answered = decision.reason not in UNANSWERED
         metrics["routing"] = decision.metrics(routing_mode)
         metrics["routingCalls"] = routing_calls
         if routing_mode == "active":
@@ -342,8 +348,10 @@ def answer_turn(
                 net.records, net.dataset_version = safety_facts(data)
             selected_tool = decision.tool
             if decision.danger is None:
-                # Code states plain contact details itself; the safety block needs GPT.
+                # Code states plain contact details, menus and hours itself; the safety
+                # block needs GPT.
                 fact_fields = decision.answer_fields
+                template = decision.template
             if decision.arguments is not None and decision.tool is not None:
                 routed_calls = [OutputItem({
                     "type": "function_call", "call_id": "call_jev_initial",
@@ -364,8 +372,10 @@ def answer_turn(
                               "directRetrieval": False}
         metrics["routingCalls"] = 0
     # Active routing makes its own first-call choice; otherwise a request that names one
-    # curated identity reads the graph before anything else.
-    start_with_graph = routing_mode != "active" and graph_first(messages, data)
+    # curated identity reads the graph before anything else. When Jev didn't answer (a
+    # timeout, an error, a pause) the turn is the one routing off would run.
+    start_with_graph = (routing_mode != "active" or not jev_answered) and graph_first(
+        messages, data)
     if start_with_graph:
         metrics["graphFirst"] = True
 
@@ -663,6 +673,7 @@ def answer_turn(
         history.extend(response.output)
         exact_candidate: Answer | None = None
         fact_answered = False
+        written_mode: str | None = None
         retrieval_allowed = not answer_only and budget.begin_retrieval()
         for call_index, call in enumerate(calls):
             tool_started = monotonic()
@@ -881,6 +892,7 @@ def answer_turn(
                                 "temporal_scope",
                                 "meal", "reason",
                                 "total_matches", "returned_count", "omitted_count",
+                                "complete", "stations",
                                 "cohort", "cohort_selection", "available_cohorts",
                                 "available_plans", "diet",
                             }
@@ -904,6 +916,23 @@ def answer_turn(
                     # entity facts state each once: code writes the answer, not GPT.
                     exact_candidate = fact_contact_answer(output, fact_fields)
                     fact_answered = exact_candidate is not None
+            if (call.name == "lookup_profile" and len(calls) == 1 and direct and template
+                    and arguments):
+                # Jev said the request is plain: code writes the meal's dishes or the day's
+                # hours when the records prove them, with no GPT writer or checker.
+                profile_query = ProfileQuery.model_validate(arguments)
+                exact_candidate = profile_answer(template, output, profile_query)
+                if exact_candidate is not None and template == "menu" and routing_client:
+                    # Jev picks the dishes to list; the rest are counted, never dropped.
+                    dishes, picked = pick_dishes(
+                        [record for record in output.get("records", [])
+                         if record.get("collection") == "menu"],
+                        cast(FilterClient, routing_client))
+                    metrics["dishPick"] = picked
+                    exact_candidate = profile_answer(
+                        template, output, profile_query, dishes) or exact_candidate
+                if exact_candidate is not None:
+                    written_mode = "exact_hours" if template == "hours" else "exact_menu"
             if request_quote and arguments:
                 piece = (
                     exact_search(
@@ -927,7 +956,7 @@ def answer_turn(
             )
             sent_records.update({record["id"]: record for record in output.get("records", [])})
         combined = combine_exact(messages, exact_pieces, fallback=False)
-        response_mode = "exact_facts" if fact_answered else "exact_contact"
+        response_mode = written_mode or ("exact_facts" if fact_answered else "exact_contact")
         if combined is not None:
             exact_candidate = combined
             response_mode = "exact_records"
