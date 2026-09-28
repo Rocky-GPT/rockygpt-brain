@@ -65,7 +65,7 @@ from rockygpt_brain.governance.evidence import (
     tool_result_wire,
 )
 from rockygpt_brain.retrieval.data import CampusData
-from rockygpt_brain.retrieval.exact import ContactQuery, contact_answer
+from rockygpt_brain.retrieval.exact import ContactQuery, contact_answer, fact_contact_answer
 from rockygpt_brain.retrieval.models import COLLECTIONS, EntityQuery, ReadQuery, SearchQuery
 from rockygpt_brain.retrieval.profiles import SECTION_COLLECTIONS, ProfileQuery
 
@@ -325,6 +325,7 @@ def answer_turn(
     routing_calls = 0
     routed_call: OutputItem | None = None
     selected_tool: str | None = None
+    fact_fields: list[str] | None = None
     if routing_mode != "off" and routing_client is not None:
         notify("understanding")
         decision = route_request(
@@ -340,6 +341,9 @@ def answer_turn(
                 net.kind = decision.danger
                 net.records, net.dataset_version = safety_facts(data)
             selected_tool = decision.tool
+            if decision.danger is None:
+                # Code states plain contact details itself; the safety block needs GPT.
+                fact_fields = decision.answer_fields
             if decision.arguments is not None and decision.tool is not None:
                 routed_call = OutputItem({
                     "type": "function_call", "call_id": "call_jev_initial",
@@ -649,6 +653,7 @@ def answer_turn(
             }
         history.extend(response.output)
         exact_candidate: Answer | None = None
+        fact_answered = False
         retrieval_allowed = not answer_only and budget.begin_retrieval()
         for call_index, call in enumerate(calls):
             tool_started = monotonic()
@@ -885,6 +890,11 @@ def answer_turn(
                 exact_candidate = contact_answer(
                     messages, ContactQuery.model_validate(arguments), output, now.date()
                 )
+                if exact_candidate is None and direct and fact_fields:
+                    # Jev said the request plainly asks these details, and the shared
+                    # entity facts state each once: code writes the answer, not GPT.
+                    exact_candidate = fact_contact_answer(output, fact_fields)
+                    fact_answered = exact_candidate is not None
             if request_quote and arguments:
                 piece = (
                     exact_search(
@@ -908,7 +918,7 @@ def answer_turn(
             )
             sent_records.update({record["id"]: record for record in output.get("records", [])})
         combined = combine_exact(messages, exact_pieces, fallback=False)
-        response_mode = "exact_contact"
+        response_mode = "exact_facts" if fact_answered else "exact_contact"
         if combined is not None:
             exact_candidate = combined
             response_mode = "exact_records"

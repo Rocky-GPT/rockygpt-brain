@@ -37,6 +37,7 @@ from rockygpt_brain.core.routing import (
 )
 from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.retrieval.data import CampusData
+from rockygpt_brain.retrieval.exact import fact_contact_answer
 from rockygpt_brain.retrieval.profiles import Identity
 from test_engine import answer, review, search, tools
 from test_general import SAFETY, urgent
@@ -1371,3 +1372,102 @@ def test_search_results_are_filtered_before_gpt_reads_them() -> None:
     assert result["metrics"]["searchFilter"][0]["dropped"] == 1
     sent = json.dumps(gpt.create.call_args_list[0].kwargs["input"], default=str)
     assert "events:0" in sent and "events:2" in sent and "events:1" not in sent
+
+
+RECORD_ID = "contacts:c8893c76"
+
+
+def fact(key: str, value: Any, status: str = "known", **extra: Any) -> dict[str, Any]:
+    return {
+        "key": key, "label": key, "category": "contact", "value_type": "text", "status": status,
+        "assertions": [{"id": f"{RECORD_ID}#{key}", "limitations": extra.get("limitations", [])}],
+        "values": [{"value": value, "assertion_ids": [f"{RECORD_ID}#{key}"],
+                    "supporting_evidence_ids": [RECORD_ID]}],
+    }
+
+
+def facts_output(*properties: dict[str, Any], freshness: str = "fresh") -> dict[str, Any]:
+    """A contact lookup's shape since the shared entity facts (the Registrar, 2026-09-28)."""
+    return {
+        "status": "ok", "match": "canonical_entity", "truncated": False,
+        "records": [{**contact_record(), "id": RECORD_ID}],
+        "entity_facts": {
+            "entity": {"id": str(ENTITY.id), "name": "Registrar", "kind": "office"},
+            "properties_complete": True,
+            "properties": list(properties) or [
+                fact("phones", [{"number": "201-684-7695"}]),
+                fact("email", "registrar@ramapo.edu"), fact("offices", ["D-224"]),
+            ],
+            "sources": [{"id": RECORD_ID, "freshness": freshness, "limitations": []}],
+            "coverage": {"scope": "curated_identity_links_only"},
+        },
+    }
+
+
+def test_code_states_a_known_contact_fact_with_its_evidence() -> None:
+    answer_ = fact_contact_answer(facts_output(), ["phone"])
+    assert answer_ is not None and answer_.status == "answered"
+    assert answer_.parts[0].text == "Registrar\n\nPhone: 201-684-7695"
+    assert answer_.parts[0].evidence_ids == [RECORD_ID]
+    both = fact_contact_answer(facts_output(), ["phone", "email", "office"])
+    assert both is not None and both.parts[0].text.endswith(
+        "Email: registrar@ramapo.edu\n\nOffice: D-224")
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        facts_output(fact("phones", None, "unknown")),
+        facts_output(fact("phones", [{"number": "201-684-7695"}], "conflicting")),
+        facts_output(fact("phones", [{"number": "201-684-7695"}],
+                          limitations=["Seasonal number."])),
+        facts_output(freshness="stale"),
+        facts_output(fact("phones", [{"number": "684-7695", "note": "front desk"}])),
+        {**facts_output(), "truncated": True},
+    ],
+    ids=["unknown", "conflicting", "caveat", "stale", "unusual shape", "truncated"],
+)
+def test_anything_but_one_plain_known_value_goes_to_gpt(output: dict[str, Any]) -> None:
+    assert fact_contact_answer(output, ["phone"]) is None
+
+
+@pytest.mark.parametrize(
+    "values,fields",
+    [
+        # Measured on "What is the Registrar phone?": phone 0.99, email 0.02.
+        ({"asks_phone": 0.99, "asks_email": 0.02}, ["phone"]),
+        ({"asks_phone": 0.99, "asks_email": 0.99}, ["phone", "email"]),
+        # "How can I contact Registrar?": phone 0.29, email 0.17, contact 0.98.
+        ({"asks_phone": 0.29, "asks_email": 0.17}, ["phone", "email", "office"]),
+        ({"asks_phone": 0.99, "asks_email": 0.02, "detail_location": 0.99},
+         ["phone", "office"]),
+        # "for transcripts" (0.98) or "non-emergency" (0.24): GPT writes.
+        ({"asks_phone": 0.99, "asks_email": 0.02, "adds_purpose": 0.98}, None),
+        ({"asks_phone": 0.99, "asks_email": 0.02, "adds_purpose": 0.24}, None),
+        ({"asks_phone": 0.99, "asks_email": 0.5}, None),
+        ({"asks_phone": 0.99, "asks_email": 0.02, "detail_hours": 0.98}, None),
+    ],
+)
+def test_code_writes_only_a_plain_contact_request(
+    values: dict[str, float], fields: list[str] | None
+) -> None:
+    payload, day = routing_payload(messages(), [ENTITY], NOW)
+    answers = answers_for(payload, **{"detail_contact": 0.98, **values})
+    validate_answers(answers, payload["questions"])
+    assert interpret(answers, [ENTITY], day, messages()).answer_fields == fields
+
+
+def test_a_plain_contact_request_is_answered_without_gpt() -> None:
+    data, gpt = data_mock(), Mock()
+    data.lookup_contact.return_value = facts_output()
+    result = run_turn(messages(), client=gpt, data=data, model=RELEASE.model, now=NOW,
+                      routing_client=router_mock(asks_phone=0.99), routing_mode="active")
+    gpt.create.assert_not_called()
+    assert "201-684-7695" in result["answer"]
+    assert result["metrics"]["responseMode"] == "exact_facts"
+    # An unknown phone is GPT's to explain.
+    data.lookup_contact.return_value = facts_output(fact("phones", None, "unknown"))
+    gpt.create.side_effect = [answer("The directory doesn't list a phone."), review()]
+    run_turn(messages(), client=gpt, data=data, model=RELEASE.model, now=NOW,
+             routing_client=router_mock(asks_phone=0.99), routing_mode="active")
+    assert gpt.create.call_count == 2

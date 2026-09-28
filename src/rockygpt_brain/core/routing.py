@@ -93,6 +93,22 @@ NEEDS_EARLIER = ("Does `latest_request` need the earlier messages to make sense?
                  "It refers back to something earlier, such as 'their', 'it', 'that day', "
                  "'what about' or 'and Sunday?'",
                  "It makes sense on its own")
+# Which contact details a contact request asks for, and whether it adds a purpose, each
+# one Jev yes/no. Code states the details itself only for a plain request: on the
+# routing cases these were 0.95+ when asked and 0.04 or less when not, and "for
+# transcripts" or "after hours" came back 0.98+ for a purpose.
+CONTACT_ASKS = {
+    "phone": ("Does `latest_request` ask for a phone number?",
+              "Asks for a phone number, or who or what number to call",
+              "Asks for something else, such as an email address, hours or a location"),
+    "email": ("Does `latest_request` ask for an email address?",
+              "Asks for an email address",
+              "Asks for something else, such as a phone number, hours or a location"),
+}
+ADDS_PURPOSE = ("Does `latest_request` add a purpose or condition to what it asks, such as "
+                "'for transcripts', 'after hours' or 'if my aid is cancelled'?",
+                "Adds a purpose or condition beyond the office's name",
+                "Asks plainly for the detail, with no purpose or condition")
 # Entity options that name no single identity.
 NO_ENTITY = {"none", "several"}
 # What kind of campus information a request asks for, as one Jev choice. A whole list of
@@ -188,6 +204,8 @@ class RouteDecision:
     arguments: dict[str, Any] | None = None
     reason: str | None = None
     danger: str | None = None
+    # Contact details code may state itself, when Jev says the request is that plain.
+    answer_fields: list[str] | None = None
     calls: int = 0
     elapsed_ms: int = 0
 
@@ -372,6 +390,8 @@ def routing_payload(
             },
         ),
         "needs_earlier": noul(*NEEDS_EARLIER),
+        **{"asks_" + field: noul(*question) for field, question in CONTACT_ASKS.items()},
+        "adds_purpose": noul(*ADDS_PURPOSE),
         "kind": choice("What kind of campus information does `latest_request` ask for?", KINDS),
         "whole_list": noul(*WHOLE_LIST),
         "date": choice("Which day does `latest_request` ask about?", dates),
@@ -474,6 +494,32 @@ def sections_asked(answers: dict[str, Any]) -> list[str]:
         section for detail, value in values.items() if value > RULED_OUT
         for section in DETAILS[detail][3]
     ))
+
+
+def answer_fields(answers: dict[str, Any]) -> list[str] | None:
+    """The contact details a plain contact request asks for, or None when GPT should write.
+
+    Every contact yes/no must be clear, the request must add no purpose, and nothing but
+    contact details or the office's location may be asked. "How can I contact the
+    Registrar?" asks no single detail, so it gets phone, email and office.
+    """
+    values = {field: answers["asks_" + field]["noul"] for field in CONTACT_ASKS}
+    location = answers["detail_location"]["noul"]
+    others = [answers["detail_" + detail]["noul"] for detail in DETAILS
+              if detail not in {"contact", "location"}]
+    if answers["adds_purpose"]["noul"] > RULED_OUT or max(others) > RULED_OUT:
+        return None
+    threshold = RELEASE.routing.threshold
+    asked = [field for field, value in values.items() if value >= threshold]
+    if location >= threshold:
+        asked.append("office")
+    if not asked and answers["detail_contact"]["noul"] >= threshold:
+        return ["phone", "email", "office"]  # How to reach it, in general.
+    if not asked or RULED_OUT < location < threshold or any(
+        RULED_OUT < value < threshold for value in values.values()
+    ):
+        return None
+    return asked
 
 
 def picked_route(answers: dict[str, Any]) -> str | None:
@@ -582,6 +628,7 @@ def interpret(
         # Contact lookup accepts a name, so do not force a UUID into that interface.
         query = ContactQuery.model_validate({"entity": entity.name, "fields": list(FIELDS)})
         decision.arguments = {**query.model_dump(mode="json"), "request_text": None}
+        decision.answer_fields = answer_fields(answers)
     else:
         sections = sections_asked(answers)
         arguments: dict[str, Any] = {"entity_id": entity_id, "include": sections}
