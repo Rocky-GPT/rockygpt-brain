@@ -111,9 +111,18 @@ def name_key(value: str) -> str:
     return _normalize(value.replace("'", "").replace("\u2019", ""))
 
 
+def spoken_names(entity: Identity) -> list[str]:
+    """The entity's name and aliases, each also without a leading "The": students asked for
+    "atrium hours", and the lookup for "Atrium" found nothing named "The Atrium"."""
+    names = [entity.name, *entity.aliases]
+    bare = [match.group(1) for name in names
+            if (match := re.fullmatch(r"the\s+(\S.*)", name.strip(), re.IGNORECASE))]
+    return list(dict.fromkeys([*names, *bare]))
+
+
 def lookup_terms(entity: Identity) -> set[str]:
     """What a lookup by name compares: the normalized name and every normalized alias."""
-    return {name_key(value) for value in [entity.name, *entity.aliases]}
+    return {name_key(value) for value in spoken_names(entity)}
 
 
 # A leading article or campus name ("the Ramapo library") names nothing the rest doesn't.

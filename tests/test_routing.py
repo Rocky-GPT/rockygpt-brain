@@ -479,6 +479,13 @@ def test_a_longer_name_hides_only_the_names_inside_it(text: str, expected: list[
     assert named(text, [CS_BS, CS_MS, CS_CLUB, BIRCH, MANSION]) == expected
 
 
+def test_a_name_is_named_without_its_leading_article() -> None:
+    atrium = identity(10, "venue", "The Atrium")
+    assert named("atrium hours tmrw", [atrium, BIRCH]) == [atrium]
+    assert named("When does The Atrium open?", [atrium, BIRCH]) == [atrium]
+    assert named("What's in the atriums?", [atrium]) == []
+
+
 def test_one_named_entity_among_overlapping_names_can_route_directly() -> None:
     request = messages("Who is the convener of the Computer Science BS program?")
     candidates = [CS_BS, CS_MS, CS_CLUB]

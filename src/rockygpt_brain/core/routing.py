@@ -26,7 +26,12 @@ from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.retrieval.data import CampusData
 from rockygpt_brain.retrieval.exact import ContactQuery
 from rockygpt_brain.retrieval.models import SearchFilters, SearchQuery
-from rockygpt_brain.retrieval.profiles import Identity, ProfileQuery, variant_base
+from rockygpt_brain.retrieval.profiles import (
+    Identity,
+    ProfileQuery,
+    spoken_names,
+    variant_base,
+)
 from rockygpt_brain.retrieval.release_cache import cached
 
 # A direct contact lookup fetches every field: they are small and asked together.
@@ -305,7 +310,7 @@ def named(text: str, entities: list[Identity]) -> list[Identity]:
     Science" alias, and "Birch Mansion" is not "Birch". A separate mention does.
     """
     shown = longest_names(
-        text, ((entity.id, [entity.name, *entity.aliases]) for entity in entities)
+        text, ((entity.id, spoken_names(entity)) for entity in entities)
     )
     return [entity for entity in entities if entity.id in shown]
 
@@ -347,7 +352,7 @@ def graph_first(messages: list[ChatMessage], data: CampusData) -> bool:
         if registry is None:
             return ()  # Older releases have no identities.
         return tuple(
-            (entity.id, entity.kind, tuple(words(name) for name in [entity.name, *entity.aliases]))
+            (entity.id, entity.kind, tuple(words(name) for name in spoken_names(entity)))
             for entity in registry.entities
         )
 
@@ -400,7 +405,7 @@ def shortlist(
     for entity in entities:
         if deadline is not None and monotonic() >= deadline:
             raise TimeoutError("Candidate preparation exceeded routing deadline")
-        names = [words(name) for name in [entity.name, *entity.aliases]]
+        names = [words(name) for name in spoken_names(entity)]
         rank = (
             int(any(f" {name} " in latest for name in names)),
             int(any(f" {name} " in context for name in names)),
