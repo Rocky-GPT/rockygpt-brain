@@ -16,11 +16,19 @@ from typing import Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from rockygpt_brain.campus.formats import ExactPiece, exact_search, safety_part
+from rockygpt_brain.campus.formats import (
+    ExactPiece,
+    events_answer,
+    exact_search,
+    failure_help,
+    safety_part,
+)
 from rockygpt_brain.campus.profile_answers import (
     DIET_LIMITATION,
+    convener_answer,
     hours_answer,
     menu_answer,
+    no_menu_answer,
 )
 from rockygpt_brain.config import RELEASE
 from rockygpt_brain.contracts import Answer, AnswerPart, ChatMessage
@@ -275,7 +283,80 @@ def _hours_list() -> tuple[Answer | None, Evidence]:
     return _searched("when does Potter Library close today", query, [library])
 
 
-def _shuttle() -> tuple[Answer | None, Evidence]:
+def _no_menu() -> tuple[Answer | None, Evidence]:
+    output = _birch(None, menu=False)
+    output["resolution"]["entity"]["name"] = "The Atrium"
+    output["records"][0]["fields"]["name"] = "The Atrium"
+    output["components"]["menu"] = _component([], None, status="missing", complete=True,
+                                              total_matches=0, returned_count=0)
+    query = ProfileQuery(entity_id=UUID(BIRCH), include=["menu", "hours"], date=DAY)
+    return _profile(output, no_menu_answer(output, query))
+
+
+PROGRAMS = {"00000000-0000-4000-8000-0000000c5b51": "Computer Science BS",
+            "00000000-0000-4000-8000-0000000c5a51": "Computer Science MS",
+            "00000000-0000-4000-8000-0000000c5041": "Computer Science 4+1",
+            "00000000-0000-4000-8000-0000000c5a11": "Computer Science Minor"}
+CONVENER = {"id": "00000000-0000-4000-8000-00000000f5ee", "name": "Scott Frees",
+            "kind": "person"}
+
+
+def _convener() -> tuple[Answer | None, Evidence]:
+    records, variants = [], []
+    for program_id, name in PROGRAMS.items():
+        record = _record(f"programs:{program_id}:convener", "programs",
+                         f"{name} — published convener", {"name": name},
+                         url="https://catalog.ramapo.edu/", source_title="Ramapo Programs",
+                         source_key="catalog-programs", valid_from=None, valid_until=None)
+        records.append(record)
+        variants.append({"entity": {"id": program_id, "name": name, "kind": "program"},
+                         "components": {"conveners": {
+                             "status": "available", "evidence_ids": [record["id"]],
+                             "failed_links": 0, "relationships_missing": 0,
+                             "relationships": [{"type": "convener", "target": CONVENER,
+                                                "evidence_ids": [record["id"]]}]}}})
+    output = {"status": "ok", "records": records, "truncated": False, "variants": variants,
+              "resolution": {"status": "shared", "candidates": [
+                  variant["entity"] for variant in variants]}}
+    query = ProfileQuery(entity="Computer Science", include=["conveners"])
+    return _profile(output, convener_answer(output, query))
+
+
+def _events() -> tuple[Answer | None, Evidence]:
+    def event(index: int, title: str, start: str, end: str, starts_at: str,
+              location: str | None) -> dict[str, Any]:
+        fields = {"title": title, "start_time": start, "end_time": end,
+                  "starts_at": f"{DAY.isoformat()}T{starts_at}-04:00",
+                  "occurrence_date": DAY.isoformat(), **({"location": location} if location
+                                                        else {})}
+        record = _record(f"events:{index}", "events", title, fields,
+                         url=f"https://archway.ramapo.edu/rsvp_boot?id={index}",
+                         source_title="Archway Events", source_key="archway-events",
+                         valid_from=None, valid_until=None)
+        if location is None:
+            record["coverage"]["fields"]["location"] = "not_published"
+        return record
+
+    records = [event(1, "Club Fair", "12 PM", "2 PM", "12:00:00", "Student Center Plaza"),
+               event(2, "Game Night", "7 PM", "9 PM", "19:00:00", None),
+               event(3, "Yoga on the Lawn", "8 AM", "9 AM", "08:00:00", "Arch Courtyard")]
+    output = {"status": "ok", "records": records, "total_matches": 3, "truncated": False}
+    query = SearchQuery(collection="events", date_from=DAY, date_to=DAY, limit=100)
+    return _profile(output, events_answer(output, query, NOW))
+
+
+def _failure_help() -> tuple[Answer | None, Evidence]:
+    help_ = failure_help(SAFETY_RECORDS)
+    evidence = {record["id"]: record for record in SAFETY_RECORDS}
+    return Answer(status="unavailable", parts=[
+        AnswerPart(kind="guidance", text=help_["text"], evidence_ids=[]),
+        AnswerPart(kind="limitation", evidence_ids=[],
+                   text="RockyGPT's monthly AI allowance is exhausted. Use the official campus "
+                   "resources.")]), evidence
+
+
+def _shuttle(question: str = "when is the next shuttle from campus") -> tuple[
+        Answer | None, Evidence]:
     def trip(sequence: int, route: str, departure: str, stop: str,
              returned: str) -> dict[str, Any]:
         return _record(f"shuttle:{sequence}", "shuttle", route, {
@@ -291,7 +372,7 @@ def _shuttle() -> tuple[Answer | None, Evidence]:
                trip(2, "Ramsey Route 17", "02:30 PM", "02:45 PM", "03:05 PM"),
                trip(3, "Roadrunner Express", "01:10 PM", "01:25 PM", "01:50 PM")]
     query = SearchQuery(collection="shuttle", date_from=DAY, date_to=DAY, limit=100)
-    return _searched("when is the next shuttle from campus", query, records)
+    return _searched(question, query, records)
 
 
 SAFETY_RECORDS: list[dict[str, Any]] = [
@@ -347,8 +428,9 @@ def templates() -> list[AnswerTemplate]:
     place = [
         Condition("Jev", "Picks the profile route: one named place", "profile", jev("route")),
         Condition("Jev", "Picks which place", "one listed place", jev("entity")),
-        Condition("Jev", "Is sure which day, or none is named (today)", "a sure day",
-                  jev("date")),
+        Condition("Jev", "Is sure which day, or none is named (today); or leans to the day "
+                  "code read (\"tmrw\") and rules out one to work out, with no word like "
+                  "\"next\" or \"after\" moving it", "a sure day", jev("date")),
     ]
     no_danger = Condition("Jev", "Reads no danger", "none", jev("danger"))
     meals = _choices(MEAL_FILTERS - {LATE_NIGHT})
@@ -459,6 +541,9 @@ def templates() -> list[AnswerTemplate]:
                           jev("adds_purpose")),
                 Condition("Jev", nothing_else("contact", "location"), "no",
                           others("contact", "location")),
+                Condition("Code", "Or, whatever Jev doubts: the only message is the office's "
+                          "name and contact words (\"who do I call for the Pine Hall desk\", "
+                          "\"Pine Hall email\", \"how do I contact Pine Hall\")"),
                 no_danger,
             ],
             lookup="lookup_contact: one office's shared entity facts",
@@ -476,6 +561,113 @@ def templates() -> list[AnswerTemplate]:
             example=_contact_facts,
             code="retrieval/exact.py: fact_contact_answer; core/routing.py: answer_fields",
             sample_note="The Registrar's directory entry as published on September 16.",
+        ),
+        AnswerTemplate(
+            id="convener", name="Program convener", group="jev", mode="exact_facts",
+            summary="Names who convenes a program, or every program a shared name like "
+            "\"Computer Science\" covers when one person convenes them all.",
+            when=[
+                Condition("Jev", "Picks the profile route: one named program", "profile",
+                          jev("route")),
+                Condition("Code", "The only words besides the program's name ask who its "
+                          "convener is (\"who is the CS convener\")"),
+                Condition("Code", "A name several programs share (the BS, MS, 4+1 and Minor) "
+                          "is one lookup by that name"),
+                no_danger,
+            ],
+            lookup="lookup_profile: the conveners section only, by program or shared name",
+            reads=["programs"],
+            checks=[
+                "The lookup matched one program, or every program the name covers names the "
+                "same convener; different conveners stay ambiguous and GPT asks which.",
+                "Each convener link is a published catalog relationship to a current person.",
+                "Every catalog record behind a link is fresh, official, whole and uncaveated, "
+                "and each is cited.",
+            ],
+            question="Who is the Computer Science convener?",
+            example=_convener,
+            code="retrieval/profiles.py: _shared_profiles; campus/profile_answers.py: "
+            "convener_answer; core/routing.py: convener_only, family_name",
+            sample_note="Sample records, not today's data.",
+        ),
+        AnswerTemplate(
+            id="no_menu", name="No published menu", group="jev", mode="exact_menu",
+            summary="Says a place has no menu published that day, then its hours that day "
+            "when they're proven.",
+            when=[*place,
+                  Condition("Jev", "Asks what food is served", "yes", jev("detail_menu")),
+                  Condition("Jev", nothing_else("menu", "hours") + " (hours may come along)",
+                            "no", others("menu", "hours")),
+                  Condition("Jev", "Adds no condition about the food", "no",
+                            jev("menu_condition")),
+                  Condition("Jev", "Names no meal", "none", jev("meal")),
+                  no_danger],
+            lookup="lookup_profile: one place's menu and hours on one day",
+            reads=["menu", "dining_hours"],
+            checks=[
+                "The lookup matched the very place Jev picked, for that day.",
+                "Its menu section found nothing, whole: no failed or missing links.",
+                "It says only that no menu was found, never why.",
+                "The hours are added only when the Hours on a day template's checks pass.",
+            ],
+            question="What's on the menu at the Atrium?",
+            example=_no_menu,
+            code="campus/profile_answers.py: no_menu_answer; core/routing.py: written_by_code",
+        ),
+        AnswerTemplate(
+            id="events", name="Events on a day", group="jev", mode="exact_records",
+            summary="Lists every published event on one day, soonest first: its title, times "
+            "and place when one is published.",
+            when=[
+                Condition("Jev", "Picks the search route for a whole list of events on one "
+                          "sure day, naming no place", "events", jev("kind", "whole_list")),
+                Condition("Code", "The only words besides the day ask what events there are "
+                          "(no \"tonight\", \"now\", \"club\" or \"free food\")"),
+                no_danger,
+            ],
+            lookup="search_campus: events, one day, every event (not filtered by Jev)",
+            reads=["events"],
+            checks=[
+                "The whole day's list came back: nothing cut short, at most 50 events.",
+                "Every event is a fresh, official record for that exact day, with its title "
+                "and start time published.",
+                "A place is stated only when its location field is published; nothing is "
+                "said about a missing one.",
+                "Today, events already over are counted, not listed; an unreadable end time "
+                "goes to GPT.",
+            ],
+            question="What events are on campus today?",
+            example=_events,
+            code="campus/formats.py: plain_event_list, events_answer; core/routing.py: "
+            "interpret",
+        ),
+        AnswerTemplate(
+            id="departures", name="First, next or last shuttle", group="jev",
+            mode="exact_records",
+            summary="States the first, next or last departure from campus, route by route, or "
+            "the one that reaches a named stop.",
+            when=[
+                Condition("Jev", "Reads a shuttle question on one sure day, naming no place",
+                          "shuttle", jev("kind", "date")),
+                Condition("Code", "It says first, next or last, and shuttle, bus or leave"),
+                Condition("Code", "Every other word is a route, a published stop or grammar"),
+                no_danger,
+            ],
+            lookup="search_campus: the day's whole shuttle timetable (never filtered)",
+            reads=["shuttle"],
+            checks=[
+                "Code works out first, next and last, per route and per stop reached, from "
+                "the full timetable; the checker sees the same trips.",
+                "Every trip is a fresh, official record with clear clock times.",
+                "A stop reached twice in one trip, or a \"Depart\" row, is no destination.",
+                "It says when no later departure is published, and that it's a timetable, "
+                "not live bus tracking.",
+            ],
+            question="What's the first shuttle to Ramsey train station today?",
+            example=partial(_shuttle, "what's the first shuttle to Ramsey train station today"),
+            code="core/routing.py: departure_asked; campus/formats.py: departure_parts; "
+            "campus/schedules.py: departure_summary",
+            more=[("When is the next shuttle?", partial(_shuttle, "when is the next shuttle"))],
         ),
         AnswerTemplate(
             id="directory_contact", name="Directory contact", group="gpt",
@@ -556,13 +748,16 @@ def templates() -> list[AnswerTemplate]:
             code="campus/formats.py: exact_search, hours_parts",
         ),
         AnswerTemplate(
-            id="shuttle", name="Next or last shuttle", group="gpt", mode="exact_records",
-            summary="States the next or last departure from campus, route by route.",
+            id="shuttle", name="First, next or last shuttle", group="gpt",
+            mode="exact_records",
+            summary="States the first, next or last departure from campus, route by route, or "
+            "the one that reaches a named stop.",
             when=[
                 Condition("GPT", "Searches the whole shuttle timetable for a day, and quotes "
                           "the request word for word"),
-                Condition("Code", "The quote asks for the next or the last shuttle or bus "
-                          "from campus, maybe naming a route, and nothing else"),
+                Condition("Code", "The quote asks for the first, next or last shuttle or bus "
+                          "from campus, maybe naming a route or a published stop, and nothing "
+                          "else"),
             ],
             lookup="search_campus: shuttle, one day, every trip",
             reads=["shuttle"],
@@ -620,6 +815,29 @@ def templates() -> list[AnswerTemplate]:
             example=_safety_numbers,
             code="campus/formats.py: safety_part; core/engine.py",
             note="GPT's guidance comes first; code adds this line under it.",
+        ),
+        AnswerTemplate(
+            id="failure_help", name="Emergency help on a failure", group="fixed",
+            mode="failure",
+            summary="Shown with every failed answer, above what went wrong, so no failure "
+            "hides where to get help.",
+            when=[
+                Condition("Code", "The Brain can't answer: the AI budget is spent, GPT or Jev "
+                          "fails or times out, or it's busy"),
+            ],
+            lookup="Public Safety's numbers from the campus facts, no model call",
+            reads=["critical_facts"],
+            checks=[
+                "The words are fixed in code; no model writes them.",
+                "Public Safety's numbers are shown exactly as their records publish them, and "
+                "left out when they can't be read.",
+                "The student app shows the 911 and 988 line even when the Brain can't be "
+                "reached.",
+            ],
+            question="Someone passed out and isn't waking up. What do I do? (budget spent)",
+            example=_failure_help,
+            code="campus/formats.py: FAILURE_HELP, failure_help; api/app.py: failure",
+            note="Carried in the error body as error.emergency, not as an answer.",
         ),
         AnswerTemplate(
             id="unverified", name="Couldn't verify", group="fixed", mode="safe_fallback",

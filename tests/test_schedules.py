@@ -194,6 +194,12 @@ def test_reviewer_gets_the_selections_without_stop_lists() -> None:
     assert campus == {
         "route": "Station route",
         "origin": "campus",
+        # The day's first departure is its own selection, even once it has left.
+        "first": {
+            "evidence_id": "shuttle:1",
+            "departure_at": "2026-09-16T15:50:00-04:00",
+            "origin_restriction": None,
+        },
         "next": {
             "evidence_id": "shuttle:2",
             "departure_at": "2026-09-16T17:30:00-04:00",
@@ -206,7 +212,13 @@ def test_reviewer_gets_the_selections_without_stop_lists() -> None:
         },
         "scheduled_departure_count": 2,
         "remaining_departure_count": 1,
+        "destinations": campus["destinations"],
     }
+    # Each stop the trips reach has its own first, next and last departure.
+    station = next(item for item in campus["destinations"] if item["stop"] == "Station")
+    assert station["first"]["departure_at"] == "2026-09-16T15:50:00-04:00"
+    assert station["first"]["arrives_at"] == "2026-09-16T16:10:00-04:00"
+    assert station["next"]["evidence_id"] == station["last"]["evidence_id"] == "shuttle:2"
     assert lean["as_of"] == summary["as_of"] and lean["limitations"] == summary["limitations"]
     unavailable = {"status": "unavailable", "reason": "incomplete_schedule_coverage"}
     assert review_summary(unavailable) == unavailable

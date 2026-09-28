@@ -113,3 +113,14 @@ def test_gateway_deadline_applies_without_controller() -> None:
         gateway.create(category="draft", **arguments())
     ledger.reserve.assert_not_called()
     provider.create.assert_not_called()
+
+
+def test_a_refused_lookup_says_whether_time_or_count_ran_out() -> None:
+    # Printing's second round (09-28) was refused because the time for lookups was
+    # over, 15 s in, yet said "tool_budget", as if too many lookups had run.
+    now = [0.0]
+    budget = TurnBudget(clock=lambda: now[0])
+    budget.tool_calls = budget.release.max_tool_calls
+    assert budget.refusal == "tool_budget"
+    now[0] = budget.release.turn_seconds - budget.release.answer_reserve_seconds + 0.1
+    assert not budget.can_retrieve and budget.refusal == "retrieval_time"

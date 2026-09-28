@@ -281,8 +281,9 @@ def decide(text: str, **values: Any) -> Any:
         # Hours asked with the menu: code adds the meal's hours.
         ({"detail_hours": 0.97}, "menu", 100, None),
         ({"diet": "vegan"}, "menu", 100, "vegan"),
-        # A whole day's menu keeps the dozen, across stations, and GPT writes it.
-        ({"meal": "none"}, None, 12, None),
+        # A whole day's menu keeps the dozen, across stations. GPT writes it; code writes
+        # only that a place has no menu that day.
+        ({"meal": "none"}, "menu", 12, None),
         ({"menu_condition": 0.96}, None, 100, None),
         ({"menu_condition": 0.3}, None, 100, None),
         ({"diet": "other"}, None, 100, None),

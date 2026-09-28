@@ -64,7 +64,8 @@ def build_collection_query(
             "t.name,to_jsonb(t)->>'title',t.department,to_jsonb(t)->>'search_text'))) "
             "AS search_terms, "
             "tsvector_to_array(to_tsvector('english', %s)) AS query_terms, "
-            "tsvector_to_array(to_tsvector('english', t.name)) AS title_terms"
+            "tsvector_to_array(to_tsvector('english', t.name)) AS title_terms, "
+            "tsvector_to_array(to_tsvector('english', to_jsonb(t)->>'title')) AS role_terms"
         )
     join = (
         sql.SQL("JOIN rockygpt_v2.shuttle_routes r ON r.id=t.route_id")

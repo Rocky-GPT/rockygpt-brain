@@ -409,6 +409,46 @@ def test_budget_exhaustion_is_nonretryable_and_uses_only_source_catalog(
     assert "secret" not in response.text
 
 
+@pytest.mark.parametrize("readable", [True, False])
+def test_every_failure_carries_emergency_help_written_by_code(readable: bool) -> None:
+    # 09-28: with the budget spent, "someone passed out and isn't waking up" got only
+    # "monthly AI allowance exhausted". The safety block needs Jev, which the budget stops.
+    from rockygpt_brain.api import app as app_module
+
+    app_module._safety_cache = None
+    records = [{"id": f"critical_facts:{key}", "title": "Public Safety",
+                "url": "https://www.ramapo.edu/publicsafety/",
+                "fields": {"fact_key": key, "fact_value": value}}
+               for key, value in [("safety.emergency_phone", "201-684-6666"),
+                                  ("safety.non_emergency_phone", "201-684-7432")]]
+    error = PaidCallError("budget_exhausted", reset_at="2026-10-01T00:00:00-04:00")
+    with (
+        patch.dict("os.environ", {"STAGING_SERVICE_TOKEN": ""}),
+        patch("rockygpt_brain.api.app.open_gateway", return_value=gateway_context()),
+        patch("rockygpt_brain.api.app.run_turn", side_effect=error),
+        patch("rockygpt_brain.api.app.CampusData") as data,
+    ):
+        data.return_value.deadline = None
+        data.return_value.resources.return_value = []
+        if readable:
+            data.return_value.search.return_value = {"records": records}
+        else:
+            data.return_value.search.side_effect = RuntimeError("secret database details")
+        response = TestClient(app).post(
+            "/v1/chat", json={"messages": [{"role": "user", "content": "Someone passed out"}]}
+        )
+    emergency = response.json()["error"]["emergency"]
+    assert "call 911" in emergency["text"] and "988" in emergency["text"]
+    if readable:
+        assert "emergency 201-684-6666; non-emergency 201-684-7432" in emergency["text"]
+        assert emergency["sources"] == [{"title": "Public Safety",
+                                         "url": "https://www.ramapo.edu/publicsafety/"}]
+    else:
+        assert "684" not in emergency["text"] and emergency["sources"] == []
+    assert "secret" not in response.text
+    app_module._safety_cache = None
+
+
 def test_legacy_credentials_do_not_enable_unmetered_requests(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
