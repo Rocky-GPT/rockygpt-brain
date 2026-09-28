@@ -209,7 +209,11 @@ MEALS: dict[str, str | None] = {
     "dinner": None,
     "other": "A meal not listed here, such as a late-night snack",
 }
-MEAL_FILTERS = {"breakfast", "brunch", "lunch", "dinner"}
+# Jev reads "late night" as a meal it doesn't list ("other", 0.94-0.99 on 09-28), so a late
+# night menu fetched a dozen of the whole day's items. Birch publishes "Late Night" as a
+# meal of its own, so code reads it, for menus only.
+LATE_NIGHT = "late night"
+MEAL_FILTERS = {"breakfast", "brunch", "lunch", "dinner", LATE_NIGHT}
 # Whether the request describes danger, as one Jev choice. Its top pick is enough: a
 # danger pick only adds the safety block and never removes anything GPT writes.
 DANGER = {
@@ -570,8 +574,12 @@ EVENING = {"tonight", "tonight's", "evening"}
 
 def meal_asked(answers: dict[str, Any], messages: list[ChatMessage], menu: bool) -> str | None:
     meal = selected(answers, "meal")
+    latest = words(messages[-1].content)
+    # "Late night menu tonight" is the Late Night meal, not dinner.
+    if menu and meal in {None, "none", "other"} and f" {LATE_NIGHT} " in f" {latest} ":
+        return LATE_NIGHT
     # Jev may also be unsure of a meal no word names: "the dining menu for tonight".
-    if menu and meal in {None, "none"} and EVENING & set(words(messages[-1].content).split()):
+    if menu and meal in {None, "none"} and EVENING & set(latest.split()):
         return "dinner"
     return meal
 

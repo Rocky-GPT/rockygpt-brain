@@ -839,6 +839,34 @@ def test_tonights_menu_is_dinner_when_jev_reads_no_meal() -> None:
     assert arguments is not None and arguments["filters"] is None
 
 
+def test_a_late_night_menu_is_the_late_night_meal() -> None:
+    # Jev read "late night menu tonight birch" as a meal it doesn't list, at 0.98.
+    request = messages("What's on the late-night menu tonight?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    for meal in ("other", "none"):
+        arguments = interpret(browse_answers(payload, kind="menu", meal=meal), [ENTITY], day,
+                              request).arguments
+        assert arguments is not None and arguments["filters"]["meal"] == "Late Night"
+    # A place's late night menu is one meal, fetched whole.
+    request = messages("Registrar late night menu today")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    answers = answers_for(payload, route="profile", date="named", meal="other",
+                          detail_menu=0.99, detail_contact=0.0)
+    arguments = interpret(answers, [ENTITY], day, request).arguments
+    assert arguments is not None and arguments["meal"] == "late night"
+    assert arguments["menu_limit"] == 100
+    # A sure meal stays Jev's pick, and late night hours are the day's whole schedule.
+    answers = answers_for(payload, route="profile", date="named", meal="lunch",
+                          detail_menu=0.99, detail_contact=0.0)
+    arguments = interpret(answers, [ENTITY], day, request).arguments
+    assert arguments is not None and arguments["meal"] == "lunch"
+    request = messages("Which dining halls are open late night?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    answers = browse_answers(payload, kind="dining_hours", meal="other", date="none")
+    arguments = interpret(answers, [ENTITY], day, request, NOW.date().isoformat()).arguments
+    assert arguments is not None and arguments["filters"] is None
+
+
 @pytest.mark.parametrize(
     "text,changes",
     [
