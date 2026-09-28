@@ -238,7 +238,7 @@ def test_paid_call_bookkeeping_needs_few_database_round_trips(ledger: PostgresLe
             sent.reset_mock()
             step()
             trips[name] = sent.call_count
-    assert trips == {"readiness": 1, "reserve": 2, "settle": 2, "record_turn": 1, "uncertain": 2}
+    assert trips == {"readiness": 1, "reserve": 1, "settle": 1, "record_turn": 1, "uncertain": 2}
     assert [row["state"] for row in ledger.operations()] == ["settled"]
 
 
@@ -344,6 +344,59 @@ def test_provider_overrun_records_actual_liability_and_pauses(ledger: PostgresLe
     assert ledger.operations()[0]["cost_nusd"] == 101
     with pytest.raises(PaidCallError, match="accounting_paused"):
         reserve(ledger, 1)
+
+
+
+def test_refused_holds_and_settlements_change_nothing(
+    ledger: PostgresLedger, database: str
+) -> None:
+    # Holds and settlements decide inside the database and commit in the same trip,
+    # so every refusal must leave the ledger exactly as it was.
+    def snapshot() -> tuple[list[dict[str, object]], bool]:
+        with psycopg.connect(database) as conn:
+            paused = conn.execute(
+                "SELECT paused FROM brain_ops.accounts WHERE environment = 'development'"
+            ).fetchone()
+        return ledger.operations(), bool(paused and paused[0])
+
+    operation = reserve(ledger, MONTHLY_CAP_NUSD - 100)
+    before = snapshot()
+    for refused, code in (
+        (lambda: reserve(ledger, 101), "budget_exhausted"),
+        (lambda: reserve(ledger, 100, operation_id=operation), "operation_already_admitted"),
+        (lambda: ledger.settle(str(uuid4()), 5, {}, "response", "test", 1, NOW),
+         "operation_not_found"),
+        (lambda: ledger.reserve(str(uuid4()), "turn", "draft", 0, {}, NOW), "price_unavailable"),
+    ):
+        with pytest.raises(PaidCallError, match=code):
+            refused()
+        assert snapshot() == before
+    # A supplement outside the Brain's own limit refuses holds rather than trusting it.
+    with psycopg.connect(database) as conn:
+        conn.execute(
+            "INSERT INTO brain_ops.monthly_allowances "
+            "(environment, month, extra_nusd, approval_note) "
+            "VALUES ('development', %s, 2, 'Synthetic test authorization')",
+            (month_at(NOW),),
+        )
+    with (
+        patch("rockygpt_brain.governance.accounting.DEVELOPMENT_SUPPLEMENT_CAP_NUSD", 1),
+        pytest.raises(PaidCallError, match="accounting_unavailable"),
+    ):
+        reserve(ledger, 1)
+    assert snapshot() == before
+    with psycopg.connect(database) as conn:
+        conn.execute(
+            "UPDATE brain_ops.accounts SET paused = true WHERE environment = 'development'"
+        )
+    before = snapshot()
+    with pytest.raises(PaidCallError, match="accounting_paused"):
+        reserve(ledger, 1)
+    assert snapshot() == before
+    # A paused account still settles work already admitted.
+    ledger.settle(operation, 7, {"input_tokens": 1}, "response", "test", 1, NOW)
+    assert [(row["state"], row["cost_nusd"]) for row in ledger.operations()] == [("settled", 7)]
+
 
 
 def test_new_month_resets_only_settled_charges(ledger: PostgresLedger) -> None:
