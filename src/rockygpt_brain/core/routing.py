@@ -815,6 +815,18 @@ DEPARTURE_WORDS = {"shuttle", "shuttles", "bus", "buses", "departure", "leave", 
                    "leaving"}
 
 
+def events_asked(answers: dict[str, Any], candidates: list[Identity], day: str | None,
+                 messages: list[ChatMessage]) -> bool:
+    """Whether the words ask only for one sure day's events, with no place named and
+    nothing earlier needed."""
+    return (
+        plain_event_list(messages[-1].content, datetime.now())
+        and not named(messages[-1].content, candidates)
+        and (len(messages) == 1 or answers["needs_earlier"]["noul"] <= RULED_OUT)
+        and day is not None and day_asked(answers, messages) in {"named", "none"}
+    )
+
+
 def departure_asked(answers: dict[str, Any], candidates: list[Identity], day: str | None,
                     messages: list[ChatMessage]) -> bool:
     """Whether Jev reads a shuttle question and its words ask a first, next or last
@@ -978,6 +990,16 @@ def interpret(
             # "What events are tomorrow": code lists the day's events itself. GPT's list once
             # said an event published no location its description gave, and the checker
             # dropped the whole list.
+            decision.template = "events"
+        elif decision.arguments is None and events_asked(answers, candidates, day or today,
+                                                         messages):
+            # "Whats happening on campus today": Jev was sure it's a search (1.0) but not of
+            # which kind or that it's a whole list, so GPT planned it (18 s, 09-28). Its
+            # words ask only for the day's events, so code fetches and lists them.
+            events = SearchQuery.model_validate({"collection": "events", "query": "",
+                                                 "date_from": day or today,
+                                                 "date_to": day or today, "limit": 100})
+            decision.arguments = {**events.model_dump(mode="json"), "request_text": None}
             decision.template = "events"
         elif decision.arguments is None and departure_asked(answers, candidates,
                                                            day or today, messages):
