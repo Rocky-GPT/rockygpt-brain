@@ -694,6 +694,14 @@ def test_dates_meals_and_complete_menu_are_bounded() -> None:
     assert interpret(answers, [ENTITY], day, request).arguments is None
 
 
+@pytest.mark.parametrize("spelled", ["tomorrow", "tmrw", "tmr", "tomorow"])
+def test_tomorrow_as_students_type_it_is_a_named_day(spelled: str) -> None:
+    request = messages(f"Registrar hours {spelled}")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    assert day == (NOW.date() + timedelta(days=1)).isoformat()
+    assert payload["questions"]["date"]["criteria"]["named"] == f"The day it calls '{spelled}'"
+
+
 def test_a_day_jev_is_unsure_of_is_left_to_gpt() -> None:
     # "next Saturday" also reads as Saturday; Jev picked the named day at only 0.62.
     request = messages("Registrar hours next Saturday")
