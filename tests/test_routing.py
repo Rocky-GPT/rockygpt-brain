@@ -76,6 +76,7 @@ def answers_for(payload: dict[str, Any], **selections: Any) -> dict[str, Any]:
         "entity": str(ENTITY.id),
         "date": "none",
         "meal": "none",
+        "diet": "none",
         "detail_contact": 1.0,
         "kind": "other",
         "danger": "none",

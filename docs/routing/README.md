@@ -94,6 +94,32 @@ caveat-free support, code states them with their evidence (`responseMode`
 `exact_facts`). Anything else, including unknown, conflicting or multiple values, is
 GPT's to write and review.
 
+Code also writes a plain menu or hours answer, with no GPT writer or checker
+(`campus/profile_answers.py`). Jev says, one question each, which diet a menu request
+names (none, vegan, vegetarian or another), whether it asks more of the food than what is
+served ("what's good", "spicy", a particular dish or ingredient), and whether an hours
+request asks about a moment such as "now" or "9 PM". A vegan or vegetarian pick filters
+the menu by its published labels before anything is cut. A menu request for one meal, or
+one diet, fetches every matching dish (up to 100); only a whole day's menu, which ran to
+141 items, keeps a dozen, taken one station at a time so every station shows up. Every
+menu section says how many dishes matched and were returned, per station, and whether
+the list is `complete`, so nothing reads 12 of 50 as the menu.
+
+When the request asks only what one meal serves (and perhaps its hours), names one sure
+meal and at most a vegan or vegetarian filter, code lists the dishes by station under the
+meal's published hours (`responseMode` `exact_menu`). For "what's for lunch", a second
+Jev call reads each item, "Is `item` a dish someone would choose to eat, rather than
+something added to one?", and the answer lists the ones it doesn't rule out and says how
+many items the meal has in all; a failed check lists every item. "The full lunch menu"
+lists every item without the check. When the request asks only for a place's hours on a
+sure day, code states that day's one published schedule, its labeled meal periods, or the
+asked meal's period (`exact_hours`). Before either, code checks that the lookup proves
+every word: the matched entity, the day, the meal and diet, every matching record
+returned whole, one schedule, and fresh official records that publish each stated field
+with no caveat beyond the standard label and schedule notes. Anything else, including a
+second schedule, placeholder hours or a meal the schedule doesn't label, is GPT's to write
+and review.
+
 Contact and every profile section except related, requirements, school, subject and
 graduation plans can run directly. Every lookup still uses the ordinary
 schema validation, read-only retrieval, context bounds, evidence collection, trace,

@@ -18,6 +18,7 @@ import psycopg
 from pydantic import ValidationError
 
 from rockygpt_brain.campus.formats import request_date, words
+from rockygpt_brain.campus.profile_answers import Template
 from rockygpt_brain.config import RELEASE, RoutingMode
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.provider import input_bound
@@ -80,6 +81,29 @@ DETAILS = {
 COMPLETE_MENU = ("Does `latest_request` ask for the whole menu?",
                  "Asks for the full or complete menu, or every dish",
                  "Asks what is served without asking for every dish, or asks about something else")
+# Which diet a menu request asks for, as one Jev choice. A vegan or vegetarian pick filters
+# the menu by its published labels before anything is cut, so a vegan dish past the
+# first dozen can't be missed.
+DIETS: dict[str, str | None] = {
+    "none": "It names no diet",
+    "vegan": None,
+    "vegetarian": None,
+    "other": "Another diet or food need, such as gluten-free",
+}
+DIET_FILTERS = {"vegan", "vegetarian"}
+# Code lists a meal's dishes itself unless the request asks more of them than what is served.
+MENU_CONDITION = ("Does `latest_request` ask which food is good, healthy, spicy or filling, "
+                  "about a particular dish or ingredient, or add another condition about the "
+                  "food?",
+                  "Asks for a judgment about the food, about a particular dish or ingredient, "
+                  "or adds another condition beyond vegan or vegetarian",
+                  "Asks only what food is served, perhaps at a place, on a day, at a meal, or "
+                  "vegan or vegetarian food")
+# Code states a day's hours itself unless the request asks about a moment in it.
+AT_TIME = ("Does `latest_request` ask whether a place is open at a particular time, such as "
+           "now or at 9 PM?",
+           "Asks whether it is open at a particular moment or time",
+           "Asks for its hours, or when it opens or closes, on a day")
 # Related needs a relationship and direction the router does not choose; requirements,
 # school, subject and graduation plans stay with GPT until routing evals cover them.
 ROUTED_SECTIONS = tuple(dict.fromkeys(
@@ -194,6 +218,13 @@ DANGER = {
 # routing cases it dropped 23 and nothing a real answer used.
 HELPS = ("Gives some or all of what `latest_request` asks for, or a fact needed to answer it",
          "Is about something else, or gives nothing `latest_request` asks for")
+# Whether a menu item is a dish a student would choose, as one Jev yes/no per item. A plain
+# "what's for lunch" lists the ones it doesn't rule out, with how many items there are.
+DISH = ("Is `item` a dish someone would choose to eat, rather than something added to one?",
+        "A dish or side someone would choose: an entrée, sandwich, pizza, soup, salad, bowl, "
+        "pasta dish, fries, rice or dessert",
+        "Something added to a dish: a topping, sauce, dressing, condiment, cheese slice, "
+        "garnish or single raw ingredient such as sliced tomato")
 # Record keys that say where a record came from, not what it says.
 PROVENANCE = {"id", "limitations", "coverage", "trust_tier", "collected_at", "freshness",
               "valid_from", "valid_until", "source_url"}
@@ -225,6 +256,8 @@ class RouteDecision:
     danger: str | None = None
     # Contact details code may state itself, when Jev says the request is that plain.
     answer_fields: list[str] | None = None
+    # The menu or hours answer code writes itself, when Jev says the request is that plain.
+    template: Template | None = None
     # Several lookups and searches, one per part of a multi-part request.
     lookups: list[dict[str, Any]] | None = None
     calls: int = 0
@@ -436,6 +469,9 @@ def routing_payload(
         "date": choice("Which day does `latest_request` ask about?", dates),
         "meal": choice("Which meal does `latest_request` ask about?", MEALS),
         "complete_menu": noul(*COMPLETE_MENU),
+        "diet": choice("Which diet does `latest_request` ask about?", DIETS),
+        "menu_condition": noul(*MENU_CONDITION),
+        "at_time": noul(*AT_TIME),
         **{
             "detail_" + detail: noul(question, yes, no)
             for detail, (question, yes, no, _) in DETAILS.items()
@@ -574,6 +610,34 @@ def answer_fields(answers: dict[str, Any]) -> list[str] | None:
     ):
         return None
     return asked
+
+
+def written_by_code(answers: dict[str, Any], arguments: dict[str, Any]) -> Template | None:
+    """The menu or hours answer code writes from the lookup, or None when GPT writes.
+
+    Jev must be sure what is asked and that nothing more is. A meal's dishes: the menu
+    (and perhaps that meal's hours) and no other detail, one meal, a sure diet or none,
+    and no condition on the food. A day's hours: hours and no other detail, and no
+    particular moment such as "now". Code still checks that the records prove it.
+    """
+    threshold = RELEASE.routing.threshold
+    values: dict[str, float] = {
+        detail: answers["detail_" + detail]["noul"] for detail in DETAILS}
+
+    def only(*asked: str) -> bool:
+        return max(value for detail, value in values.items() if detail not in asked) \
+            <= RULED_OUT
+
+    if values["menu"] >= threshold:
+        if (not only("menu", "hours") or answers["menu_condition"]["noul"] > RULED_OUT
+                or arguments.get("meal") is None
+                or selected(answers, "diet") not in {"none", *DIET_FILTERS}):
+            return None
+        return "full_menu" if answers["complete_menu"]["noul"] >= threshold else "menu"
+    if values["hours"] >= threshold and only("hours") and (
+            answers["at_time"]["noul"] <= RULED_OUT):
+        return "hours"
+    return None
 
 
 def picked_route(answers: dict[str, Any]) -> str | None:
@@ -764,8 +828,15 @@ def interpret(
             arguments["meal"] = meal if meal in MEAL_FILTERS else None
         if "menu" in sections:
             complete = answers["complete_menu"]["noul"] >= RELEASE.routing.threshold
-            arguments["menu_limit"] = 100 if complete else 12
+            diet = selected(answers, "diet")
+            if diet in DIET_FILTERS:
+                arguments["diet"] = diet
+            # A meal or a diet is one list, fetched whole so nothing past the first dozen is
+            # missed. Only a whole day's menu, which ran to 141 items, keeps the dozen.
+            narrowed = arguments.get("meal") is not None or "diet" in arguments
+            arguments["menu_limit"] = 100 if complete or narrowed else 12
         decision.arguments = ProfileQuery.model_validate(arguments).model_dump(mode="json")
+        decision.template = written_by_code(answers, decision.arguments)
     decision.tool = TOOLS[route]
     decision.reason = None
     return decision
@@ -852,6 +923,50 @@ def route_request(
         data.deadline = old_deadline
         decision.elapsed_ms = round((monotonic() - started) * 1000)
     return decision
+
+
+def pick_dishes(
+    records: list[dict[str, Any]], client: FilterClient
+) -> tuple[set[str] | None, dict[str, Any]]:
+    """The IDs of the menu items Jev doesn't rule out as dishes, and what it did.
+
+    None when the check fails: the answer then lists every item. Accounting and budget
+    errors still stop the turn.
+    """
+    payload = {
+        "model": RELEASE.routing.model,
+        "state": {"menu": "One meal's items at a campus dining hall, by station"},
+        "questions": {
+            f"item_{index}": {
+                "type": "noul",
+                "instructions": {
+                    "item": str(record["fields"].get("name", ""))[:200],
+                    "station": str(record["fields"].get("station", ""))[:200],
+                    "question": DISH[0],
+                },
+                "criteria": {"true": DISH[1], "false": DISH[2]},
+            }
+            for index, record in enumerate(records)
+        },
+    }
+    started = monotonic()
+    try:
+        if input_bound(payload) > 64000:
+            return None, {"items": len(records), "reason": "context_limit"}
+        answers = client.filter(payload, timeout=RELEASE.routing.timeout_seconds)
+        values = [number(answers[f"item_{index}"]["noul"]) for index in range(len(records))]
+    except PaidCallError as error:
+        if error.code not in SOFT_ERRORS | {"model_call_limit"}:
+            raise
+        return None, {"items": len(records), "reason": error.code}
+    except TimeoutError:
+        return None, {"items": len(records), "reason": "timeout"}
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return None, {"items": len(records), "reason": "invalid_response"}
+    kept = {record["id"] for record, value in zip(records, values, strict=True)
+            if value > RULED_OUT}
+    return kept, {"items": len(records), "dishes": len(kept),
+                  "elapsedMs": round((monotonic() - started) * 1000)}
 
 
 def filter_records(
