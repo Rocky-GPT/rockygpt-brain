@@ -11,6 +11,9 @@ from time import monotonic
 from rockygpt_brain.config import RELEASE, Release
 from rockygpt_brain.governance.accounting import Category, PaidCallError
 
+# Jev checks of search results a turn may make, beside its one routing call.
+FILTER_CALLS = 3
+
 
 class TurnBudget:
     def __init__(
@@ -22,6 +25,7 @@ class TurnBudget:
         self.draft_calls = 0
         self.review_calls = 0
         self.routing_calls = 0
+        self.filter_calls = 0
         self.retrieval_rounds = 0
         self.tool_calls = 0
 
@@ -56,6 +60,20 @@ class TurnBudget:
         if available <= 0:
             raise TimeoutError("Insufficient turn time for required verification")
         return available
+
+    def filter_timeout(self) -> float:
+        """A Jev check on search results, while retrieval may still run: never into the
+        time the writer and the review need, and at most FILTER_CALLS a turn."""
+        if self.filter_calls >= FILTER_CALLS:
+            raise PaidCallError("model_call_limit")
+        available = min(self.release.routing.timeout_seconds,
+                        self.retrieval_deadline - self.clock())
+        if available <= 0:
+            raise TimeoutError("Insufficient filter time")
+        return available
+
+    def note_filter(self) -> None:
+        self.filter_calls += 1
 
     def note_model(self, category: Category) -> None:
         if category == "routing":

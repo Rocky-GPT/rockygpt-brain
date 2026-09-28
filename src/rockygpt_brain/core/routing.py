@@ -5,6 +5,7 @@ Without active routing, the graph-first rule makes the only first-call choice.
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -150,6 +151,13 @@ DANGER = {
     "emergency or an injury.",
     "none": "No one is described as being in danger.",
 }
+# Whether a search result helps, as one Jev yes/no per record. On 121 results from the
+# routing cases it dropped 23 and nothing a real answer used.
+HELPS = ("Gives some or all of what `latest_request` asks for, or a fact needed to answer it",
+         "Is about something else, or gives nothing `latest_request` asks for")
+# Record keys that say where a record came from, not what it says.
+PROVENANCE = {"id", "limitations", "coverage", "trust_tier", "collected_at", "freshness",
+              "valid_from", "valid_until", "source_url"}
 SOFT_ERRORS = {
     "routing_context_limit",
     "routing_unavailable",
@@ -162,6 +170,10 @@ SOFT_ERRORS = {
 
 class RoutingClient(Protocol):
     def route(self, payload: dict[str, Any], *, timeout: float) -> dict[str, Any]: ...
+
+
+class FilterClient(Protocol):
+    def filter(self, payload: dict[str, Any], *, timeout: float) -> dict[str, Any]: ...
 
 
 @dataclass
@@ -662,3 +674,54 @@ def route_request(
         data.deadline = old_deadline
         decision.elapsed_ms = round((monotonic() - started) * 1000)
     return decision
+
+
+def filter_records(
+    output: dict[str, Any], messages: list[ChatMessage], client: FilterClient
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Search results without the ones Jev says don't help, and what it did.
+
+    Jev reads each record beside the latest request. A record it isn't sure about is
+    kept, and so is every record when it rules them all out: GPT then decides what the
+    search found. Any failure keeps the results as they were, since the filter only
+    trims reading; accounting and budget errors still stop the turn.
+    """
+    records = output["records"]
+    payload = {
+        "model": RELEASE.routing.model,
+        "state": {"latest_request": messages[-1].content},
+        "questions": {
+            f"record_{index}": {
+                "type": "noul",
+                "instructions": {
+                    "record": json.dumps(
+                        {key: value for key, value in record.items() if key not in PROVENANCE},
+                        default=str, ensure_ascii=False,
+                    )[:1500],
+                    "question": "Does `record` help answer `latest_request`?",
+                },
+                "criteria": {"true": HELPS[0], "false": HELPS[1]},
+            }
+            for index, record in enumerate(records)
+        },
+    }
+    started = monotonic()
+    try:
+        if input_bound(payload) > 64000:
+            return output, {"records": len(records), "reason": "context_limit"}
+        answers = client.filter(payload, timeout=RELEASE.routing.timeout_seconds)
+        values = [number(answers[f"record_{index}"]["noul"]) for index in range(len(records))]
+    except PaidCallError as error:
+        if error.code not in SOFT_ERRORS | {"model_call_limit"}:
+            raise
+        return output, {"records": len(records), "reason": error.code}
+    except TimeoutError:
+        return output, {"records": len(records), "reason": "timeout"}
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return output, {"records": len(records), "reason": "invalid_response"}
+    kept = [record for record, value in zip(records, values, strict=True) if value > RULED_OUT]
+    report = {"records": len(records), "dropped": len(records) - len(kept),
+              "elapsedMs": round((monotonic() - started) * 1000)}
+    if not kept:
+        return output, {**report, "dropped": 0, "reason": "all_ruled_out"}
+    return {**output, "records": kept}, report

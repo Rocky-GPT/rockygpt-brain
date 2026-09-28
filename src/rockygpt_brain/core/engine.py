@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from importlib.resources import files
 from time import monotonic
-from typing import Any
+from typing import Any, cast
 
 from httpx import Timeout
 from pydantic import ValidationError
@@ -47,7 +47,14 @@ from rockygpt_brain.core.provider import (
 )
 from rockygpt_brain.core.render import InvalidAnswer, consulted_sources, render_answer
 from rockygpt_brain.core.reviewer import review_answer
-from rockygpt_brain.core.routing import GRAPH_TOOLS, RoutingClient, graph_first, route_request
+from rockygpt_brain.core.routing import (
+    GRAPH_TOOLS,
+    FilterClient,
+    RoutingClient,
+    filter_records,
+    graph_first,
+    route_request,
+)
 from rockygpt_brain.core.tools import function_tool, tool_definitions
 from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.governance.budget import TurnBudget
@@ -748,6 +755,12 @@ def answer_turn(
                 except Exception:
                     # Do not expose connection strings, SQL, or provider errors.
                     output = {"status": "unavailable", "reason": "campus_data_unavailable"}
+            if (call.name == "search_campus" and output.get("records")
+                    and routing_mode == "active" and routing_client is not None):
+                # Jev drops the search results that don't help before GPT reads them.
+                filter_client = cast(FilterClient, routing_client)
+                output, filtered = filter_records(output, messages, filter_client)
+                metrics.setdefault("searchFilter", []).append(filtered)
             # Admit a truthful subset BEFORE adding new records to authoritative
             # evidence, exact renderers or the model transcript. Prior results
             # remain intact. Account for the remaining parallel tool replies.
