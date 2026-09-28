@@ -99,11 +99,15 @@ MENU_CONDITION = ("Does `latest_request` ask which food is good, healthy, spicy 
                   "or adds another condition beyond vegan or vegetarian",
                   "Asks only what food is served, perhaps at a place, on a day, at a meal, or "
                   "vegan or vegetarian food")
-# Code states a day's hours itself unless the request asks about a moment in it.
-AT_TIME = ("Does `latest_request` ask whether a place is open at a particular time, such as "
-           "now or at 9 PM?",
-           "Asks whether it is open at a particular moment or time",
-           "Asks for its hours, or when it opens or closes, on a day")
+# Code states a day's hours itself unless the request asks about a moment in it. Naming
+# the days in the "no" criteria took "open tomorrow" from 0.11-0.13 to 0.05-0.06, and every
+# moment stayed at 0.9 or more (12 phrasings on Jev, 2026-09-28).
+AT_TIME = ("Does `latest_request` ask whether a place is open at one moment, such as right now "
+           "or at a clock time like 9 PM?",
+           "Asks whether it is open, or still open, at one moment: now, right now, or a clock "
+           "time such as 9 PM or 7 AM",
+           "Asks when it is open, its hours, or when it opens or closes, on a day such as "
+           "today, tonight, tomorrow or Saturday, with no single moment named")
 # Related needs a relationship and direction the router does not choose; requirements,
 # school, subject and graduation plans stay with GPT until routing evals cover them.
 ROUTED_SECTIONS = tuple(dict.fromkeys(
