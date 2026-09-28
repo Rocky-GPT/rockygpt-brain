@@ -75,6 +75,7 @@ def answers_for(payload: dict[str, Any], **selections: Any) -> dict[str, Any]:
         "date": "none",
         "meal": "none",
         "detail_contact": 1.0,
+        "kind": "other",
         "danger": "none",
         **selections,
     }
@@ -717,19 +718,21 @@ def test_a_building_location_reads_the_building() -> None:
 
 
 @pytest.mark.parametrize(
-    "latest,needs_earlier,direct",
+    "latest,needs_earlier,entity,direct",
     [
         # Jev: "What are the library's hours tomorrow?" after another question, 0.08.
-        ("What is the Registrar phone?", 0.05, True),
+        ("What is the Registrar phone?", 0.05, str(ENTITY.id), True),
         # Jev: "Actually, what is the Financial Aid phone?" 0.26, "What about ...?" 0.37.
-        ("Actually, what is the Registrar phone?", 0.26, False),
-        ("What about the Registrar?", 0.37, False),
-        # A follow-up naming nothing is GPT's however Jev answers.
-        ("What is their email?", 0.0, False),
+        ("Actually, what is the Registrar phone?", 0.26, str(ENTITY.id), False),
+        ("What about the Registrar?", 0.37, str(ENTITY.id), False),
+        # Naming nothing, a follow-up needs Jev sure who "their" is: 0.98 for the Registrar.
+        ("What is their email?", 0.96, str(ENTITY.id), True),
+        ("What is their email?", 0.96, "several", False),
+        ("What is their email?", 0.96, "none", False),
     ],
 )
-def test_only_a_follow_up_that_stands_alone_looks_things_up_itself(
-    latest: str, needs_earlier: float, direct: bool
+def test_a_follow_up_looks_things_up_itself_only_when_its_subject_is_clear(
+    latest: str, needs_earlier: float, entity: str, direct: bool
 ) -> None:
     followup = [
         *messages("What is the Bursar phone?"),
@@ -737,11 +740,81 @@ def test_only_a_follow_up_that_stands_alone_looks_things_up_itself(
         ChatMessage(role="user", content=latest),
     ]
     payload, day = routing_payload(followup, [ENTITY], NOW)
-    result = interpret(answers_for(payload, needs_earlier=needs_earlier), [ENTITY], day,
-                       followup)
+    answers = answers_for(payload, needs_earlier=needs_earlier, entity=entity)
+    validate_answers(answers, payload["questions"])
+    result = interpret(answers, [ENTITY], day, followup)
     assert (result.arguments is not None) == direct
     if not direct:
         assert result.tool is None and result.reason == "follow_up"
+
+
+def browse_answers(payload: dict[str, Any], **changes: Any) -> dict[str, Any]:
+    choices = {"route": "search", "entity": "none", "kind": "events", "whole_list": 0.95,
+               "date": "named", "detail_contact": 0.0, **changes}
+    answers = answers_for(payload, **choices)
+    validate_answers(answers, payload["questions"])
+    return answers
+
+
+def test_a_whole_list_on_one_day_is_searched_without_gpt() -> None:
+    request = messages("What events are happening on campus tomorrow?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    result = interpret(browse_answers(payload), [ENTITY], day, request)
+    assert result.tool == "search_campus" and result.reason is None
+    assert result.arguments == {
+        "collection": "events", "query": "", "date_from": day, "date_to": day, "limit": 100,
+        "filters": None, "request_text": None,
+    }
+    # With no day named, the list is today's.
+    request = messages("Which dining halls are open?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    answers = browse_answers(payload, kind="dining_hours", date="none")
+    arguments = interpret(answers, [ENTITY], day, request, NOW.date().isoformat()).arguments
+    assert arguments is not None and arguments["date_from"] == NOW.date().isoformat()
+
+
+def test_a_menu_list_filters_the_meal_jev_is_sure_of() -> None:
+    request = messages("What's for dinner on campus tonight?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    arguments = interpret(browse_answers(payload, kind="menu", meal="dinner"), [ENTITY], day,
+                          request).arguments
+    assert arguments is not None and arguments["filters"]["meal"] == "Dinner"
+
+
+@pytest.mark.parametrize(
+    "text,changes",
+    [
+        # "What's for dinner on campus tonight?" came back 0.52: GPT writes the search.
+        ("What events are happening on campus tomorrow?", {"whole_list": 0.52}),
+        ("When is the career fair tomorrow?", {"whole_list": 0.04}),
+        ("What events are happening on campus tomorrow?", {"kind": "calendar"}),
+        ("What events are happening on campus this weekend?", {"date": "other"}),
+        # A named place is a lookup, or a search GPT words.
+        ("What events does the Registrar have tomorrow?", {}),
+    ],
+)
+def test_other_searches_are_worded_by_gpt(text: str, changes: dict[str, Any]) -> None:
+    request = messages(text)
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    result = interpret(browse_answers(payload, **changes), [ENTITY], day, request,
+                       NOW.date().isoformat())
+    # GPT's first call is still held to the search tool.
+    assert result.arguments is None and result.tool == "search_campus"
+
+
+def test_a_whole_list_is_fetched_before_gpt_writes() -> None:
+    data, gpt = data_mock(), Mock()
+    data.search.return_value = result_for([])
+    gpt.create.side_effect = [answer("No events are listed for tomorrow."), review()]
+    router = Mock()
+    router.route.side_effect = lambda payload, **kwargs: browse_answers(payload)
+    result = run_turn(messages("What events are happening on campus tomorrow?"), client=gpt,
+                      data=data, model=RELEASE.model, now=NOW, routing_client=router,
+                      routing_mode="active")
+    query = data.search.call_args.args[0]
+    assert query.collection == "events" and query.query == ""
+    assert query.date_from == (NOW + timedelta(days=1)).date()
+    assert result["metrics"]["routing"]["directRetrieval"] is True
 
 
 @pytest.mark.parametrize("pick,danger", [("self_harm", "self_harm"), ("danger", "danger"),
