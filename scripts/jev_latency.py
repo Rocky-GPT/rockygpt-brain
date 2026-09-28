@@ -8,6 +8,12 @@ for the reply, and reading it. A one-question call runs after every case call as
 control. If the control is slow at the same moments, the service is slow, not our
 questions. If one case is slow every time, its payload is the cause.
 
+With `--hedge SECONDS`, each case call gets a copy sent SECONDS later if it hasn't
+answered by then, and both run to the end. The report says how often the copy answered
+first and how many calls either copy answered within the Brain's 2 s, against the first
+alone. A copy that is fast while the first is stuck means slowness hits single
+requests, so sending a copy saves time. Both slow means the whole service is slow.
+
 Every call goes through the dev ledger like any routing call. Jev bills input tokens only.
 """
 
@@ -18,6 +24,7 @@ import asyncio
 import json
 import os
 import random
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime
 from pathlib import Path
 from statistics import median
@@ -154,6 +161,53 @@ def call(ledger: PostgresLedger, jev: TimedJev, payload: dict[str, Any],
     return result
 
 
+def hedged(ledgers: tuple[PostgresLedger, PostgresLedger], jevs: tuple[TimedJev, TimedJev],
+           payload: dict[str, Any], timeout: float, delay: float) -> dict[str, Any]:
+    """A call, and a copy sent `delay` seconds later if the first hasn't answered."""
+    with ThreadPoolExecutor(2) as pool:
+        started = monotonic()
+        first = pool.submit(call, ledgers[0], jevs[0], payload, timeout)
+        done, _ = wait([first], timeout=delay)
+        second, offset = None, None
+        if not done:
+            offset = round((monotonic() - started) * 1000)
+            second = pool.submit(call, ledgers[1], jevs[1], payload, timeout)
+        row: dict[str, Any] = {"first": first.result(), "copyAtMs": offset,
+                               "copy": second.result() if second else None}
+    # When each copy's answer reached us, counted from the first's start.
+    answered = [row["first"]["totalMs"]] if row["first"]["ok"] else []
+    if row["copy"] and row["copy"]["ok"]:
+        answered.append(offset + row["copy"]["totalMs"])
+    row["ok"] = bool(answered)
+    row["totalMs"] = min(answered) if answered else row["first"]["totalMs"]
+    row["copyWon"] = bool(answered) and row["first"]["totalMs"] != row["totalMs"]
+    return row
+
+
+def hedge_summary(rows: list[dict[str, Any]], within: float) -> dict[str, Any]:
+    items = [row for row in rows if row["kind"] == "hedge"]
+    copied = [row for row in items if row["copy"]]
+    limit = within * 1000
+
+    def in_time(result: dict[str, Any]) -> bool:
+        return bool(result["ok"]) and result["totalMs"] <= limit
+
+    return {
+        "calls": len(items),
+        "copiesSent": len(copied),
+        "copyWon": sum(row["copyWon"] for row in items),
+        f"firstAloneWithin{within}s": sum(in_time(row["first"]) for row in items),
+        f"eitherWithin{within}s": sum(in_time(row) for row in items),
+        # Of the calls a copy was sent for: was the copy itself fast (independent
+        # slowness) or slow too (the whole service)?
+        f"copyWithin{within}sOfItsStart": sum(in_time(row["copy"]) for row in copied),
+        "firstMs": sorted(row["first"]["totalMs"] for row in items),
+        "eitherMs": sorted(row["totalMs"] for row in items),
+        "costNusd": sum(row["first"].get("costNusd", 0)
+                        + (row["copy"] or {}).get("costNusd", 0) for row in items),
+    }
+
+
 def summary(rows: list[dict[str, Any]], slow: float) -> dict[str, Any]:
     def spread(values: list[float]) -> dict[str, float] | None:
         return {"min": min(values), "median": median(values), "max": max(values)} \
@@ -208,6 +262,9 @@ def main() -> int:
     parser.add_argument("--slow", type=float, default=1.5,
                         help="Seconds from which a call counts as slow")
     parser.add_argument("--only", nargs="*", help="Case IDs from docs/routing/cases.json")
+    parser.add_argument("--hedge", type=float,
+                        help="Send a copy of each case call this many seconds after it if it "
+                        "hasn't answered, instead of the one-question control call")
     parser.add_argument("--env-file", type=Path,
                         help="Settings file to load (default: .env in the working directory)")
     args = parser.parse_args()
@@ -218,12 +275,17 @@ def main() -> int:
         parser.error("Runs only with BRAIN_ENVIRONMENT=development")
     if not 1 <= args.repeats <= 5 or not 0 < args.timeout <= 15:
         parser.error("--repeats must be 1-5 and --timeout 0-15 seconds")
+    if args.hedge is not None and not 0 < args.hedge < args.timeout:
+        parser.error("--hedge must be between 0 and --timeout seconds")
     if args.output.exists():
         parser.error("--output exists; reports are never overwritten")
     deployment = load_deployment().model_copy(update={"routing_mode": "active"})
     assert deployment.routing_api_key is not None, "No Jev credential"
     jev = TimedJev(deployment.routing_api_key, deployment.routing_provider)
     ledger = PostgresLedger(deployment.ledger_url, deployment.environment)
+    # A copy runs beside its call, so it needs its own ledger connection and timings.
+    jevs = (jev, TimedJev(deployment.routing_api_key, deployment.routing_provider))
+    ledgers = (ledger, PostgresLedger(deployment.ledger_url, deployment.environment))
     cases = [case for case in json.loads(CASES.read_text())["cases"]
              if not args.only or case["id"] in args.only]
     now = datetime.now(ZoneInfo("America/New_York"))
@@ -245,17 +307,28 @@ def main() -> int:
         random.Random(repeat).shuffle(order)  # noqa: S311
         for case_id in order:
             payload, stats = payloads[case_id]
-            for kind, body in (("case", payload), ("control", control)):
-                row = {"kind": kind, "case": case_id, "repeat": repeat,
-                       "at": datetime.now(ZoneInfo("UTC")).isoformat(timespec="seconds"),
-                       **({"payload": stats} if kind == "case" else {}),
-                       **call(ledger, jev, body, args.timeout)}
+            at = datetime.now(ZoneInfo("UTC")).isoformat(timespec="seconds")
+            if args.hedge is not None:
+                row = {"kind": "hedge", "case": case_id, "repeat": repeat, "at": at,
+                       "payload": stats,
+                       **hedged(ledgers, jevs, payload, args.timeout, args.hedge)}
                 rows.append(row)
-                print(json.dumps({key: row[key] for key in
-                                  ("kind", "case", "repeat", "ok", "totalMs", "stuckIn")}),
-                      flush=True)
+                print(json.dumps({"case": case_id, "repeat": repeat, "ok": row["ok"],
+                                  "firstMs": row["first"]["totalMs"],
+                                  "copyMs": (row["copy"] or {}).get("totalMs"),
+                                  "copyWon": row["copyWon"]}), flush=True)
+            else:
+                for kind, body in (("case", payload), ("control", control)):
+                    row = {"kind": kind, "case": case_id, "repeat": repeat, "at": at,
+                           **({"payload": stats} if kind == "case" else {}),
+                           **call(ledger, jev, body, args.timeout)}
+                    rows.append(row)
+                    print(json.dumps({key: row[key] for key in
+                                      ("kind", "case", "repeat", "ok", "totalMs", "stuckIn")}),
+                          flush=True)
             args.output.write_text(json.dumps({"rows": rows}, indent=1) + "\n")
-    report = {"rows": rows, "summary": summary(rows, args.slow)}
+    report = {"rows": rows, "summary": hedge_summary(rows, RELEASE.routing.timeout_seconds)
+              if args.hedge is not None else summary(rows, args.slow)}
     args.output.write_text(json.dumps(report, indent=1) + "\n")
     print(json.dumps(report["summary"], indent=1))
     return 0
