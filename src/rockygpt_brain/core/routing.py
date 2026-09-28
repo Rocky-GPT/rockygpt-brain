@@ -23,6 +23,7 @@ from rockygpt_brain.core.provider import input_bound
 from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.retrieval.data import CampusData
 from rockygpt_brain.retrieval.exact import ContactQuery
+from rockygpt_brain.retrieval.models import SearchFilters, SearchQuery
 from rockygpt_brain.retrieval.profiles import Identity, ProfileQuery
 from rockygpt_brain.retrieval.release_cache import cached
 
@@ -89,6 +90,24 @@ NEEDS_EARLIER = ("Does `latest_request` need the earlier messages to make sense?
                  "It makes sense on its own")
 # Entity options that name no single identity.
 NO_ENTITY = {"none", "several"}
+# What kind of campus information a request asks for, as one Jev choice. A whole list of
+# one of these kinds on one day is a search code can run itself: no search words needed.
+KINDS = {
+    "events": "Campus events or activities",
+    "shuttle": "Shuttle or bus times",
+    "campus_hours": "When campus offices, the library or other places are open",
+    "dining_hours": "When dining halls or cafés are open",
+    "menu": "What food is being served",
+    "calendar": "Academic dates, such as deadlines, breaks or the first day of classes",
+    "other": "Something else, such as policies, contact details, programs or courses",
+}
+BROWSED = {"events", "shuttle", "campus_hours", "dining_hours", "menu"}
+# Clear on no (0.03-0.06 for the career fair or the Village shuttle), softer on yes.
+WHOLE_LIST = ("Does `latest_request` ask for a whole list, such as all events, all shuttle "
+              "times or everything open, rather than one particular thing?",
+              "Asks for everything of one kind on a day or at a time",
+              "Asks about one particular event, route, place, date or deadline, or about "
+              "something else")
 # Keep the options apart: when two descriptions overlap, Jev splits its answer between
 # them and neither clears the threshold.
 ROUTES = {
@@ -337,6 +356,8 @@ def routing_payload(
             },
         ),
         "needs_earlier": noul(*NEEDS_EARLIER),
+        "kind": choice("What kind of campus information does `latest_request` ask for?", KINDS),
+        "whole_list": noul(*WHOLE_LIST),
         "date": choice("Which day does `latest_request` ask about?", dates),
         "meal": choice("Which meal does `latest_request` ask about?", MEALS),
         "complete_menu": noul(*COMPLETE_MENU),
@@ -456,11 +477,39 @@ def lookup_route(answers: dict[str, Any]) -> str | None:
     return "profile"
 
 
+def browse(
+    answers: dict[str, Any],
+    candidates: list[Identity],
+    day: str | None,
+    messages: list[ChatMessage],
+) -> dict[str, Any] | None:
+    """A search code runs itself: a whole list of one kind on one day, like "What events
+    are happening on campus tomorrow?". It needs no search words, which only GPT writes."""
+    kind = selected(answers, "kind")
+    if kind not in BROWSED or answers["whole_list"]["noul"] < RELEASE.routing.threshold:
+        return None
+    if named(messages[-1].content, candidates):
+        return None  # A named place is a lookup, or a search GPT words.
+    if len(messages) > 1 and answers["needs_earlier"]["noul"] > RULED_OUT:
+        return None
+    if day is None or selected(answers, "date") in {None, "other"}:
+        return None
+    meal = selected(answers, "meal")
+    filters = None
+    if kind == "menu" and meal in MEAL_FILTERS:
+        filters = SearchFilters(name=None, meal=meal.title(), vegan=None, vegetarian=None,
+                                term=None, session=None, route=None)
+    query = SearchQuery.model_validate({"collection": kind, "query": "", "date_from": day,
+                                        "date_to": day, "limit": 100, "filters": filters})
+    return {**query.model_dump(mode="json"), "request_text": None}
+
+
 def interpret(
     answers: dict[str, Any],
     candidates: list[Identity],
     day: str | None,
     messages: list[ChatMessage],
+    today: str | None = None,
 ) -> RouteDecision:
     route = selected(answers, "route") or lookup_route(answers)
     decision = RouteDecision(
@@ -471,21 +520,27 @@ def interpret(
     if route is None:
         decision.reason = "uncertain_route"
         return decision
+    if route == "search":
+        # Otherwise GPT's first call is held to the search tool and writes the search.
+        decision.arguments = browse(answers, candidates, day or today, messages)
+        return decision
     if route not in {"contact", "profile"}:
         return decision
     # Until a lookup is resolved, GPT keeps every tool: the request may need more than one.
     decision.tool = None
     decision.reason = "arguments_unresolved"
     explicit = named(messages[-1].content, candidates)
-    if len(messages) > 1 and (
-        answers["needs_earlier"]["noul"] > RULED_OUT or len(explicit) != 1
-    ):
-        # A follow-up that leans on earlier turns, or names no entity itself, is GPT's.
-        decision.reason = "follow_up"
-        return decision
     entity_id = selected(answers, "entity")
     if entity_id in NO_ENTITY:
         entity_id = None
+    if len(messages) > 1:
+        # A follow-up runs its own lookup when it stands alone and names its entity, or
+        # when it names none and Jev is sure who "their" or "it" is, as for "What is their
+        # email?" (0.98). Anything else leans on earlier turns in ways only GPT reads.
+        stands_alone = answers["needs_earlier"]["noul"] <= RULED_OUT and len(explicit) == 1
+        if not (stands_alone or (not explicit and entity_id is not None)):
+            decision.reason = "follow_up"
+            return decision
     if entity_id is None and len(explicit) == 1:
         # The request names this entity itself, so Jev need only lean the same way.
         leading = answers["entity"]["choice"]
@@ -574,9 +629,11 @@ def route_request(
         danger = danger_pick(answers, payload["questions"]["danger"])
         decision.danger = danger
         validate_answers(answers, payload["questions"])
-        decision = interpret(answers, candidates, day, messages)
-        if (decision.arguments is not None and day is not None
-                and decision.arguments.get("date") == day and date.fromisoformat(day) < now.date()):
+        decision = interpret(answers, candidates, day, messages, now.date().isoformat())
+        dated = decision.arguments and (
+            decision.arguments.get("date") or decision.arguments.get("date_from")
+        )
+        if day is not None and dated == day and date.fromisoformat(day) < now.date():
             # The resolver keeps a weekday in this calendar week even once it has passed:
             # asked on a Sunday, "Saturday" is yesterday. GPT decides which one is meant.
             decision = RouteDecision(route=decision.route, confidence=decision.confidence,

@@ -27,8 +27,9 @@ overlap. Candidates are selectors, not evidence or new identity links.
 The router uses one request to pinned `jev-1.13.0`. It picks the route, the entity, the
 day, the meal and whether the student describes danger, and asks one yes/no question per
 profile detail (hours, menu, contact, location, events, leaders, teachers, courses),
-whether the student wants the whole menu, and whether the request needs the earlier
-messages. The route and entity require probability and confidence ≥0.90. Contact and
+whether the student wants the whole menu, whether the request needs the earlier
+messages, what kind of campus information it asks for, and whether it asks for a whole
+list rather than one particular thing. The route and entity require probability and confidence ≥0.90. Contact and
 profile are both a lookup of one entity, so when Jev splits between them and the two
 together reach 0.90 the request is still a lookup: a contact lookup when contact leads and
 contact is all that's asked, otherwise a profile lookup, which fetches contact details too.
@@ -54,10 +55,12 @@ names no day, so "next Saturday" and "the week after Thanksgiving" go to GPT. It
 defers when the resolver's weekday has already passed this week, as for "Saturday" asked
 on a Sunday. A meal filter applies only when Jev's meal pick clears 0.90; otherwise every
 meal is fetched. Meal labels are request filters, never proof of availability.
-A follow-up runs its own lookup only when Jev says it makes sense without the earlier
-messages (0.10 or less) and it names exactly one entity itself, as for "What are the
-library's hours tomorrow?" after another question. "Actually, …" and "What about …?"
-came back at 0.26 and 0.37 and stay with GPT. Mixed or ambiguous requests defer through
+A follow-up runs its own lookup when Jev says it makes sense without the earlier messages
+(0.10 or less) and it names exactly one entity itself, as for "What are the library's
+hours tomorrow?" after another question. "Actually, …" and "What about …?" came back at
+0.26 and 0.37 and stay with GPT. A follow-up that names no entity runs its own lookup
+when Jev is ≥0.90 sure who "their" or "it" is from the conversation, as for "What is
+their email?" (0.98 for the Registrar). Mixed or ambiguous requests defer through
 the route and entity choices.
 
 A request names an entity by its longest matching name or alias: "Computer Science
@@ -90,8 +93,14 @@ routing answer that is invalid elsewhere, or arrives after the routing deadline,
 flags danger. `metrics.safetyNet` records the pick. Shadow mode only records the pick
 in `metrics.routing`.
 
-When only a search or calculate route is resolved, GPT's first call is constrained
-to that tool; later calls regain all tools. A contact or profile route that can't run
+A search route runs directly when it asks for a whole list of one kind on one day, such
+as "What events are happening on campus tomorrow?" or "Which dining halls are open
+today?": Jev is ≥0.90 sure of the kind (events, shuttle, campus hours, dining hours or
+menu), that a whole list is asked for, and of the day, and the request names no curated
+entity. Code then searches that collection for that day with no search words, which only
+GPT writes, and filters a menu by a meal Jev is sure of. Otherwise, when only a search or
+calculate route is resolved, GPT's first call is constrained to that tool; later calls
+regain all tools. A contact or profile route that can't run
 directly, and uncertain, general and mixed routes, retain the ordinary flow. No new frontend flow or request field is required.
 
 The routing deadline is two seconds, includes preparation, and gives the HTTP
