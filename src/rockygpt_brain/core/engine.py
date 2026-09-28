@@ -166,6 +166,18 @@ def safety_facts(data: CampusData) -> tuple[list[dict[str, Any]], str | None]:
     return records, output.get("dataset_version")
 
 
+def pinned_release(data: CampusData) -> str | None:
+    """The release this turn pinned, if it read the database at all.
+
+    Routing reads the release's identity registry on every turn, so a turn that makes no
+    lookup still ran against that release. Taking the version only from lookup results
+    left it null on 12 of 30 dev turns on 09-28: general answers, refusals and memory
+    follow-ups.
+    """
+    dataset = getattr(data, "dataset", None)  # Set once, when the turn first connects.
+    return dataset.get("version") if isinstance(dataset, dict) else None
+
+
 @dataclass
 class SafetyNet:
     """Jev's danger pick under active routing, with the Public Safety records read for it."""
@@ -222,9 +234,15 @@ def run_turn(
     routing_client: RoutingClient | None = None,
     routing_mode: RoutingMode = "off",
     explain_rejections: bool = False,
+    diagnostics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Answer one turn. When Jev reads danger, the safety block comes first, even when
-    the answer fails."""
+    the answer fails.
+
+    `diagnostics`, for a development caller that asked, collects every record the writer
+    and reviewer were given (`evidence`) and every draft with the reviewer's verdict on
+    each part (`drafts`). It is filled as the turn goes, so it survives a failure.
+    """
     started = monotonic()
     metrics = metrics if metrics is not None else {}
     net = SafetyNet()
@@ -232,7 +250,7 @@ def run_turn(
         result = answer_turn(
             messages, client=client, data=data, model=model, now=now, metrics=metrics,
             progress=progress, routing_client=routing_client, routing_mode=routing_mode,
-            explain_rejections=explain_rejections, net=net,
+            explain_rejections=explain_rejections, net=net, diagnostics=diagnostics,
         )
     except (InvalidAnswer, TimeoutError, PaidCallError) as error:
         block = net.block()
@@ -243,7 +261,7 @@ def run_turn(
             **block,
             "status": "partial",
             "model": RELEASE.routing.model,
-            "datasetVersion": net.dataset_version,
+            "datasetVersion": net.dataset_version or pinned_release(data),
             "trace": [],
             "metrics": {
                 **metrics,
@@ -254,6 +272,14 @@ def run_turn(
             },
             "elapsedMs": round((monotonic() - started) * 1000),
         }
+    finally:
+        if diagnostics is not None:
+            # The Public Safety records the reviewer saw first, as it did.
+            delivered = {**net.evidence(), **diagnostics.get("evidence", {})}
+            diagnostics["evidence"] = list(delivered.values())
+    result["datasetVersion"] = (
+        result["datasetVersion"] or net.dataset_version or pinned_release(data)
+    )
     block = net.block()
     if block is None:
         return result
@@ -261,7 +287,6 @@ def run_turn(
     cited = {citation["id"] for citation in result["citations"]}
     return {
         **result,
-        "datasetVersion": result["datasetVersion"] or net.dataset_version,
         "answer": block["answer"] + "\n\n" + result["answer"],
         "status": "partial" if result["status"] == "unavailable" else result["status"],
         "citations": [*(citation for citation in block["citations"] if citation["id"] not in cited),
@@ -282,6 +307,7 @@ def answer_turn(
     routing_mode: RoutingMode,
     explain_rejections: bool,
     net: SafetyNet,
+    diagnostics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     subjects: list[ProgressSubject] = []
 
@@ -309,6 +335,11 @@ def answer_turn(
     data.deadline = budget.retrieval_deadline
     history: list[Any] = [message.model_dump() for message in messages]
     evidence: dict[str, dict[str, Any]] = {}
+    drafts: list[dict[str, Any]] = []
+    if diagnostics is not None:
+        # Live references: whatever the turn has read and drafted when it ends or fails.
+        diagnostics["evidence"] = evidence
+        diagnostics["drafts"] = drafts
     sent_records: dict[str, dict[str, Any]] = {}
     exact_pieces: list[ExactPiece] = []
     scheduled_times: dict[tuple[str, str, str], set[str]] = {}
@@ -517,10 +548,14 @@ def answer_turn(
             raise InvalidAnswer("Incomplete model response", "incomplete_draft")
         calls = [item for item in response.output if item.type == "function_call"]
         if not calls:
+            # For diagnostics only: this draft as written and what became of it.
+            drafted: dict[str, Any] = {"draftCall": draft_calls}
+            drafts.append(drafted)
             try:
                 candidate = Answer.model_validate(
                     expand_argument_references(json.loads(response.output_text), original_ids)
                 )
+                drafted["answer"] = candidate.model_dump(mode="json")
                 result = render_answer(with_prefix(candidate, prefix), evidence)
             except (ValidationError, InvalidAnswer, json.JSONDecodeError) as error:
                 code = (
@@ -528,6 +563,9 @@ def answer_turn(
                     if isinstance(error, (ValidationError, json.JSONDecodeError))
                     else error.code
                 )
+                if "answer" not in drafted:
+                    drafted["output"] = response.output_text
+                drafted.update(outcome="invalid", failure=code)
                 validation_failures.append(code)
                 return fallback(code, response.model)
             # Ordinary general answers are an explicit first-build exemption.
@@ -563,6 +601,7 @@ def answer_turn(
                         )
                         response_mode = "urgent_safety"
                         metrics["safetyFacts"] = safety.evidence_ids
+                drafted["outcome"] = "general_unreviewed"
                 return {
                     **result,
                     "model": response.model,
@@ -587,13 +626,21 @@ def answer_turn(
             timeout = budget.model_timeout("review")
             budget.note_model("review")
             review_calls += 1
+            # The reviewer sees the safety block the student sees above the answer,
+            # so a reference to it is not an unsupported claim.
+            reviewed = {**net.evidence(), **evidence}
+            # The reviewer saw turn-local record names; diagnostics show the real IDs.
+            named = {alias: record_id
+                     for record_id, alias in reference_aliases(list(reviewed)).items()}
+
+            def real_ids(text: str, named: dict[str, str] = named) -> str:
+                return re.sub(r"\brecord_\d+\b", lambda m: named.get(m[0], m[0]), text)
+
             try:
-                # The reviewer sees the safety block the student sees above the answer,
-                # so a reference to it is not an unsupported claim.
                 review = review_answer(
                     candidate,
                     messages=messages,
-                    evidence={**net.evidence(), **evidence},
+                    evidence=reviewed,
                     client=client,
                     model=model,
                     now=now,
@@ -607,23 +654,27 @@ def answer_turn(
                     raise PaidCallError("retrieval_context_limit") from error
                 raise
             except InvalidAnswer as error:
+                drafted.update(outcome="review_failed", failure=error.code)
                 validation_failures.append(error.code)
                 return fallback(error.code, response.model)
+            drafted["review"] = [
+                {
+                    "part_index": part.part_index,
+                    "verdict": part.verdict,
+                    "reason": real_ids(part.reason),
+                    "unverified_premises": [
+                        real_ids(premise) for premise in part.unverified_premises
+                    ],
+                }
+                for part in sorted(review.parts, key=lambda part: part.part_index)
+            ]
+            drafted["outcome"] = "accepted"
             rejected = [part for part in review.parts if part.verdict != "supported"]
             if rejected:
                 validation_failures.extend(part.verdict for part in rejected)
                 if explain_rejections:
                     # Development only, in this response: the saved turn summary
-                    # keeps fixed codes, never the reviewer's reason text. The
-                    # reviewer saw turn-local record names; show the real IDs.
-                    named = {
-                        alias: record_id
-                        for record_id, alias in reference_aliases(list(evidence)).items()
-                    }
-
-                    def real_ids(text: str, named: dict[str, str] = named) -> str:
-                        return re.sub(r"\brecord_\d+\b", lambda m: named.get(m[0], m[0]), text)
-
+                    # keeps fixed codes, never the reviewer's reason text.
                     metrics["reviewRejections"] = [
                         {
                             "part_index": part.part_index,
@@ -638,6 +689,7 @@ def answer_turn(
                 # Keep the paragraphs that passed and drop only the ones that failed.
                 # The student is told something was left out; nothing is rewritten.
                 kept = supported_parts(candidate, review)
+                drafted.update(outcome="partly_rejected" if kept else "rejected", keptParts=kept)
                 if not kept:
                     return fallback("unsupported_answer", response.model)
                 metrics["reviewDroppedParts"] = [
@@ -653,6 +705,7 @@ def answer_turn(
                 try:
                     result = render_answer(with_prefix(candidate, prefix), evidence)
                 except InvalidAnswer as error:
+                    drafted.update(outcome="invalid", failure=error.code)
                     validation_failures.append(error.code)
                     return fallback(error.code, response.model)
             if monotonic() - started >= TURN_SECONDS:

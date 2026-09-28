@@ -1,7 +1,9 @@
 """Client contract, configuration readiness, and safe HTTP errors."""
 
 import asyncio
+from datetime import UTC, datetime
 from threading import BoundedSemaphore, Event
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,8 +12,9 @@ from httpx import ASGITransport, AsyncClient, Request, Response
 from openai import APIConnectionError, APITimeoutError, RateLimitError
 
 from rockygpt_brain.api.app import app
-from rockygpt_brain.config import RELEASE
+from rockygpt_brain.config import RELEASE, configuration_hash
 from rockygpt_brain.core.provider import provider_error
+from rockygpt_brain.core.render import InvalidAnswer
 from rockygpt_brain.governance.accounting import PaidCallError
 
 
@@ -595,6 +598,69 @@ def test_only_a_development_brain_returns_reviewer_reasons(
         })
     assert run.call_args.kwargs['explain_rejections'] is (environment == "development")
 
+
+
+def fill_diagnostics(*_: object, diagnostics: dict[str, Any] | None = None,
+                     **__: object) -> dict[str, Any]:
+    if diagnostics is not None:
+        diagnostics["evidence"] = [{"id": "contacts:registrar",
+                                    "collected_at": datetime(2026, 9, 28, tzinfo=UTC)}]
+        diagnostics["drafts"] = [{"draftCall": 1, "outcome": "accepted"}]
+    return {'answer': 'x', 'status': 'answered', 'datasetVersion': 'release-7',
+            'citations': [], 'metrics': {}, 'trace': [], 'elapsedMs': 1, 'model': 'test'}
+
+
+@pytest.mark.parametrize(("environment", "asked"), [
+    ("development", True), ("development", False), ("production", True)])
+def test_only_a_development_brain_returns_diagnostics_and_only_when_asked(
+    environment: str, asked: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("BRAIN_ENVIRONMENT", environment)
+    monkeypatch.setenv("BRAIN_REVISION", "a" * 40)
+    context = gateway_context()
+    with (
+        patch.dict('os.environ', {'STAGING_SERVICE_TOKEN': '', 'BRAIN_ROUTING_MODE': 'off'}),
+        patch('rockygpt_brain.api.app.open_gateway', return_value=context),
+        patch('rockygpt_brain.api.app.CampusData'),
+        patch('rockygpt_brain.api.app.run_turn', side_effect=fill_diagnostics),
+    ):
+        response = TestClient(app).post(
+            '/v1/chat', json={'messages': [{'role': 'user', 'content': 'Hello'}]},
+            headers={'x-rockygpt-diagnostics': '1'} if asked else {},
+        )
+    body = response.json()
+    if environment == "development" and asked:
+        diagnostics = body["diagnostics"]
+        assert diagnostics["brain"] == {"revision": "a" * 40, "release": RELEASE.version,
+                                        "configurationHash": configuration_hash()}
+        assert diagnostics["startedAt"].endswith("-04:00")
+        assert diagnostics["evidence"][0]["collected_at"] == "2026-09-28 00:00:00+00:00"
+        assert diagnostics["drafts"] == [{"draftCall": 1, "outcome": "accepted"}]
+    else:
+        assert "diagnostics" not in body
+    # The saved turn summary never stores them.
+    summary = context.__enter__.return_value.finish.call_args.args[0]
+    assert "diagnostics" not in summary and "contacts:registrar" not in str(summary)
+
+
+def test_a_failed_turn_keeps_its_diagnostics() -> None:
+    def fail(*_: object, diagnostics: dict[str, Any] | None = None, **__: object) -> None:
+        assert diagnostics is not None
+        diagnostics["drafts"] = [{"draftCall": 1, "outcome": "invalid", "failure": "x"}]
+        raise InvalidAnswer("Bad draft", "answer_schema")
+
+    with (
+        patch.dict('os.environ', {'STAGING_SERVICE_TOKEN': '', 'BRAIN_ROUTING_MODE': 'off'}),
+        patch('rockygpt_brain.api.app.open_gateway', return_value=gateway_context()),
+        patch('rockygpt_brain.api.app.CampusData'),
+        patch('rockygpt_brain.api.app.run_turn', side_effect=fail),
+    ):
+        response = TestClient(app).post(
+            '/v1/chat', json={'messages': [{'role': 'user', 'content': 'Hello'}]},
+            headers={'x-rockygpt-diagnostics': '1'},
+        )
+    assert response.status_code == 502
+    assert response.json()["diagnostics"]["drafts"][0]["outcome"] == "invalid"
 
 def test_chat_operational_summary_does_not_store_conversation_text() -> None:
     context = gateway_context()
