@@ -85,7 +85,10 @@ def independent_quote(quote: str, request: str) -> bool:
 def request_date(text: str, now: datetime) -> tuple[date, str]:
     """Resolve explicit simple dates independently of the model's query date."""
     selected: set[date] = set()
-    for offset, marker in ((0, "today"), (0, "tonight"), (0, "now"), (1, "tomorrow")):
+    # Students type "tmrw": "atrium hours tmrw" named no day, so Jev read it as one to
+    # work out and GPT wrote the lookup instead of code.
+    for offset, marker in ((0, "today"), (0, "tonight"), (0, "now"), (1, "tomorrow"),
+                           (1, "tmrw"), (1, "tmr"), (1, "tomorow")):
         text, found = remove_phrase(text, marker)
         if found:
             selected.add(now.date() + timedelta(days=offset))

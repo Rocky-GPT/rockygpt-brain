@@ -36,8 +36,8 @@ and extent of what the source establishes. Incidental mentions and names do not
 establish a different entity's attributes. A caveat later in the answer does not
 repair an earlier unsupported assertion.
 canonical_entity_id links records to one curated identity; it does not resolve
-conflicting field values or expand any record's authority. A matched lookup's
-resolution.entity_names are more names of that same identity, each with its basis:
+conflicting field values or expand any record's authority. A matched or variants
+lookup's resolution.entity_names are more names of that same identity, each with its basis:
 a department its own directory entry publishes, or a name the reviewed identity map
 or a person gave it. A request or answer that uses one of them names that identity,
 so its linked records support the requested attribute under that name without

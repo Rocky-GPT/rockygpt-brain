@@ -183,9 +183,65 @@ def test_a_name_whose_matches_are_all_its_qualified_lines_returns_each_line() ->
         "201-555-0100", "201-555-0199"}
     assert [item["entity"]["name"] for item in result["variants"]] == [
         "Example Center (Emergency)", "Example Center (Non-Emergency)"]
-    # A different name that merely shares the matches stays ambiguous.
-    unqualified = data.lookup_profile(ProfileQuery(entity="EC", include=["contact"]))
-    assert unqualified["resolution"]["status"] == "ambiguous"
+    # An alias both lines share names both too, as "Campus Police" does.
+    shared = data.lookup_profile(ProfileQuery(entity="EC", include=["contact"]))
+    assert shared["resolution"]["status"] == "variants"
+
+
+def test_a_name_matches_without_its_apostrophe() -> None:
+    # "When does dunkin close" found nothing: the venue is published as "Dunkin'".
+    data = repository()
+    data._artifacts["campus-identities"]["entities"][0].update(name="Example's Center", aliases=[])
+    attach_rows(data, *rows())
+    for spelled in ("Examples Center", "example’s center", "Example's Center"):
+        result = data.lookup_profile(ProfileQuery(entity=spelled, include=["contact"]))
+        assert result["resolution"]["status"] == "matched", spelled
+
+
+def test_a_name_matches_without_its_leading_article() -> None:
+    # "Atrium hours tomorrow" found nothing: the venue is published as "The Atrium".
+    data = repository()
+    data._artifacts["campus-identities"]["entities"][0].update(name="The Example Atrium",
+                                                               aliases=[])
+    attach_rows(data, *rows())
+    for spelled in ("Example Atrium", "the example atrium", "The Example Atrium"):
+        result = data.lookup_profile(ProfileQuery(entity=spelled, include=["contact"]))
+        assert result["resolution"]["status"] == "matched", spelled
+    # An article inside a name stays: "Office of the President" is not "President".
+    data._artifacts["campus-identities"]["entities"][0].update(name="Office of the Example")
+    result = data.lookup_profile(ProfileQuery(entity="Example", include=["contact"]))
+    assert result["resolution"]["status"] != "matched"
+
+
+def test_a_shared_alias_over_qualified_lines_returns_each_line() -> None:
+    # "Campus Police" is an alias of both Public Safety lines, not a prefix of their names.
+    data = repository()
+    emergency = copy.deepcopy(IDENTITY)
+    emergency.update(name="Example Center (Emergency)", aliases=["Front Desk"])
+    other = copy.deepcopy(IDENTITY)
+    other.update(id="a8306d1b-0319-477a-88fa-c32e2bab5f4e", name="Example Center (Non-Emergency)",
+                 aliases=["Front Desk"], links=[
+                     {"collection": "contacts", "source_key": "directory",
+                      "source_record_keys": ["other"]}])
+    data._artifacts["campus-identities"]["entities"] = [emergency, other]
+    data._artifacts["campus-identity-coverage"] = {"alias_sources": [
+        {"entity_id": line["id"], "alias": "Front Desk",
+         "sources": [{"basis": "human_reviewed", "reviewed_at": "2026-09-28"}]}
+        for line in (emergency, other)]}
+    contact, _ = rows()
+    second = {**contact, "id": "contact-2", "source_record_key": "other"}
+    data._fetch = Mock(  # type: ignore[method-assign]
+        side_effect=lambda _sql, params: [second] if params[2] == ["other"] else [contact]
+    )
+    result = data.lookup_profile(ProfileQuery(entity="front desk", include=["contact"]))
+    assert result["resolution"]["status"] == "variants"
+    # The shared alias is a name of each line, so the checker can accept the wording.
+    assert "Front Desk" in {name["name"] for name in result["resolution"]["entity_names"]}
+    # Different base names under one alias stay ambiguous.
+    other["name"] = "Another Center (Non-Emergency)"
+    data._artifacts["campus-identities"]["entities"] = [emergency, other]
+    assert data.lookup_profile(ProfileQuery(entity="front desk", include=["contact"]))[
+        "resolution"]["status"] == "ambiguous"
 
 
 def test_a_leading_campus_name_is_dropped_only_when_the_name_as_given_matches_nothing() -> None:

@@ -479,6 +479,13 @@ def test_a_longer_name_hides_only_the_names_inside_it(text: str, expected: list[
     assert named(text, [CS_BS, CS_MS, CS_CLUB, BIRCH, MANSION]) == expected
 
 
+def test_a_name_is_named_without_its_leading_article() -> None:
+    atrium = identity(10, "venue", "The Atrium")
+    assert named("atrium hours tmrw", [atrium, BIRCH]) == [atrium]
+    assert named("When does The Atrium open?", [atrium, BIRCH]) == [atrium]
+    assert named("What's in the atriums?", [atrium]) == []
+
+
 def test_one_named_entity_among_overlapping_names_can_route_directly() -> None:
     request = messages("Who is the convener of the Computer Science BS program?")
     candidates = [CS_BS, CS_MS, CS_CLUB]
@@ -490,6 +497,34 @@ def test_one_named_entity_among_overlapping_names_can_route_directly() -> None:
     answers = answers_for(payload, route="profile", entity=str(CS_MS.id), detail_leaders=1.0)
     result = interpret(answers, candidates, day, request)
     assert result.arguments is None and result.tool is None
+
+
+EMERGENCY = identity(8, "office", "Public Safety (Emergency)", "Public Safety", "Campus Police")
+NON_EMERGENCY = identity(9, "office", "Public Safety (Non-Emergency)", "Public Safety",
+                         "Campus Police")
+
+
+@pytest.mark.parametrize("route,pick", [("contact", 8), ("contact", 0), ("profile", 9)])
+def test_every_line_of_one_named_place_is_one_lookup_by_its_name(route: str, pick: int) -> None:
+    # "Campus police emergency number": Jev picked one line, and both lines being named
+    # sent the lookup to GPT, which searched and couldn't verify "campus police".
+    request = messages("campus police emergency number")
+    candidates = [EMERGENCY, NON_EMERGENCY, ENTITY]
+    payload, day = routing_payload(request, candidates, NOW)
+    entity = str(UUID(int=pick)) if pick else "none"
+    answers = answers_for(payload, route=route, entity=entity, detail_contact=1.0)
+    result = interpret(answers, candidates, day, request)
+    assert result.reason is None and result.arguments is not None
+    assert result.arguments["entity"] == "Public Safety"
+    assert "entity_id" not in result.arguments or result.arguments["entity_id"] is None
+    # A pick the request doesn't name, or two different places, stay GPT's.
+    answers = answers_for(payload, route=route, entity=str(ENTITY.id), detail_contact=1.0)
+    assert interpret(answers, candidates, day, request).arguments is None
+    request = messages("Compare the Computer Science BS and the Computer Science MS.")
+    payload, day = routing_payload(request, [CS_BS, CS_MS], NOW)
+    answers = answers_for(payload, route=route, entity=str(CS_BS.id), detail_contact=1.0)
+    result = interpret(answers, [CS_BS, CS_MS], day, request)
+    assert result.arguments is None and result.reason == "ambiguous_entities"
 
 
 MATH = identity(7, "subject", "Mathematics (MATH)", "MATH")
@@ -657,6 +692,14 @@ def test_dates_meals_and_complete_menu_are_bounded() -> None:
     # A day that needs working out, such as "the week after Thanksgiving", is GPT's.
     answers = answers_for(payload, route="profile", date="other", detail_menu=0.99)
     assert interpret(answers, [ENTITY], day, request).arguments is None
+
+
+@pytest.mark.parametrize("spelled", ["tomorrow", "tmrw", "tmr", "tomorow"])
+def test_tomorrow_as_students_type_it_is_a_named_day(spelled: str) -> None:
+    request = messages(f"Registrar hours {spelled}")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    assert day == (NOW.date() + timedelta(days=1)).isoformat()
+    assert payload["questions"]["date"]["criteria"]["named"] == f"The day it calls '{spelled}'"
 
 
 def test_a_day_jev_is_unsure_of_is_left_to_gpt() -> None:
@@ -836,6 +879,34 @@ def test_tonights_menu_is_dinner_when_jev_reads_no_meal() -> None:
     payload, day = routing_payload(request, [ENTITY], NOW)
     arguments = interpret(browse_answers(payload, kind="dining_hours", meal="none"), [ENTITY],
                           day, request).arguments
+    assert arguments is not None and arguments["filters"] is None
+
+
+def test_a_late_night_menu_is_the_late_night_meal() -> None:
+    # Jev read "late night menu tonight birch" as a meal it doesn't list, at 0.98.
+    request = messages("What's on the late-night menu tonight?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    for meal in ("other", "none"):
+        arguments = interpret(browse_answers(payload, kind="menu", meal=meal), [ENTITY], day,
+                              request).arguments
+        assert arguments is not None and arguments["filters"]["meal"] == "Late Night"
+    # A place's late night menu is one meal, fetched whole.
+    request = messages("Registrar late night menu today")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    answers = answers_for(payload, route="profile", date="named", meal="other",
+                          detail_menu=0.99, detail_contact=0.0)
+    arguments = interpret(answers, [ENTITY], day, request).arguments
+    assert arguments is not None and arguments["meal"] == "late night"
+    assert arguments["menu_limit"] == 100
+    # A sure meal stays Jev's pick, and late night hours are the day's whole schedule.
+    answers = answers_for(payload, route="profile", date="named", meal="lunch",
+                          detail_menu=0.99, detail_contact=0.0)
+    arguments = interpret(answers, [ENTITY], day, request).arguments
+    assert arguments is not None and arguments["meal"] == "lunch"
+    request = messages("Which dining halls are open late night?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    answers = browse_answers(payload, kind="dining_hours", meal="other", date="none")
+    arguments = interpret(answers, [ENTITY], day, request, NOW.date().isoformat()).arguments
     assert arguments is not None and arguments["filters"] is None
 
 
