@@ -198,6 +198,21 @@ def test_a_name_matches_without_its_apostrophe() -> None:
         assert result["resolution"]["status"] == "matched", spelled
 
 
+def test_a_name_matches_without_its_leading_article() -> None:
+    # "Atrium hours tomorrow" found nothing: the venue is published as "The Atrium".
+    data = repository()
+    data._artifacts["campus-identities"]["entities"][0].update(name="The Example Atrium",
+                                                               aliases=[])
+    attach_rows(data, *rows())
+    for spelled in ("Example Atrium", "the example atrium", "The Example Atrium"):
+        result = data.lookup_profile(ProfileQuery(entity=spelled, include=["contact"]))
+        assert result["resolution"]["status"] == "matched", spelled
+    # An article inside a name stays: "Office of the President" is not "President".
+    data._artifacts["campus-identities"]["entities"][0].update(name="Office of the Example")
+    result = data.lookup_profile(ProfileQuery(entity="Example", include=["contact"]))
+    assert result["resolution"]["status"] != "matched"
+
+
 def test_a_shared_alias_over_qualified_lines_returns_each_line() -> None:
     # "Campus Police" is an alias of both Public Safety lines, not a prefix of their names.
     data = repository()
