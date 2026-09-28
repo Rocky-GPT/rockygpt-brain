@@ -89,6 +89,18 @@ SECTION_COLLECTIONS: dict[str, tuple[str, ...]] = {
 }
 
 
+# Every schedule a profile delivers says what it is not.
+SCHEDULE_LIMITATION = (
+    "Published operating schedule; it does not establish staff or telephone availability; "
+    "never infer phone-answering hours."
+)
+# A requested meal the schedule doesn't label.
+UNLABELED_MEAL_LIMITATION = (
+    "The requested meal's hours are not explicitly labeled; "
+    "do not infer meal availability from general opening hours."
+)
+
+
 def _normalize(value: str) -> str:
     return " ".join(value.split()).casefold()
 
@@ -488,13 +500,49 @@ def _applicable(
                 fields["requested_meal_periods"] = matching
                 fields["meal_coverage"] = "published" if matching else "not_published"
                 if not matching:
-                    record["limitations"].append(
-                        "The requested meal's hours are not explicitly labeled; "
-                        "do not infer meal availability from general opening hours."
-                    )
+                    record["limitations"].append(UNLABELED_MEAL_LIMITATION)
             selected.append(record)
         applicable = selected
     return applicable
+
+
+def _station_groups(
+    records: list[dict[str, Any]],
+) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    """Menu records by (meal, station), in the order the records come."""
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for record in records:
+        fields = record["fields"]
+        key = (_normalize(str(fields.get("meal", ""))), _normalize(str(fields.get("station", ""))))
+        groups.setdefault(key, []).append(record)
+    return groups
+
+
+def _across_stations(records: list[dict[str, Any]], limit: int) -> set[str]:
+    """The IDs of `limit` sorted menu records, taken one station at a time, meal by meal.
+
+    Cutting the sorted list kept only the first stations by name: Birch's 50 lunch items
+    gave GPT Chef's Table and half the Deli, never the Grill, Pizza or Soup.
+    """
+    meals: dict[str, list[list[dict[str, Any]]]] = {}
+    for (meal, _), items in _station_groups(records).items():
+        meals.setdefault(meal, []).append(list(items))
+    kept: list[str] = []
+    for queues in meals.values():
+        while len(kept) < limit and any(queues):
+            for queue in queues:
+                if queue and len(kept) < limit:
+                    kept.append(queue.pop(0)["id"])
+    return set(kept)
+
+
+def _station_counts(records: list[dict[str, Any]], kept: set[str]) -> list[dict[str, Any]]:
+    """How many dishes each meal's station has, and how many of them were returned."""
+    return [
+        {"meal": items[0]["fields"].get("meal"), "station": items[0]["fields"].get("station"),
+         "matched": len(items), "returned": sum(record["id"] in kept for record in items)}
+        for items in _station_groups(records).values()
+    ]
 
 
 def _supports_relationship(record: dict[str, Any], relationship: IdentityRelationship) -> bool:
@@ -1296,10 +1344,7 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                             "dining_service" if record["collection"] == "dining_hours"
                             else "unspecified"
                         )
-                        record["limitations"].append(
-                            "Published operating schedule; it does not establish staff or "
-                            "telephone availability; never infer phone-answering hours."
-                        )
+                        record["limitations"].append(SCHEDULE_LIMITATION)
                     records.append(record)
             except Exception:
                 # A broken link must not erase independently available sections.
@@ -1405,6 +1450,7 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
         records = list({record["id"]: record for record in records}.values())
         matched_record_ids.update(record["id"] for record in records)
         total_matches = len(records)
+        stations: list[dict[str, Any]] = []
         if component == "menu":
             # A normal profile request needs a bounded, cited selection, as an
             # ordinary search does. Stable published station/name ordering adds
@@ -1416,7 +1462,9 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                 _normalize(str(record["fields"].get("station", ""))),
                 _normalize(str(record["fields"].get("name", ""))), record["id"],
             ))
-            records = records[:query.menu_limit]
+            kept = _across_stations(records, query.menu_limit)
+            stations = _station_counts(records, kept)
+            records = [record for record in records if record["id"] in kept]
             truncated = truncated or len(records) < total_matches
         if component == "contact":
             field_names = tuple(field for field in TABLES["contacts"][1] if field != "name")
@@ -1513,8 +1561,14 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             "returned_count": len(records),
             "omitted_count": total_matches - len(records),
         }
-        if component == "menu" and len(records) < total_matches:
-            result["components"][component]["reason"] = "menu_item_limit"
+        if component == "menu":
+            # Whether this is every dish that matched, so nothing reads 12 of 50 as the menu.
+            result["components"][component].update(
+                complete=not (truncated or failed_links or missing_keys),
+                stations=stations,
+            )
+            if len(records) < total_matches:
+                result["components"][component]["reason"] = "menu_item_limit"
         if component in {"conveners", "courses", "program", "event"}:
             result["components"][component]["relationships"] = relationships
             if component == "conveners" and not relationships:
