@@ -29,9 +29,12 @@ day, the meal and whether the student describes danger, and asks one yes/no ques
 profile detail (hours, menu, contact, location, events, leaders, teachers, courses),
 whether the student wants the whole menu, whether the request needs the earlier
 messages, what kind of campus information it asks for, and whether it asks for a whole
-list rather than one particular thing. The route and entity require probability and confidence ≥0.90. Contact and
-profile are both a lookup of one entity, so when Jev splits between them and the two
-together reach 0.90 the request is still a lookup: a contact lookup when contact leads and
+list rather than one particular thing. The route needs its top probability ≥0.70: over
+four runs of the routing cases, route picks at 0.70–0.90 were right 21 of 21 times (nine
+questions) and picks under 0.70 were right 17 of 19. Every other pick, the entity
+included, needs probability and confidence ≥0.90. Contact and profile are both a lookup
+of one entity, so when Jev splits between them and the two together reach 0.70 the
+request is still a lookup: a contact lookup when contact leads and
 contact is all that's asked, otherwise a profile lookup, which fetches contact details too.
 
 Every question asks about the student's words, never the Brain's labels. Asked "Does
