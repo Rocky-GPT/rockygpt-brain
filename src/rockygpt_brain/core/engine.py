@@ -19,6 +19,7 @@ from rockygpt_brain.campus.formats import (
     ExactPiece,
     SearchCall,
     combine_exact,
+    events_answer,
     exact_contact,
     exact_search,
     safety_part,
@@ -82,6 +83,10 @@ REVIEW_RESERVE_SECONDS = RELEASE.review_reserve_seconds
 ANSWER_RESERVE_SECONDS = RELEASE.answer_reserve_seconds
 
 
+# How each answer code writes from a profile lookup is logged.
+WRITTEN_MODES = {"menu": "exact_menu", "full_menu": "exact_menu", "hours": "exact_hours",
+                 "convener": "exact_facts", "events": "exact_records",
+                 "departures": "exact_records"}
 # Written by code, not the model: what a turn says when nothing it drafted could be
 # verified, and where it looked.
 UNVERIFIED = "I couldn't verify a reliable answer from the available information."
@@ -691,7 +696,8 @@ def answer_turn(
             except json.JSONDecodeError:
                 pass  # The tool schema validator reports malformed JSON normally.
             if not retrieval_allowed or not budget.admit_tool():
-                output: dict[str, Any] = {"status": "unavailable", "reason": "tool_budget"}
+                output: dict[str, Any] = {"status": "unavailable",
+                                          "reason": budget.refusal}
             else:
                 try:
                     if call.name == "calculate":
@@ -783,8 +789,15 @@ def answer_turn(
                 except Exception:
                     # Do not expose connection strings, SQL, or provider errors.
                     output = {"status": "unavailable", "reason": "campus_data_unavailable"}
+            listed_by_code = (call.name == "search_campus" and direct and len(calls) == 1
+                              and template in {"events", "departures"})
             if (call.name == "search_campus" and output.get("records")
-                    and routing_mode == "active" and routing_client is not None):
+                    and routing_mode == "active" and routing_client is not None
+                    and not listed_by_code and arguments.get("collection") != "shuttle"):
+                # A timetable stays whole: first, next, last and "no earlier trip goes
+                # there" are worked out over every trip, and the checker needs them all.
+                # Filtered, "first shuttle to Garden State Plaza" kept 10 of 30 trips and
+                # the checker rejected "no earlier shuttle goes there" (09-28).
                 # Jev drops the search results that don't help before GPT reads them.
                 filter_client = cast(FilterClient, routing_client)
                 output, filtered = filter_records(output, messages, filter_client)
@@ -925,17 +938,28 @@ def answer_turn(
                 # hours when the records prove them, with no GPT writer or checker.
                 profile_query = ProfileQuery.model_validate(arguments)
                 exact_candidate = profile_answer(template, output, profile_query)
-                if exact_candidate is not None and template == "menu" and routing_client:
+                menu_items = [record for record in output.get("records", [])
+                              if record.get("collection") == "menu"]
+                if (exact_candidate is not None and template == "menu" and routing_client
+                        and menu_items):
                     # Jev picks the dishes to list; the rest are counted, never dropped.
-                    dishes, picked = pick_dishes(
-                        [record for record in output.get("records", [])
-                         if record.get("collection") == "menu"],
-                        cast(FilterClient, routing_client))
+                    dishes, picked = pick_dishes(menu_items, cast(FilterClient, routing_client))
                     metrics["dishPick"] = picked
                     exact_candidate = profile_answer(
                         template, output, profile_query, dishes) or exact_candidate
                 if exact_candidate is not None:
-                    written_mode = "exact_hours" if template == "hours" else "exact_menu"
+                    written_mode = WRITTEN_MODES[template]
+            if listed_by_code and arguments and template == "events":
+                # Jev said the request asks every event that day, and code read nothing else
+                # in it: code lists them from the whole search, which Jev didn't filter.
+                exact_candidate = events_answer(output, SearchQuery.model_validate(arguments),
+                                                now)
+                if exact_candidate is not None:
+                    written_mode = "exact_records"
+            if listed_by_code and template == "departures":
+                # The whole question is the quote: code answers a first, next or last
+                # departure, maybe to a named stop, from the day's whole timetable.
+                request_quote = messages[-1].content
             if request_quote and arguments:
                 piece = (
                     exact_search(

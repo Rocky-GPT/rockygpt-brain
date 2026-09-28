@@ -914,9 +914,10 @@ def test_a_late_night_menu_is_the_late_night_meal() -> None:
     "text,changes",
     [
         # "What's for dinner on campus tonight?" came back 0.52: GPT writes the search.
-        ("What events are happening on campus tomorrow?", {"whole_list": 0.52}),
+        # (A plain "what events are on tomorrow" is listed by code even so.)
+        ("What club events are happening on campus tomorrow?", {"whole_list": 0.52}),
         ("When is the career fair tomorrow?", {"whole_list": 0.04}),
-        ("What events are happening on campus tomorrow?", {"kind": "calendar"}),
+        ("What club events are happening on campus tomorrow?", {"kind": "calendar"}),
         ("What events are happening on campus this weekend?", {"date": "other"}),
         # A named place is a lookup, or a search GPT words.
         ("What events does the Registrar have tomorrow?", {}),
@@ -1479,9 +1480,11 @@ def test_search_results_are_filtered_before_gpt_reads_them() -> None:
         f"record_{index}": {"type": "noul", "noul": value}
         for index, value in enumerate((0.95, 0.02, 0.6))
     }
-    result = run_turn(messages("What events are happening on campus tomorrow?"), client=gpt,
-                      data=data, model=RELEASE.model, now=NOW, routing_client=router,
-                      routing_mode="active")
+    # A plain list of every event that day is listed by code, unfiltered; a narrower ask
+    # ("club events") is GPT's to write, from the results that help.
+    result = run_turn(messages("What club events are happening on campus tomorrow?"),
+                      client=gpt, data=data, model=RELEASE.model, now=NOW,
+                      routing_client=router, routing_mode="active")
     assert result["metrics"]["searchFilter"][0]["dropped"] == 1
     sent = json.dumps(gpt.create.call_args_list[0].kwargs["input"], default=str)
     assert "events:0" in sent and "events:2" in sent and "events:1" not in sent
@@ -1545,29 +1548,40 @@ def test_anything_but_one_plain_known_value_goes_to_gpt(output: dict[str, Any]) 
 
 
 @pytest.mark.parametrize(
-    "values,fields",
+    "text,values,fields",
     [
         # Measured on "What is the Registrar phone?": phone 0.99, email 0.02.
-        ({"asks_phone": 0.99, "asks_email": 0.02}, ["phone"]),
-        ({"asks_phone": 0.99, "asks_email": 0.99}, ["phone", "email"]),
+        ("What is the Registrar phone?", {"asks_phone": 0.99, "asks_email": 0.02}, ["phone"]),
+        ("What is the Registrar phone and email?", {"asks_phone": 0.99, "asks_email": 0.99},
+         ["phone", "email"]),
         # "How can I contact Registrar?": phone 0.29, email 0.17, contact 0.98.
-        ({"asks_phone": 0.29, "asks_email": 0.17}, ["phone", "email", "office"]),
-        ({"asks_phone": 0.99, "asks_email": 0.02, "detail_location": 0.99},
-         ["phone", "office"]),
+        ("How can I contact Registrar?", {"asks_phone": 0.29, "asks_email": 0.17},
+         ["phone", "email", "office"]),
+        ("Registrar phone and where is it?",
+         {"asks_phone": 0.99, "asks_email": 0.02, "detail_location": 0.99}, ["phone", "office"]),
         # "for transcripts" (0.98) or "non-emergency" (0.24): GPT writes.
-        ({"asks_phone": 0.99, "asks_email": 0.02, "adds_purpose": 0.98}, None),
-        ({"asks_phone": 0.99, "asks_email": 0.02, "adds_purpose": 0.24}, None),
-        ({"asks_phone": 0.99, "asks_email": 0.5}, None),
-        ({"asks_phone": 0.99, "asks_email": 0.02, "detail_hours": 0.98}, None),
+        ("What is the Registrar phone for transcripts?",
+         {"asks_phone": 0.99, "asks_email": 0.02, "adds_purpose": 0.98}, None),
+        ("What is the Registrar non-emergency phone?",
+         {"asks_phone": 0.99, "asks_email": 0.02, "adds_purpose": 0.24}, None),
+        ("Registrar phone, or email if faster?", {"asks_phone": 0.99, "asks_email": 0.5}, None),
+        ("Registrar phone and hours?",
+         {"asks_phone": 0.99, "asks_email": 0.02, "detail_hours": 0.98}, None),
+        # Jev read "who do I call for the Pine Hall desk" as asking who works there (0.62)
+        # and as adding a purpose (0.21). Its words are only a name and contact words, so
+        # code states the listing.
+        ("Who do I call for the Registrar desk?",
+         {"asks_phone": 0.91, "asks_email": 0.03, "adds_purpose": 0.21, "detail_teachers": 0.62},
+         ["phone"]),
     ],
 )
 def test_code_writes_only_a_plain_contact_request(
-    values: dict[str, float], fields: list[str] | None
+    text: str, values: dict[str, float], fields: list[str] | None
 ) -> None:
-    payload, day = routing_payload(messages(), [ENTITY], NOW)
+    payload, day = routing_payload(messages(text), [ENTITY], NOW)
     answers = answers_for(payload, **{"detail_contact": 0.98, **values})
     validate_answers(answers, payload["questions"])
-    assert interpret(answers, [ENTITY], day, messages()).answer_fields == fields
+    assert interpret(answers, [ENTITY], day, messages(text)).answer_fields == fields
 
 
 def test_a_plain_contact_request_is_answered_without_gpt() -> None:
