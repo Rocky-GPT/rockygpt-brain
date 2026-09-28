@@ -74,6 +74,16 @@ one of the two offices a mixed request named. When
 the request names exactly one entity, Jev's pick of that same entity stands once its
 probability reaches 0.50, since the name itself backs it.
 
+Under active routing, code also writes a plain contact answer itself, with no GPT call
+at all. Jev says, one yes/no each, whether the request asks for a phone number or an
+email address, and whether it adds a purpose or condition ("for transcripts", "after
+hours"). When the request plainly asks for phone, email or office location, or how to
+reach the office in general, adds no purpose, asks nothing else and names no danger,
+and the shared entity facts hold each requested detail as one `known` value with fresh,
+caveat-free support, code states them with their evidence (`responseMode`
+`exact_facts`). Anything else, including unknown, conflicting or multiple values, is
+GPT's to write and review.
+
 Contact and every profile section except related, requirements, school, subject and
 graduation plans can run directly. Every lookup still uses the ordinary
 schema validation, read-only retrieval, context bounds, evidence collection, trace,
