@@ -281,6 +281,14 @@ def test_exact_hours_keep_requested_boundaries(question: str, schedule: str, exp
     assert piece is not None and expected in piece.answer.parts[0].text
 
 
+@pytest.mark.parametrize("schedule", ["Hours unavailable", "Lunch: Hours unavailable"])
+def test_exact_hours_never_state_the_unverified_placeholder(schedule: str) -> None:
+    # A Research Help Desk answer once read "Published hours ...: Hours unavailable."
+    query = SearchQuery(collection="dining_hours", date_from=NOW.date())
+    question = "Garden Hall hours today"
+    assert exact_search(question, messages(question), query, output(hours(schedule)), NOW) is None
+
+
 def test_regular_hours_keep_exception_limit_and_open_now_needs_more_evidence() -> None:
     row = hours()
     row.pop("valid_from")

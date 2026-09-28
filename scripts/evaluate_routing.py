@@ -127,6 +127,28 @@ def promotion(report: dict[str, Any], quality: dict[str, Any]) -> dict[str, Any]
     }
 
 
+def answer_summary(pairs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Answers per mode, with intended declines counted apart from misses."""
+    expected = {case["id"] for case in json.loads(CASES.read_text())["cases"]
+                if case.get("expect") == "decline"}
+    summary: dict[str, Any] = {}
+    for mode in ("off", "active"):
+        declines = [pair for pair in pairs if pair["id"].rsplit(":", 1)[0] in expected]
+        others = [pair for pair in pairs if pair not in declines]
+        misses = [pair for pair in others if pair[mode].get("status") != "answered"]
+        summary[mode] = {
+            "answered": sum(pair[mode].get("status") == "answered" for pair in pairs),
+            "samples": len(pairs),
+            "expectedDeclines": sum(pair[mode].get("status") != "answered" for pair in declines),
+            "misses": len(misses),
+            # A miss on stale records measures the data's age, not the Brain.
+            "missesCitingStaleRecords": sum(any(
+                citation.get("freshness") in {"stale", "unknown"}
+                for citation in pair[mode].get("citations", [])) for pair in misses),
+        }
+    return summary
+
+
 def evaluate_case(case: dict[str, Any], mode: RoutingMode, now: datetime) -> dict[str, Any]:
     deployment = load_deployment().model_copy(update={"routing_mode": mode})
     data = CampusData(os.environ["DATABASE_URL"], now)
@@ -144,6 +166,7 @@ def evaluate_case(case: dict[str, Any], mode: RoutingMode, now: datetime) -> dic
                     now=now,
                     routing_client=gateway if mode != "off" else None,
                     routing_mode=mode,
+                    explain_rejections=True,
                 )
                 result = {
                     "status": response["status"],
@@ -152,6 +175,8 @@ def evaluate_case(case: dict[str, Any], mode: RoutingMode, now: datetime) -> dic
                     "datasetVersion": response["datasetVersion"],
                     "routing": response["metrics"].get("routing", {}),
                     "validationFailures": response["metrics"].get("validationFailures", []),
+                    # Why the checker dropped a draft; the 09-28 run saved none of it.
+                    "reviewRejections": response["metrics"].get("reviewRejections", []),
                 }
             except PaidCallError as error:
                 result = {"error": error.code}
@@ -249,8 +274,9 @@ def main() -> int:
                     return 1  # Stop on budget, accounting or upstream failure; no retry loop.
         report["status"] = "evaluated"
         report["gates"] = promotion(report, quality)
+    report["answers"] = answer_summary(report["pairs"])
     args.output.write_text(json.dumps(report, indent=2) + "\n")
-    print(json.dumps(report["gates"]))
+    print(json.dumps({**report["gates"], "answers": report["answers"]}))
     return 0
 
 
