@@ -288,6 +288,7 @@ def wrap(owner: Any, name: str, stage: str | Callable[..., str]) -> None:
 
 def instrument() -> None:
     import psycopg
+    from psycopg_pool import ConnectionPool
 
     from rockygpt_brain.core import engine, provider, reviewer, routing
     from rockygpt_brain.governance import accounting
@@ -298,6 +299,9 @@ def instrument() -> None:
         return "db.connect.ledger" if url and url == RECORDER.ledger_url else "db.connect.campus"
 
     wrap(psycopg, "connect", connect_label)
+    # The ledger borrows pooled connections: a check round trip, or a new connection
+    # when none is idle.
+    wrap(ConnectionPool, "getconn", "db.pool.ledger")
     wrap(data.CampusData, "_fetch", "db.campus.query")
     wrap(data.CampusData, "_ensure_loaded", "setup.campus.ensureLoaded")
     wrap(data.CampusData, "release_fingerprint", "setup.campus.fingerprint")

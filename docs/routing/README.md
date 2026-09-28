@@ -24,31 +24,50 @@ messages. Candidates come from the active release's curated identities, capped a
 24 and ranked by current exact name/alias matches, previous mentions, then lexical
 overlap. Candidates are selectors, not evidence or new identity links.
 
-The router uses one request to pinned `jev-1.13.0` and asks only choices: the route,
-the entity, the date, the meal, for a profile the topic, and whether the student
-describes danger. It asks no yes/no
-questions, because Jev's yes/no answers about single details sat between 0.50 and 0.80
-whether or not the detail was asked, so a lookup gated on them never ran. The route
-and entity require probability and confidence ≥0.90.
+The router uses one request to pinned `jev-1.13.0`. It picks the route, the entity, the
+day, the meal and whether the student describes danger, and asks one yes/no question per
+profile detail (hours, menu, contact, location, events, leaders, teachers, courses),
+whether the student wants the whole menu, whether the request needs the earlier
+messages, what kind of campus information it asks for, and whether it asks for a whole
+list rather than one particular thing. The route and entity require probability and confidence ≥0.90. Contact and
+profile are both a lookup of one entity, so when Jev splits between them and the two
+together reach 0.90 the request is still a lookup: a contact lookup when contact leads and
+contact is all that's asked, otherwise a profile lookup, which fetches contact details too.
 
-A direct contact lookup fetches every field. A direct profile lookup keeps Jev's
-leading topics (hours, menu, complete menu, contact, location, events, or about)
-until they hold 90% of its answer, at most three, and fetches their sections. When
-Jev spreads its answer wider, or one of those topics is unresolved, the lookup fetches
-every routed section instead. GPT still writes and reviews the answer from what was
-fetched, so an extra section costs context, not accuracy. The complete-menu topic
-raises the menu limit only when it leads. Simple dates reuse the existing campus-local
-resolver, and a lookup that needs a date defers when Jev's leading date choice is
-unresolved, as for "the week after Thanksgiving", or when the resolver's weekday
-has already passed this week, as for "Saturday" asked on a Sunday. A meal filter applies only when
-Jev's meal choice clears 0.90; otherwise every meal is fetched. Meal labels are request
-filters, never proof of availability. Follow-ups never run a lookup directly, since
-they lean on earlier turns. Mixed or ambiguous requests defer through the route and
-entity choices.
+Every question asks about the student's words, never the Brain's labels. Asked "Does
+latest_request request the profile section 'menu'?", Jev answered 0.5 to 0.8 whether or
+not the menu was asked. Asked "Does `latest_request` ask what food is served?", with a
+line saying what counts as yes and no, it answered 0.9 or more, or 0.1 or less, on the
+same requests (tested 2026-09-28; one change at a time, so neither the number of questions
+nor the state was the cause). The day option quotes the words the campus resolver found
+("The day it calls 'tomorrow'") instead of an ISO date, since matching the two is date
+arithmetic. Each option describes one case: a catch-all listing several took 10–20% of
+every answer.
+
+A direct contact lookup fetches every field. A direct profile lookup fetches the sections
+of every detail Jev says yes to (≥0.90) and of any it isn't sure about (above 0.10). When
+it says yes to none, as for "Tell me about the club", the lookup fetches every routed
+section instead. GPT still writes and reviews the answer from what was fetched, so an
+extra section costs context, not accuracy. The whole-menu question raises the menu limit
+only at ≥0.90. Simple dates reuse the existing campus-local resolver. A lookup that needs
+a date defers unless Jev is ≥0.90 sure the student means the day the resolver read, or
+names no day, so "next Saturday" and "the week after Thanksgiving" go to GPT. It also
+defers when the resolver's weekday has already passed this week, as for "Saturday" asked
+on a Sunday. A meal filter applies only when Jev's meal pick clears 0.90; otherwise every
+meal is fetched. Meal labels are request filters, never proof of availability.
+A follow-up runs its own lookup when Jev says it makes sense without the earlier messages
+(0.10 or less) and it names exactly one entity itself, as for "What are the library's
+hours tomorrow?" after another question. "Actually, …" and "What about …?" came back at
+0.26 and 0.37 and stay with GPT. A follow-up that names no entity runs its own lookup
+when Jev is ≥0.90 sure who "their" or "it" is from the conversation, as for "What is
+their email?" (0.98 for the Registrar). Mixed or ambiguous requests defer through
+the route and entity choices.
 
 A request names an entity by its longest matching name or alias: "Computer Science
 BS" names that program, not every program sharing the "Computer Science" alias.
-Naming two entities defers, and Jev must select the entity the request names. When
+Naming two entities defers, and Jev must select the entity the request names. Besides
+the candidates, the entity pick offers "none" and "several": without "several", Jev picked
+one of the two offices a mixed request named. When
 the request names exactly one entity, Jev's pick of that same entity stands once its
 probability reaches 0.50, since the name itself backs it.
 
@@ -74,8 +93,14 @@ routing answer that is invalid elsewhere, or arrives after the routing deadline,
 flags danger. `metrics.safetyNet` records the pick. Shadow mode only records the pick
 in `metrics.routing`.
 
-When only a search or calculate route is resolved, GPT's first call is constrained
-to that tool; later calls regain all tools. A contact or profile route that can't run
+A search route runs directly when it asks for a whole list of one kind on one day, such
+as "What events are happening on campus tomorrow?" or "Which dining halls are open
+today?": Jev is ≥0.90 sure of the kind (events, shuttle, campus hours, dining hours or
+menu), that a whole list is asked for, and of the day, and the request names no curated
+entity. Code then searches that collection for that day with no search words, which only
+GPT writes, and filters a menu by a meal Jev is sure of. Otherwise, when only a search or
+calculate route is resolved, GPT's first call is constrained to that tool; later calls
+regain all tools. A contact or profile route that can't run
 directly, and uncertain, general and mixed routes, retain the ordinary flow. No new frontend flow or request field is required.
 
 The routing deadline is two seconds, includes preparation, and gives the HTTP
