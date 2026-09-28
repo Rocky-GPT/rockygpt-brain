@@ -492,6 +492,34 @@ def test_one_named_entity_among_overlapping_names_can_route_directly() -> None:
     assert result.arguments is None and result.tool is None
 
 
+EMERGENCY = identity(8, "office", "Public Safety (Emergency)", "Public Safety", "Campus Police")
+NON_EMERGENCY = identity(9, "office", "Public Safety (Non-Emergency)", "Public Safety",
+                         "Campus Police")
+
+
+@pytest.mark.parametrize("route,pick", [("contact", 8), ("contact", 0), ("profile", 9)])
+def test_every_line_of_one_named_place_is_one_lookup_by_its_name(route: str, pick: int) -> None:
+    # "Campus police emergency number": Jev picked one line, and both lines being named
+    # sent the lookup to GPT, which searched and couldn't verify "campus police".
+    request = messages("campus police emergency number")
+    candidates = [EMERGENCY, NON_EMERGENCY, ENTITY]
+    payload, day = routing_payload(request, candidates, NOW)
+    entity = str(UUID(int=pick)) if pick else "none"
+    answers = answers_for(payload, route=route, entity=entity, detail_contact=1.0)
+    result = interpret(answers, candidates, day, request)
+    assert result.reason is None and result.arguments is not None
+    assert result.arguments["entity"] == "Public Safety"
+    assert "entity_id" not in result.arguments or result.arguments["entity_id"] is None
+    # A pick the request doesn't name, or two different places, stay GPT's.
+    answers = answers_for(payload, route=route, entity=str(ENTITY.id), detail_contact=1.0)
+    assert interpret(answers, candidates, day, request).arguments is None
+    request = messages("Compare the Computer Science BS and the Computer Science MS.")
+    payload, day = routing_payload(request, [CS_BS, CS_MS], NOW)
+    answers = answers_for(payload, route=route, entity=str(CS_BS.id), detail_contact=1.0)
+    result = interpret(answers, [CS_BS, CS_MS], day, request)
+    assert result.arguments is None and result.reason == "ambiguous_entities"
+
+
 MATH = identity(7, "subject", "Mathematics (MATH)", "MATH")
 
 

@@ -1205,15 +1205,25 @@ def page_search_hint(name: str, detail: str) -> str:
 MAX_VARIANTS = 3
 
 
+def variant_base(entities: list[Identity]) -> str | None:
+    """The one name two to MAX_VARIANTS entities share before a parenthesized qualifier,
+    like "Public Safety" for its Emergency and Non-Emergency lines, or None."""
+    if not 2 <= len(entities) <= MAX_VARIANTS:
+        return None
+    bases = [re.fullmatch(r"(.+?) \([^()]+\)", " ".join(entity.name.split()))
+             for entity in entities]
+    names = [base.group(1) for base in bases if base is not None]
+    if len(names) != len(entities) or len({_normalize(name) for name in names}) != 1:
+        return None
+    return names[0]
+
+
 def _named_variants(matches: list[Identity], name: str | None) -> list[Identity]:
     """Every match when all are one name plus a parenthesized qualifier: "Public Safety"
     and its "Campus Police" alias both name the Emergency and Non-Emergency lines."""
-    if name is None or not 2 <= len(matches) <= MAX_VARIANTS:
+    if name is None or variant_base(matches) is None:
         return []
-    bases = {re.fullmatch(r"(.+?) \([^()]+\)", _normalize(entity.name)) for entity in matches}
-    if None not in bases and len({base.group(1) for base in bases if base}) == 1:
-        return matches
-    return []
+    return matches
 
 
 def _variant_profiles(
