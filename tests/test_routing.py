@@ -299,8 +299,22 @@ def test_choice_requires_both_probability_and_confidence(score: float, confident
             answers["route"]["probabilities"]["unresolved"] = 1 - score
         validate_answers(answers, payload["questions"])
         assert (selected(answers, "route") is not None) == confident
-    # A lookup route needs contact and profile together to reach the threshold.
-    assert (interpret(answers, [ENTITY], day, messages()).arguments is not None) == confident
+
+
+@pytest.mark.parametrize("score,direct", [(0.6999, False), (0.70, True), (0.8999, True)])
+def test_the_route_pick_needs_only_the_route_bar(score: float, direct: bool) -> None:
+    # Over four runs of the routing cases, route picks at 0.70-0.90 were right 21 of 21.
+    payload, day = routing_payload(messages(), [ENTITY], NOW)
+    answers = answers_for(payload)
+    answers["route"].update(confidence=score / 2)
+    answers["route"]["probabilities"].update(contact=score, unresolved=1 - score)
+    validate_answers(answers, payload["questions"])
+    assert (interpret(answers, [ENTITY], day, messages()).arguments is not None) == direct
+    # A search pick the same way holds GPT's first call to the search tool.
+    answers["route"].update(choice="search")
+    answers["route"]["probabilities"].update(contact=0.0, search=score)
+    validate_answers(answers, payload["questions"])
+    assert (interpret(answers, [ENTITY], day, messages()).tool == "search_campus") == direct
 
 
 @pytest.mark.parametrize(

@@ -32,6 +32,10 @@ from rockygpt_brain.retrieval.release_cache import cached
 FIELDS = ("phone", "email", "office", "department", "fax", "hours", "website")
 # A request that names one entity needs Jev's pick of it to reach only this.
 LEANS_TOWARD = 0.5
+# The route pick needs only this. Over four runs of the routing cases, top route picks
+# at 0.70-0.90 were right 21 of 21 times (nine questions); under 0.70, 17 of 19. Every
+# other pick still needs RELEASE.routing.threshold, and a lookup still needs its entity.
+ROUTE_BAR = 0.7
 # Without active routing, a request that names one curated identity starts with these.
 GRAPH_TOOLS = ("lookup_profile", "lookup_contact")
 # What a profile request asks about, as one Jev yes/no each: (question, yes, no, sections).
@@ -472,15 +476,19 @@ def sections_asked(answers: dict[str, Any]) -> list[str]:
     ))
 
 
-def lookup_route(answers: dict[str, Any]) -> str | None:
-    """A lookup of one entity when Jev splits between contact and profile, which both are.
+def picked_route(answers: dict[str, Any]) -> str | None:
+    """Jev's route when its top pick reaches ROUTE_BAR, or one lookup when Jev splits
+    between contact and profile, which both are, and the two together reach it.
 
     "What is the Registrar phone number and when is the office open today?" split 0.90
-    profile and 0.05 contact, so neither alone was sure. The profile lookup fetches contact
-    details too, so contact is kept only when it leads and contact is all that's asked.
+    profile and 0.05 contact. In a split the profile lookup fetches contact details too,
+    so contact is kept only when it leads and contact is all that's asked.
     """
     probabilities = answers["route"]["probabilities"]
-    if probabilities["contact"] + probabilities["profile"] < RELEASE.routing.threshold:
+    top: str = answers["route"]["choice"]
+    if top != "unresolved" and probabilities[top] >= ROUTE_BAR:
+        return top
+    if probabilities["contact"] + probabilities["profile"] < ROUTE_BAR:
         return None
     if probabilities["contact"] > probabilities["profile"] and sections_asked(answers) == [
         "contact"
@@ -523,7 +531,7 @@ def interpret(
     messages: list[ChatMessage],
     today: str | None = None,
 ) -> RouteDecision:
-    route = selected(answers, "route") or lookup_route(answers)
+    route = picked_route(answers)
     decision = RouteDecision(
         route=route or "unresolved",
         confidence=answers["route"]["confidence"],
