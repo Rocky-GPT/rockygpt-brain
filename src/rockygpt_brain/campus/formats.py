@@ -327,6 +327,9 @@ def hours_parts(
     schedule = next(iter(schedules))
     if not isinstance(schedule, str) or not schedule.strip():
         raise ValueError("Missing schedule")
+    if "hours unavailable" in schedule.casefold():
+        # The data's placeholder for hours it could not verify; GPT must say so, not code.
+        raise ValueError("Hours are not published")
     text = f"Published hours for {plain(name)} on {day}: {plain(schedule)}."
     if has_close and not has_hours and not schedule.casefold().startswith("closed"):
         intervals = opening_intervals(records[0]["fields"].get("hours", schedule), day)

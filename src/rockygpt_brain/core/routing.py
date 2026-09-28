@@ -509,6 +509,21 @@ def danger_pick(answers: Any, question: dict[str, Any]) -> str | None:
     return None if value == "none" else value
 
 
+# "The dining menu for tonight" names no meal, so Jev answered "none" and the lookup fetched
+# 100 of a day's 141 items, cutting dinner short. Describing tonight in Jev's dinner option
+# made its calls time out, so code reads it, for menus only: "when does Birch close
+# tonight" still means its last service, not the end of dinner.
+EVENING = {"tonight", "tonight's", "evening"}
+
+
+def meal_asked(answers: dict[str, Any], messages: list[ChatMessage], menu: bool) -> str | None:
+    meal = selected(answers, "meal")
+    # Jev may also be unsure of a meal no word names: "the dining menu for tonight".
+    if menu and meal in {None, "none"} and EVENING & set(words(messages[-1].content).split()):
+        return "dinner"
+    return meal
+
+
 def selected(answers: dict[str, Any], key: str) -> str | None:
     answer = answers[key]
     value: str = answer["choice"]
@@ -599,7 +614,7 @@ def browse(
         return None
     if day is None or selected(answers, "date") in {None, "other"}:
         return None
-    meal = selected(answers, "meal")
+    meal = meal_asked(answers, messages, kind == "menu")
     filters = None
     if kind == "menu" and meal in MEAL_FILTERS:
         filters = SearchFilters(name=None, meal=meal.title(), vegan=None, vegetarian=None,
@@ -660,6 +675,7 @@ def multi_part(
         lookup["arguments"] = ProfileQuery.model_validate(arguments).model_dump(mode="json")
     for kind in lists:
         filters = None
+        meal = meal_asked(answers, messages, kind == "menu")
         if kind == "menu" and meal in MEAL_FILTERS:
             filters = SearchFilters(name=None, meal=meal.title(), vegan=None, vegetarian=None,
                                     term=None, session=None, route=None)
@@ -744,7 +760,7 @@ def interpret(
                 return decision
             arguments["date"] = day
         if set(sections) & {"hours", "menu"}:
-            meal = selected(answers, "meal")
+            meal = meal_asked(answers, messages, "menu" in sections)
             arguments["meal"] = meal if meal in MEAL_FILTERS else None
         if "menu" in sections:
             complete = answers["complete_menu"]["noul"] >= RELEASE.routing.threshold

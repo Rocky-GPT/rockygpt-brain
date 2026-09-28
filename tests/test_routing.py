@@ -797,6 +797,25 @@ def test_a_menu_list_filters_the_meal_jev_is_sure_of() -> None:
     assert arguments is not None and arguments["filters"]["meal"] == "Dinner"
 
 
+def test_tonights_menu_is_dinner_when_jev_reads_no_meal() -> None:
+    # "The dining menu for tonight" fetched 100 of a day's 141 items with no meal filter.
+    request = messages("What is on the dining menu tonight?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    arguments = interpret(browse_answers(payload, kind="menu", meal="none"), [ENTITY], day,
+                          request).arguments
+    assert arguments is not None and arguments["filters"]["meal"] == "Dinner"
+    unsure = browse_answers(payload, kind="menu", meal="none")
+    unsure["meal"]["confidence"] = 0.5
+    arguments = interpret(unsure, [ENTITY], day, request).arguments
+    assert arguments is not None and arguments["filters"]["meal"] == "Dinner"
+    # Hours tonight still mean every service, not the end of dinner.
+    request = messages("Which dining halls are open tonight?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    arguments = interpret(browse_answers(payload, kind="dining_hours", meal="none"), [ENTITY],
+                          day, request).arguments
+    assert arguments is not None and arguments["filters"] is None
+
+
 @pytest.mark.parametrize(
     "text,changes",
     [

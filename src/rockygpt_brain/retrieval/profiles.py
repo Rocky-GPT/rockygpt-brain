@@ -1138,6 +1138,56 @@ def _catalog_url(programs: Any, link: dict[str, Any]) -> str | None:
     return url if isinstance(url, str) else None
 
 
+def page_search_hint(name: str, detail: str) -> str:
+    """Where to look next when no structured record holds a detail an office page may state."""
+    return (f"No structured {detail} record. Offices often publish this on their own pages: "
+            f"search_campus collection 'documents' for '{name} {detail}'.")
+
+
+# "Public Safety" names both its Emergency and Non-Emergency lines. Asking a student which
+# one they want before giving an emergency number is the wrong default, so a name whose
+# every match is that name plus a parenthesized qualifier returns each of them.
+MAX_VARIANTS = 3
+
+
+def _named_variants(matches: list[Identity], name: str | None) -> list[Identity]:
+    if name is None or not 2 <= len(matches) <= MAX_VARIANTS:
+        return []
+    base = re.escape(_normalize(name))
+    if all(re.fullmatch(rf"{base} \([^()]+\)", _normalize(entity.name)) for entity in matches):
+        return matches
+    return []
+
+
+def _variant_profiles(
+    data: CampusData, query: ProfileQuery, variants: list[Identity], result: dict[str, Any],
+) -> dict[str, Any]:
+    """Each variant's own profile, side by side. Identities stay separate; nothing is merged."""
+    profiles = [
+        lookup_profile(data, query.model_copy(update={"entity": None, "entity_id": entity.id}))
+        for entity in variants
+    ]
+    seen: set[str] = set()
+    for profile in profiles:
+        for record in profile["records"]:
+            if record["id"] not in seen:
+                seen.add(record["id"])
+                result["records"].append(record)
+    result["total_matches"] = len(result["records"])
+    result["truncated"] = any(profile["truncated"] for profile in profiles)
+    result["resolution"].update(
+        status="variants",
+        candidates=[_identity_summary(entity) for entity in variants],
+        total_candidates=len(variants),
+        answer_with="every variant",
+    )
+    result["variants"] = [
+        {"entity": profile["resolution"].get("entity"), "components": profile["components"]}
+        for profile in profiles
+    ]
+    return result
+
+
 def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
     """Identity links establish identity only, never authority or a missing attribute."""
     data._ensure_loaded()
@@ -1177,6 +1227,9 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                    if _normalize(read_as) in lookup_terms(entity)]
     matches = _event_date_candidates(data, matches, query)
     matches, set_aside = _plan_candidates(matches, query)
+    variants = _named_variants(matches, read_as or query.entity)
+    if variants:
+        return _variant_profiles(data, query, variants, result)
     if len(matches) != 1:
         result["resolution"].update(
             status="ambiguous" if matches else "no_match",
@@ -1184,6 +1237,9 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
             total_candidates=len(matches),
             candidates_truncated=len(matches) > 20,
         )
+        if not matches and query.entity is not None:
+            # Student Accounts had no curated entry, yet its own pages list a phone and email.
+            result["next_step"] = page_search_hint(query.entity, "contact")
         return result
 
     entity = matches[0]
@@ -1475,6 +1531,10 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
                 limitations=[f"Only items the menu labels {query.diet}; an item with no "
                              "published label is left out, not established as excluded."],
             )
+        if component in {"hours", "contact"} and not records and not failed_links:
+            # The Registrar's hours are on its own page but in no schedule record.
+            result["components"][component]["next_step"] = page_search_hint(
+                entity.name, component)
         if component == "hours":
             result["components"][component]["availability_scope"] = (
                 "dining_service" if records and all(

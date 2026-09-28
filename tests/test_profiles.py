@@ -155,6 +155,39 @@ def test_ambiguity_and_no_match_never_fetch_source_records() -> None:
     fetch.assert_not_called()
 
 
+def test_a_name_whose_matches_are_all_its_qualified_lines_returns_each_line() -> None:
+    # "Public Safety" names both the Emergency and Non-Emergency lines: answer with both.
+    data = repository()
+    emergency = copy.deepcopy(IDENTITY)
+    emergency.update(name="Example Center (Emergency)", aliases=["Example Center", "EC"])
+    other = copy.deepcopy(IDENTITY)
+    other.update(
+        id="a8306d1b-0319-477a-88fa-c32e2bab5f4e",
+        name="Example Center (Non-Emergency)",
+        aliases=["Example Center", "EC"],
+        links=[
+            {"collection": "contacts", "source_key": "directory", "source_record_keys": ["other"]}
+        ],
+    )
+    data._artifacts["campus-identities"]["entities"] = [emergency, other]
+    contact, hours = rows()
+    second = {**contact, "id": "contact-2", "source_record_key": "other", "phone": "201-555-0199"}
+    data._fetch = Mock(  # type: ignore[method-assign]
+        side_effect=lambda _sql, params: [second] if params[2] == ["other"] else [contact]
+    )
+    result = data.lookup_profile(ProfileQuery(entity="Example Center", include=["contact"]))
+    assert result["resolution"]["status"] == "variants"
+    assert {item["name"] for item in result["resolution"]["candidates"]} == {
+        "Example Center (Emergency)", "Example Center (Non-Emergency)"}
+    assert {record["fields"]["phone"] for record in result["records"]} == {
+        "201-555-0100", "201-555-0199"}
+    assert [item["entity"]["name"] for item in result["variants"]] == [
+        "Example Center (Emergency)", "Example Center (Non-Emergency)"]
+    # A different name that merely shares the matches stays ambiguous.
+    unqualified = data.lookup_profile(ProfileQuery(entity="EC", include=["contact"]))
+    assert unqualified["resolution"]["status"] == "ambiguous"
+
+
 def test_a_leading_campus_name_is_dropped_only_when_the_name_as_given_matches_nothing() -> None:
     data = repository()
     attach_rows(data, *rows())
