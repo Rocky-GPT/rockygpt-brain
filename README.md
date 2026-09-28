@@ -96,6 +96,16 @@ text is not returned. A development Brain also returns the reviewer's reasons in
 does, and the saved turn summary never stores them. Invalid-output logs contain
 only the request ID and reason code.
 
+A development Brain asked with `X-RockyGPT-Diagnostics: 1` (the Dev control room
+asks; the student app never does) also returns `diagnostics`, on answers and
+failures alike: which Brain answered (`brain.revision` from `BRAIN_REVISION` or
+Render's `RENDER_GIT_COMMIT`, `brain.release`, `brain.configurationHash`), the
+campus time it started (`startedAt`), every record the writer and reviewer were
+given (`evidence`), and each draft as written with the reviewer's verdict on every
+paragraph (`drafts`). Production ignores the header, and the saved turn summary
+never stores any of it. `datasetVersion` is the release the turn read, including
+turns that made no lookup.
+
 Clients append the returned answer as an assistant message before the next user
 message. Prior assistant text resolves references but is not authoritative;
 campus evidence is retrieved anew on each turn. Failed requests are not appended.

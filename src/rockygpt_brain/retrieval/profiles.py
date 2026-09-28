@@ -1271,6 +1271,11 @@ def _variant_profiles(
     return result
 
 
+# What a building's lookup lists as located in it: places a student goes to, not people.
+PLACED_KINDS = frozenset({"venue", "office", "facility"})
+MAX_LOCATED_HERE = 20
+
+
 # "Computer Science" names four programs (BS, MS, 4+1 and Minor), and one person convenes
 # all four. Asked who convenes it, GPT asked which program instead of answering. A name
 # every match carries, asked only who convenes them, returns each profile side by side
@@ -1386,6 +1391,29 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
 
     entity = matches[0]
     result["resolution"].update(status="matched", entity=_identity_summary(entity))
+    if entity.kind == "building":
+        # "The dining place in the Learning Commons" named the building, whose profile has
+        # no menu or hours of its own, and GPT offered Birch instead (09-28). A building
+        # names the places located in it, so the next lookup can be the right one.
+        inside = [_identity_summary(other) for other in registry.entities
+                  if other.kind in PLACED_KINDS and any(
+                      relationship.type == "located_at"
+                      and relationship.target_entity_id == entity.id
+                      for relationship in other.relationships)]
+        venues = [item for item in inside if item["kind"] == "venue"]
+        if "menu" in query.include and len(venues) == 1:
+            # A building serves no food; the one dining place in it is what a menu
+            # question about it means.
+            venue = lookup_profile(data, query.model_copy(
+                update={"entity": None, "entity_id": UUID(venues[0]["id"])}))
+            venue["resolution"]["located_in"] = _identity_summary(entity)
+            return venue
+        if inside:
+            result["resolution"]["located_here"] = sorted(
+                inside, key=lambda item: item["name"])[:MAX_LOCATED_HERE]
+            result["next_step"] = (
+                f"{entity.name} is a building. The places located in it are in "
+                "resolution.located_here: look up the one the request means by its entity_id.")
     if set_aside:
         # Name the program the plans belong to; the same name also means these.
         result["resolution"].update(
