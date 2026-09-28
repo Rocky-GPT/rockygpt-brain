@@ -827,6 +827,86 @@ def test_failed_paragraph_is_dropped_and_supported_ones_are_kept() -> None:
     assert client.create.call_count == 3
 
 
+
+def test_diagnostics_keep_the_evidence_the_whole_draft_and_every_verdict() -> None:
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(search()),
+        draft(
+            ("guidance", "Bring your student ID.", []),
+            ("campus_fact", "The Registrar is in D-224.", [RECORD["id"]]),
+            ("campus_fact", "It is open until 9 PM tonight.", [RECORD["id"]]),
+        ),
+        review("supported", "supported", "unsupported_claim"),
+    ]
+    data.search.return_value = {"status": "ok", "records": [RECORD]}
+    diagnostics: dict[str, Any] = {}
+    result = run_turn(
+        [ChatMessage(role="user", content="Where is the Registrar and when does it close?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+        diagnostics=diagnostics,
+    )
+    assert "9 PM" not in result["answer"]
+    assert diagnostics["evidence"] == [RECORD]
+    [drafted] = diagnostics["drafts"]
+    # The rejected paragraph stays in the draft the developer sees.
+    assert [part["text"] for part in drafted["answer"]["parts"]][2] == (
+        "It is open until 9 PM tonight."
+    )
+    assert [verdict["verdict"] for verdict in drafted["review"]] == [
+        "supported", "supported", "unsupported_claim"]
+    assert drafted["outcome"] == "partly_rejected"
+    assert drafted["keptParts"] == [0, 1]
+    assert "diagnostics" not in result
+
+
+@pytest.mark.parametrize("output", ["not json", "cited"])
+def test_diagnostics_keep_a_draft_that_failed_validation(output: str) -> None:
+    client, data = Mock(), Mock()
+    reply = answer("It closes at ten.", "campus_fact", ["made-up"])
+    if output == "not json":
+        reply.output_text = "It closes at ten."
+    client.create.side_effect = [reply]
+    diagnostics: dict[str, Any] = {}
+    result = run_turn(
+        [ChatMessage(role="user", content="When does it close?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+        diagnostics=diagnostics,
+    )
+    assert result["status"] == "unavailable"
+    [drafted] = diagnostics["drafts"]
+    assert drafted["outcome"] == "invalid"
+    if output == "not json":
+        assert drafted["failure"] == "answer_schema"
+        assert drafted["output"] == "It closes at ten."
+    else:
+        assert drafted["failure"] == "unknown_citation"
+        assert drafted["answer"]["parts"][0]["evidence_ids"] == ["made-up"]
+    assert diagnostics["evidence"] == []
+
+
+def test_a_turn_without_lookups_reports_the_release_it_ran_against() -> None:
+    # Routing reads the release on every turn; 12 of 30 dev turns on 09-28 still said
+    # null because only lookups set the version.
+    client, data = Mock(), Mock()
+    data.dataset = {"id": "one", "version": "release-7"}
+    client.create.side_effect = [answer(), review()]
+    result = run_turn(
+        [ChatMessage(role="user", content="What room did you tell me earlier?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+    assert result["trace"] == []
+    assert result["datasetVersion"] == "release-7"
+
 def test_uncited_paragraph_after_a_failed_one_is_dropped_too() -> None:
     client, data = Mock(), Mock()
     client.create.side_effect = [
