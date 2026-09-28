@@ -47,6 +47,8 @@ class RoutingConfig(BaseModel):
     version: str
     model: Literal["jev-1.13.0"]
     timeout_seconds: float = Field(gt=0, le=2)
+    # Seconds without an answer after which one copy of a Jev call is sent.
+    hedge_seconds: float | None = Field(default=None, gt=0, lt=2)
     threshold: float = Field(ge=0.9, le=1)
     max_candidates: int = Field(gt=0, le=24)
     price: Price

@@ -277,6 +277,18 @@ of waiting out the window. The first call after that tries Jev again, and one mo
 pauses it again. `scripts/jev_latency.py --hedge SECONDS` measures whether a copy of a
 slow call, sent that many seconds later, answers in time.
 
+Slow calls turned out to be slow one request at a time. On 2026-09-28 (`--hedge 0.8`,
+120 calls), 85 first requests answered in 0.2 to 0.4 s and 35 took 4.3 s or more; for 22
+of those 35, a copy sent at 0.8 s answered by 1.03 to 1.16 s. Within 2 s, 107 calls had
+an answer, against 85 from the first request alone. So `routing.hedge_seconds` (0.8)
+sends one copy of every Jev call, including search filters and dish picks, that has no
+answer by then and has at least 0.5 s left. The first answer wins, and the other request
+is cancelled. The copy is its own ledger operation, reserved just before it is sent and
+tagged `copy_of` the call. The request that answers is settled. The one cancelled after it
+was sent may still be charged, so it is left `uncertain` (`routing_copy_cancelled`), like
+a timed-out call. When the budget or ledger refuses the copy, the call waits alone. A
+call and its copy count as one routing call for the turn's limits.
+
 ## Observability and privacy
 
 `metrics.routing` contains mode, model, version, route, confidence, direct retrieval,

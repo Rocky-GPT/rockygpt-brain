@@ -637,6 +637,26 @@ def test_routing_migration_settles_input_only_and_retains_environment_isolation(
                          "WHERE request_id='jev-postgres'")
 
 
+def test_a_jev_copy_is_its_own_durable_operation(
+    ledger: PostgresLedger, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from rockygpt_brain.core.provider import JevProvider
+    from test_jev_copy import PAYLOAD, answer, jev_serving
+
+    now = NOW.replace(day=22)
+    jev_serving(monkeypatch, answer(after=5, name='first'), answer(name='copy'))
+    release = RELEASE.model_copy(update={
+        'routing': RELEASE.routing.model_copy(update={'hedge_seconds': 0.05})})
+    gateway = PaidGateway(Mock(), ledger, 'jev-copy', release=release,
+                          routing_provider=JevProvider('secret'), clock=lambda: now)
+    gateway.route(PAYLOAD, timeout=2)
+    first, copy = ledger.operations('jev-copy')
+    assert first['state'] == 'uncertain' and first['error_code'] == 'routing_copy_cancelled'
+    assert copy['state'] == 'settled' and copy['cost_nusd'] == 4200
+    assert copy['provider_response_id'] == 'copy'
+    assert copy['metadata']['copy_of'] == str(first['operation_id'])
+
+
 def test_routing_monthly_budget_rejects_before_provider_call(ledger: PostgresLedger) -> None:
     from rockygpt_brain.core.routing import routing_payload
     from test_routing import ENTITY, messages

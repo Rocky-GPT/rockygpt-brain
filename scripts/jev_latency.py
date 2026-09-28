@@ -78,6 +78,7 @@ class TimedJev(JevProvider):
     """JevProvider's one request, with the time each HTTP phase took kept in `last`."""
 
     last: dict[str, Any]
+    hedged = False  # --hedge sends and times its own copies.
 
     def create(self, *, timeout: float, **payload: Any) -> ModelResponse:
         pinned: str = payload["model"]
