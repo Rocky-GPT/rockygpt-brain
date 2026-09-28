@@ -914,9 +914,10 @@ def test_a_late_night_menu_is_the_late_night_meal() -> None:
     "text,changes",
     [
         # "What's for dinner on campus tonight?" came back 0.52: GPT writes the search.
-        ("What events are happening on campus tomorrow?", {"whole_list": 0.52}),
+        # (A plain "what events are on tomorrow" is listed by code even so.)
+        ("What club events are happening on campus tomorrow?", {"whole_list": 0.52}),
         ("When is the career fair tomorrow?", {"whole_list": 0.04}),
-        ("What events are happening on campus tomorrow?", {"kind": "calendar"}),
+        ("What club events are happening on campus tomorrow?", {"kind": "calendar"}),
         ("What events are happening on campus this weekend?", {"date": "other"}),
         # A named place is a lookup, or a search GPT words.
         ("What events does the Registrar have tomorrow?", {}),

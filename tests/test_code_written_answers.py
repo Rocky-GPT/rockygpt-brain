@@ -383,3 +383,17 @@ def test_a_place_asked_about_with_no_day_is_looked_up_for_today() -> None:
     decision = interpret(answers, [venue], day, request, NOW.date().isoformat())
     assert decision.template == "menu" and decision.arguments is not None
     assert decision.arguments["date"] == NOW.date().isoformat()
+
+
+def test_a_plain_day_of_events_is_listed_even_when_jev_doubts_the_kind() -> None:
+    # "Whats happening on campus today": Jev was sure of a search (1.0), unsure of the
+    # kind, so GPT planned it (18 s, 09-28).
+    request = [ChatMessage(role="user", content="whats happening on campus today")]
+    payload, day = routing_payload(request, [], NOW)
+    answers = answers_for(payload, route="search", kind="other", entity="none", date="named",
+                          detail_contact=0.0)
+    validate_answers(answers, payload["questions"])
+    decision = interpret(answers, [], day, request, NOW.date().isoformat())
+    assert decision.template == "events" and decision.arguments is not None
+    assert decision.arguments["collection"] == "events"
+    assert decision.arguments["date_from"] == NOW.date().isoformat()
