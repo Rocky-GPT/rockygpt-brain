@@ -178,7 +178,9 @@ MEALS: dict[str, str | None] = {
     "breakfast": None,
     "brunch": None,
     "lunch": None,
-    "dinner": None,
+    # "The dining menu for tonight" came back "none" and fetched 100 of a day's 141 items,
+    # cutting dinner short; tonight's menu is dinner.
+    "dinner": "Dinner, or food tonight or this evening",
     "other": "A meal not listed here, such as a late-night snack",
 }
 MEAL_FILTERS = {"breakfast", "brunch", "lunch", "dinner"}

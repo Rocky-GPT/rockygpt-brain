@@ -250,7 +250,8 @@
         "contact",
         "search"
       ],
-      "eligible_direct": false
+      "eligible_direct": false,
+      "expect": "decline"
     },
     {
       "id": "calculate",
@@ -316,7 +317,8 @@
         "contact",
         "unresolved"
       ],
-      "eligible_direct": false
+      "eligible_direct": false,
+      "expect": "decline"
     },
     {
       "id": "unresolved-followup",
@@ -330,7 +332,8 @@
         "unresolved",
         "profile"
       ],
-      "eligible_direct": false
+      "eligible_direct": false,
+      "expect": "decline"
     },
     {
       "id": "followup-email",
@@ -413,7 +416,8 @@
         "search",
         "unresolved"
       ],
-      "eligible_direct": false
+      "eligible_direct": false,
+      "expect": "decline"
     },
     {
       "id": "injection",
