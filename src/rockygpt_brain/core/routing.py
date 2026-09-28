@@ -26,43 +26,62 @@ from rockygpt_brain.retrieval.exact import ContactQuery
 from rockygpt_brain.retrieval.profiles import Identity, ProfileQuery
 from rockygpt_brain.retrieval.release_cache import cached
 
-# A direct contact lookup fetches every field: they are small, and Jev's yes/no answers
-# about single fields sat between 0.5 and 0.8 whether or not the field was asked.
+# A direct contact lookup fetches every field: they are small and asked together.
 FIELDS = ("phone", "email", "office", "department", "fax", "hours", "website")
 # A request that names one entity needs Jev's pick of it to reach only this.
 LEANS_TOWARD = 0.5
 # Without active routing, a request that names one curated identity starts with these.
 GRAPH_TOOLS = ("lookup_profile", "lookup_contact")
-# What a profile request asks about, as one Jev choice. Each topic fetches its sections.
-TOPICS = {
-    "hours": "When it is open: its operating hours on a day, not staff availability.",
-    "menu": "Food it serves: dishes on its menu for a meal or a day.",
-    "complete_menu": "Its whole menu: every dish, the full or complete menu.",
-    "contact": "How to reach it: phone, email, office room, department or website.",
-    "location": "Where it is: its building or room.",
-    "events": "Its events, or the date, time or place of an event.",
-    "about": "Who or what it is: who leads, convenes, teaches or belongs to it, its courses, "
-    "or its program or club details.",
-    "unresolved": "Something none of these covers, or unclear.",
+# What a profile request asks about, as one Jev yes/no each: (question, yes, no, sections).
+# Ask about the student's words, never about section names. Asked "Does latest_request
+# request the profile section 'menu'?", Jev guessed what we meant and answered 0.5 to 0.8
+# whether or not the menu was asked; these answered 0.9+ or 0.1- on the same requests.
+DETAILS = {
+    "hours": ("Does `latest_request` ask when a place is open?",
+              "Asks when a place opens, closes, or is open",
+              "Asks about something else, such as a phone number, menu or location",
+              ("hours",)),
+    "menu": ("Does `latest_request` ask what food is served?",
+             "Asks what dishes or meals are served, or asks for a menu",
+             "Asks about something else, such as opening hours, location or contact details",
+             ("menu", "hours")),
+    "contact": ("Does `latest_request` ask how to contact someone, such as a phone number or "
+                "email address?",
+                "Asks for a phone number, email address, or how to get in touch",
+                "Asks about something else, such as hours, menus or location",
+                ("contact",)),
+    "location": ("Does `latest_request` ask where something is?",
+                 "Asks where a place, office or building is",
+                 "Asks about something else, such as hours, menus or contact details",
+                 ("building", "contact")),
+    "events": ("Does `latest_request` ask about events?",
+               "Asks what events are happening, or about a specific event",
+               "Asks about something else, such as hours, menus or contact details",
+               ("event",)),
+    "leaders": ("Does `latest_request` ask who leads or convenes something?",
+                "Asks who leads, runs, directs or convenes a program, office or group",
+                "Asks about something else, such as hours, menus or contact details",
+                ("conveners",)),
+    "teachers": ("Does `latest_request` ask who teaches in or belongs to something?",
+                 "Asks which faculty or staff teach in, work in or belong to a program or office",
+                 "Asks about something else, such as hours, menus or contact details",
+                 ("faculty",)),
+    "courses": ("Does `latest_request` ask about courses or classes?",
+                "Asks which courses or classes are offered or taught",
+                "Asks about something else, such as hours, menus or contact details",
+                ("courses",)),
 }
-TOPIC_SECTIONS = {
-    "hours": ("hours",),
-    "menu": ("menu", "hours"),
-    "complete_menu": ("menu", "hours"),
-    "contact": ("contact",),
-    "location": ("building", "contact"),
-    "events": ("event",),
-    "about": ("faculty", "courses", "program", "conveners", "club"),
-}
+COMPLETE_MENU = ("Does `latest_request` ask for the whole menu?",
+                 "Asks for the full or complete menu, or every dish",
+                 "Asks what is served without asking for every dish, or asks about something else")
 # Related needs a relationship and direction the router does not choose; requirements,
 # school, subject and graduation plans stay with GPT until routing evals cover them.
-ROUTED_SECTIONS = tuple(
-    dict.fromkeys(section for sections in TOPIC_SECTIONS.values() for section in sections)
-)
-# The lookup keeps Jev's leading topics until they hold this much of its answer, at most
-# MAX_TOPICS of them. When they don't, or one is unresolved, it fetches every section.
-TOPIC_COVERAGE = 0.9
-MAX_TOPICS = 3
+ROUTED_SECTIONS = tuple(dict.fromkeys(
+    [*(section for *_, sections in DETAILS.values() for section in sections), "program", "club"]
+))
+# Beside the details Jev says yes to, the lookup fetches any it doesn't rule out: at or
+# below this it answered no.
+RULED_OUT = 0.1
 # Keep the options apart: when two descriptions overlap, Jev splits its answer between
 # them and neither clears the threshold.
 ROUTES = {
@@ -86,15 +105,17 @@ TOOLS = {
     "search": "search_campus",
     "calculate": "calculate",
 }
-# These are request labels, not assertions that any venue serves a particular meal.
-MEALS = {
-    "unspecified": "No meal restriction",
-    "breakfast": "Breakfast",
-    "brunch": "Brunch",
-    "lunch": "Lunch",
-    "dinner": "Dinner",
-    "unresolved": "Another meal, ambiguous meal, or meal inferred only from the time",
+# These are request labels, not assertions that any venue serves a particular meal. A
+# catch-all that listed several cases took 10-20% of every answer, so each option is one.
+MEALS: dict[str, str | None] = {
+    "none": "It names no meal",
+    "breakfast": None,
+    "brunch": None,
+    "lunch": None,
+    "dinner": None,
+    "other": "A meal not listed here, such as a late-night snack",
 }
+MEAL_FILTERS = {"breakfast", "brunch", "lunch", "dinner"}
 # Whether the request describes danger, as one Jev choice. Its top pick is enough: a
 # danger pick only adds the safety block and never removes anything GPT writes.
 DANGER = {
@@ -262,24 +283,33 @@ def choice(instructions: str, criteria: dict[str, Any]) -> dict[str, Any]:
     return {"type": "choice", "instructions": instructions, "criteria": criteria}
 
 
+def noul(instructions: str, yes: str, no: str) -> dict[str, Any]:
+    return {"type": "noul", "instructions": instructions, "criteria": {"true": yes, "false": no}}
+
+
 def routing_payload(
     messages: list[ChatMessage], candidates: list[Identity], now: datetime
 ) -> tuple[dict[str, Any], str | None]:
     # The date resolver is deliberately identical to the exact-answer date resolver.
     text = words(messages[-1].content)
     day: str | None = None
+    dates: dict[str, Any] = {
+        "none": "It names no day",
+        "other": "A range of days, or a day that needs working out, such as 'next week', "
+        "'this weekend' or 'after Thanksgiving'",
+    }
     try:
         resolved, remaining = request_date(text, now)
         if remaining != text:
             day = resolved.isoformat()
+            # Name the student's own words: matching "tomorrow" to an ISO date is date
+            # arithmetic, and Jev cleared 0.9 on 14 of 25 requests that way, 24 this way.
+            kept = remaining.split()
+            dates["named"] = "The day it calls '{}'".format(
+                " ".join(word for word in text.split() if word not in kept)
+            )
     except ValueError:
         pass
-    dates: dict[str, Any] = {
-        "unspecified": "No requested date; preserve the tool's normal default",
-        "unresolved": "Complex, conflicting, implicit prior-turn or unrepresented date",
-    }
-    if day is not None:
-        dates["explicit"] = {"date": day, "meaning": "The explicitly requested simple date"}
     questions: dict[str, Any] = {
         "route": choice("Choose the initial retrieval route for latest_request only.", ROUTES),
         "entity": choice(
@@ -298,19 +328,13 @@ def routing_payload(
                 },
             },
         ),
-        "date": choice(
-            "Choose the date explicitly requested in latest_request. Unrepresented "
-            "dates, ranges, next-week expressions and unresolved follow-ups are unresolved.",
-            dates,
-        ),
-        "meal": choice(
-            "Choose the explicit requested meal label; never infer it from a time.", MEALS
-        ),
-        "topic": choice(
-            "What does latest_request ask about the chosen entity? Choose unresolved only "
-            "when none of these covers it.",
-            TOPICS,
-        ),
+        "date": choice("Which day does `latest_request` ask about?", dates),
+        "meal": choice("Which meal does `latest_request` ask about?", MEALS),
+        "complete_menu": noul(*COMPLETE_MENU),
+        **{
+            "detail_" + detail: noul(question, yes, no)
+            for detail, (question, yes, no, _) in DETAILS.items()
+        },
         "danger": choice(
             "Is the student in latest_request describing danger right now? Prior messages "
             "may explain what it refers to.",
@@ -390,19 +414,20 @@ def selected(answers: dict[str, Any], key: str) -> str | None:
     return value
 
 
-def topics(answer: dict[str, Any]) -> list[str] | None:
-    """Jev's leading topics, most likely first, or None when it spreads its answer too thin."""
-    ranked = sorted(answer["probabilities"].items(), key=lambda item: item[1], reverse=True)
-    kept: list[str] = []
-    covered = 0.0
-    for topic, probability in ranked[:MAX_TOPICS]:
-        kept.append(topic)
-        covered = round(covered + probability, 6)  # 0.6 + 0.3 must reach 0.9.
-        if covered >= TOPIC_COVERAGE:
-            break
-    if covered < TOPIC_COVERAGE or "unresolved" in kept:
-        return None
-    return kept
+def sections_asked(answers: dict[str, Any]) -> list[str]:
+    """The sections of every detail Jev says yes to, and of any it isn't sure about.
+
+    When it says yes to none, the request asks something no detail covers, such as
+    "Tell me about the club", so the lookup fetches every routed section. An extra
+    section costs GPT context, not accuracy.
+    """
+    values = {detail: answers["detail_" + detail]["noul"] for detail in DETAILS}
+    if max(values.values()) < RELEASE.routing.threshold:
+        return list(ROUTED_SECTIONS)
+    return list(dict.fromkeys(
+        section for detail, value in values.items() if value > RULED_OUT
+        for section in DETAILS[detail][3]
+    ))
 
 
 def interpret(
@@ -453,21 +478,20 @@ def interpret(
         query = ContactQuery.model_validate({"entity": entity.name, "fields": list(FIELDS)})
         decision.arguments = {**query.model_dump(mode="json"), "request_text": None}
     else:
-        chosen = topics(answers["topic"])
-        sections = list(dict.fromkeys(
-            section for topic in chosen for section in TOPIC_SECTIONS[topic]
-        )) if chosen else list(ROUTED_SECTIONS)
+        sections = sections_asked(answers)
         arguments: dict[str, Any] = {"entity_id": entity_id, "include": sections}
         if set(sections) & {"hours", "menu", "event"}:
-            # The campus resolver reads simple dates; Jev only flags the ones it can't.
-            if answers["date"]["choice"] == "unresolved":
+            # The campus resolver reads simple dates. Jev must be sure the student means
+            # the day it read, or names none: "next Saturday" also reads as Saturday.
+            if selected(answers, "date") in {None, "other"}:
                 return decision
             arguments["date"] = day
         if set(sections) & {"hours", "menu"}:
             meal = selected(answers, "meal")
-            arguments["meal"] = None if meal in {None, "unspecified"} else meal
+            arguments["meal"] = meal if meal in MEAL_FILTERS else None
         if "menu" in sections:
-            arguments["menu_limit"] = 100 if chosen and chosen[0] == "complete_menu" else 12
+            complete = answers["complete_menu"]["noul"] >= RELEASE.routing.threshold
+            arguments["menu_limit"] = 100 if complete else 12
         decision.arguments = ProfileQuery.model_validate(arguments).model_dump(mode="json")
     decision.tool = TOOLS[route]
     decision.reason = None

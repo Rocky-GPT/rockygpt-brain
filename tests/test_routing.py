@@ -71,9 +71,9 @@ def answers_for(payload: dict[str, Any], **selections: Any) -> dict[str, Any]:
     choices = {
         "route": "contact",
         "entity": str(ENTITY.id),
-        "date": "unspecified",
-        "meal": "unspecified",
-        "topic": "contact",
+        "date": "none",
+        "meal": "none",
+        "detail_contact": 1.0,
         "danger": "none",
         **selections,
     }
@@ -299,10 +299,9 @@ def test_choice_requires_both_probability_and_confidence(score: float, confident
 
 
 def test_a_contact_lookup_fetches_every_field() -> None:
-    # Jev's yes/no answers about single fields sat between 0.5 and 0.8 whether or not the
-    # field was asked, so the payload no longer asks them.
+    # Contact fields are small and asked together, so Jev isn't asked about each one.
     payload, day = routing_payload(messages(), [ENTITY], NOW)
-    assert {question["type"] for question in payload["questions"].values()} == {"choice"}
+    assert not any("field" in key for key in payload["questions"])
     result = interpret(answers_for(payload), [ENTITY], day, messages())
     assert result.arguments is not None and result.arguments["fields"] == list(FIELDS)
     assert result.tool == "lookup_contact" and result.reason is None
@@ -433,11 +432,11 @@ def test_one_named_entity_among_overlapping_names_can_route_directly() -> None:
     request = messages("Who is the convener of the Computer Science BS program?")
     candidates = [CS_BS, CS_MS, CS_CLUB]
     payload, day = routing_payload(request, candidates, NOW)
-    answers = answers_for(payload, route="profile", entity=str(CS_BS.id), topic="about")
+    answers = answers_for(payload, route="profile", entity=str(CS_BS.id), detail_leaders=1.0)
     result = interpret(answers, candidates, day, request)
     assert result.arguments is not None and result.arguments["entity_id"] == str(CS_BS.id)
     # Jev must select the entity the request names; any other leaves the lookup to GPT.
-    answers = answers_for(payload, route="profile", entity=str(CS_MS.id), topic="about")
+    answers = answers_for(payload, route="profile", entity=str(CS_MS.id), detail_leaders=1.0)
     result = interpret(answers, candidates, day, request)
     assert result.arguments is None and result.tool is None
 
@@ -572,41 +571,67 @@ def test_dates_meals_and_complete_menu_are_bounded() -> None:
     request = messages("Registrar menu and hours tomorrow for dinner")
     payload, day = routing_payload(request, [ENTITY], NOW)
     assert day == (NOW.date() + timedelta(days=1)).isoformat()
-    answers = answers_for(
-        payload, route="profile", date="explicit", meal="dinner", topic="complete_menu"
-    )
+    # Jev picks the student's own words; code already knows which date they mean.
+    assert payload["questions"]["date"]["criteria"]["named"] == "The day it calls 'tomorrow'"
+    answers = answers_for(payload, route="profile", date="named", meal="dinner",
+                          detail_menu=0.99, complete_menu=0.98, detail_contact=0.0)
     validate_answers(answers, payload["questions"])
     result = interpret(answers, [ENTITY], day, request)
     assert result.arguments is not None
     assert result.arguments["date"] == day and result.arguments["meal"] == "dinner"
     assert result.arguments["menu_limit"] == 100
     assert result.arguments["include"] == ["menu", "hours"]
-    # Jev only has to flag a date the resolver can't read.
-    answers["date"]["choice"] = "unresolved"
+    # A day that needs working out, such as "the week after Thanksgiving", is GPT's.
+    answers = answers_for(payload, route="profile", date="other", detail_menu=0.99)
     assert interpret(answers, [ENTITY], day, request).arguments is None
 
 
+def test_a_day_jev_is_unsure_of_is_left_to_gpt() -> None:
+    # "next Saturday" also reads as Saturday; Jev picked the named day at only 0.62.
+    request = messages("Registrar hours next Saturday")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    answers = spread(answers_for(payload, route="profile", detail_hours=0.99), "date",
+                     named=0.62, other=0.36)
+    validate_answers(answers, payload["questions"])
+    assert interpret(answers, [ENTITY], day, request).arguments is None
+
+
+@pytest.mark.parametrize("meal,expected", [("dinner", "dinner"), ("none", None), ("other", None)])
+def test_only_a_named_meal_filters_the_menu(meal: str, expected: str | None) -> None:
+    request = messages("Registrar menu today")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    answers = answers_for(payload, route="profile", date="named", meal=meal, detail_menu=0.99,
+                          detail_contact=0.0)
+    arguments = interpret(answers, [ENTITY], day, request).arguments
+    assert arguments is not None and arguments["meal"] == expected
+
+
 @pytest.mark.parametrize(
-    "probabilities,include,menu_limit",
+    "details,include,menu_limit",
     [
-        ({"hours": 0.95}, ["hours"], None),
-        # Jev split "Library hours and phone number" between two topics.
-        ({"hours": 0.6, "contact": 0.3}, ["hours", "contact"], None),
-        ({"menu": 0.7, "complete_menu": 0.25}, ["menu", "hours"], 12),
-        ({"complete_menu": 0.6, "menu": 0.35}, ["menu", "hours"], 100),
-        ({"location": 0.92}, ["building", "contact"], None),
-        ({"about": 0.93}, ["faculty", "courses", "program", "conveners", "club"], None),
-        # Too spread out, or partly unresolved: fetch everything the router may fetch.
-        ({"hours": 0.4, "contact": 0.3, "events": 0.15}, list(ROUTED_SECTIONS), 12),
-        ({"hours": 0.7, "unresolved": 0.25}, list(ROUTED_SECTIONS), 12),
+        ({"hours": 0.99}, ["hours"], None),
+        # "What is the Registrar phone number and when is the office open today?"
+        ({"hours": 0.98, "contact": 0.97}, ["hours", "contact"], None),
+        # "What is the dinner menu at Birch Tree Inn today?" doesn't ask for every dish.
+        ({"menu": 0.99, "complete_menu": 0.78}, ["menu", "hours"], 12),
+        ({"menu": 0.99, "complete_menu": 0.98}, ["menu", "hours"], 100),
+        ({"location": 0.99}, ["building", "contact"], None),
+        ({"leaders": 0.99, "teachers": 0.93}, ["conveners", "faculty"], None),
+        # A detail Jev isn't sure about is fetched too.
+        ({"hours": 0.99, "location": 0.5}, ["hours", "building", "contact"], None),
+        # "Tell me about the Computer Science Club." says yes to no detail: fetch everything.
+        ({"teachers": 0.11}, list(ROUTED_SECTIONS), 12),
     ],
 )
-def test_a_profile_lookup_fetches_jevs_leading_topics(
-    probabilities: dict[str, float], include: list[str], menu_limit: int | None
+def test_a_profile_lookup_fetches_the_details_asked(
+    details: dict[str, float], include: list[str], menu_limit: int | None
 ) -> None:
     request = messages("What does the Registrar have today?")
     payload, day = routing_payload(request, [ENTITY], NOW)
-    answers = spread(answers_for(payload, route="profile"), "topic", **probabilities)
+    values = {("" if key == "complete_menu" else "detail_") + key: value
+              for key, value in details.items()}
+    answers = answers_for(payload, route="profile", date="named",
+                          **{"detail_contact": 0.01, **values})
     validate_answers(answers, payload["questions"])
     arguments = interpret(answers, [ENTITY], day, request).arguments
     assert arguments is not None and arguments["include"] == include
@@ -615,7 +640,7 @@ def test_a_profile_lookup_fetches_jevs_leading_topics(
 
 def test_a_weekday_that_has_passed_this_week_is_left_to_gpt() -> None:
     # Asked on a Sunday, "Saturday" resolved to the day before and fetched past hours.
-    data, router = data_mock(), router_mock(route="profile", topic="hours")
+    data, router = data_mock(), router_mock(route="profile", date="named", detail_hours=0.99)
     yesterday, tomorrow = NOW - timedelta(days=1), NOW + timedelta(days=1)
     assert yesterday.weekday() < NOW.weekday() < tomorrow.weekday()  # All in one week.
     request = messages(f"When is the Registrar open on {yesterday:%A}?")
@@ -628,13 +653,13 @@ def test_a_weekday_that_has_passed_this_week_is_left_to_gpt() -> None:
     assert decision.arguments["date"] == tomorrow.date().isoformat()
 
 
-def test_a_topic_without_a_date_ignores_an_unreadable_date() -> None:
+def test_a_detail_without_a_date_ignores_an_unreadable_date() -> None:
     # "Who convenes the program the week after Thanksgiving?" needs no date to look up.
     request = messages("Who convenes the Registrar the week after Thanksgiving?")
     payload, day = routing_payload(request, [ENTITY], NOW)
-    answers = answers_for(payload, route="profile", topic="about", date="unresolved")
+    answers = answers_for(payload, route="profile", detail_leaders=0.99, date="other")
     assert interpret(answers, [ENTITY], day, request).arguments is not None
-    answers = answers_for(payload, route="profile", topic="hours", date="unresolved")
+    answers = answers_for(payload, route="profile", detail_hours=0.99, date="other")
     assert interpret(answers, [ENTITY], day, request).arguments is None
 
 
@@ -642,7 +667,7 @@ def test_a_building_location_reads_the_building() -> None:
     # "Where is Birch Mansion?" found nothing when the router could not fetch buildings.
     request = messages("Where is Birch Mansion?")
     payload, day = routing_payload(request, [MANSION], NOW)
-    answers = answers_for(payload, route="profile", entity=str(MANSION.id), topic="location")
+    answers = answers_for(payload, route="profile", entity=str(MANSION.id), detail_location=0.99)
     arguments = interpret(answers, [MANSION], day, request).arguments
     assert arguments is not None and "building" in arguments["include"]
 
@@ -809,13 +834,13 @@ def test_invalid_provider_answers_fall_back(mutation: str) -> None:
         if mutation == "missing":
             del answers["route"]
         elif mutation == "nan":
-            answers["simple"]["noul"] = float("nan")
+            answers["complete_menu"]["noul"] = float("nan")
         elif mutation == "unknown":
             answers["route"]["choice"] = "invented_tool"
         elif mutation == "sum":
             answers["route"]["probabilities"]["contact"] = 0.4
         elif mutation == "bool":
-            answers["simple"]["noul"] = True
+            answers["complete_menu"]["noul"] = True
         else:
             answers["route"]["type"] = "noul"
         return answers
