@@ -30,6 +30,7 @@ from rockygpt_brain.core.routing import (
     named,
     route_request,
     routing_payload,
+    selected,
     shortlist,
     validate_answers,
 )
@@ -287,7 +288,7 @@ def test_rejected_prose_after_direct_lookup_is_not_returned() -> None:
 @pytest.mark.parametrize("score,confident", [(0.8999, False), (0.90, True), (1.0, True)])
 def test_choice_requires_both_probability_and_confidence(score: float, confident: bool) -> None:
     payload, day = routing_payload(messages(), [ENTITY], NOW)
-    for field in ("probability", "confidence"):
+    for field in ("confidence", "probability"):
         answers = answers_for(payload)
         if field == "confidence":
             answers["route"]["confidence"] = score
@@ -295,7 +296,36 @@ def test_choice_requires_both_probability_and_confidence(score: float, confident
             answers["route"]["probabilities"]["contact"] = score
             answers["route"]["probabilities"]["unresolved"] = 1 - score
         validate_answers(answers, payload["questions"])
-        assert (interpret(answers, [ENTITY], day, messages()).arguments is not None) == confident
+        assert (selected(answers, "route") is not None) == confident
+    # A lookup route needs contact and profile together to reach the threshold.
+    assert (interpret(answers, [ENTITY], day, messages()).arguments is not None) == confident
+
+
+@pytest.mark.parametrize(
+    "split,details,route",
+    [
+        # "What is the Registrar phone number and when is the office open today?"
+        ({"profile": 0.9, "contact": 0.05}, {"detail_contact": 0.97, "detail_hours": 0.98},
+         "profile"),
+        # "What is the Public Safety non-emergency phone number?"
+        ({"contact": 0.89, "profile": 0.09}, {"detail_contact": 0.99}, "contact"),
+        # Contact leads, but the request asks more than contact details.
+        ({"contact": 0.6, "profile": 0.35}, {"detail_contact": 0.97, "detail_hours": 0.98},
+         "profile"),
+        ({"contact": 0.6, "unresolved": 0.35}, {"detail_contact": 0.99}, None),
+    ],
+)
+def test_a_split_between_contact_and_profile_is_still_one_lookup(
+    split: dict[str, float], details: dict[str, float], route: str | None
+) -> None:
+    request = messages("What is the Registrar phone number and when is the office open today?")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    answers = spread(answers_for(payload, date="named", **{"detail_contact": 0.0, **details}),
+                     "route", **split)
+    validate_answers(answers, payload["questions"])
+    result = interpret(answers, [ENTITY], day, request)
+    assert result.route == (route or "unresolved")
+    assert (result.arguments is not None) == (route is not None)
 
 
 def test_a_contact_lookup_fetches_every_field() -> None:
@@ -326,7 +356,9 @@ def test_a_contact_request_is_looked_up_by_jev_alone() -> None:
     gpt.create.assert_not_called()
 
 
-@pytest.mark.parametrize("changes", [{"entity": "unresolved"}, {"route": "unresolved"}])
+@pytest.mark.parametrize(
+    "changes", [{"entity": "none"}, {"entity": "several"}, {"route": "unresolved"}]
+)
 def test_ambiguity_and_mixed_requests_defer(changes: dict[str, Any]) -> None:
     payload, day = routing_payload(messages(), [ENTITY], NOW)
     result = interpret(answers_for(payload, **changes), [ENTITY], day, messages())
@@ -367,7 +399,8 @@ OTHER = Identity.model_validate(
         ("What is the Registrar phone?", str(ENTITY.id), 0.79, True),
         ("What is the Registrar phone?", str(ENTITY.id), 0.5, True),
         ("What is the Registrar phone?", str(ENTITY.id), 0.4999, False),
-        ("What is the Registrar phone?", "unresolved", 0.79, False),
+        ("What is the Registrar phone?", "none", 0.79, False),
+        ("What is the Registrar phone?", "several", 0.79, False),
         # Jev leaning toward an entity the request doesn't name never replaces the named one.
         ("What is the Registrar phone?", str(OTHER.id), 0.79, False),
         # A follow-up names nothing, so Jev's own pick must clear the threshold.
@@ -596,6 +629,17 @@ def test_a_day_jev_is_unsure_of_is_left_to_gpt() -> None:
     assert interpret(answers, [ENTITY], day, request).arguments is None
 
 
+def test_a_request_naming_no_day_looks_up_the_tools_default_day() -> None:
+    # "Tell me about the Computer Science Club." fetches every section, hours included.
+    request = messages("Tell me about the Registrar.")
+    payload, day = routing_payload(request, [ENTITY], NOW)
+    assert day is None and "named" not in payload["questions"]["date"]["criteria"]
+    answers = answers_for(payload, route="profile", date="none", detail_contact=0.03)
+    arguments = interpret(answers, [ENTITY], day, request).arguments
+    assert arguments is not None and arguments["include"] == list(ROUTED_SECTIONS)
+    assert arguments["date"] is None
+
+
 @pytest.mark.parametrize("meal,expected", [("dinner", "dinner"), ("none", None), ("other", None)])
 def test_only_a_named_meal_filters_the_menu(meal: str, expected: str | None) -> None:
     request = messages("Registrar menu today")
@@ -672,18 +716,32 @@ def test_a_building_location_reads_the_building() -> None:
     assert arguments is not None and "building" in arguments["include"]
 
 
-def test_a_follow_up_never_looks_things_up_itself() -> None:
-    # "Actually, what is the Financial Aid phone?" names its entity, but still follows a
-    # conversation, so GPT runs the lookup.
+@pytest.mark.parametrize(
+    "latest,needs_earlier,direct",
+    [
+        # Jev: "What are the library's hours tomorrow?" after another question, 0.08.
+        ("What is the Registrar phone?", 0.05, True),
+        # Jev: "Actually, what is the Financial Aid phone?" 0.26, "What about ...?" 0.37.
+        ("Actually, what is the Registrar phone?", 0.26, False),
+        ("What about the Registrar?", 0.37, False),
+        # A follow-up naming nothing is GPT's however Jev answers.
+        ("What is their email?", 0.0, False),
+    ],
+)
+def test_only_a_follow_up_that_stands_alone_looks_things_up_itself(
+    latest: str, needs_earlier: float, direct: bool
+) -> None:
     followup = [
-        *messages(),
-        ChatMessage(role="assistant", content="The Registrar's phone is 201-684-7695."),
-        ChatMessage(role="user", content="Actually, what is the Registrar phone?"),
+        *messages("What is the Bursar phone?"),
+        ChatMessage(role="assistant", content="The Bursar's phone is 201-684-7000."),
+        ChatMessage(role="user", content=latest),
     ]
     payload, day = routing_payload(followup, [ENTITY], NOW)
-    result = interpret(answers_for(payload), [ENTITY], day, followup)
-    assert result.arguments is None
-    assert result.tool is None and result.reason == "follow_up"
+    result = interpret(answers_for(payload, needs_earlier=needs_earlier), [ENTITY], day,
+                       followup)
+    assert (result.arguments is not None) == direct
+    if not direct:
+        assert result.tool is None and result.reason == "follow_up"
 
 
 @pytest.mark.parametrize("pick,danger", [("self_harm", "self_harm"), ("danger", "danger"),

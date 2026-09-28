@@ -26,9 +26,12 @@ overlap. Candidates are selectors, not evidence or new identity links.
 
 The router uses one request to pinned `jev-1.13.0`. It picks the route, the entity, the
 day, the meal and whether the student describes danger, and asks one yes/no question per
-profile detail (hours, menu, contact, location, events, leaders, teachers, courses) plus
-whether the student wants the whole menu. The route and entity require probability and
-confidence ≥0.90.
+profile detail (hours, menu, contact, location, events, leaders, teachers, courses),
+whether the student wants the whole menu, and whether the request needs the earlier
+messages. The route and entity require probability and confidence ≥0.90. Contact and
+profile are both a lookup of one entity, so when Jev splits between them and the two
+together reach 0.90 the request is still a lookup: a contact lookup when contact leads and
+contact is all that's asked, otherwise a profile lookup, which fetches contact details too.
 
 Every question asks about the student's words, never the Brain's labels. Asked "Does
 latest_request request the profile section 'menu'?", Jev answered 0.5 to 0.8 whether or
@@ -51,12 +54,17 @@ names no day, so "next Saturday" and "the week after Thanksgiving" go to GPT. It
 defers when the resolver's weekday has already passed this week, as for "Saturday" asked
 on a Sunday. A meal filter applies only when Jev's meal pick clears 0.90; otherwise every
 meal is fetched. Meal labels are request filters, never proof of availability.
-Follow-ups never run a lookup directly, since they lean on earlier turns. Mixed or
-ambiguous requests defer through the route and entity choices.
+A follow-up runs its own lookup only when Jev says it makes sense without the earlier
+messages (0.10 or less) and it names exactly one entity itself, as for "What are the
+library's hours tomorrow?" after another question. "Actually, …" and "What about …?"
+came back at 0.26 and 0.37 and stay with GPT. Mixed or ambiguous requests defer through
+the route and entity choices.
 
 A request names an entity by its longest matching name or alias: "Computer Science
 BS" names that program, not every program sharing the "Computer Science" alias.
-Naming two entities defers, and Jev must select the entity the request names. When
+Naming two entities defers, and Jev must select the entity the request names. Besides
+the candidates, the entity pick offers "none" and "several": without "several", Jev picked
+one of the two offices a mixed request named. When
 the request names exactly one entity, Jev's pick of that same entity stands once its
 probability reaches 0.50, since the name itself backs it.
 

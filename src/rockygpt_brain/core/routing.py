@@ -82,6 +82,13 @@ ROUTED_SECTIONS = tuple(dict.fromkeys(
 # Beside the details Jev says yes to, the lookup fetches any it doesn't rule out: at or
 # below this it answered no.
 RULED_OUT = 0.1
+# A follow-up that doesn't need them may run its own lookup, like a first message.
+NEEDS_EARLIER = ("Does `latest_request` need the earlier messages to make sense?",
+                 "It refers back to something earlier, such as 'their', 'it', 'that day', "
+                 "'what about' or 'and Sunday?'",
+                 "It makes sense on its own")
+# Entity options that name no single identity.
+NO_ENTITY = {"none", "several"}
 # Keep the options apart: when two descriptions overlap, Jev splits its answer between
 # them and neither clears the threshold.
 ROUTES = {
@@ -313,11 +320,9 @@ def routing_payload(
     questions: dict[str, Any] = {
         "route": choice("Choose the initial retrieval route for latest_request only.", ROUTES),
         "entity": choice(
-            "Which single supplied identity is the subject of latest_request? Prior messages "
-            "may resolve references, never supply verified facts. Choose unresolved for multiple "
-            "subjects, duplicate names/aliases or an absent identity; do not guess.",
+            "Which place, office, program, group or person does `latest_request` ask about? "
+            "Earlier messages may say who \"they\" or \"it\" is.",
             {
-                "unresolved": "Not exactly one clearly identified supplied entity",
                 **{
                     str(entity.id): {
                         "name": entity.name,
@@ -326,8 +331,12 @@ def routing_payload(
                     }
                     for entity in candidates
                 },
+                # Without "several", Jev picked one of the two offices a mixed request named.
+                "none": "None of those listed",
+                "several": "More than one of those listed",
             },
         ),
+        "needs_earlier": noul(*NEEDS_EARLIER),
         "date": choice("Which day does `latest_request` ask about?", dates),
         "meal": choice("Which meal does `latest_request` ask about?", MEALS),
         "complete_menu": noul(*COMPLETE_MENU),
@@ -430,13 +439,30 @@ def sections_asked(answers: dict[str, Any]) -> list[str]:
     ))
 
 
+def lookup_route(answers: dict[str, Any]) -> str | None:
+    """A lookup of one entity when Jev splits between contact and profile, which both are.
+
+    "What is the Registrar phone number and when is the office open today?" split 0.90
+    profile and 0.05 contact, so neither alone was sure. The profile lookup fetches contact
+    details too, so contact is kept only when it leads and contact is all that's asked.
+    """
+    probabilities = answers["route"]["probabilities"]
+    if probabilities["contact"] + probabilities["profile"] < RELEASE.routing.threshold:
+        return None
+    if probabilities["contact"] > probabilities["profile"] and sections_asked(answers) == [
+        "contact"
+    ]:
+        return "contact"
+    return "profile"
+
+
 def interpret(
     answers: dict[str, Any],
     candidates: list[Identity],
     day: str | None,
     messages: list[ChatMessage],
 ) -> RouteDecision:
-    route = selected(answers, "route")
+    route = selected(answers, "route") or lookup_route(answers)
     decision = RouteDecision(
         route=route or "unresolved",
         confidence=answers["route"]["confidence"],
@@ -450,12 +476,16 @@ def interpret(
     # Until a lookup is resolved, GPT keeps every tool: the request may need more than one.
     decision.tool = None
     decision.reason = "arguments_unresolved"
-    if len(messages) > 1:
-        # A follow-up leans on earlier turns, so GPT runs the lookup even when Jev is sure.
+    explicit = named(messages[-1].content, candidates)
+    if len(messages) > 1 and (
+        answers["needs_earlier"]["noul"] > RULED_OUT or len(explicit) != 1
+    ):
+        # A follow-up that leans on earlier turns, or names no entity itself, is GPT's.
         decision.reason = "follow_up"
         return decision
-    explicit = named(messages[-1].content, candidates)
     entity_id = selected(answers, "entity")
+    if entity_id in NO_ENTITY:
+        entity_id = None
     if entity_id is None and len(explicit) == 1:
         # The request names this entity itself, so Jev need only lean the same way.
         leading = answers["entity"]["choice"]
