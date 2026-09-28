@@ -382,7 +382,7 @@ def templates() -> list[AnswerTemplate]:
                   Condition("Jev", "Asks for the whole menu", "no", jev("complete_menu")),
                   no_danger,
                   Condition("Jev", "After the lookup, asks of each item: is it a dish?",
-                            "not ruled out", (DISH[0],))],
+                            "more likely yes", (DISH[0],))],
             lookup="lookup_profile: one place, one day, one meal, fetched whole (up to 100 "
             "items)",
             reads=["menu", "dining_hours"],

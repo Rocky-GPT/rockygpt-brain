@@ -223,12 +223,17 @@ DANGER = {
 HELPS = ("Gives some or all of what `latest_request` asks for, or a fact needed to answer it",
          "Is about something else, or gives nothing `latest_request` asks for")
 # Whether a menu item is a dish a student would choose, as one Jev yes/no per item. A plain
-# "what's for lunch" lists the ones it doesn't rule out, with how many items there are.
+# "what's for lunch" lists the ones Jev leans toward calling a dish, with how many items
+# there are.
 DISH = ("Is `item` a dish someone would choose to eat, rather than something added to one?",
         "A dish or side someone would choose: an entrée, sandwich, pizza, soup, salad, bowl, "
         "pasta dish, fries, rice or dessert",
         "Something added to a dish: a topping, sauce, dressing, condiment, cheese slice, "
         "garnish or single raw ingredient such as sliced tomato")
+# Over nine Birch meals (09-28 to 10-04), every item Jev put between 0.1 and 0.5 was a
+# topping, spread, filling or bun, like Dill Pickle Chip, sliced deli meats, pie filling and
+# taco meat, and every dish scored 0.67 or more. "Not ruled out" (0.1) kept them all.
+DISH_BAR = 0.5
 # Record keys that say where a record came from, not what it says.
 PROVENANCE = {"id", "limitations", "coverage", "trust_tier", "collected_at", "freshness",
               "valid_from", "valid_until", "source_url"}
@@ -940,7 +945,7 @@ def route_request(
 def pick_dishes(
     records: list[dict[str, Any]], client: FilterClient
 ) -> tuple[set[str] | None, dict[str, Any]]:
-    """The IDs of the menu items Jev doesn't rule out as dishes, and what it did.
+    """The IDs of the menu items Jev leans toward calling dishes, and what it did.
 
     None when the check fails: the answer then lists every item. Accounting and budget
     errors still stop the turn.
@@ -976,7 +981,7 @@ def pick_dishes(
     except (ValueError, TypeError, KeyError, AttributeError):
         return None, {"items": len(records), "reason": "invalid_response"}
     kept = {record["id"] for record, value in zip(records, values, strict=True)
-            if value > RULED_OUT}
+            if value > DISH_BAR}
     return kept, {"items": len(records), "dishes": len(kept),
                   "elapsedMs": round((monotonic() - started) * 1000)}
 

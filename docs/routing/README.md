@@ -109,7 +109,7 @@ When the request asks only what one meal serves (and perhaps its hours), names o
 meal and at most a vegan or vegetarian filter, code lists the dishes by station under the
 meal's published hours (`responseMode` `exact_menu`). For "what's for lunch", a second
 Jev call reads each item, "Is `item` a dish someone would choose to eat, rather than
-something added to one?", and the answer lists the ones it doesn't rule out and says how
+something added to one?", and the answer lists the ones it scores above 0.5 and says how
 many items the meal has in all; a failed check lists every item. "The full lunch menu"
 lists every item without the check. When the request asks only for a place's hours on a
 sure day, code states that day's one published schedule, its labeled meal periods, or the
