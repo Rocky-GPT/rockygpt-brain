@@ -15,6 +15,7 @@ from rockygpt_brain.contracts import Answer, AnswerPart
 from rockygpt_brain.retrieval.exact import plain
 from rockygpt_brain.retrieval.helpers import TRUNCATED
 from rockygpt_brain.retrieval.menu_artifacts import MENU_NUTRIENT_LIMITATION
+from rockygpt_brain.retrieval.processing import CONVENER_FIELD_LIMITATION
 from rockygpt_brain.retrieval.profiles import (
     SCHEDULE_LIMITATION,
     UNLABELED_MEAL_LIMITATION,
@@ -360,7 +361,8 @@ def convener_answer(output: dict[str, Any], query: ProfileQuery) -> Answer | Non
                 if (record is None or record.get("collection") != "programs"
                         or record.get("trust_tier") not in TRUSTED
                         or record.get("freshness") not in CURRENT
-                        or record.get("content_truncated") or record.get("limitations")):
+                        or record.get("content_truncated")
+                        or set(record.get("limitations", [])) - {CONVENER_FIELD_LIMITATION}):
                     return None
                 cited.append(record)
             targets.add((target["id"], target["name"]))
