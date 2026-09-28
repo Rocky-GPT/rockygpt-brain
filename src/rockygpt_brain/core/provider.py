@@ -4,6 +4,7 @@ import asyncio
 import json
 import math
 import ssl
+import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
@@ -168,52 +169,153 @@ def jev_tls() -> ssl.SSLContext:
     return httpx.create_ssl_context(trust_env=False)
 
 
+class JevPause:
+    """Stop waiting on Jev for a while once it stops answering.
+
+    On 2026-09-28 Typesafe's servers took 1.5 to 10 s on about 1 in 5 calls and answered
+    almost nothing for ten minutes (scripts/jev_latency.py). Each of those calls held the
+    turn for its whole window before the Brain fell back to GPT. After `limit` misses in
+    a row, calls are refused at once for `seconds`; the first call after that tries Jev
+    again, and one more miss pauses it again.
+    """
+
+    def __init__(self, limit: int = 3, seconds: float = 60.0,
+                 clock: Callable[[], float] = monotonic) -> None:
+        self.limit = limit
+        self.seconds = seconds
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._misses = 0
+        self._until = 0.0
+
+    def paused(self) -> bool:
+        with self._lock:
+            return self._clock() < self._until
+
+    def record(self, answered: bool) -> None:
+        with self._lock:
+            self._misses = 0 if answered else self._misses + 1
+            if self._misses >= self.limit:
+                self._until = self._clock() + self.seconds
+
+    def reset(self) -> None:
+        with self._lock:
+            self._misses, self._until = 0, 0.0
+
+
+# One pause per provider, shared by every turn in the process.
+JEV_PAUSES: dict[RoutingProvider, JevPause] = {"typesafe": JevPause(), "openrouter": JevPause()}
+# Answered calls took under 1 s and slow ones at least 1.46 s, so a call given less
+# time than this that runs out says nothing about Jev.
+JEV_FAIR_WAIT = 1.0
+
+
+def jev_missed(error: BaseException) -> bool:
+    """Jev didn't answer: a timeout, no connection, rate limiting, or a server error."""
+    if isinstance(error, httpx.HTTPStatusError):
+        return error.response.status_code == 429 or error.response.status_code >= 500
+    return isinstance(error, (TimeoutError, httpx.TransportError))
+
+
+# A copy needs this long to answer: answered calls took 0.2-0.4 s, and copies that
+# rescued a slow call answered in 0.2-0.4 s of their own.
+COPY_FLOOR = 0.5
+
+
 class JevProvider:
-    """One cancellable HTTP attempt; the deadline includes reading the response body."""
+    """A cancellable HTTP request, and optionally one copy of it; the deadline includes
+    reading the response body."""
+
+    # The gateway may send a copy of a slow call through `create_hedged`.
+    hedged = True
 
     def __init__(self, api_key: str, name: RoutingProvider = "typesafe") -> None:
         self._api_key = api_key
         self.name = name
 
     def create(self, *, timeout: float, **payload: Any) -> ModelResponse:
+        return self.create_hedged(timeout=timeout, hedge_after=None, copy=None, **payload)[0]
+
+    def create_hedged(
+        self, *, timeout: float, hedge_after: float | None,
+        copy: Callable[[], bool] | None, **payload: Any,
+    ) -> tuple[ModelResponse, int]:
+        """The first answer, and which request gave it: 0 for the call, 1 for its copy.
+
+        On 2026-09-28 Typesafe's servers left about 1 in 3 calls without an answer for
+        4 s or more, while a copy of a slow call sent 0.8 s in answered in about 1 s
+        two times in three (scripts/jev_latency.py --hedge). So when `hedge_after` passes
+        with no answer, `copy()` admits a copy (it reserves the copy's charge), the copy
+        is sent, and the first answer from either wins; the other is cancelled.
+        """
+        pause = JEV_PAUSES[self.name]
+        started = monotonic()
+
+        async def race() -> tuple[ModelResponse, int]:
+            attempts = [asyncio.create_task(self._send(timeout, payload))]
+            try:
+                if hedge_after is not None and copy is not None:
+                    done, _ = await asyncio.wait(attempts, timeout=hedge_after)
+                    left = timeout - (monotonic() - started)
+                    if not done and left >= COPY_FLOOR and copy():
+                        attempts.append(asyncio.create_task(self._send(left, payload)))
+                errors: list[BaseException] = []
+                pending = set(attempts)
+                while pending:
+                    done, pending = await asyncio.wait(
+                        pending, return_when=asyncio.FIRST_COMPLETED)
+                    for task in sorted(done, key=attempts.index):
+                        error = task.exception()
+                        if error is None:
+                            return task.result(), attempts.index(task)
+                        errors.append(error)
+                raise errors[0]
+            finally:
+                for task in attempts:
+                    task.cancel()
+
+        try:
+            result = asyncio.run(asyncio.wait_for(race(), timeout=timeout))
+        except BaseException as error:
+            timed_out = isinstance(error, (TimeoutError, httpx.TimeoutException))
+            if jev_missed(error) and (timeout >= JEV_FAIR_WAIT or not timed_out):
+                pause.record(answered=False)
+            raise
+        pause.record(answered=True)
+        return result
+
+    async def _send(self, seconds: float, payload: dict[str, Any]) -> ModelResponse:
         pinned: str = payload["model"]
         requested, reported = (
             OPENROUTER_MODELS[pinned] if self.name == "openrouter" else (pinned, pinned)
         )
-
-        async def request() -> ModelResponse:
-            async with httpx.AsyncClient(
-                trust_env=False, timeout=timeout, verify=jev_tls()
-            ) as client:
-                async with client.stream(
-                    "POST", JEV_URLS[self.name], json={**payload, "model": requested},
-                    headers={"Authorization": "Bearer " + self._api_key},
-                ) as response:
-                    response.raise_for_status()
-                    body = bytearray()
-                    async for chunk in response.aiter_bytes():
-                        body.extend(chunk)
-                        if len(body) > 1_048_576:
-                            raise ValueError("Routing response too large")
-                    raw = json.loads(body)
-                    usage = raw.get("usage", {})
-                    try:
-                        tokens = Usage(usage["input_tokens"], 0, usage["output_tokens"], 0)
-                    except (KeyError, TypeError, ValueError):
-                        tokens = None
-                    # Only the exact reported snapshot counts as the pinned model. Any other
-                    # name reaches the gateway unchanged, which bills it as drift.
-                    model = str(raw.get("model", ""))
-                    return ModelResponse(
-                        str(raw.get("id") or response.headers.get("x-request-id", "")),
-                        pinned if model == reported else model,
-                        "completed", json.dumps(raw.get("answers")), [], tokens,
-                    )
-
-        async def bounded() -> ModelResponse:
-            return await asyncio.wait_for(request(), timeout=timeout)
-
-        return asyncio.run(bounded())
+        async with httpx.AsyncClient(
+            trust_env=False, timeout=seconds, verify=jev_tls()
+        ) as client:
+            async with client.stream(
+                "POST", JEV_URLS[self.name], json={**payload, "model": requested},
+                headers={"Authorization": "Bearer " + self._api_key},
+            ) as response:
+                response.raise_for_status()
+                body = bytearray()
+                async for chunk in response.aiter_bytes():
+                    body.extend(chunk)
+                    if len(body) > 1_048_576:
+                        raise ValueError("Routing response too large")
+                raw = json.loads(body)
+                usage = raw.get("usage", {})
+                try:
+                    tokens = Usage(usage["input_tokens"], 0, usage["output_tokens"], 0)
+                except (KeyError, TypeError, ValueError):
+                    tokens = None
+                # Only the exact reported snapshot counts as the pinned model. Any other
+                # name reaches the gateway unchanged, which bills it as drift.
+                model = str(raw.get("model", ""))
+                return ModelResponse(
+                    str(raw.get("id") or response.headers.get("x-request-id", "")),
+                    pinned if model == reported else model,
+                    "completed", json.dumps(raw.get("answers")), [], tokens,
+                )
 
 
 def provider_error(error: BaseException) -> str:
@@ -347,6 +449,8 @@ class PaidGateway:
             if self._routing_provider is None:
                 raise PaidCallError("routing_unavailable")
             provider_name = self._routing_provider.name
+            if JEV_PAUSES[self._routing_provider.name].paused():
+                raise PaidCallError("routing_paused")  # Before reserving: nothing is sent.
             if set(kwargs) != {"model", "state", "questions", "timeout"} or (
                 kwargs["model"] != self.release.routing.model
             ):
@@ -454,6 +558,25 @@ class PaidGateway:
             "settled": False,
         }
         self.usage.calls.append(item)
+        # A routing call's copy is its own operation, reserved when it is sent.
+        opened = [(operation_id, item)]
+
+        def open_copy() -> bool:
+            spent = self.usage.report()
+            try:
+                held = self.budget.admit_cost(
+                    category, bound, spent["costNusd"] + spent["unsettledNusd"])
+                copy_id = str(uuid4())
+                self._ledger.reserve(copy_id, self.request_id, category, held,
+                                     {**metadata, "copy_of": operation_id}, self.clock())
+            except PaidCallError:
+                return False  # No room for a copy; the call waits on its own.
+            copied: dict[str, Any] = {"operationId": copy_id, "category": category,
+                                      "reservedNusd": held, "elapsedMs": 0, "settled": False}
+            self.usage.calls.append(copied)
+            opened.append((copy_id, copied))
+            return True
+
         if filtering:
             self.budget.note_filter()
         else:
@@ -466,7 +589,23 @@ class PaidGateway:
                 remaining = kwargs["timeout"] - (monotonic() - started)
                 if remaining <= 0:
                     raise TimeoutError("Routing deadline exceeded")
-                response = self._routing_provider.create(**payload, timeout=remaining)
+                hedge = self.release.routing.hedge_seconds
+                if isinstance(self._routing_provider, JevProvider) and (
+                    self._routing_provider.hedged and hedge is not None
+                ):
+                    response, answered = self._routing_provider.create_hedged(
+                        **payload, timeout=remaining, hedge_after=hedge, copy=open_copy)
+                    # The request that answered is settled below; the other was
+                    # cancelled after it was sent, so its charge is uncertain.
+                    for index, (other_id, other) in enumerate(opened):
+                        if index != answered:
+                            other.update(elapsedMs=round((monotonic() - started) * 1000),
+                                         error="routing_copy_cancelled")
+                            self._ledger.uncertain(other_id, "routing_copy_cancelled",
+                                                   other["elapsedMs"])
+                    operation_id, item = opened[answered]
+                else:
+                    response = self._routing_provider.create(**payload, timeout=remaining)
                 # TypeSafe does not promise a response ID. This is explicitly a local
                 # receipt reference, never misrepresented as a provider-issued ID.
                 if not response.id:
@@ -518,6 +657,11 @@ class PaidGateway:
             if not item["settled"]:
                 # If this update fails, the original durable reservation still holds.
                 self._ledger.uncertain(operation_id, code, item["elapsedMs"])
+            for other_id, other in opened:
+                if other is not item and "error" not in other and not other["settled"]:
+                    # A copy that never answered: sent, so possibly charged.
+                    other.update(elapsedMs=item["elapsedMs"], error=code)
+                    self._ledger.uncertain(other_id, code, other["elapsedMs"])
             if isinstance(error, PaidCallError):
                 if routing and error.code == "usage_unknown":
                     raise PaidCallError(code) from error

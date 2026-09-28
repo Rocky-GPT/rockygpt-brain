@@ -492,6 +492,21 @@ def test_large_profile_menu_defaults_to_complete_records_with_truthful_section_c
     assert bounded['components_withheld'] == 'retrieval_delivery_limit'
 
 
+def test_a_limited_menu_takes_dishes_from_every_station_and_says_it_is_partial() -> None:
+    data = full_dining_data()
+    query = ProfileQuery(entity='Example Dining', include=['menu'],
+                         date=date(2026, 9, 21), meal='Lunch')
+    menu = data.lookup_profile(query)['components']['menu']
+    # Cutting the sorted list kept the first stations only; each of the four gives three.
+    assert [(item['station'], item['matched'], item['returned'])
+            for item in menu['stations']] == [
+        (f'Published Station {index}', 13, 3) for index in range(4)]
+    assert menu['complete'] is False
+    whole = data.lookup_profile(query.model_copy(update={'menu_limit': 100}))
+    assert whole['components']['menu']['complete'] is True
+    assert {item['returned'] for item in whole['components']['menu']['stations']} == {13}
+
+
 def test_profile_menu_dietary_filter_applies_before_the_item_limit() -> None:
     data = full_dining_data()
     for record in data._fetch(None, ('dataset', 'dining', ['lunch:dish-00'])):

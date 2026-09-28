@@ -32,6 +32,7 @@
     "version": "campus-routing-2",
     "model": "jev-1.13.0",
     "timeout_seconds": 2.0,
+    "hedge_seconds": 0.8,
     "threshold": 0.9,
     "max_candidates": 24,
     "price": {
