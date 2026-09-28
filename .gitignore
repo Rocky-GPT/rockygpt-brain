@@ -19,3 +19,4 @@ dist/
 .vscode/
 /run-local.sh
 logs/
+.local-logs/

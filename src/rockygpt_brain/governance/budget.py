@@ -93,6 +93,16 @@ class TurnBudget:
             and self.remaining > self.release.answer_reserve_seconds
         )
 
+    @property
+    def refusal(self) -> str:
+        """Why a lookup is refused: the turn's time for looking things up ran out, or its
+        count of rounds and lookups did. Printing's second round (09-28) was refused
+        for time, 15 s in, after two ~7 s planning calls, but said "tool_budget"."""
+        if (self.remaining <= self.release.answer_reserve_seconds
+                or self.clock() >= self.retrieval_deadline):
+            return "retrieval_time"
+        return "tool_budget"
+
     def begin_retrieval(self) -> bool:
         if not self.can_retrieve:
             return False

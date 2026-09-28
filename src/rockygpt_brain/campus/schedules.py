@@ -21,6 +21,8 @@ NO_CAMPUS_RETURN = re.compile(r"\s*N/?A\s*", re.IGNORECASE)
 # row. Students board at the Depart row; the bus reaches the Arrive row.
 ARRIVAL_ROW = re.compile(r"\s*arrive\b", re.IGNORECASE)
 DEPARTURE_ROW = re.compile(r"\s*depart\b", re.IGNORECASE)
+# What a departure question can ask of a day's timetable.
+SELECTIONS = ("first", "next", "last")
 
 
 def returns_to_campus(fields: dict[str, Any]) -> bool:
@@ -155,7 +157,8 @@ def opening_intervals(
 
 
 def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime) -> dict[str, Any]:
-    """Next/last scheduled departure per route and origin, within retrieved dates.
+    """First/next/last scheduled departure per route and origin, and per stop reached,
+    within retrieved dates.
 
     Only an unranked, complete search can establish an extremum. The source rows
     stay intact; results reference their IDs and cannot expand their coverage.
@@ -281,10 +284,14 @@ def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime)
             {
                 "route": route,
                 "origin": origin,
+                # "What's the first shuttle today?" was answered with the next one (09-28):
+                # the day's first departure is its own selection, whatever the time now.
+                "first": trips[0] if trips else None,
                 "next": remaining[0] if remaining else None,
                 "last": remaining[-1] if remaining else None,
                 "scheduled_departure_count": len(trips),
                 "remaining_departure_count": len(remaining),
+                "destinations": _destinations(trips, now),
             }
         )
     withheld = [
@@ -300,7 +307,10 @@ def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime)
         "withheld_origins": withheld,
         "limitations": [
             "Scheduled times only; live delays and holiday operations are unknown.",
-            "Next and last are within the retrieved dates only; null does not mean service ends.",
+            "First is the earliest scheduled departure in the retrieved dates, whatever the "
+            "time now. Next and last are within the retrieved dates only; null does not mean "
+            "service ends. destinations gives, per stop, the first, next and last departure "
+            "that reaches it.",
             "Preserve source pickup/drop-off restrictions. No walking or eating time is assumed.",
             *(
                 ["A withheld origin repeats within a trip; its next/last departure is unknown."]
@@ -309,6 +319,36 @@ def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime)
             ),
         ],
     }
+
+
+def _destinations(trips: list[dict[str, Any]], now: datetime) -> list[dict[str, Any]]:
+    """For each stop these trips reach, the first, next and last departure that gets there.
+
+    "The first shuttle today that goes to Garden State Plaza" needs every trip checked,
+    not a model reading a filtered list. A "Depart X" row is when the bus leaves X, and a
+    stop one trip reaches twice has no single arrival, so neither is a destination.
+    """
+    reaching: dict[str, list[dict[str, Any]]] = {}
+    for trip in trips:
+        names = [stop["location"].casefold() for stop in trip["remaining_stops"]]
+        for stop in trip["remaining_stops"]:
+            if (stop["location"] == "campus" or DEPARTURE_ROW.match(stop["location"])
+                    or names.count(stop["location"].casefold()) > 1):
+                continue  # The return to campus is where every trip ends, not a stop.
+            reaching.setdefault(stop["location"], []).append({
+                "evidence_id": trip["evidence_id"],
+                "departure_at": trip["departure_at"],
+                "arrives_at": stop["scheduled_at"],
+                "origin_restriction": trip["origin_restriction"],
+            })
+    result = []
+    for stop, reached in sorted(reaching.items()):
+        remaining = [trip for trip in reached
+                     if datetime.fromisoformat(trip["departure_at"]).timestamp() > now.timestamp()]
+        result.append({"stop": stop, "first": reached[0],
+                       "next": remaining[0] if remaining else None,
+                       "last": remaining[-1] if remaining else None})
+    return result
 
 
 def review_summary(summary: dict[str, Any]) -> dict[str, Any]:
@@ -337,10 +377,11 @@ def review_summary(summary: dict[str, Any]) -> dict[str, Any]:
                         key: group[selection][key]
                         for key in ("evidence_id", "departure_at", "origin_restriction")
                     }
-                    for selection in ("next", "last")
+                    for selection in SELECTIONS
                 },
                 "scheduled_departure_count": group["scheduled_departure_count"],
                 "remaining_departure_count": group["remaining_departure_count"],
+                "destinations": group["destinations"],
             }
             for group in summary["departures"]
         ],
@@ -357,7 +398,7 @@ def schedule_references(summary: dict[str, Any]) -> dict[tuple[str, str, str], s
     if summary.get("status") != "ok":
         return references
     for group in summary["departures"]:
-        for selection in ("next", "last"):
+        for selection in SELECTIONS:
             trip = group[selection]
             if trip is None:
                 continue
