@@ -137,7 +137,8 @@ class ProfileQuery(BaseModel):
     )
     meal: str | None = Field(
         default=None, min_length=1, max_length=80,
-        description="Published meal label for menu and dining periods, or null for all meals.",
+        description="Published meal label for menu and dining periods, or null for all "
+        "meals. Null when the request asks when the place opens or closes.",
     )
     menu_limit: int = Field(default=12, ge=1, le=100, description="Maximum menu item records.")
     relationship: RelationshipType | None = Field(
