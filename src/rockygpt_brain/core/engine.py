@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from importlib.resources import files
 from time import monotonic
-from typing import Any
+from typing import Any, cast
 
 from httpx import Timeout
 from pydantic import ValidationError
@@ -47,7 +47,14 @@ from rockygpt_brain.core.provider import (
 )
 from rockygpt_brain.core.render import InvalidAnswer, consulted_sources, render_answer
 from rockygpt_brain.core.reviewer import review_answer
-from rockygpt_brain.core.routing import GRAPH_TOOLS, RoutingClient, graph_first, route_request
+from rockygpt_brain.core.routing import (
+    GRAPH_TOOLS,
+    FilterClient,
+    RoutingClient,
+    filter_records,
+    graph_first,
+    route_request,
+)
 from rockygpt_brain.core.tools import function_tool, tool_definitions
 from rockygpt_brain.governance.accounting import PaidCallError
 from rockygpt_brain.governance.budget import TurnBudget
@@ -58,7 +65,7 @@ from rockygpt_brain.governance.evidence import (
     tool_result_wire,
 )
 from rockygpt_brain.retrieval.data import CampusData
-from rockygpt_brain.retrieval.exact import ContactQuery, contact_answer
+from rockygpt_brain.retrieval.exact import ContactQuery, contact_answer, fact_contact_answer
 from rockygpt_brain.retrieval.models import COLLECTIONS, EntityQuery, ReadQuery, SearchQuery
 from rockygpt_brain.retrieval.profiles import SECTION_COLLECTIONS, ProfileQuery
 
@@ -316,8 +323,9 @@ def answer_turn(
     )
 
     routing_calls = 0
-    routed_call: OutputItem | None = None
+    routed_calls: list[OutputItem] = []
     selected_tool: str | None = None
+    fact_fields: list[str] | None = None
     if routing_mode != "off" and routing_client is not None:
         notify("understanding")
         decision = route_request(
@@ -333,11 +341,24 @@ def answer_turn(
                 net.kind = decision.danger
                 net.records, net.dataset_version = safety_facts(data)
             selected_tool = decision.tool
+            if decision.danger is None:
+                # Code states plain contact details itself; the safety block needs GPT.
+                fact_fields = decision.answer_fields
             if decision.arguments is not None and decision.tool is not None:
-                routed_call = OutputItem({
+                routed_calls = [OutputItem({
                     "type": "function_call", "call_id": "call_jev_initial",
                     "name": decision.tool, "arguments": json.dumps(decision.arguments),
-                })
+                })]
+            elif decision.lookups:
+                # A multi-part request: one lookup or search per part, run together.
+                routed_calls = [
+                    OutputItem({
+                        "type": "function_call", "call_id": f"call_jev_part_{index}",
+                        "name": lookup["tool"], "arguments": json.dumps(lookup["arguments"]),
+                    })
+                    for index, lookup in enumerate(decision.lookups)
+                ]
+                metrics["routing"]["parts"] = len(routed_calls)
     elif routing_mode != "off":
         metrics["routing"] = {"mode": routing_mode, "fallbackReason": "routing_unavailable",
                               "directRetrieval": False}
@@ -388,8 +409,8 @@ def answer_turn(
         }
 
     tools = tool_definitions()
-    for round_index in range(MAX_DRAFT_CALLS + int(routed_call is not None)):
-        direct = routed_call is not None and round_index == 0
+    for round_index in range(MAX_DRAFT_CALLS + int(bool(routed_calls))):
+        direct = bool(routed_calls) and round_index == 0
         notify("understanding" if round_index == 0 else "composing")
         timeout = budget.model_timeout("draft")
         answer_only = not budget.can_retrieve
@@ -456,9 +477,8 @@ def answer_turn(
                 request["tool_choice"] = "none"
                 metrics["contextLimitedTools"] = True
         if direct:
-            assert routed_call is not None
             response = ModelResponse("jev-routing", RELEASE.routing.model, "completed", "",
-                                     [routed_call], None)
+                                     list(routed_calls), None)
             metrics["routing"]["directRetrieval"] = True
         else:
             if round_index == 0 and selected_tool and not answer_only:
@@ -642,6 +662,7 @@ def answer_turn(
             }
         history.extend(response.output)
         exact_candidate: Answer | None = None
+        fact_answered = False
         retrieval_allowed = not answer_only and budget.begin_retrieval()
         for call_index, call in enumerate(calls):
             tool_started = monotonic()
@@ -748,6 +769,12 @@ def answer_turn(
                 except Exception:
                     # Do not expose connection strings, SQL, or provider errors.
                     output = {"status": "unavailable", "reason": "campus_data_unavailable"}
+            if (call.name == "search_campus" and output.get("records")
+                    and routing_mode == "active" and routing_client is not None):
+                # Jev drops the search results that don't help before GPT reads them.
+                filter_client = cast(FilterClient, routing_client)
+                output, filtered = filter_records(output, messages, filter_client)
+                metrics.setdefault("searchFilter", []).append(filtered)
             # Admit a truthful subset BEFORE adding new records to authoritative
             # evidence, exact renderers or the model transcript. Prior results
             # remain intact. Account for the remaining parallel tool replies.
@@ -872,6 +899,11 @@ def answer_turn(
                 exact_candidate = contact_answer(
                     messages, ContactQuery.model_validate(arguments), output, now.date()
                 )
+                if exact_candidate is None and direct and fact_fields:
+                    # Jev said the request plainly asks these details, and the shared
+                    # entity facts state each once: code writes the answer, not GPT.
+                    exact_candidate = fact_contact_answer(output, fact_fields)
+                    fact_answered = exact_candidate is not None
             if request_quote and arguments:
                 piece = (
                     exact_search(
@@ -895,7 +927,7 @@ def answer_turn(
             )
             sent_records.update({record["id"]: record for record in output.get("records", [])})
         combined = combine_exact(messages, exact_pieces, fallback=False)
-        response_mode = "exact_contact"
+        response_mode = "exact_facts" if fact_answered else "exact_contact"
         if combined is not None:
             exact_candidate = combined
             response_mode = "exact_records"

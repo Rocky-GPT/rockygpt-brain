@@ -319,7 +319,17 @@ class PaidGateway:
             raise ValueError("Invalid routing answers")
         return answers
 
-    def create(self, *, category: Category, **kwargs: Any) -> ModelResponse:
+    def filter(self, payload: dict[str, Any], *, timeout: float) -> dict[str, Any]:
+        """A Jev check of search results: billed like routing, budgeted on its own."""
+        response = self.create(category="routing", filtering=True, **payload, timeout=timeout)
+        answers = json.loads(response.output_text)
+        if not isinstance(answers, dict):
+            raise ValueError("Invalid filter answers")
+        return answers
+
+    def create(
+        self, *, category: Category, filtering: bool = False, **kwargs: Any
+    ) -> ModelResponse:
         started = monotonic()
         now = self.clock()
         routing = category == "routing"
@@ -329,7 +339,9 @@ class PaidGateway:
             raise PaidCallError("routing_price_unavailable" if routing else "price_unavailable")
         if category not in {"draft", "review", "routing"}:
             raise PaidCallError("unsupported_model_operation")
-        available = self.budget.model_timeout(category)
+        available = (
+            self.budget.filter_timeout() if filtering else self.budget.model_timeout(category)
+        )
         provider_name: str = self.release.provider
         if routing:
             if self._routing_provider is None:
@@ -442,7 +454,10 @@ class PaidGateway:
             "settled": False,
         }
         self.usage.calls.append(item)
-        self.budget.note_model(category)
+        if filtering:
+            self.budget.note_filter()
+        else:
+            self.budget.note_model(category)
         try:
             # Explicit default service tier prevents priority-rate overrides. No truncation,
             # previous-response retrieval, built-in tools, or hidden conversation state.

@@ -29,9 +29,12 @@ day, the meal and whether the student describes danger, and asks one yes/no ques
 profile detail (hours, menu, contact, location, events, leaders, teachers, courses),
 whether the student wants the whole menu, whether the request needs the earlier
 messages, what kind of campus information it asks for, and whether it asks for a whole
-list rather than one particular thing. The route and entity require probability and confidence ≥0.90. Contact and
-profile are both a lookup of one entity, so when Jev splits between them and the two
-together reach 0.90 the request is still a lookup: a contact lookup when contact leads and
+list rather than one particular thing. The route needs its top probability ≥0.70: over
+four runs of the routing cases, route picks at 0.70–0.90 were right 21 of 21 times (nine
+questions) and picks under 0.70 were right 17 of 19. Every other pick, the entity
+included, needs probability and confidence ≥0.90. Contact and profile are both a lookup
+of one entity, so when Jev splits between them and the two together reach 0.70 the
+request is still a lookup: a contact lookup when contact leads and
 contact is all that's asked, otherwise a profile lookup, which fetches contact details too.
 
 Every question asks about the student's words, never the Brain's labels. Asked "Does
@@ -71,6 +74,26 @@ one of the two offices a mixed request named. When
 the request names exactly one entity, Jev's pick of that same entity stands once its
 probability reaches 0.50, since the name itself backs it.
 
+A request with several parts, such as "When is the library open today, what's the
+Registrar's phone, and when is the next shuttle?", gets one Jev yes/no per detail (hours,
+phone, email, location, menu) of each place it names, at most four places, and one per
+whole list (events, shuttle times, food served, what's open). Each place with a detail
+Jev says yes to is one profile lookup (unsure details are fetched too), and each whole
+list is one search. When there are two to four parts on one sure day, they run together
+in the first round, and GPT then writes, reviews, and may look up anything a part missed
+(`metrics.routing.parts`). A request naming two days, like "hours tomorrow and today's
+events", stays with GPT.
+
+Under active routing, code also writes a plain contact answer itself, with no GPT call
+at all. Jev says, one yes/no each, whether the request asks for a phone number or an
+email address, and whether it adds a purpose or condition ("for transcripts", "after
+hours"). When the request plainly asks for phone, email or office location, or how to
+reach the office in general, adds no purpose, asks nothing else and names no danger,
+and the shared entity facts hold each requested detail as one `known` value with fresh,
+caveat-free support, code states them with their evidence (`responseMode`
+`exact_facts`). Anything else, including unknown, conflicting or multiple values, is
+GPT's to write and review.
+
 Contact and every profile section except related, requirements, school, subject and
 graduation plans can run directly. Every lookup still uses the ordinary
 schema validation, read-only retrieval, context bounds, evidence collection, trace,
@@ -100,7 +123,17 @@ menu), that a whole list is asked for, and of the day, and the request names no 
 entity. Code then searches that collection for that day with no search words, which only
 GPT writes, and filters a menu by a meal Jev is sure of. Otherwise, when only a search or
 calculate route is resolved, GPT's first call is constrained to that tool; later calls
-regain all tools. A contact or profile route that can't run
+regain all tools.
+
+Under active routing, Jev also reads every search result before GPT does, one yes/no per
+record: "Does `record` help answer `latest_request`?", with what counts as yes and no.
+Results it answers 0.10 or less for are dropped; ones it isn't sure about are kept, and
+all are kept when it rules out every one, so GPT decides what the search found. On 121
+results from the routing cases it dropped 23 and nothing a real answer used. The check is
+billed as routing and budgeted on its own: at most three a turn, never into the writer's
+and review's time. A timeout, an invalid answer or its own call limit keeps the results as
+they were; budget and accounting errors still stop the turn. `metrics.searchFilter` lists
+each check's record count, drops and any reason it kept everything. A contact or profile route that can't run
 directly, and uncertain, general and mixed routes, retain the ordinary flow. No new frontend flow or request field is required.
 
 The routing deadline is two seconds, includes preparation, and gives the HTTP
@@ -108,7 +141,8 @@ attempt only its remaining allowance. HTTP cancellation covers the entire respon
 body, not just individual socket reads. There are no automatic retries. Durable
 accounting cleanup must finish before further paid work. Routing consumes the
 existing 45-second turn allowance; the four-call GPT ceiling and review reserves
-remain unchanged, with at most one additional paid routing call.
+remain unchanged, with at most one additional paid routing call before GPT's first call
+and at most three search-filter calls after it.
 
 Provider failures, invalid answers, oversized context, expired routing prices, and
 late decisions fall back. Accounting failures and exhausted spending limits stop
