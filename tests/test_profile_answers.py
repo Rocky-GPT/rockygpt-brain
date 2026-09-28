@@ -147,6 +147,11 @@ def test_hours_code_cannot_verify_go_to_gpt() -> None:
     # A meal the schedule doesn't label.
     brunch = query.model_copy(update={"meal": "Brunch"})
     assert hours_answer(birch().lookup_profile(brunch), brunch) is None
+    # A note beside the schedule.
+    output = birch().lookup_profile(query)
+    for record in output["records"]:
+        record["fields"]["notes"] = "Please note that the front doors close at 11:45 PM."
+    assert hours_answer(output, query) is None
 
 
 def dining_router(**values: Any) -> Mock:
