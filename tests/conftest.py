@@ -7,3 +7,17 @@ unlock prompt. CI has no .env, so this also makes local runs match CI.
 import os
 
 os.environ["PYTHON_DOTENV_DISABLED"] = "1"
+
+from collections.abc import Iterator
+
+import pytest
+
+from rockygpt_brain.core.provider import JEV_PAUSES
+
+
+@pytest.fixture(autouse=True)
+def _jev_answers() -> Iterator[None]:
+    """A Jev pause one test causes never reaches another."""
+    yield
+    for pause in JEV_PAUSES.values():
+        pause.reset()
