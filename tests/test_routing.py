@@ -76,6 +76,7 @@ def answers_for(payload: dict[str, Any], **selections: Any) -> dict[str, Any]:
         "entity": str(ENTITY.id),
         "date": "none",
         "meal": "none",
+        "diet": "none",
         "detail_contact": 1.0,
         "kind": "other",
         "danger": "none",
@@ -568,6 +569,28 @@ def test_active_routing_replaces_the_graph_first_rule() -> None:
     first = gpt.create.call_args_list[0].kwargs
     assert first["tool_choice"] == "auto" and len(first["tools"]) == 6
     assert "graphFirst" not in result["metrics"]
+
+
+@pytest.mark.parametrize("failure", [TimeoutError("late"), PaidCallError("routing_paused")])
+def test_a_jev_that_does_not_answer_leaves_the_graph_first_rule(failure: Exception) -> None:
+    data, gpt = data_mock(), Mock()
+    record = contact_record()
+    data.lookup_profile.return_value = result_for([record])
+    gpt.create.side_effect = [
+        tools(profile_call("Registrar")),
+        answer("Office D-224", "campus_fact", [record["id"]]),
+        review(),
+    ]
+    router = Mock()
+    router.route.side_effect = failure
+    result = run_turn(messages("Tell me about the Registrar"), client=gpt, data=data,
+                      model=RELEASE.model, now=NOW, routing_client=router,
+                      routing_mode="active")
+    first = gpt.create.call_args_list[0].kwargs
+    assert first["tool_choice"] == "required"
+    assert result["metrics"]["graphFirst"] is True
+    assert result["metrics"]["routing"]["fallbackReason"] in {"routing_timeout",
+                                                               "routing_paused"}
 
 
 def test_an_unreadable_registry_keeps_the_ordinary_first_call() -> None:

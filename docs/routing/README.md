@@ -94,6 +94,32 @@ caveat-free support, code states them with their evidence (`responseMode`
 `exact_facts`). Anything else, including unknown, conflicting or multiple values, is
 GPT's to write and review.
 
+Code also writes a plain menu or hours answer, with no GPT writer or checker
+(`campus/profile_answers.py`). Jev says, one question each, which diet a menu request
+names (none, vegan, vegetarian or another), whether it asks more of the food than what is
+served ("what's good", "spicy", a particular dish or ingredient), and whether an hours
+request asks about a moment such as "now" or "9 PM". A vegan or vegetarian pick filters
+the menu by its published labels before anything is cut. A menu request for one meal, or
+one diet, fetches every matching dish (up to 100); only a whole day's menu, which ran to
+141 items, keeps a dozen, taken one station at a time so every station shows up. Every
+menu section says how many dishes matched and were returned, per station, and whether
+the list is `complete`, so nothing reads 12 of 50 as the menu.
+
+When the request asks only what one meal serves (and perhaps its hours), names one sure
+meal and at most a vegan or vegetarian filter, code lists the dishes by station under the
+meal's published hours (`responseMode` `exact_menu`). For "what's for lunch", a second
+Jev call reads each item, "Is `item` a dish someone would choose to eat, rather than
+something added to one?", and the answer lists the ones it doesn't rule out and says how
+many items the meal has in all; a failed check lists every item. "The full lunch menu"
+lists every item without the check. When the request asks only for a place's hours on a
+sure day, code states that day's one published schedule, its labeled meal periods, or the
+asked meal's period (`exact_hours`). Before either, code checks that the lookup proves
+every word: the matched entity, the day, the meal and diet, every matching record
+returned whole, one schedule, and fresh official records that publish each stated field
+with no caveat beyond the standard label and schedule notes. Anything else, including a
+second schedule, placeholder hours or a meal the schedule doesn't label, is GPT's to write
+and review.
+
 Contact and every profile section except related, requirements, school, subject and
 graduation plans can run directly. Every lookup still uses the ordinary
 schema validation, read-only retrieval, context bounds, evidence collection, trace,
@@ -233,6 +259,35 @@ If gates fail or validation is incomplete, keep active routing off.
 
 To roll back, set `BRAIN_ROUTING_MODE=off` and restart the Brain. The additive ledger
 migration can remain applied; existing routing charges retain their audit history.
+
+## When Jev stops answering
+
+On 2026-09-28 about 1 in 5 routing calls ran out their 2 s window. `scripts/jev_latency.py`
+showed the time went to Typesafe's servers, not our questions: a one-question control
+call was slow at the same moments, every slow call sat waiting for the reply with
+connecting and sending normal, and Typesafe's own `x-envoy-upstream-service-time`
+header read 0.6 to 10.5 s. For ten minutes it answered almost nothing. Answered calls
+took under 1 s; slow ones took at least 1.46 s.
+
+Each process now pauses Jev after three misses in a row (a timeout on a wait of at least
+1 s, no connection, a 429, or a 5xx such as Cloudflare's 520). For the next 60 s every
+Jev call, including search filters and dish picks, is refused before it is reserved or
+sent, with the fallback reason `routing_paused`, so the turn goes to GPT at once instead
+of waiting out the window. The first call after that tries Jev again, and one more miss
+pauses it again. `scripts/jev_latency.py --hedge SECONDS` measures whether a copy of a
+slow call, sent that many seconds later, answers in time.
+
+Slow calls turned out to be slow one request at a time. On 2026-09-28 (`--hedge 0.8`,
+120 calls), 85 first requests answered in 0.2 to 0.4 s and 35 took 4.3 s or more; for 22
+of those 35, a copy sent at 0.8 s answered by 1.03 to 1.16 s. Within 2 s, 107 calls had
+an answer, against 85 from the first request alone. So `routing.hedge_seconds` (0.8)
+sends one copy of every Jev call, including search filters and dish picks, that has no
+answer by then and has at least 0.5 s left. The first answer wins, and the other request
+is cancelled. The copy is its own ledger operation, reserved just before it is sent and
+tagged `copy_of` the call. The request that answers is settled. The one cancelled after it
+was sent may still be charged, so it is left `uncertain` (`routing_copy_cancelled`), like
+a timed-out call. When the budget or ledger refuses the copy, the call waits alone. A
+call and its copy count as one routing call for the turn's limits.
 
 ## Observability and privacy
 
