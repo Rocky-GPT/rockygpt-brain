@@ -243,6 +243,12 @@ SOFT_ERRORS = {
 }
 
 
+# Jev gave no answer at all, so the turn runs as if routing were off.
+UNANSWERED = SOFT_ERRORS | {
+    "routing_timeout", "routing_invalid_response", "routing_data_unavailable",
+}
+
+
 class RoutingClient(Protocol):
     def route(self, payload: dict[str, Any], *, timeout: float) -> dict[str, Any]: ...
 

@@ -50,6 +50,7 @@ from rockygpt_brain.core.render import InvalidAnswer, consulted_sources, render_
 from rockygpt_brain.core.reviewer import review_answer
 from rockygpt_brain.core.routing import (
     GRAPH_TOOLS,
+    UNANSWERED,
     FilterClient,
     RoutingClient,
     filter_records,
@@ -329,6 +330,7 @@ def answer_turn(
     selected_tool: str | None = None
     fact_fields: list[str] | None = None
     template: Template | None = None
+    jev_answered = False
     if routing_mode != "off" and routing_client is not None:
         notify("understanding")
         decision = route_request(
@@ -337,6 +339,7 @@ def answer_turn(
                         max(0, budget.remaining - RELEASE.answer_reserve_seconds)),
         )
         routing_calls = decision.calls
+        jev_answered = decision.reason not in UNANSWERED
         metrics["routing"] = decision.metrics(routing_mode)
         metrics["routingCalls"] = routing_calls
         if routing_mode == "active":
@@ -369,8 +372,10 @@ def answer_turn(
                               "directRetrieval": False}
         metrics["routingCalls"] = 0
     # Active routing makes its own first-call choice; otherwise a request that names one
-    # curated identity reads the graph before anything else.
-    start_with_graph = routing_mode != "active" and graph_first(messages, data)
+    # curated identity reads the graph before anything else. When Jev didn't answer (a
+    # timeout, an error, a pause) the turn is the one routing off would run.
+    start_with_graph = (routing_mode != "active" or not jev_answered) and graph_first(
+        messages, data)
     if start_with_graph:
         metrics["graphFirst"] = True
 
