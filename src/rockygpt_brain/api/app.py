@@ -24,10 +24,12 @@ from rockygpt_brain.api.graph import router as graph_router
 from rockygpt_brain.api.identities import _require_development
 from rockygpt_brain.api.identities import router as identities_router
 from rockygpt_brain.api.stream import stream_turn
+from rockygpt_brain.campus.formats import failure_help
 from rockygpt_brain.campus.progress import ProgressCallback, ProgressUpdate, TurnCancelled
 from rockygpt_brain.config import RELEASE, ConfigurationError, configuration_hash, load_deployment
 from rockygpt_brain.contracts import ChatRequest
 from rockygpt_brain.core import InvalidAnswer, PaidGateway, open_gateway, run_turn
+from rockygpt_brain.core.engine import safety_facts
 from rockygpt_brain.core.templates import template_catalog
 from rockygpt_brain.governance import BodyLimitMiddleware, PaidCallError, PostgresLedger
 from rockygpt_brain.governance.redaction import redact
@@ -1050,17 +1052,18 @@ def chat_worker(
                 resources = data.resources()
             except Exception:
                 resources = []  # Budget responses also work without campus data.
-        return failure(status, error.code, request_id, reset_at=error.reset_at, resources=resources)
+        return failure(status, error.code, request_id, reset_at=error.reset_at,
+                       resources=resources, data=data)
     except TimeoutError:
         outcome = "model_timeout"
-        return failure(504, "model_timeout", request_id)
+        return failure(504, "model_timeout", request_id, data=data)
     except InvalidAnswer as error:
         outcome = "invalid_model_output"
         # Fixed reason codes only: no student text, raw model output, or provider secrets.
         logging.getLogger(__name__).warning(
             "Brain answer rejected request_id=%s reason=%s", request_id, error.code
         )
-        return failure(502, "invalid_model_output", request_id)
+        return failure(502, "invalid_model_output", request_id, data=data)
     finally:
         try:
             summary = {
@@ -1108,6 +1111,29 @@ def chat_worker(
 
 
 
+SAFETY_CACHE_SECONDS = 600.0
+_safety_cache: tuple[float, list[dict[str, Any]]] | None = None
+
+
+def emergency_help(data: CampusData | None = None) -> dict[str, Any]:
+    """The emergency guidance every failure carries (campus/formats.py FAILURE_HELP), with
+    Public Safety's numbers when their records were read recently or `data` can read them
+    now (worker threads only). A student asking what to do for someone unconscious while
+    the budget was spent got only "monthly AI allowance exhausted" (09-28)."""
+    global _safety_cache
+    records = (_safety_cache[1] if _safety_cache is not None
+               and monotonic() - _safety_cache[0] < SAFETY_CACHE_SECONDS else [])
+    if not records and data is not None:
+        try:
+            data.deadline = monotonic() + 2.0
+            records, _ = safety_facts(data)
+        except Exception:
+            records = []  # The 911 and 988 guidance stands without the campus numbers.
+        if records:
+            _safety_cache = (monotonic(), records)
+    return failure_help(records)
+
+
 def failure(
     status: int,
     reason: str,
@@ -1115,6 +1141,7 @@ def failure(
     *,
     reset_at: str | None = None,
     resources: list[dict[str, str]] | None = None,
+    data: CampusData | None = None,
 ) -> JSONResponse:
     message = (
         "RockyGPT is currently unavailable. Please use Ramapo's official resources "
@@ -1151,6 +1178,8 @@ def failure(
         details["resetAt"] = reset_at
     if resources:
         details["resources"] = resources
+    if reason != "request_cancelled":
+        details["emergency"] = emergency_help(data)
     return JSONResponse(
         status_code=status,
         content={

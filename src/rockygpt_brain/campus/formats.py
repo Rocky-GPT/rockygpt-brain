@@ -184,6 +184,26 @@ SAFETY_NET = {
 }
 
 
+# Shown with every failed answer, written by code with no model call. When the budget ran
+# out, "someone passed out and isn't waking up" got only "monthly AI allowance exhausted"
+# (09-28): the safety block needs Jev, which the budget also stops.
+FAILURE_HELP = ("If you or someone else is in danger, call 911. If you might hurt yourself, "
+                "call or text 988 (Suicide & Crisis Lifeline).")
+
+
+def failure_help(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """The emergency guidance a failure carries: fixed text, then Public Safety's numbers
+    exactly as their records publish them, when there are any."""
+    numbers = safety_part(records)
+    sources = {record["url"]: {"title": str(record.get("title") or "Public Safety"),
+                               "url": record["url"]}
+               for record in records if str(record.get("url", "")).startswith("https://")}
+    return {
+        "text": FAILURE_HELP + (f" {numbers.text}" if numbers is not None else ""),
+        "sources": list(sources.values()) if numbers is not None else [],
+    }
+
+
 def safety_part(records: list[dict[str, Any]]) -> AnswerPart | None:
     """Ramapo Public Safety's numbers exactly as their critical-fact records publish them."""
     by_key = {record.get("fields", {}).get("fact_key"): record for record in records}
@@ -368,9 +388,12 @@ def departure_parts(
     # route filter answers it for every route, each named in the answer.
     if not named and query.filters is not None and query.filters.route:
         raise ValueError("Unresolved route")
-    selections = set(text.split()) & {"last", "next"}
+    said = set(text.split())
+    # "What's the first shuttle today?" was answered with the next one (09-28).
+    selections = {"first" if word == "earliest" else word
+                  for word in said & {"first", "earliest", "last", "next"}}
     selection = next(iter(selections)) if len(selections) == 1 else None
-    if selection is None or not set(text.split()) & {
+    if selection is None or not said & {
         "shuttle",
         "bus",
         "departure",
@@ -379,49 +402,82 @@ def departure_parts(
         "leaving",
     }:
         raise ValueError("No exact departure requested")
-    # Campus is the boarding stop when the question names none. Other origins
-    # remain in the generated path until their precise published boarding
+    summary = departure_summary(output, query, now)
+    if summary["status"] != "ok":
+        raise ValueError("Unverified departure calculation")
+    campus = {item["route"]: item for item in summary["departures"] if item["origin"] == "campus"}
+    # A published stop the question names ("to Garden State Plaza") selects the trips
+    # that reach it. Campus is the boarding stop when the question names none. Other
+    # origins remain in the generated path until their precise published boarding
     # labels (including pickup/drop-off restrictions) are resolved.
+    stops = sorted({item["stop"] for group in campus.values() for item in group["destinations"]},
+                   key=lambda stop: len(words(stop)), reverse=True)
+    destination = None
+    for stop in stops:
+        text, matched = remove_phrase(text, stop)
+        if matched:
+            if destination is not None:
+                raise ValueError("Two destinations")
+            destination = stop
     for phrase in ("from campus", "leave campus", "leaves campus", "leaving campus"):
         text, _ = remove_phrase(text, phrase)
     for marker in (
-        "next", "last", "shuttle", "bus", "departure", "leave", "leaves", "leaving", "time",
+        "first", "earliest", "next", "last", "shuttle", "bus", "departure", "leave", "leaves",
+        "leaving", "time", *(("goes", "going", "that", "which", "reaches", "stops")
+                             if destination else ()),
     ):
         text, _ = remove_phrase(text, marker)
     if leftovers(text):
         raise ValueError("Unresolved journey qualifiers")
-    summary = departure_summary(output, query, now)
-    if summary["status"] != "ok":
-        raise ValueError("Unverified departure calculation")
     routes = [route] if named else sorted({r["fields"]["route"] for r in records})
-    campus = {item["route"]: item for item in summary["departures"] if item["origin"] == "campus"}
     if not set(routes) <= set(campus):
         raise ValueError("A route's campus departures are withheld")
+    groups = {name: campus[name] for name in routes}
+    if destination is not None:
+        groups = {name: item for name, group in groups.items() for item in group["destinations"]
+                  if item["stop"] == destination}
+        if not groups:
+            raise ValueError("No route reaches the named stop")
     found = sorted(
-        (campus[name] for name in routes if campus[name][selection] is not None),
-        key=lambda item: datetime.fromisoformat(item[selection]["departure_at"]).timestamp(),
+        ((name, group[selection]) for name, group in groups.items()
+         if group[selection] is not None),
+        key=lambda item: datetime.fromisoformat(item[1]["departure_at"]).timestamp(),
     )
+    if destination is not None and found:
+        # "The first shuttle to Garden State Plaza" is one trip, whichever route runs it.
+        found = [found[-1] if selection == "last" else found[0]]
 
-    def clock(item: dict[str, Any]) -> str:
-        departure = datetime.fromisoformat(item[selection]["departure_at"])
-        return departure.strftime("%I:%M %p").lstrip("0")
+    def clock(value: str) -> str:
+        return datetime.fromisoformat(value).strftime("%I:%M %p").lstrip("0")
 
+    def trip(name: str, chosen: dict[str, Any]) -> str:
+        arrival = (f", arriving at {clock(chosen['arrives_at'])}"
+                   if destination is not None else "")
+        return f"{plain(name)} at {clock(chosen['departure_at'])}{arrival}"
+
+    reaching = f" that reaches {plain(destination)}" if destination is not None else ""
     parts: list[AnswerPart] = []
-    selected = [
-        r for item in found for r in records if r["id"] == item[selection]["evidence_id"]
-    ]
-    if len(found) == 1:
-        departure = datetime.fromisoformat(found[0][selection]["departure_at"])
+    selected = [r for _, chosen in found for r in records if r["id"] == chosen["evidence_id"]]
+    if len(found) == 1 and destination is None:
+        name, chosen = found[0]
+        departure = datetime.fromisoformat(chosen["departure_at"])
         parts.append(fact(
-            f"The {selection} published departure from campus on {plain(found[0]['route'])} is "
-            f"{clock(found[0])} on {departure.date()} (America/New_York).",
+            f"The {selection} published departure from campus on {plain(name)} is "
+            f"{clock(chosen['departure_at'])} on {departure.date()} (America/New_York).",
+            selected,
+        ))
+    elif len(found) == 1:
+        departure = datetime.fromisoformat(found[0][1]["departure_at"])
+        parts.append(fact(
+            f"The {selection} published departure from campus{reaching} on {departure.date()} "
+            f"(America/New_York) is {trip(*found[0])}.",
             selected,
         ))
     elif found:
         parts.append(fact(
-            f"The {selection} published departures from campus on {summary['date_from']} "
-            "(America/New_York) are: "
-            + "; ".join(f"{plain(item['route'])} at {clock(item)}" for item in found)
+            f"The {selection} published departures from campus{reaching} on "
+            f"{summary['date_from']} (America/New_York) are: "
+            + "; ".join(trip(*item) for item in found)
             + ".",
             selected,
         ))
@@ -430,13 +486,14 @@ def departure_parts(
         if summary["date_from"] == summary["date_to"]
         else f"within {summary['date_from']} to {summary['date_to']}"
     )
-    for name in routes:
-        if campus[name][selection] is None:
-            parts.append(limitation(
-                f"I couldn't find a later scheduled departure from campus on "
-                f"{plain(name)} {span}. "
-                "This does not establish that service has ended after that."
-            ))
+    missing = ([name for name, group in groups.items() if group[selection] is None]
+               if destination is None else [] if found else [""])
+    for name in missing:
+        route_named = f" on {plain(name)}" if name else ""
+        parts.append(limitation(
+            f"I couldn't find a later scheduled departure from campus{reaching}{route_named} "
+            f"{span}. This does not establish that service has ended after that."
+        ))
     if found:
         parts.append(limitation(
             "This is a published timetable, not live vehicle status. "
@@ -504,6 +561,106 @@ def exact_search(
             complete,
         )
     except (KeyError, TypeError, ValueError, StopIteration):
+        return None
+
+
+# Words a plain "what events are on tomorrow" may use besides its day. A moment in the
+# day ("tonight", "now") or a kind of event ("club", "free food") needs GPT.
+EVENT_WORDS = {"event", "events", "happening", "going", "campus", "any", "there",
+               "activities", "activity", "things", "stuff", "ramapo", "scheduled", "planned"}
+MOMENT_WORDS = {"tonight", "now", "later", "evening", "morning", "afternoon", "night",
+                "left", "still", "upcoming", "next", "soon"}
+
+
+def plain_event_list(text: str, now: datetime) -> bool:
+    """Whether a request asks only for every event on one day."""
+    said = set(words(text).split())
+    if said & MOMENT_WORDS or not said & {"event", "events", "happening"}:
+        return False
+    try:
+        _, rest = request_date(words(text), now)
+    except ValueError:
+        return False
+    return not set(rest.split()) - GRAMMAR - EVENT_WORDS
+
+
+def _event_end(record: dict[str, Any], day: date) -> datetime | None:
+    """When an event ends that day, from its published end time, or None."""
+    starts = datetime.fromisoformat(record["fields"]["starts_at"])
+    label = record["fields"].get("end_time")
+    if not isinstance(label, str) or not label.strip():
+        return None
+    for shape in ("%I:%M %p", "%I %p"):
+        try:
+            clock = datetime.strptime(label.strip().upper(), shape).time()
+        except ValueError:
+            continue
+        return datetime.combine(day, clock, tzinfo=starts.tzinfo)
+    raise ValueError("Unreadable end time")
+
+
+def events_answer(output: dict[str, Any], query: SearchQuery, now: datetime) -> Answer | None:
+    """Every published event on one day, soonest first, from a whole-day events search.
+
+    Code states each event's title, published times and, when one is published, its
+    location, and nothing else about it. Today, events already over are counted, not
+    listed. Anything it can't prove (a cut-off list, an unreadable time) goes to GPT.
+    """
+    try:
+        day = query.date_from
+        if (query.collection != "events" or day is None or query.date_to not in {None, day}
+                or query.query.strip() or query.filters is not None
+                or output.get("truncated") is not False):
+            return None
+        records = current_records(output, day)
+        if output.get("total_matches") != len(records) or len(records) > 50:
+            return None
+        listed: list[tuple[datetime, str, dict[str, Any]]] = []
+        over = 0
+        for record in records:
+            fields = record["fields"]
+            published(record, "title", "starts_at", "start_time")
+            if (record.get("collection") != "events"
+                    or fields.get("occurrence_date") != day.isoformat()):
+                return None
+            starts = datetime.fromisoformat(fields["starts_at"])
+            ends = _event_end(record, day)
+            if day == now.date() and (ends or starts) <= now:
+                if ends is None:
+                    return None  # Started earlier with no end: GPT says whether it's over.
+                over += 1
+                continue
+            time = plain(fields["start_time"])
+            if ends is not None:
+                published(record, "end_time")
+                time += " to " + plain(fields["end_time"])
+            line = f"- {time}: {plain(fields['title'])}"
+            location = fields.get("location")
+            if (isinstance(location, str) and location.strip()
+                    and record["coverage"]["fields"].get("location") == "published"):
+                line += f", {plain(location)}"
+            listed.append((starts, line, record))
+        listed.sort(key=lambda item: (item[0], item[1]))
+        heading = f"Events on {day:%A, %B} {day.day}"
+        if not listed:
+            if not over:
+                return None  # An empty day is for GPT to say what the listing covers.
+            return Answer(status="answered", parts=[fact(
+                f"{heading}: all {over} published events have already ended.",
+                records)])
+        per_part = -(-len(listed) // 11)
+        parts = []
+        for start in range(0, len(listed), per_part):
+            chunk = listed[start:start + per_part]
+            text = "\n".join(line for _, line, _ in chunk)
+            parts.append(fact(f"{heading}:\n{text}" if not start else text,
+                              [record for _, _, record in chunk]))
+        if over:
+            parts.append(AnswerPart(kind="guidance", evidence_ids=[], text=(
+                f"{over} earlier {'event has' if over == 1 else 'events have'} already "
+                "ended today.")))
+        return Answer(status="answered", parts=parts)
+    except (KeyError, TypeError, ValueError):
         return None
 
 

@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from time import monotonic
 from typing import Any, Protocol
 from uuid import UUID
@@ -17,8 +18,15 @@ from uuid import UUID
 import psycopg
 from pydantic import ValidationError
 
-from rockygpt_brain.campus.formats import request_date, words
+from rockygpt_brain.campus.formats import (
+    GRAMMAR,
+    plain_event_list,
+    remove_phrase,
+    request_date,
+    words,
+)
 from rockygpt_brain.campus.profile_answers import Template
+from rockygpt_brain.campus.schedules import wall_time
 from rockygpt_brain.config import RELEASE, RoutingMode
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.provider import input_bound
@@ -337,6 +345,38 @@ def longest_names(text: str, names: Iterable[tuple[UUID, Iterable[str]]]) -> set
     }
 
 
+def family_name(entities: list[Identity], text: str) -> str | None:
+    """The one name every entity carries that the text says, like "Computer Science" for
+    the BS, MS, 4+1 and Minor, or None. The longest wins."""
+    if len(entities) < 2:
+        return None
+    said = f" {words(text)} "
+    common = [name for name in spoken_names(entities[0])
+              if f" {words(name)} " in said and all(
+                  words(name) in {words(other) for other in spoken_names(entity)}
+                  for entity in entities[1:])]
+    return max(common, key=lambda name: len(words(name)), default=None)
+
+
+# Jev reads "who is the CS convener" as asking who belongs to the program too (0.9), so the
+# lookup also fetched each program's faculty and the programs no longer shared one answer.
+# "Convener" names one published relationship: a request that asks nothing else reads only
+# that section, and code writes the answer.
+CONVENER_WORDS = {"convener", "conveners", "convenor", "convenors"}
+ASKS_WHO = GRAMMAR | {"who", "whos", "program", "programs", "major", "minor", "current"}
+
+
+def convener_only(text: str, entities: list[Identity]) -> bool:
+    """Whether the request asks only who convenes the entities it names."""
+    rest = words(text)
+    names = sorted({name for entity in entities for name in spoken_names(entity)},
+                   key=lambda name: len(words(name)), reverse=True)
+    for name in names:
+        rest, _ = remove_phrase(rest, name)
+    left = set(rest.split())
+    return bool(entities) and bool(left & CONVENER_WORDS) and left <= ASKS_WHO | CONVENER_WORDS
+
+
 def graph_first(messages: list[ChatMessage], data: CampusData) -> bool:
     """Whether the latest request names exactly one curated identity, so GPT's first
     call should read the graph.
@@ -599,6 +639,26 @@ def selected(answers: dict[str, Any], key: str) -> str | None:
     return value
 
 
+# Words that move a day code reads: "next Saturday" also reads as Saturday, and "the day
+# after tomorrow" as tomorrow.
+SHIFTS = {"next", "after", "before", "following", "previous"}
+
+
+def day_asked(answers: dict[str, Any], messages: list[ChatMessage]) -> str | None:
+    """Jev's day pick, or "named" when Jev leans to the day code read and rules out one to
+    work out. Asked about "atrium hours tmrw", Jev put 0.91 on "the day it calls 'tmrw'"
+    and 0.07-0.08 on working a day out (09-28): short of the bar, so GPT wrote the lookup
+    and once searched the wrong hours. Any word that moves a day still leaves it to GPT."""
+    pick = selected(answers, "date")
+    if pick is not None:
+        return pick
+    answer = answers["date"]
+    if (answer["choice"] == "named" and answer["probabilities"].get("other", 1) <= RULED_OUT
+            and not SHIFTS & set(words(messages[-1].content).split())):
+        return "named"
+    return None
+
+
 def sections_asked(answers: dict[str, Any]) -> list[str]:
     """The sections of every detail Jev says yes to, and of any it isn't sure about.
 
@@ -641,13 +701,46 @@ def answer_fields(answers: dict[str, Any]) -> list[str] | None:
     return asked
 
 
+# Jev read "who do I call for the Pine Hall desk" as asking who works there (0.62) and as
+# adding a purpose (0.21), so GPT wrote "call the Pine Hall desk" and the checker, asked
+# whether the hall's listed number is its desk's, said no about half the time. A request
+# that is only a named office and these words is plain: code states its listing by its
+# published name, as it does when Jev is sure.
+CONTACT_WORDS = {
+    "phone": {"phone", "number", "numbers", "call", "telephone"},
+    "email": {"email", "emails"},
+    "office": {"where", "located", "location", "room"},
+}
+REACH_WORDS = {"contact", "reach", "touch"}
+CONTACT_GRAMMAR = GRAMMAR | {"how", "who", "whos", "should", "desk", "front", "main", "office",
+                             "info", "information", "details", "with", "get", "their", "its"}
+
+
+def contact_fields(text: str, entity: Identity) -> list[str] | None:
+    """The contact details a request asks of `entity` in only these words, or None."""
+    rest = re.sub(r"\be ?mail(?: address)?\b", "email", words(text))
+    named = False
+    for name in sorted(spoken_names(entity), key=lambda name: len(words(name)), reverse=True):
+        rest, found = remove_phrase(rest, name)
+        named = named or found
+    left = set(rest.split())
+    allowed = CONTACT_GRAMMAR | REACH_WORDS | set().union(*CONTACT_WORDS.values())
+    if not named or left - allowed:
+        return None
+    fields = [field for field, said in CONTACT_WORDS.items() if left & said]
+    if not fields and left & REACH_WORDS:
+        return ["phone", "email", "office"]
+    return fields or None
+
+
 def written_by_code(answers: dict[str, Any], arguments: dict[str, Any]) -> Template | None:
     """The menu or hours answer code writes from the lookup, or None when GPT writes.
 
     Jev must be sure what is asked and that nothing more is. A meal's dishes: the menu
     (and perhaps that meal's hours) and no other detail, one meal, a sure diet or none,
-    and no condition on the food. A day's hours: hours and no other detail, and no
-    particular moment such as "now". Code still checks that the records prove it.
+    and no condition on the food; with no meal, only that the place has no menu that day.
+    A day's hours: hours and no other detail, and no particular moment such as "now".
+    Code still checks that the records prove it.
     """
     threshold = RELEASE.routing.threshold
     values: dict[str, float] = {
@@ -658,8 +751,9 @@ def written_by_code(answers: dict[str, Any], arguments: dict[str, Any]) -> Templ
             <= RULED_OUT
 
     if values["menu"] >= threshold:
+        # With no meal, code writes only that a place has no menu that day ("what's on the
+        # menu at the Atrium"); a day's whole menu stays with GPT.
         if (not only("menu", "hours") or answers["menu_condition"]["noul"] > RULED_OUT
-                or arguments.get("meal") is None
                 or selected(answers, "diet") not in {"none", *DIET_FILTERS}):
             return None
         return "full_menu" if answers["complete_menu"]["noul"] >= threshold else "menu"
@@ -705,7 +799,7 @@ def browse(
         return None  # A named place is a lookup, or a search GPT words.
     if len(messages) > 1 and answers["needs_earlier"]["noul"] > RULED_OUT:
         return None
-    if day is None or selected(answers, "date") in {None, "other"}:
+    if day is None or day_asked(answers, messages) in {None, "other"}:
         return None
     meal = meal_asked(answers, messages, kind == "menu")
     filters = None
@@ -715,6 +809,24 @@ def browse(
     query = SearchQuery.model_validate({"collection": kind, "query": "", "date_from": day,
                                         "date_to": day, "limit": 100, "filters": filters})
     return {**query.model_dump(mode="json"), "request_text": None}
+
+
+DEPARTURE_WORDS = {"shuttle", "shuttles", "bus", "buses", "departure", "leave", "leaves",
+                   "leaving"}
+
+
+def departure_asked(answers: dict[str, Any], candidates: list[Identity], day: str | None,
+                    messages: list[ChatMessage]) -> bool:
+    """Whether Jev reads a shuttle question and its words ask a first, next or last
+    departure on one sure day, with no place named and nothing earlier needed."""
+    said = set(words(messages[-1].content).split())
+    return (
+        selected(answers, "kind") == "shuttle"
+        and bool(said & {"first", "earliest", "next", "last"}) and bool(said & DEPARTURE_WORDS)
+        and not named(messages[-1].content, candidates)
+        and (len(messages) == 1 or answers["needs_earlier"]["noul"] <= RULED_OUT)
+        and day is not None and day_asked(answers, messages) in {"named", "none"}
+    )
 
 
 def multi_part(
@@ -756,7 +868,7 @@ def multi_part(
             request_date(words(messages[-1].content), datetime.now())
         except ValueError:
             return None
-        if day is None or selected(answers, "date") in {None, "other"}:
+        if day is None or day_asked(answers, messages) in {None, "other"}:
             return None
     meal = selected(answers, "meal")
     for lookup in lookups:
@@ -776,6 +888,60 @@ def multi_part(
                                             "date_to": day, "limit": 100, "filters": filters})
         lookups.append({"tool": "search_campus",
                         "arguments": {**query.model_dump(mode="json"), "request_text": None}})
+    return lookups
+
+
+NOW_WORDS = {"now", "currently"}
+
+
+def eating_now(decision: RouteDecision, answers: dict[str, Any], candidates: list[Identity],
+               day: str | None, messages: list[ChatMessage], now: datetime) -> bool:
+    """Whether a search for food being served right now, at no place in particular, is
+    left for GPT to plan. "What can I eat on campus right now?" (09-28) fetched the whole
+    day's menu, 66 of its 141 items arrived, and GPT never looked up which meal was on."""
+    said = set(words(messages[-1].content).split())
+    return (
+        decision.route == "search" and decision.arguments is None and not decision.lookups
+        and selected(answers, "kind") == "menu" and bool(said & NOW_WORDS)
+        and not named(messages[-1].content, candidates)
+        and (len(messages) == 1 or answers["needs_earlier"]["noul"] <= RULED_OUT)
+        and day in {None, now.date().isoformat()}
+    )
+
+
+def serving_now(data: CampusData, now: datetime) -> list[dict[str, Any]]:
+    """Today's dining hours, and the menu of each meal being served now: the hours say
+    which meal is on, so the menu is that meal's, not the whole day's."""
+    today = now.date().isoformat()
+    hours = SearchQuery.model_validate({"collection": "dining_hours", "query": "",
+                                        "date_from": today, "date_to": today, "limit": 100})
+    lookups: list[dict[str, Any]] = [
+        {"tool": "search_campus", "arguments": {**hours.model_dump(mode="json"),
+                                                "request_text": None}}]
+    try:
+        records = data.search(hours).get("records", [])
+    except (psycopg.Error, RuntimeError, TimeoutError, ValueError):
+        return lookups  # GPT reads the hours itself; nothing about a meal is assumed.
+    meals: set[str] = set()
+    for record in records:
+        for period in record.get("fields", {}).get("periods") or []:
+            try:
+                start = wall_time(str(period["start"]), now.date())
+                end = wall_time(str(period["end"]), now.date())
+                if end <= start:
+                    end += timedelta(days=1)
+            except (KeyError, TypeError, ValueError):
+                continue
+            if start <= now < end and isinstance(period.get("label"), str):
+                meals.add(period["label"].strip())
+    for meal in sorted(meal for meal in meals if meal)[:2]:
+        menu = SearchQuery.model_validate({
+            "collection": "menu", "query": "", "date_from": today, "date_to": today,
+            "limit": 100, "filters": SearchFilters(name=None, meal=meal, vegan=None,
+                                                   vegetarian=None, term=None, session=None,
+                                                   route=None)})
+        lookups.append({"tool": "search_campus",
+                        "arguments": {**menu.model_dump(mode="json"), "request_text": None}})
     return lookups
 
 
@@ -803,6 +969,21 @@ def interpret(
     if route == "search":
         # Otherwise GPT's first call is held to the search tool and writes the search.
         decision.arguments = browse(answers, candidates, day or today, messages)
+        if (decision.arguments and decision.arguments["collection"] == "events"
+                and plain_event_list(messages[-1].content, datetime.now())):
+            # "What events are tomorrow": code lists the day's events itself. GPT's list once
+            # said an event published no location its description gave, and the checker
+            # dropped the whole list.
+            decision.template = "events"
+        elif decision.arguments is None and departure_asked(answers, candidates,
+                                                           day or today, messages):
+            # "When's the next shuttle?": the day's whole timetable, fetched without GPT
+            # planning the search. Code answers a first, next or last departure; anything
+            # else in the question goes to GPT with the timetable already fetched.
+            timetable = SearchQuery.model_validate({"collection": "shuttle", "query": "",
+                                                    "date_from": day or today, "limit": 100})
+            decision.arguments = {**timetable.model_dump(mode="json"), "request_text": None}
+            decision.template = "departures"
         return decision
     if route not in {"contact", "profile"}:
         return decision
@@ -832,6 +1013,11 @@ def interpret(
     # Non-Emergency numbers ("campus police"), are one lookup by that name, which returns
     # every line, so Jev need not pick one. Before, Jev's pick made it GPT's to look up.
     shared = variant_base(explicit) if len(explicit) > 1 else None
+    convener = route == "profile" and convener_only(messages[-1].content, explicit)
+    if shared is None and convener:
+        # A program family, like Computer Science's four programs, may share one convener:
+        # the lookup by the family's name says whether they do.
+        shared = family_name(explicit, messages[-1].content)
     if shared is not None and (entity is None or entity in explicit):
         entity = explicit[0]
     else:
@@ -851,16 +1037,18 @@ def interpret(
         query = ContactQuery.model_validate({"entity": shared or entity.name,
                                              "fields": list(FIELDS)})
         decision.arguments = {**query.model_dump(mode="json"), "request_text": None}
-        decision.answer_fields = answer_fields(answers)
+        decision.answer_fields = answer_fields(answers) or (
+            contact_fields(messages[-1].content, entity)
+            if len(messages) == 1 and explicit == [entity] else None)
     else:
-        sections = sections_asked(answers)
+        sections = ["conveners"] if convener else sections_asked(answers)
         arguments: dict[str, Any] = {
             **({"entity": shared} if shared else {"entity_id": str(entity.id)}),
             "include": sections}
         if set(sections) & {"hours", "menu", "event"}:
             # The campus resolver reads simple dates. Jev must be sure the student means
             # the day it read, or names none: "next Saturday" also reads as Saturday.
-            if selected(answers, "date") in {None, "other"}:
+            if day_asked(answers, messages) in {None, "other"}:
                 return decision
             arguments["date"] = day
         if set(sections) & {"hours", "menu"}:
@@ -876,7 +1064,8 @@ def interpret(
             narrowed = arguments.get("meal") is not None or "diet" in arguments
             arguments["menu_limit"] = 100 if complete or narrowed else 12
         decision.arguments = ProfileQuery.model_validate(arguments).model_dump(mode="json")
-        decision.template = written_by_code(answers, decision.arguments)
+        decision.template = ("convener" if convener
+                             else written_by_code(answers, decision.arguments))
     decision.tool = TOOLS[route]
     decision.reason = None
     return decision
@@ -929,6 +1118,9 @@ def route_request(
         decision.danger = danger
         validate_answers(answers, payload["questions"])
         decision = interpret(answers, candidates, day, messages, now.date().isoformat())
+        if eating_now(decision, answers, candidates, day, messages, now):
+            decision.lookups = serving_now(data, now)
+            decision.route, decision.reason = "unresolved", None
         dated = {
             arguments.get("date") or arguments.get("date_from")
             for arguments in [decision.arguments or {},

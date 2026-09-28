@@ -21,7 +21,7 @@ from rockygpt_brain.retrieval.profiles import (
     ProfileQuery,
 )
 
-Template = Literal["menu", "full_menu", "hours"]
+Template = Literal["menu", "full_menu", "hours", "convener", "events", "departures"]
 TRUSTED = {"official_primary", "official_secondary"}
 CURRENT = {"fresh", "static"}
 DIET_LIMITATION = "Dietary labels are published menu data, not an allergy safety guarantee."
@@ -305,8 +305,110 @@ def hours_answer(output: dict[str, Any], query: ProfileQuery) -> Answer | None:
     return Answer(status="answered", parts=parts)
 
 
+def _listed(names: list[str]) -> str:
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def _programs(names: list[str]) -> str:
+    """Program names as one phrase: "the Computer Science BS, MS, 4+1 and Minor"."""
+    split = [name.split() for name in names]
+    common = 0
+    while all(len(parts) > common + 1 for parts in split) and len(
+            {parts[common] for parts in split}) == 1:
+        common += 1
+    if len(names) == 1 or not common:
+        return "the " + _listed([plain(name) for name in names])
+    family = plain(" ".join(split[0][:common]))
+    return f"the {family} " + _listed([plain(" ".join(parts[common:])) for parts in split])
+
+
+def convener_answer(output: dict[str, Any], query: ProfileQuery) -> Answer | None:
+    """Who convenes a program, or every program a family name shares, from the catalog's
+    published convener links. Code states only the linked person and cites each link."""
+    resolution = output.get("resolution") or {}
+    if query.include != ["conveners"] or output.get("status") != "ok" or output.get("truncated"):
+        return None
+    if resolution.get("status") == "matched":
+        profiles = [{"entity": resolution.get("entity"), "components": output.get("components")}]
+    elif resolution.get("status") == "shared":
+        profiles = output.get("variants") or []
+    else:
+        return None
+    records = {record["id"]: record for record in output.get("records", [])}
+    people: set[tuple[str, str]] | None = None
+    programs: list[str] = []
+    cited: list[dict[str, Any]] = []
+    for profile in profiles:
+        entity = profile.get("entity") or {}
+        component = (profile.get("components") or {}).get("conveners") or {}
+        relationships = component.get("relationships") or []
+        if (
+            not isinstance(entity.get("name"), str) or entity.get("status")
+            or component.get("status") != "available" or not relationships
+            or component.get("failed_links") or component.get("relationships_missing")
+        ):
+            return None
+        targets = set()
+        for relationship in relationships:
+            target = relationship.get("target") or {}
+            if (relationship.get("type") != "convener" or target.get("kind") != "person"
+                    or target.get("status") or not isinstance(target.get("name"), str)
+                    or not relationship.get("evidence_ids")):
+                return None
+            for evidence_id in relationship["evidence_ids"]:
+                record = records.get(evidence_id)
+                if (record is None or record.get("collection") != "programs"
+                        or record.get("trust_tier") not in TRUSTED
+                        or record.get("freshness") not in CURRENT
+                        or record.get("content_truncated") or record.get("limitations")):
+                    return None
+                cited.append(record)
+            targets.add((target["id"], target["name"]))
+        if people is not None and targets != people:
+            return None  # Different conveners are the candidates' own answers: GPT asks.
+        people = targets
+        programs.append(entity["name"])
+    if not people:
+        return None
+    names = _listed(sorted(plain(name) for _, name in people))
+    verb = "is the listed convener" if len(people) == 1 else "are the listed conveners"
+    return Answer(status="answered", parts=[
+        _fact(f"{names} {verb} of {_programs(programs)}.", cited)])
+
+
+def no_menu_answer(output: dict[str, Any], query: ProfileQuery) -> Answer | None:
+    """What a place's lookup found when it holds no menu at all that day: that none was
+    found, then its hours that day when they are proven. Nothing about why."""
+    if query.date is None or query.meal is not None or query.diet is not None:
+        return None
+    entity = _entity(output, query)
+    component = (output.get("components") or {}).get("menu")
+    if (
+        entity is None
+        or not isinstance(component, dict)
+        or component.get("status") != "missing"
+        or component.get("complete") is not True
+        or component.get("total_matches") != 0
+        or component.get("failed_links")
+        or component.get("linked_records_missing")
+        or component.get("service_date") != query.date.isoformat()
+    ):
+        return None
+    parts = [AnswerPart(kind="limitation", evidence_ids=[], text=(
+        f"I couldn't find a published menu for {plain(entity['name'])} on {_day(query.date)}."))]
+    hours = hours_answer(output, query) if "hours" in query.include else None
+    if hours is not None:
+        parts.extend(hours.parts)
+    return Answer(status="partial" if hours else "unavailable", parts=parts)
+
+
 def profile_answer(template: Template, output: dict[str, Any], query: ProfileQuery,
                    dishes: set[str] | None = None) -> Answer | None:
     if template == "hours":
         return hours_answer(output, query)
-    return menu_answer(output, query, full=template == "full_menu", dishes=dishes)
+    if template == "convener":
+        return convener_answer(output, query)
+    if template in {"events", "departures"}:
+        return None  # A search, not a profile lookup: campus/formats.py writes these.
+    return (no_menu_answer(output, query)
+            or menu_answer(output, query, full=template == "full_menu", dishes=dishes))

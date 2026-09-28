@@ -1271,6 +1271,58 @@ def _variant_profiles(
     return result
 
 
+# "Computer Science" names four programs (BS, MS, 4+1 and Minor), and one person convenes
+# all four. Asked who convenes it, GPT asked which program instead of answering. A name
+# every match carries, asked only who convenes them, returns each profile side by side
+# when every match names the same convener; different conveners stay ambiguous.
+SHARED_SECTIONS = frozenset({"conveners"})
+MAX_SHARED = 8
+
+
+def _convener_targets(profile: dict[str, Any]) -> frozenset[str] | None:
+    component = profile["components"].get("conveners") or {}
+    if component.get("status") != "available":
+        return None
+    targets = frozenset(str(relationship["target"]["id"])
+                        for relationship in component.get("relationships", [])
+                        if relationship.get("target"))
+    return targets or None
+
+
+def _shared_profiles(
+    data: CampusData, query: ProfileQuery, matches: list[Identity], result: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Each match's profile when a name they all carry has one answer for each of them."""
+    if (query.entity is None or not 2 <= len(matches) <= MAX_SHARED
+            or not set(query.include) <= SHARED_SECTIONS
+            or len({entity.kind for entity in matches}) != 1):
+        return None
+    profiles = [
+        lookup_profile(data, query.model_copy(update={"entity": None, "entity_id": entity.id}))
+        for entity in matches
+    ]
+    targets = {_convener_targets(profile) for profile in profiles}
+    if len(targets) != 1 or None in targets:
+        return None
+    for profile in profiles:
+        for record in profile["records"]:
+            if record["id"] not in {held["id"] for held in result["records"]}:
+                result["records"].append(record)
+    result["total_matches"] = len(result["records"])
+    result["truncated"] = any(profile["truncated"] for profile in profiles)
+    result["resolution"].update(
+        status="shared",
+        candidates=[_identity_summary(entity) for entity in matches],
+        total_candidates=len(matches),
+        answer_with="one answer for every candidate",
+    )
+    result["variants"] = [
+        {"entity": profile["resolution"].get("entity"), "components": profile["components"]}
+        for profile in profiles
+    ]
+    return result
+
+
 def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
     """Identity links establish identity only, never authority or a missing attribute."""
     data._ensure_loaded()
@@ -1313,6 +1365,9 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
     variants = _named_variants(matches, read_as or query.entity)
     if variants:
         return _variant_profiles(data, query, variants, result)
+    shared = _shared_profiles(data, query, matches, result)
+    if shared is not None:
+        return shared
     if len(matches) != 1:
         result["resolution"].update(
             status="ambiguous" if matches else "no_match",
@@ -1322,7 +1377,11 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
         )
         if not matches and query.entity is not None:
             # Student Accounts had no curated entry, yet its own pages list a phone and email.
-            result["next_step"] = page_search_hint(query.entity, "contact")
+            # "President of Ramapo College" names a job, not an entry: the directory lists it
+            # as the President's title, and GPT, sent only to the pages, gave up.
+            result["next_step"] = (
+                "For a person named by a job title, search_campus collection 'contacts' for "
+                "the title. " + page_search_hint(query.entity, "contact"))
         return result
 
     entity = matches[0]
