@@ -323,7 +323,7 @@ def answer_turn(
     )
 
     routing_calls = 0
-    routed_call: OutputItem | None = None
+    routed_calls: list[OutputItem] = []
     selected_tool: str | None = None
     fact_fields: list[str] | None = None
     if routing_mode != "off" and routing_client is not None:
@@ -345,10 +345,20 @@ def answer_turn(
                 # Code states plain contact details itself; the safety block needs GPT.
                 fact_fields = decision.answer_fields
             if decision.arguments is not None and decision.tool is not None:
-                routed_call = OutputItem({
+                routed_calls = [OutputItem({
                     "type": "function_call", "call_id": "call_jev_initial",
                     "name": decision.tool, "arguments": json.dumps(decision.arguments),
-                })
+                })]
+            elif decision.lookups:
+                # A multi-part request: one lookup or search per part, run together.
+                routed_calls = [
+                    OutputItem({
+                        "type": "function_call", "call_id": f"call_jev_part_{index}",
+                        "name": lookup["tool"], "arguments": json.dumps(lookup["arguments"]),
+                    })
+                    for index, lookup in enumerate(decision.lookups)
+                ]
+                metrics["routing"]["parts"] = len(routed_calls)
     elif routing_mode != "off":
         metrics["routing"] = {"mode": routing_mode, "fallbackReason": "routing_unavailable",
                               "directRetrieval": False}
@@ -399,8 +409,8 @@ def answer_turn(
         }
 
     tools = tool_definitions()
-    for round_index in range(MAX_DRAFT_CALLS + int(routed_call is not None)):
-        direct = routed_call is not None and round_index == 0
+    for round_index in range(MAX_DRAFT_CALLS + int(bool(routed_calls))):
+        direct = bool(routed_calls) and round_index == 0
         notify("understanding" if round_index == 0 else "composing")
         timeout = budget.model_timeout("draft")
         answer_only = not budget.can_retrieve
@@ -467,9 +477,8 @@ def answer_turn(
                 request["tool_choice"] = "none"
                 metrics["contextLimitedTools"] = True
         if direct:
-            assert routed_call is not None
             response = ModelResponse("jev-routing", RELEASE.routing.model, "completed", "",
-                                     [routed_call], None)
+                                     list(routed_calls), None)
             metrics["routing"]["directRetrieval"] = True
         else:
             if round_index == 0 and selected_tool and not answer_only:

@@ -111,6 +111,25 @@ ADDS_PURPOSE = ("Does `latest_request` add a purpose or condition to what it ask
                 "Asks plainly for the detail, with no purpose or condition")
 # Entity options that name no single identity.
 NO_ENTITY = {"none", "several"}
+# A request with several parts, like "When is the library open today, what's the
+# Registrar's phone, and when is the next shuttle?", asks one yes/no per detail of each
+# place it names, and one per whole list. Each part becomes its own lookup or search.
+# (idea about `place`, sections fetched). On 8 two- to four-part requests these were clear
+# and right 110 times; "events at `place`" was too vague to keep.
+PART_DETAILS = {
+    "hours": ("ask when `place` is open", ("hours",)),
+    "phone": ("ask for the phone number of `place`", ("contact",)),
+    "email": ("ask for the email address of `place`", ("contact",)),
+    "location": ("ask where `place` is", ("building", "contact")),
+    "menu": ("ask what food `place` serves", ("menu", "hours")),
+}
+PART_LISTS = {
+    "events": "all events on a day",
+    "shuttle": "shuttle times",
+    "menu": "what food is served on campus, without naming a dining hall",
+    "campus_hours": "what is open on campus, without naming a place",
+}
+MAX_PARTS = 4
 # What kind of campus information a request asks for, as one Jev choice. A whole list of
 # one of these kinds on one day is a search code can run itself: no search words needed.
 KINDS = {
@@ -206,6 +225,8 @@ class RouteDecision:
     danger: str | None = None
     # Contact details code may state itself, when Jev says the request is that plain.
     answer_fields: list[str] | None = None
+    # Several lookups and searches, one per part of a multi-part request.
+    lookups: list[dict[str, Any]] | None = None
     calls: int = 0
     elapsed_ms: int = 0
 
@@ -339,6 +360,11 @@ def shortlist(
     return [entity for _, entity in ranked[: RELEASE.routing.max_candidates]]
 
 
+def parts_named(messages: list[ChatMessage], candidates: list[Identity]) -> list[Identity]:
+    """The places a multi-part request names, in candidate order: at most MAX_PARTS."""
+    return named(messages[-1].content, candidates)[:MAX_PARTS]
+
+
 def choice(instructions: str, criteria: dict[str, Any]) -> dict[str, Any]:
     return {"type": "choice", "instructions": instructions, "criteria": criteria}
 
@@ -392,6 +418,19 @@ def routing_payload(
         "needs_earlier": noul(*NEEDS_EARLIER),
         **{"asks_" + field: noul(*question) for field, question in CONTACT_ASKS.items()},
         "adds_purpose": noul(*ADDS_PURPOSE),
+        **{
+            f"part_{index}_{detail}": {
+                "type": "noul",
+                "instructions": {"place": place.name, "question": f"Does `latest_request` {idea}?"},
+            }
+            for index, place in enumerate(parts_named(messages, candidates))
+            for detail, (idea, _) in PART_DETAILS.items()
+        },
+        **{
+            "list_" + kind: {"type": "noul",
+                             "instructions": f"Does `latest_request` ask for {idea}?"}
+            for kind, idea in PART_LISTS.items()
+        },
         "kind": choice("What kind of campus information does `latest_request` ask for?", KINDS),
         "whole_list": noul(*WHOLE_LIST),
         "date": choice("Which day does `latest_request` ask about?", dates),
@@ -570,6 +609,67 @@ def browse(
     return {**query.model_dump(mode="json"), "request_text": None}
 
 
+def multi_part(
+    answers: dict[str, Any],
+    candidates: list[Identity],
+    day: str | None,
+    messages: list[ChatMessage],
+) -> list[dict[str, Any]] | None:
+    """One lookup or search per part of a request Jev reads as several, or None.
+
+    A part is a named place with a detail Jev says yes to, or a whole list. Details it
+    isn't sure about are fetched too. These only prefetch: GPT still writes, reviews,
+    and may look up anything a part missed.
+    """
+    if len(messages) > 1 and answers["needs_earlier"]["noul"] > RULED_OUT:
+        return None
+    threshold = RELEASE.routing.threshold
+    lookups: list[dict[str, Any]] = []
+    dated = False
+    for index, place in enumerate(parts_named(messages, candidates)):
+        values = {detail: answers[f"part_{index}_{detail}"]["noul"] for detail in PART_DETAILS}
+        if max(values.values()) < threshold:
+            continue  # Named only in passing.
+        sections = list(dict.fromkeys(
+            section for detail, value in values.items() if value > RULED_OUT
+            for section in PART_DETAILS[detail][1]
+        ))
+        dated = dated or bool(set(sections) & {"hours", "menu"})
+        lookups.append({"tool": "lookup_profile", "arguments": {
+            "entity_id": str(place.id), "include": sections,
+        }})
+    lists = [kind for kind in PART_LISTS if answers["list_" + kind]["noul"] >= threshold]
+    if len(lookups) + len(lists) < 2 or len(lookups) + len(lists) > MAX_PARTS:
+        return None
+    if dated or lists:
+        # One sure day for every part, or GPT works the days out: "the library's hours
+        # tomorrow and today's events" names two, which the resolver reports as a conflict.
+        try:
+            request_date(words(messages[-1].content), datetime.now())
+        except ValueError:
+            return None
+        if day is None or selected(answers, "date") in {None, "other"}:
+            return None
+    meal = selected(answers, "meal")
+    for lookup in lookups:
+        arguments = lookup["arguments"]
+        if set(arguments["include"]) & {"hours", "menu"}:
+            arguments["date"] = day
+        if set(arguments["include"]) & {"hours", "menu"}:
+            arguments["meal"] = meal if meal in MEAL_FILTERS else None
+        lookup["arguments"] = ProfileQuery.model_validate(arguments).model_dump(mode="json")
+    for kind in lists:
+        filters = None
+        if kind == "menu" and meal in MEAL_FILTERS:
+            filters = SearchFilters(name=None, meal=meal.title(), vegan=None, vegetarian=None,
+                                    term=None, session=None, route=None)
+        query = SearchQuery.model_validate({"collection": kind, "query": "", "date_from": day,
+                                            "date_to": day, "limit": 100, "filters": filters})
+        lookups.append({"tool": "search_campus",
+                        "arguments": {**query.model_dump(mode="json"), "request_text": None}})
+    return lookups
+
+
 def interpret(
     answers: dict[str, Any],
     candidates: list[Identity],
@@ -578,6 +678,11 @@ def interpret(
     today: str | None = None,
 ) -> RouteDecision:
     route = picked_route(answers)
+    if route in {None, "unresolved"} or selected(answers, "entity") == "several":
+        lookups = multi_part(answers, candidates, day or today, messages)
+        if lookups:
+            return RouteDecision(route="unresolved", confidence=answers["route"]["confidence"],
+                                 lookups=lookups)
     decision = RouteDecision(
         route=route or "unresolved",
         confidence=answers["route"]["confidence"],
@@ -697,10 +802,12 @@ def route_request(
         decision.danger = danger
         validate_answers(answers, payload["questions"])
         decision = interpret(answers, candidates, day, messages, now.date().isoformat())
-        dated = decision.arguments and (
-            decision.arguments.get("date") or decision.arguments.get("date_from")
-        )
-        if day is not None and dated == day and date.fromisoformat(day) < now.date():
+        dated = {
+            arguments.get("date") or arguments.get("date_from")
+            for arguments in [decision.arguments or {},
+                              *(lookup["arguments"] for lookup in decision.lookups or [])]
+        }
+        if day is not None and day in dated and date.fromisoformat(day) < now.date():
             # The resolver keeps a weekday in this calendar week even once it has passed:
             # asked on a Sunday, "Saturday" is yesterday. GPT decides which one is meant.
             decision = RouteDecision(route=decision.route, confidence=decision.confidence,

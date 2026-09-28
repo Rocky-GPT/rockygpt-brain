@@ -1471,3 +1471,75 @@ def test_a_plain_contact_request_is_answered_without_gpt() -> None:
     run_turn(messages(), client=gpt, data=data, model=RELEASE.model, now=NOW,
              routing_client=router_mock(asks_phone=0.99), routing_mode="active")
     assert gpt.create.call_count == 2
+
+
+BURSAR = identity(8, "office", "Bursar")
+THREE_PARTS = ("When is the Registrar open today, what's the Bursar's phone, and when is the "
+               "next shuttle?")
+
+
+def part_answers(payload: dict[str, Any], **values: Any) -> dict[str, Any]:
+    choices = {"route": "unresolved", "entity": "several", "date": "named",
+               "detail_contact": 0.0, **values}
+    answers = answers_for(payload, **choices)
+    validate_answers(answers, payload["questions"])
+    return answers
+
+
+def test_each_part_of_a_request_gets_its_own_lookup() -> None:
+    request = messages(THREE_PARTS)
+    payload, day = routing_payload(request, [ENTITY, BURSAR], NOW)
+    # Measured on this shape: the asked details 0.9+, the others under 0.1.
+    answers = part_answers(payload, part_0_hours=0.99, part_1_phone=0.99, list_shuttle=0.98,
+                           part_0_phone=0.3)
+    result = interpret(answers, [ENTITY, BURSAR], day, request, NOW.date().isoformat())
+    assert result.lookups is not None and result.arguments is None
+    assert [lookup["tool"] for lookup in result.lookups] == [
+        "lookup_profile", "lookup_profile", "search_campus"]
+    registrar, bursar, shuttle = (lookup["arguments"] for lookup in result.lookups)
+    # A detail Jev isn't sure about is fetched too.
+    assert registrar["include"] == ["hours", "contact"] and registrar["date"] == day
+    assert bursar["entity_id"] == str(BURSAR.id) and bursar["include"] == ["contact"]
+    assert shuttle["collection"] == "shuttle" and shuttle["date_from"] == day
+
+
+@pytest.mark.parametrize(
+    "text,values",
+    [
+        # One part is an ordinary request.
+        (THREE_PARTS, {"part_0_hours": 0.99}),
+        # A day Jev isn't sure of, or two days, stay with GPT.
+        (THREE_PARTS, {"part_0_hours": 0.99, "part_1_phone": 0.99, "date": "other"}),
+        ("What are the Registrar's hours tomorrow and the Bursar's hours today?",
+         {"part_0_hours": 0.99, "part_1_hours": 0.99, "date": "none"}),
+        # More parts than a turn's lookups allow.
+        (THREE_PARTS, {"part_0_hours": 0.99, "part_1_phone": 0.99, "list_shuttle": 0.99,
+                       "list_events": 0.99, "list_menu": 0.99}),
+    ],
+    ids=["one part", "unsure day", "two days", "five parts"],
+)
+def test_multi_part_lookups_need_several_clear_parts_on_one_day(
+    text: str, values: dict[str, Any]
+) -> None:
+    request = messages(text)
+    payload, day = routing_payload(request, [ENTITY, BURSAR], NOW)
+    answers = part_answers(payload, **values)
+    assert interpret(answers, [ENTITY, BURSAR], day, request,
+                     NOW.date().isoformat()).lookups is None
+
+
+def test_a_multi_part_request_is_fetched_before_gpt_writes() -> None:
+    data, gpt = data_mock(ENTITY, BURSAR), Mock()
+    data.lookup_profile.return_value = result_for([])
+    data.search.return_value = result_for([])
+    gpt.create.side_effect = [answer("Here is what the campus publishes."), review()]
+    router = Mock()
+    router.route.side_effect = lambda payload, **kwargs: part_answers(
+        payload, part_0_hours=0.99, part_1_phone=0.99, list_shuttle=0.98)
+    router.filter.return_value = {}
+    result = run_turn(messages(THREE_PARTS), client=gpt, data=data, model=RELEASE.model,
+                      now=NOW, routing_client=router, routing_mode="active")
+    assert data.lookup_profile.call_count == 2 and data.search.call_count == 1
+    assert result["metrics"]["routing"]["parts"] == 3
+    assert result["metrics"]["routing"]["directRetrieval"] is True
+    assert gpt.create.call_count == 2  # GPT writes and reviews; it didn't plan the lookups.

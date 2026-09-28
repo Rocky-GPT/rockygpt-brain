@@ -74,6 +74,16 @@ one of the two offices a mixed request named. When
 the request names exactly one entity, Jev's pick of that same entity stands once its
 probability reaches 0.50, since the name itself backs it.
 
+A request with several parts, such as "When is the library open today, what's the
+Registrar's phone, and when is the next shuttle?", gets one Jev yes/no per detail (hours,
+phone, email, location, menu) of each place it names, at most four places, and one per
+whole list (events, shuttle times, food served, what's open). Each place with a detail
+Jev says yes to is one profile lookup (unsure details are fetched too), and each whole
+list is one search. When there are two to four parts on one sure day, they run together
+in the first round, and GPT then writes, reviews, and may look up anything a part missed
+(`metrics.routing.parts`). A request naming two days, like "hours tomorrow and today's
+events", stays with GPT.
+
 Under active routing, code also writes a plain contact answer itself, with no GPT call
 at all. Jev says, one yes/no each, whether the request asks for a phone number or an
 email address, and whether it adds a purpose or condition ("for transcripts", "after
