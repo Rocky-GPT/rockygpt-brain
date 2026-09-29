@@ -19,11 +19,20 @@ class ProgressSubject(TypedDict):
     date_to: NotRequired[str]
 
 
+class SafetyBlock(TypedDict):
+    """The code-written safety block, exactly as the final answer starts with it."""
+
+    answer: str
+    citations: list[dict[str, Any]]
+
+
 class ProgressUpdate(TypedDict):
     stage: ProgressStage
     subjects: list[ProgressSubject]
     operation: NotRequired[str]
     draft: NotRequired[str]
+    # Sent once, as soon as Jev reads danger, before any lookup or draft (09-29).
+    safety: NotRequired[SafetyBlock]
 
 
 ProgressCallback = Callable[[ProgressUpdate], None]
@@ -51,7 +60,8 @@ class WorkLog:
     the Dev control room can say who did the work. Times are milliseconds from when the
     request arrived. Whatever a step spent outside these calls was the Brain's own code:
     lookups, calculations, rendering and the ledger's bookkeeping. Steps are every
-    progress update, repeats included; a call names its step by index."""
+    progress update, repeats included, except the early safety block, which belongs
+    to the step it was sent in; a call names its step by index."""
 
     def __init__(self, started: float) -> None:
         self.started = started
@@ -65,6 +75,13 @@ class WorkLog:
         """`progress`, noting each step first. Draft text stays in the drafts."""
 
         def noted(update: ProgressUpdate) -> None:
+            # The safety block goes out mid-step, right after routing (09-29); a step of
+            # its own would show the Timeline an empty second "understanding".
+            if "safety" in update and update["stage"] == self.steps[-1]["stage"]:
+                self.steps[-1]["safety"] = True
+                if progress is not None:
+                    progress(update)
+                return
             step: dict[str, Any] = {"stage": update["stage"],
                                     "subjects": list(update["subjects"]),
                                     "atMs": self.ms(monotonic())}

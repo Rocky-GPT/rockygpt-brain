@@ -13,11 +13,13 @@ from openai import Timeout
 from rockygpt_brain.config import RELEASE
 from rockygpt_brain.contracts import Answer, ChatMessage
 from rockygpt_brain.core.engine import (
+    DROPPED_NOTE,
     INSTRUCTIONS,
     MAX_DRAFT_CALLS,
     MAX_MODEL_CALLS,
     MAX_TOOL_CALLS,
     run_turn,
+    supported_parts,
 )
 from rockygpt_brain.core.render import InvalidAnswer, render_answer
 from rockygpt_brain.core.reviewer import review_answer
@@ -87,6 +89,7 @@ def review(
     plan_deadlines: list[str] | None = None,
     deadline_basis: str = "student_plan",
     unverified_premises: list[str] | None = None,
+    depends_on: dict[int, list[int]] | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         status="completed",
@@ -102,6 +105,7 @@ def review(
                         "unverified_premises": unverified_premises or [],
                         "uses_event_for_entity": uses_event_for_entity,
                         "infers_food_safety": infers_food_safety,
+                        "depends_on_parts": (depends_on or {}).get(i, []),
                         "plan_deadlines": [
                             {"basis": deadline_basis, "latest_usable_at": deadline}
                             for deadline in plan_deadlines or []
@@ -907,7 +911,7 @@ def test_a_turn_without_lookups_reports_the_release_it_ran_against() -> None:
     assert result["trace"] == []
     assert result["datasetVersion"] == "release-7"
 
-def test_uncited_paragraph_after_a_failed_one_is_dropped_too() -> None:
+def test_a_paragraph_that_relies_on_a_failed_one_is_dropped_too() -> None:
     client, data = Mock(), Mock()
     client.create.side_effect = [
         tools(search()),
@@ -916,7 +920,7 @@ def test_uncited_paragraph_after_a_failed_one_is_dropped_too() -> None:
             ("guidance", "So you can still go after class.", []),
             ("campus_fact", "Its office is D-224.", [RECORD["id"]]),
         ),
-        review("unsupported_claim", "supported", "supported"),
+        review("unsupported_claim", "supported", "supported", depends_on={1: [0]}),
     ]
     data.search.return_value = {"status": "ok", "records": [RECORD]}
     result = run_turn(
@@ -926,7 +930,8 @@ def test_uncited_paragraph_after_a_failed_one_is_dropped_too() -> None:
         model="test",
         now=NOW,
     )
-    # The uncited paragraph was checked against the dropped one's sources.
+    # The reviewer said the uncited summary relies on the dropped hours, its only
+    # grounding, so it goes with them rather than stand without a source link.
     assert "after class" not in result["answer"]
     assert "9 PM" not in result["answer"]
     assert result["answer"].startswith("Its office is D-224.")
@@ -996,7 +1001,8 @@ def mixed_turn(*verdicts: str, caveat_ids: list[str] | None = None) -> dict[str,
             ("limitation", "That is only part of tonight's published menu.", caveat_ids or []),
             status="partial",
         ),
-        review(*verdicts),
+        # The caveat is about the menu paragraph, as a reviewer would say.
+        review(*verdicts, depends_on={2: [1]}),
     ]
     # The contact lookup also returns the office's building, as it does live.
     data.lookup_contact.return_value = {
@@ -1019,7 +1025,7 @@ def test_two_part_answer_keeps_the_phone_when_the_menu_fails() -> None:
     result = mixed_turn("supported", "unsupported_claim", "supported")
     assert result["answer"].startswith("The Registrar's phone number is (201) 684-7695.")
     assert "Mediterranean" not in result["answer"]
-    # The menu's caveat was checked against the dropped menu's sources, so it goes too.
+    # The menu's caveat relies on the dropped menu, so it goes too.
     assert "only part" not in result["answer"]
     assert result["status"] == "partial"
     assert result["metrics"]["reviewDroppedParts"] == [1, 2]
@@ -1030,8 +1036,11 @@ def test_two_part_answer_keeps_the_menu_when_the_phone_fails() -> None:
     result = mixed_turn("unsupported_claim", "supported", "supported")
     assert "684-7695" not in result["answer"]
     assert result["answer"].startswith("Dinner at Birch Tree Inn tonight includes")
+    # The menu's caveat relies on the menu, which stays, not on the failed phone: it
+    # stays too. Before 09-29 any uncited part after a failure went.
+    assert "only part" in result["answer"]
     assert result["status"] == "partial"
-    assert result["metrics"]["reviewDroppedParts"] == [0, 2]
+    assert result["metrics"]["reviewDroppedParts"] == [0]
     assert [citation["id"] for citation in result["citations"]] == [MENU["id"]]
 
 
@@ -1055,6 +1064,152 @@ def test_a_fallback_links_pages_it_checked_not_what_the_draft_cited() -> None:
     assert result["status"] == "unavailable"
     assert [citation["id"] for citation in result["citations"]] == [
         RECORD["id"], BUILDING["id"], MENU["id"]]
+
+
+SHUTTLE_TRIP: dict[str, Any] = {
+    "id": "shuttle:express-7am",
+    "title": "Weekday Roadrunner Express",
+    "url": "https://www.ramapo.edu/shuttle/",
+    "collection": "shuttle",
+    "freshness": "fresh",
+}
+EMERGENCY = ("If someone is unconscious, call emergency services and check whether "
+             "they're breathing normally.")
+
+
+def q30_turn(*verdicts: str, depends_on: dict[int, list[int]] | None = None,
+             status: str = "answered", last: tuple[str, str, list[str]] | None = None,
+             ) -> dict[str, Any]:
+    """Original Q30 (09-29): a shuttle paragraph, the Registrar, and emergency guidance."""
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(search()),
+        draft(
+            ("campus_fact", "The next shuttle is Tuesday at 7:00 a.m.", [SHUTTLE_TRIP["id"]]),
+            ("campus_fact", "The Registrar is in room D-224.", [RECORD["id"]]),
+            last or ("guidance", EMERGENCY, []),
+            status=status,
+        ),
+        review(*verdicts, depends_on=depends_on),
+    ]
+    data.search.return_value = {"status": "ok", "records": [SHUTTLE_TRIP, RECORD]}
+    return run_turn(
+        [ChatMessage(role="user", content="When's the next shuttle, where's the Registrar, "
+                     "and my friend passed out and won't wake up?")],
+        client=client,
+        data=data,
+        model="test",
+        now=NOW,
+    )
+
+
+def test_independent_guidance_survives_a_rejected_neighbour() -> None:
+    # Q30 kept only the Registrar: the approved emergency guidance was deleted because
+    # it came after the rejected shuttle paragraph and cited nothing (09-29).
+    result = q30_turn("unsupported_claim", "supported", "supported", depends_on={2: []})
+    assert "7:00" not in result["answer"]
+    assert result["answer"] == (
+        "The Registrar is in room D-224. [Registrar](https://www.ramapo.edu/registrar/)"
+        "\n\n" + EMERGENCY + "\n\n" + DROPPED_NOTE.text)
+    assert result["status"] == "partial"
+    assert result["metrics"]["reviewDroppedParts"] == [0]
+    assert [citation["id"] for citation in result["citations"]] == [RECORD["id"]]
+
+
+def test_a_cited_part_about_a_dropped_one_goes_with_it() -> None:
+    # The reverse (09-29): "Ask Dining Services about that burger" cites a contact of
+    # its own, but the burger it points at was dropped.
+    result = q30_turn(
+        "unsupported_claim", "supported", "supported", depends_on={2: [0]},
+        last=("guidance", "Ask the Registrar about that shuttle.", [RECORD["id"]]),
+    )
+    assert "that shuttle" not in result["answer"]
+    assert result["answer"].startswith("The Registrar is in room D-224.")
+    assert result["metrics"]["reviewDroppedParts"] == [0, 2]
+
+
+def test_a_dependency_on_a_dropped_part_carries_through() -> None:
+    from rockygpt_brain.contracts import EvidenceReview
+
+    candidate = Answer.model_validate({"status": "answered", "parts": [
+        {"kind": "campus_fact", "text": "It closes at 9.", "evidence_ids": [RECORD["id"]]},
+        {"kind": "guidance", "text": "So go after class.", "evidence_ids": []},
+        {"kind": "guidance", "text": "That leaves an hour.", "evidence_ids": []},
+        {"kind": "campus_fact", "text": "It's in D-224.", "evidence_ids": [RECORD["id"]]},
+    ]})
+    verdicts = EvidenceReview.model_validate_json(review(
+        "unsupported_claim", "supported", "supported", "supported",
+        depends_on={1: [0], 2: [1]},
+    ).output_text)
+    assert supported_parts(candidate, verdicts) == [3]
+
+
+def test_a_part_leaning_on_a_caveat_that_went_goes_too() -> None:
+    # The caveat goes because its only source was the rejected menu's; "those items"
+    # after it pointed at nothing once it went (09-29 final review).
+    from rockygpt_brain.contracts import EvidenceReview
+
+    candidate = Answer.model_validate({"status": "answered", "parts": [
+        {"kind": "campus_fact", "text": "Lunch has tacos.", "evidence_ids": [RECORD["id"]]},
+        {"kind": "limitation", "text": "These are examples.", "evidence_ids": [RECORD["id"]]},
+        {"kind": "guidance", "text": "Ask staff which of those items are left.",
+         "evidence_ids": []},
+        {"kind": "guidance", "text": "Call 911 if anyone is hurt.", "evidence_ids": []},
+    ]})
+    verdicts = EvidenceReview.model_validate_json(review(
+        "unsupported_claim", "supported", "supported", "supported", depends_on={2: [1]},
+    ).output_text)
+    assert supported_parts(candidate, verdicts) == [3]
+
+
+def test_dependencies_on_itself_or_later_parts_are_ignored() -> None:
+    client = Mock()
+    client.create.return_value = review(
+        "supported", "supported", "supported", depends_on={0: [0, 2], 1: [2, 1, 0, 0]})
+    candidate = Answer.model_validate({"status": "answered", "parts": [
+        {"kind": "campus_fact", "text": "It's in D-224.", "evidence_ids": [RECORD["id"]]},
+        {"kind": "guidance", "text": "Bring your ID.", "evidence_ids": []},
+        {"kind": "guidance", "text": "Go early.", "evidence_ids": []},
+    ]})
+    checked = review_answer(
+        candidate,
+        messages=[ChatMessage(role="user", content="Where is the Registrar?")],
+        evidence={RECORD["id"]: RECORD}, client=client, model="test", now=NOW, timeout=5,
+    )
+    assert [part.depends_on_parts for part in checked.parts] == [[], [0], []]
+    # Through a turn: the rejected shuttle's neighbour names only itself and a later part.
+    result = q30_turn("unsupported_claim", "supported", "supported",
+                      depends_on={1: [1, 2], 2: [2]})
+    assert result["metrics"]["reviewDroppedParts"] == [0]
+
+
+def test_the_reviewer_schema_requires_the_dependency_list() -> None:
+    from rockygpt_brain.contracts import EvidenceReview
+
+    schema = EvidenceReview.model_json_schema()["$defs"]["PartReview"]
+    assert "depends_on_parts" in schema["required"]
+    assert schema["properties"]["depends_on_parts"]["items"] == {
+        "maximum": 10, "minimum": 0, "type": "integer"}
+
+
+def test_a_clarification_whose_question_was_dropped_is_partial() -> None:
+    # A draft that asks a question and states a fact: the question failed, so the
+    # answer no longer asks anything and can't be a clarification (09-29).
+    result = q30_turn(
+        "supported", "supported", "unsupported_claim", status="clarification",
+        last=("clarification", "Which Registrar service do you need?", []),
+    )
+    assert "Which Registrar" not in result["answer"]
+    assert result["status"] == "partial"
+
+
+def test_a_clarification_that_still_asks_stays_a_clarification() -> None:
+    result = q30_turn(
+        "unsupported_claim", "supported", "supported", status="clarification",
+        last=("clarification", "Which Registrar service do you need?", []),
+    )
+    assert "Which Registrar" in result["answer"]
+    assert result["status"] == "clarification"
 
 
 def test_reviewer_sees_the_shuttle_calculation_the_draft_saw() -> None:
@@ -1116,6 +1271,72 @@ def test_reviewer_sees_the_shuttle_calculation_the_draft_saw() -> None:
     assert payload["citation_scope"] == {"0": [trip["id"], earlier["id"]]}
     # The saved turn summary keeps counts and codes, not the timetable.
     assert "schedule_calculations" not in result["metrics"]["toolResults"][0]
+    assert result["status"] == "answered"
+
+
+def test_a_bounded_timetable_keeps_its_calculation_for_the_reviewer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Q1/Q15/Q30 (09-29): Tuesday's lookup fetched 30 trips and delivered 29, the summary
+    # went with the 30th, and the checker rejected "next is Tuesday 7 AM" for lack of it.
+    from rockygpt_brain.governance.budget import TurnBudget
+
+    def trip(sequence: int, departure: str, stop: str) -> dict[str, Any]:
+        record: dict[str, Any] = {
+            "id": f"shuttle:trip-{sequence}", "entity_id": f"trip:{sequence}",
+            "source_key": "transportation", "collection": "shuttle", "title": "Roadrunner",
+            "url": "https://www.ramapo.edu/shuttle/", "trust_tier": "official_primary",
+            "freshness": "fresh",
+            "fields": {"sequence": sequence, "route": "Roadrunner", "service_day": "weekday",
+                       "service_date": "2026-09-04", "campus_departure": departure,
+                       "campus_return": "N/A", "stops": [{"location": "Train", "time": stop}]},
+            # Distinct, so the wire encoding can't share it: each trip is ~20 KB.
+            "content": str(sequence) * 20000,
+        }
+        record["coverage"] = {"fields": {key: "published" for key in record["fields"]}}
+        return record
+
+    trips = [trip(1, "9:00 AM", "9:10 AM"), trip(2, "10:00 AM", "10:10 AM"),
+             trip(3, "11:00 AM", "11:10 AM"), trip(4, "6:10 PM", "6:20 PM"),
+             trip(5, "7:00 PM", "7:10 PM")]
+    # Room for four trips and the summary, not five.
+    monkeypatch.setattr(TurnBudget, "retrieval_context_limit",
+                        lambda self, bound, pending: bound + 92000)
+    call = search("timetable", "shuttle", date_from="2026-09-04", limit=100)
+    call.arguments = json.dumps({**json.loads(call.arguments), "query": ""})
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(call),
+        answer("The next scheduled departure from campus is 6:10 PM.", "campus_fact",
+               ["shuttle:trip-4"]),
+        review(),
+    ]
+    data.search.return_value = {"status": "ok", "records": trips, "total_matches": 5,
+                                "truncated": False}
+    result = run_turn([ChatMessage(role="user", content="When is the next shuttle?")],
+                      client=client, data=data, model="test", now=NOW)
+    # 11 AM is the last trip the calculation doesn't select (first 9 AM, next 6:10 PM,
+    # last 7 PM), so it is the one left out.
+    assert result["trace"][0]["evidence_ids"] == [
+        "shuttle:trip-1", "shuttle:trip-2", "shuttle:trip-4", "shuttle:trip-5"]
+    payload = json.loads(client.create.call_args.kwargs["input"])
+    [coverage] = payload["retrieval_coverage"]
+    assert coverage["truncated"] is True and coverage["reason"] == "retrieval_delivery_limit"
+    calculation = coverage["schedule_calculations"]
+    assert calculation["status"] == "ok"
+    assert calculation["delivery"] == (
+        "Computed over all 5 retrieved trips. Left out of delivery: 1, none of which it "
+        "selects.")
+    campus = next(item for item in calculation["departures"] if item["origin"] == "campus")
+    assert campus["next"]["evidence_id"] == "shuttle:trip-4"
+    # The writer saw the same note beside the calculation.
+    writer = client.create.call_args_list[1].kwargs
+    [output] = [json.loads(item["output"]) for item in writer["input"]
+                if isinstance(item, dict) and item.get("type") == "function_call_output"]
+    assert output["schedule_calculations"]["delivery"] == calculation["delivery"]
+    # The citation still widens over every delivered trip of the calculated timetable.
+    assert sorted(payload["citation_scope"]["0"]) == [
+        "shuttle:trip-1", "shuttle:trip-2", "shuttle:trip-4", "shuttle:trip-5"]
     assert result["status"] == "answered"
 
 

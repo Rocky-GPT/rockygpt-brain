@@ -35,6 +35,8 @@ from rockygpt_brain.campus.progress import (
     search_subject,
 )
 from rockygpt_brain.campus.schedules import (
+    bounded_summaries,
+    departed_trips,
     departure_summary,
     review_summary,
     schedule_references,
@@ -113,38 +115,40 @@ DROPPED_NOTE = AnswerPart(
 def supported_parts(candidate: Answer, review: EvidenceReview) -> list[int]:
     """Indexes of the paragraphs that can stand once the failed ones are dropped.
 
-    The reviewer judges each paragraph's own claims, so a supported paragraph stays
-    true without its neighbours. One without citations of its own was judged against
-    the sources cited before it; after an earlier paragraph fails it may lean on what
-    was dropped, so it goes too. A caveat or question whose sources were all cited by
-    dropped paragraphs, and none by a kept one, was about what was dropped ("these are
-    examples"), so it goes too. Only caveats left over means nothing was answered.
+    The reviewer judges each paragraph's own claims and names the earlier paragraphs it
+    refers to or relies on. A paragraph goes when it failed or leans on one that went,
+    directly or through another, cited or not ("ask about that burger"). One that stands
+    alone stays: dropping every uncited paragraph after a failed one deleted approved
+    emergency guidance with a rejected shuttle paragraph (09-29). A caveat or question
+    whose sources were all cited by dropped paragraphs, and none by a kept one, was about
+    what was dropped ("these are examples"), so it goes too, and so does anything leaning
+    on it. Only caveats left over means nothing was answered.
     """
-    verdicts = {part.part_index: part.verdict for part in review.parts}
-    kept: list[int] = []
-    earlier_failed = False
-    for index, part in enumerate(candidate.parts):
-        if verdicts[index] != "supported":
-            earlier_failed = True
-        elif part.evidence_ids or not earlier_failed:
-            kept.append(index)
+    reviews = {part.part_index: part for part in review.parts}
     content = {"campus_fact", "guidance"}
-    dropped_sources = {
-        evidence_id for index, part in enumerate(candidate.parts) if index not in kept
-        for evidence_id in part.evidence_ids
-    }
-    kept_sources = {
-        evidence_id for index in kept if candidate.parts[index].kind in content
-        for evidence_id in candidate.parts[index].evidence_ids
-    }
 
-    def still_about_something(index: int) -> bool:
+    def stands(index: int, kept: list[int]) -> bool:
+        if set(reviews[index].depends_on_parts) - set(kept):
+            return False
+        dropped_sources = {
+            evidence_id for other, part in enumerate(candidate.parts) if other not in kept
+            for evidence_id in part.evidence_ids
+        }
+        kept_sources = {
+            evidence_id for other in kept if candidate.parts[other].kind in content
+            for evidence_id in candidate.parts[other].evidence_ids
+        }
         part = candidate.parts[index]
         cited = set(part.evidence_ids)
         return (part.kind in content or not cited or not cited <= dropped_sources
                 or bool(cited & kept_sources))
 
-    kept = [index for index in kept if still_about_something(index)]
+    kept = [index for index in range(len(candidate.parts))
+            if reviews[index].verdict == "supported"]
+    # A paragraph that goes can take with it one that leaned on it, so repeat until
+    # nothing more goes.
+    while (standing := [index for index in kept if stands(index, kept)]) != kept:
+        kept = standing
     if not any(candidate.parts[index].kind in content for index in kept):
         return []
     return kept
@@ -284,9 +288,13 @@ def run_turn(
     routing_mode: RoutingMode = "off",
     explain_rejections: bool = False,
     diagnostics: dict[str, Any] | None = None,
+    omitted_messages: int = 0,
 ) -> dict[str, Any]:
     """Answer one turn. When Jev reads danger, the safety block comes first, even when
-    the answer fails.
+    the answer fails, and a streaming client gets it as soon as Jev reads it.
+
+    `omitted_messages` is how many earlier messages of the conversation the client left
+    out; the writer and reviewer are told so they don't take the rest for all of it.
 
     `diagnostics`, for a development caller that asked, collects every record the writer
     and reviewer were given (`evidence`) and every draft with the reviewer's verdict on
@@ -300,6 +308,7 @@ def run_turn(
             messages, client=client, data=data, model=model, now=now, metrics=metrics,
             progress=progress, routing_client=routing_client, routing_mode=routing_mode,
             explain_rejections=explain_rejections, net=net, diagnostics=diagnostics,
+            omitted_messages=omitted_messages,
         )
     except (InvalidAnswer, TimeoutError, PaidCallError) as error:
         block = net.block()
@@ -357,6 +366,7 @@ def answer_turn(
     explain_rejections: bool,
     net: SafetyNet,
     diagnostics: dict[str, Any] | None = None,
+    omitted_messages: int = 0,
 ) -> dict[str, Any]:
     subjects: list[ProgressSubject] = []
 
@@ -365,6 +375,7 @@ def answer_turn(
         current: list[ProgressSubject] | None = None,
         operation: str | None = None,
         draft: str | None = None,
+        safety: dict[str, Any] | None = None,
     ) -> None:
         if progress is not None:
             update: ProgressUpdate = {
@@ -375,6 +386,9 @@ def answer_turn(
                 update["operation"] = operation
             if stage == "reviewing" and draft:
                 update["draft"] = draft
+            if safety is not None:
+                update["safety"] = {"answer": safety["answer"],
+                                    "citations": safety["citations"]}
             progress(update)
 
     metrics["retrievalMs"] = 0
@@ -417,6 +431,13 @@ def answer_turn(
         f"Today is {now.strftime('%A, %B %d, %Y')}. "
         f"The current campus calendar week is {week_start} through {week_end}.\n"
     )
+    if omitted_messages:
+        # Only when the client cut history, so ordinary turns keep the cached bytes.
+        campus_clock += (
+            f"The client sent only the latest {len(messages)} messages; {omitted_messages} "
+            "earlier messages are not shown. Don't say what was or wasn't said before them; "
+            "say you can't see that part of the conversation.\n"
+        )
 
     routing_calls = 0
     routed_calls: list[OutputItem] = []
@@ -443,6 +464,10 @@ def answer_turn(
             if decision.danger is not None:
                 net.kind = decision.danger
                 net.records, net.dataset_version = safety_facts(data)
+                # The call-911 block is written by code, so a streaming student sees it now,
+                # not after lookups, drafts and review: Q30's came only with the final
+                # answer, at 33.8 s (09-29). The final answer still starts with it.
+                notify("understanding", safety=net.block())
             selected_tool = decision.tool
             if decision.danger is None:
                 # Code states plain contact details, menus and hours itself; the safety
@@ -746,6 +771,7 @@ def answer_turn(
                     verified_prefix=[*net.parts(), *(prefix.parts if prefix is not None else [])]
                     or None,
                     retrievals=trace,
+                    omitted_messages=omitted_messages,
                 )
             except PaidCallError as error:
                 if error.code == "context_limit":
@@ -763,6 +789,7 @@ def answer_turn(
                     "unverified_premises": [
                         real_ids(premise) for premise in part.unverified_premises
                     ],
+                    "depends_on_parts": part.depends_on_parts,
                 }
                 for part in sorted(review.parts, key=lambda part: part.part_index)
             ]
@@ -793,10 +820,14 @@ def answer_turn(
                 metrics["reviewDroppedParts"] = [
                     index for index in range(len(candidate.parts)) if index not in kept
                 ]
+                # A clarification whose question was dropped asks nothing (09-29).
+                status = candidate.status
+                if status == "answered" or (status == "clarification" and not any(
+                        candidate.parts[index].kind == "clarification" for index in kept)):
+                    status = "partial"
                 candidate = candidate.model_copy(
                     update={
-                        "status": "partial" if candidate.status == "answered"
-                        else candidate.status,
+                        "status": status,
                         "parts": [*(candidate.parts[index] for index in kept), DROPPED_NOTE],
                     }
                 )
@@ -914,6 +945,10 @@ def answer_turn(
                             output = {
                                 **output,
                                 "schedule_calculations": summary,
+                                # For a prompt with no room for the whole timetable.
+                                "_bounded_summaries": bounded_summaries(summary),
+                                "_departed_trips": departed_trips(
+                                    output.get("records", []), now),
                             }
                     elif call.name == "read_campus":
                         read = ReadQuery.model_validate_json(call_arguments)

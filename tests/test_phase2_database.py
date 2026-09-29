@@ -331,6 +331,7 @@ def test_short_dinner_chat_with_fifty_menu_records_and_hours(
                             "unverified_premises": [],
                             "uses_event_for_entity": False,
                             "infers_food_safety": False,
+                            "depends_on_parts": [],
                             "plan_deadlines": [],
                         }
                         for i in range(len(sent["parts"]))
@@ -443,6 +444,7 @@ SUPPORTED = {
             "unverified_premises": [],
             "uses_event_for_entity": False,
             "infers_food_safety": False,
+            "depends_on_parts": [],
             "plan_deadlines": [],
         }
     ]

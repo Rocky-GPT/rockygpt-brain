@@ -412,18 +412,18 @@ def test_budget_exhaustion_is_nonretryable_and_uses_only_source_catalog(
     assert "secret" not in response.text
 
 
-@pytest.mark.parametrize("readable", [True, False])
-def test_every_failure_carries_emergency_help_written_by_code(readable: bool) -> None:
-    # 09-28: with the budget spent, "someone passed out and isn't waking up" got only
-    # "monthly AI allowance exhausted". The safety block needs Jev, which the budget stops.
-    from rockygpt_brain.api import app as app_module
+def safety_records(freshness: str = "fresh",
+                   url: str = "https://www.ramapo.edu/publicsafety/") -> list[dict[str, Any]]:
+    return [{"id": f"critical_facts:{key}", "title": "Public Safety", "url": url,
+             "collection": "critical_facts", "freshness": freshness,
+             "fields": {"fact_key": key, "fact_value": value}}
+            for key, value in [("safety.emergency_phone", "201-684-6666"),
+                               ("safety.non_emergency_phone", "201-684-7432")]]
 
-    app_module._safety_cache = None
-    records = [{"id": f"critical_facts:{key}", "title": "Public Safety",
-                "url": "https://www.ramapo.edu/publicsafety/",
-                "fields": {"fact_key": key, "fact_value": value}}
-               for key, value in [("safety.emergency_phone", "201-684-6666"),
-                                  ("safety.non_emergency_phone", "201-684-7432")]]
+
+def failed_emergency(read: list[dict[str, Any]] | None) -> dict[str, Any]:
+    """A budget failure's emergency help, with the safety records `read` returns (None: the
+    read fails)."""
     error = PaidCallError("budget_exhausted", reset_at="2026-10-01T00:00:00-04:00")
     with (
         patch.dict("os.environ", {"STAGING_SERVICE_TOKEN": ""}),
@@ -433,22 +433,67 @@ def test_every_failure_carries_emergency_help_written_by_code(readable: bool) ->
     ):
         data.return_value.deadline = None
         data.return_value.resources.return_value = []
-        if readable:
-            data.return_value.search.return_value = {"records": records}
+        if read is not None:
+            data.return_value.search.return_value = {"records": read}
         else:
             data.return_value.search.side_effect = RuntimeError("secret database details")
         response = TestClient(app).post(
             "/v1/chat", json={"messages": [{"role": "user", "content": "Someone passed out"}]}
         )
-    emergency = response.json()["error"]["emergency"]
+    assert "secret" not in response.text
+    emergency: dict[str, Any] = response.json()["error"]["emergency"]
     assert "call 911" in emergency["text"] and "988" in emergency["text"]
+    return emergency
+
+
+@pytest.mark.parametrize("readable", [True, False])
+def test_every_failure_carries_emergency_help_written_by_code(readable: bool) -> None:
+    # 09-28: with the budget spent, "someone passed out and isn't waking up" got only
+    # "monthly AI allowance exhausted". The safety block needs Jev, which the budget stops.
+    from rockygpt_brain.api import app as app_module
+
+    app_module._safety_cache = None
+    emergency = failed_emergency(safety_records() if readable else None)
     if readable:
         assert "emergency 201-684-6666; non-emergency 201-684-7432" in emergency["text"]
         assert emergency["sources"] == [{"title": "Public Safety",
                                          "url": "https://www.ramapo.edu/publicsafety/"}]
     else:
         assert "684" not in emergency["text"] and emergency["sources"] == []
-    assert "secret" not in response.text
+    app_module._safety_cache = None
+
+
+@pytest.mark.parametrize("records", [
+    safety_records("stale"),
+    safety_records("unknown"),
+    safety_records(url="http://www.ramapo.edu/publicsafety/"),
+    [{**record, "freshness": "stale"} if record["id"].endswith("non_emergency_phone")
+     else record for record in safety_records()],
+])
+def test_failure_numbers_pass_the_safety_blocks_evidence_checks(
+    records: list[dict[str, Any]],
+) -> None:
+    # 09-29: the safety block drops Public Safety's numbers when render_answer rejects them
+    # (stale, or not from an https page); failures showed them unchecked.
+    from rockygpt_brain.api import app as app_module
+
+    app_module._safety_cache = None
+    emergency = failed_emergency(records)
+    assert "684" not in emergency["text"] and emergency["sources"] == []
+    assert app_module._safety_cache is None  # Nothing unverified is kept for later failures.
+
+
+def test_cached_safety_numbers_are_checked_again_at_use() -> None:
+    from time import monotonic
+
+    from rockygpt_brain.api import app as app_module
+
+    app_module._safety_cache = (monotonic(), safety_records("stale"))
+    emergency = failed_emergency(None)
+    assert "684" not in emergency["text"] and emergency["sources"] == []
+    # A stale cache does not stop a fresh read from supplying verified numbers.
+    app_module._safety_cache = (monotonic(), safety_records("stale"))
+    assert "201-684-6666" in failed_emergency(safety_records())["text"]
     app_module._safety_cache = None
 
 

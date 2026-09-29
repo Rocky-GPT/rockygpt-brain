@@ -8,6 +8,8 @@ import pytest
 
 from rockygpt_brain.campus.schedules import (
     CAMPUS_ZONE,
+    bounded_summaries,
+    departed_trips,
     departure_summary,
     meal_order,
     opening_intervals,
@@ -230,6 +232,59 @@ def test_reviewer_gets_the_selections_without_stop_lists() -> None:
     assert lean["as_of"] == summary["as_of"] and lean["limitations"] == summary["limitations"]
     unavailable = {"status": "unavailable", "reason": "incomplete_schedule_coverage"}
     assert review_summary(unavailable) == unavailable
+
+
+def test_smaller_summaries_keep_every_selection_and_say_what_they_withhold() -> None:
+    # One weekday's summary was 40 KB against 13 KB for its 30 trips, so a bounded
+    # delivery dropped it and the checker lost the proof that 7 AM was next (09-29).
+    summary = departure_summary(
+        output(
+            record(2, "5:30 PM", "5:40 PM", "6:00 PM"), record(1, "3:50 PM", "4:10 PM", "4:30 PM")
+        ),
+        QUERY,
+        NOW,
+    )
+    compact, campus_only = bounded_summaries(summary)
+    for smaller in (compact, campus_only):
+        assert smaller["status"] == "ok" and smaller["as_of"] == summary["as_of"]
+        assert smaller["destinations_withheld"] == "retrieval_delivery_limit"
+        assert all("destinations" not in row and "remaining_stops" not in (row["next"] or {})
+                   for row in smaller["departures"])
+        assert smaller["limitations"][:len(summary["limitations"])] == summary["limitations"]
+    whole = {(row["route"], row["origin"]): row for row in summary["departures"]}
+    for row in compact["departures"]:
+        original = whole[(row["route"], row["origin"])]
+        for selection in ("first", "next", "last"):
+            assert row[selection] == {key: original[selection][key] for key in (
+                "evidence_id", "service_date", "departure_at", "origin_restriction")}
+        assert row["days"] == original["days"]
+    assert len(compact["departures"]) == 2 and compact["withheld_origins"] == []
+    # Campus alone, with the stop it leaves out withheld the way a repeated stop is.
+    assert [row["origin"] for row in campus_only["departures"]] == ["campus"]
+    assert campus_only["withheld_origins"] == [
+        {"route": "Station route", "origin": "Station", "reason": "retrieval_delivery_limit"}]
+    # The reviewer's form carries the markers.
+    lean = review_summary(campus_only)
+    assert lean["destinations_withheld"] == "retrieval_delivery_limit"
+    assert lean["departures"][0]["next"]["evidence_id"] == "shuttle:2"
+    assert "destinations" not in lean["departures"][0]
+    assert bounded_summaries({"status": "unavailable"}) == []
+
+
+def test_departed_trips_are_those_whose_campus_departure_has_passed() -> None:
+    unreadable = record(3, "N/A", "6:10 PM", "6:30 PM")
+    rows = [record(1, "3:50 PM", "4:10 PM", "4:30 PM"),
+            record(2, "5:30 PM", "5:40 PM", "6:00 PM"), unreadable]
+    # At 4 PM the 3:50 trip has left; one whose time can't be read counts as to come.
+    assert departed_trips(rows, NOW) == ["shuttle:1"]
+
+
+def test_a_campus_only_summary_has_one_smaller_form() -> None:
+    summary = departure_summary(
+        output(record(1, "3:50 PM", "4:10 PM", "4:30 PM")), QUERY, NOW)
+    summary["departures"] = [row for row in summary["departures"] if row["origin"] == "campus"]
+    [compact] = bounded_summaries(summary)
+    assert [row["origin"] for row in compact["departures"]] == ["campus"]
 
 
 def test_conflicting_trips_are_not_silently_chosen() -> None:

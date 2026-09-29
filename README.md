@@ -75,11 +75,13 @@ raw records and documents) and `/openapi.json` answer 404 unless
 - `GET /readiness`: checks deployment configuration, price validity, the operational ledger,
   and a read-only campus connection with an active release. This does not call the model or prove every
   source is fresh; freshness is checked when records are retrieved.
-- `POST /v1/chat`: one JSON response, with the complete conversation supplied
-  on every request. A development Brain serves the generated schema at `/openapi.json`.
+- `POST /v1/chat`: one JSON response, with the conversation supplied on every
+  request. A client that sends only its latest messages sets `omittedMessages` to how
+  many earlier ones it left out (default 0). A development Brain serves the generated
+  schema at `/openapi.json`.
 
 ```json
-{"messages":[{"role":"user","content":"How do I contact Financial Aid?"}]}
+{"messages":[{"role":"user","content":"How do I contact Financial Aid?"}],"omittedMessages":0}
 ```
 
 The response has `answer` (Markdown with validated source links), `status`
@@ -109,12 +111,16 @@ turns that made no lookup.
 Clients append the returned answer as an assistant message before the next user
 message. Prior assistant text resolves references but is not authoritative;
 campus evidence is retrieved anew on each turn. Failed requests are not appended.
+A client may send a window of the latest messages; it then reports the rest in
+`omittedMessages`, and the writer and reviewer are told that what came before the
+window is unknown, so neither says what was or wasn't said there.
 No student text or conversations are persisted by Brain. The operational ledger
 persists request IDs, release identity, token/cost metadata, and turn summaries. Model calls use
 `store=false`; this does not alter the provider's account-level retention policy.
 
 Requests are capped at 64 KiB, 80 messages, 16,000 characters per message, and
-48,000 total content characters. Oversized histories are rejected explicitly.
+48,000 total content characters. The Brain rejects oversized histories explicitly;
+it never shortens one itself, but a client's own window is marked by `omittedMessages`.
 Answers are capped at 12,000 characters so they fit in a subsequent request.
 There are at most four active turns per process, eight model calls in total
 (at most six draft/tool calls, with capacity reserved for review), twelve admitted tool attempts, a

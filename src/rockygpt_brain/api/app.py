@@ -24,7 +24,7 @@ from rockygpt_brain.api.graph import router as graph_router
 from rockygpt_brain.api.identities import _require_development
 from rockygpt_brain.api.identities import router as identities_router
 from rockygpt_brain.api.stream import stream_turn
-from rockygpt_brain.campus.formats import failure_help
+from rockygpt_brain.campus.formats import failure_help, safety_part
 from rockygpt_brain.campus.progress import (
     ProgressCallback,
     ProgressUpdate,
@@ -32,8 +32,8 @@ from rockygpt_brain.campus.progress import (
     WorkLog,
 )
 from rockygpt_brain.config import RELEASE, ConfigurationError, configuration_hash, load_deployment
-from rockygpt_brain.contracts import ChatRequest
-from rockygpt_brain.core import InvalidAnswer, PaidGateway, open_gateway, run_turn
+from rockygpt_brain.contracts import Answer, ChatRequest
+from rockygpt_brain.core import InvalidAnswer, PaidGateway, open_gateway, render_answer, run_turn
 from rockygpt_brain.core.engine import safety_facts
 from rockygpt_brain.core.templates import template_catalog
 from rockygpt_brain.governance import BodyLimitMiddleware, PaidCallError, PostgresLedger
@@ -1066,6 +1066,7 @@ def chat_worker(
                 routing_client=gateway if deployment.routing_mode != "off" else None,
                 explain_rejections=deployment.environment == "development",
                 diagnostics=diagnostics,
+                omitted_messages=request.omittedMessages,
             )
             result = turn_result
         outcome = cast(str, result["status"])
@@ -1171,18 +1172,35 @@ SAFETY_CACHE_SECONDS = 600.0
 _safety_cache: tuple[float, list[dict[str, Any]]] | None = None
 
 
+def verified_safety(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The Public Safety records whose numbers pass the same checks as the safety block's
+    (core/engine.py SafetyNet.parts): fresh or static, from an https page. Failure responses
+    used to show the numbers unchecked, even when stale or uncitable (09-29)."""
+    try:
+        numbers = safety_part(records)
+        if numbers is None:
+            return []
+        cited = [record for record in records if record["id"] in numbers.evidence_ids]
+        render_answer(Answer(status="answered", parts=[numbers]),
+                      {record["id"]: record for record in cited})
+    except Exception:
+        return []  # Never fail a failure over its help: 911 and 988 stand on their own.
+    return cited
+
+
 def emergency_help(data: CampusData | None = None) -> dict[str, Any]:
     """The emergency guidance every failure carries (campus/formats.py FAILURE_HELP), with
     Public Safety's numbers when their records were read recently or `data` can read them
     now (worker threads only). A student asking what to do for someone unconscious while
-    the budget was spent got only "monthly AI allowance exhausted" (09-28)."""
+    the budget was spent got only "monthly AI allowance exhausted" (09-28). Only verified
+    records are cached, and they are checked again at use."""
     global _safety_cache
-    records = (_safety_cache[1] if _safety_cache is not None
-               and monotonic() - _safety_cache[0] < SAFETY_CACHE_SECONDS else [])
+    records = verified_safety(_safety_cache[1] if _safety_cache is not None
+                              and monotonic() - _safety_cache[0] < SAFETY_CACHE_SECONDS else [])
     if not records and data is not None:
         try:
             data.deadline = monotonic() + 2.0
-            records, _ = safety_facts(data)
+            records = verified_safety(safety_facts(data)[0])
         except Exception:
             records = []  # The 911 and 988 guidance stands without the campus numbers.
         if records:
