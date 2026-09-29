@@ -590,9 +590,13 @@ def validate_answer(answer: Any, question: dict[str, Any]) -> None:
         values = [number(value) for value in probabilities.values()]
         number(answer.get("confidence"))
         selected = answer.get("choice")
+        # Jev sends each probability rounded to the hundredth, so a well-formed reply can
+        # sum to 0.99 or 1.01: each option may be off by half a hundredth. Held to 0.001,
+        # a meal pick of 0.54/0.32/0.13 (0.99) on "what can i eat right now" threw away the
+        # whole route one time in eight, and GPT planned the lookups itself (09-28).
         if (
             selected not in options
-            or abs(sum(values) - 1) > 0.001
+            or abs(sum(values) - 1) > 0.005 * len(values) + 1e-9
             or (probabilities[selected] < max(values))
         ):
             raise ValueError("Invalid routing distribution")
@@ -912,11 +916,16 @@ def eating_now(decision: RouteDecision, answers: dict[str, Any], candidates: lis
     left for GPT to plan. "What can I eat on campus right now?" (09-28) fetched the whole
     day's menu, 66 of its 141 items arrived, and GPT never looked up which meal was on."""
     said = set(words(messages[-1].content).split())
+    kind = answers["kind"]
     return (
         decision.route == "search" and decision.arguments is None and not decision.lookups
         # Jev put 0.72 on the menu kind for "what can I eat right now" but 0.94 on asking
-        # what food is served on campus at no named dining hall (09-28).
-        and (selected(answers, "kind") == "menu"
+        # what food is served on campus at no named dining hall (09-28). Later that night
+        # it put 0.90-0.91 on the menu kind four times out of four, and only one reached
+        # the 0.9 bar: the other three left GPT to search the whole day's menu, which
+        # didn't fit. The words below already bound the request to food now, at no named
+        # place, so Jev need only lean toward the menu.
+        and ((kind["choice"] == "menu" and kind["probabilities"]["menu"] >= LEANS_TOWARD)
              or answers["list_menu"]["noul"] >= RELEASE.routing.threshold)
         and bool(said & NOW_WORDS)
         and not named(messages[-1].content, candidates)
@@ -927,7 +936,11 @@ def eating_now(decision: RouteDecision, answers: dict[str, Any], candidates: lis
 
 def serving_now(data: CampusData, now: datetime) -> list[dict[str, Any]]:
     """Today's dining hours, and the menu of each meal being served now: the hours say
-    which meal is on, so the menu is that meal's, not the whole day's."""
+    which meal is on, so the menu is that meal's, not the whole day's. A place between
+    meals has its next meal today's menu instead. Asked at 8:15 PM on 09-28, between
+    Birch's Dinner (to 8 PM) and Late Night (from 9 PM), only the hours were fetched, so
+    GPT's first draft asked for the Late Night menu and a second draft wrote the answer:
+    about 5 s more, every time the question fell between two meals."""
     today = now.date().isoformat()
     hours = SearchQuery.model_validate({"collection": "dining_hours", "query": "",
                                         "date_from": today, "date_to": today, "limit": 100})
@@ -940,6 +953,8 @@ def serving_now(data: CampusData, now: datetime) -> list[dict[str, Any]]:
         return lookups  # GPT reads the hours itself; nothing about a meal is assumed.
     meals: set[str] = set()
     for record in records:
+        serving: list[str] = []
+        upcoming: list[tuple[datetime, str]] = []
         for period in record.get("fields", {}).get("periods") or []:
             try:
                 start = wall_time(str(period["start"]), now.date())
@@ -948,8 +963,14 @@ def serving_now(data: CampusData, now: datetime) -> list[dict[str, Any]]:
                     end += timedelta(days=1)
             except (KeyError, TypeError, ValueError):
                 continue
-            if start <= now < end and isinstance(period.get("label"), str):
-                meals.add(period["label"].strip())
+            if not isinstance(period.get("label"), str):
+                continue
+            if start <= now < end:
+                serving.append(period["label"].strip())
+            elif now < start:
+                upcoming.append((start, period["label"].strip()))
+        # The published hours say when that next meal starts; nothing says it is on now.
+        meals.update(serving or [label for _, label in sorted(upcoming)[:1]])
     for meal in sorted(meal for meal in meals if meal)[:2]:
         menu = SearchQuery.model_validate({
             "collection": "menu", "query": "", "date_from": today, "date_to": today,
