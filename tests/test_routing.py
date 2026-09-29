@@ -204,7 +204,7 @@ def test_a_request_for_the_students_own_account_is_answered_by_code() -> None:
     result = run_turn(messages("register me for CMPS 147"), client=gpt, data=data,
                       model=RELEASE.model, now=NOW, progress=progress,
                       routing_client=router_mock(route="general", entity="none",
-                                                 own_account=0.98),
+                                                 own_account=0.98, own_account_only=0.96),
                       routing_mode="active")
     gpt.create.assert_not_called()
     assert result["answer"].startswith("I can't access student accounts or act in them")
@@ -214,12 +214,16 @@ def test_a_request_for_the_students_own_account_is_answered_by_code() -> None:
     assert result["metrics"]["routing"]["route"] == "own_account"
     # Jev not sure, a follow-up that leans on earlier messages, or danger: GPT writes.
     cases: list[tuple[list[ChatMessage], dict[str, Any]]] = [
-        (messages("register me for CMPS 147"), {"own_account": 0.85}),
+        (messages("register me for CMPS 147"), {"own_account": 0.85, "own_account_only": 0.96}),
+        # Another part besides: code's answer would drop it (09-29).
+        (messages("register me for CS 450 and tell me where the registrar is"),
+         {"own_account": 0.97, "own_account_only": 0.08}),
         ([*messages("What is CMPS 147?"),
           ChatMessage(role="assistant", content="Computer Science I."),
           ChatMessage(role="user", content="sign me up for it")],
-         {"own_account": 0.98, "needs_earlier": 0.9}),
-        (messages("register me for CMPS 147"), {"own_account": 0.98, "danger": "self_harm"}),
+         {"own_account": 0.98, "own_account_only": 0.96, "needs_earlier": 0.9}),
+        (messages("register me for CMPS 147"),
+         {"own_account": 0.98, "own_account_only": 0.96, "danger": "self_harm"}),
     ]
     for turn, choices in cases:
         gpt, data = Mock(), data_mock()
@@ -245,6 +249,16 @@ def test_a_departure_question_fetches_the_next_days_timetable_too() -> None:
     assert decision.arguments["collection"] == "shuttle"
     assert decision.arguments["date_from"] == NOW.date().isoformat()
     assert decision.arguments["date_to"] == (NOW.date() + timedelta(days=1)).isoformat()
+    # Mid-conversation, Jev leaning that it stands alone is enough (0.20-0.32 on 09-29);
+    # a follow-up that needs the earlier messages (0.78+) is GPT's.
+    talk = [*messages("when is the next shuttle"),
+            ChatMessage(role="assistant", content="The next shuttle is at 6:10 PM."),
+            *request]
+    payload, day = routing_payload(talk, [], NOW)
+    for needs, template in [(0.27, "departures"), (0.78, None)]:
+        answers = answers_for(payload, route="search", kind="shuttle", entity="none",
+                              date="none", needs_earlier=needs)
+        assert interpret(answers, [], day, talk, NOW.date().isoformat()).template == template
 
 
 @pytest.mark.parametrize("probabilities,valid", [

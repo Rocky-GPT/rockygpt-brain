@@ -159,6 +159,19 @@ OWN_ACCOUNT = (
     "Asks how to do something, where to find it, what a rule or requirement is, or anything "
     "that doesn't need the student's own account",
 )
+# Whether that is all the request asks. The question above also put 0.95-0.97 on "register me
+# for CS 450 and tell me where the registrar is" and four more two-part requests (09-29),
+# and code's answer would have dropped their other part. This one put 0.07-0.16 on those
+# five and 0.81-0.97 on the ten account requests alone.
+OWN_ACCOUNT_ONLY = (
+    "Is everything `latest_request` asks something only the student's own account could "
+    "answer or do, such as showing their grades, GPA, schedule, balance, holds or aid award, "
+    "or registering, dropping a class, paying, submitting a form or sending a message for "
+    "them?",
+    "Yes: all of it needs the student's own account",
+    "No: some or all of it asks how to do something, where to find it, a rule, a campus fact "
+    "or anything else that doesn't need their account",
+)
 ADDS_PURPOSE = ("Does `latest_request` add a purpose or condition to what it asks, such as "
                 "'for transcripts', 'after hours' or 'if my aid is cancelled'?",
                 "Adds a purpose or condition beyond the office's name",
@@ -530,6 +543,7 @@ def routing_payload(
         ),
         "needs_earlier": noul(*NEEDS_EARLIER),
         "own_account": noul(*OWN_ACCOUNT),
+        "own_account_only": noul(*OWN_ACCOUNT_ONLY),
         **{"asks_" + field: noul(*question) for field, question in CONTACT_ASKS.items()},
         "adds_purpose": noul(*ADDS_PURPOSE),
         **{
@@ -850,13 +864,19 @@ def events_asked(answers: dict[str, Any], candidates: list[Identity], day: str |
 def departure_asked(answers: dict[str, Any], candidates: list[Identity], day: str | None,
                     messages: list[ChatMessage]) -> bool:
     """Whether Jev reads a shuttle question and its words ask a first, next or last
-    departure on one sure day, with no place named and nothing earlier needed."""
+    departure on one sure day, with no place named and nothing earlier needed.
+
+    Mid-conversation, Jev leaning that it stands alone is enough: after three shuttle
+    answers it put 0.20-0.32 on "What's the first shuttle today?" needing the earlier
+    messages, and 0.78-0.97 on follow-ups like "Where does that exact trip stop?" (09-29).
+    Held to 0.1, GPT wrote it instead, and the checker dropped it. Code's answer still
+    refuses any word it can't place, such as "that route" or "there"."""
     said = set(words(messages[-1].content).split())
     return (
         selected(answers, "kind") == "shuttle"
         and bool(said & {"first", "earliest", "next", "last"}) and bool(said & DEPARTURE_WORDS)
         and not named(messages[-1].content, candidates)
-        and (len(messages) == 1 or answers["needs_earlier"]["noul"] <= RULED_OUT)
+        and (len(messages) == 1 or answers["needs_earlier"]["noul"] < LEANS_TOWARD)
         and day is not None and day_asked(answers, messages) in {"named", "none"}
     )
 
@@ -1200,8 +1220,9 @@ def route_request(
         if eating_now(decision, answers, candidates, day, messages, now):
             decision.lookups = serving_now(data, now)
             decision.route, decision.reason = "unresolved", None
-        if answers["own_account"]["noul"] >= RELEASE.routing.threshold and (
-                len(messages) == 1 or answers["needs_earlier"]["noul"] <= RULED_OUT):
+        if (answers["own_account"]["noul"] >= RELEASE.routing.threshold
+                and answers["own_account_only"]["noul"] >= LEANS_TOWARD
+                and (len(messages) == 1 or answers["needs_earlier"]["noul"] <= RULED_OUT)):
             # "Register me for CMPS 147" took Jev, a GPT draft and a GPT check (6.3 s),
             # and the check rejected "I can't register you" as a campus claim with no
             # source, so the student read "I couldn't verify a reliable answer" (09-28).
