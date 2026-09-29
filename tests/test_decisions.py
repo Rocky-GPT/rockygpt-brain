@@ -180,8 +180,7 @@ def test_the_dev_ui_sees_jevs_readings_in_development(
     assert metrics["jev"]["answers"]["danger"] == {
         "choice": "none", "probability": 0.97, "confidence": 0.95}
     assert metrics["jev"]["decided"] == {
-        "danger": None, "ownAccount": True, "accountRequest": True, "needsEarlier": False,
-        "asks": "fact",
+        "danger": None, "ownAccount": True, "needsEarlier": False, "asks": "fact",
         "subject": "places", "named": "office", "needs": "campus_info", "multiPart": False,
         "reach": "supported", "outcome": "answer", "route": "exact"}
     assert metrics["handler"] == "access_limit"
@@ -305,8 +304,7 @@ def decided(**picks: Any) -> Decisions:
 @pytest.mark.parametrize(("picks", "said", "expected"), [
     ({"danger": "danger", "outcome": "answer", "route": "document_policy"}, None, "safety"),
     ({"outcome": "answer", "route": "exact", "multi_part": True}, "danger", "safety"),
-    ({"own_account": True, "account_request": True}, None, "access_limit"),
-    ({"account_request": True}, None, "access_limit"),
+    ({"own_account": True}, None, "access_limit"),
     ({"outcome": "access_limit", "route": "cannot_answer"}, None, "access_limit"),
     ({"outcome": "answer", "route": "exact", "multi_part": True}, None, "multi_part"),
     ({"outcome": "cannot_answer", "route": "exact"}, None, "cannot_answer"),
