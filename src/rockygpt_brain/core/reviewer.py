@@ -61,20 +61,24 @@ def review_answer(
     )
     # "Next", "last" and "none left" are claims about the whole timetable a code
     # calculation covered, so a part citing one of its trips is checked against
-    # every trip of that complete lookup, not the cited trip alone.
-    timetables = [
-        lookup["evidence_ids"]
+    # every trip of that complete lookup, not the cited trip alone. It gets every
+    # calculated lookup of the turn: "next is Tuesday 7 AM" asked Monday night cites
+    # only Tuesday's trip but needs Monday's lookup to show none is left tonight (09-29).
+    # Only shuttle searches carry schedule_calculations.
+    timetable_trips = list(dict.fromkeys(
+        record_id
         for lookup in retrievals or []
         if (lookup.get("schedule_calculations") or {}).get("status") == "ok"
-    ]
+        for record_id in lookup["evidence_ids"]
+    ))
     for index, answer_part in enumerate(answer.parts):
         earlier_citation_scope[index] = list(preceding_citations)
         citation_scope[index] = list(dict.fromkeys(answer_part.evidence_ids))
         if not citation_scope[index] and answer_part.kind != "campus_fact":
             citation_scope[index] = list(preceding_citations)
-        for trips in timetables:
-            if set(answer_part.evidence_ids) & set(trips):
-                citation_scope[index] = list(dict.fromkeys([*citation_scope[index], *trips]))
+        if set(answer_part.evidence_ids) & set(timetable_trips):
+            citation_scope[index] = list(
+                dict.fromkeys([*citation_scope[index], *timetable_trips]))
         preceding_citations.update(dict.fromkeys(answer_part.evidence_ids))
     event_citations = {
         index: [

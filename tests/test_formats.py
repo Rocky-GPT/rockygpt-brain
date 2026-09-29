@@ -8,7 +8,13 @@ from unittest.mock import Mock
 
 import pytest
 
-from rockygpt_brain.campus.formats import FAILURE_HELP, SAFETY_NET, combine_exact, exact_search
+from rockygpt_brain.campus.formats import (
+    FAILURE_HELP,
+    SAFETY_NET,
+    combine_exact,
+    exact_search,
+    independent_quote,
+)
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
 from rockygpt_brain.retrieval.data import SearchFilters, SearchQuery
@@ -459,3 +465,75 @@ def test_danger_opening_covers_someone_else() -> None:
     # "If you're in danger right now" (09-29), unlike the failure help beside it.
     assert "you or someone else" in SAFETY_NET["danger"] and "911" in SAFETY_NET["danger"]
     assert "you or someone else" in FAILURE_HELP
+
+
+Q30 = ("Tell me the next shuttle, where the Registrar is, and what I should do if someone "
+       "is unconscious.")
+
+
+@pytest.mark.parametrize("quote", ["Tell me the next shuttle", "where the Registrar is"])
+def test_a_comma_before_a_new_request_ends_a_part(quote: str) -> None:
+    # Q30's shuttle quote was held dependent on its comma and went to GPT (09-29).
+    assert independent_quote(quote, Q30)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Tell me the next shuttle, if it's running",
+        "Tell me the next shuttle, when classes are cancelled",
+        "Tell me the next shuttle, after 5 PM",
+        "Tell me the next shuttle, please",
+        # Relative clauses narrow the item; they are not new requests.
+        "Tell me the next shuttle, which goes to the mall",
+        "Tell me the next shuttle, which stops at the Plaza",
+        "Tell me the next shuttle, where it stops",
+        "Don't tell me the next shuttle, where the Registrar is",
+        "Instead of the next shuttle, where the Registrar is",
+    ],
+)
+def test_a_comma_before_a_qualifier_keeps_the_part_whole(text: str) -> None:
+    quote = "Tell me the next shuttle" if text.startswith("Tell") else "the next shuttle"
+    assert not independent_quote(quote, text)
+
+
+@pytest.mark.parametrize(
+    ("quote", "text"),
+    [
+        ("tell me the next shuttle", "After 5 PM, tell me the next shuttle"),
+        ("tell me the next shuttle", "Other than Route 17, tell me the next shuttle"),
+        ("tell me the next shuttle", "If it's running, tell me the next shuttle"),
+        ("tell me the next shuttle", "When classes are cancelled, tell me the next shuttle"),
+        ("what's the next shuttle?", "Not counting Route 17, what's the next shuttle?"),
+        ("what's the next shuttle?", "Besides the Roadrunner, what's the next shuttle?"),
+        ("what is for dinner today?", "If I am allergic to nuts, what is for dinner today?"),
+        ("list the dinner menu today", "Besides anything with peanuts, list the dinner menu today"),
+        ("what's the next shuttle", "Tell me, if it's running, what's the next shuttle"),
+    ],
+)
+def test_a_comma_after_a_fronted_qualifier_keeps_the_part_whole(quote: str, text: str) -> None:
+    # A quote starts a part after a comma only when the item before it is a request too.
+    assert not independent_quote(quote, text)
+
+
+def test_every_request_in_a_comma_list_is_a_part() -> None:
+    text = "Tell me the next shuttle, where the Registrar is, who the dean is"
+    for quote in ("Tell me the next shuttle", "where the Registrar is", "who the dean is"):
+        assert independent_quote(quote, text)
+    # One qualifying item breaks the chain for the requests after it.
+    assert not independent_quote(
+        "who the dean is", "Tell me the next shuttle, after 5 PM, who the dean is")
+
+
+@pytest.mark.parametrize(
+    ("quote", "text", "independent"),
+    [
+        ("list the dinner menu today", "list the dinner menu today", True),
+        ("list the dinner menu today", "list the dinner menu today and how do I appeal?", True),
+        ("the next shuttle", "What is the next shuttle?", False),
+        ("the next shuttle", "Tell me the dinner menu, the next shuttle", False),
+        ("what is for dinner today", "what is for dinner today if I am allergic", False),
+    ],
+)
+def test_other_part_boundaries_are_unchanged(quote: str, text: str, independent: bool) -> None:
+    assert independent_quote(quote, text) is independent

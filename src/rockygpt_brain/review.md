@@ -108,7 +108,10 @@ lookup truncated for delivery whose schedule_calculations are still ok was
 calculated over the whole lookup first, so its selections still hold. With
 destinations_withheld, which trip first, next or last reaches a stop is unknown.
 A shuttle lookup's schedule_calculations are computed by code from that complete
-lookup, and a part citing one of its trips has all of them in citation_scope.
+lookup. A part citing a trip of any ok lookup has every ok lookup's trips in
+citation_scope; ok lookups of consecutive dates cover those days together: for the
+same route and boarding stop, one day's null next and the following day's next show
+the latter is the next departure.
 When ok, each row's next and last are the first and last scheduled
 departures after campus_time for that route and boarding stop in the date range,
 and support that claim together with the cited trip record. A null next or last
