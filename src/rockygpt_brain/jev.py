@@ -2,8 +2,9 @@
 
 Each call is held in the ledger at Jev's price before it is sent, and settled with the
 tokens Typesafe reports (spending.py). A call that goes wrong raises JevError, and the
-turn carries on without Jev's answers. A budget or ledger refusal raises SpendingError,
-which stops all paid work.
+turn fails on purpose with a retryable error (turn.JEV_FAILURES), because without Jev's
+answers there is no plan. A budget or ledger refusal raises SpendingError, which stops
+all paid work.
 """
 
 import json
@@ -23,8 +24,8 @@ JEV_URL = "https://api.typesafe.ai/v1/systemone"
 # Typesafe's limits: the state plus any one question within 32k tokens, a call within 64k.
 QUESTION_TOKENS = 32_000
 CALL_TOKENS = 64_000
-# Answered calls took 0.2 to 1 s on the old dev Brain (09-28); past 2 s the turn goes on
-# without Jev.
+# Answered calls took 0.2 to 1 s on the old dev Brain (09-28); past 2 s the turn fails
+# with model_timeout.
 TIMEOUT_SECONDS = 2.0
 MAX_REPLY_BYTES = 1_048_576
 

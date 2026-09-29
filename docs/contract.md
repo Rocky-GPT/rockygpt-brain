@@ -122,7 +122,17 @@ of these ways:
   streaming app gets the safety help in a `progress` event right away.
 - A request Jev picks as one only the student's own account could answer or do
   ("register me for CMPS 147", "what are my grades") gets HTTP 200 with status
-  `unavailable`: what RockyGPT can't reach, written by code.
+  `unavailable`: what RockyGPT can't reach, written by code. So does any other request
+  Jev picks as work RockyGPT can't do, with the line for why: someone's private
+  information, a live look ("how crowded is the Learning Commons"), or "I can't help
+  with that one" for any other reason.
+- A request Jev picks as too unclear to read gets HTTP 200 with status `clarification`:
+  a question written by code, asking the student to say it another way.
+- When Jev fails (a timeout, no connection, a wrong-shaped answer), the turn has no plan
+  and fails on purpose: 504 `model_timeout`, 503 `model_unreachable`, 429 `rate_limited`,
+  502 `model_provider_error` or `invalid_model_output`, 422 `context_limit` or 503
+  `model_not_configured`, each with the emergency help ([docs/jev.md](jev.md)). No model
+  takes over.
 - Every other question gets HTTP 503 with code `not_ready` and the emergency help.
 - When the spending allowance is used up, the turn gets 429 `budget_exhausted` with
   `resetAt`. When the ledger can't be reached, or a person paused spending, it gets 503

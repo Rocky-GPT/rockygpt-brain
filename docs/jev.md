@@ -50,8 +50,12 @@ which always settles it.
 
 Every route is a place Jev sends a question on purpose. Ambiguous means the student's
 words are unclear. It is never where a question lands because Jev wasn't sure. For now
-the turn still ends with the safety help, the account limit or "not ready", because each
-route's handler comes with its milestone. The route (`handler`), where it goes
+the turn ends in one of four ways, because each route's handler comes with its milestone.
+Danger gets the safety help. The account action route gets words code wrote: the account
+limit when all of it needs the student's own account, otherwise the line for the reason
+Jev's `needs` pick names (someone's private information, a live look, or "I can't help
+with that one" for any other reason). The ambiguous route asks the student to say it
+another way. Every other route says "not ready". The route (`handler`), where it goes
 (`goesTo`), the picks that led to it (`handlerPath`) and those under 0.90
 (`lowConfidence`) are in the dev diagnostics (`metrics.jev.decided`). The route and the
 low-confidence picks are also in the turn log.
@@ -79,16 +83,23 @@ the call, it settles the tokens Typesafe reports. A call is about $0.0001.
 
 ## When Jev can't help
 
-Nothing Jev does wrong reaches the student. In each of these cases the turn goes on
-without Jev's answers, and the danger phrases still work:
+Without Jev's readings there is no plan, so the turn fails on purpose. It never hands the
+question to a model instead. Like every failure it carries the 911/988 help, and the
+danger phrases still work, because they need no Jev.
 
-- a timeout (2 s),
-- no connection, rate limiting or a provider error,
-- an answer in the wrong shape,
-- a different model,
-- missing usage,
-- a call too long for Jev,
-- an expired price.
+| What went wrong with Jev | What the student gets |
+| --- | --- |
+| a timeout (2 s) | 504 `model_timeout` |
+| no connection | 503 `model_unreachable` |
+| rate limiting | 429 `rate_limited` |
+| a provider error, missing usage, or a different model | 502 `model_provider_error` |
+| an answer in the wrong shape | 502 `invalid_model_output` |
+| a call too long for Jev | 422 `context_limit`, not retryable: a shorter chat helps |
+| an expired price | 503 `model_not_configured`, not retryable |
+
+`JEV_FAILURES` in `turn.py` holds the table, and a test checks that every error `jev.py`
+raises has a row. Until the route handlers exist, trying again still ends in `not_ready`
+when Jev works, so "retryable" is only fully honest once a handler can answer.
 
 A spent allowance or a ledger problem is different. It stops all paid work and fails
 the turn, but danger help still comes first.
