@@ -13,7 +13,8 @@ from fastapi.testclient import TestClient
 from fakes import ScriptedJev, calm, fake_jev, sure_pick, yes
 from rockygpt_brain.api.app import app, jev_service
 from rockygpt_brain.decisions import WORK
-from rockygpt_brain.safety import ACCOUNT_LIMIT
+from rockygpt_brain.safety import ACCOUNT_LIMIT, SAFETY_TEXT, UNCLEAR
+from rockygpt_brain.turn import NOT_YET
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("check_conversation",
@@ -87,6 +88,22 @@ def test_the_shipped_conversation_is_only_the_students_fifteen_questions() -> No
     messages = check.load(ROOT / "evals" / "conversations" / "mixed-follow-ups.json")
     assert len(messages) == 15 and {m["role"] for m in messages} == {"user"}
     assert messages[0]["content"] == "Where is Financial Aid?"
+
+
+def test_the_with_replies_conversation_is_the_same_questions_plus_the_brains_own_words() -> None:
+    folder = ROOT / "evals" / "conversations"
+    plain = check.load(folder / "mixed-follow-ups.json")
+    with_replies = check.load(folder / "mixed-follow-ups-with-replies.json")
+    assert [m for m in with_replies if m["role"] == "user"] == plain
+    # Every reply is words the Brain writes itself, so a reworded line fails here and not
+    # silently in the comparison.
+    said = {UNCLEAR, ACCOUNT_LIMIT, f"{SAFETY_TEXT['danger']}\n\n{NOT_YET}"}
+    replies = [m["content"] for m in with_replies if m["role"] == "assistant"]
+    assert len(replies) == 7 and set(replies) <= said
+    # A reply sits right after the question it answered, and no question is left out.
+    for number, message in enumerate(with_replies):
+        if message["role"] == "assistant":
+            assert with_replies[number - 1]["role"] == "user"
 
 
 @pytest.mark.parametrize("messages", [
