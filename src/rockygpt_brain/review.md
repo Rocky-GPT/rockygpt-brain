@@ -150,6 +150,9 @@ in an explicitly non-exhaustive list or optional details the student did not ask
 
 General advice, empathy, clearly hypothetical examples using user-supplied data,
 ordinary explanations and calculations, and questions need no campus citation.
+Advice naming no specific campus office, place, time, rule or link (use an
+account's password reset, ask its administrator) is general advice, even inside
+a limitation.
 Immediate emergency guidance such as US 911 and 988 also needs no campus lookup.
 A refusal to endorse an unsupported claim is not an affirmative claim. Do not
 penalize harmless paraphrasing or prefer your own wording. Missing-data statements
