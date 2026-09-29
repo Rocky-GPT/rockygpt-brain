@@ -84,6 +84,7 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
     # Final assembly.
     if shown is not None:
         metrics["responseMode"] = "safety_net"
+        work.decided(written={"by": "code", "mode": "safety_net"})
         yield TurnResult(200, ChatReply(
             answer=f"{shown.answer}\n\n{ACCOUNT_LIMIT if own_account else NOT_YET}",
             status="partial",

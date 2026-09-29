@@ -21,13 +21,14 @@ from rockygpt_brain.contract import ProgressEvent
 def revision() -> str | None:
     """The commit this Brain runs. The deploy sets BRAIN_REVISION (Render sets
     RENDER_GIT_COMMIT); a Brain run from a checkout reads it from git, marked
-    "-dirty" when the checkout has changes."""
+    "-dirty" when the checkout has changes. Tags are left out: the repo's old
+    v1.0.0-pre-rewrite tag made the new Brain read as "pre-rewrite" (09-29)."""
     named = os.getenv("BRAIN_REVISION") or os.getenv("RENDER_GIT_COMMIT")
     if named:
         return named
     try:
         found = subprocess.run(  # noqa: S603
-            ["git", "describe", "--always", "--dirty", "--abbrev=12"],  # noqa: S607
+            ["git", "describe", "--always", "--dirty", "--abbrev=40", "--exclude=*"],  # noqa: S607
             cwd=Path(__file__).parent, capture_output=True, text=True, timeout=2, check=True)
     except (OSError, subprocess.SubprocessError):
         return None

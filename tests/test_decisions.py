@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from collections.abc import Iterator
 from typing import Any
 
@@ -258,6 +259,16 @@ def test_the_dev_ui_sees_which_brain_answered_and_who_did_the_work(
     revision.cache_clear()
 
 
+def test_a_brain_run_from_a_checkout_names_its_commit_without_tags(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("BRAIN_REVISION", raising=False)
+    monkeypatch.delenv("RENDER_GIT_COMMIT", raising=False)
+    revision.cache_clear()
+    found = revision()
+    revision.cache_clear()
+    assert found is not None and re.fullmatch(r"[0-9a-f]{40}(-dirty)?", found)
+
+
 def test_the_work_record_marks_safety_and_a_failed_jev_call(
         jev: ScriptedJev, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BRAIN_ENVIRONMENT", "development")
@@ -267,6 +278,7 @@ def test_the_work_record_marks_safety_and_a_failed_jev_call(
     work = frames(response)[-1]["body"]["diagnostics"]["work"]
     assert [step["stage"] for step in work["steps"]] == ["connecting", "understanding"]
     assert work["steps"][1]["safety"] is True
+    assert work["steps"][1]["written"] == {"by": "code", "mode": "safety_net"}
     assert work["calls"][0]["failed"] is True
     failed = ask(user("hi"), **{"x-rockygpt-diagnostics": "1"})
     assert failed.status_code == 503 and "work" in failed.json()["diagnostics"]
