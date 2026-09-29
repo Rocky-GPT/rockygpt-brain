@@ -86,3 +86,55 @@ Known gaps, for the milestones that use each reading:
   times. "G-414" read as a course. Naming the exact place or office needs the campus
   name list (milestone 5).
 - **Several separate asks:** 17 were unsure. Multi-Part (milestone 10) owns it.
+
+## Run 4: 2026-09-29, commit 1894ff7 (Jev picks every handler)
+
+Dan then changed the design. Jev now decides where every question goes, and code
+follows Jev's top pick even when it is under 0.90. GPT is a place Jev sends a question on
+purpose (the new `open_ended` question, or advice and chat), not where it lands when
+Jev is unsure. So from this run on, an item is **right** when the pick code followed is
+one the label accepts. **Under 0.90** counts picks Jev was less sure of. For the handler,
+that means any pick on the way to it. **Sure wrong** counts wrong picks Jev put at 0.90
+or more. The labels are unchanged. Run 3 measured a round of wording changes that Dan
+stopped, and it isn't used.
+
+130 questions, 0 skipped, $0.0169, Jev median 177 ms (max 436 ms). Measured once.
+
+| Item | Right | Wrong | Sure wrong | Under 0.90 |
+| --- | --- | --- | --- | --- |
+| What it asks | 128/130 | 2 | 0 | 37 |
+| Needs history | 109/115 | 6 | 1 | 43 |
+| Dangerous (Jev) | 130/130 | 0 | 0 | 12 |
+| Dangerous (Jev or phrases) | 130/130 | 0 | 0 | 10 |
+| Private, live-only or unsupported | 122/130 | 8 | 0 | 29 |
+| Campus area | 125/130 | 5 | 0 | 39 |
+| Kind of thing named | 120/130 | 10 | 1 | 70 |
+| Which handler | 122/130 | 8 | 0 | 64 |
+| Several separate asks | 128/128 | 0 | 0 | 15 |
+
+GPT took 18 questions. Most were greetings ("hey rocky", "huh", "nvm"), comparisons
+("which one is cheapest") and explanations ("then why are you giving me a sunday
+shuttle").
+
+Known gaps, left for later milestones rather than tuned:
+
+- **Which handler:** 8 were wrong, and Jev was under 0.90 on all 8.
+  - "What day is it today?" and "wait what day is it today" went to can't answer,
+    because answering was read as a live look (0.50, 0.61). Code knows the date, so the
+    label is exact.
+  - "which professor is the easiest for computer science" and "which professor gives
+    the most A's" went to GPT, because answering was read as campus information. The
+    label is can't answer (a guess or an opinion).
+  - "is my professor going to cancel class tomorrow" went to exact. The label is can't
+    answer (a guess).
+  - "i locked myself out of my dorm at 2am what do i do" and "what happens if i miss
+    that deadline" went to GPT through `open_ended`. The label is document or policy.
+  - "write me a text saying i can't make it to class" went to the account limit (0.51).
+    The label is GPT or can't answer.
+- **Low confidence:** 64 of 130 handler picks had at least one reading under 0.90 on
+  the way. Each one is listed in `jev.decided.lowConfidence` in the export.
+- **Needs history:** 6 were wrong, and one was sure ("is there an elevator nearby" read
+  as standing alone, 0.93). Conversation State (milestone 7) should measure it on real
+  conversations with RockyGPT's answers in them.
+- **Kind of thing named:** 10 were wrong, and one was sure ("G-414" read as a course,
+  0.90). The campus name list (milestone 5) should settle names.
