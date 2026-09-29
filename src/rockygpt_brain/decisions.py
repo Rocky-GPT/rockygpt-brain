@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from rockygpt_brain.context import Context
-from rockygpt_brain.jev import Answer, Asked, Jev, Pick, Question, Yes, choice, noul
+from rockygpt_brain.jev import Answer, Asked, Jev, Pick, Question, Timed, Yes, choice, noul
 from rockygpt_brain.safety import Danger
 
 # Sure of yes at or above this (Typesafe's own guidance for acting on an answer), and sure
@@ -127,9 +127,10 @@ def decide(context: Context, answers: dict[str, Answer]) -> Decisions:
     )
 
 
-def ask_jev(jev: Jev, context: Context, request_id: str) -> tuple[Decisions, Asked]:
+def ask_jev(jev: Jev, context: Context, request_id: str,
+            timed: Timed | None = None) -> tuple[Decisions, Asked]:
     """One Jev call for every question. Raises JevError or SpendingError."""
-    asked = jev.ask(request_id, state(context), QUESTIONS, context.now)
+    asked = jev.ask(request_id, state(context), QUESTIONS, context.now, timed)
     return decide(context, asked.answers), asked
 
 
