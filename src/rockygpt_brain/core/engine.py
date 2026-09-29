@@ -471,7 +471,7 @@ def answer_turn(
         campus_clock += (
             f"The client sent only the latest {len(messages)} messages; {omitted_messages} "
             "earlier messages are not shown. Don't say what was or wasn't said before them; "
-            "say you can't see that part of the conversation.\n"
+            "say you can't see that part of the conversation, in a paragraph of its own.\n"
         )
 
     routing_calls = 0
