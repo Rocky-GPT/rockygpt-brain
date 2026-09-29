@@ -127,6 +127,10 @@ danger phrases, then asks Jev what the question asks ([docs/jev.md](jev.md)).
   `accounting_unavailable` or `accounting_paused`. Danger help still comes first.
 - A bug in the Brain gets 500 `internal_error` with the emergency help, and the log
   says where it happened.
-- In development, `x-rockygpt-diagnostics: 1` adds `metrics` to answers and failures:
-  `responseMode`, `routingCalls`, and `jev` (Jev's readings, cost and time, or why it
-  was skipped). Never the student's words.
+- In development, `x-rockygpt-diagnostics: 1` adds two things to answers and failures.
+  Neither holds the student's words.
+  - `metrics`: `responseMode`, `routingCalls`, and `jev`, which has Jev's readings, cost
+    and time (Typesafe's part only), or why Jev was skipped.
+  - `diagnostics`: `brain.revision` (the commit), `startedAt`, and `work`, the step
+    timeline the dev UI reads. `work` holds when each step began, each Jev call with its
+    step, and `endMs`.
