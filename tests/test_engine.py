@@ -2165,3 +2165,30 @@ def test_a_refusal_written_as_guidance_is_labelled_unavailable() -> None:
                  "evidence_ids": []}]}))]
     assert run_turn([ChatMessage(role="user", content="Can a squirrel enroll?")],
                     client=client, data=Mock(), model="test", now=NOW)["status"] == "answered"
+
+
+def test_numbered_citation_markers_do_not_withhold_an_answer() -> None:
+    # Q10 (09-29): "... exceptions may be considered. [1][2]" read as a markdown link, and a
+    # correct answer was withheld.
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(search("withdraw")),
+        answer("The office is D-224. [1][2]", "campus_fact", [RECORD["id"]]),
+        review(),
+    ]
+    data.search.return_value = {"status": "ok", "dataset_version": "release-1", "records": [RECORD]}
+    result = run_turn([ChatMessage(role="user", content="Where is the registrar?")],
+                      client=client, data=data, model="test", now=NOW)
+    assert result["status"] == "answered"
+    assert result["answer"].startswith("The office is D-224.")
+    assert "[1]" not in result["answer"]
+    # A real markdown link is still refused.
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(search("withdraw")),
+        answer("See [the page](https://example.com).", "campus_fact", [RECORD["id"]]),
+    ]
+    data.search.return_value = {"status": "ok", "dataset_version": "release-1", "records": [RECORD]}
+    result = run_turn([ChatMessage(role="user", content="Where is the registrar?")],
+                      client=client, data=data, model="test", now=NOW)
+    assert result["metrics"]["validationFailures"] == ["answer_text"]

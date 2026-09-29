@@ -233,6 +233,19 @@ def declines(candidate: Answer) -> bool:
                         for part in candidate.parts))
 
 
+# "[1][2]" after a sentence is how print cites a source (Q10, 09-29): citations come from
+# evidence_ids, and the render check read the bracket pair as a markdown link, which withheld
+# a correct answer.
+FOOTNOTES = re.compile(r"[ \t]*\[\d{1,2}(?:\s*,\s*\d{1,2})*\]")
+
+
+def without_footnotes(answer: Answer) -> Answer:
+    """The answer without bare numbered citation markers."""
+    return answer.model_copy(update={"parts": [
+        part.model_copy(update={"text": FOOTNOTES.sub("", part.text).strip() or part.text})
+        for part in answer.parts]})
+
+
 def with_prefix(candidate: Answer, prefix: Answer | None) -> Answer:
     """The server's exact facts come first; the combined status is the weaker one."""
     if prefix is None:
@@ -803,9 +816,9 @@ def answer_turn(
             drafted: dict[str, Any] = {"draftCall": draft_calls}
             drafts.append(drafted)
             try:
-                candidate = Answer.model_validate(
+                candidate = without_footnotes(Answer.model_validate(
                     expand_argument_references(json.loads(response.output_text), original_ids)
-                )
+                ))
                 drafted["answer"] = candidate.model_dump(mode="json")
                 result = render_answer(with_prefix(candidate, prefix), evidence)
             except (ValidationError, InvalidAnswer, json.JSONDecodeError) as error:
