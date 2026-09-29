@@ -112,7 +112,9 @@ These come back in later milestones:
 ## What the Brain does so far
 
 Only `/health` and `/v1/chat` exist. Each turn reads the conversation once, checks the
-danger phrases, then asks Jev what the question asks ([docs/jev.md](jev.md)).
+danger phrases, then asks Jev what the question asks ([docs/jev.md](jev.md)). Code
+names the handler a later milestone will build for it; until then, the turn ends in one
+of these ways:
 
 - A question that names danger ("my friend isn't breathing", "I want to hurt myself"),
   in the danger phrases or by Jev's reading, gets HTTP 200 with status `partial`: the
@@ -130,8 +132,9 @@ danger phrases, then asks Jev what the question asks ([docs/jev.md](jev.md)).
 - In development, `x-rockygpt-diagnostics: 1` adds two things to answers and failures.
   Neither holds the student's words.
   - `metrics`: `responseMode`, `routingCalls`, `dangerPhrase` (the danger the phrase
-    list heard, if any), and `jev`. `jev` has Jev's readings, what code `decided` from
-    them, the cost and the time (Typesafe's part only), or why Jev was skipped.
+    list heard, if any), `handler` (which later handler should take the request), and
+    `jev`. `jev` has Jev's readings, what code `decided` from them, the cost and the
+    time (Typesafe's part only), or why Jev was skipped.
   - `diagnostics`: `brain.revision` (the commit), `startedAt`, and `work`, the step
     timeline the dev UI reads. `work` holds when each step began, each Jev call with its
     step, and `endMs`.

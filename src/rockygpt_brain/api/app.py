@@ -86,6 +86,7 @@ def log_turn(request_id: str, turn: TurnResult, started: float) -> None:
         "httpStatus": turn.status,
         "outcome": body.status if isinstance(body, ChatReply) else body.reason,
         "responseMode": turn.metrics.get("responseMode"),
+        "handler": turn.metrics.get("handler"),
         "safety": turn.safety is not None,
         "jevSkipped": jev.get("skipped"),
         "jevMs": jev.get("elapsedMs"),
