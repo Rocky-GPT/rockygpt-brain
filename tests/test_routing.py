@@ -195,6 +195,20 @@ def test_direct_profile_preserves_review_and_allows_more_retrieval() -> None:
     assert record["url"] in first["input"][3]["output"]
 
 
+def test_a_departure_question_fetches_the_next_days_timetable_too() -> None:
+    # "When is the last shuttle?" at 11:10 PM (09-28) had nothing after the day's last to
+    # offer: only that day's timetable was fetched.
+    request = messages("when is the last shuttle")
+    payload, day = routing_payload(request, [], NOW)
+    answers = answers_for(payload, route="search", kind="shuttle", entity="none", date="none")
+    decision = interpret(answers, [], day, request, NOW.date().isoformat())
+    assert decision.template == "departures"
+    assert decision.arguments is not None
+    assert decision.arguments["collection"] == "shuttle"
+    assert decision.arguments["date_from"] == NOW.date().isoformat()
+    assert decision.arguments["date_to"] == (NOW.date() + timedelta(days=1)).isoformat()
+
+
 @pytest.mark.parametrize("probabilities,valid", [
     # Rounded to hundredths, six options can sum to 0.99 (09-28) or 1.01.
     ({"none": 0.54, "other": 0.32, "dinner": 0.13}, True),

@@ -149,7 +149,8 @@ def current_records(output: dict[str, Any], day: date) -> list[dict[str, Any]]:
             or (record.get("valid_until") and day > date.fromisoformat(record["valid_until"]))
         ):
             raise ValueError("Record applicability is unverified")
-        identity = record["entity_id"]
+        # A trip runs under one identity every day it runs; each day is its own record.
+        identity = json.dumps([record["entity_id"], record["fields"].get("service_date")])
         value = json.dumps(record["fields"], sort_keys=True, ensure_ascii=False)
         if identity in identities and identities[identity] != value:
             raise ValueError("Conflicting field values")
@@ -438,10 +439,24 @@ def departure_parts(
                   if item["stop"] == destination}
         if not groups:
             raise ValueError("No route reaches the named stop")
+    asked = str(query.date_from)
+
+    def chosen_for(group: dict[str, Any]) -> dict[str, Any] | None:
+        # The first and last shuttle are the asked day's, whatever the time now; the next
+        # is the first one after now, even on the next day the lookup fetched.
+        day = next((item for item in group.get("days", []) if item["service_date"] == asked),
+                   None)
+        chosen: dict[str, Any] | None = (
+            group["next"] if selection == "next" else day[selection] if day else None)
+        return chosen
+
+    def moment(chosen: dict[str, Any]) -> float:
+        return datetime.fromisoformat(chosen["departure_at"]).timestamp()
+
     found = sorted(
-        ((name, group[selection]) for name, group in groups.items()
-         if group[selection] is not None),
-        key=lambda item: datetime.fromisoformat(item[1]["departure_at"]).timestamp(),
+        ((name, chosen) for name, group in groups.items()
+         if (chosen := chosen_for(group)) is not None),
+        key=lambda item: moment(item[1]),
     )
     if destination is not None and found:
         # "The first shuttle to Garden State Plaza" is one trip, whichever route runs it.
@@ -450,35 +465,62 @@ def departure_parts(
     def clock(value: str) -> str:
         return datetime.fromisoformat(value).strftime("%I:%M %p").lstrip("0")
 
+    def left(chosen: dict[str, Any]) -> bool:
+        return moment(chosen) <= now.timestamp()
+
     def trip(name: str, chosen: dict[str, Any]) -> str:
         arrival = (f", arriving at {clock(chosen['arrives_at'])}"
                    if destination is not None else "")
-        return f"{plain(name)} at {clock(chosen['departure_at'])}{arrival}"
+        gone = " (already left)" if selection == "last" and left(chosen) else ""
+        return f"{plain(name)} at {clock(chosen['departure_at'])}{arrival}{gone}"
+
+    def cited(*trips: dict[str, Any]) -> list[dict[str, Any]]:
+        ids = {chosen["evidence_id"] for chosen in trips}
+        return [record for record in records if record["id"] in ids]
 
     reaching = f" that reaches {plain(destination)}" if destination is not None else ""
     parts: list[AnswerPart] = []
-    selected = [r for _, chosen in found for r in records if r["id"] == chosen["evidence_id"]]
+    selected = cited(*(chosen for _, chosen in found))
+    dates = {datetime.fromisoformat(chosen["departure_at"]).date() for _, chosen in found}
     if len(found) == 1 and destination is None:
         name, chosen = found[0]
         departure = datetime.fromisoformat(chosen["departure_at"])
         parts.append(fact(
+            f"The {selection} published departure from campus on {plain(name)} on "
+            f"{departure.date()} was {clock(chosen['departure_at'])} (America/New_York); it "
+            "has already left."
+            if selection == "last" and left(chosen) else
             f"The {selection} published departure from campus on {plain(name)} is "
             f"{clock(chosen['departure_at'])} on {departure.date()} (America/New_York).",
             selected,
         ))
     elif len(found) == 1:
-        departure = datetime.fromisoformat(found[0][1]["departure_at"])
+        name, chosen = found[0]
+        departure = datetime.fromisoformat(chosen["departure_at"])
         parts.append(fact(
             f"The {selection} published departure from campus{reaching} on {departure.date()} "
-            f"(America/New_York) is {trip(*found[0])}.",
+            f"(America/New_York) was {trip(name, chosen).removesuffix(' (already left)')}; "
+            "it has already left."
+            if selection == "last" and left(chosen) else
+            f"The {selection} published departure from campus{reaching} on {departure.date()} "
+            f"(America/New_York) is {trip(name, chosen)}.",
+            selected,
+        ))
+    elif found and len(dates) == 1:
+        parts.append(fact(
+            f"The {selection} published departures from campus{reaching} on "
+            f"{next(iter(dates))} (America/New_York) are: "
+            + "; ".join(trip(*item) for item in found)
+            + ".",
             selected,
         ))
     elif found:
+        # The next shuttle on one route may be tomorrow's first while another runs tonight.
         parts.append(fact(
-            f"The {selection} published departures from campus{reaching} on "
-            f"{summary['date_from']} (America/New_York) are: "
-            + "; ".join(trip(*item) for item in found)
-            + ".",
+            f"The {selection} published departures from campus{reaching} (America/New_York) "
+            "are: " + "; ".join(
+                f"{trip(name, chosen)} on {datetime.fromisoformat(chosen['departure_at']).date()}"
+                for name, chosen in found) + ".",
             selected,
         ))
     span = (
@@ -486,7 +528,32 @@ def departure_parts(
         if summary["date_from"] == summary["date_to"]
         else f"within {summary['date_from']} to {summary['date_to']}"
     )
-    missing = ([name for name, group in groups.items() if group[selection] is None]
+    if selection == "last":
+        # A day's last shuttle that has already left is answered with the next one: asked
+        # at 11:10 PM (09-28), "when is the last shuttle?" said only that no later
+        # departure was found, route by route.
+        for name, chosen in found:
+            if not left(chosen):
+                continue
+            later = groups[name]["next"]
+            route_named = f" on {plain(name)}" if destination is None else ""
+            if later is None:
+                parts.append(limitation(
+                    f"I couldn't find a later scheduled departure from campus{reaching}"
+                    f"{route_named} {span}. This does not establish that service has ended "
+                    "after that."
+                ))
+                continue
+            departure = datetime.fromisoformat(later["departure_at"])
+            arrival = (f", arriving at {clock(later['arrives_at'])}"
+                       if destination is not None else "")
+            parts.append(fact(
+                f"The next published departure from campus{reaching}{route_named} is "
+                f"{clock(later['departure_at'])} on {departure.date()} (America/New_York)"
+                f"{arrival}.",
+                cited(later),
+            ))
+    missing = ([name for name, group in groups.items() if chosen_for(group) is None]
                if destination is None else [] if found else [""])
     for name in missing:
         route_named = f" on {plain(name)}" if name else ""
@@ -527,7 +594,10 @@ def exact_search(
             if canonical != prefix and not canonical.startswith(prefix + " "):
                 return None
         day, text = request_date(words(quote), now)
-        if query.date_from != day or (query.date_to and query.date_to != day):
+        # A departures lookup also fetches the next day, for the shuttle after the day's
+        # last one; the answer is still about the day asked.
+        through = {day, day + timedelta(days=1)} if query.collection == "shuttle" else {day}
+        if query.date_from != day or (query.date_to and query.date_to not in through):
             return None
         records = current_records(output, day)
         if any(r.get("collection") != query.collection for r in records):
