@@ -49,7 +49,10 @@ def test_the_check_scores_each_item_and_counts_the_cost() -> None:
     assert registrar["question"] == "Where is the Registrar?"
     assert set(registrar["verdicts"].values()) <= {"right", None}
     assert registrar["decided"]["handler"] == "exact"
+    assert registrar["handler_path"][-1] == "route" and registrar["low_confidence"] == {}
     shuttle = report["results"][0]["verdicts"]
     assert shuttle["subject"] == "wrong" and shuttle["asks"] == "right"
-    assert report["summary"]["subject"]["scored"] == 13
+    subject = report["summary"]["subject"]
+    assert subject["scored"] == 13 and subject["low"] == 0
+    assert subject["sure_wrong"] == subject["wrong"] > 0
     assert check.misses(report)
