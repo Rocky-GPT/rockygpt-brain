@@ -117,6 +117,11 @@ ErrorCode = Literal[
     "turn_cost_limit",
     "model_call_limit",
     "request_cancelled",
+    # The spending ledger can't be reached, or a person paused spending to take a look.
+    "accounting_unavailable",
+    "accounting_paused",
+    # A bug in the Brain. The turn log has the details.
+    "internal_error",
 ]
 
 # Worth the student pressing Try again right away.
@@ -142,6 +147,8 @@ class FailureReply(StrictModel):
     error: ErrorBody
     reason: ErrorCode
     requestId: str
+    # Development only, as on ChatReply.
+    metrics: dict[str, Any] | None = None
     diagnostics: dict[str, Any] | None = None
 
 

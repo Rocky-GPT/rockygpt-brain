@@ -51,6 +51,11 @@ FAILURES: dict[ErrorCode, Failure] = {
         422, "This request exceeds RockyGPT's per-answer processing allowance. Please ask a "
         "more focused question."),
     "request_cancelled": Failure(499, "The request was cancelled."),
+    "accounting_unavailable": Failure(
+        503, "RockyGPT is unavailable until its service configuration is restored."),
+    "accounting_paused": Failure(
+        503, "RockyGPT is unavailable until its service configuration is restored."),
+    "internal_error": Failure(500, TRY_AGAIN),
 }
 
 

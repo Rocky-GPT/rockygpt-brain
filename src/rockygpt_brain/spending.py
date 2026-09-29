@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from threading import Lock
 from time import monotonic
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -235,6 +235,16 @@ def batch(conn: Connection, statements: list[Statement]) -> list[list[dict[str, 
                 return results
 
 
+class Ledger(Protocol):
+    def hold(self, request_id: str, category: Category, amount: int,
+             metadata: dict[str, Any], now: datetime) -> str: ...
+
+    def settle(self, operation: str, cost: int, usage: dict[str, int], response_id: str,
+               model: str, elapsed_ms: int, now: datetime) -> None: ...
+
+    def uncertain(self, operation: str, code: str, elapsed_ms: int) -> None: ...
+
+
 @dataclass
 class Receipt:
     """What a paid call reports back: its cost once known, or that nothing was charged."""
@@ -246,7 +256,7 @@ class Receipt:
 
 
 @contextmanager
-def paid_call(ledger: PostgresLedger, request_id: str, category: Category, amount: int,
+def paid_call(ledger: Ledger, request_id: str, category: Category, amount: int,
               now: datetime, metadata: dict[str, Any] | None = None) -> Iterator[Receipt]:
     """Holds `amount` before the call and settles after. A call that fails before its
     cost is known stays held as uncertain, counted against this month."""
@@ -261,7 +271,8 @@ def paid_call(ledger: PostgresLedger, request_id: str, category: Category, amoun
         yield receipt
     except BaseException as error:
         if receipt.cost is None:
-            code = error.code if isinstance(error, SpendingError) else type(error).__name__
+            named = getattr(error, "code", None)  # SpendingError and JevError name theirs.
+            code = named if isinstance(named, str) else type(error).__name__
             ledger.uncertain(operation, code[:100], elapsed())
         else:
             ledger.settle(operation, receipt.cost, receipt.usage, receipt.response_id,

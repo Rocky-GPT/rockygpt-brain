@@ -111,10 +111,22 @@ These come back in later milestones:
 
 ## What the Brain does so far
 
-Only `/health` and `/v1/chat` exist.
+Only `/health` and `/v1/chat` exist. Each turn reads the conversation once, checks the
+danger phrases, then asks Jev what the question asks ([docs/jev.md](jev.md)).
 
-- A question that names danger ("my friend isn't breathing", "I want to hurt myself")
-  gets HTTP 200 with status `partial`: the safety help first, then a line saying the new
-  Brain can't answer the rest yet. A streaming app gets the safety help in a `progress`
-  event right away.
+- A question that names danger ("my friend isn't breathing", "I want to hurt myself"),
+  in the danger phrases or by Jev's reading, gets HTTP 200 with status `partial`: the
+  safety help first, then a line saying the new Brain can't answer the rest yet. A
+  streaming app gets the safety help in a `progress` event right away.
+- A request only the student's own account could answer or do ("register me for CMPS
+  147", "what are my grades") gets HTTP 200 with status `unavailable`: what RockyGPT
+  can't reach, written by code.
 - Every other question gets HTTP 503 with code `not_ready` and the emergency help.
+- When the spending allowance is used up, the turn gets 429 `budget_exhausted` with
+  `resetAt`. When the ledger can't be reached, or a person paused spending, it gets 503
+  `accounting_unavailable` or `accounting_paused`. Danger help still comes first.
+- A bug in the Brain gets 500 `internal_error` with the emergency help, and the log
+  says where it happened.
+- In development, `x-rockygpt-diagnostics: 1` adds `metrics` to answers and failures:
+  `responseMode`, `routingCalls`, and `jev` (Jev's readings, cost and time, or why it
+  was skipped). Never the student's words.

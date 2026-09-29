@@ -53,8 +53,9 @@ def test_streaming_sends_progress_then_the_same_result() -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     sent = events(response.text)
-    assert [name for name, _ in sent] == ["progress", "result"]
-    assert ProgressEvent.model_validate(sent[0][1]).stage == "connecting"
+    assert [name for name, _ in sent] == ["progress", "progress", "result"]
+    assert [ProgressEvent.model_validate(frame).stage for _, frame in sent[:2]] == [
+        "connecting", "understanding"]
     result = ResultEvent.model_validate(sent[-1][1])
     assert result.status == 503
     assert isinstance(result.body, FailureReply)
