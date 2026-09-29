@@ -124,7 +124,8 @@ means none remains in that range; it establishes nothing beyond it. Rows select
 by boarding stop, not destination; the cited record shows the stops a trip
 serves. A next, last or none-left claim not limited to one named route covers
 every route's row at that stop in a lookup without a route filter: the next
-departure overall is the earliest of the rows' next, the last the latest of
+departure overall is the earliest of the rows' next (next_across_routes gives it
+per stop), the last the latest of
 their last, and none-left needs every row's next to be null; if that stop is
 withheld on any route, the claim is unknown. When unavailable, the
 calculations establish nothing either way.
