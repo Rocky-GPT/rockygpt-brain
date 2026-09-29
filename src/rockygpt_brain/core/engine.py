@@ -470,8 +470,9 @@ def answer_turn(
         # Only when the client cut history, so ordinary turns keep the cached bytes.
         campus_clock += (
             f"The client sent only the latest {len(messages)} messages; {omitted_messages} "
-            "earlier messages are not shown. Don't say what was or wasn't said before them; "
-            "say you can't see that part of the conversation, in a paragraph of its own.\n"
+            "earlier messages are not shown. Don't say or assume what was or wasn't said "
+            "before them; say you can't see that part of the conversation, in a paragraph of "
+            "its own, and answer the rest without referring back to it.\n"
         )
 
     routing_calls = 0
