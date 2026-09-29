@@ -70,6 +70,29 @@ def leftovers(text: str) -> bool:
     return bool(set(words(text).split()) - GRAMMAR)
 
 
+# A command or a question, not a relative clause: "where the Registrar is" asks
+# something new, "which goes to the Plaza" and "where it stops" narrow the item before.
+NEW_REQUEST = (
+    r"(?:(?:whats?|tell|give|show|list)\b|(?:where|who|which|how)\s+(?:is|are|do|does"
+    r"|can|should|to|the|my|much|many|long|late|far)\b)"
+)
+
+
+def starts_part(before: str, quote: str) -> bool:
+    if not before or re.search(r"(?:[?.;]|\band)$", before, re.I):
+        return True
+    if not before.endswith(",") or not re.match(NEW_REQUEST, quote, re.I):
+        return False
+    # After a comma only in a list of requests: "After 5 PM, tell me the next shuttle"
+    # and "Not counting Route 17, what's ..." qualify the quote, so the item before
+    # the comma must itself be a request that starts a part (09-29).
+    head = before[:-1]
+    cut = max(head.rfind(mark) for mark in "?.;,")
+    item = re.sub(r"^and\s+", "", head[cut + 1 :].strip(), flags=re.I)
+    return bool(re.match(NEW_REQUEST, item, re.I)) and starts_part(
+        head[: cut + 1].strip(), item)
+
+
 def independent_quote(quote: str, request: str) -> bool:
     """Do not exempt a phrase cut out of a qualified or negated request."""
     positions = list(re.finditer(re.escape(quote), request))
@@ -77,9 +100,14 @@ def independent_quote(quote: str, request: str) -> bool:
         return False
     match = positions[0]
     before, after = request[: match.start()].strip(), request[match.end() :].strip()
-    starts_part = not before or bool(re.search(r"(?:[?.;]|\band)$", before, re.I))
-    ends_part = not after or bool(re.match(r"^[?.;]|^and\b", after, re.I))
-    return starts_part and ends_part
+    # A comma separates list items only when the next item is a new request: "Tell me
+    # the next shuttle, where the Registrar is, and ..." went to GPT (09-29). A comma
+    # before a qualifier ("..., if it's running", "..., after 5 PM") still joins them.
+    ends_part = not after or bool(
+        re.match(r"^[?.;]|^and\b", after, re.I)
+        or re.match(rf"^,\s*(?:and\s+)?{NEW_REQUEST}", after, re.I)
+    )
+    return ends_part and starts_part(before, quote)
 
 
 def request_date(text: str, now: datetime) -> tuple[date, str]:

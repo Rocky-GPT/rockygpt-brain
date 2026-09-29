@@ -11,7 +11,12 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from rockygpt_brain.campus.formats import events_answer, exact_search, plain_event_list
+from rockygpt_brain.campus.formats import (
+    combine_exact,
+    events_answer,
+    exact_search,
+    plain_event_list,
+)
 from rockygpt_brain.campus.profile_answers import convener_answer, no_menu_answer
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.routing import (
@@ -353,6 +358,26 @@ def test_no_later_trip_to_a_stop_is_said_once() -> None:
     assert [part.text for part in piece.answer.parts] == [
         "I couldn't find a later scheduled departure from campus that reaches Interstate "
         f"Plaza on {NOW.date()}. This does not establish that service has ended after that."]
+
+
+def test_a_comma_listed_shuttle_part_is_written_by_code() -> None:
+    # Q30 quoted "Tell me the next shuttle", but the comma after it kept the part from
+    # code and sent it to GPT and review (09-29).
+    question = ("Tell me the next shuttle, where the Registrar is, and what I should do if "
+                "someone is unconscious.")
+    messages = [ChatMessage(role="user", content=question)]
+    query = SearchQuery(collection="shuttle", date_from=NOW.date(),
+                        date_to=NOW.date() + timedelta(days=1), limit=100)
+    late = NOW.replace(hour=23, minute=10)
+    piece = exact_search("Tell me the next shuttle", messages, query, two_days(), late)
+    assert piece is not None
+    first = (f"The next published departures from campus on {NOW.date() + timedelta(days=1)} "
+             "(America/New_York) are: Roadrunner at 7:00 AM; Route 17 at 8:00 AM.")
+    assert piece.answer.parts[0].text == first
+    # The rest of the request is still left for the written answer.
+    assert combine_exact(messages, [piece], fallback=False) is None
+    prefix = combine_exact(messages, [piece], fallback=False, allow_remaining=True)
+    assert prefix is not None and prefix.parts[0].text == first
 
 
 def test_a_search_for_a_job_title_ranks_the_person_who_holds_it_first() -> None:
