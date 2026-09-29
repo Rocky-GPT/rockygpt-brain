@@ -188,17 +188,28 @@ def test_calendar_filters_never_mix_terms_or_sessions(data: CampusData) -> None:
     )
 
 
-OVERSIZED_DELIVERY = (
-    "Since c6fe234, bounded delivery omits the oversized evidence (0 of 50 menu and 0 of 4 "
-    "hours records) and still makes the answer call, where this case expects "
-    "retrieval_context_limit before a second paid call. Decide which behavior is intended."
-)
+def received_records(
+    raw: dict[str, Any], originals: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """The originals a tool reply delivered, matched in rank order by everything but id."""
+
+    def content(record: dict[str, Any]) -> dict[str, Any]:
+        return {key: value for key, value in record.items() if key != "id"}
+
+    received = iter(expand_records(raw["evidence_groups"]))
+    matched: list[dict[str, Any]] = []
+    pending = next(received, None)
+    for original in originals:
+        if pending is not None and content(original) == content(pending):
+            matched.append(original)
+            pending = next(received, None)
+    assert pending is None, "every delivered record is an original, in rank order"
+    return matched
 
 
-@pytest.mark.parametrize(
-    "oversized",
-    [False, pytest.param(True, marks=pytest.mark.xfail(strict=True, reason=OVERSIZED_DELIVERY))],
-)
+# Since c6fe234 an oversized first record left all 50 dinner items and all 4 hours rows
+# undelivered, though the rest would fit (09-29). It is now skipped and counted alone.
+@pytest.mark.parametrize("oversized", [False, True])
 def test_short_dinner_chat_with_fifty_menu_records_and_hours(
     frozen: dict[str, Any],
     data: CampusData,
@@ -274,19 +285,26 @@ def test_short_dinner_chat_with_fifty_menu_records_and_hours(
                 for item in kwargs["input"]
                 if item.get("type") == "function_call_output"
             ]
-            sent["menu"] = menu[: len(expand_records(raw[0]["evidence_groups"]))]
+            # Built from what was received, not from an assumed prefix.
+            sent["menu"] = received_records(raw[0], menu)
+            sent["hours"] = received_records(raw[1], hours)
             assert sent["menu"], "some dinner evidence must reach the model"
+            # The oversized first record of each search is skipped; the rest that fit
+            # follow in rank order.
+            skipped = int(oversized)
+            for records, originals in ((sent["menu"], menu), (sent["hours"], hours)):
+                assert records == originals[skipped : skipped + len(records)]
             sent["aliases"] = {
                 alias: record_id
                 for record_id, alias in reference_aliases(
-                    [r["id"] for r in sent["menu"] + hours]
+                    [r["id"] for r in sent["menu"] + sent["hours"]]
                 ).items()
             }
             outputs = [map_references(output, sent["aliases"]) for output in raw]
             for result, original, records in zip(
-                outputs, expected, (sent["menu"], hours), strict=True
+                outputs, expected, (sent["menu"], sent["hours"]), strict=True
             ):
-                # Delivered records are an unaltered prefix; omissions are explicit.
+                # Delivered records are unaltered; omissions are explicit.
                 assert expand_records(result.pop("evidence_groups")) == records
                 metadata = {k: v for k, v in original.items() if k != "records"}
                 if len(records) < len(original["records"]):
@@ -296,7 +314,14 @@ def test_short_dinner_chat_with_fifty_menu_records_and_hours(
                         retrieved_count=len(original["records"]),
                         omitted_count=len(original["records"]) - len(records),
                     )
+                if oversized:
+                    metadata["oversized_omitted_count"] = 1
                 assert result == metadata
+            # Birch Tree Inn is the first hours row, so the oversized case withholds it
+            # and the model speaks only to an hours row it received.
+            sent["hour"] = next(
+                (r for r in sent["hours"] if r["title"] == "Birch Tree Inn"), sent["hours"][0]
+            )
             sent["parts"] = [
                 {
                     "kind": "campus_fact",
@@ -305,8 +330,10 @@ def test_short_dinner_chat_with_fifty_menu_records_and_hours(
                 },
                 {
                     "kind": "campus_fact",
-                    "text": "Birch Tree Inn lists dinner from 5 to 8 PM.",
-                    "evidence_ids": [r["id"] for r in hours if r["title"] == "Birch Tree Inn"],
+                    "text": "Birch Tree Inn lists dinner from 5 to 8 PM."
+                    if sent["hour"]["title"] == "Birch Tree Inn"
+                    else f"{sent['hour']['title']} lists its hours for today.",
+                    "evidence_ids": [sent["hour"]["id"]],
                 },
                 {
                     "kind": "limitation",
@@ -320,7 +347,7 @@ def test_short_dinner_chat_with_fifty_menu_records_and_hours(
             assert len(calls) == 3
             review_input = map_references(json.loads(kwargs["input"]), sent["aliases"])
             assert review_input["conversation"] == messages
-            assert expand_records(review_input["evidence"]) == sent["menu"] + hours
+            assert expand_records(review_input["evidence"]) == sent["menu"] + sent["hours"]
             text = json.dumps(
                 {
                     "parts": [
@@ -381,20 +408,25 @@ def test_short_dinner_chat_with_fifty_menu_records_and_hours(
     operations = ledger.operations()
     assert all(op["state"] == "settled" for op in operations)
     assert all(op["request_id"] == payload["requestId"] for op in operations)
+    assert response.status_code == 200
+    assert payload.get("reason") != "retrieval_context_limit"
+    assert payload["status"] == "partial"
+    assert all(r["title"] in payload["answer"] for r in sent["menu"])
+    assert len(payload["citations"]) == len(sent["menu"]) + 1  # Plus one hours row.
+    assert {citation["id"] for citation in payload["citations"]} == {
+        r["id"] for r in [*sent["menu"], sent["hour"]]
+    }
+    assert payload["metrics"]["usageComplete"]
+    assert payload["metrics"]["reviewCalls"] == 1
+    assert len(calls) == len(operations) == 3
     if oversized:
-        assert response.status_code == 422
-        assert payload["reason"] == "retrieval_context_limit"
-        assert "conversation" not in payload["error"]["message"].lower()
-        assert payload["error"]["retryable"] is False
-        assert len(calls) == len(operations) == 1  # No reservation or SDK call for overflow.
-    else:
-        assert response.status_code == 200
-        assert payload["status"] == "partial"
-        assert all(r["title"] in payload["answer"] for r in sent["menu"])
-        assert len(payload["citations"]) == len(sent["menu"]) + 1  # Plus Birch Tree Inn hours.
-        assert payload["metrics"]["usageComplete"]
-        assert payload["metrics"]["reviewCalls"] == 1
-        assert len(calls) == len(operations) == 3
+        # The oversized records reached neither the model nor the answer's citations.
+        cited = {citation["id"] for citation in payload["citations"]}
+        for records, originals in ((sent["menu"], menu), (sent["hours"], hours)):
+            assert originals[0]["id"] not in {r["id"] for r in records} | cited
+        # Everything else fits, so nothing but the oversized record is left out.
+        assert (len(sent["menu"]), len(sent["hours"])) == (len(menu) - 1, len(hours) - 1)
+        assert payload["metrics"]["contextLimitedResults"] is True
 
 
 def provider_response(entity: str = "Registrar", fields: list[str] | None = None) -> ModelResponse:
