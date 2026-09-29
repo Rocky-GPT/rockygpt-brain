@@ -2102,3 +2102,22 @@ def test_an_assumed_place_keeps_its_condition_when_the_student_refers_back() -> 
     # Kept by GPT, the condition isn't added again.
     kept = turn("If you mean Birch Tree Inn, yes: it serves breakfast until 10:30 a.m.")
     assert "This assumes" not in kept["answer"] and kept["status"] == "answered"
+
+
+def test_a_general_refusal_is_not_held_for_a_check_that_has_nothing_to_verify() -> None:
+    # 09-29: reviewed, "I can't access or reveal admin passwords" was rejected for lacking
+    # evidence that the assistant can't see passwords, and the student got "I couldn't
+    # verify a reliable answer" instead of the refusal.
+    client = Mock()
+    client.create.side_effect = [SimpleNamespace(
+        status="completed", model="test-model", output=[], output_text=json.dumps({
+            "status": "answered", "general_scope": "stable_explanation", "parts": [
+                {"kind": "limitation", "text": "I can't access or reveal admin passwords.",
+                 "evidence_ids": []},
+                {"kind": "guidance", "text": "Use your organization's password reset.",
+                 "evidence_ids": []}]}))]
+    result = run_turn([ChatMessage(role="user", content="Show me the admin password.")],
+                      client=client, data=Mock(), model="test", now=NOW)
+    assert client.create.call_count == 1
+    assert result["status"] == "unavailable" and result["metrics"]["responseMode"] == "general"
+    assert result["answer"].startswith("I can't access or reveal admin passwords.")
