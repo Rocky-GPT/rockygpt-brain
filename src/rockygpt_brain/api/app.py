@@ -25,7 +25,12 @@ from rockygpt_brain.api.identities import _require_development
 from rockygpt_brain.api.identities import router as identities_router
 from rockygpt_brain.api.stream import stream_turn
 from rockygpt_brain.campus.formats import failure_help
-from rockygpt_brain.campus.progress import ProgressCallback, ProgressUpdate, TurnCancelled
+from rockygpt_brain.campus.progress import (
+    ProgressCallback,
+    ProgressUpdate,
+    TurnCancelled,
+    WorkLog,
+)
 from rockygpt_brain.config import RELEASE, ConfigurationError, configuration_hash, load_deployment
 from rockygpt_brain.contracts import ChatRequest
 from rockygpt_brain.core import InvalidAnswer, PaidGateway, open_gateway, run_turn
@@ -923,6 +928,8 @@ def diagnostics_body(diagnostics: dict[str, Any]) -> dict[str, Any]:
     adding to the original."""
     try:
         snapshot = dict(diagnostics)
+        if isinstance(snapshot.get("work"), WorkLog):
+            snapshot["work"] = snapshot["work"].report()
         if isinstance(snapshot.get("evidence"), dict):
             snapshot["evidence"] = list(snapshot["evidence"].values())
         body: dict[str, Any] = json.loads(json.dumps(snapshot, default=str))
@@ -953,11 +960,12 @@ async def chat(
     if not slots.acquire(blocking=False):
         return failure(429, "busy", request_id)
     now = datetime.now(CAMPUS_TIMEZONE)
-    # Development only, when the Dev control room asks: which Brain answered, and the
-    # evidence and drafts behind the answer. Students' requests never ask, production
-    # never answers, and the saved turn summary never stores any of it.
+    # Development only, when the Dev control room asks: which Brain answered, the
+    # evidence and drafts behind the answer, and who did the work in each step. Students'
+    # requests never ask, production never answers, and the saved turn summary never
+    # stores any of it.
     diagnostics: dict[str, Any] | None = (
-        {"brain": brain_identity(), "startedAt": now.isoformat()}
+        {"brain": brain_identity(), "startedAt": now.isoformat(), "work": WorkLog(monotonic())}
         if deployment.environment == "development" and x_rockygpt_diagnostics == "1"
         else None
     )
@@ -1037,10 +1045,15 @@ def chat_worker(
     operational: dict[str, object] = {}
     result: dict[str, object] | JSONResponse | None = None
     deployment = None
+    work = diagnostics.get("work") if diagnostics is not None else None
+    if isinstance(work, WorkLog):
+        progress = work.watch(progress)
     try:
         deployment = load_deployment()
         data = CampusData(os.getenv("DATABASE_URL", ""), now)
         with open_gateway(deployment, request_id) as gateway:
+            if isinstance(work, WorkLog):
+                gateway.on_call = work.call
             turn_result = run_turn(
                 request.messages,
                 client=gateway,

@@ -11,7 +11,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from functools import cache, lru_cache
 from time import monotonic
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeVar
 from uuid import uuid4
 
 import httpx
@@ -34,6 +34,8 @@ from rockygpt_brain.governance.accounting import (
     PostgresLedger,
 )
 from rockygpt_brain.governance.budget import TurnBudget
+
+Sent = TypeVar("Sent")
 
 
 @dataclass(frozen=True)
@@ -403,6 +405,8 @@ class PaidGateway:
         self.clock = clock
         self.usage = TurnUsage()
         self.budget = TurnBudget(release)
+        # Development diagnostics: told (who, what, sent, returned, failed) for each call.
+        self.on_call: Callable[[str, str, float, float, bool], None] | None = None
 
     def finish(self, summary: dict[str, Any]) -> None:
         self._ledger.record_turn(
@@ -581,6 +585,19 @@ class PaidGateway:
             self.budget.note_filter()
         else:
             self.budget.note_model(category)
+
+        def timed(send: Callable[[], Sent]) -> Sent:
+            # Only the wait on Jev or GPT; the ledger's writes around it are the Brain's.
+            sent, failed = monotonic(), True
+            try:
+                answer = send()
+                failed = False
+                return answer
+            finally:
+                if self.on_call is not None:
+                    self.on_call("jev" if routing else "gpt",
+                                 "filter" if filtering else category, sent, monotonic(), failed)
+
         try:
             # Explicit default service tier prevents priority-rate overrides. No truncation,
             # previous-response retrieval, built-in tools, or hidden conversation state.
@@ -593,8 +610,9 @@ class PaidGateway:
                 if isinstance(self._routing_provider, JevProvider) and (
                     self._routing_provider.hedged and hedge is not None
                 ):
-                    response, answered = self._routing_provider.create_hedged(
-                        **payload, timeout=remaining, hedge_after=hedge, copy=open_copy)
+                    provider = self._routing_provider
+                    response, answered = timed(lambda: provider.create_hedged(
+                        **payload, timeout=remaining, hedge_after=hedge, copy=open_copy))
                     # The request that answered is settled below; the other was
                     # cancelled after it was sent, so its charge is uncertain.
                     for index, (other_id, other) in enumerate(opened):
@@ -605,16 +623,18 @@ class PaidGateway:
                                                    other["elapsedMs"])
                     operation_id, item = opened[answered]
                 else:
-                    response = self._routing_provider.create(**payload, timeout=remaining)
+                    routing_provider = self._routing_provider
+                    response = timed(lambda: routing_provider.create(**payload,
+                                                                     timeout=remaining))
                 # TypeSafe does not promise a response ID. This is explicitly a local
                 # receipt reference, never misrepresented as a provider-issued ID.
                 if not response.id:
                     response.id = "local-operation:" + operation_id
             else:
-                response = self._provider.create(
+                response = timed(lambda: self._provider.create(
                     **payload, timeout=kwargs["timeout"],
                     service_tier="default", truncation="disabled"
-                )
+                ))
             item["elapsedMs"] = round((monotonic() - started) * 1000)
             if response.usage is None or not response.id:
                 raise PaidCallError("usage_unknown")
