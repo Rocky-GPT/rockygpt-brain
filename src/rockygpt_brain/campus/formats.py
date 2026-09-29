@@ -181,7 +181,9 @@ SAFETY_FACTS = (("safety.emergency_phone", "emergency"),
 SAFETY_NET = {
     "self_harm": "If you might hurt yourself, please get help now. Call or text 988 "
     "(Suicide & Crisis Lifeline) any time, or call 911 if you're in immediate danger.",
-    "danger": "If you're in danger right now, call 911.",
+    # Jev's danger covers someone else too; "someone passed out and isn't waking up" was
+    # told "If you're in danger" (09-29).
+    "danger": "If you or someone else is in danger right now, call 911.",
 }
 
 
