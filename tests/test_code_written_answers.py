@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from unittest.mock import Mock, patch
 from uuid import UUID
@@ -285,6 +285,63 @@ def test_first_next_and_last_come_from_one_calculation(question: str, expected: 
     piece = exact_search(question, [ChatMessage(role="user", content=question)], query,
                          timetable(), NOW)
     assert piece is not None and piece.answer.parts[0].text == expected
+
+
+def two_days() -> dict[str, Any]:
+    """Today's timetable and tomorrow's, as the departures lookup fetches them."""
+    tomorrow = []
+    for row in timetable()["records"]:
+        later = copy.deepcopy(row)
+        # The same trip, like the published timetable's, under the same identity.
+        later["id"] = row["id"] + ":next"
+        day = NOW.date() + timedelta(days=1)
+        later["fields"]["service_date"] = str(day)
+        later["fields"]["service_day"] = ("weekday" if day.weekday() < 5
+                                          else day.strftime("%A").lower())
+        tomorrow.append(later)
+    records = [*timetable()["records"], *tomorrow]
+    return {"status": "ok", "records": records, "total_matches": len(records),
+            "truncated": False}
+
+
+def test_the_last_shuttle_after_it_left_says_when_and_gives_the_next() -> None:
+    # "When is the last shuttle?" at 11:10 PM (09-28) said only that no later departure
+    # was found, route by route.
+    query = SearchQuery(collection="shuttle", date_from=NOW.date(),
+                        date_to=NOW.date() + timedelta(days=1), limit=100)
+    tomorrow = NOW.date() + timedelta(days=1)
+
+    def answer(question: str, now: datetime) -> list[str]:
+        piece = exact_search(question, [ChatMessage(role="user", content=question)], query,
+                             two_days(), now)
+        assert piece is not None and piece.answer.status == "answered"
+        return [part.text for part in piece.answer.parts]
+
+    late = NOW.replace(hour=23, minute=10)
+    assert answer("when is the last shuttle", late)[:3] == [
+        f"The last published departures from campus on {NOW.date()} (America/New_York) are: "
+        "Route 17 at 8:00 AM (already left); Roadrunner at 2:00 PM (already left).",
+        f"The next published departure from campus on Route 17 is 8:00 AM on {tomorrow} "
+        "(America/New_York).",
+        f"The next published departure from campus on Roadrunner is 7:00 AM on {tomorrow} "
+        "(America/New_York).",
+    ]
+    # Before it leaves, the last is still today's, never tomorrow's.
+    assert answer("when is the last shuttle", NOW.replace(hour=10))[0] == (
+        f"The last published departures from campus on {NOW.date()} (America/New_York) are: "
+        "Route 17 at 8:00 AM (already left); Roadrunner at 2:00 PM.")
+    # One stop.
+    assert answer("when is the last shuttle to garden state plaza", late)[:2] == [
+        "The last published departure from campus that reaches Garden State Plaza on "
+        f"{NOW.date()} (America/New_York) was Roadrunner at 2:00 PM, arriving at 2:25 PM; it "
+        "has already left.",
+        "The next published departure from campus that reaches Garden State Plaza is 9:00 AM "
+        f"on {tomorrow} (America/New_York), arriving at 9:25 AM.",
+    ]
+    # The next shuttle after the day's last is tomorrow's, with its own date.
+    assert answer("when is the next shuttle", late)[0] == (
+        "The next published departures from campus on "
+        f"{tomorrow} (America/New_York) are: Roadrunner at 7:00 AM; Route 17 at 8:00 AM.")
 
 
 def test_no_later_trip_to_a_stop_is_said_once() -> None:

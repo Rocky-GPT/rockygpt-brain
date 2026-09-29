@@ -1036,9 +1036,13 @@ def interpret(
                                                            day or today, messages):
             # "When's the next shuttle?": the day's whole timetable, fetched without GPT
             # planning the search. Code answers a first, next or last departure; anything
-            # else in the question goes to GPT with the timetable already fetched.
-            timetable = SearchQuery.model_validate({"collection": "shuttle", "query": "",
-                                                    "date_from": day or today, "limit": 100})
+            # else in the question goes to GPT with the timetable already fetched. The next
+            # day's comes too, so a day whose last shuttle has left still has a next one.
+            when = day or today
+            asked = date.fromisoformat(when) if when else None
+            timetable = SearchQuery.model_validate({
+                "collection": "shuttle", "query": "", "date_from": asked, "limit": 100,
+                "date_to": asked + timedelta(days=1) if asked else None})
             decision.arguments = {**timetable.model_dump(mode="json"), "request_text": None}
             decision.template = "departures"
         return decision
