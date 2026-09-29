@@ -405,6 +405,29 @@ def convener_only(text: str, entities: list[Identity]) -> bool:
     return bool(entities) and bool(left & CONVENER_WORDS) and left <= ASKS_WHO | CONVENER_WORDS
 
 
+# Words that point back at something earlier: "Is that place still open?", "Is it in the
+# Learning Commons?", "Is Birch open then?". "Is there" asks whether something exists.
+REFERS_BACK = {"it", "its", "that", "this", "these", "those", "they", "them", "their",
+               "theirs", "there", "he", "him", "his", "she", "her", "hers", "one", "ones",
+               "other", "same", "then"}
+
+
+def own_subject(text: str, explicit: list[Identity]) -> Identity | None:
+    """The one entity a request names, when no other word in it points back, or None.
+
+    Subjects never count, as in graph_first: their course-code aliases are everyday
+    words, and "Where do I send the info?" after a Registrar answer is not about INFO.
+    """
+    if len(explicit) != 1 or explicit[0].kind == "subject":
+        return None
+    rest = words(text)
+    for name in sorted(spoken_names(explicit[0]), key=lambda name: len(words(name)),
+                       reverse=True):
+        rest, _ = remove_phrase(rest, name)
+    rest = re.sub(r"\b(?:is|are|was|were) there\b", " ", rest)
+    return None if REFERS_BACK & set(rest.split()) else explicit[0]
+
+
 def graph_first(messages: list[ChatMessage], data: CampusData) -> bool:
     """Whether the latest request names exactly one curated identity, so GPT's first
     call should read the graph.
@@ -1095,20 +1118,31 @@ def interpret(
     entity_id = selected(answers, "entity")
     if entity_id in NO_ENTITY:
         entity_id = None
-    if len(messages) > 1:
-        # A follow-up runs its own lookup when it stands alone and names its entity, or
-        # when it names none and Jev is sure who "their" or "it" is, as for "What is their
-        # email?" (0.98). Anything else leans on earlier turns in ways only GPT reads.
-        stands_alone = answers["needs_earlier"]["noul"] <= RULED_OUT and len(explicit) == 1
-        if not (stands_alone or (not explicit and entity_id is not None)):
-            decision.reason = "follow_up"
-            return decision
     if entity_id is None and len(explicit) == 1:
         # The request names this entity itself, so Jev need only lean the same way.
         leading = answers["entity"]["choice"]
         if (leading == str(explicit[0].id)
                 and answers["entity"]["probabilities"][leading] >= LEANS_TOWARD):
             entity_id = leading
+    # Code writes the answer only when Jev reads the request as it would a first message.
+    code_writes = True
+    if len(messages) > 1:
+        # A follow-up runs its own lookup when it stands alone and names its entity, or
+        # when it names none and Jev is sure who "their" or "it" is, as for "What is their
+        # email?" (0.98). Anything else leans on earlier turns in ways only GPT reads.
+        stands_alone = answers["needs_earlier"]["noul"] <= RULED_OUT and len(explicit) == 1
+        subject = own_subject(messages[-1].content, explicit)
+        if (subject is not None and answers["entity"]["choice"] != "several"
+                and not (stands_alone and entity_id == str(subject.id))):
+            # After a Birch answer, "What's on the menu at the dining place in the Learning
+            # Commons today?" needed the earlier messages to Jev, so GPT looked up Birch, or
+            # searched every menu, instead of the building the request names (09-29). A
+            # request that names one place and points back at nothing is about that place.
+            # Jev may still have read what it asks from earlier turns, so GPT writes.
+            entity_id, code_writes = str(subject.id), False
+        elif not (stands_alone or (not explicit and entity_id is not None)):
+            decision.reason = "follow_up"
+            return decision
     entity = next((item for item in candidates if str(item.id) == entity_id), None)
     # Lines of one name the request names together, like Public Safety's Emergency and
     # Non-Emergency numbers ("campus police"), are one lookup by that name, which returns
@@ -1141,6 +1175,8 @@ def interpret(
         decision.answer_fields = answer_fields(answers) or (
             contact_fields(messages[-1].content, entity)
             if len(messages) == 1 and explicit == [entity] else None)
+        if not code_writes:
+            decision.answer_fields = None
     else:
         sections = ["conveners"] if convener else sections_asked(answers)
         arguments: dict[str, Any] = {
@@ -1150,6 +1186,11 @@ def interpret(
             # The campus resolver reads simple dates. Jev must be sure the student means
             # the day it read, or names none: "next Saturday" also reads as Saturday.
             if day_asked(answers, messages) in {None, "other"}:
+                return decision
+            if not code_writes and day is None:
+                # "What about the Atrium?" after Birch's hours tomorrow means tomorrow: a
+                # follow-up that names no day of its own may mean an earlier one.
+                decision.reason = "follow_up"
                 return decision
             # No day named is today, stated in the answer: "what's on the menu at the
             # Atrium" went to GPT because the lookup's day was left unset.
@@ -1168,7 +1209,8 @@ def interpret(
             arguments["menu_limit"] = 100 if complete or narrowed else 12
         decision.arguments = ProfileQuery.model_validate(arguments).model_dump(mode="json")
         decision.template = ("convener" if convener
-                             else written_by_code(answers, decision.arguments))
+                             else written_by_code(answers, decision.arguments)
+                             if code_writes else None)
     decision.tool = TOOLS[route]
     decision.reason = None
     return decision

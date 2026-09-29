@@ -962,8 +962,11 @@ def test_a_building_location_reads_the_building() -> None:
         # Jev: "What are the library's hours tomorrow?" after another question, 0.08.
         ("What is the Registrar phone?", 0.05, str(ENTITY.id), True),
         # Jev: "Actually, what is the Financial Aid phone?" 0.26, "What about ...?" 0.37.
-        ("Actually, what is the Registrar phone?", 0.26, str(ENTITY.id), False),
-        ("What about the Registrar?", 0.37, str(ENTITY.id), False),
+        # Each names its place and points back at nothing, so it is looked up (09-29).
+        ("Actually, what is the Registrar phone?", 0.26, str(ENTITY.id), True),
+        ("What about the Registrar?", 0.37, str(ENTITY.id), True),
+        # Naming a place beside a word that points back is still GPT's to read.
+        ("Is that the Registrar phone?", 0.9, str(ENTITY.id), False),
         # Naming nothing, a follow-up needs Jev sure who "their" is: 0.98 for the Registrar.
         ("What is their email?", 0.96, str(ENTITY.id), True),
         ("What is their email?", 0.96, "several", False),
@@ -985,6 +988,10 @@ def test_a_follow_up_looks_things_up_itself_only_when_its_subject_is_clear(
     assert (result.arguments is not None) == direct
     if not direct:
         assert result.tool is None and result.reason == "follow_up"
+    elif needs_earlier > 0.1 and "Registrar" in latest:
+        # Named in a request Jev reads with the earlier turns: Jev may have read what it
+        # asks from them, so GPT writes the answer.
+        assert result.answer_fields is None and result.template is None
 
 
 def browse_answers(payload: dict[str, Any], **changes: Any) -> dict[str, Any]:
