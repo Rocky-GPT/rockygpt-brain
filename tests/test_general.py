@@ -2,12 +2,15 @@
 
 import json
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
 
 from rockygpt_brain.contracts import ChatMessage
+from rockygpt_brain.core import engine
 from rockygpt_brain.core.engine import run_turn
+from rockygpt_brain.core.routing import RouteDecision
 from test_engine import NOW, RECORD, answer, review, search, tools
 
 SAFETY = [
@@ -158,3 +161,94 @@ def test_failed_retrieval_cannot_be_reclassified_as_general_success() -> None:
     assert result["status"] == "unavailable"
     assert "open all night" not in result["answer"]
     assert result["metrics"]["reviewCalls"] == 1
+
+
+LIBRARY = "The Ramapo library is open all night."
+
+
+def routed(monkeypatch: pytest.MonkeyPatch, route: str, confidence: float,
+           reason: str | None = None) -> None:
+    decision = RouteDecision(route=route, confidence=confidence, reason=reason, calls=1)
+    monkeypatch.setattr(engine, "route_request", lambda *args, **kwargs: decision)
+
+
+def general(text: str, scope: str) -> SimpleNamespace:
+    response = answer(text, "guidance")
+    payload = json.loads(response.output_text)
+    payload["general_scope"] = scope
+    response.output_text = json.dumps(payload)
+    return response
+
+
+def active_turn(client: Mock, data: Mock, question: str) -> dict[str, Any]:
+    return run_turn([ChatMessage(role="user", content=question)], client=client, data=data,
+                    model="test", now=NOW, routing_client=Mock(), routing_mode="active")
+
+
+@pytest.mark.parametrize("route", ["contact", "profile", "search"])
+def test_a_general_label_on_a_request_jev_read_as_campus_is_reviewed(
+    monkeypatch: pytest.MonkeyPatch, route: str,
+) -> None:
+    # Core audit R1 (09-29): a campus claim GPT labelled general passed with no review.
+    routed(monkeypatch, route, 0.9)
+    client, data = Mock(), Mock()
+    client.create.side_effect = [general(LIBRARY, "stable_explanation"),
+                                 review("unsupported_claim")]
+    result = active_turn(client, data, "Is the library open late?")
+    assert result["metrics"]["generalScopeReviewed"] is True
+    assert result["metrics"]["reviewCalls"] == 1
+    assert result["metrics"]["responseMode"] == "safe_fallback"
+    assert result["status"] == "unavailable"
+    assert "open all night" not in result["answer"]
+
+
+def test_a_reviewed_general_answer_that_passes_is_returned(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    routed(monkeypatch, "profile", 0.5)
+    client, data = Mock(), Mock()
+    client.create.side_effect = [general("Which library do you mean?", "clarification"),
+                                 review()]
+    result = active_turn(client, data, "When does it close?")
+    assert result["answer"] == "Which library do you mean?"
+    assert result["metrics"]["responseMode"] == "reviewed_prose"
+    assert result["metrics"]["generalScopeReviewed"] is True
+    assert result["metrics"]["reviewCalls"] == 1
+
+
+@pytest.mark.parametrize(
+    ("route", "confidence", "reason"),
+    [
+        ("general", 0.96, None),  # Q25 on 09-29
+        ("general", 0.86, None),  # Q19
+        ("unresolved", 0.37, "uncertain_route"),  # Q20
+        ("unresolved", 0.48, "uncertain_route"),  # Q26
+        ("profile", 0.45, None),  # A campus guess below the bar
+        ("calculate", 0.9, None),  # Arithmetic reads no campus data
+    ],
+)
+def test_general_answers_jev_did_not_read_as_campus_stay_unreviewed(
+    monkeypatch: pytest.MonkeyPatch, route: str, confidence: float, reason: str | None,
+) -> None:
+    routed(monkeypatch, route, confidence, reason)
+    client, data = Mock(), Mock()
+    client.create.return_value = general("Try spaced practice and self-testing.", "study")
+    result = active_turn(client, data, "Help me study")
+    assert result["metrics"]["responseMode"] == "general"
+    assert result["metrics"]["reviewCalls"] == 0
+    assert "generalScopeReviewed" not in result["metrics"]
+    assert client.create.call_count == 1
+
+
+def test_urgent_safety_is_never_held_for_review_even_on_a_campus_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    routed(monkeypatch, "search", 0.9)
+    client, data = Mock(), Mock()
+    client.create.return_value = urgent(GUIDANCE)
+    data.search.return_value = {"status": "ok", "dataset_version": "v1", "records": SAFETY}
+    result = active_turn(client, data, DANGER)
+    assert result["metrics"]["responseMode"] == "urgent_safety"
+    assert result["metrics"]["reviewCalls"] == 0
+    assert "generalScopeReviewed" not in result["metrics"]
+    assert client.create.call_count == 1

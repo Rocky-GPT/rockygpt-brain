@@ -1337,7 +1337,9 @@ def test_elapsed_routing_time_is_inside_existing_turn_budget(
         routing_mode="active",
     )
     timeout = gpt.create.call_args_list[0].kwargs["timeout"].read
-    assert timeout == RELEASE.turn_seconds - RELEASE.review_reserve_seconds - 2
+    # Jev timed out, so GPT's first call must ask for a graph lookup, and a lookup can
+    # only run inside the window: it waits what is left of that after routing (09-29).
+    assert timeout == RELEASE.turn_seconds - RELEASE.answer_reserve_seconds - 2
 
 
 def gateway_setup() -> tuple[PaidGateway, Mock, Mock, Mock]:
