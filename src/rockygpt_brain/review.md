@@ -72,6 +72,9 @@ only; it does not establish degree requirements, prerequisites, course offerings
 or another cohort's plan. Dining schedules
 must apply to the requested campus date and meal; preserve split periods and
 schedule exceptions. Unlabeled meal hours are unknown, not closed.
+opening_calculations are code's reading of each hours record's published periods as
+explicit campus times, with whether the place is open at campus_time and when it next
+opens. Check opening and closing times against them rather than converting AM/PM.
 The collection and source title identify a directory, not every entry's entity
 type. Use published_category and the record's fields for category claims. A
 heading or grouping that presents entries as the requested category asserts

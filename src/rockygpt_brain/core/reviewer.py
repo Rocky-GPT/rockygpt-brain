@@ -10,6 +10,7 @@ from typing import Any
 from httpx import Timeout
 from pydantic import ValidationError
 
+from rockygpt_brain.campus.schedules import opening_calculations
 from rockygpt_brain.config import RELEASE
 from rockygpt_brain.contracts import Answer, AnswerPart, ChatMessage, EvidenceReview
 from rockygpt_brain.core.provider import ModelClient
@@ -163,6 +164,8 @@ def review_answer(
                     aliases,
                 ),
                 "event_citations": map_references(event_citations, aliases),
+                "opening_calculations": map_references(
+                    opening_calculations(evidence, now), aliases),
             },
             default=str,
             ensure_ascii=False,
