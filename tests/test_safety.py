@@ -81,3 +81,24 @@ def test_the_turn_log_never_holds_the_students_words(caplog: pytest.LogCaptureFi
     assert "1234567" not in lines[0]
     assert "breathing" not in lines[0]
     assert json.loads(lines[0].removeprefix("brain_turn "))["safety"] is True
+
+
+def test_a_bug_still_ends_in_help_and_is_logged(
+        monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    def broken(context: Any, *args: Any) -> Any:
+        raise ValueError(context.question)
+        yield  # A generator, like the real turn.
+
+    monkeypatch.setattr("rockygpt_brain.api.app.run_turn", broken)
+    with caplog.at_level(logging.INFO, logger="uvicorn.error"):
+        plain = ask("my student ID is 1234567")
+        streamed = ask("my student ID is 1234567", accept="text/event-stream")
+    assert plain.status_code == 500
+    assert FailureReply.model_validate(plain.json()).error.emergency is not None
+    frames = [json.loads(line[5:]) for line in streamed.text.splitlines()
+              if line.startswith("data:")]
+    assert frames[-1]["status"] == 500
+    assert frames[-1]["body"]["error"]["emergency"]["text"] == EMERGENCY_TEXT
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert logged.count("brain_turn_error") == 2 and "ValueError" in logged
+    assert "1234567" not in logged
