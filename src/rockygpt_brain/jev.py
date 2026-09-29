@@ -114,6 +114,8 @@ class Reply:
 
 
 Send = Callable[[dict[str, Any], float], Reply]
+# Told when a call went out and came back (monotonic seconds), and whether it failed.
+Timed = Callable[[float, float, bool], None]
 
 
 @dataclass(frozen=True)
@@ -123,6 +125,7 @@ class Asked:
     answers: dict[str, Answer]
     cost_nusd: int
     input_tokens: int
+    # Typesafe's own time, without the ledger's.
     elapsed_ms: int
 
 
@@ -139,8 +142,9 @@ class Jev:
         self.price = price
 
     def ask(self, request_id: str, state: dict[str, Any], questions: dict[str, Question],
-            now: datetime) -> Asked:
-        """Every question in one call. The answers come back checked, or JevError."""
+            now: datetime, timed: Timed | None = None) -> Asked:
+        """Every question in one call. The answers come back checked, or JevError.
+        `timed` hears when the call to Typesafe went out, came back, and whether it failed."""
         if not self.price.current(now):
             raise JevError("routing_price_unavailable", sent=False)
         body = {"model": self.price.model, "state": state, "questions": questions}
@@ -149,12 +153,18 @@ class Jev:
                 token_bound({"state": state, "question": question}) > QUESTION_TOKENS
                 for question in questions.values()):
             raise JevError("routing_context_limit", sent=False)
-        started = monotonic()
         with paid_call(self._ledger, request_id, "routing", bound * self.price.input_nusd,
                        now, {"provider": "typesafe", "requested_model": self.price.model,
                              "input_token_bound": bound,
                              "price_nusd_per_input_token": self.price.input_nusd}) as receipt:
-            reply = self._send(body, TIMEOUT_SECONDS)
+            sent, failed = monotonic(), True
+            try:
+                reply = self._send(body, TIMEOUT_SECONDS)
+                failed = False
+            finally:
+                returned = monotonic()
+                if timed is not None:
+                    timed(sent, returned, failed)
             receipt.cost = reply.input_tokens * self.price.input_nusd
             receipt.usage = {"input_tokens": reply.input_tokens,
                              "output_tokens": reply.output_tokens}
@@ -164,8 +174,7 @@ class Jev:
             if reply.model != self.price.model:
                 raise JevError("routing_model_changed")
             answers = checked(reply.answers, questions)
-        return Asked(answers, receipt.cost, reply.input_tokens,
-                     round((monotonic() - started) * 1000))
+        return Asked(answers, receipt.cost, reply.input_tokens, round((returned - sent) * 1000))
 
 
 def probability(value: Any) -> float:
