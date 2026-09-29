@@ -506,7 +506,11 @@ def routing_payload(
     text = words(messages[-1].content)
     day: str | None = None
     dates: dict[str, Any] = {
-        "none": "It names no day",
+        # "Next" in "when is the next shuttle" put 0.10-0.32 on a day that needs working out
+        # ('next week'), so no "next shuttle" question reached the 0.9 bar and code's
+        # departures answer never ran for one (09-29). With this example, 7 of 7 did
+        # (0.95-1.0), and "next week", "this weekend" and "tomorrow" kept their picks.
+        "none": "It names no day, as a request for the next or last departure or event doesn't",
         "other": "A range of days, or a day that needs working out, such as 'next week', "
         "'this weekend' or 'after Thanksgiving'",
     }
