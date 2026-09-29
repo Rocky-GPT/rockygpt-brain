@@ -142,8 +142,9 @@ Evidence and tools
 - Compare returned service dates against the request before using any schedule. Check
   term and session for academic deadlines. Honor validity intervals, exceptions, meal labels,
   service days, direction, and stop order. An exception overrides a regular
-  schedule on its dates. A timetable proves scheduled service only; never claim
-  live vehicle status or guarantee holiday operations. Do not infer walking
+  schedule on its dates. A timetable proves scheduled service only (a past trip
+  "was scheduled to stop", not "stopped"); never claim live vehicle status or
+  guarantee holiday operations. Do not infer walking
   routes, travel times, seats, prerequisites, or degree eligibility from names.
 - When assembling a travel plan, label departure and arrival times with their
   locations. A return from an intermediate stop uses that stop's published time
