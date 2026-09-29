@@ -156,6 +156,48 @@ def opening_intervals(
     return result
 
 
+def opening_calculations(
+    evidence: dict[str, dict[str, Any]], now: datetime
+) -> dict[str, dict[str, Any]]:
+    """Each hours record's published periods as explicit campus times, and whether the place
+    is open at `now`, so a check never converts a 12-hour clock itself: the checker read
+    Birch Tree Inn's "Dinner: 05:00 PM - 08:00 PM" as morning and withheld a true "its
+    Tuesday schedule starts at 8:00 a.m." (09-29). Hours code can't read stay unknown."""
+    result: dict[str, dict[str, Any]] = {}
+    for record_id, record in evidence.items():
+        if record.get("collection") not in {"dining_hours", "campus_hours"}:
+            continue
+        fields = record.get("fields") or {}
+        try:
+            day = date.fromisoformat(str(fields["service_date"]))
+            periods = fields.get("periods")
+            if isinstance(periods, list) and periods:
+                intervals = []
+                for period in periods:
+                    opens = wall_time(str(period["start"]), day)
+                    closes = wall_time(str(period["end"]), day)
+                    if closes <= opens:
+                        closes = wall_time(str(period["end"]), day + timedelta(days=1))
+                    intervals.append((period.get("label"), opens, closes))
+            else:
+                intervals = [(None, opens, closes) for opens, closes in opening_intervals(
+                    fields.get("hours", fields["schedule"]), day)]
+        except (KeyError, TypeError, ValueError):
+            continue
+        later = sorted(opens for _, opens, _ in intervals if opens > now)
+        result[record_id] = {
+            "service_date": day.isoformat(),
+            "periods": [
+                {**({"label": label} if label else {}), "opens": opens.isoformat(),
+                 "closes": closes.isoformat()}
+                for label, opens, closes in sorted(intervals, key=lambda item: item[1])
+            ],
+            "open_at_campus_time": any(opens <= now < closes for _, opens, closes in intervals),
+            "next_opening_after_campus_time": later[0].isoformat() if later else None,
+        }
+    return result
+
+
 def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime) -> dict[str, Any]:
     """First/next/last scheduled departure per route and origin, and per stop reached,
     within retrieved dates.

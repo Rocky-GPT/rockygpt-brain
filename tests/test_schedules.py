@@ -424,3 +424,69 @@ def test_meal_order_keeps_start_order_on_another_day_and_skips_unreadable_period
             {"label": "Late Night", "start": "09:00 PM", "end": "01:00 AM"}]
     at = datetime(2026, 9, 25, 23, 30, tzinfo=CAMPUS_ZONE)
     assert meal_order(late, date(2026, 9, 25), at) == ["Late Night", "Dinner"]
+
+
+def test_opening_calculations_state_each_period_in_campus_time() -> None:
+    # The checker read Birch Tree Inn's "Dinner: 05:00 PM - 08:00 PM" as morning and withheld
+    # "its Tuesday schedule starts at 8:00 a.m." (09-29): code states the periods instead.
+    from rockygpt_brain.campus.schedules import opening_calculations
+
+    birch = {"collection": "dining_hours", "fields": {
+        "name": "Birch Tree Inn", "service_date": "2026-09-29",
+        "schedule": "Breakfast: 08:00 AM - 10:30 AM; Dinner: 05:00 PM - 08:00 PM",
+        "periods": [{"label": "Breakfast", "start": "08:00 AM", "end": "10:30 AM"},
+                    {"label": "Dinner", "start": "05:00 PM", "end": "08:00 PM"},
+                    {"label": "Late Night", "start": "10:00 PM", "end": "01:00 AM"}]}}
+    library = {"collection": "campus_hours", "fields": {
+        "name": "Library", "service_date": "2026-09-29", "schedule": "Closed"}}
+    unknown = {"collection": "dining_hours", "fields": {
+        "service_date": "2026-09-29", "schedule": "Varies"}}
+    menu = {"collection": "menu", "fields": {"service_date": "2026-09-29"}}
+    now = datetime(2026, 9, 29, 5, 43, tzinfo=CAMPUS_ZONE)
+    result = opening_calculations(
+        {"birch": birch, "library": library, "unknown": unknown, "menu": menu}, now)
+    assert set(result) == {"birch", "library"}
+    assert result["birch"]["periods"] == [
+        {"label": "Breakfast", "opens": "2026-09-29T08:00:00-04:00",
+         "closes": "2026-09-29T10:30:00-04:00"},
+        {"label": "Dinner", "opens": "2026-09-29T17:00:00-04:00",
+         "closes": "2026-09-29T20:00:00-04:00"},
+        {"label": "Late Night", "opens": "2026-09-29T22:00:00-04:00",
+         "closes": "2026-09-30T01:00:00-04:00"},
+    ]
+    assert result["birch"]["open_at_campus_time"] is False
+    assert result["birch"]["next_opening_after_campus_time"] == "2026-09-29T08:00:00-04:00"
+    assert result["library"] == {"service_date": "2026-09-29", "periods": [],
+                                 "open_at_campus_time": False,
+                                 "next_opening_after_campus_time": None}
+    at_dinner = opening_calculations({"birch": birch}, now.replace(hour=18))
+    assert at_dinner["birch"]["open_at_campus_time"] is True
+
+
+def test_the_checker_gets_the_opening_periods_code_read() -> None:
+    import json
+    from unittest.mock import Mock
+
+    from rockygpt_brain.contracts import Answer
+    from rockygpt_brain.core.reviewer import review_answer
+    from test_engine import review
+
+    record_id = "dining_hours:636f5094:2026-09-29"
+    evidence = {record_id: {
+        "id": record_id, "collection": "dining_hours", "title": "Birch Tree Inn",
+        "freshness": "fresh", "trust_tier": "official_primary", "fields": {
+            "name": "Birch Tree Inn", "service_date": "2026-09-29",
+            "schedule": "Breakfast: 08:00 AM - 10:30 AM",
+            "periods": [{"label": "Breakfast", "start": "08:00 AM", "end": "10:30 AM"}]}}}
+    client = Mock()
+    client.create.return_value = review("supported")
+    answer = Answer.model_validate({"status": "answered", "general_scope": None, "parts": [
+        {"kind": "campus_fact", "text": "Birch Tree Inn opens at 8:00 a.m. today.",
+         "evidence_ids": [record_id]}]})
+    review_answer(answer, messages=[], evidence=evidence, client=client, model="test",
+                  now=datetime(2026, 9, 29, 5, 43, tzinfo=CAMPUS_ZONE), timeout=5)
+    sent = json.loads(client.create.call_args.kwargs["input"])
+    [(alias, calculated)] = sent["opening_calculations"].items()
+    assert alias in json.dumps(sent["evidence"])
+    assert calculated["periods"][0]["opens"] == "2026-09-29T08:00:00-04:00"
+    assert calculated["open_at_campus_time"] is False
