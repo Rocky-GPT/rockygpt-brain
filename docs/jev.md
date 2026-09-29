@@ -21,36 +21,40 @@ and gets fixed at its root.
 
 | Question | Kind | What code does with the pick |
 | --- | --- | --- |
-| `danger` | pick: self-harm, danger, none | Self-harm or danger: the safety help comes first. |
-| `own_account` | yes/no | Yes, with `own_account_only` yes, and the question is the first one or `needs_earlier` is no: code says what RockyGPT can't reach. |
+| `danger` | pick: self-harm, danger, none | Self-harm or danger: the danger route, and the safety help comes first. |
+| `own_account` | yes/no | Yes, with `own_account_only` yes, and the question is the first one or `needs_earlier` is no: the account action route, and code says what RockyGPT can't reach. |
 | `own_account_only` | yes/no | See above. It keeps "register me and where is the Registrar?" from losing its second part. |
 | `needs_earlier` | yes/no | Kept for Conversation State (milestone 7), and read by `own_account`. |
-| `asks` | pick: fact, list, how to, rule, advice, action, recall, chat | Names the handler for what it asks (below). |
+| `multi_part` | yes/no | Yes: the multi-part route. |
+| `work` | pick: calculate, look up, policy, general, reasoning, can't do, unclear | Names the route for everything else (below). |
 | `subject` | pick: dining, transport, places, people, academics, student life, housing, money, safety, none | Kept for Campus Retrieval (milestone 5). |
 | `named` | pick: place, office, person, group, event, course, several, none | The same. Which place or office it is needs the campus name list. |
-| `needs` | pick: campus information, the conversation, their own account, someone else's private information, right now, a guess, outside knowledge | Code reads it as supported, private, live-only or unsupported, and as answer, account limit or can't answer. |
-| `multi_part` | yes/no | Yes: several parts. |
-| `open_ended` | yes/no | Yes: it wants an explanation, advice, a comparison, a view or conversation, so GPT. |
+| `needs` | pick: campus information, the conversation, their own account, someone else's private information, right now, a guess, outside knowledge | Code reads it as supported, private, live-only or unsupported. |
 
-From these, code names the handler a later milestone will build (`handler` in
-`decisions.py`). It goes down Jev's picks in this order and follows the first that
-settles it:
+From these, code picks one of the nine routes in Dan's routing table (`ROUTES` and
+`handler` in `decisions.py`). It goes down Jev's picks in this order and follows the
+first that settles it: `danger`, then `own_account`, then `multi_part`, and then `work`,
+which always settles it.
 
-1. danger → safety
-2. `own_account` → access limit
-3. `multi_part` → several parts. It comes before `needs`, which reads the request as
-   one.
-4. `needs` says their own account → access limit; private, right now, a guess or
-   outside knowledge → can't answer
-5. `open_ended` → GPT
-6. `asks`: a fact or list → exact, how to or a rule → document or policy, recall →
-   conversation, advice or chat → GPT, an action → can't answer
+| Route | Goes to | Jev's pick |
+| --- | --- | --- |
+| exact | code | `work`: calculate |
+| campus fact | retrieval | `work`: look up |
+| document or policy | retrieval + GPT | `work`: policy |
+| general question | GPT | `work`: general |
+| complex reasoning | GPT | `work`: reasoning |
+| multi-part | orchestrator | `multi_part` |
+| account action | capability limit | `own_account`, or `work`: can't do |
+| danger | safety path | `danger`, or the danger phrases |
+| ambiguous | clarification | `work`: unclear |
 
-GPT is a place Jev sends a question on purpose. It is never where a question lands
-because Jev wasn't sure. For now the turn still ends with the safety help, the account
-limit or "not ready". The handler, the picks that led to it (`handlerPath`) and those
-under 0.90 (`lowConfidence`) are in the dev diagnostics (`metrics.jev.decided`). The
-handler and the low-confidence picks are also in the turn log.
+Every route is a place Jev sends a question on purpose. Ambiguous means the student's
+words are unclear. It is never where a question lands because Jev wasn't sure. For now
+the turn still ends with the safety help, the account limit or "not ready", because each
+route's handler comes with its milestone. The route (`handler`), where it goes
+(`goesTo`), the picks that led to it (`handlerPath`) and those under 0.90
+(`lowConfidence`) are in the dev diagnostics (`metrics.jev.decided`). The route and the
+low-confidence picks are also in the turn log.
 
 `scripts/check_decisions.py` asks Jev the 130 labeled questions in
 `evals/decisions/cases.json` (the 30-question audit and the 100-question stress run) and

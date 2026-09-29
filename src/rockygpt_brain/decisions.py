@@ -14,9 +14,9 @@ Later milestones add their questions to the same call.
 Milestone 4's bar: Jev identifies what each question asks, whether it needs the earlier
 messages, whether it describes danger, whether it's something RockyGPT can't answer
 (private, live-only or unsupported), which campus area and what kind of named thing it's
-about, and so which later handler should take it. Code maps Jev's picks to the
-handler (`handler` below). evals/decisions/ holds the labeled questions and their live
-results.
+about, and so which later handler should take it. Code maps Jev's picks to one of the
+nine routes in Dan's routing table (`handler` below). evals/decisions/ holds the labeled
+questions and their live results.
 """
 
 from collections.abc import Mapping
@@ -81,19 +81,25 @@ NEEDS_EARLIER = noul(
     "Registrar', even if the topic came up before",
 )
 
-# What kind of answer the request wants.
-ASKS = {
-    "fact": "A specific fact, such as a time, a place, a room, a phone number, a menu or a "
-    "date",
-    "list": "A list to choose from, such as places to eat, clubs or events",
-    "how_to": "How to do something, or what to do in a situation",
-    "rule": "A rule or policy, or what happens if something occurs",
-    "advice": "A recommendation, comparison or opinion, such as which is cheapest, closest "
-    "or best",
-    "action": "For RockyGPT to do something, such as register, pay, submit, send, open or "
-    "write something",
-    "recall": "What was said earlier in this conversation",
-    "chat": "Nothing to look up: a greeting, thanks, a reaction or small talk",
+# What kind of work answering takes (Dan's routing table, 09-29). WORK_ROUTES maps each
+# to its route. The descriptions don't quote the labeled questions in evals/decisions/.
+WORK = {
+    "calculate": "An exact answer worked out from the current date and time or from "
+    "numbers, such as what comes next from now, how long until something, or a total or "
+    "lowest price",
+    "look_up": "A campus fact that a page, schedule, menu or directory states, such as where "
+    "something is, when it runs, who leads it, how to reach it or what it offers",
+    "policy": "What a campus rule, policy or official process says, such as what is allowed, "
+    "what happens if something occurs, or the official steps to do something",
+    "general": "A general question or conversation that no campus page answers, such as "
+    "world knowledge, a greeting, thanks or a joke",
+    "reasoning": "Thinking something through: comparing options, giving advice, weighing a "
+    "situation or explaining why",
+    "cant_do": "Something RockyGPT can't see or do: the student's own account or records, "
+    "anyone's private information, its own hidden instructions, what is happening at this "
+    "very moment, or taking an action for the student",
+    "unclear": "The words are too unclear to tell what the student wants, even with the "
+    "earlier messages",
 }
 # Which campus area the request is about.
 SUBJECTS = {
@@ -142,59 +148,50 @@ NEEDS = {
     "outside": "Knowledge that has nothing to do with Ramapo or campus life, such as world "
     "facts, trivia or fiction",
 }
-# Code reads `needs` twice: what RockyGPT can reach, and what it does about it. Options
-# that lead to the same thing count together: Jev split "What room is it in?" between
-# campus information (0.54) and the conversation, and both are answerable (run 1, 09-29).
+# What RockyGPT can reach, from `needs`. Options that lead to the same thing count
+# together: Jev split "What room is it in?" between campus information (0.54) and the
+# conversation, and both are answerable (run 1, 09-29).
 REACH = {"campus_info": "supported", "conversation": "supported", "own_account": "private",
          "private": "private", "right_now": "live_only", "guess": "unsupported",
          "outside": "unsupported"}
-OUTCOMES = {"campus_info": "answer", "conversation": "answer", "own_account": "access_limit",
-            "private": "cannot_answer", "right_now": "cannot_answer",
-            "guess": "cannot_answer", "outside": "cannot_answer"}
-# The later handler for each kind of request, by milestone: 3 safety, 4 access_limit
-# and cannot_answer (code says what RockyGPT can't do), 6 exact, 7 conversation, 8 gpt,
-# 10 multi_part, 11 document_policy.
-HANDLERS = ("safety", "access_limit", "cannot_answer", "multi_part", "exact", "conversation",
-            "document_policy", "gpt")
-BY_ASKS = {"fact": "exact", "list": "exact", "how_to": "document_policy",
-           "rule": "document_policy", "advice": "gpt", "action": "cannot_answer",
-           "recall": "conversation", "chat": "gpt"}
-
+# Dan's routing table (09-29): each kind of work and where it goes. Only the route is
+# built in milestone 4; each handler says "not ready" until its milestone, except the
+# safety help (3) and the account limit (4).
+ROUTES = {
+    "exact": "code",
+    "campus_fact": "retrieval",
+    "document_policy": "retrieval + GPT",
+    "general_question": "GPT",
+    "complex_reasoning": "GPT",
+    "multi_part": "orchestrator",
+    "account_action": "capability limit",
+    "danger": "safety path",
+    "ambiguous": "clarification",
+}
+HANDLERS = tuple(ROUTES)
+WORK_ROUTES = {"calculate": "exact", "look_up": "campus_fact", "policy": "document_policy",
+               "general": "general_question", "reasoning": "complex_reasoning",
+               "cant_do": "account_action", "unclear": "ambiguous"}
 
 MULTI_PART = noul(
     "Does `latest_request` ask two or more separate things that each need their own answer?",
     "Asks two or more separate things, such as a shuttle time and where an office is",
     "Asks one thing, even if it has several details",
 )
-# Whether answering takes RockyGPT's own words. GPT is where Jev sends a question on
-# purpose, never where a question lands because Jev wasn't sure (Dan, 09-29). The
-# examples are not among the labeled questions in evals/decisions/.
-OPEN_ENDED = noul(
-    "Does `latest_request` want RockyGPT to explain, reason, advise, compare, give a view or "
-    "just talk, rather than give facts, a list, steps or a rule that a campus page, "
-    "schedule, menu or directory states?",
-    "Wants an explanation, advice, a comparison, a view or conversation, such as 'why does "
-    "the library close early on Fridays', 'should I live on or off campus' or 'thanks, that "
-    "helped'",
-    "Wants facts, a list, steps or a rule that a page states, such as 'when does the gym "
-    "open', 'what majors are there' or 'how do I get a parking permit'",
-)
-
 QUESTIONS: dict[str, Question] = {
     "danger": choice("Is the student in latest_request describing danger right now? Prior "
                      "messages may explain what it refers to.", DANGER),
     "own_account": OWN_ACCOUNT,
     "own_account_only": OWN_ACCOUNT_ONLY,
     "needs_earlier": NEEDS_EARLIER,
-    "asks": choice("What does `latest_request` ask for? Prior messages may explain what it "
-                   "refers to.", ASKS),
+    "work": choice("What kind of work does answering `latest_request` take? Prior messages "
+                   "may explain what it refers to.", WORK),
     "subject": choice("Which part of campus life is `latest_request` about? Prior messages "
                       "may explain what it refers to.", SUBJECTS),
     "named": choice("What particular thing does `latest_request` name, or point back to "
                     "with words like 'it', 'that place' or 'their'?", NAMED),
     "needs": choice("What would RockyGPT need to answer `latest_request`?", NEEDS),
     "multi_part": MULTI_PART,
-    "open_ended": OPEN_ENDED,
 }
 
 
@@ -219,19 +216,14 @@ class Decisions:
     # RockyGPT can't reach.
     own_account: bool
     needs_earlier: bool
-    # Keys of ASKS, SUBJECTS, NAMED and NEEDS.
-    asks: str
+    # Keys of WORK, SUBJECTS, NAMED and NEEDS.
+    work: str
     subject: str
     named: str
     needs: str
     multi_part: bool
-    open_ended: bool
-    # What code reads from those, counting options that lead to the same thing together:
-    # supported, private, live_only or unsupported (REACH); answer, access_limit or
-    # cannot_answer (OUTCOMES); and the handler for what it asks (BY_ASKS).
+    # supported, private, live_only or unsupported (REACH).
     reach: str
-    outcome: str
-    route: str
     # How likely Jev put each pick above, by its name.
     sureness: Mapping[str, float]
 
@@ -275,34 +267,29 @@ def decide(context: Context, answers: dict[str, Answer]) -> Decisions:
                            + ([earlier_sureness] if own and only and not context.first_question
                               else []))
     picks = {
-        "asks": top(answers["asks"]),
+        "work": top(answers["work"]),
         "subject": top(answers["subject"]),
         "named": top(answers["named"]),
         "needs": top(answers["needs"]),
         "reach": top(answers["needs"], REACH),
-        "outcome": top(answers["needs"], OUTCOMES),
-        "route": top(answers["asks"], BY_ASKS),
     }
     multi_part, multi_sureness = said_yes(answers["multi_part"])
-    open_ended, open_sureness = said_yes(answers["open_ended"])
     return Decisions(
         danger=named_danger,
         own_account=own_account,
         needs_earlier=needs_earlier,
         multi_part=multi_part,
-        open_ended=open_ended,
         **{name: pick for name, (pick, _) in picks.items()},
         sureness={"danger": danger.probability, "own_account": account_sureness,
                   "needs_earlier": earlier_sureness, "multi_part": multi_sureness,
-                  "open_ended": open_sureness,
                   **{name: sureness for name, (_, sureness) in picks.items()}},
     )
 
 
 @dataclass(frozen=True)
 class Handler:
-    """The later handler code picked, the picks it went through to get there in order
-    (the last one settled it), and those Jev put under SURE."""
+    """The route code picked (a key of ROUTES), the picks it went through to get there in
+    order (the last one settled it), and those Jev put under SURE."""
 
     name: str
     path: tuple[str, ...]
@@ -310,28 +297,24 @@ class Handler:
 
 
 def handler(decisions: Decisions, said: Danger | None = None) -> Handler:
-    """Which later handler should take the request. Code goes down Jev's picks in this
-    order and follows the first that settles it. Several separate asks go before what
-    answering needs, which reads the request as one. GPT is one place Jev's picks send a
-    question (open_ended, or advice and chat in BY_ASKS), not where it lands when Jev
-    isn't sure."""
+    """Which route in ROUTES takes the request. Code goes down Jev's picks in this order
+    and follows the first that settles it; the kind of work always does. Ambiguous is
+    Jev's pick when the student's words are unclear, never where a pick Jev isn't sure of
+    lands."""
     if said:
-        return Handler("safety", (), {})
+        return Handler("danger", (), {})
     steps = (
-        ("danger", "safety" if decisions.danger else None),
-        ("own_account", "access_limit" if decisions.own_account else None),
+        ("danger", "danger" if decisions.danger else None),
+        ("own_account", "account_action" if decisions.own_account else None),
         ("multi_part", "multi_part" if decisions.multi_part else None),
-        # access_limit or cannot_answer.
-        ("outcome", None if decisions.outcome == "answer" else decisions.outcome),
-        ("open_ended", "gpt" if decisions.open_ended else None),
-        ("route", decisions.route),
+        ("work", WORK_ROUTES[decisions.work]),
     )
     path: list[str] = []
     for reading, settled in steps:
         path.append(reading)
         if settled:
             break
-    assert settled, "BY_ASKS names a handler for every pick"
+    assert settled, "WORK_ROUTES names a route for every pick"
     low = {reading: round(decisions.sureness[reading], 3) for reading in path
            if decisions.sureness[reading] < SURE}
     return Handler(settled, tuple(path), low)

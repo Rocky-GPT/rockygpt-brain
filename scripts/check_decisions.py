@@ -11,6 +11,8 @@ ledger, like a turn: about 2,000 input tokens, or $0.0001, each.
 Code follows Jev's top pick on every item, so an item is right when that pick is one the
 label accepts and wrong otherwise. `low` counts the picks Jev put under 0.90 (for the
 handler, any pick on its way there), and `sure_wrong` the wrong ones it was sure of.
+`routes` scores each of the nine routes: the questions whose first label is that route,
+and the questions code sent there.
 """
 
 import argparse
@@ -25,7 +27,7 @@ from uuid import uuid4
 
 from rockygpt_brain.context import CAMPUS_TIMEZONE, Context
 from rockygpt_brain.contract import ChatMessage
-from rockygpt_brain.decisions import SURE, Decisions, ask_jev, handler, readings
+from rockygpt_brain.decisions import ROUTES, SURE, Decisions, ask_jev, handler, readings
 from rockygpt_brain.jev import Asked, Jev, JevError, Pick
 from rockygpt_brain.safety import said_danger
 from rockygpt_brain.spending import SpendingError
@@ -37,14 +39,13 @@ NOW = datetime(2026, 9, 29, 13, 0, tzinfo=CAMPUS_TIMEZONE)
 
 # Dan's six items (09-29), each with the labels and answers it is scored on.
 ITEMS = {
-    "asks": "What it asks",
     "needs_earlier": "Needs history",
     "danger": "Dangerous (Jev)",
     "danger_or_phrases": "Dangerous (Jev or phrases)",
     "reach": "Private, live-only or unsupported",
     "subject": "Campus area",
     "named": "Kind of thing named",
-    "handler": "Which handler",
+    "handler": "Which route",
     "multi_part": "Several separate asks",
 }
 
@@ -72,7 +73,6 @@ def score(case: dict[str, Any], decisions: Decisions, asked: Asked) -> dict[str,
     said = said_danger(case["question"])
     chosen = handler(decisions, said)
     decided = {
-        "asks": decisions.asks,
         "subject": decisions.subject,
         "named": decisions.named,
         "reach": decisions.reach,
@@ -91,6 +91,7 @@ def score(case: dict[str, Any], decisions: Decisions, asked: Asked) -> dict[str,
     spread = {key: answer.probabilities for key, answer in asked.answers.items()
               if isinstance(answer, Pick)}
     return {"id": case["id"], "question": case["question"], "decided": decided,
+            "work": decisions.work, "labeled_route": labels["handler"][0],
             "verdicts": verdicts, "sureness": {item: round(value, 3)
                                                for item, value in sureness.items()},
             "handler_path": chosen.path, "low_confidence": chosen.low_confidence,
@@ -110,6 +111,22 @@ def summary(results: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             "low": len(low),
             "sure_wrong": sum(result["verdicts"][item] == "wrong"
                               and result["sureness"][item] >= SURE for result in scored),
+        }
+    return table
+
+
+def routes(results: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """For each route: how many questions labeled with it first got a route their label
+    accepts, and how many questions code sent there that their label didn't accept."""
+    table: dict[str, dict[str, Any]] = {}
+    for route, goes_to in ROUTES.items():
+        labeled = [result for result in results if result["labeled_route"] == route]
+        sent = [result for result in results if result["decided"]["handler"] == route]
+        table[route] = {
+            "goes_to": goes_to, "labeled": len(labeled),
+            "right": sum(result["verdicts"]["handler"] == "right" for result in labeled),
+            "sent": len(sent),
+            "sent_wrong": sum(result["verdicts"]["handler"] == "wrong" for result in sent),
         }
     return table
 
@@ -140,6 +157,7 @@ def run(jev: Jev, cases: dict[str, Any], limit: int | None = None,
         "jev_ms": {"median": statistics.median(times) if times else None,
                    "max": max(times) if times else None},
         "summary": summary(results),
+        "routes": routes(results),
         "results": results,
     }
 
@@ -175,6 +193,9 @@ def main(argv: list[str] | None = None) -> int:
     for row in report["summary"].values():
         print(f"{row['name']}: {row['right']}/{row['scored']} right, {row['wrong']} wrong "
               f"({row['sure_wrong']} sure), {row['low']} under {SURE}")
+    for route, row in report["routes"].items():
+        print(f"{route} -> {row['goes_to']}: {row['right']}/{row['labeled']} right; "
+              f"sent {row['sent']}, {row['sent_wrong']} of them wrong")
     print("\n".join(misses(report)))
     return 0
 

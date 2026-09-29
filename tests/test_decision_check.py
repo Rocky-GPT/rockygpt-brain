@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from fakes import ScriptedJev, calm, fake_jev
-from rockygpt_brain.decisions import ASKS, DANGER, HANDLERS, NAMED, REACH, SUBJECTS
+from rockygpt_brain.decisions import DANGER, HANDLERS, NAMED, REACH, SUBJECTS
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("check_decisions",
@@ -19,7 +19,7 @@ CASES = json.loads((ROOT / "evals" / "decisions" / "cases.json").read_text())
 
 
 def test_every_label_is_an_answer_jev_or_code_can_give() -> None:
-    options = {"asks": ASKS, "subject": SUBJECTS, "named": NAMED,
+    options = {"subject": SUBJECTS, "named": NAMED,
                "reach": set(REACH.values()), "danger": DANGER, "handler": HANDLERS}
     cases = [case for conversation in CASES["conversations"].values() for case in conversation]
     assert len(cases) == 130
@@ -48,10 +48,13 @@ def test_the_check_scores_each_item_and_counts_the_cost() -> None:
     registrar = report["results"][12]
     assert registrar["question"] == "Where is the Registrar?"
     assert set(registrar["verdicts"].values()) <= {"right", None}
-    assert registrar["decided"]["handler"] == "exact"
-    assert registrar["handler_path"][-1] == "route" and registrar["low_confidence"] == {}
+    assert registrar["decided"]["handler"] == "campus_fact"
+    assert registrar["handler_path"][-1] == "work" and registrar["low_confidence"] == {}
     shuttle = report["results"][0]["verdicts"]
-    assert shuttle["subject"] == "wrong" and shuttle["asks"] == "right"
+    assert shuttle["subject"] == "wrong" and shuttle["handler"] == "right"
+    assert report["routes"]["campus_fact"]["sent"] == 13
+    assert report["routes"]["exact"] == {"goes_to": "code", "labeled": 4, "right": 4,
+                                         "sent": 0, "sent_wrong": 0}
     subject = report["summary"]["subject"]
     assert subject["scored"] == 13 and subject["low"] == 0
     assert subject["sure_wrong"] == subject["wrong"] > 0
