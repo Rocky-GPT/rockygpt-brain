@@ -60,11 +60,17 @@ on a Sunday. A meal filter applies only when Jev's meal pick clears 0.90; otherw
 meal is fetched. Meal labels are request filters, never proof of availability.
 A follow-up runs its own lookup when Jev says it makes sense without the earlier messages
 (0.10 or less) and it names exactly one entity itself, as for "What are the library's
-hours tomorrow?" after another question. "Actually, …" and "What about …?" came back at
-0.26 and 0.37 and stay with GPT. A follow-up that names no entity runs its own lookup
-when Jev is ≥0.90 sure who "their" or "it" is from the conversation, as for "What is
-their email?" (0.98 for the Registrar). Mixed or ambiguous requests defer through
-the route and entity choices.
+hours tomorrow?" after another question. A follow-up that names exactly one entity (not a
+course subject, whose codes are everyday words like "info") and has no word pointing back
+(it, that, they, there, then, …) is also looked up as that entity, whatever Jev's
+needs-earlier score or entity pick, and GPT writes the answer: "Actually, …" (0.26),
+"What about …?" (0.37), and "What's on the menu at the dining place in the Learning
+Commons today?" after a Birch answer, which Jev read as needing the earlier messages, so
+GPT looked up Birch (09-29). If that lookup is dated and the request names no day of its
+own, it stays with GPT, since it may mean an earlier turn's day. A follow-up that names
+no entity runs its own lookup when Jev is ≥0.90 sure who "their" or "it" is from the
+conversation, as for "What is their email?" (0.98 for the Registrar). Mixed or ambiguous
+requests defer through the route and entity choices.
 
 A request names an entity by its longest matching name or alias: "Computer Science
 BS" names that program, not every program sharing the "Computer Science" alias.
@@ -227,7 +233,9 @@ These are synthetic evaluation artifacts, not stored student conversations.
 Case expectations follow the published identities, last checked against
 `dev-profiles-offices-20260924-r3`. A case marked `eligible_direct` must name exactly
 one entity; when identities or aliases change, recheck them. Follow-ups keep
-`eligible_direct` false even when prior messages resolve the entity.
+`eligible_direct` false even when prior messages resolve the entity. A follow-up that
+names its own entity with no word pointing back is now looked up directly (09-29), so
+`followup-switch` may run direct; its label stays false until a paid rerun measures it.
 
 Review each paired answer against its cited evidence and the original fixture.
 Check completeness, current subject, dates, unsupported assertions, and honest
