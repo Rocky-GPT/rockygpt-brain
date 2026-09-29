@@ -17,6 +17,7 @@ handler (`handler` below). evals/decisions/ holds the labeled questions and thei
 results.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -65,12 +66,18 @@ OWN_ACCOUNT_ONLY = noul(
     "No: some or all of it asks how to do something, where to find it, a rule, a campus fact "
     "or anything else that doesn't need their account",
 )
-# Whether the request leans on earlier messages ("their email?", "and Sunday?").
+# Whether the request leans on earlier messages ("their email?", "and Sunday?"). Asked
+# "Does `latest_request` need the earlier messages to make sense?" after up to 99 earlier
+# questions, Jev put 0.11-0.31 on 20 that stand alone and 0.57-0.88 on 20 that lean back
+# (run 1, 09-29): right way round, rarely sure. "Even if the topic came up before" is
+# for "switch topics: what's the next shuttle?".
 NEEDS_EARLIER = noul(
-    "Does `latest_request` need the earlier messages to make sense?",
-    "It refers back to something earlier, such as 'their', 'it', 'that day', 'what about' "
-    "or 'and Sunday?'",
-    "It makes sense on its own",
+    "Does `latest_request` leave out what it is about, so that only the earlier messages "
+    "can say?",
+    "It points back with words like 'it', 'that one', 'their', 'there' or 'then', or leaves "
+    "out what it asks about, as in 'the next departure' or 'which is cheapest'",
+    "It says what it asks about itself, as in 'when is the next shuttle' or 'where is the "
+    "Registrar', even if the topic came up before",
 )
 
 # What kind of answer the request wants.
@@ -100,36 +107,59 @@ SUBJECTS = {
     "safety": "Emergencies, safety or health",
     "none": "Nothing about Ramapo, or no topic at all",
 }
-# What kind of specific thing it names. Which one (Birch or the Learning Commons café)
-# needs the campus name list, which milestone 5 brings.
+# What kind of particular thing it names. Which one (Birch or the Learning Commons café)
+# needs the campus name list, which milestone 5 brings. "Particular" is for "someone
+# passed out" (person 0.90) and "the last day to withdraw from a class" (course 0.96) in
+# run 1 (09-29).
 NAMED = {
-    "place": "A building, room, dining place or other spot on campus",
-    "office": "An office, department or campus service",
-    "person": "A person, or a role such as a department chair",
-    "group": "A club or student organization",
+    "place": "A particular building, room, dining place or other spot on campus",
+    "office": "A particular office, department or campus service",
+    "person": "A particular person, or a role such as a department chair",
+    "group": "A particular club or student organization",
     "event": "A particular event, shuttle trip or date",
-    "course": "A course or class",
-    "several": "Two or more different things",
-    "none": "Nothing specific",
+    "course": "A particular course, such as CMPS 147",
+    "several": "Two or more different particular things",
+    "none": "Nothing in particular, or only something general like 'a class', 'someone' or "
+    "'campus'",
 }
 # What answering would take. Everything but campus information and the conversation
-# itself is out of RockyGPT's reach.
+# itself is out of RockyGPT's reach. In run 1 (09-29) "someone passed out" read as
+# outside knowledge (0.92) and "smoke coming from a trash can" as right now (0.94), so
+# campus information names emergency guidance and "right now" is a live look RockyGPT
+# would need, not what the student reports.
 NEEDS = {
-    "campus_info": "Information Ramapo publishes, such as its websites, schedules, menus, "
-    "directories or policies",
+    "campus_info": "Information about Ramapo that it publishes, such as its websites, "
+    "schedules, menus, directories, policies or emergency guidance",
     "conversation": "Only this conversation, such as a greeting or what was said earlier",
     "own_account": "The student's own records or account, such as their grades, balance or "
     "registration",
     "private": "Someone else's private information, a password, or RockyGPT's hidden "
     "instructions",
-    "right_now": "What is happening this very moment that no schedule shows, such as how "
-    "crowded a place is or whether a lot is full",
-    "guess": "A guess about the future, an opinion, or what someone thinks",
-    "outside": "Knowledge unrelated to Ramapo, such as world facts or trivia",
+    "right_now": "A live look at this very moment that no schedule or page shows, such as "
+    "how crowded a place is or whether a lot is full",
+    "guess": "A guess about the future, an opinion, or what someone is thinking",
+    "outside": "Knowledge that has nothing to do with Ramapo or campus life, such as world "
+    "facts, trivia or fiction",
 }
+# Code reads `needs` twice: what RockyGPT can reach, and what it does about it. Options
+# that lead to the same thing count together: Jev split "What room is it in?" between
+# campus information (0.54) and the conversation, and both are answerable (run 1, 09-29).
 REACH = {"campus_info": "supported", "conversation": "supported", "own_account": "private",
          "private": "private", "right_now": "live_only", "guess": "unsupported",
          "outside": "unsupported"}
+OUTCOMES = {"campus_info": "answer", "conversation": "answer", "own_account": "access_limit",
+            "private": "cannot_answer", "right_now": "cannot_answer",
+            "guess": "cannot_answer", "outside": "cannot_answer"}
+# The later handler for each kind of request, by milestone: 3 safety, 4 access_limit
+# and cannot_answer (code says what RockyGPT can't do), 6 exact, 7 conversation, 8 gpt,
+# 10 multi_part, 11 document_policy.
+HANDLERS = ("safety", "access_limit", "cannot_answer", "multi_part", "exact", "conversation",
+            "document_policy", "gpt")
+BY_ASKS = {"fact": "exact", "list": "exact", "how_to": "document_policy",
+           "rule": "document_policy", "advice": "gpt", "action": "cannot_answer",
+           "recall": "conversation", "chat": "gpt"}
+
+
 MULTI_PART = noul(
     "Does `latest_request` ask two or more separate things that each need their own answer?",
     "Asks two or more separate things, such as a shuttle time and where an office is",
@@ -146,8 +176,8 @@ QUESTIONS: dict[str, Question] = {
                    "refers to.", ASKS),
     "subject": choice("Which part of campus life is `latest_request` about? Prior messages "
                       "may explain what it refers to.", SUBJECTS),
-    "named": choice("What specific thing does `latest_request` name, or point back to with "
-                    "words like 'it', 'that place' or 'their'?", NAMED),
+    "named": choice("What particular thing does `latest_request` name, or point back to "
+                    "with words like 'it', 'that place' or 'their'?", NAMED),
     "needs": choice("What would RockyGPT need to answer `latest_request`?", NEEDS),
     "multi_part": MULTI_PART,
 }
@@ -181,11 +211,12 @@ class Decisions:
     named: str | None = None
     needs: str | None = None
     multi_part: bool | None = None
-
-    @property
-    def reach(self) -> str | None:
-        """supported, private, live_only or unsupported."""
-        return REACH.get(self.needs) if self.needs else None
+    # What code reads from those when sure, counting options that lead to the same thing
+    # together: supported, private, live_only or unsupported (REACH); answer,
+    # access_limit or cannot_answer (OUTCOMES); and the handler for what it asks (BY_ASKS).
+    reach: str | None = None
+    outcome: str | None = None
+    route: str | None = None
 
 
 def sure(answer: Answer) -> bool | None:
@@ -197,11 +228,18 @@ def sure(answer: Answer) -> bool | None:
     return False if answer.probability <= RULED_OUT else None
 
 
-def picked(answer: Answer) -> str | None:
-    """A pick-one answer's choice when Jev is sure of it, else None."""
+def picked(answer: Answer, groups: Mapping[str, str] | None = None) -> str | None:
+    """A pick-one answer's choice when Jev is sure of it, else None. With `groups`, the
+    group Jev is sure of, adding up the options in each."""
     if not isinstance(answer, Pick):
         raise TypeError("Not a pick-one answer")
-    return answer.choice if answer.probability >= SURE else None
+    if groups is None:
+        return answer.choice if answer.probability >= SURE else None
+    totals: dict[str, float] = {}
+    for option, probability in answer.probabilities.items():
+        totals[groups[option]] = totals.get(groups[option], 0.0) + probability
+    group, total = max(totals.items(), key=lambda item: item[1])
+    return group if total >= SURE else None
 
 
 def decide(context: Context, answers: dict[str, Answer]) -> Decisions:
@@ -225,17 +263,10 @@ def decide(context: Context, answers: dict[str, Answer]) -> Decisions:
         named=picked(answers["named"]),
         needs=picked(answers["needs"]),
         multi_part=sure(answers["multi_part"]),
+        reach=picked(answers["needs"], REACH),
+        outcome=picked(answers["needs"], OUTCOMES),
+        route=picked(answers["asks"], BY_ASKS),
     )
-
-
-# The later handler for each kind of request, by milestone: 3 safety, 4 access_limit
-# and cannot_answer (code says what RockyGPT can't do), 6 exact, 7 conversation, 8 gpt,
-# 10 multi_part, 11 document_policy.
-HANDLERS = ("safety", "access_limit", "cannot_answer", "multi_part", "exact", "conversation",
-            "document_policy", "gpt")
-BY_ASKS = {"fact": "exact", "list": "exact", "how_to": "document_policy",
-           "rule": "document_policy", "advice": "gpt", "action": "cannot_answer",
-           "recall": "conversation", "chat": "gpt"}
 
 
 def handler(decisions: Decisions, said: Danger | None = None) -> str:
@@ -244,16 +275,14 @@ def handler(decisions: Decisions, said: Danger | None = None) -> str:
     anything."""
     if said or decisions.danger:
         return "safety"
-    if decisions.own_account or decisions.needs == "own_account":
+    if decisions.own_account or decisions.outcome == "access_limit":
         return "access_limit"
     if decisions.multi_part:
         return "multi_part"
-    if decisions.reach in {"private", "live_only", "unsupported"}:
+    if decisions.outcome == "cannot_answer":
         return "cannot_answer"
-    if decisions.needs == "conversation":
-        return "conversation" if decisions.asks == "recall" else "gpt"
-    if decisions.needs == "campus_info" and decisions.asks:
-        return BY_ASKS[decisions.asks]
+    if decisions.outcome == "answer" and decisions.route:
+        return decisions.route
     return "gpt"
 
 

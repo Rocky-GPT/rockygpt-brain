@@ -93,8 +93,11 @@ def score(case: dict[str, Any], decisions: Decisions, asked: Asked) -> dict[str,
         assert isinstance(answer, Pick)
         choice = REACH[answer.choice] if item == "reach" else answer.choice
         top[item] = choice in labels[item]
+    spread = {key: answer.probabilities for key, answer in asked.answers.items()
+              if isinstance(answer, Pick)}
     return {"id": case["id"], "question": case["question"], "decided": decided,
             "verdicts": verdicts, "top_right": top, "readings": readings(asked.answers),
+            "probabilities": spread,
             "cost_nusd": asked.cost_nusd, "elapsed_ms": asked.elapsed_ms}
 
 

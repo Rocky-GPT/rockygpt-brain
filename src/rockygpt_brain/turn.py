@@ -69,8 +69,10 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
                                           "subject": decisions.subject,
                                           "named": decisions.named,
                                           "needs": decisions.needs,
+                                          "multiPart": decisions.multi_part,
                                           "reach": decisions.reach,
-                                          "multiPart": decisions.multi_part},
+                                          "outcome": decisions.outcome,
+                                          "route": decisions.route},
                               "costNusd": asked.cost_nusd,
                               "inputTokens": asked.input_tokens, "elapsedMs": asked.elapsed_ms}
         except JevError as error:
