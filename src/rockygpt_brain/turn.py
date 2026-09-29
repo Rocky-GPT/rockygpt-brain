@@ -9,7 +9,7 @@ from typing import Any, NamedTuple
 
 from rockygpt_brain.context import Context
 from rockygpt_brain.contract import ChatReply, ErrorCode, FailureReply, ProgressEvent, SafetyBlock
-from rockygpt_brain.decisions import Decisions, Handler, ask_jev, handler, readings
+from rockygpt_brain.decisions import ROUTES, Decisions, Handler, ask_jev, handler, readings
 from rockygpt_brain.failures import failure
 from rockygpt_brain.jev import Jev, JevError
 from rockygpt_brain.safety import ACCOUNT_LIMIT, Danger, safety_block, said_danger
@@ -41,10 +41,11 @@ def camel(name: str) -> str:
 
 
 def decided(decisions: Decisions, chosen: Handler) -> dict[str, Any]:
-    """Jev's picks, what code read from them, and the handler with the picks that led
-    there (`handlerPath`, the last one settled it) and those Jev put under 0.90."""
+    """Jev's picks, what code read from them, and the route with where it goes, the picks
+    that led there (`handlerPath`, the last one settled it) and those Jev put under 0.90."""
     picks = {camel(name): getattr(decisions, name) for name in decisions.sureness}
-    return {**picks, "handler": chosen.name, "handlerPath": [camel(name) for name in chosen.path],
+    return {**picks, "handler": chosen.name, "goesTo": ROUTES[chosen.name],
+            "handlerPath": [camel(name) for name in chosen.path],
             "lowConfidence": {camel(name): sureness
                               for name, sureness in chosen.low_confidence.items()}}
 
@@ -88,9 +89,9 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
             stop = error
             metrics["jev"] = {"skipped": error.code}
 
-    # Which later handler should take it. Until those milestones, the turn still ends
-    # below with safety help, the account limit or "not ready".
-    metrics["handler"] = chosen.name if chosen else "safety" if said else None
+    # Which route should take it. Until their milestones, the turn still ends below with
+    # safety help, the account limit or "not ready".
+    metrics["handler"] = chosen.name if chosen else "danger" if said else None
     danger = worst(said, decisions.danger if decisions else None)
     if danger is not None and danger != said:
         shown = safety_block(danger)
@@ -112,8 +113,9 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
         code = stopped(stop)
         metrics["responseMode"] = code
         yield TurnResult(*failure(code, request_id, reset_at=stop.reset_at), None, metrics)
-    elif chosen and chosen.name == "access_limit":
-        # Code says what RockyGPT can't reach, with no model writing it.
+    elif decisions is not None and decisions.own_account:
+        # An account action, the one capability limit built so far: code says what
+        # RockyGPT can't reach, with no model writing it.
         metrics["responseMode"] = "access_limit"
         work.decided(written={"by": "code", "mode": "access_limit"})
         yield TurnResult(200, ChatReply(answer=ACCOUNT_LIMIT, status="unavailable",
