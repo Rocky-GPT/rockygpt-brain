@@ -10,7 +10,7 @@ The Brain accepts questions in the shape the student app and dev UI already send
 It gives danger help first. Jev reads what each question asks, and code answers with
 words it wrote when RockyGPT can't do the work (the student's own account, private
 information, a live look) or can't tell what was asked. If Jev fails, the turn fails with
-a retryable error instead of guessing. Everything else gets `not_ready` with emergency
+a clear failure (retryable for most causes) instead of guessing. Everything else gets `not_ready` with emergency
 help until later milestones teach it to answer.
 
 | Milestone | Where |

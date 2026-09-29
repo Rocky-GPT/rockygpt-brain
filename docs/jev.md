@@ -53,8 +53,10 @@ words are unclear. It is never where a question lands because Jev wasn't sure. F
 the turn ends in one of four ways, because each route's handler comes with its milestone.
 Danger gets the safety help. The account action route gets words code wrote: the account
 limit when all of it needs the student's own account, otherwise the line for the reason
-Jev's `needs` pick names (someone's private information, a live look, or "I can't help
-with that one" for any other reason). The ambiguous route asks the student to say it
+Jev's `needs` pick names (the student's own account, someone's private information, a
+live look, or "I can't help with that one" for any other reason, which is a placeholder
+until what a guess or an opinion gets is settled, see results.md run 5). For a can't-do,
+`handlerPath` ends with `needs`, so a shaky `needs` pick is listed as low confidence. The ambiguous route asks the student to say it
 another way. Every other route says "not ready". The route (`handler`), where it goes
 (`goesTo`), the picks that led to it (`handlerPath`) and those under 0.90
 (`lowConfidence`) are in the dev diagnostics (`metrics.jev.decided`). The route and the
@@ -79,7 +81,7 @@ the call, it settles the tokens Typesafe reports. A call is about $0.0001.
 - The price lives in `src/rockygpt_brain/prices.json`. It was checked on
   <https://docs.typesafe.ai/models> on 2026-09-29 and is trusted until 2026-12-28.
 - `.github/workflows/price-window.yml` opens an issue two weeks before that date. Past
-  it, Jev is skipped.
+  it, every turn without a danger phrase fails with 503 `model_not_configured`.
 
 ## When Jev can't help
 
@@ -91,7 +93,7 @@ danger phrases still work, because they need no Jev.
 | --- | --- |
 | a timeout (2 s) | 504 `model_timeout` |
 | no connection | 503 `model_unreachable` |
-| rate limiting | 429 `rate_limited` |
+| rate limiting | 429 `busy` |
 | a provider error, missing usage, or a different model | 502 `model_provider_error` |
 | an answer in the wrong shape | 502 `invalid_model_output` |
 | a call too long for Jev | 422 `context_limit`, not retryable: a shorter chat helps |

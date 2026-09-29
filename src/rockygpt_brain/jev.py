@@ -2,7 +2,7 @@
 
 Each call is held in the ledger at Jev's price before it is sent, and settled with the
 tokens Typesafe reports (spending.py). A call that goes wrong raises JevError, and the
-turn fails on purpose with a retryable error (turn.JEV_FAILURES), because without Jev's
+turn fails on purpose with a clear failure (turn.JEV_FAILURES), because without Jev's
 answers there is no plan. A budget or ledger refusal raises SpendingError, which stops
 all paid work.
 """

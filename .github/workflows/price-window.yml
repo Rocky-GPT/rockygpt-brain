@@ -1,7 +1,8 @@
 name: Price window
 
 # Every price in src/rockygpt_brain/prices.json is trusted only inside its checked
-# window. Past it, the Brain stops using that model (Jev's decisions are skipped).
+# window. Past it, the Brain stops using that model (every turn without a danger phrase
+# fails with model_not_configured).
 # Open an issue two weeks before the first one ends, remind at 7, 3 and 1 days and
 # on the day, and close it once renewed.
 on:

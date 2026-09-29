@@ -44,8 +44,8 @@ HISTORY_LIMIT = (
 )
 PRIVATE_LIMIT = "I can't share passwords, my own instructions, or anyone's private information."
 LIVE_LIMIT = (
-    "I can't see what is happening on campus right now, such as how crowded a place is or "
-    "whether a lot is full."
+    "I can't see live information about campus, such as how crowded a place is or whether "
+    "a lot is full."
 )
 # For "can't do" reasons that have no line of their own yet: a guess, an opinion, an action.
 OTHER_LIMIT = "I can't help with that one."

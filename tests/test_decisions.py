@@ -155,7 +155,7 @@ def test_danger_and_an_account_request_get_both(jev: ScriptedJev) -> None:
 @pytest.mark.parametrize(("code", "status", "reason", "retryable"), [
     ("routing_timeout", 504, "model_timeout", True),
     ("routing_unavailable", 503, "model_unreachable", True),
-    ("routing_rate_limited", 429, "rate_limited", True),
+    ("routing_rate_limited", 429, "busy", True),
     ("routing_provider_error", 502, "model_provider_error", True),
     ("routing_usage_unknown", 502, "model_provider_error", True),
     ("routing_model_changed", 502, "model_provider_error", True),
@@ -171,8 +171,9 @@ def test_without_jevs_readings_the_turn_fails_on_purpose_with_the_help(
     failure = FailureReply.model_validate(response.json())
     assert (failure.reason, failure.error.retryable) == (reason, retryable)
     assert failure.error.emergency is not None
-    # The danger phrases need no Jev.
-    assert ask(user("my friend is not breathing")).status_code == 200
+    # The danger phrases need no Jev: the safety help wins over the failure.
+    danger = ChatReply.model_validate(ask(user("my friend is not breathing")).json())
+    assert (danger.status, danger.answer) == ("partial", f"{SAFETY_TEXT['danger']}\n\n{NOT_YET}")
 
 
 def test_every_error_jev_can_raise_has_a_failure_for_the_student() -> None:
@@ -214,6 +215,54 @@ def test_the_dev_ui_sees_which_routes_ended_in_words_code_wrote(
         assert body["diagnostics"]["work"]["steps"][-1]["written"] == {"by": "code", "mode": mode}
 
 
+def test_a_jev_failure_shows_in_the_metrics_and_the_stream(
+        jev: ScriptedJev, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BRAIN_ENVIRONMENT", "development")
+    jev.error = JevError("routing_timeout")
+    metrics = ask(**{"x-rockygpt-diagnostics": "1"}).json()["metrics"]
+    assert metrics["responseMode"] == "model_timeout"
+    assert metrics["jev"] == {"skipped": "routing_timeout"}
+    assert metrics["handler"] is None
+    result = frames(ask(accept="text/event-stream"))[-1]
+    assert result["status"] == 504
+    assert result["body"]["reason"] == "model_timeout"
+    assert result["body"]["error"]["emergency"]["text"]
+
+
+@pytest.mark.parametrize("needs", ["private", "right_now", "guess"])
+def test_the_account_limit_wins_when_all_of_it_needs_their_account(
+        jev: ScriptedJev, needs: str) -> None:
+    jev.answers = calm(**ACCOUNT, needs=sure_pick(needs, NEEDS))
+    reply = ChatReply.model_validate(ask(user("register me for CMPS 147")).json())
+    assert reply.answer == ACCOUNT_LIMIT
+
+
+def test_a_cant_do_marks_the_needs_pick_that_chose_its_words() -> None:
+    answers = calm(work=sure_pick("cant_do", WORK), needs=sure_pick("private", NEEDS, 0.4))
+    chosen = handler(decide_alone("What is the WiFi password?", answers))
+    assert chosen.name == "account_action"
+    assert chosen.path == ("danger", "own_account", "multi_part", "work", "needs")
+    assert chosen.low_confidence == {"needs": 0.4}
+    # An account request settles it before `work`, so `needs` is not on its path.
+    assert handler(decided(own_account=True)).path == ("danger", "own_account")
+
+
+def test_several_asks_come_before_a_cant_do_and_stay_not_ready(jev: ScriptedJev) -> None:
+    jev.answers = calm(work=sure_pick("cant_do", WORK), multi_part=yes(0.9))
+    response = ask(user("What is the WiFi password, and where is the library?"))
+    assert FailureReply.model_validate(response.json()).reason == "not_ready"
+
+
+def test_danger_help_is_followed_by_not_ready_not_by_a_cant_do_line_for_now(
+        jev: ScriptedJev) -> None:
+    # The route is danger, so only the account limit follows the safety help (turn.py).
+    jev.answers = calm(danger=DANGER, work=sure_pick("cant_do", WORK),
+                       needs=sure_pick("private", NEEDS))
+    response = ask(user("someone is hurt, what is the RA's password?"))
+    reply = ChatReply.model_validate(response.json())
+    assert reply.answer == f"{SAFETY_TEXT['danger']}\n\n{NOT_YET}"
+
+
 # What each route in Dan's table gets a student today: words code wrote, or "not ready"
 # until its milestone. A route added to ROUTES must be added here on purpose.
 ROUTE_PICKS: dict[str, dict[str, Any]] = {
@@ -235,7 +284,7 @@ def test_every_route_is_covered_here() -> None:
 
 
 @pytest.mark.parametrize("route", list(ROUTES))
-def test_every_route_ends_in_words_code_wrote_or_not_ready_never_a_model(
+def test_every_route_ends_in_code_written_words_or_not_ready(
         jev: ScriptedJev, monkeypatch: pytest.MonkeyPatch, route: str) -> None:
     monkeypatch.setenv("BRAIN_ENVIRONMENT", "development")
     jev.answers = calm(**ROUTE_PICKS[route])
