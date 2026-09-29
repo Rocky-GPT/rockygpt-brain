@@ -292,3 +292,111 @@ def test_oversized_record_is_unavailable_not_a_false_no_match_or_partial_record(
     assert result["status"] == "unavailable"
     assert result["reason"] == "retrieval_delivery_limit"
     assert result["records"] == [] and result["total_matches"] == 1
+
+
+def oversized_search(*ids: str) -> dict[str, Any]:
+    """A menu search in rank order; an upper-case id is a record too large to deliver."""
+    return {
+        "status": "ok",
+        "records": [{"id": record_id, "big": record_id.isupper()} for record_id in ids],
+        "total_matches": len(ids),
+        "truncated": False,
+    }
+
+
+def room_for(count: int, calls: list[int]) -> Callable[[dict[str, Any]], bool]:
+    """Room for count ordinary records and no oversized one; counts every check made."""
+
+    def fits(value: dict[str, Any]) -> bool:
+        calls.append(len(value["records"]))
+        records = value["records"]
+        return len(records) <= count and not any(record["big"] for record in records)
+
+    return fits
+
+
+def test_an_oversized_first_record_no_longer_blocks_the_rest() -> None:
+    # One oversized first menu item left the other 49 undelivered (09-29).
+    from rockygpt_brain.governance.evidence import bounded_result
+
+    calls: list[int] = []
+    result = bounded_result(oversized_search("A", "b", "c", "d", "e"), room_for(2, calls))
+    assert [record["id"] for record in result["records"]] == ["b", "c"]
+    assert result["status"] == "ok" and result["reason"] == "retrieval_delivery_limit"
+    assert (result["retrieved_count"], result["omitted_count"]) == (5, 3)
+    assert result["oversized_omitted_count"] == 1
+    # Stays linear: never more than a few checks per record.
+    calls.clear()
+    bounded_result(oversized_search("A", *"bcdefghij" * 5), room_for(40, calls))
+    assert len(calls) <= 3 * 46 + 2
+
+
+def test_an_oversized_middle_record_is_skipped_and_the_rest_stays_a_prefix() -> None:
+    from rockygpt_brain.governance.evidence import bounded_result
+
+    result = bounded_result(oversized_search("a", "B", "c", "d", "e", "f"), room_for(3, []))
+    # e would fit alone but not with a, c and d, so neither it nor f is delivered.
+    assert [record["id"] for record in result["records"]] == ["a", "c", "d"]
+    assert result["omitted_count"] == 3 and result["oversized_omitted_count"] == 1
+
+
+def test_when_every_record_is_oversized_the_result_is_unavailable() -> None:
+    from rockygpt_brain.governance.evidence import bounded_result
+
+    result = bounded_result(oversized_search("A", "B", "C"), room_for(3, []))
+    assert result["status"] == "unavailable"
+    assert result["reason"] == "retrieval_delivery_limit"
+    assert result["records"] == [] and result["total_matches"] == 3
+    assert result["omitted_count"] == result["oversized_omitted_count"] == 3
+
+
+def test_an_ordinary_tail_cut_is_unchanged_and_found_from_the_top() -> None:
+    from rockygpt_brain.governance.evidence import bounded_result
+
+    calls: list[int] = []
+    result = bounded_result(oversized_search(*"abcdefghij"), room_for(8, calls))
+    assert [record["id"] for record in result["records"]] == list("abcdefgh")
+    assert result["omitted_count"] == 2 and "oversized_omitted_count" not in result
+    # The whole result, the prefixes of 10, 9 and 8, and i alone to see it isn't oversized.
+    assert calls == [10, 10, 9, 8, 1]
+
+
+def sized_search(*sizes: int) -> dict[str, Any]:
+    """A search in rank order whose records r0, r1, ... carry details of these sizes."""
+    return {
+        "status": "ok",
+        "records": [{"id": f"r{index}", "detail": "x" * size} for index, size in enumerate(sizes)],
+        "total_matches": len(sizes),
+        "truncated": False,
+    }
+
+
+def json_room(limit: int) -> Callable[[dict[str, Any]], bool]:
+    """Room measured on the real payload, markers and counts included."""
+    return lambda value: len(json.dumps(value)) <= limit
+
+
+def test_the_oversized_count_is_kept_when_it_tips_a_full_result_over() -> None:
+    # r0..r2 fill the room with 5 bytes to spare, too few for the oversized count r3
+    # adds; the last kept record gives way so the skipped one is still reported.
+    from rockygpt_brain.governance.evidence import bounded_result
+
+    search = sized_search(16, 26, 16, 400)
+    full = {**search, "records": search["records"][:3], "truncated": True,
+            "reason": "retrieval_delivery_limit", "retrieved_count": 4, "omitted_count": 1}
+    limit = len(json.dumps(full)) + 5
+    result = bounded_result(search, json_room(limit))
+    assert [record["id"] for record in result["records"]] == ["r0", "r1"]
+    assert result["omitted_count"] == 2 and result["oversized_omitted_count"] == 1
+    assert len(json.dumps(result)) <= limit
+
+
+def test_a_lone_kept_record_outranks_the_oversized_count() -> None:
+    # Only r0 fits, and not with the count beside it; delivering nothing just to report
+    # the count would lose the one record that fits. omitted_count still counts r1..r3.
+    from rockygpt_brain.governance.evidence import bounded_result
+
+    result = bounded_result(sized_search(5, 400, 10, 400), json_room(183))
+    assert [record["id"] for record in result["records"]] == ["r0"]
+    assert result["status"] == "ok" and result["omitted_count"] == 3
+    assert "oversized_omitted_count" not in result

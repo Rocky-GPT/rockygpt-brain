@@ -67,22 +67,60 @@ def bounded_result(
         timetable = bounded_timetable(limited, records, [summary, *smaller], departed, fits)
         if timetable is not None:
             return with_titles(timetable)
-    for count in range(len(records), -1, -1):
-        if count < len(records):
-            limited.update(
-                records=records[:count],
+
+    def delivered(kept: tuple[int, ...], oversized: int) -> dict[str, Any]:
+        candidate = {**limited}
+        if len(kept) < len(records):
+            candidate.update(
+                records=[records[index] for index in kept],
                 truncated=True,
                 reason="retrieval_delivery_limit",
                 retrieved_count=len(records),
-                omitted_count=len(records) - count,
+                omitted_count=len(records) - len(kept),
             )
+            if oversized:
+                candidate["oversized_omitted_count"] = oversized
             # Derived summaries must not claim coverage of omitted evidence.
-            limited.pop("schedule_calculations", None)
-            derived_withheld(limited)
-            if not count:
-                limited["status"] = "unavailable"
-        if fits(limited):
-            return with_titles(limited)
+            candidate.pop("schedule_calculations", None)
+            derived_withheld(candidate)
+            if not kept:
+                candidate["status"] = "unavailable"
+        return candidate
+
+    # Each check serializes the whole next payload, so none is made twice.
+    checked: dict[tuple[tuple[int, ...], int], bool] = {}
+
+    def fitting(kept: tuple[int, ...], oversized: int) -> bool:
+        if (kept, oversized) not in checked:
+            checked[kept, oversized] = fits(delivered(kept, oversized))
+        return checked[kept, oversized]
+
+    # Usually only the tail is cut: the largest ranked prefix that fits, from the top.
+    count = next((size for size in range(len(records), 0, -1)
+                  if fitting(tuple(range(size)), 0)), 0)
+    # A record too large to fit even on its own can never be delivered. An oversized
+    # first menu item kept the other 49 from delivery, and the student got no dinner menu
+    # at all (09-29), so it is skipped and counted. Delivery stops at the first record
+    # that would fit alone but not with those kept, so what follows stays a ranked prefix.
+    kept, oversized = tuple(range(count)), 0
+    verified = kept, oversized
+    for index in range(count, len(records)):
+        if fitting((*kept, index), oversized):
+            kept = (*kept, index)
+            verified = kept, oversized
+        elif kept and fitting((index,), oversized):
+            break
+        else:
+            oversized += 1
+    # Counting the last records skipped adds a marker no check carried yet. Should that
+    # tip the result over, shed kept records from the end (still a prefix) so the skipped
+    # ones stay reported. Only a lone kept record outranks the count: then deliver what
+    # last fit, whose omitted_count still counts them.
+    while len(kept) > 1 and not fitting(kept, oversized):
+        kept = kept[:-1]
+    for delivery in ((kept, oversized), verified):
+        if fitting(*delivery):
+            return with_titles(delivered(*delivery))
     return {
         "status": "unavailable",
         "reason": "retrieval_delivery_limit",
