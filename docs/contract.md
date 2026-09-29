@@ -109,7 +109,12 @@ These come back in later milestones:
   `/v1/config`, `/v1/releases`, `/v1/templates`, `/v1/capabilities`,
   `/v1/documents`, `/v1/storage` and `/v1/dev/`.
 
-## Milestone 1 behaviour
+## What the Brain does so far
 
-Only `/health` and `/v1/chat` exist. Every question gets HTTP 503 with code
-`not_ready` and the emergency help, in both the plain and streaming forms.
+Only `/health` and `/v1/chat` exist.
+
+- A question that names danger ("my friend isn't breathing", "I want to hurt myself")
+  gets HTTP 200 with status `partial`: the safety help first, then a line saying the new
+  Brain can't answer the rest yet. A streaming app gets the safety help in a `progress`
+  event right away.
+- Every other question gets HTTP 503 with code `not_ready` and the emergency help.
