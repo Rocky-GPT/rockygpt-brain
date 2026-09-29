@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from unittest.mock import Mock, patch
 from uuid import UUID
@@ -287,6 +287,63 @@ def test_first_next_and_last_come_from_one_calculation(question: str, expected: 
     assert piece is not None and piece.answer.parts[0].text == expected
 
 
+def two_days() -> dict[str, Any]:
+    """Today's timetable and tomorrow's, as the departures lookup fetches them."""
+    tomorrow = []
+    for row in timetable()["records"]:
+        later = copy.deepcopy(row)
+        # The same trip, like the published timetable's, under the same identity.
+        later["id"] = row["id"] + ":next"
+        day = NOW.date() + timedelta(days=1)
+        later["fields"]["service_date"] = str(day)
+        later["fields"]["service_day"] = ("weekday" if day.weekday() < 5
+                                          else day.strftime("%A").lower())
+        tomorrow.append(later)
+    records = [*timetable()["records"], *tomorrow]
+    return {"status": "ok", "records": records, "total_matches": len(records),
+            "truncated": False}
+
+
+def test_the_last_shuttle_after_it_left_says_when_and_gives_the_next() -> None:
+    # "When is the last shuttle?" at 11:10 PM (09-28) said only that no later departure
+    # was found, route by route.
+    query = SearchQuery(collection="shuttle", date_from=NOW.date(),
+                        date_to=NOW.date() + timedelta(days=1), limit=100)
+    tomorrow = NOW.date() + timedelta(days=1)
+
+    def answer(question: str, now: datetime) -> list[str]:
+        piece = exact_search(question, [ChatMessage(role="user", content=question)], query,
+                             two_days(), now)
+        assert piece is not None and piece.answer.status == "answered"
+        return [part.text for part in piece.answer.parts]
+
+    late = NOW.replace(hour=23, minute=10)
+    assert answer("when is the last shuttle", late)[:3] == [
+        f"The last published departures from campus on {NOW.date()} (America/New_York) are: "
+        "Route 17 at 8:00 AM (time passed); Roadrunner at 2:00 PM (time passed).",
+        f"The next published departure from campus on Route 17 is 8:00 AM on {tomorrow} "
+        "(America/New_York).",
+        f"The next published departure from campus on Roadrunner is 7:00 AM on {tomorrow} "
+        "(America/New_York).",
+    ]
+    # Before it leaves, the last is still today's, never tomorrow's.
+    assert answer("when is the last shuttle", NOW.replace(hour=10))[0] == (
+        f"The last published departures from campus on {NOW.date()} (America/New_York) are: "
+        "Route 17 at 8:00 AM (time passed); Roadrunner at 2:00 PM.")
+    # One stop.
+    assert answer("when is the last shuttle to garden state plaza", late)[:2] == [
+        "The last published departure from campus that reaches Garden State Plaza on "
+        f"{NOW.date()} (America/New_York) was Roadrunner at 2:00 PM, arriving at 2:25 PM; "
+        "that time has passed.",
+        "The next published departure from campus that reaches Garden State Plaza is 9:00 AM "
+        f"on {tomorrow} (America/New_York), arriving at 9:25 AM.",
+    ]
+    # The next shuttle after the day's last is tomorrow's, with its own date.
+    assert answer("when is the next shuttle", late)[0] == (
+        "The next published departures from campus on "
+        f"{tomorrow} (America/New_York) are: Roadrunner at 7:00 AM; Route 17 at 8:00 AM.")
+
+
 def test_no_later_trip_to_a_stop_is_said_once() -> None:
     query = SearchQuery(collection="shuttle", date_from=NOW.date(), limit=100)
     question = "when is the next shuttle to interstate plaza"
@@ -333,7 +390,7 @@ def test_a_search_for_a_job_title_ranks_the_person_who_holds_it_first() -> None:
 
 
 
-def test_food_right_now_fetches_the_hours_and_only_the_meal_being_served() -> None:
+def test_food_right_now_fetches_the_hours_and_the_meal_being_served_or_next() -> None:
     # "What can I eat on campus right now?" fetched the whole day's menu (66 of 141 items
     # arrived) and no hours (09-28).
     from rockygpt_brain.core.routing import RouteDecision, eating_now, serving_now
@@ -347,8 +404,12 @@ def test_food_right_now_fetches_the_hours_and_only_the_meal_being_served() -> No
     lookups = serving_now(data, now)
     assert [lookup["arguments"]["collection"] for lookup in lookups] == ["dining_hours", "menu"]
     assert lookups[1]["arguments"]["filters"]["meal"] == "Dinner"
-    # Between meals only the hours are fetched; no meal is assumed.
-    assert len(serving_now(data, now.replace(hour=15))) == 1
+    # Between meals, the next meal today is the one fetched: at 8:15 PM, Late Night at
+    # 9 (09-28), never the Dinner that ended at 8.
+    between = serving_now(data, now.replace(hour=20, minute=15))
+    assert [lookup["arguments"]["collection"] for lookup in between] == ["dining_hours", "menu"]
+    assert between[1]["arguments"]["filters"]["meal"] == "Late Night"
+    assert serving_now(data, now.replace(hour=15))[1]["arguments"]["filters"]["meal"] == "Dinner"
     request = [ChatMessage(role="user", content="What can I actually eat on campus right now?")]
     payload, day = routing_payload(request, [], now)
     answers = answers_for(payload, route="search", kind="menu", entity="none")
@@ -356,8 +417,40 @@ def test_food_right_now_fetches_the_hours_and_only_the_meal_being_served() -> No
     assert eating_now(decision, answers, [], day, request, now)
     unsure = answers_for(payload, route="search", kind="other", entity="none", list_menu=0.94)
     assert eating_now(decision, unsure, [], day, request, now)
+    # Jev led with the menu at 0.87-0.91 and put the rest on dining hours (09-28): the
+    # two together reach the bar, and both are what this lookup fetches.
+    def kind(**probabilities: float) -> dict[str, Any]:
+        leading = max(probabilities, key=lambda option: probabilities[option])
+        picked = answers_for(payload, route="search", kind=leading, entity="none")
+        picked["kind"] = {**picked["kind"], "confidence": probabilities[leading],
+                          "probabilities": dict.fromkeys(picked["kind"]["probabilities"], 0.0)
+                          | probabilities}
+        return picked
+
+    assert eating_now(decision, kind(menu=0.6, dining_hours=0.35, other=0.05), [], day,
+                      request, now)
+    # Leading with the menu is not enough on its own, and dining hours leading is a
+    # question about places, which GPT plans.
+    assert not eating_now(decision, kind(menu=0.6, other=0.4), [], day, request, now)
+    assert not eating_now(decision, kind(menu=0.35, dining_hours=0.6, other=0.05), [], day,
+                          request, now)
+    # "rn" is right now.
+    typed = [ChatMessage(role="user", content="whats for food rn")]
+    assert eating_now(decision, answers, [], day, typed, now)
+    # Code's own browse of the whole day's menu is the meal on now instead; a named meal
+    # is still that meal's menu.
+    whole_day = {"collection": "menu", "query": "", "filters": None}
+    assert eating_now(RouteDecision(route="search", arguments=whole_day), answers, [], day,
+                      request, now)
+    dinner = {**whole_day, "filters": {"meal": "Dinner"}}
+    assert not eating_now(RouteDecision(route="search", arguments=dinner), answers, [], day,
+                          request, now)
     later = [ChatMessage(role="user", content="What can I eat on campus tonight?")]
     assert not eating_now(decision, answers, [], day, later, now)
+    # After the day's last meal, only the hours are fetched.
+    data.search.return_value = {"records": [{"fields": {"name": "Birch Tree Inn", "periods": [
+        {"label": "Late Night", "start": "09:00 PM", "end": "11:00 PM"}]}}]}
+    assert len(serving_now(data, now.replace(hour=23, minute=30))) == 1
 
 
 @pytest.mark.parametrize("title,ended", [
@@ -373,6 +466,44 @@ def test_a_page_named_for_an_ended_term_says_so(title: str, ended: str | None) -
     from rockygpt_brain.retrieval.data import ended_term
 
     assert ended_term(title, NOW.date()) == ended
+
+
+def test_document_search_skips_copies_and_puts_ended_terms_last() -> None:
+    # "Overnight guest policy" (09-28): the Spring 2026 check-out page led, a word-for-word
+    # copy of Guest Parking Procedures took a place, and the three-night rule never came.
+    def row(index: int, title: str, content: str) -> dict[str, Any]:
+        return {"id": f"chunk-{index}", "document_id": f"doc-{index}", "chunk_index": 0,
+                "content": content, "metadata": {"headingPath": title}, "source_id": "s",
+                "title": title, "collected_at": NOW.isoformat(), "total": 40}
+
+    rows = [
+        row(0, "Residence Life › Spring 2026 - Check Out › Overnight Guest Policy Ends",
+            "The last night residents may host overnight guests is May 11, 2026."),
+        row(1, "Policies › Guest Parking Procedures", "Guests parking overnight need a pass."),
+        row(2, "Guide to Community Living › Guest Parking Procedures",
+            "Guests  parking overnight need a pass.\n"),
+        row(3, "Policies › Guest Procedures", "Each guest may stay three nights a week."),
+        row(4, "Policies › Adult Guests (18+)", "Adult guests register after 10 PM."),
+    ]
+    data = CampusData("", NOW)
+    data.sources = {"s": {"title": "Residence Life", "trust_tier": "official_primary",
+                          "source_key": "reslife",
+                          "freshness_sla_hours": 24, "canonical_url": "https://ramapo.edu"}}
+    data.dataset = {"id": "release"}
+    data._has_heading_path_index = True
+    with (patch.object(CampusData, "_artifact", return_value={}),
+          patch.object(CampusData, "_fetch", return_value=rows) as fetch):
+        records, total = data._documents(
+            SearchQuery(collection="documents", query="overnight guest policy", limit=3))
+        assert [record["title"].split(" › ")[-1] for record in records] == [
+            "Guest Parking Procedures", "Guest Procedures", "Adult Guests (18+)"]
+        assert total == 40
+        # Twice the places asked, so the copies and ended pages set aside can be refilled.
+        assert fetch.call_args.args[1][-2:] == (6, 6)
+        # A request that names the ended term still gets that page first.
+        named, _ = data._documents(SearchQuery(
+            collection="documents", query="spring 2026 overnight guests", limit=2))
+        assert named[0]["title"].endswith("Overnight Guest Policy Ends")
 
 
 def test_a_place_asked_about_with_no_day_is_looked_up_for_today() -> None:

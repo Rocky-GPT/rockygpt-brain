@@ -31,6 +31,7 @@ from rockygpt_brain.campus.progress import (
     ProgressSubject,
     ProgressUpdate,
     TurnCancelled,
+    WorkLog,
     search_subject,
 )
 from rockygpt_brain.campus.schedules import (
@@ -91,6 +92,15 @@ WRITTEN_MODES = {"menu": "exact_menu", "full_menu": "exact_menu", "hours": "exac
 # verified, and where it looked.
 UNVERIFIED = "I couldn't verify a reliable answer from the available information."
 CONSULTED = " The published pages I checked are linked below."
+# Written by code, not the model, when Jev reads a request for the student's own account:
+# no campus fact, only what RockyGPT can't do and what it can.
+ACCESS_LIMIT = AnswerPart(
+    kind="limitation",
+    text="I can't access student accounts or act in them, so I can't see your grades, "
+    "schedule, balance or holds, or register, drop, pay or send anything for you. I can "
+    "help you find the office or page that handles it, or work with details you share.",
+    evidence_ids=[],
+)
 # Written by code, not the model: it only says that something was left out.
 DROPPED_NOTE = AnswerPart(
     kind="limitation",
@@ -222,6 +232,45 @@ class SafetyNet:
         )
 
 
+def parsed(arguments: str) -> Any:
+    """A call's arguments as sent, for diagnostics; unreadable JSON stays text."""
+    try:
+        return json.loads(arguments)
+    except json.JSONDecodeError:
+        return arguments
+
+
+# What a profile section's counts say about how much of it was delivered.
+SECTION_COUNTS = ("status", "total_matches", "returned_count", "omitted_count", "reason",
+                  "meal", "service_date")
+
+
+def looked_up(tool: str, arguments: Any, output: dict[str, Any], fetched: int,
+              filtered: dict[str, Any] | None) -> dict[str, Any]:
+    """Development only: what one lookup got back, as counts. `matched` is every record
+    that matched, `fetched` what the lookup returned, `delivered` what GPT was given
+    after Jev's filter (`filtered`) and the room left in the prompt. `truncated` with
+    `reason` "retrieval_delivery_limit" means the prompt had no room for the rest."""
+    lookup: dict[str, Any] = {
+        "tool": tool,
+        "arguments": arguments,
+        "status": output.get("status"),
+        "matched": output.get("total_matches"),
+        "fetched": fetched,
+        "delivered": len(output.get("records", [])),
+        "truncated": bool(output.get("truncated")),
+        "reason": output.get("reason"),
+    }
+    if filtered is not None:
+        lookup["filtered"] = filtered
+    if isinstance(output.get("components"), dict):
+        lookup["sections"] = {
+            name: {key: details[key] for key in SECTION_COUNTS if key in details}
+            for name, details in output["components"].items() if isinstance(details, dict)
+        }
+    return lookup
+
+
 def run_turn(
     messages: list[ChatMessage],
     *,
@@ -340,6 +389,10 @@ def answer_turn(
         # Live references: whatever the turn has read and drafted when it ends or fails.
         diagnostics["evidence"] = evidence
         diagnostics["drafts"] = drafts
+    # Development only: why each step ran and what each lookup got back, taken from what
+    # the turn decided, so the Dev control room's Timeline never guesses from step names.
+    logged = diagnostics.get("work") if diagnostics is not None else None
+    work = logged if isinstance(logged, WorkLog) else None
     sent_records: dict[str, dict[str, Any]] = {}
     exact_pieces: list[ExactPiece] = []
     scheduled_times: dict[tuple[str, str, str], set[str]] = {}
@@ -370,6 +423,7 @@ def answer_turn(
     selected_tool: str | None = None
     fact_fields: list[str] | None = None
     template: Template | None = None
+    own_account = False
     jev_answered = False
     if routing_mode != "off" and routing_client is not None:
         notify("understanding")
@@ -382,6 +436,9 @@ def answer_turn(
         jev_answered = decision.reason not in UNANSWERED
         metrics["routing"] = decision.metrics(routing_mode)
         metrics["routingCalls"] = routing_calls
+        if work is not None:
+            # The same record the metrics carry, so it also says whether Jev's lookup ran.
+            work.decided(work.at(), routing=metrics["routing"])
         if routing_mode == "active":
             if decision.danger is not None:
                 net.kind = decision.danger
@@ -392,6 +449,7 @@ def answer_turn(
                 # block needs GPT.
                 fact_fields = decision.answer_fields
                 template = decision.template
+                own_account = decision.own_account
             if decision.arguments is not None and decision.tool is not None:
                 routed_calls = [OutputItem({
                     "type": "function_call", "call_id": "call_jev_initial",
@@ -457,12 +515,41 @@ def answer_turn(
             "elapsedMs": round((monotonic() - started) * 1000),
         }
 
+    if own_account:
+        # Jev read a request for the student's own account: code says what RockyGPT can't
+        # reach, with no GPT draft or check. Before, a GPT check rejected "I can't register
+        # you" as an unsupported campus claim (09-28).
+        notify("composing")
+        if work is not None:
+            work.decided(work.at(), written={"by": "code", "mode": "access_limit"})
+        metrics["responseMode"] = "access_limit"
+        return {
+            **render_answer(Answer(status="unavailable", parts=[ACCESS_LIMIT]), {}),
+            "model": RELEASE.routing.model,
+            "datasetVersion": dataset_version,
+            "trace": trace,
+            "metrics": {
+                **metrics,
+                "modelCalls": routing_calls,
+                "draftCalls": 0,
+                "reviewCalls": 0,
+                "toolRequests": 0,
+                "toolExecutions": 0,
+                "validationFailures": [],
+                "fallbackUsed": False,
+            },
+            "elapsedMs": round((monotonic() - started) * 1000),
+        }
+
     tools = tool_definitions()
     for round_index in range(MAX_DRAFT_CALLS + int(bool(routed_calls))):
         direct = bool(routed_calls) and round_index == 0
         notify("understanding" if round_index == 0 else "composing")
         timeout = budget.model_timeout("draft")
         answer_only = not budget.can_retrieve
+        # Why GPT gets no tools this call, for diagnostics: no rounds, lookups or time left
+        # (`budget.refusal`), or no room in the prompt (below).
+        withheld = budget.refusal if answer_only else None
         if not direct:
             budget.note_model("draft")
             draft_calls += 1
@@ -522,6 +609,7 @@ def answer_turn(
             payload = wire_value({key: value for key, value in request.items() if key != "timeout"})
             if input_bound(payload) > RELEASE.max_input_tokens:
                 answer_only = True
+                withheld = "context_limit"
                 request["tools"] = []
                 request["tool_choice"] = "none"
                 metrics["contextLimitedTools"] = True
@@ -547,6 +635,16 @@ def answer_turn(
         if response.status != "completed":
             raise InvalidAnswer("Incomplete model response", "incomplete_draft")
         calls = [item for item in response.output if item.type == "function_call"]
+        if work is not None:
+            # Whether this call answered or asked for lookups first, and which. Jev's
+            # own first lookup counts as a draft that asked.
+            work.decided(work.at(), draft={
+                "by": "jev" if direct else "gpt",
+                **({} if direct else {"call": draft_calls}),
+                **({"answerOnly": withheld} if withheld else {}),
+                "asked": [{"tool": call.name, "arguments": parsed(call.arguments)}
+                          for call in calls],
+            })
         if not calls:
             # For diagnostics only: this draft as written and what became of it.
             drafted: dict[str, Any] = {"draftCall": draft_calls}
@@ -738,6 +836,9 @@ def answer_turn(
         retrieval_allowed = not answer_only and budget.begin_retrieval()
         for call_index, call in enumerate(calls):
             tool_started = monotonic()
+            # The step before this lookup's own; a lookup that never ran stays in it.
+            before = work.at() if work is not None else 0
+            filtered: dict[str, Any] | None = None
             arguments: dict[str, Any] = {}
             request_quote: str | None = None
             tool_subjects: list[ProgressSubject] = []
@@ -842,6 +943,7 @@ def answer_turn(
                 except Exception:
                     # Do not expose connection strings, SQL, or provider errors.
                     output = {"status": "unavailable", "reason": "campus_data_unavailable"}
+            fetched = len(output.get("records", []))
             listed_by_code = (call.name == "search_campus" and direct and len(calls) == 1
                               and template in {"events", "departures"})
             if (call.name == "search_campus" and output.get("records")
@@ -968,6 +1070,9 @@ def answer_turn(
                         }
                         for component, details in output["components"].items()
                     }
+            if work is not None:
+                work.found(min(before + 1, work.at()), looked_up(
+                    call.name, arguments or parsed(call_arguments), output, fetched, filtered))
             metrics["retrievalMs"] += trace[-1]["elapsed_ms"]
             metrics["toolResults"].append(
                 {
@@ -1048,6 +1153,8 @@ def answer_turn(
                 # exemption. Let the existing bounded reviewed path handle them.
                 continue
             notify("composing")
+            if work is not None:
+                work.decided(work.at(), written={"by": "code", "mode": response_mode})
             if monotonic() - started >= TURN_SECONDS:
                 raise TimeoutError("Turn deadline exceeded during contact lookup")
             metrics["responseMode"] = response_mode
