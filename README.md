@@ -1,39 +1,14 @@
 # RockyGPT Brain
 
-A student assistant for Ramapo College, grounded in the currently published
-campus dataset. One model-driven conversation loop searches and reads official
-campus evidence. Eligible single contact questions are rendered from validated
-fields and citations in code after one tool-request call. Generated prose is
-checked by a separate evidence review before it is returned. Optional Jev routing
-can select tools and directly execute resolved contact/profile lookups; it defaults
-to off. There is no vector service, process conversation memory, or generated SQL.
-See [Jev routing setup and evaluation](docs/routing/README.md).
+The service behind RockyGPT, the Ramapo College student assistant. It is being
+rebuilt from zero, one milestone at a time. The old Brain is commit c00eb91, and it
+still runs in production from `main`.
 
-Combined contact/hours requests can use `lookup_profile`, which resolves a
-published `campus-identities` release artifact and retrieves its exact linked
-record keys from that same dataset. Persistent UUIDs identify entities; source
-record IDs, sources, collection times, and freshness remain separate. No name
-similarity establishes a link. Missing components and conflicting fields remain
-explicit without discarding independent facts. Operating schedules with unknown
-availability scope never establish phone-answering or staff hours. Profiles use
-the ordinary generated-answer evidence review; they have no exact-answer bypass.
-Older releases without the artifact report that profile linking is unavailable.
+## Status
 
-Profile sections include `club` and `event`. Clubs retain the directory's published
-category and contact/social links; a listing does not establish current meetings
-or membership. Events represent individual RSVP instances, not academic programs
-or operating schedules. A null profile date retains an event's published occurrence;
-an explicit date filters in `America/New_York`. Repeated titles require a date or
-persistent identity, and missing times/locations remain unknown. Exact row IDs
-qualify colliding legacy event keys while preserving the original keys. An
-`organized_by` relationship requires explicit event-page group identity evidence;
-organizer or venue name similarity is insufficient. Separate page captures keep
-their own timestamps, and conflicting organizer assertions are not resolved by recency.
-The club `event` section follows incoming approved organizer links and rechecks
-their evidence, retaining each event's identity. It inspects at most 20 candidate
-events and reports unexamined candidates; this is not a complete event calendar.
-Date disambiguation likewise checks at most 20 identically named instances and
-otherwise retains ambiguity. Existing event search remains available for broader queries.
+Milestone 1, the Brain contract, is done: [docs/contract.md](docs/contract.md). The
+Brain accepts questions in the shape the student app and dev UI already send.
+It replies `not_ready` with emergency help until later milestones teach it to answer.
 
 ## Run
 
@@ -41,142 +16,13 @@ otherwise retains ambiguity. Existing event search remains available for broader
 python -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
-cp .env.example .env
 uvicorn rockygpt_brain.api.app:app --host 127.0.0.1 --port 8000
 ```
 
-`.env` loads from the working directory without overriding exported variables.
-Set the environment-owned credentials in `.env.example` and apply the separate
-operational migrations using the [Phase 1 setup guide](docs/phase1.md). `DATABASE_URL`
-retains read-only SELECT access to published `rockygpt_v2` tables. The operational
-connection receives only its matching `brain_development` or `brain_production`
-role. Missing accounting configuration stops paid calls.
-
-The bundled `release.json` fixes the shared baseline at `gpt-6-luna`, `medium` draft
-and review reasoning. No model comparison or selection
-is part of Phase 1. Legacy API-key fallback is removed; a conflicting
-`OPENAI_CHAT_MODEL` override is rejected. Each environment has an independent
-$10 default monthly allowance. Explicit administrator-recorded development
-supplements expire at the end of their approved month; see [Phase 3](docs/phase3.md).
-`python -m rockygpt_brain.config` prints the release hash.
-If `STAGING_SERVICE_TOKEN` is set, chat requires the matching
-`x-rockygpt-environment-token` header. Keep it identical in UI and Dev.
-
-Production runs the `Dockerfile` on Render (`render.yaml` lists the settings it
-needs), started with `uvicorn rockygpt_brain.api.app:app --host 0.0.0.0 --port $PORT`.
-Operator routes (turn logs, stored feedback, eval runs, prompts, config, releases,
-raw records and documents) and `/openapi.json` answer 404 unless
-`BRAIN_ENVIRONMENT=development`.
-
-## HTTP contract
-
-- `GET /health` and `HEAD /health`: liveness plus the deployment settings (503 when they do
-  not load, so Render keeps the previous deploy); no database or model call.
-- `GET /readiness`: checks deployment configuration, price validity, the operational ledger,
-  and a read-only campus connection with an active release. This does not call the model or prove every
-  source is fresh; freshness is checked when records are retrieved.
-- `POST /v1/chat`: one JSON response, with the conversation supplied on every
-  request. A client that sends only its latest messages sets `omittedMessages` to how
-  many earlier ones it left out (default 0). With `Accept: text/event-stream` it
-  streams `progress` events (the stage, what is being looked up, a draft labelled
-  unverified while it is checked, and, as soon as Jev reads danger, the code-written
-  safety block as `safety: {answer, citations}`), then one `result` event with the
-  status and body. A development Brain serves the generated schema at `/openapi.json`.
-
-```json
-{"messages":[{"role":"user","content":"How do I contact Financial Aid?"}],"omittedMessages":0}
-```
-
-The response has `answer` (Markdown with validated source links), `status`
-(`answered`, `partial`, `clarification`, or `unavailable`), `citations`, `model`,
-`requestId`, `datasetVersion`, `elapsedMs`, `trace`, and `metrics`. Each citation includes
-its evidence ID, title, URL, collection, collection timestamp, freshness, trust,
-validity, and limitations. Trace exposes only tool names, arguments, result
-counts, search coverage, statuses, duration, and, for shuttle searches, the
-code-computed next/last departures the reviewer checks against; it does not
-contain model reasoning. Metrics distinguish draft and review model calls,
-requested and executed tools, and fixed validation-failure codes. Rejected answer
-text never becomes the answer; a streaming client may show a draft, labelled
-unverified, while it is being checked. A development Brain also returns the reviewer's reasons in
-`metrics.reviewRejections` so a false rejection can be diagnosed; production never
-does, and the saved turn summary never stores them. Invalid-output logs contain
-only the request ID and reason code.
-
-A development Brain asked with `X-RockyGPT-Diagnostics: 1` (the Dev control room
-asks; the student app never does) also returns `diagnostics`, on answers and
-failures alike: which Brain answered (`brain.revision` from `BRAIN_REVISION` or
-Render's `RENDER_GIT_COMMIT`, `brain.release`, `brain.configurationHash`), the
-campus time it started (`startedAt`), every record the writer and reviewer were
-given (`evidence`), and each draft as written with the reviewer's verdict on every
-paragraph (`drafts`). Production ignores the header, and the saved turn summary
-never stores any of it. `datasetVersion` is the release the turn read, including
-turns that made no lookup.
-
-Clients append the returned answer as an assistant message before the next user
-message. Prior assistant text resolves references but is not authoritative;
-campus evidence is retrieved anew on each turn. Failed requests are not appended.
-A client may send a window of the latest messages; it then reports the rest in
-`omittedMessages`, and the writer and reviewer are told that what came before the
-window is unknown, so neither says what was or wasn't said there.
-No student text or conversations are persisted by Brain. The operational ledger
-persists request IDs, release identity, token/cost metadata, and turn summaries. Model calls use
-`store=false`; this does not alter the provider's account-level retention policy.
-
-Requests are capped at 64 KiB, 80 messages, 16,000 characters per message, and
-48,000 total content characters. The Brain rejects oversized histories explicitly;
-it never shortens one itself, but a client's own window is marked by `omittedMessages`.
-Answers are capped at 12,000 characters so they fit in a subsequent request.
-There are at most four active turns per process. A turn makes one Jev routing call
-and at most three Jev checks of search results, at most three GPT draft calls and one
-GPT review, two retrieval rounds and eight lookups, within a 45-second execution budget
-and a 47-second HTTP deadline (`release.json`). Lookups must run in the first 15
-seconds; the last 30 are kept for writing and review, so a first call that must ask for
-lookups is never waited on past that window. A draft is written and checked once and
-never repaired: paragraphs the reviewer approves stay, with those that depend on a
-rejected one dropped and a note that something was left out, or the turn gives a safe
-fallback. Provider connection attempts are capped at two
-seconds per address; model reads share the remaining turn budget. Timed-out
-workers retain their slot until provider and database cleanup finish. Validation errors use HTTP 422; upstream
-errors use 429/502/503/504 with a safe structured error and a request ID.
-
-The student app's campus panels read the active release through read-only routes:
-`GET /v1/menu`, `/v1/menu/browse?date=`, `/v1/dining-hours?date=`, `/v1/shuttle`,
-`/v1/map`, `/v1/directory`, `/v1/entities/{id}/facts`, and
-`/v1/data/{events|clubs|calendar|programs|courses}`. Menus, dining hours and shuttle
-trips come from the same tables chat retrieval reads, so a panel cannot contradict an
-answer; the rest are published release artifacts, served as released with an ETag.
-Classifier endpoints are not part of this Brain. The student and Dev chat interfaces
-use the contract above. Campus retrieval remains read-only. The separate operational
-schema records reservations, settlements, uncertain usage, and text-free turn metrics.
-
-Budget exhaustion returns HTTP 429 with `error.code=budget_exhausted`,
-`retryable=false`, the next New York month boundary in `resetAt`, and published
-source-catalog resources when available. Unknown usage retains its reservation
-across restarts and month changes. Expired prices or an unavailable ledger stop
-paid work. A conservative input ceiling returns `context_limit` without silently
-truncating conversation history.
-
-## Verification
+## Check
 
 ```sh
-ruff check .
-mypy src tests
-pytest -q
-# Also required for accounting changes (disposable localhost database only):
-BRAIN_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55439/brain_accounting_test pytest -q
+ruff check . && mypy src tests && pytest -q
 ```
 
-Run realistic live conversations from the sibling eval repository:
-
-```sh
-python ../rockygpt-evals/brain-reset/run.py --base-url http://127.0.0.1:8000 \
-  --output ../rockygpt-evals/brain-reset/results/checkpoint.json
-```
-
-The harness checks contracts and replays actual generated conversation history.
-Review answers against retrieved facts as well: citation presence does not prove
-that a source supports every assertion. See [architecture](spec/system-boundaries.md)
-and [checkpoint verification](docs/verification.md).
-
-Phase 2 implementation, frozen retrieval measurements, browser checks, and the
-remaining live-configuration blocker are recorded in [Phase 2](docs/phase2.md).
+CI runs the same three checks on every push.
