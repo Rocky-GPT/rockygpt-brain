@@ -75,6 +75,19 @@ def test_reservation_precedes_execution_and_settlement_releases_only_unused_amou
     assert gateway.usage.report()["reasoningTokens"] == 30
 
 
+def test_gateway_reports_the_wait_on_each_model_call() -> None:
+    provider, ledger = Mock(), Mock()
+    provider.create.side_effect = [response(), TimeoutError()]
+    calls: list[tuple[str, str, bool]] = []
+    gateway = PaidGateway(provider, ledger, "turn", clock=lambda: NOW)
+    gateway.on_call = lambda who, what, sent, returned, failed: calls.append(
+        (who, what, failed)) if returned >= sent else None
+    gateway.create(category="draft", **arguments())
+    with pytest.raises(PaidCallError):
+        gateway.create(category="draft", **arguments())
+    assert calls == [("gpt", "draft", False), ("gpt", "draft", True)]
+
+
 def test_cached_and_reasoning_tokens_are_not_double_charged() -> None:
     price = RELEASE.price
     # Cached input at its own rate; reasoning is already inside the 40 output tokens.
