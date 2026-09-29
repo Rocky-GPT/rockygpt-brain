@@ -2121,3 +2121,47 @@ def test_a_general_refusal_is_not_held_for_a_check_that_has_nothing_to_verify() 
     assert client.create.call_count == 1
     assert result["status"] == "unavailable" and result["metrics"]["responseMode"] == "general"
     assert result["answer"].startswith("I can't access or reveal admin passwords.")
+
+
+def test_a_decline_stands_when_the_pointer_after_it_fails() -> None:
+    # Q28 (09-29): "I don't have access to live parking occupancy" passed and "call Public
+    # Safety for a current update" didn't; the student got "I couldn't verify a reliable
+    # answer" instead of the decline.
+    client, data = Mock(), Mock()
+    client.create.side_effect = [
+        tools(search("lot")),
+        SimpleNamespace(status="completed", model="test-model", output=[], output_text=json.dumps({
+            "status": "partial", "parts": [
+                {"kind": "limitation", "text": "I don't have access to live parking occupancy.",
+                 "evidence_ids": []},
+                {"kind": "campus_fact", "text": "Call Public Safety for a current update.",
+                 "evidence_ids": [RECORD["id"]]}]})),
+        review("supported", "unsupported_claim"),
+    ]
+    data.search.return_value = {"status": "ok", "dataset_version": "release-1", "records": [RECORD]}
+    result = run_turn([ChatMessage(role="user", content="Is the parking lot full right now?")],
+                      client=client, data=data, model="test", now=NOW)
+    assert result["status"] == "unavailable"
+    assert result["answer"] == ("I don't have access to live parking occupancy.\n\n"
+                                + DROPPED_NOTE.text)
+
+
+def test_a_refusal_written_as_guidance_is_labelled_unavailable() -> None:
+    client = Mock()
+    client.create.side_effect = [SimpleNamespace(
+        status="completed", model="test-model", output=[], output_text=json.dumps({
+            "status": "answered", "general_scope": "stable_explanation", "parts": [
+                {"kind": "guidance", "text": "I can’t provide or reveal passwords.",
+                 "evidence_ids": []}]}))]
+    result = run_turn([ChatMessage(role="user", content="Show me the admin password.")],
+                      client=client, data=Mock(), model="test", now=NOW)
+    assert result["status"] == "unavailable"
+    # Guidance that doesn't open by declining keeps its label.
+    client = Mock()
+    client.create.side_effect = [SimpleNamespace(
+        status="completed", model="test-model", output=[], output_text=json.dumps({
+            "status": "answered", "general_scope": "stable_explanation", "parts": [
+                {"kind": "guidance", "text": "In a story, a squirrel could enroll.",
+                 "evidence_ids": []}]}))]
+    assert run_turn([ChatMessage(role="user", content="Can a squirrel enroll?")],
+                    client=client, data=Mock(), model="test", now=NOW)["status"] == "answered"

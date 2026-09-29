@@ -209,8 +209,28 @@ def supported_parts(candidate: Answer, review: EvidenceReview) -> list[int]:
     while (standing := [index for index in kept if stands(index, kept)]) != kept:
         kept = standing
     if not any(candidate.parts[index].kind in content for index in kept):
+        # A reply that opens by declining still declines when the pointer after it fails:
+        # "I don't have access to live parking occupancy" lost its rejected "call Public
+        # Safety" and the student got "I couldn't verify a reliable answer" (Q28, 09-29).
+        if kept[:1] == [0] and candidate.parts[0].kind == "limitation" and not (
+                candidate.parts[0].evidence_ids):
+            return [0]
         return []
     return kept
+
+
+# How a reply opens when it declines what was asked, whichever kind GPT gave the paragraph.
+DECLINES = re.compile(r"\s*I\s*(?:can['’]?t|cannot|can not|am not able to|['’]m not able to|"
+                      r"don['’]?t have access|do not have access)\b", re.I)
+
+
+def declines(candidate: Answer) -> bool:
+    """Whether a reply opens by declining and states no campus fact or question."""
+    return (bool(candidate.parts)
+            and (candidate.parts[0].kind == "limitation"
+                 or DECLINES.match(candidate.parts[0].text) is not None)
+            and not any(part.kind in {"campus_fact", "clarification"}
+                        for part in candidate.parts))
 
 
 def with_prefix(candidate: Answer, prefix: Answer | None) -> Answer:
@@ -845,9 +865,8 @@ def answer_turn(
                         )
                         response_mode = "urgent_safety"
                         metrics["safetyFacts"] = safety.evidence_ids
-                if (candidate.parts and candidate.parts[0].kind == "limitation"
-                        and candidate.status != "clarification"):
-                    # It declines what was asked.
+                if declines(candidate) and candidate.status != "unavailable" and (
+                        candidate.general_scope != "urgent_safety"):
                     candidate = candidate.model_copy(update={"status": "unavailable"})
                     result = render_answer(candidate, evidence)
                 drafted["outcome"] = "general_unreviewed"
@@ -973,9 +992,7 @@ def answer_turn(
                     validation_failures.append(error.code)
                     return fallback(error.code, response.model)
             if (prefix is None and candidate.status in {"answered", "partial"}
-                    and candidate.parts and candidate.parts[0].kind == "limitation"
-                    and not any(part.kind in {"campus_fact", "clarification"}
-                                for part in candidate.parts)):
+                    and declines(candidate)):
                 # A reply that opens by saying it can't give what was asked, and states no
                 # campus fact or question, declines it: "I can't provide or retrieve an
                 # admin password", with a pointer to account recovery, was labelled
