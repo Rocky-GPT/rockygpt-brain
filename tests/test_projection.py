@@ -477,6 +477,19 @@ def test_live_projection_matches_original_records_for_every_kind(
     index = client.get("/v1/dev/graph/knowledge").json()
     pins = {"dataset_version": index["dataset_version"], "identity_hash": index["identity_hash"]}
 
+    def published(collection: str, record_id: str, entity_id: str | None) -> dict[str, Any]:
+        """A record's fields as the projection reads them: the SQL row with the verified
+        menu-artifact fields laid over it. Menu descriptions live only in the artifact, so
+        checking the SQL row alone failed on "Fluffy buttermilk pancakes" (09-29)."""
+        params = {"collection": collection, "record_id": record_id,
+                  "dataset_version": index["dataset_version"]}
+        if entity_id:
+            params["entity_id"] = entity_id
+        original = client.get("/v1/dev/graph/record", params=params)
+        assert original.status_code == 200, original.text
+        record = original.json()["record"]
+        return {**record["raw_record"], **record.get("supplemental_fields", {})}
+
     def originals(result: dict[str, Any], entity_id: str | None) -> None:
         """Every value equals its original record's field, read through the record API."""
         sources = {s["id"]: s for s in result["sources"]}
@@ -487,14 +500,17 @@ def test_live_projection_matches_original_records_for_every_kind(
             for assertion in prop["assertions"]:
                 row = sources[assertion["source_id"]]
                 if row["id"] not in raw:
-                    params = {"collection": row["collection"], "record_id": row["id"],
-                              "dataset_version": index["dataset_version"]}
-                    if entity_id:
-                        params["entity_id"] = entity_id
-                    original = client.get("/v1/dev/graph/record", params=params)
-                    assert original.status_code == 200, original.text
-                    raw[row["id"]] = original.json()["record"]["raw_record"]
+                    raw[row["id"]] = published(row["collection"], row["id"], entity_id)
                 assert assertion["value"] == raw[row["id"]][assertion["field_path"][0]]
+
+    def honestly_incomplete(result: dict[str, Any], entity_id: str | None) -> None:
+        """A projection may be incomplete only because its source leaves a field out.
+        Some clubs, organizations, events, offices and schools publish no email or
+        phone; the projection says so rather than filling it in (09-29)."""
+        for issue in result["coverage"]:
+            assert issue["reason"] == "field_unavailable", issue
+            fields = published(issue["collection"], issue["record_id"], entity_id)
+            assert not set(issue["fields"]) & set(fields), issue
 
     venue = next(e for e in index["nodes"] if e["name"] == "Birch Tree Inn")
     params = {**pins, "entity_id": venue["id"], "limit": 100}
@@ -521,8 +537,10 @@ def test_live_projection_matches_original_records_for_every_kind(
                               params={**pins, "entity_id": entity["id"]})
         assert response.status_code == 200, response.text
         result = response.json()
-        assert result["properties_complete"], (kind, result["coverage"])
-        originals(result, None if kind == "course" else entity["id"])
+        scope = None if kind == "course" else entity["id"]
+        assert result["properties_complete"] or result["coverage"], kind
+        honestly_incomplete(result, scope)
+        originals(result, scope)
         expected = [e for e in index["edges"] if entity["id"] in {e["source"], e["target"]}]
         assert [(r["subject"]["entity_id"], r["target_entity_id"], r["predicate"], r["evidence"])
                 for r in result["relationships"]] == [
