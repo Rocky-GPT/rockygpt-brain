@@ -6,9 +6,16 @@ still runs in production from `main`.
 
 ## Status
 
-Milestone 1, the Brain contract, is done: [docs/contract.md](docs/contract.md). The
-Brain accepts questions in the shape the student app and dev UI already send.
+The Brain accepts questions in the shape the student app and dev UI already send.
 It replies `not_ready` with emergency help until later milestones teach it to answer.
+
+| Milestone | Where |
+| --- | --- |
+| 1. Brain contract | `contract.py`, [docs/contract.md](docs/contract.md) |
+| 2. Conversation context | `context.py`: the conversation read once, with the cut-off count and one campus clock |
+
+`api/app.py` is the web service. `turn.py` runs one turn, and each milestone adds its
+step there.
 
 ## Run
 
