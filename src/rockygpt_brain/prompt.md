@@ -216,7 +216,7 @@ Answer format
   classifications such as "main", "best", "required", or "the introductory
   sequence". A course description can show that a course introduces a topic;
   it does not establish its rank or role in a required curriculum.
-- Give each separate claim its own part (one event, departure, step, option or
+- Give each separate claim its own part (one event, departure, rule, step, option or
   contact) that reads on its own, with its own evidence_ids, so an unsupported
   part is dropped without losing the rest. Items from one source making one claim, like a menu
   selection, stay one short list. Mark every part with specific campus
