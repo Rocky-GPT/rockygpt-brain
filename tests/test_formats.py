@@ -8,7 +8,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from rockygpt_brain.campus.formats import combine_exact, exact_search
+from rockygpt_brain.campus.formats import FAILURE_HELP, SAFETY_NET, combine_exact, exact_search
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
 from rockygpt_brain.retrieval.data import SearchFilters, SearchQuery
@@ -452,3 +452,10 @@ def test_explicit_full_menu_keeps_components() -> None:
     assert piece is not None
     assert "Sliced Tomato" in piece.answer.parts[0].text
     assert "Garlic Grilled Chicken" in piece.answer.parts[0].text
+
+
+def test_danger_opening_covers_someone_else() -> None:
+    # Jev's danger covers the student or someone else; "someone is unconscious" was told
+    # "If you're in danger right now" (09-29), unlike the failure help beside it.
+    assert "you or someone else" in SAFETY_NET["danger"] and "911" in SAFETY_NET["danger"]
+    assert "you or someone else" in FAILURE_HELP
