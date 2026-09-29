@@ -14,7 +14,15 @@ from fakes import MemoryLedger, ScriptedJev, calm, fake_jev, pick, sure_pick, ye
 from rockygpt_brain.api.app import app, jev_service
 from rockygpt_brain.context import CAMPUS_TIMEZONE, read_context
 from rockygpt_brain.contract import ChatReply, ChatRequest, FailureReply
-from rockygpt_brain.decisions import ASKS, NEEDS, QUESTIONS, Decisions, decide, handler
+from rockygpt_brain.decisions import (
+    NEEDS,
+    QUESTIONS,
+    ROUTES,
+    WORK,
+    Decisions,
+    decide,
+    handler,
+)
 from rockygpt_brain.jev import JevError, checked
 from rockygpt_brain.safety import ACCOUNT_LIMIT, SAFETY_TEXT, Danger
 from rockygpt_brain.turn import NOT_YET
@@ -102,18 +110,22 @@ def test_a_request_for_the_students_own_account_gets_what_rockygpt_cant_do(
     assert (reply.answer, reply.status) == (ACCOUNT_LIMIT, "unavailable")
 
 
-@pytest.mark.parametrize("answers", [
-    calm(own_account=yes(0.89), own_account_only=yes(0.9)),
-    calm(own_account=yes(0.96), own_account_only=yes(0.2)),
-])
-def test_an_account_request_jev_isnt_sure_of_is_left_alone(
-        jev: ScriptedJev, answers: dict[str, Any]) -> None:
-    jev.answers = answers
+def test_an_account_pick_jev_isnt_sure_of_is_followed_and_marked(
+        jev: ScriptedJev, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BRAIN_ENVIRONMENT", "development")
+    jev.answers = calm(own_account=yes(0.7), own_account_only=yes(0.9))
+    body = ask(user("register me for CMPS 147"), **{"x-rockygpt-diagnostics": "1"}).json()
+    assert body["answer"] == ACCOUNT_LIMIT
+    assert body["metrics"]["jev"]["decided"]["lowConfidence"] == {"ownAccount": 0.7}
+
+
+def test_an_account_request_with_another_part_is_left_alone(jev: ScriptedJev) -> None:
+    jev.answers = calm(own_account=yes(0.96), own_account_only=yes(0.2))
     assert ask(user("register me and where is the registrar?")).status_code == 503
 
 
-@pytest.mark.parametrize(("needs_earlier", "status"), [(0.05, 200), (0.5, 503)])
-def test_an_account_follow_up_needs_jev_sure_it_stands_alone(
+@pytest.mark.parametrize(("needs_earlier", "status"), [(0.3, 200), (0.7, 503)])
+def test_an_account_follow_up_that_leans_on_earlier_messages_is_left_alone(
         jev: ScriptedJev, needs_earlier: float, status: int) -> None:
     jev.answers = calm(**ACCOUNT, needs_earlier=yes(needs_earlier))
     response = ask(user("How do I drop a class?"),
@@ -180,10 +192,11 @@ def test_the_dev_ui_sees_jevs_readings_in_development(
     assert metrics["jev"]["answers"]["danger"] == {
         "choice": "none", "probability": 0.97, "confidence": 0.95}
     assert metrics["jev"]["decided"] == {
-        "danger": None, "ownAccount": True, "needsEarlier": False, "asks": "fact",
-        "subject": "places", "named": "office", "needs": "campus_info", "multiPart": False,
-        "reach": "supported", "outcome": "answer", "route": "exact"}
-    assert metrics["handler"] == "access_limit"
+        "danger": None, "ownAccount": True, "needsEarlier": False, "multiPart": False,
+        "work": "look_up", "subject": "places", "named": "office", "needs": "campus_info",
+        "reach": "supported", "handler": "account_action", "goesTo": "capability limit",
+        "handlerPath": ["danger", "ownAccount"], "lowConfidence": {}}
+    assert metrics["handler"] == "account_action"
     assert metrics["dangerPhrase"] is None
     assert metrics["jev"]["costNusd"] == 1000 * 42
     assert "Birch" not in json.dumps(metrics)
@@ -222,6 +235,7 @@ def test_the_turn_log_has_jevs_numbers_and_no_student_words(
                if record.getMessage().startswith("brain_turn ")]
     logged = json.loads(line.removeprefix("brain_turn "))
     assert logged["jevCostNusd"] == 1000 * 42 and logged["responseMode"] == "not_ready"
+    assert logged["handler"] == "campus_fact" and logged["lowConfidence"] == []
     assert "grades" not in line and "147" not in line
 
 
@@ -296,29 +310,36 @@ def test_diagnostics_stay_out_of_production(
 
 
 def decided(**picks: Any) -> Decisions:
-    return Decisions(danger=picks.pop("danger", None),
-                     own_account=picks.pop("own_account", False),
-                     needs_earlier=picks.pop("needs_earlier", False), **picks)
+    """Jev's picks for an ordinary question ("Where is the Registrar?"), all sure, with
+    `picks` on top."""
+    ordinary = {"danger": None, "own_account": False, "needs_earlier": False,
+                "work": "look_up", "subject": "places", "named": "office",
+                "needs": "campus_info", "multi_part": False, "reach": "supported"}
+    return Decisions(**{**ordinary, **picks}, sureness=dict.fromkeys(ordinary, 0.96))
 
 
 @pytest.mark.parametrize(("picks", "said", "expected"), [
-    ({"danger": "danger", "outcome": "answer", "route": "document_policy"}, None, "safety"),
-    ({"outcome": "answer", "route": "exact", "multi_part": True}, "danger", "safety"),
-    ({"own_account": True}, None, "access_limit"),
-    ({"outcome": "access_limit", "route": "cannot_answer"}, None, "access_limit"),
-    ({"outcome": "answer", "route": "exact", "multi_part": True}, None, "multi_part"),
-    ({"outcome": "cannot_answer", "route": "exact"}, None, "cannot_answer"),
-    ({"outcome": "answer", "route": "exact"}, None, "exact"),
-    ({"outcome": "answer", "route": "document_policy"}, None, "document_policy"),
-    ({"outcome": "answer", "route": "conversation"}, None, "conversation"),
-    ({"outcome": "answer", "route": "gpt"}, None, "gpt"),
-    ({"outcome": "answer"}, None, "gpt"),
-    ({"route": "exact"}, None, "gpt"),
-    ({}, None, "gpt"),
+    ({"danger": "danger", "work": "policy"}, None, "danger"),
+    ({"multi_part": True}, "danger", "danger"),
+    ({"own_account": True, "multi_part": True}, None, "account_action"),
+    ({"multi_part": True, "work": "cant_do"}, None, "multi_part"),
+    ({"work": "calculate"}, None, "exact"),
+    ({}, None, "campus_fact"),
+    ({"work": "policy"}, None, "document_policy"),
+    ({"work": "general"}, None, "general_question"),
+    ({"work": "reasoning"}, None, "complex_reasoning"),
+    ({"work": "cant_do"}, None, "account_action"),
+    ({"work": "unclear"}, None, "ambiguous"),
 ])
-def test_code_names_the_handler_from_what_jev_was_sure_of(
+def test_code_follows_jevs_picks_to_a_route(
         picks: dict[str, Any], said: Danger | None, expected: str) -> None:
-    assert handler(decided(**picks), said) == expected
+    assert handler(decided(**picks), said).name == expected
+
+
+def test_every_kind_of_work_has_a_route_in_dans_table() -> None:
+    assert len(ROUTES) == 9
+    assert {handler(decided(work=work)).name for work in WORK} | {
+        "danger", "multi_part"} == set(ROUTES)
 
 
 def decide_alone(question: str, answers: dict[str, Any]) -> Decisions:
@@ -330,19 +351,20 @@ def decide_alone(question: str, answers: dict[str, Any]) -> Decisions:
 def test_options_that_lead_to_the_same_thing_count_together() -> None:
     # Run 1 (09-29): split between two answerable readings, so no one option was sure.
     decisions = decide_alone("What room is it in?", calm(
-        asks=pick("fact", {**dict.fromkeys(ASKS, 0.0), "fact": 0.5, "list": 0.45,
-                           "chat": 0.05}),
         needs=pick("campus_info", {**dict.fromkeys(NEEDS, 0.0), "campus_info": 0.54,
                                    "conversation": 0.4, "guess": 0.06})))
-    assert (decisions.asks, decisions.needs) == (None, None)
-    assert (decisions.reach, decisions.outcome, decisions.route) == (
-        "supported", "answer", "exact")
-    assert handler(decisions) == "exact"
+    assert decisions.needs == "campus_info" and decisions.sureness["needs"] == 0.54
+    assert decisions.reach == "supported" and decisions.sureness["reach"] == pytest.approx(0.94)
 
 
-def test_a_pick_jev_isnt_sure_of_stays_undecided() -> None:
-    answers = calm(asks=sure_pick("fact", ASKS, 0.6), needs=sure_pick("private", NEEDS))
-    decisions = decide_alone("Give me Sam's phone number", answers)
-    assert (decisions.asks, decisions.needs, decisions.reach) == (None, "private", "private")
-    assert decisions.route is None
-    assert handler(decisions) == "cannot_answer"
+def test_a_pick_jev_isnt_sure_of_is_followed_and_marked() -> None:
+    answers = calm(work=sure_pick("policy", WORK, 0.6), multi_part=yes(0.3))
+    chosen = handler(decide_alone("How do I get a parking permit?", answers))
+    assert chosen.name == "document_policy"
+    assert chosen.path == ("danger", "own_account", "multi_part", "work")
+    assert chosen.low_confidence == {"multi_part": 0.7, "work": 0.6}
+
+
+def test_an_unsure_pick_is_followed_not_turned_into_ambiguous() -> None:
+    unsure = calm(work=sure_pick("look_up", WORK, 0.4))
+    assert handler(decide_alone("Is the gym open?", unsure)).name == "campus_fact"

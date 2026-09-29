@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from rockygpt_brain.decisions import ASKS, NAMED, NEEDS, SUBJECTS
+from rockygpt_brain.decisions import NAMED, NEEDS, SUBJECTS, WORK
 from rockygpt_brain.jev import JEV_PRICE, Jev, JevError, Reply
 from rockygpt_brain.spending import Category, SpendingError
 
@@ -54,7 +54,7 @@ def calm(**changes: dict[str, Any]) -> dict[str, Any]:
         "own_account": yes(0.05),
         "own_account_only": yes(0.05),
         "needs_earlier": yes(0.03),
-        "asks": sure_pick("fact", ASKS),
+        "work": sure_pick("look_up", WORK),
         "subject": sure_pick("places", SUBJECTS),
         "named": sure_pick("office", NAMED),
         "needs": sure_pick("campus_info", NEEDS),
