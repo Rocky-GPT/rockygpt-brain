@@ -135,3 +135,58 @@ def test_the_api_passes_the_count_to_the_turn() -> None:
         assert client.post("/v1/chat", json={"messages": [QUESTION],
                                              "omittedMessages": -1}).status_code == 422
     assert seen == [18, 0]
+
+
+def reply(text: str, *, general: str | None = None) -> SimpleNamespace:
+    draft = {"status": "answered", "general_scope": general,
+             "parts": [{"kind": "guidance", "text": text, "evidence_ids": []}]}
+    return SimpleNamespace(status="completed", model="test-model", output=[],
+                           output_text=json.dumps(draft))
+
+
+def asked(text: str, omitted: int, *responses: SimpleNamespace) -> tuple[dict[str, Any], Mock]:
+    client = Mock()
+    client.create.side_effect = list(responses)
+    result = run_turn([ChatMessage(role="user", content=text)], client=client, data=Mock(),
+                      model="test", now=NOW, omitted_messages=omitted)
+    return result, client
+
+
+def test_asked_about_cut_messages_the_answer_says_that_part_cant_be_seen() -> None:
+    # 09-29 replay: the checker rejected GPT's own "I can't see the earlier part" as
+    # contradicted, and the student read only "I left out part of this answer".
+    result, _ = asked("What did you tell me the first shuttle was?", 18,
+                      reply("Ask me for today's timetable and I'll look it up."), review())
+    assert result["answer"].endswith(HISTORY_NOTE.text)
+    assert result["status"] == "partial" and result["metrics"]["historyNote"] is True
+    # Said already, it isn't said twice.
+    result, _ = asked("What did you tell me the first shuttle was?", 18,
+                      reply("I can't see that part of our conversation."), review())
+    assert HISTORY_NOTE.text not in result["answer"]
+    # Nothing was cut, or nothing earlier was asked about: no note.
+    for text, omitted in (("What did you tell me the first shuttle was?", 0),
+                          ("Where is the Registrar?", 18)):
+        result, _ = asked(text, omitted, reply("Ask me for today's timetable."), review())
+        assert HISTORY_NOTE.text not in result["answer"]
+
+
+def test_a_general_answer_about_cut_messages_is_reviewed() -> None:
+    # A general answer skips review, and only the review catches a denial of cut messages.
+    result, client = asked("What did you say earlier?", 18,
+                           reply("I didn't say anything about that.", general="conversation"),
+                           review(denies_earlier_message=True))
+    assert client.create.call_count == 2 and result["metrics"]["generalScopeReviewed"] is True
+    assert result["answer"] == HISTORY_NOTE.text
+    # Without a cut, the same general answer isn't held for review.
+    result, client = asked("What did you say earlier?", 0,
+                           reply("I said the office opens at 9.", general="conversation"))
+    assert client.create.call_count == 1 and result["metrics"]["responseMode"] == "general"
+
+
+def test_when_every_part_is_rejected_the_student_still_hears_why() -> None:
+    result, _ = asked("What did you tell me the first shuttle was?", 18,
+                      reply("I can't see where you asked about the shuttle."),
+                      review("contradicted_evidence"))
+    # Instead of "I couldn't verify a reliable answer": what is true, and that a part went.
+    assert result["answer"] == HISTORY_NOTE.text + "\n\n" + DROPPED_NOTE.text
+    assert result["status"] == "unavailable"
