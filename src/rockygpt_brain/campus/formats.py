@@ -493,6 +493,11 @@ def departure_parts(
     if destination is not None and found:
         # "The first shuttle to Garden State Plaza" is one trip, whichever route runs it.
         found = [found[-1] if selection == "last" else found[0]]
+    elif selection == "next" and "very" in said and found:
+        # "The very next departure" asks for one: the soonest, with any leaving at the same
+        # minute. Each route's next (8:20 and 8:25) left "that exact trip" in the student's
+        # next question unresolved (09-29).
+        found = [item for item in found if moment(item[1]) == moment(found[0][1])]
 
     def clock(value: str) -> str:
         return datetime.fromisoformat(value).strftime("%I:%M %p").lstrip("0")
