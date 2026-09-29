@@ -471,7 +471,9 @@ def departure_parts(
     def trip(name: str, chosen: dict[str, Any]) -> str:
         arrival = (f", arriving at {clock(chosen['arrives_at'])}"
                    if destination is not None else "")
-        gone = " (already left)" if selection == "last" and left(chosen) else ""
+        # A timetable says when a bus is scheduled, not that it left: the checker rejects
+        # "they've already departed" as a live claim (09-29).
+        gone = " (time passed)" if selection == "last" and left(chosen) else ""
         return f"{plain(name)} at {clock(chosen['departure_at'])}{arrival}{gone}"
 
     def cited(*trips: dict[str, Any]) -> list[dict[str, Any]]:
@@ -487,8 +489,8 @@ def departure_parts(
         departure = datetime.fromisoformat(chosen["departure_at"])
         parts.append(fact(
             f"The {selection} published departure from campus on {plain(name)} on "
-            f"{departure.date()} was {clock(chosen['departure_at'])} (America/New_York); it "
-            "has already left."
+            f"{departure.date()} was {clock(chosen['departure_at'])} (America/New_York); "
+            "that time has passed."
             if selection == "last" and left(chosen) else
             f"The {selection} published departure from campus on {plain(name)} is "
             f"{clock(chosen['departure_at'])} on {departure.date()} (America/New_York).",
@@ -499,8 +501,8 @@ def departure_parts(
         departure = datetime.fromisoformat(chosen["departure_at"])
         parts.append(fact(
             f"The {selection} published departure from campus{reaching} on {departure.date()} "
-            f"(America/New_York) was {trip(name, chosen).removesuffix(' (already left)')}; "
-            "it has already left."
+            f"(America/New_York) was {trip(name, chosen).removesuffix(' (time passed)')}; "
+            "that time has passed."
             if selection == "last" and left(chosen) else
             f"The {selection} published departure from campus{reaching} on {departure.date()} "
             f"(America/New_York) is {trip(name, chosen)}.",
@@ -529,7 +531,7 @@ def departure_parts(
         else f"within {summary['date_from']} to {summary['date_to']}"
     )
     if selection == "last":
-        # A day's last shuttle that has already left is answered with the next one: asked
+        # A day's last shuttle whose time has passed is answered with the next one: asked
         # at 11:10 PM (09-28), "when is the last shuttle?" said only that no later
         # departure was found, route by route.
         for name, chosen in found:
