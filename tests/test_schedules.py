@@ -212,6 +212,14 @@ def test_reviewer_gets_the_selections_without_stop_lists() -> None:
         },
         "scheduled_departure_count": 2,
         "remaining_departure_count": 1,
+        # Each service date's first and last, whatever the time now.
+        "days": [{
+            "service_date": "2026-09-16",
+            "first": {"evidence_id": "shuttle:1", "departure_at": "2026-09-16T15:50:00-04:00",
+                      "origin_restriction": None},
+            "last": {"evidence_id": "shuttle:2", "departure_at": "2026-09-16T17:30:00-04:00",
+                     "origin_restriction": None},
+        }],
         "destinations": campus["destinations"],
     }
     # Each stop the trips reach has its own first, next and last departure.
@@ -237,6 +245,13 @@ def test_no_later_trip_does_not_claim_service_is_closed() -> None:
     summary = departure_summary(output(record(1, "3 PM", "3:10 PM", "3:30 PM")), QUERY, NOW)
     assert all(item["next"] is None for item in summary["departures"])
     assert any("retrieved dates only" in value for value in summary["limitations"])
+    # The day's last departure is still named, whatever the time now: "when is the last
+    # shuttle?" at 11:10 PM found none (09-28).
+    campus = next(item for item in summary["departures"] if item["origin"] == "campus")
+    [day] = campus["days"]
+    assert day["last"]["departure_at"] == "2026-09-16T15:00:00-04:00"
+    [station] = campus["destinations"]
+    assert station["days"][0]["last"]["arrives_at"] == "2026-09-16T15:10:00-04:00"
 
 
 def test_overnight_endpoints_and_later_service_rows_use_next_date() -> None:
