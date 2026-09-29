@@ -181,8 +181,8 @@ def test_the_dev_ui_sees_jevs_readings_in_development(
         "choice": "none", "probability": 0.97, "confidence": 0.95}
     assert metrics["jev"]["decided"] == {
         "danger": None, "ownAccount": True, "needsEarlier": False, "asks": "fact",
-        "subject": "places", "named": "office", "needs": "campus_info", "reach": "supported",
-        "multiPart": False}
+        "subject": "places", "named": "office", "needs": "campus_info", "multiPart": False,
+        "reach": "supported", "outcome": "answer", "route": "exact"}
     assert metrics["handler"] == "access_limit"
     assert metrics["dangerPhrase"] is None
     assert metrics["jev"]["costNusd"] == 1000 * 42
@@ -302,24 +302,18 @@ def decided(**picks: Any) -> Decisions:
 
 
 @pytest.mark.parametrize(("picks", "said", "expected"), [
-    ({"danger": "danger", "needs": "campus_info", "asks": "how_to"}, None, "safety"),
-    ({"needs": "campus_info", "asks": "fact", "multi_part": True}, "danger", "safety"),
+    ({"danger": "danger", "outcome": "answer", "route": "document_policy"}, None, "safety"),
+    ({"outcome": "answer", "route": "exact", "multi_part": True}, "danger", "safety"),
     ({"own_account": True}, None, "access_limit"),
-    ({"needs": "own_account", "asks": "action"}, None, "access_limit"),
-    ({"needs": "campus_info", "asks": "fact", "multi_part": True}, None, "multi_part"),
-    ({"needs": "private", "asks": "fact"}, None, "cannot_answer"),
-    ({"needs": "right_now", "asks": "fact"}, None, "cannot_answer"),
-    ({"needs": "outside", "asks": "fact"}, None, "cannot_answer"),
-    ({"needs": "guess", "asks": "advice"}, None, "cannot_answer"),
-    ({"needs": "conversation", "asks": "recall"}, None, "conversation"),
-    ({"needs": "conversation", "asks": "chat"}, None, "gpt"),
-    ({"needs": "campus_info", "asks": "fact"}, None, "exact"),
-    ({"needs": "campus_info", "asks": "list"}, None, "exact"),
-    ({"needs": "campus_info", "asks": "rule"}, None, "document_policy"),
-    ({"needs": "campus_info", "asks": "how_to"}, None, "document_policy"),
-    ({"needs": "campus_info", "asks": "advice"}, None, "gpt"),
-    ({"needs": "campus_info", "asks": "recall"}, None, "conversation"),
-    ({"needs": "campus_info"}, None, "gpt"),
+    ({"outcome": "access_limit", "route": "cannot_answer"}, None, "access_limit"),
+    ({"outcome": "answer", "route": "exact", "multi_part": True}, None, "multi_part"),
+    ({"outcome": "cannot_answer", "route": "exact"}, None, "cannot_answer"),
+    ({"outcome": "answer", "route": "exact"}, None, "exact"),
+    ({"outcome": "answer", "route": "document_policy"}, None, "document_policy"),
+    ({"outcome": "answer", "route": "conversation"}, None, "conversation"),
+    ({"outcome": "answer", "route": "gpt"}, None, "gpt"),
+    ({"outcome": "answer"}, None, "gpt"),
+    ({"route": "exact"}, None, "gpt"),
     ({}, None, "gpt"),
 ])
 def test_code_names_the_handler_from_what_jev_was_sure_of(
@@ -327,10 +321,28 @@ def test_code_names_the_handler_from_what_jev_was_sure_of(
     assert handler(decided(**picks), said) == expected
 
 
+def decide_alone(question: str, answers: dict[str, Any]) -> Decisions:
+    request = ChatRequest.model_validate({"messages": [user(question)]})
+    context = read_context(request, datetime(2026, 9, 29, 12, 0, tzinfo=CAMPUS_TIMEZONE))
+    return decide(context, checked(answers, QUESTIONS))
+
+
+def test_options_that_lead_to_the_same_thing_count_together() -> None:
+    # Run 1 (09-29): split between two answerable readings, so no one option was sure.
+    decisions = decide_alone("What room is it in?", calm(
+        asks=pick("fact", {**dict.fromkeys(ASKS, 0.0), "fact": 0.5, "list": 0.45,
+                           "chat": 0.05}),
+        needs=pick("campus_info", {**dict.fromkeys(NEEDS, 0.0), "campus_info": 0.54,
+                                   "conversation": 0.4, "guess": 0.06})))
+    assert (decisions.asks, decisions.needs) == (None, None)
+    assert (decisions.reach, decisions.outcome, decisions.route) == (
+        "supported", "answer", "exact")
+    assert handler(decisions) == "exact"
+
+
 def test_a_pick_jev_isnt_sure_of_stays_undecided() -> None:
     answers = calm(asks=sure_pick("fact", ASKS, 0.6), needs=sure_pick("private", NEEDS))
-    request = ChatRequest.model_validate({"messages": [user("Give me Sam's phone number")]})
-    context = read_context(request, datetime(2026, 9, 29, 12, 0, tzinfo=CAMPUS_TIMEZONE))
-    decisions = decide(context, checked(answers, QUESTIONS))
+    decisions = decide_alone("Give me Sam's phone number", answers)
     assert (decisions.asks, decisions.needs, decisions.reach) == (None, "private", "private")
+    assert decisions.route is None
     assert handler(decisions) == "cannot_answer"

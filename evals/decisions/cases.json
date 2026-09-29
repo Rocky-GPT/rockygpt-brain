@@ -339,7 +339,8 @@
       "fact"
      ],
      "subject": [
-      "places"
+      "places",
+      "academics"
      ],
      "named": [
       "office"
@@ -365,7 +366,8 @@
       "fact"
      ],
      "subject": [
-      "places"
+      "places",
+      "academics"
      ],
      "named": [
       "office"
@@ -419,7 +421,8 @@
       "recall"
      ],
      "subject": [
-      "places"
+      "places",
+      "academics"
      ],
      "named": [
       "office"
@@ -446,7 +449,8 @@
       "recall"
      ],
      "subject": [
-      "places"
+      "places",
+      "academics"
      ],
      "named": [
       "office",
@@ -502,7 +506,8 @@
       "none"
      ],
      "named": [
-      "none"
+      "none",
+      "event"
      ],
      "reach": [
       "supported"
@@ -841,7 +846,8 @@
       "none"
      ],
      "named": [
-      "none"
+      "none",
+      "person"
      ],
      "reach": [
       "supported"
@@ -1198,7 +1204,8 @@
       "fact"
      ],
      "subject": [
-      "places"
+      "places",
+      "academics"
      ],
      "named": [
       "office"
@@ -1224,7 +1231,8 @@
       "fact"
      ],
      "subject": [
-      "places"
+      "places",
+      "academics"
      ],
      "named": [
       "office"
@@ -1391,7 +1399,8 @@
       "none"
      ],
      "named": [
-      "none"
+      "none",
+      "event"
      ],
      "reach": [
       "supported"
@@ -2606,7 +2615,8 @@
       "recall"
      ],
      "subject": [
-      "places"
+      "places",
+      "academics"
      ],
      "named": [
       "office"
@@ -2634,7 +2644,8 @@
       "fact"
      ],
      "subject": [
-      "places"
+      "places",
+      "academics"
      ],
      "named": [
       "office",
@@ -3458,7 +3469,8 @@
       "recall"
      ],
      "subject": [
-      "places"
+      "places",
+      "academics"
      ],
      "named": [
       "office"
