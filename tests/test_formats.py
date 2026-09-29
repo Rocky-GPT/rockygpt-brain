@@ -362,6 +362,22 @@ def test_next_shuttle_without_a_route_answers_every_route_from_campus() -> None:
         assert exact_search(request, messages(request), query, rows, NOW) is None
 
 
+def test_just_the_very_next_departure_names_every_route_leaving_then() -> None:
+    # Q2 of the 09-29 conversation: two routes leave campus at 7:00, and GPT named one.
+    ramsey = trip(1, "7:00 PM", "7:10 PM", "N/A")
+    ramsey["fields"]["route"] = "Ramsey Route 17"
+    roadrunner = trip(2, "7:00 PM", "7:15 PM", "7:35 PM")
+    roadrunner["fields"]["route"] = "Roadrunner Express"
+    query = SearchQuery(collection="shuttle", date_from=NOW.date(), limit=100)
+    question = "Just give me the very next departure."
+    piece = exact_search(question, messages(question), query, output(ramsey, roadrunner), NOW)
+    assert piece is not None and piece.complete
+    assert piece.answer.parts[0].text == (
+        "The next published departures from campus on 2026-09-16 (America/New_York) are: "
+        "Ramsey Route 17 at 7:00 PM; Roadrunner Express at 7:00 PM."
+    )
+
+
 def test_failed_format_does_not_mutate_evidence() -> None:
     rows = output(menu())
     before = deepcopy(rows)

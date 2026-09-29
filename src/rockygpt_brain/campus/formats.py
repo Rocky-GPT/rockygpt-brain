@@ -53,10 +53,12 @@ def words(value: str) -> str:
     return " ".join(re.findall(r"[\w]+", value.casefold().replace("’", "'")))
 
 
-# Function words only. Content words must match the requested data shape/fields.
+# Function words only. Content words must match the requested data shape/fields. "Just
+# give me the very next departure" (09-29) went to GPT, which named one of two routes
+# leaving at 7:00, and the checker withheld the whole answer.
 GRAMMAR = set(
     "what whats when is are does do can you i me my the a an for at of on in to "
-    "please show give tell list get and also it s".split()
+    "please show give tell list get and also it s just very".split()
 )
 
 

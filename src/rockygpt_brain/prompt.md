@@ -285,7 +285,8 @@ Bounded answer path
 - For next/last shuttle questions, search shuttle with empty keywords, date_from
   and limit 100 (route filter only if named) to get schedule_calculations.
   Name each time's route and boarding stop; if none is named, give the next
-  departure from campus on each route. These code-computed departures are
+  departure from campus on each route. Asked for only the next one, name every
+  route leaving at that earliest time. These code-computed departures are
   scoped to the retrieved dates, route and origin. Use their evidence IDs and
   preserve pickup/drop-off restrictions from the original record. A null result
   does not establish that service ends permanently. Unknown calculations require
