@@ -531,6 +531,42 @@ def test_document_search_skips_copies_and_puts_ended_terms_last() -> None:
         assert named[0]["title"].endswith("Overnight Guest Policy Ends")
 
 
+def test_document_search_knows_a_copy_under_another_heading_path() -> None:
+    # Since 09-29 a passage opens with its page's heading path, and the Guide to Community
+    # Living's copy of Guest Parking Procedures sits under other headings than the policies
+    # page's: compared whole, the copy took a place from Guest Procedures.
+    def row(index: int, heading: str, body: str) -> dict[str, Any]:
+        return {"id": f"chunk-{index}", "document_id": f"doc-{index}", "chunk_index": 0,
+                "content": f"### {heading}\n\n{body}",
+                "metadata": {"headingPath": f"Residence Life › {heading}",
+                             "canonicalUrl": f"https://www.ramapo.edu/reslife/{index}/"},
+                "source_id": "s", "title": heading, "collected_at": NOW.isoformat(),
+                "total": 9}
+
+    rows = [
+        row(0, "Guest Kiosk Locations › Guest Parking Procedures", "Guests parking overnight "
+            "need a pass."),
+        row(1, "RESIDENCE HALL SERVICES › Guest Kiosk Locations › Guest Parking Procedures",
+            "Guests parking  overnight need a pass.\n"),
+        row(2, "Guest/Visitation Policy › Guest Procedures", "Guests may stay three nights."),
+        row(3, "Guest Kiosk Locations", ""),
+        row(4, "Guest Kiosk Locations", ""),
+    ]
+    data = CampusData("", NOW)
+    data.sources = {"s": {"title": "Residence Life", "trust_tier": "official_primary",
+                          "source_key": "reslife", "freshness_sla_hours": 24,
+                          "canonical_url": "https://ramapo.edu"}}
+    data.dataset = {"id": "release"}
+    data._has_heading_path_index = True
+    with (patch.object(CampusData, "_artifact", return_value={}),
+          patch.object(CampusData, "_fetch", return_value=rows)):
+        records, _ = data._documents(
+            SearchQuery(collection="documents", query="overnight guest policy", limit=3))
+    # A passage that is only a heading is compared whole.
+    assert [record["title"].split(" › ")[-1] for record in records] == [
+        "Guest Parking Procedures", "Guest Procedures", "Guest Kiosk Locations"]
+
+
 def test_document_search_lets_one_page_hold_half_the_places_and_reads_on_past_set_asides() -> None:
     # "withdrawal after deadline transcript grade W class" (09-29): the academic calendar's
     # "Last Day to Withdraw" dates held the first seven places and the Registrar's rule came

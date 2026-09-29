@@ -157,6 +157,10 @@ _DOCUMENT_SEARCH_SCANNING_HEADINGS = (
 )
 
 
+# The markdown heading line a section's first passage opens with.
+HEADING_LINE = re.compile(r"\A\s*#{1,6} [^\n]*(?:\n|\Z)")
+
+
 def page_sections(limit: int) -> int:
     """The sections one page may hold in a document search before other pages have had theirs."""
     return max(2, limit // 2)
@@ -711,8 +715,12 @@ class CampusData:
                 # Two pages publish some sections word for word (the Guide to Community
                 # Living and Policies, Guides & Forms): the second copy only took a place
                 # the next passage could have had. "Overnight guest policy" searches with
-                # four places (09-28) spent one on a copy of Guest Parking Procedures.
-                text = " ".join(str(row["content"]).split())
+                # four places (09-28) spent one on a copy of Guest Parking Procedures. A
+                # passage opens with its own page's heading path, so copies are compared
+                # by the text under that line.
+                content = " ".join(str(row["content"]).split())
+                text = " ".join(HEADING_LINE.sub("", str(row["content"]), count=1).split())
+                text = text or content
                 if text in seen:
                     continue
                 seen.add(text)
