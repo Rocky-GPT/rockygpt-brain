@@ -314,8 +314,8 @@ def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime)
             "service ends. destinations gives, per stop, the first, next and last departure "
             "that reaches it.",
             "days gives each service date's first and last scheduled departure whatever the "
-            "time now: a day's last departure that is before as_of has already left, and next "
-            "is the one after it.",
+            "time now. A departure before as_of is one whose scheduled time has passed; the "
+            "timetable can't say a bus actually left. next is the one after as_of.",
             "Preserve source pickup/drop-off restrictions. No walking or eating time is assumed.",
             *(
                 ["A withheld origin repeats within a trip; its next/last departure is unknown."]
