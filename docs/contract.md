@@ -129,8 +129,9 @@ danger phrases, then asks Jev what the question asks ([docs/jev.md](jev.md)).
   says where it happened.
 - In development, `x-rockygpt-diagnostics: 1` adds two things to answers and failures.
   Neither holds the student's words.
-  - `metrics`: `responseMode`, `routingCalls`, and `jev`, which has Jev's readings, cost
-    and time (Typesafe's part only), or why Jev was skipped.
+  - `metrics`: `responseMode`, `routingCalls`, `dangerPhrase` (the danger the phrase
+    list heard, if any), and `jev`. `jev` has Jev's readings, what code `decided` from
+    them, the cost and the time (Typesafe's part only), or why Jev was skipped.
   - `diagnostics`: `brain.revision` (the commit), `startedAt`, and `work`, the step
     timeline the dev UI reads. `work` holds when each step began, each Jev call with its
     step, and `endMs`.

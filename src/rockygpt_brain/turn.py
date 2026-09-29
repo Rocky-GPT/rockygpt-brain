@@ -51,7 +51,7 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
     yield ProgressEvent(stage="understanding", safety=shown)
 
     # Jev: one call reads what the question asks.
-    metrics: dict[str, Any] = {"routingCalls": 0}
+    metrics: dict[str, Any] = {"routingCalls": 0, "dangerPhrase": said}
     decisions: Decisions | None = None
     stop: SpendingError | None = None
     if jev is None:
@@ -60,7 +60,12 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
         try:
             decisions, asked = ask_jev(jev, context, request_id, work.jev_call)
             metrics["routingCalls"] = 1
-            metrics["jev"] = {"answers": readings(asked.answers), "costNusd": asked.cost_nusd,
+            metrics["jev"] = {"answers": readings(asked.answers),
+                              # What code made of the answers (decisions.py's bars).
+                              "decided": {"danger": decisions.danger,
+                                          "ownAccount": decisions.own_account,
+                                          "needsEarlier": decisions.needs_earlier},
+                              "costNusd": asked.cost_nusd,
                               "inputTokens": asked.input_tokens, "elapsedMs": asked.elapsed_ms}
         except JevError as error:
             metrics["routingCalls"] = int(error.sent)
