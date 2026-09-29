@@ -42,6 +42,11 @@ without Jev.
 ruff check . && mypy src tests && pytest -q
 ```
 
+To try a scripted conversation on the running dev Brain, with the history written in the
+file and not whatever the dev UI kept:
+`python scripts/check_conversation.py evals/conversations/mixed-follow-ups.json`
+(one Jev call per user message, about $0.0001 each).
+
 The ledger tests need a disposable local PostgreSQL:
 `BRAIN_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5432/brain_accounting_test`.
 They apply `migrations/` to it themselves. CI runs all of these on every push.
