@@ -907,7 +907,8 @@ def multi_part(
     return lookups
 
 
-NOW_WORDS = {"now", "currently"}
+# "rn" is how students type "right now".
+NOW_WORDS = {"now", "currently", "rn"}
 
 
 def eating_now(decision: RouteDecision, answers: dict[str, Any], candidates: list[Identity],
@@ -917,15 +918,24 @@ def eating_now(decision: RouteDecision, answers: dict[str, Any], candidates: lis
     day's menu, 66 of its 141 items arrived, and GPT never looked up which meal was on."""
     said = set(words(messages[-1].content).split())
     kind = answers["kind"]
+    browsed = decision.arguments
     return (
-        decision.route == "search" and decision.arguments is None and not decision.lookups
+        decision.route == "search" and not decision.lookups
+        # Code's own browse of the whole day's menu, as for "what's on the menu right
+        # now" (09-28), is the meal on now instead: the day's 141 items don't fit.
+        and (browsed is None or (browsed["collection"] == "menu" and not browsed["filters"]
+                                 and decision.template is None))
         # Jev put 0.72 on the menu kind for "what can I eat right now" but 0.94 on asking
         # what food is served on campus at no named dining hall (09-28). Later that night
-        # it put 0.90-0.91 on the menu kind four times out of four, and only one reached
-        # the 0.9 bar: the other three left GPT to search the whole day's menu, which
-        # didn't fit. The words below already bound the request to food now, at no named
-        # place, so Jev need only lean toward the menu.
-        and ((kind["choice"] == "menu" and kind["probabilities"]["menu"] >= LEANS_TOWARD)
+        # it put 0.87-0.91 on the menu kind and 0.07-0.09 on dining hours, and only one
+        # run in four reached the 0.9 bar: the rest left GPT to search the whole day's
+        # menu, which didn't fit. Both kinds are what this lookup fetches, so Jev need
+        # only lead with the menu and put the bar's worth on the two together, as a
+        # contact/profile split does for a route. Asked 10 non-food "right now"
+        # questions twice each, Jev never led with the menu.
+        and ((kind["choice"] == "menu"
+              and kind["probabilities"]["menu"] + kind["probabilities"]["dining_hours"]
+              >= RELEASE.routing.threshold)
              or answers["list_menu"]["noul"] >= RELEASE.routing.threshold)
         and bool(said & NOW_WORDS)
         and not named(messages[-1].content, candidates)

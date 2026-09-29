@@ -360,16 +360,34 @@ def test_food_right_now_fetches_the_hours_and_the_meal_being_served_or_next() ->
     assert eating_now(decision, answers, [], day, request, now)
     unsure = answers_for(payload, route="search", kind="other", entity="none", list_menu=0.94)
     assert eating_now(decision, unsure, [], day, request, now)
-    # Jev put 0.90-0.91 on the menu kind four times (09-28); leaning is enough.
-    leaning = answers_for(payload, route="search", kind="menu", entity="none")
-    leaning["kind"] = {**leaning["kind"], "confidence": 0.62,
-                       "probabilities": {option: 0.0 for option in leaning["kind"]["probabilities"]}
-                       | {"menu": 0.6, "dining_hours": 0.4}}
-    assert eating_now(decision, leaning, [], day, request, now)
-    elsewhere = {**leaning, "kind": {**leaning["kind"], "choice": "dining_hours",
-                                     "probabilities": {**leaning["kind"]["probabilities"],
-                                                       "menu": 0.4, "dining_hours": 0.6}}}
-    assert not eating_now(decision, elsewhere, [], day, request, now)
+    # Jev led with the menu at 0.87-0.91 and put the rest on dining hours (09-28): the
+    # two together reach the bar, and both are what this lookup fetches.
+    def kind(**probabilities: float) -> dict[str, Any]:
+        leading = max(probabilities, key=lambda option: probabilities[option])
+        picked = answers_for(payload, route="search", kind=leading, entity="none")
+        picked["kind"] = {**picked["kind"], "confidence": probabilities[leading],
+                          "probabilities": dict.fromkeys(picked["kind"]["probabilities"], 0.0)
+                          | probabilities}
+        return picked
+
+    assert eating_now(decision, kind(menu=0.6, dining_hours=0.35, other=0.05), [], day,
+                      request, now)
+    # Leading with the menu is not enough on its own, and dining hours leading is a
+    # question about places, which GPT plans.
+    assert not eating_now(decision, kind(menu=0.6, other=0.4), [], day, request, now)
+    assert not eating_now(decision, kind(menu=0.35, dining_hours=0.6, other=0.05), [], day,
+                          request, now)
+    # "rn" is right now.
+    typed = [ChatMessage(role="user", content="whats for food rn")]
+    assert eating_now(decision, answers, [], day, typed, now)
+    # Code's own browse of the whole day's menu is the meal on now instead; a named meal
+    # is still that meal's menu.
+    whole_day = {"collection": "menu", "query": "", "filters": None}
+    assert eating_now(RouteDecision(route="search", arguments=whole_day), answers, [], day,
+                      request, now)
+    dinner = {**whole_day, "filters": {"meal": "Dinner"}}
+    assert not eating_now(RouteDecision(route="search", arguments=dinner), answers, [], day,
+                          request, now)
     later = [ChatMessage(role="user", content="What can I eat on campus tonight?")]
     assert not eating_now(decision, answers, [], day, later, now)
     # After the day's last meal, only the hours are fetched.
