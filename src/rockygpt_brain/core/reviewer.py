@@ -30,8 +30,13 @@ def review_answer(
     timeout: float,
     verified_prefix: list[AnswerPart] | None = None,
     retrievals: list[dict[str, Any]] | None = None,
+    omitted_messages: int = 0,
 ) -> EvidenceReview:
-    """A separate context checks every part; draft/tool history cannot approve itself."""
+    """A separate context checks every part; draft/tool history cannot approve itself.
+
+    `omitted_messages` is how many earlier messages the client left out, so what was or
+    wasn't said before the supplied conversation is unknown to the reviewer.
+    """
     subjects = {
         record_id: {
             "name": record["title"],
@@ -87,6 +92,7 @@ def review_answer(
         input=json.dumps(
             {
                 "conversation": [message.model_dump() for message in messages],
+                "earlier_messages_omitted": omitted_messages,
                 "campus_time": now.isoformat(),
                 "campus_weekday": now.strftime("%A"),
                 "campus_calendar_week": [
@@ -184,6 +190,9 @@ def review_answer(
             "Review did not cover every answer part exactly once", "review_coverage"
         )
     for part in review.parts:
+        # Only an earlier part can be leaned on; the rest can't be judged and are ignored.
+        part.depends_on_parts = sorted(
+            {index for index in part.depends_on_parts if index < part.part_index})
         if part.unverified_premises:
             part.verdict = "unsupported_claim"
             part.reason = ("Missing factual support: " + "; ".join(part.unverified_premises))[:400]

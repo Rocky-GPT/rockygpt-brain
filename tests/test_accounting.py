@@ -484,6 +484,7 @@ def test_complete_turn_accounts_for_lookup_draft_and_review(ledger: PostgresLedg
                 "unverified_premises": [],
                 "uses_event_for_entity": False,
                 "infers_food_safety": False,
+                "depends_on_parts": [],
                 "plan_deadlines": [],
             }
         ]

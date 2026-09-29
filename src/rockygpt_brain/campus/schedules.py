@@ -377,6 +377,82 @@ def _destinations(trips: list[dict[str, Any]], now: datetime) -> list[dict[str, 
     return result
 
 
+# What a delivery-bounded summary keeps of each selection: enough to name, cite and time it.
+# The trip's own record lists its stops.
+BOUNDED_KEYS = ("evidence_id", "service_date", "departure_at", "origin_restriction")
+
+
+def bounded_summaries(summary: dict[str, Any]) -> list[dict[str, Any]]:
+    """Smaller forms of an ok summary, largest first, for a lookup the prompt has no room
+    for whole.
+
+    Per-stop destinations and each selection's stop list were three quarters of one
+    weekday's summary (30 of 40 KB, against 13 KB for its 30 trips), so the summary was
+    dropped with the first trip cut, and with it the proof that 7 AM was next (09-29).
+    The first form keeps every boarding stop's first, next and last and each day's first
+    and last; the second keeps campus's alone and withholds the other boarding stops.
+    """
+    if summary.get("status") != "ok":
+        return []
+
+    def row(group: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "route": group["route"],
+            "origin": group["origin"],
+            **{selection: None if group[selection] is None
+               else {key: group[selection][key] for key in BOUNDED_KEYS}
+               for selection in SELECTIONS},
+            "scheduled_departure_count": group["scheduled_departure_count"],
+            "remaining_departure_count": group["remaining_departure_count"],
+            "days": group["days"],
+        }
+
+    compact = {
+        **summary,
+        "departures": [row(group) for group in summary["departures"]],
+        "destinations_withheld": "retrieval_delivery_limit",
+        "limitations": [
+            *summary["limitations"],
+            "Per-stop destinations were left out of delivery, so which trip first, next or "
+            "last reaches a stop is unknown here; each trip's record lists its stops.",
+        ],
+    }
+    others = [group for group in summary["departures"] if group["origin"] != "campus"]
+    if not others:
+        return [compact]
+    campus = {
+        **compact,
+        "departures": [row(group) for group in summary["departures"]
+                       if group["origin"] == "campus"],
+        "withheld_origins": [
+            *summary["withheld_origins"],
+            *({"route": group["route"], "origin": group["origin"],
+               "reason": "retrieval_delivery_limit"} for group in others),
+        ],
+        "limitations": [
+            *compact["limitations"],
+            "Boarding stops other than campus were left out of delivery; their first, next "
+            "and last departures are unknown here.",
+        ],
+    }
+    return [compact, campus]
+
+
+def departed_trips(records: list[dict[str, Any]], now: datetime) -> list[str]:
+    """The trips whose campus departure has passed, which a bounded delivery sheds first:
+    keeping them cut Tuesday's upcoming trips from a Monday-night lookup (09-29). A trip
+    whose time can't be read counts as still to come."""
+    departed = []
+    for record in records:
+        try:
+            _, leaves = trip_times(record["fields"])[0]
+        except (KeyError, TypeError, ValueError):
+            continue
+        if leaves <= now:
+            departed.append(record["id"])
+    return departed
+
+
 def review_summary(summary: dict[str, Any]) -> dict[str, Any]:
     """The calculation a reviewer needs to check a stated next/last departure.
 
@@ -392,6 +468,8 @@ def review_summary(summary: dict[str, Any]) -> dict[str, Any]:
                 "status", "as_of", "date_from", "date_to", "withheld_origins", "limitations"
             )
         },
+        # A summary kept over a delivery-bounded lookup says what it left out.
+        **{key: summary[key] for key in ("delivery", "destinations_withheld") if key in summary},
         "departures": [
             {
                 "route": group["route"],
@@ -408,7 +486,7 @@ def review_summary(summary: dict[str, Any]) -> dict[str, Any]:
                 "scheduled_departure_count": group["scheduled_departure_count"],
                 "remaining_departure_count": group["remaining_departure_count"],
                 "days": group["days"],
-                "destinations": group["destinations"],
+                **({"destinations": group["destinations"]} if "destinations" in group else {}),
             }
             for group in summary["departures"]
         ],

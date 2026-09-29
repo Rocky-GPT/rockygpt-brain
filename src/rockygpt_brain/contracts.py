@@ -24,6 +24,16 @@ class ChatMessage(StrictModel):
 
 class ChatRequest(StrictModel):
     messages: list[ChatMessage] = Field(min_length=1, max_length=80)
+    # Both clients send a window of the visible chat. Unmarked, the Brain took the window
+    # for the whole conversation and told a student "I didn't give you a departure time
+    # earlier" when that answer had only been cut off (09-29).
+    omittedMessages: int = Field(
+        default=0,
+        ge=0,
+        le=100000,
+        description="How many earlier messages of the visible conversation the client did "
+        "not send.",
+    )
 
     @model_validator(mode="after")
     def complete_conversation(self) -> "ChatRequest":
@@ -119,6 +129,17 @@ class PartReview(StrictModel):
             "published labels or recommends asking dining staff about ingredients and "
             "cross-contact without ranking food safety."
         )
+    )
+    depends_on_parts: list[Annotated[int, Field(ge=0, le=10)]] = Field(
+        max_length=11,
+        description=(
+            "Zero-based indexes of EARLIER candidate parts this part refers to or relies "
+            "on: 'that shuttle', 'these items', 'the times above', a summary or caveat "
+            "about them, or an uncited fact grounded only by that part's citations. Empty "
+            "only when the part neither refers to nor draws support from any earlier part, "
+            "such as independent emergency guidance or the answer to a separate question. "
+            "Fill it whatever the verdict."
+        ),
     )
     plan_deadlines: list[ActionDeadline] = Field(
         max_length=12,

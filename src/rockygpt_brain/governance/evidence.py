@@ -16,7 +16,12 @@ def bounded_result(
     """
     # The records a placement merged into, as they were before; never delivered.
     unplaced = output.get("_unplaced_records") or {}
-    output = {key: value for key, value in output.items() if key != "_unplaced_records"}
+    # Smaller forms of a timetable's summary (campus/schedules.bounded_summaries), largest
+    # first, for when the whole one has no room, and the trips that have already left.
+    smaller = output.get("_bounded_summaries") or []
+    departed = set(output.get("_departed_trips") or ())
+    output = {key: value for key, value in output.items()
+              if key not in {"_unplaced_records", "_bounded_summaries", "_departed_trips"}}
     if fits(output):
         return output
     if output.get("placement"):
@@ -47,6 +52,21 @@ def bounded_result(
         limited["discovery_titles"] = []
         limited["discovery_titles_truncated"] = True
         limited["discovery_title_count"] = len(titles)
+
+    def with_titles(candidate: dict[str, Any]) -> dict[str, Any]:
+        if titles:
+            for title_count in range(len(titles), -1, -1):
+                candidate["discovery_titles"] = titles[:title_count]
+                candidate["discovery_titles_truncated"] = title_count < len(titles)
+                if fits(candidate):
+                    break
+        return candidate
+
+    summary = output.get("schedule_calculations")
+    if isinstance(summary, dict) and summary.get("status") == "ok":
+        timetable = bounded_timetable(limited, records, [summary, *smaller], departed, fits)
+        if timetable is not None:
+            return with_titles(timetable)
     for count in range(len(records), -1, -1):
         if count < len(records):
             limited.update(
@@ -58,25 +78,11 @@ def bounded_result(
             )
             # Derived summaries must not claim coverage of omitted evidence.
             limited.pop("schedule_calculations", None)
-            if "entity_facts" in limited:
-                limited.pop("entity_facts")
-                limited["entity_facts_withheld"] = "retrieval_delivery_limit"
-            if "components" in limited:
-                limited.pop("components")
-                limited["components_withheld"] = "retrieval_delivery_limit"
-            if "placement" in limited:
-                limited.pop("placement")
-                limited["placement_withheld"] = "retrieval_delivery_limit"
+            derived_withheld(limited)
             if not count:
                 limited["status"] = "unavailable"
         if fits(limited):
-            if titles:
-                for title_count in range(len(titles), -1, -1):
-                    limited["discovery_titles"] = titles[:title_count]
-                    limited["discovery_titles_truncated"] = title_count < len(titles)
-                    if fits(limited):
-                        break
-            return limited
+            return with_titles(limited)
     return {
         "status": "unavailable",
         "reason": "retrieval_delivery_limit",
@@ -87,6 +93,84 @@ def bounded_result(
         "retrieved_count": len(records),
         "omitted_count": len(records),
     }
+
+
+def bounded_timetable(
+    limited: dict[str, Any],
+    records: list[dict[str, Any]],
+    forms: list[dict[str, Any]],
+    departed: set[str],
+    fits: Callable[[dict[str, Any]], bool],
+) -> dict[str, Any] | None:
+    """A timetable whose summary still proves first, next and last, or None if none fits.
+
+    The summary was worked out by code over every retrieved trip. Dropping it with the
+    first trip cut lost Tuesday's "next is 7 AM" proof for one unselected 9:40 PM trip, and
+    the checker rejected the answer (09-29). Only trips the summary doesn't select are
+    shed, those that have left first, then from the end. The largest form of the summary
+    that keeps every trip still to come wins; failing that, the largest that fits at all.
+    """
+
+    def scheduled(form: dict[str, Any], shed: list[int]) -> dict[str, Any]:
+        note = f"Computed over all {len(records)} retrieved trips."
+        if not shed:
+            return {**limited, "schedule_calculations": {**form, "delivery": note}}
+        return derived_withheld({
+            **limited,
+            "records": [record for index, record in enumerate(records) if index not in shed],
+            "truncated": True,
+            "reason": "retrieval_delivery_limit",
+            "retrieved_count": len(records),
+            "omitted_count": len(shed),
+            "schedule_calculations": {
+                **form,
+                "delivery": f"{note} Left out of delivery: {len(shed)}, none of which it "
+                "selects.",
+            },
+        })
+
+    fallback: dict[str, Any] | None = None
+    for form in forms:
+        selected = set(summary_references(form))
+        unselected = sorted(
+            (index for index in reversed(range(len(records)))
+             if records[index].get("id") not in selected),
+            key=lambda index: records[index].get("id") not in departed)
+        if not fits(scheduled(form, unselected)):
+            continue
+        # Shedding another trip never makes the result bigger, so search for the fewest to
+        # shed. The whole summary with every trip was already tried.
+        low, high = int(form is forms[0]), len(unselected)
+        while low < high:
+            middle = (low + high) // 2
+            if fits(scheduled(form, unselected[:middle])):
+                high = middle
+            else:
+                low = middle + 1
+        result = scheduled(form, unselected[:high])
+        if all(records[index].get("id") in departed for index in unselected[:high]):
+            return result
+        fallback = fallback or result
+    return fallback
+
+
+def derived_withheld(limited: dict[str, Any]) -> dict[str, Any]:
+    """Withhold the summaries built over a result's records once some are left out."""
+    for key in ("entity_facts", "components", "placement"):
+        if key in limited:
+            limited.pop(key)
+            limited[f"{key}_withheld"] = "retrieval_delivery_limit"
+    return limited
+
+
+def summary_references(value: Any) -> list[str]:
+    """Every trip a timetable summary selects, wherever it names one by evidence_id."""
+    if isinstance(value, dict):
+        own = [value["evidence_id"]] if isinstance(value.get("evidence_id"), str) else []
+        return [*own, *(found for item in value.values() for found in summary_references(item))]
+    if isinstance(value, list):
+        return [found for item in value for found in summary_references(item)]
+    return []
 
 
 def tool_result_wire(
