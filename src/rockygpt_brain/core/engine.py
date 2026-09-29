@@ -510,6 +510,9 @@ def answer_turn(
         notify("understanding" if round_index == 0 else "composing")
         timeout = budget.model_timeout("draft")
         answer_only = not budget.can_retrieve
+        # Why GPT gets no tools this call, for diagnostics: no rounds, lookups or time left
+        # (`budget.refusal`), or no room in the prompt (below).
+        withheld = budget.refusal if answer_only else None
         if not direct:
             budget.note_model("draft")
             draft_calls += 1
@@ -569,6 +572,7 @@ def answer_turn(
             payload = wire_value({key: value for key, value in request.items() if key != "timeout"})
             if input_bound(payload) > RELEASE.max_input_tokens:
                 answer_only = True
+                withheld = "context_limit"
                 request["tools"] = []
                 request["tool_choice"] = "none"
                 metrics["contextLimitedTools"] = True
@@ -600,7 +604,7 @@ def answer_turn(
             work.decided(work.at(), draft={
                 "by": "jev" if direct else "gpt",
                 **({} if direct else {"call": draft_calls}),
-                **({"answerOnly": True} if answer_only else {}),
+                **({"answerOnly": withheld} if withheld else {}),
                 "asked": [{"tool": call.name, "arguments": parsed(call.arguments)}
                           for call in calls],
             })
