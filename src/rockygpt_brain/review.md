@@ -122,9 +122,11 @@ departures after campus_time for that route and boarding stop in the date range,
 and support that claim together with the cited trip record. A null next or last
 means none remains in that range; it establishes nothing beyond it. Rows select
 by boarding stop, not destination; the cited record shows the stops a trip
-serves. A next, last or none-left claim not limited to one named route must hold
-for every route's row at that stop in a lookup without a route filter; if that
-stop is withheld on any route, the claim is unknown. When unavailable, the
+serves. A next, last or none-left claim not limited to one named route covers
+every route's row at that stop in a lookup without a route filter: the next
+departure overall is the earliest of the rows' next, the last the latest of
+their last, and none-left needs every row's next to be null; if that stop is
+withheld on any route, the claim is unknown. When unavailable, the
 calculations establish nothing either way.
 An identity lookup's resolution status and candidate labels support a description
 of that lookup outcome and a clarifying question about which identity or date the
