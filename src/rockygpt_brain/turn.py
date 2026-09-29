@@ -14,6 +14,7 @@ from rockygpt_brain.failures import failure
 from rockygpt_brain.jev import Jev, JevError
 from rockygpt_brain.safety import ACCOUNT_LIMIT, Danger, safety_block, said_danger
 from rockygpt_brain.spending import SpendingError
+from rockygpt_brain.work import Work
 
 NOT_YET = "RockyGPT's new Brain can't answer the rest of your question yet."
 
@@ -42,8 +43,8 @@ def stopped(error: SpendingError) -> ErrorCode:
     return "accounting_unavailable"
 
 
-def run_turn(context: Context, request_id: str,
-             jev: Jev | None) -> Iterator[ProgressEvent | TurnResult]:
+def run_turn(context: Context, request_id: str, jev: Jev | None,
+             work: Work) -> Iterator[ProgressEvent | TurnResult]:
     # Safety: the danger phrases need no model and no money, so their help goes out first.
     said = said_danger(context.question)
     shown = safety_block(said) if said else None
@@ -57,7 +58,7 @@ def run_turn(context: Context, request_id: str,
         metrics["jev"] = {"skipped": "routing_unavailable"}
     else:
         try:
-            decisions, asked = ask_jev(jev, context, request_id)
+            decisions, asked = ask_jev(jev, context, request_id, work.jev_call)
             metrics["routingCalls"] = 1
             metrics["jev"] = {"answers": readings(asked.answers), "costNusd": asked.cost_nusd,
                               "inputTokens": asked.input_tokens, "elapsedMs": asked.elapsed_ms}
@@ -91,6 +92,7 @@ def run_turn(context: Context, request_id: str,
     elif own_account:
         # Code says what RockyGPT can't reach, with no model writing it.
         metrics["responseMode"] = "access_limit"
+        work.decided(written={"by": "code", "mode": "access_limit"})
         yield TurnResult(200, ChatReply(answer=ACCOUNT_LIMIT, status="unavailable",
                                         citations=[], requestId=request_id), None, metrics)
     else:

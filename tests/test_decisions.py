@@ -15,6 +15,7 @@ from rockygpt_brain.decisions import QUESTIONS
 from rockygpt_brain.jev import JevError
 from rockygpt_brain.safety import ACCOUNT_LIMIT, SAFETY_TEXT
 from rockygpt_brain.turn import NOT_YET
+from rockygpt_brain.work import revision
 
 client = TestClient(app)
 DANGER = pick("danger", {"self_harm": 0.02, "danger": 0.95, "none": 0.03})
@@ -229,3 +230,44 @@ def test_jev_is_set_up_only_with_its_key_the_ledger_and_an_environment(
     jev_service.cache_clear()
     assert jev_service() is not None
     jev_service.cache_clear()
+
+
+def test_the_dev_ui_sees_which_brain_answered_and_who_did_the_work(
+        jev: ScriptedJev, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BRAIN_ENVIRONMENT", "development")
+    monkeypatch.setenv("BRAIN_REVISION", "d285c8f")
+    revision.cache_clear()
+    jev.answers = calm(**ACCOUNT)
+    body = ask(user("register me for CMPS 147"), **{"x-rockygpt-diagnostics": "1"}).json()
+    diagnostics = body["diagnostics"]
+    assert diagnostics["brain"] == {"revision": "d285c8f", "environment": "development"}
+    assert diagnostics["startedAt"].endswith(("-04:00", "-05:00"))
+    work = diagnostics["work"]
+    assert [step["stage"] for step in work["steps"]] == ["connecting", "understanding"]
+    assert work["steps"][-1]["written"] == {"by": "code", "mode": "access_limit"}
+    (call,) = work["calls"]
+    assert (call["who"], call["what"], call["step"]) == ("jev", "routing", 1)
+    assert work["steps"][1]["atMs"] <= call["startMs"] <= call["startMs"] + call["ms"]
+    assert call["startMs"] + call["ms"] <= work["endMs"]
+    assert "CMPS" not in json.dumps(diagnostics)
+    revision.cache_clear()
+
+
+def test_the_work_record_marks_safety_and_a_failed_jev_call(
+        jev: ScriptedJev, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BRAIN_ENVIRONMENT", "development")
+    jev.error = JevError("routing_timeout")
+    response = ask(user("my friend is not breathing"), accept="text/event-stream",
+                   **{"x-rockygpt-diagnostics": "1"})
+    work = frames(response)[-1]["body"]["diagnostics"]["work"]
+    assert [step["stage"] for step in work["steps"]] == ["connecting", "understanding"]
+    assert work["steps"][1]["safety"] is True
+    assert work["calls"][0]["failed"] is True
+    failed = ask(user("hi"), **{"x-rockygpt-diagnostics": "1"})
+    assert failed.status_code == 503 and "work" in failed.json()["diagnostics"]
+
+
+def test_diagnostics_stay_out_of_production(
+        jev: ScriptedJev, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BRAIN_ENVIRONMENT", "production")
+    assert "diagnostics" not in ask(**{"x-rockygpt-diagnostics": "1"}).json()

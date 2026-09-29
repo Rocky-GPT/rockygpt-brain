@@ -32,6 +32,7 @@ from rockygpt_brain.failures import failure
 from rockygpt_brain.jev import Jev, TypesafeHttp
 from rockygpt_brain.spending import Environment, PostgresLedger
 from rockygpt_brain.turn import TurnResult, run_turn
+from rockygpt_brain.work import Work, revision
 
 # The API description is for developers; production doesn't publish it.
 app = FastAPI(
@@ -93,13 +94,16 @@ def log_turn(request_id: str, turn: TurnResult, started: float) -> None:
     }))
 
 
-def guarded(context: Context, request_id: str,
-            jev: Jev | None) -> Iterator[ProgressEvent | TurnResult]:
+def guarded(context: Context, request_id: str, jev: Jev | None,
+            work: Work) -> Iterator[ProgressEvent | TurnResult]:
     """The turn, and if a bug stops it, a failure that still carries the emergency help.
     The log gets the error's type and where it happened, not its message, which could
     hold the student's words."""
     try:
-        yield from run_turn(context, request_id, jev)
+        for step in run_turn(context, request_id, jev, work):
+            if isinstance(step, ProgressEvent):
+                work.step(step)
+            yield step
     except Exception as error:
         logging.getLogger("uvicorn.error").error(
             "brain_turn_error %s\n%s",
@@ -128,13 +132,19 @@ def chat(
     diagnostics = environment() == "development" and x_rockygpt_diagnostics == "1"
     headers = {"X-Request-Id": request_id}
 
+    work = Work(started)
+
     def finished(turn: TurnResult) -> TurnResult:
         log_turn(request_id, turn, started)
         if not diagnostics:
             return turn
-        return turn._replace(body=turn.body.model_copy(update={"metrics": turn.metrics}))
+        return turn._replace(body=turn.body.model_copy(update={
+            "metrics": turn.metrics,
+            "diagnostics": {"brain": {"revision": revision(), "environment": "development"},
+                            "startedAt": context.now.isoformat(), "work": work.report()},
+        }))
 
-    steps = guarded(context, request_id, jev)
+    steps = guarded(context, request_id, jev, work)
     if accept and "text/event-stream" in accept.lower():
 
         def events() -> Iterator[str]:
