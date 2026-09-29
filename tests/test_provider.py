@@ -25,6 +25,7 @@ from rockygpt_brain.core.provider import (
     openai_client,
 )
 from rockygpt_brain.governance.accounting import PaidCallError
+from rockygpt_brain.governance.budget import TurnBudget
 
 # Noon on the first day of the release's verified price window, so renewing
 # the window does not strand the tests outside it.
@@ -146,6 +147,32 @@ def test_missing_usage_and_ambiguous_failures_keep_reservation(
     ledger.uncertain.assert_called_once()
     assert gateway.usage.report()["unsettledNusd"] > 0
     assert gateway.usage.report()["usageComplete"] is False
+
+
+@pytest.mark.parametrize("left,sent", [(1.0, None), (3.0, 1.0), (10.0, 2.0)])
+def test_dispatch_uses_the_time_left_after_the_reservation(
+    left: float, sent: float | None
+) -> None:
+    # 09-29 audit: the review's timeout was read before the payload checks and the ledger
+    # reservation, so a 2 s reservation with 1 s left still sent it with the stale 1 s.
+    clock = [0.0]
+    provider, ledger = Mock(), Mock()
+    provider.create.return_value = response()
+    ledger.reserve.side_effect = lambda *args: clock.__setitem__(0, clock[0] + 2.0)
+    gateway = PaidGateway(provider, ledger, "turn", clock=lambda: NOW)
+    gateway.budget = TurnBudget(clock=lambda: clock[0])
+    clock[0] = RELEASE.turn_seconds - left
+    review = {**arguments(), "max_output_tokens": RELEASE.review_output_tokens}
+    if sent is None:
+        with pytest.raises(PaidCallError, match="model_timeout"):
+            gateway.create(category="review", **review)
+        provider.create.assert_not_called()
+        ledger.uncertain.assert_called_once()
+        assert ledger.uncertain.call_args.args[1] == "model_timeout"
+        return
+    gateway.create(category="review", **review)
+    timeout = provider.create.call_args.kwargs["timeout"]
+    assert timeout.read == pytest.approx(sent) and timeout.connect <= timeout.read
 
 
 def test_settlement_outage_preserves_original_hold() -> None:
