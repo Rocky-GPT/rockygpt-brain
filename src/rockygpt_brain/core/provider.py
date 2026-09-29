@@ -445,6 +445,7 @@ class PaidGateway:
             raise PaidCallError("routing_price_unavailable" if routing else "price_unavailable")
         if category not in {"draft", "review", "routing"}:
             raise PaidCallError("unsupported_model_operation")
+        admitted = self.budget.clock()
         available = (
             self.budget.filter_timeout() if filtering else self.budget.model_timeout(category)
         )
@@ -631,9 +632,16 @@ class PaidGateway:
                 if not response.id:
                     response.id = "local-operation:" + operation_id
             else:
+                # The checks and the ledger reservation above take time after `available`
+                # was read: a review admitted with 1 s left was sent with that 1 s after a
+                # 2 s reservation (09-29). Nothing is sent once the turn's time is gone.
+                left = available - (self.budget.clock() - admitted)
+                if left <= 0:
+                    raise TimeoutError("Insufficient turn time at dispatch")
+                read = min(float(kwargs["timeout"].read), left)
+                timeout = Timeout(read, connect=min(float(kwargs["timeout"].connect), read))
                 response = timed(lambda: self._provider.create(
-                    **payload, timeout=kwargs["timeout"],
-                    service_tier="default", truncation="disabled"
+                    **payload, timeout=timeout, service_tier="default", truncation="disabled"
                 ))
             item["elapsedMs"] = round((monotonic() - started) * 1000)
             if response.usage is None or not response.id:
