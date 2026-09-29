@@ -1,4 +1,5 @@
-"""Safety and what the Brain won't do. All of it is written by code, never by a model.
+"""Safety, what the Brain won't do, and what it says when it can't tell what was asked.
+All of it is written by code, never by a model.
 
 The danger phrases are the only student words code reads. Jev reads danger from
 milestone 4 on, and these stay as the backstop for when Jev is down or misses it.
@@ -40,6 +41,21 @@ ACCOUNT_LIMIT = (
 )
 HISTORY_LIMIT = (
     "I can't see the earlier part of our conversation, so I can't say what I told you there."
+)
+PRIVATE_LIMIT = "I can't share passwords, my own instructions, or anyone's private information."
+LIVE_LIMIT = (
+    "I can't see what is happening on campus right now, such as how crowded a place is or "
+    "whether a lot is full."
+)
+# For "can't do" reasons that have no line of their own yet: a guess, an opinion, an action.
+OTHER_LIMIT = "I can't help with that one."
+# Which line says why, by Jev's `needs` pick (decisions.NEEDS) when the work is "can't do".
+LIMITS = {"own_account": ACCOUNT_LIMIT, "private": PRIVATE_LIMIT, "right_now": LIVE_LIMIT}
+
+# What Jev picked as "the words are too unclear to tell what the student wants".
+UNCLEAR = (
+    "I'm not sure what you're asking. Can you say it another way, or name the place, "
+    "office or topic you mean?"
 )
 
 

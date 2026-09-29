@@ -5,18 +5,42 @@ each step (and the safety help) the moment it happens.
 """
 
 from collections.abc import Iterator
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 from rockygpt_brain.context import Context
 from rockygpt_brain.contract import ChatReply, ErrorCode, FailureReply, ProgressEvent, SafetyBlock
 from rockygpt_brain.decisions import ROUTES, Decisions, Handler, ask_jev, handler, readings
 from rockygpt_brain.failures import failure
 from rockygpt_brain.jev import Jev, JevError
-from rockygpt_brain.safety import ACCOUNT_LIMIT, Danger, safety_block, said_danger
+from rockygpt_brain.safety import (
+    ACCOUNT_LIMIT,
+    LIMITS,
+    OTHER_LIMIT,
+    UNCLEAR,
+    Danger,
+    safety_block,
+    said_danger,
+)
 from rockygpt_brain.spending import SpendingError
 from rockygpt_brain.work import Work
 
 NOT_YET = "RockyGPT's new Brain can't answer the rest of your question yet."
+
+# What a Jev failure tells the student. Without Jev's readings there is no plan, so the
+# turn fails on purpose, with the emergency help, and never hands the question to a model.
+JEV_FAILURES: dict[str, ErrorCode] = {
+    "routing_timeout": "model_timeout",
+    "routing_unavailable": "model_unreachable",
+    "routing_rate_limited": "rate_limited",
+    "routing_provider_error": "model_provider_error",
+    "routing_usage_unknown": "model_provider_error",
+    "routing_model_changed": "model_provider_error",
+    "routing_invalid_response": "invalid_model_output",
+    # Too long for Jev: trying again can't help, a shorter chat can.
+    "routing_context_limit": "context_limit",
+    # An expired price is a setup problem, not a busy provider.
+    "routing_price_unavailable": "model_not_configured",
+}
 
 
 class TurnResult(NamedTuple):
@@ -50,6 +74,28 @@ def decided(decisions: Decisions, chosen: Handler) -> dict[str, Any]:
                               for name, sureness in chosen.low_confidence.items()}}
 
 
+class Said(NamedTuple):
+    """Words code wrote for a route that needs no model, and how the turn reports them."""
+
+    text: str
+    status: Literal["unavailable", "clarification"]
+    mode: str
+
+
+def said_by_code(chosen: Handler | None, decisions: Decisions | None) -> Said | None:
+    """The routes built so far that end in words code wrote. Safety help is separate: it
+    goes first and needs no route. Every other route waits for its milestone."""
+    if chosen is None or decisions is None:
+        return None
+    if chosen.name == "account_action":
+        # All of it needs their account, or Jev's `needs` pick says why RockyGPT can't.
+        text = ACCOUNT_LIMIT if decisions.own_account else LIMITS.get(decisions.needs, OTHER_LIMIT)
+        return Said(text, "unavailable", "access_limit")
+    if chosen.name == "ambiguous":
+        return Said(UNCLEAR, "clarification", "clarification")
+    return None
+
+
 def stopped(error: SpendingError) -> ErrorCode:
     if error.code in {"budget_exhausted", "accounting_paused"}:
         return error.code  # type: ignore[return-value]
@@ -70,6 +116,7 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
     decisions: Decisions | None = None
     chosen: Handler | None = None
     stop: SpendingError | None = None
+    failed: ErrorCode | None = None
     if jev is None:
         metrics["jev"] = {"skipped": "routing_unavailable"}
     else:
@@ -84,13 +131,15 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
         except JevError as error:
             metrics["routingCalls"] = int(error.sent)
             metrics["jev"] = {"skipped": error.code}
+            failed = JEV_FAILURES.get(error.code, "model_provider_error")
         except SpendingError as error:
             # Refused before the call, or its accounting failed after: all paid work stops.
             stop = error
             metrics["jev"] = {"skipped": error.code}
 
     # Which route should take it. Until their milestones, the turn still ends below with
-    # safety help, the account limit or "not ready".
+    # safety help, code-written words (account limit, "can't do", "unclear") or "not ready".
+    said_it = said_by_code(chosen, decisions)
     metrics["handler"] = chosen.name if chosen else "danger" if said else None
     danger = worst(said, decisions.danger if decisions else None)
     if danger is not None and danger != said:
@@ -113,12 +162,16 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
         code = stopped(stop)
         metrics["responseMode"] = code
         yield TurnResult(*failure(code, request_id, reset_at=stop.reset_at), None, metrics)
-    elif decisions is not None and decisions.own_account:
-        # An account action, the one capability limit built so far: code says what
-        # RockyGPT can't reach, with no model writing it.
-        metrics["responseMode"] = "access_limit"
-        work.decided(written={"by": "code", "mode": "access_limit"})
-        yield TurnResult(200, ChatReply(answer=ACCOUNT_LIMIT, status="unavailable",
+    elif failed is not None:
+        # No readings, so no plan. A retryable failure, never a guess from a model.
+        metrics["responseMode"] = failed
+        yield TurnResult(*failure(failed, request_id), None, metrics)
+    elif said_it is not None:
+        # An account action or a request too unclear to read: code says what RockyGPT
+        # can't reach, or asks, with no model writing it.
+        metrics["responseMode"] = said_it.mode
+        work.decided(written={"by": "code", "mode": said_it.mode})
+        yield TurnResult(200, ChatReply(answer=said_it.text, status=said_it.status,
                                         citations=[], requestId=request_id), None, metrics)
     else:
         metrics["responseMode"] = "not_ready"
