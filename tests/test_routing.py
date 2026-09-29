@@ -237,6 +237,15 @@ def test_a_request_for_the_students_own_account_is_answered_by_code() -> None:
         assert gpt.create.called
 
 
+def test_jev_is_told_a_next_departure_names_no_day() -> None:
+    # "Next" read as a day to work out ('next week'): 0 of 7 "next shuttle" questions got a
+    # sure day, so code's departures answer never ran for one (09-29).
+    payload, day = routing_payload(messages("when is the next shuttle"), [], NOW)
+    assert day is None
+    assert "next or last departure" in payload["questions"]["date"]["criteria"]["none"]
+    assert "'next week'" in payload["questions"]["date"]["criteria"]["other"]
+
+
 def test_a_departure_question_fetches_the_next_days_timetable_too() -> None:
     # "When is the last shuttle?" at 11:10 PM (09-28) had nothing after the day's last to
     # offer: only that day's timetable was fetched.
