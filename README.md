@@ -77,8 +77,11 @@ raw records and documents) and `/openapi.json` answer 404 unless
   source is fresh; freshness is checked when records are retrieved.
 - `POST /v1/chat`: one JSON response, with the conversation supplied on every
   request. A client that sends only its latest messages sets `omittedMessages` to how
-  many earlier ones it left out (default 0). A development Brain serves the generated
-  schema at `/openapi.json`.
+  many earlier ones it left out (default 0). With `Accept: text/event-stream` it
+  streams `progress` events (the stage, what is being looked up, a draft labelled
+  unverified while it is checked, and, as soon as Jev reads danger, the code-written
+  safety block as `safety: {answer, citations}`), then one `result` event with the
+  status and body. A development Brain serves the generated schema at `/openapi.json`.
 
 ```json
 {"messages":[{"role":"user","content":"How do I contact Financial Aid?"}],"omittedMessages":0}
@@ -93,7 +96,8 @@ counts, search coverage, statuses, duration, and, for shuttle searches, the
 code-computed next/last departures the reviewer checks against; it does not
 contain model reasoning. Metrics distinguish draft and review model calls,
 requested and executed tools, and fixed validation-failure codes. Rejected answer
-text is not returned. A development Brain also returns the reviewer's reasons in
+text never becomes the answer; a streaming client may show a draft, labelled
+unverified, while it is being checked. A development Brain also returns the reviewer's reasons in
 `metrics.reviewRejections` so a false rejection can be diagnosed; production never
 does, and the saved turn summary never stores them. Invalid-output logs contain
 only the request ID and reason code.
@@ -122,11 +126,15 @@ Requests are capped at 64 KiB, 80 messages, 16,000 characters per message, and
 48,000 total content characters. The Brain rejects oversized histories explicitly;
 it never shortens one itself, but a client's own window is marked by `omittedMessages`.
 Answers are capped at 12,000 characters so they fit in a subsequent request.
-There are at most four active turns per process, eight model calls in total
-(at most six draft/tool calls, with capacity reserved for review), twelve admitted tool attempts, a
-50-second execution budget, and a 52-second HTTP deadline. Retrieval has a
-30-second deadline, leaving time for synthesis and review. Exhausting retrieval
-does not disable answer repair. Provider connection attempts are capped at two
+There are at most four active turns per process. A turn makes one Jev routing call
+and at most three Jev checks of search results, at most three GPT draft calls and one
+GPT review, two retrieval rounds and eight lookups, within a 45-second execution budget
+and a 47-second HTTP deadline (`release.json`). Lookups must run in the first 15
+seconds; the last 30 are kept for writing and review, so a first call that must ask for
+lookups is never waited on past that window. A draft is written and checked once and
+never repaired: paragraphs the reviewer approves stay, with those that depend on a
+rejected one dropped and a note that something was left out, or the turn gives a safe
+fallback. Provider connection attempts are capped at two
 seconds per address; model reads share the remaining turn budget. Timed-out
 workers retain their slot until provider and database cleanup finish. Validation errors use HTTP 422; upstream
 errors use 429/502/503/504 with a safe structured error and a request ID.
