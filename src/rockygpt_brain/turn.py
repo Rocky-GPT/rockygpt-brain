@@ -9,7 +9,7 @@ from typing import Any, NamedTuple
 
 from rockygpt_brain.context import Context
 from rockygpt_brain.contract import ChatReply, ErrorCode, FailureReply, ProgressEvent, SafetyBlock
-from rockygpt_brain.decisions import Decisions, ask_jev, handler, readings
+from rockygpt_brain.decisions import ROUTES, Decisions, Handler, ask_jev, handler, readings
 from rockygpt_brain.failures import failure
 from rockygpt_brain.jev import Jev, JevError
 from rockygpt_brain.safety import ACCOUNT_LIMIT, Danger, safety_block, said_danger
@@ -35,6 +35,21 @@ def worst(first: Danger | None, second: Danger | None) -> Danger | None:
     return "self_harm" if "self_harm" in kinds else "danger" if "danger" in kinds else None
 
 
+def camel(name: str) -> str:
+    first, *rest = name.split("_")
+    return first + "".join(word.title() for word in rest)
+
+
+def decided(decisions: Decisions, chosen: Handler) -> dict[str, Any]:
+    """Jev's picks, what code read from them, and the route with where it goes, the picks
+    that led there (`handlerPath`, the last one settled it) and those Jev put under 0.90."""
+    picks = {camel(name): getattr(decisions, name) for name in decisions.sureness}
+    return {**picks, "handler": chosen.name, "goesTo": ROUTES[chosen.name],
+            "handlerPath": [camel(name) for name in chosen.path],
+            "lowConfidence": {camel(name): sureness
+                              for name, sureness in chosen.low_confidence.items()}}
+
+
 def stopped(error: SpendingError) -> ErrorCode:
     if error.code in {"budget_exhausted", "accounting_paused"}:
         return error.code  # type: ignore[return-value]
@@ -53,26 +68,17 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
     # Jev: one call reads what the question asks.
     metrics: dict[str, Any] = {"routingCalls": 0, "dangerPhrase": said}
     decisions: Decisions | None = None
+    chosen: Handler | None = None
     stop: SpendingError | None = None
     if jev is None:
         metrics["jev"] = {"skipped": "routing_unavailable"}
     else:
         try:
             decisions, asked = ask_jev(jev, context, request_id, work.jev_call)
+            chosen = handler(decisions, said)
             metrics["routingCalls"] = 1
             metrics["jev"] = {"answers": readings(asked.answers),
-                              # What code made of the answers (decisions.py's bars).
-                              "decided": {"danger": decisions.danger,
-                                          "ownAccount": decisions.own_account,
-                                          "needsEarlier": decisions.needs_earlier,
-                                          "asks": decisions.asks,
-                                          "subject": decisions.subject,
-                                          "named": decisions.named,
-                                          "needs": decisions.needs,
-                                          "multiPart": decisions.multi_part,
-                                          "reach": decisions.reach,
-                                          "outcome": decisions.outcome,
-                                          "route": decisions.route},
+                              "decided": decided(decisions, chosen),
                               "costNusd": asked.cost_nusd,
                               "inputTokens": asked.input_tokens, "elapsedMs": asked.elapsed_ms}
         except JevError as error:
@@ -83,22 +89,22 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
             stop = error
             metrics["jev"] = {"skipped": error.code}
 
-    # Which later handler should take it. Until those milestones, the turn still ends
-    # below with safety help, the account limit or "not ready".
-    metrics["handler"] = (handler(decisions, said) if decisions
-                          else "safety" if said else None)
+    # Which route should take it. Until their milestones, the turn still ends below with
+    # safety help, the account limit or "not ready".
+    metrics["handler"] = chosen.name if chosen else "danger" if said else None
     danger = worst(said, decisions.danger if decisions else None)
     if danger is not None and danger != said:
         shown = safety_block(danger)
         yield ProgressEvent(stage="understanding", safety=shown)
-    own_account = decisions is not None and decisions.own_account
 
     # Final assembly.
     if shown is not None:
         metrics["responseMode"] = "safety_net"
         work.decided(written={"by": "code", "mode": "safety_net"})
+        # After the safety help, the account limit when all of it needs their account.
+        rest = ACCOUNT_LIMIT if decisions and decisions.own_account else NOT_YET
         yield TurnResult(200, ChatReply(
-            answer=f"{shown.answer}\n\n{ACCOUNT_LIMIT if own_account else NOT_YET}",
+            answer=f"{shown.answer}\n\n{rest}",
             status="partial",
             citations=shown.citations,
             requestId=request_id,
@@ -107,8 +113,9 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
         code = stopped(stop)
         metrics["responseMode"] = code
         yield TurnResult(*failure(code, request_id, reset_at=stop.reset_at), None, metrics)
-    elif own_account:
-        # Code says what RockyGPT can't reach, with no model writing it.
+    elif decisions is not None and decisions.own_account:
+        # An account action, the one capability limit built so far: code says what
+        # RockyGPT can't reach, with no model writing it.
         metrics["responseMode"] = "access_limit"
         work.decided(written={"by": "code", "mode": "access_limit"})
         yield TurnResult(200, ChatReply(answer=ACCOUNT_LIMIT, status="unavailable",

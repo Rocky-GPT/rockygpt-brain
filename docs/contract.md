@@ -120,9 +120,9 @@ of these ways:
   in the danger phrases or by Jev's reading, gets HTTP 200 with status `partial`: the
   safety help first, then a line saying the new Brain can't answer the rest yet. A
   streaming app gets the safety help in a `progress` event right away.
-- A request only the student's own account could answer or do ("register me for CMPS
-  147", "what are my grades") gets HTTP 200 with status `unavailable`: what RockyGPT
-  can't reach, written by code.
+- A request Jev picks as one only the student's own account could answer or do
+  ("register me for CMPS 147", "what are my grades") gets HTTP 200 with status
+  `unavailable`: what RockyGPT can't reach, written by code.
 - Every other question gets HTTP 503 with code `not_ready` and the emergency help.
 - When the spending allowance is used up, the turn gets 429 `budget_exhausted` with
   `resetAt`. When the ledger can't be reached, or a person paused spending, it gets 503
@@ -133,7 +133,8 @@ of these ways:
   Neither holds the student's words.
   - `metrics`: `responseMode`, `routingCalls`, `dangerPhrase` (the danger the phrase
     list heard, if any), `handler` (which later handler should take the request), and
-    `jev`. `jev` has Jev's readings, what code `decided` from them, the cost and the
+    `jev`. `jev` has Jev's readings, what code `decided` from them (every pick, the
+    handler, the picks that led to it and those Jev put under 0.90), the cost and the
     time (Typesafe's part only), or why Jev was skipped.
   - `diagnostics`: `brain.revision` (the commit), `startedAt`, and `work`, the step
     timeline the dev UI reads. `work` holds when each step began, each Jev call with its
