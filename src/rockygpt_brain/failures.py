@@ -39,6 +39,9 @@ FAILURES: dict[ErrorCode, Failure] = {
     "model_not_configured": Failure(
         503, "RockyGPT is unavailable until its service configuration is restored."),
     "invalid_model_output": Failure(502, TRY_AGAIN),
+    "data_unavailable": Failure(
+        503, "RockyGPT couldn't reach its campus information just now. Please try again in a "
+        "moment."),
     "context_limit": Failure(
         422, "This conversation exceeds the supported context limit. Start a shorter chat."),
     "retrieval_context_limit": Failure(
