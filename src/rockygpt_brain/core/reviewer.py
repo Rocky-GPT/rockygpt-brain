@@ -209,6 +209,14 @@ def review_answer(
                 "facility or organization. Use direct evidence for that entity, or "
                 "state that the requested attribute could not be verified."
             )
+        if omitted_messages and part.denies_earlier_message:
+            # The review prompt says so too, but with 18 earlier messages cut the checker
+            # still passed "I didn't give you a first departure time" (09-29 replay).
+            part.verdict = "wrong_context"
+            part.reason = (
+                "Earlier messages were left out of this request, so what was or wasn't "
+                "said before them is unknown. Say that part of the conversation can't be seen."
+            )
         if part.infers_food_safety:
             part.verdict = "unsupported_claim"
             part.reason = (

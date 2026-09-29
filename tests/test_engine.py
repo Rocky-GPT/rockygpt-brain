@@ -86,6 +86,7 @@ def review(
     *verdicts: str,
     uses_event_for_entity: bool = False,
     infers_food_safety: bool = False,
+    denies_earlier_message: bool = False,
     plan_deadlines: list[str] | None = None,
     deadline_basis: str = "student_plan",
     unverified_premises: list[str] | None = None,
@@ -105,6 +106,7 @@ def review(
                         "unverified_premises": unverified_premises or [],
                         "uses_event_for_entity": uses_event_for_entity,
                         "infers_food_safety": infers_food_safety,
+                        "denies_earlier_message": denies_earlier_message,
                         "depends_on_parts": (depends_on or {}).get(i, []),
                         "plan_deadlines": [
                             {"basis": deadline_basis, "latest_usable_at": deadline}

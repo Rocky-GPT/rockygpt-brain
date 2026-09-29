@@ -358,6 +358,7 @@ def test_short_dinner_chat_with_fifty_menu_records_and_hours(
                             "unverified_premises": [],
                             "uses_event_for_entity": False,
                             "infers_food_safety": False,
+                            "denies_earlier_message": False,
                             "depends_on_parts": [],
                             "plan_deadlines": [],
                         }
@@ -476,6 +477,7 @@ SUPPORTED = {
             "unverified_premises": [],
             "uses_event_for_entity": False,
             "infers_food_safety": False,
+            "denies_earlier_message": False,
             "depends_on_parts": [],
             "plan_deadlines": [],
         }
