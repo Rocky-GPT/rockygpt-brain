@@ -229,3 +229,63 @@ def test_unknown_meal_and_query_prose_never_enter_progress() -> None:
         filters=SearchFilters(meal="arbitrary model prose"),
     )
     assert search_subject(query) == {"topic": "menu", "date_from": "2026-09-04"}
+
+
+def test_diagnostics_say_who_worked_in_each_step() -> None:
+    """The Dev control room tags each step Jev, GPT or code from these, never guessing."""
+
+    def turn(*_: object, client: Any, progress: Any, **__: object) -> dict[str, object]:
+        arrived = client.on_call.__self__.started
+        progress({"stage": "understanding", "subjects": []})
+        client.on_call("jev", "routing", arrived, arrived + 0.9, False)
+        progress({"stage": "understanding", "subjects": []})
+        client.on_call("gpt", "draft", arrived + 1.0, arrived + 4.2, False)
+        progress({"stage": "reviewing", "subjects": [{"topic": "contacts"}], "draft": "D-224"})
+        client.on_call("gpt", "review", arrived + 5.0, arrived + 6.0, True)
+        return {"answer": "Hello", "status": "answered", "metrics": {}}
+
+    with (
+        patch.dict("os.environ", {"STAGING_SERVICE_TOKEN": "", "BRAIN_ROUTING_MODE": "off"}),
+        patch("rockygpt_brain.api.app.open_gateway", return_value=gateway_context()),
+        patch("rockygpt_brain.api.app.CampusData"),
+        patch("rockygpt_brain.api.app.run_turn", side_effect=turn),
+    ):
+        response = TestClient(app).post(
+            "/v1/chat",
+            headers={"accept": "text/event-stream", "x-rockygpt-diagnostics": "1"},
+            json={"messages": [{"role": "user", "content": "Hello"}]},
+        )
+    frames = [
+        json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")
+    ]
+    work = frames[-1]["body"]["diagnostics"]["work"]
+    assert [step["stage"] for step in work["steps"]] == [
+        "connecting", "understanding", "understanding", "reviewing"]
+    assert work["steps"][3]["subjects"] == [{"topic": "contacts"}]
+    assert "D-224" not in json.dumps(work)
+    assert work["calls"] == [
+        {"who": "jev", "what": "routing", "step": 1, "startMs": 0, "ms": 900},
+        {"who": "gpt", "what": "draft", "step": 2, "startMs": 1000, "ms": 3200},
+        {"who": "gpt", "what": "review", "step": 3, "startMs": 5000, "ms": 1000,
+         "failed": True},
+    ]
+    assert work["steps"][0]["atMs"] == 0 and work["endMs"] >= work["steps"][-1]["atMs"]
+
+
+def test_students_get_no_work_log() -> None:
+    def turn(*_: object, client: Any, progress: Any, **__: object) -> dict[str, object]:
+        assert progress is None
+        return {"answer": "Hello", "status": "answered", "metrics": {}}
+
+    context = gateway_context()
+    with (
+        patch.dict("os.environ", {"STAGING_SERVICE_TOKEN": "", "BRAIN_ROUTING_MODE": "off"}),
+        patch("rockygpt_brain.api.app.open_gateway", return_value=context),
+        patch("rockygpt_brain.api.app.CampusData"),
+        patch("rockygpt_brain.api.app.run_turn", side_effect=turn),
+    ):
+        response = TestClient(app).post(
+            "/v1/chat", json={"messages": [{"role": "user", "content": "Hello"}]})
+    assert "diagnostics" not in response.json()
+    # Never set: the gateway reports calls to no one.
+    assert isinstance(context.__enter__.return_value.on_call, Mock)
