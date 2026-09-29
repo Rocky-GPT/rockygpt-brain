@@ -176,11 +176,16 @@ def test_the_dev_ui_sees_jevs_readings_in_development(
     assert metrics["jev"]["answers"]["own_account"] == {"yes": 0.96}
     assert metrics["jev"]["answers"]["danger"] == {
         "choice": "none", "probability": 0.97, "confidence": 0.95}
+    assert metrics["jev"]["decided"] == {"danger": None, "ownAccount": True,
+                                         "needsEarlier": False}
+    assert metrics["dangerPhrase"] is None
     assert metrics["jev"]["costNusd"] == 1000 * 42
     assert "Birch" not in json.dumps(metrics)
     jev.answers = calm()
     failed = ask(user("Hi"), **{"x-rockygpt-diagnostics": "1"})
     assert failed.status_code == 503 and "metrics" in failed.json()
+    seizure = ask(user("someone is having a seizure"), **{"x-rockygpt-diagnostics": "1"})
+    assert seizure.json()["metrics"]["dangerPhrase"] == "danger"
 
 
 @pytest.mark.parametrize(("environment", "header"), [
