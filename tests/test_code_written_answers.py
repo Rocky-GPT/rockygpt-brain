@@ -531,6 +531,22 @@ def test_document_search_skips_copies_and_puts_ended_terms_last() -> None:
         assert named[0]["title"].endswith("Overnight Guest Policy Ends")
 
 
+def test_document_search_leaves_out_the_words_for_asking() -> None:
+    # "financial aid ask office location" (09-29): "ask" matched every "Frequently Asked
+    # Questions" page title, and scholarship FAQs took the office's place.
+    data = CampusData("", NOW)
+    data.dataset = {"id": "release"}
+    data._has_heading_path_index = True
+    with (patch.object(CampusData, "_artifact", return_value={}),
+          patch.object(CampusData, "_fetch", return_value=[]) as fetch):
+        data._documents(SearchQuery(collection="documents",
+                                    query="financial aid ask office location", limit=4))
+        assert fetch.call_args.args[1][0] == "aid OR financial OR location OR office"
+        # A request made only of them keeps them.
+        data._documents(SearchQuery(collection="documents", query="questions", limit=4))
+        assert fetch.call_args.args[1][0] == "questions"
+
+
 def test_document_search_knows_a_copy_under_another_heading_path() -> None:
     # Since 09-29 a passage opens with its page's heading path, and the Guide to Community
     # Living's copy of Guest Parking Procedures sits under other headings than the policies
