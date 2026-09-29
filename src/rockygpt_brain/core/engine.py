@@ -54,6 +54,7 @@ from rockygpt_brain.core.render import InvalidAnswer, consulted_sources, render_
 from rockygpt_brain.core.reviewer import review_answer
 from rockygpt_brain.core.routing import (
     GRAPH_TOOLS,
+    TOOLS,
     UNANSWERED,
     FilterClient,
     RoutingClient,
@@ -84,6 +85,21 @@ MAX_TOOL_CALLS = RELEASE.max_tool_calls
 TURN_SECONDS = RELEASE.turn_seconds
 REVIEW_RESERVE_SECONDS = RELEASE.review_reserve_seconds
 ANSWER_RESERVE_SECONDS = RELEASE.answer_reserve_seconds
+# A call forced to ask for lookups is only worth waiting for while its lookups can still
+# run. The draft timeout keeps only the review's time (up to 30 s), but the lookup window
+# closes 15 s into the turn: a plan back at 16 s was refused as retrieval_time and the
+# writer answered without it (core audit C7, 09-29). So a forced call waits at most for
+# the window, and with less than this left it isn't forced at all. A plan the window cuts
+# off is dropped and the turn goes on to an answer without lookups.
+MIN_PLAN_SECONDS = 1.0
+# Jev's routes that read campus data (routing.TOOLS without calculate). When Jev reads a
+# request as one of these, a draft that calls itself general is still reviewed: the label
+# is GPT's own, and "The Ramapo library is open all night" labelled as a general
+# explanation passed with no review (core audit R1, 09-29).
+CAMPUS_ROUTES = frozenset(route for route, tool in TOOLS.items() if tool != "calculate")
+# Jev's route confidence from which a campus route counts. The general answers on 09-29
+# had general or unresolved routes (0.37-0.96); a campus route below this is a guess.
+CAMPUS_ROUTE_BAR = 0.5
 
 
 # How each answer code writes from a profile lookup is logged.
@@ -446,6 +462,8 @@ def answer_turn(
     template: Template | None = None
     own_account = False
     jev_answered = False
+    # Jev independently read this request as a campus lookup (see CAMPUS_ROUTES).
+    campus_route = False
     if routing_mode != "off" and routing_client is not None:
         notify("understanding")
         decision = route_request(
@@ -469,6 +487,8 @@ def answer_turn(
                 # answer, at 33.8 s (09-29). The final answer still starts with it.
                 notify("understanding", safety=net.block())
             selected_tool = decision.tool
+            campus_route = (jev_answered and decision.route in CAMPUS_ROUTES
+                            and (decision.confidence or 0) >= CAMPUS_ROUTE_BAR)
             if decision.danger is None:
                 # Code states plain contact details, menus and hours itself; the safety
                 # block needs GPT.
@@ -643,19 +663,48 @@ def answer_turn(
                                      list(routed_calls), None)
             metrics["routing"]["directRetrieval"] = True
         else:
+            forced: dict[str, Any] | None = None
             if round_index == 0 and selected_tool and not answer_only:
-                request["tools"] = [tool for tool in tools if tool["name"] == selected_tool]
-                request["tool_choice"] = {"type": "function", "name": selected_tool}
+                forced = {"tools": [tool for tool in tools if tool["name"] == selected_tool],
+                          "tool_choice": {"type": "function", "name": selected_tool}}
             elif round_index == 0 and start_with_graph and not answer_only:
                 # GPT still chooses the lookup, sections, date and meal; later calls regain
                 # every tool.
-                request["tools"] = [tool for tool in tools if tool["name"] in GRAPH_TOOLS]
-                request["tool_choice"] = "required"
+                forced = {"tools": [tool for tool in tools if tool["name"] in GRAPH_TOOLS],
+                          "tool_choice": "required"}
+            capped_plan = False
+            if forced is not None:
+                # A forced call can only plan lookups, so it gets no longer than the lookup
+                # window. A call that only offers tools keeps the whole draft timeout: it
+                # may answer without any. With less than MIN_PLAN_SECONDS left it isn't
+                # forced.
+                window = budget.retrieval_deadline - budget.clock()
+                if window < MIN_PLAN_SECONDS:
+                    # As for a call made once the window has closed: GPT gets no tools and
+                    # answers from what the turn has, and the review runs as usual.
+                    answer_only = True
+                    withheld = "retrieval_time"
+                    request["tools"] = []
+                    request["tool_choice"] = "none"
+                else:
+                    request.update(forced)
+                    plan_wait = min(timeout, window)
+                    request["timeout"] = Timeout(plan_wait, connect=min(2.0, plan_wait))
+                    capped_plan = plan_wait < timeout
             try:
                 response = client.create(category="draft", **request)
             except PaidCallError as error:
                 if error.code == "context_limit" and round_index > 0:
                     raise PaidCallError("retrieval_context_limit") from error
+                if (capped_plan and error.code == "model_timeout"
+                        and budget.clock() >= budget.retrieval_deadline):
+                    # The plan outlasted the lookup window, where its lookups would only be
+                    # refused. The turn still has the draft and review time it had before
+                    # the cap, so the next call answers without tools (retrieval_time) and
+                    # is reviewed as usual, rather than failing the turn (09-29). A connect
+                    # timeout inside the window still fails the turn, as it did before.
+                    metrics["planTimedOut"] = True
+                    continue
                 raise
         if response.status != "completed":
             raise InvalidAnswer("Incomplete model response", "incomplete_draft")
@@ -695,7 +744,7 @@ def answer_turn(
             # Paragraph labels alone are insufficient: there must be no campus
             # evidence, retrieval, citations or campus-fact paragraphs. Prompts
             # and fresh adversarial evaluations must also establish scope fidelity.
-            if (
+            general = (
                 candidate.general_scope is not None
                 and not evidence
                 and all(entry["tool"] == "calculate" for entry in trace)
@@ -704,7 +753,13 @@ def answer_turn(
                     part.kind in {"guidance", "clarification"} and not part.evidence_ids
                     for part in candidate.parts
                 )
-            ):
+            )
+            if general and campus_route and candidate.general_scope != "urgent_safety":
+                # Jev read a campus lookup, so GPT's general label is checked, not trusted
+                # (CAMPUS_ROUTES). 911 guidance never waits for a review.
+                general = False
+                metrics["generalScopeReviewed"] = True
+            if general:
                 if budget.remaining <= 0:
                     raise TimeoutError("Turn deadline exceeded during general answer")
                 response_mode = "general"
