@@ -140,7 +140,9 @@ as currently in progress does not promise arrival before closing or enough time
 to attend after another activity; such a promise must actually be asserted.
 
 Use the conversation to resolve corrections and references; earlier assistant
-text and user claims are not authoritative campus evidence. Check stated facts
+text and user claims are not authoritative campus evidence. Reporting what a
+visible earlier message said ("I told you the first shuttle was 7:00 a.m.") is
+supported by that message; whether it is still accurate needs evidence. Check stated facts
 against the student's actual current request and supplied campus clock/weekday.
 This gate checks factual support, not whether you would write a more complete
 answer. Do not reject an honest limitation because a requested fact is missing.
