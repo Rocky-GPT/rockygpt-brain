@@ -16,6 +16,7 @@ import psycopg
 import pytest
 
 from rockygpt_brain.campus.formats import SAFETY_NET
+from rockygpt_brain.campus.progress import WorkLog
 from rockygpt_brain.config import RELEASE, Deployment
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
@@ -191,6 +192,64 @@ def test_direct_profile_preserves_review_and_allows_more_retrieval() -> None:
     assert first["input"][2].name == "lookup_profile"
     assert first["input"][3]["call_id"] == first["input"][2].call_id
     assert record["url"] in first["input"][3]["output"]
+
+
+def test_the_work_log_says_why_each_step_ran_and_what_each_lookup_found() -> None:
+    """The Dev control room's Timeline reads these; it never guesses from step names."""
+    data = data_mock()
+    record = contact_record()
+    data.lookup_profile.return_value = result_for(
+        [record], total_matches=1,
+        components={"contact": {"status": "available", "total_matches": 3,
+                                "returned_count": 1, "omitted_count": 2,
+                                "reason": "item_limit", "evidence_ids": [record["id"]]}})
+    data.search.return_value = result_for([record], total_matches=7, truncated=True)
+    gpt = Mock()
+    gpt.create.side_effect = [
+        tools(search()),
+        answer("Office D-224", "campus_fact", [record["id"]]),
+        review(),
+    ]
+    work = WorkLog(monotonic())
+    run_turn(
+        messages("Tell me about the Registrar"),
+        client=gpt,
+        data=data,
+        model=RELEASE.model,
+        now=NOW,
+        routing_client=router_mock(route="profile"),
+        routing_mode="active",
+        progress=work.watch(None),
+        diagnostics={"work": work},
+    )
+    steps = work.report()["steps"]
+    assert [step["stage"] for step in steps] == [
+        "connecting", "understanding", "understanding", "retrieving", "composing",
+        "retrieving", "composing", "reviewing"]
+    # Jev's route sits where it was decided, and says its lookup ran.
+    assert steps[1]["routing"]["route"] == "profile"
+    assert steps[1]["routing"]["directRetrieval"] is True
+    # Jev asked for the first lookup; GPT's first draft asked for a search; its
+    # second answered, with no lookups left after two rounds.
+    assert steps[2]["draft"] == {"by": "jev", "asked": [
+        {"tool": "lookup_profile", "arguments": steps[2]["draft"]["asked"][0]["arguments"]}]}
+    assert steps[4]["draft"]["by"] == "gpt" and steps[4]["draft"]["call"] == 1
+    assert [asked["tool"] for asked in steps[4]["draft"]["asked"]] == ["search_campus"]
+    assert steps[4]["draft"]["asked"][0]["arguments"]["collection"] == "contacts"
+    assert steps[6]["draft"] == {"by": "gpt", "call": 2, "answerOnly": True, "asked": []}
+    # Each lookup's counts sit on its own step.
+    [profile] = steps[3]["lookups"]
+    assert profile["tool"] == "lookup_profile" and profile["delivered"] == 1
+    assert profile["sections"] == {"contact": {
+        "status": "available", "total_matches": 3, "returned_count": 1,
+        "omitted_count": 2, "reason": "item_limit"}}
+    [found] = steps[5]["lookups"]
+    assert {key: found[key] for key in ("tool", "matched", "fetched", "delivered",
+                                        "truncated")} == {
+        "tool": "search_campus", "matched": 7, "fetched": 1, "delivered": 1,
+        "truncated": True}
+    assert found["arguments"]["collection"] == "contacts"
+    assert "lookups" not in steps[4] and "Office D-224" not in json.dumps(steps)
 
 
 @pytest.mark.parametrize("mode", ["off", "shadow"])

@@ -76,6 +76,19 @@ class WorkLog:
 
         return noted
 
+    def at(self) -> int:
+        """The step now running, by index."""
+        return len(self.steps) - 1
+
+    def decided(self, step: int, **facts: Any) -> None:
+        """What the Brain decided in a step, from its own state and never from the step's
+        name: Jev's route (`routing`), what a draft call came back with (`draft`)."""
+        self.steps[step].update(facts)
+
+    def found(self, step: int, lookup: dict[str, Any]) -> None:
+        """What one lookup in a step got back. Lookups run together share a step."""
+        self.steps[step].setdefault("lookups", []).append(lookup)
+
     def call(self, who: str, what: str, sent: float, returned: float, failed: bool) -> None:
         self.calls.append({"who": who, "what": what, "step": len(self.steps) - 1,
                            "startMs": self.ms(sent), "ms": round((returned - sent) * 1000),
