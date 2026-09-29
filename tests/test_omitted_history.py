@@ -65,6 +65,27 @@ def test_the_reviewer_is_told_how_many_messages_it_cannot_see() -> None:
         assert "earlier_messages_omitted" in instructions
 
 
+@pytest.mark.parametrize("omitted,kept", [(18, False), (0, True)])
+def test_a_denial_of_something_said_earlier_is_dropped_when_that_part_was_cut(
+    omitted: int, kept: bool
+) -> None:
+    # 09-29 replay: with 18 earlier messages cut, "I didn't give you a first departure
+    # time" passed the checker although the 7:00 a.m. answer was among the cut messages.
+    client = Mock()
+    client.create.side_effect = [
+        answer("I didn't give you a first departure time earlier."),
+        review(denies_earlier_message=True),
+    ]
+    result = run_turn([ChatMessage.model_validate(QUESTION)], client=client, data=Mock(),
+                      model="test", now=NOW, omitted_messages=omitted)
+    if kept:
+        # With the whole conversation there, a denial is judged like any other part.
+        assert result["answer"] == "I didn't give you a first departure time earlier."
+    else:
+        assert "didn't give you" not in result["answer"]
+        assert result["metrics"]["validationFailures"] == ["wrong_context"]
+
+
 def test_the_api_passes_the_count_to_the_turn() -> None:
     seen: list[int] = []
 

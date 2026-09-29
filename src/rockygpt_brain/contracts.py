@@ -130,6 +130,13 @@ class PartReview(StrictModel):
             "cross-contact without ranking food safety."
         )
     )
+    denies_earlier_message: bool = Field(
+        description=(
+            "True if this part says something was NOT said, given, asked or mentioned "
+            "earlier in the conversation (\"I didn't give you a time\", \"you never asked\"). "
+            "False otherwise, including when it only reports what an earlier message did say."
+        ),
+    )
     depends_on_parts: list[Annotated[int, Field(ge=0, le=10)]] = Field(
         max_length=11,
         description=(
