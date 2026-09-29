@@ -495,6 +495,27 @@ def departed_trips(records: list[dict[str, Any]], now: datetime) -> list[str]:
     return departed
 
 
+def next_across_routes(summary: dict[str, Any]) -> list[dict[str, Any]]:
+    """Each boarding stop's earliest next departure over every route, with any tied at it."""
+    withheld = {item.get("origin") if isinstance(item, dict) else item
+                for item in summary.get("withheld_origins") or []}
+    result = []
+    for origin in dict.fromkeys(group["origin"] for group in summary["departures"]):
+        if origin in withheld:
+            continue
+        rows = [group for group in summary["departures"]
+                if group["origin"] == origin and group["next"] is not None]
+        if not rows:
+            continue
+        soonest = min(datetime.fromisoformat(row["next"]["departure_at"]) for row in rows)
+        tied = [row for row in rows
+                if datetime.fromisoformat(row["next"]["departure_at"]) == soonest]
+        result.append({"origin": origin, "departure_at": tied[0]["next"]["departure_at"],
+                       "routes": [row["route"] for row in tied],
+                       "evidence_ids": [row["next"]["evidence_id"] for row in tied]})
+    return result
+
+
 def review_summary(summary: dict[str, Any]) -> dict[str, Any]:
     """The calculation a reviewer needs to check a stated next/last departure.
 
@@ -512,6 +533,10 @@ def review_summary(summary: dict[str, Any]) -> dict[str, Any]:
         },
         # A summary kept over a delivery-bounded lookup says what it left out.
         **{key: summary[key] for key in ("delivery", "destinations_withheld") if key in summary},
+        # The next departure overall at each boarding stop, so the checker needn't compare
+        # clock times: it once called 10:15 a.m. earlier than 9:45 a.m. and withheld a
+        # correct "next is 9:45" (09-29). A stop withheld on any route stays unknown.
+        "next_across_routes": next_across_routes(summary),
         "departures": [
             {
                 "route": group["route"],

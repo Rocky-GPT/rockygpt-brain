@@ -490,3 +490,28 @@ def test_the_checker_gets_the_opening_periods_code_read() -> None:
     assert alias in json.dumps(sent["evidence"])
     assert calculated["periods"][0]["opens"] == "2026-09-29T08:00:00-04:00"
     assert calculated["open_at_campus_time"] is False
+
+
+def test_the_checker_is_told_the_next_departure_across_routes() -> None:
+    # The checker called 10:15 a.m. earlier than 9:45 a.m. and withheld "next is Ramsey
+    # Route 17 at 9:45" (09-29); code states the earliest next at each boarding stop.
+    from rockygpt_brain.campus.schedules import next_across_routes
+
+    def row(route: str, origin: str, at: str | None) -> dict[str, Any]:
+        return {"route": route, "origin": origin,
+                "next": None if at is None else {"evidence_id": f"{route}-{at}",
+                                                  "departure_at": at}}
+
+    summary = {"withheld_origins": [{"route": "B", "origin": "Train", "reason": "x"}],
+               "departures": [row("Ramsey Route 17", "campus", "2026-09-29T09:45:00-04:00"),
+                              row("Roadrunner Express", "campus", "2026-09-29T10:15:00-04:00"),
+                              row("Late", "campus", None),
+                              row("A", "Train", "2026-09-29T09:00:00-04:00")]}
+    assert next_across_routes(summary) == [{
+        "origin": "campus", "departure_at": "2026-09-29T09:45:00-04:00",
+        "routes": ["Ramsey Route 17"],
+        "evidence_ids": ["Ramsey Route 17-2026-09-29T09:45:00-04:00"]}]
+    tied = {**summary, "departures": [row("A", "campus", "2026-09-29T07:00:00-04:00"),
+                                      row("B", "campus", "2026-09-29T07:00:00-04:00")],
+            "withheld_origins": []}
+    assert next_across_routes(tied)[0]["routes"] == ["A", "B"]
