@@ -468,6 +468,44 @@ def test_a_page_named_for_an_ended_term_says_so(title: str, ended: str | None) -
     assert ended_term(title, NOW.date()) == ended
 
 
+def test_document_search_skips_copies_and_puts_ended_terms_last() -> None:
+    # "Overnight guest policy" (09-28): the Spring 2026 check-out page led, a word-for-word
+    # copy of Guest Parking Procedures took a place, and the three-night rule never came.
+    def row(index: int, title: str, content: str) -> dict[str, Any]:
+        return {"id": f"chunk-{index}", "document_id": f"doc-{index}", "chunk_index": 0,
+                "content": content, "metadata": {"headingPath": title}, "source_id": "s",
+                "title": title, "collected_at": NOW.isoformat(), "total": 40}
+
+    rows = [
+        row(0, "Residence Life › Spring 2026 - Check Out › Overnight Guest Policy Ends",
+            "The last night residents may host overnight guests is May 11, 2026."),
+        row(1, "Policies › Guest Parking Procedures", "Guests parking overnight need a pass."),
+        row(2, "Guide to Community Living › Guest Parking Procedures",
+            "Guests  parking overnight need a pass.\n"),
+        row(3, "Policies › Guest Procedures", "Each guest may stay three nights a week."),
+        row(4, "Policies › Adult Guests (18+)", "Adult guests register after 10 PM."),
+    ]
+    data = CampusData("", NOW)
+    data.sources = {"s": {"title": "Residence Life", "trust_tier": "official_primary",
+                          "source_key": "reslife",
+                          "freshness_sla_hours": 24, "canonical_url": "https://ramapo.edu"}}
+    data.dataset = {"id": "release"}
+    data._has_heading_path_index = True
+    with (patch.object(CampusData, "_artifact", return_value={}),
+          patch.object(CampusData, "_fetch", return_value=rows) as fetch):
+        records, total = data._documents(
+            SearchQuery(collection="documents", query="overnight guest policy", limit=3))
+        assert [record["title"].split(" › ")[-1] for record in records] == [
+            "Guest Parking Procedures", "Guest Procedures", "Adult Guests (18+)"]
+        assert total == 40
+        # Twice the places asked, so the copies and ended pages set aside can be refilled.
+        assert fetch.call_args.args[1][-2:] == (6, 6)
+        # A request that names the ended term still gets that page first.
+        named, _ = data._documents(SearchQuery(
+            collection="documents", query="spring 2026 overnight guests", limit=2))
+        assert named[0]["title"].endswith("Overnight Guest Policy Ends")
+
+
 def test_a_place_asked_about_with_no_day_is_looked_up_for_today() -> None:
     # "What's on the menu at the Atrium" names no day; the lookup's day was left unset, so
     # code couldn't state that no menu is published today and GPT wrote (09-28).
