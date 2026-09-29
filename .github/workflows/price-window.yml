@@ -1,8 +1,9 @@
 name: Price window
 
-# release.json fails closed once its verified price window ends: from that day
-# every chat and readiness check returns 503. Open an issue two weeks ahead,
-# remind at 7, 3 and 1 days and on the day, and close it once renewed.
+# Every price in src/rockygpt_brain/prices.json is trusted only inside its checked
+# window. Past it, the Brain stops using that model (Jev's decisions are skipped).
+# Open an issue two weeks before the first one ends, remind at 7, 3 and 1 days and
+# on the day, and close it once renewed.
 on:
   schedule:
     - cron: '0 14 * * *' # 10:00 in New York during daylight time
@@ -33,10 +34,11 @@ jobs:
           import json
           from datetime import date, datetime
           from zoneinfo import ZoneInfo
-          release = json.load(open('src/rockygpt_brain/release.json'))
-          until = date.fromisoformat(release['price']['valid_until'])
+          prices = json.load(open('src/rockygpt_brain/prices.json')).values()
+          first = min(prices, key=lambda price: price['valid_until'])
+          until = date.fromisoformat(first['valid_until'])
           today = datetime.now(ZoneInfo('America/New_York')).date()
-          print(release['model'], until.isoformat(), (until - today).days)
+          print(first['model'], until.isoformat(), (until - today).days)
           ")
           echo "$model price valid until $valid_until: $days day(s) left"
           issue=$(gh issue list --repo "$REPOSITORY" --state open --label price-window \
@@ -49,18 +51,18 @@ jobs:
             exit 0
           fi
           if [ "$days" -le 0 ]; then
-            status="expired on $valid_until. Every chat and readiness check now fails closed."
+            status="expired on $valid_until. The Brain no longer calls $model."
           else
-            status="expires on $valid_until, in $days day(s). From that day every chat and readiness check fails closed."
+            status="expires on $valid_until, in $days day(s). From that day the Brain stops calling $model."
           fi
-          body="The verified $model price in src/rockygpt_brain/release.json $status
+          body="The checked $model price in src/rockygpt_brain/prices.json $status
 
-          Check the price on the model page linked in its \`source\`, set a new \`version\` and \`valid_until\` (and \`valid_from\` if the price changed), then deploy the Brain.
+          Check the price on the model page linked in its \`source\`, set a new \`checked\` date and \`valid_until\` (and \`valid_from\` if the price changed), then deploy the Brain.
 
           Run: $GITHUB_SERVER_URL/$REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           if [ -z "$issue" ]; then
             gh label create price-window --repo "$REPOSITORY" --color D93F0B \
-              --description "The Brain's verified price window is close to expiring" --force
+              --description "A price the Brain relies on is close to its check-by date" --force
             gh issue create --repo "$REPOSITORY" --title "[Price window] $model price expires $valid_until" \
               --label price-window --assignee "$ASSIGNEE" --body "$body"
           elif [ "$days" -le 1 ] || [ "$days" -eq 3 ] || [ "$days" -eq 7 ]; then
