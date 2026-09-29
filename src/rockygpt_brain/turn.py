@@ -31,7 +31,7 @@ NOT_YET = "RockyGPT's new Brain can't answer the rest of your question yet."
 JEV_FAILURES: dict[str, ErrorCode] = {
     "routing_timeout": "model_timeout",
     "routing_unavailable": "model_unreachable",
-    "routing_rate_limited": "rate_limited",
+    "routing_rate_limited": "busy",
     "routing_provider_error": "model_provider_error",
     "routing_usage_unknown": "model_provider_error",
     "routing_model_changed": "model_provider_error",
@@ -150,7 +150,8 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
     if shown is not None:
         metrics["responseMode"] = "safety_net"
         work.decided(written={"by": "code", "mode": "safety_net"})
-        # After the safety help, the account limit when all of it needs their account.
+        # After the safety help, the account limit when all of it needs their account. The
+        # other can't-do lines and the unclear question wait: the route here is danger.
         rest = ACCOUNT_LIMIT if decisions and decisions.own_account else NOT_YET
         yield TurnResult(200, ChatReply(
             answer=f"{shown.answer}\n\n{rest}",

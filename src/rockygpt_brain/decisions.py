@@ -156,7 +156,8 @@ REACH = {"campus_info": "supported", "conversation": "supported", "own_account":
          "outside": "unsupported"}
 # Dan's routing table (09-29): each kind of work and where it goes. Only the route is
 # built in milestone 4; each handler says "not ready" until its milestone, except the
-# safety help (3) and the account limit (4).
+# safety help (3), the can't-do lines and the question for unclear words (4), all
+# written by code (turn.said_by_code).
 ROUTES = {
     "exact": "code",
     "campus_fact": "retrieval",
@@ -289,7 +290,8 @@ def decide(context: Context, answers: dict[str, Answer]) -> Decisions:
 @dataclass(frozen=True)
 class Handler:
     """The route code picked (a key of ROUTES), the picks it went through to get there in
-    order (the last one settled it), and those Jev put under SURE."""
+    order (the last one settled it, except that a can't-do adds `needs`, which chooses its
+    words), and those Jev put under SURE."""
 
     name: str
     path: tuple[str, ...]
@@ -315,6 +317,9 @@ def handler(decisions: Decisions, said: Danger | None = None) -> Handler:
         if settled:
             break
     assert settled, "WORK_ROUTES names a route for every pick"
+    if settled == "account_action" and path[-1] == "work":
+        # A can't-do: Jev's `needs` pick chooses the words the student gets (turn.py).
+        path.append("needs")
     low = {reading: round(decisions.sureness[reading], 3) for reading in path
            if decisions.sureness[reading] < SURE}
     return Handler(settled, tuple(path), low)
