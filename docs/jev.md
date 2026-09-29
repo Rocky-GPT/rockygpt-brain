@@ -20,6 +20,21 @@ Jev reads:
 | `own_account` | yes/no | 0.90 or more, and `own_account_only` is 0.50 or more, and the question is the first one or stands alone. Code then says what RockyGPT can't reach. |
 | `own_account_only` | yes/no | See above. It keeps "register me and where is the Registrar?" from losing its second part. |
 | `needs_earlier` | yes/no | Sure at 0.90 or more (yes) or 0.10 or less (no). Otherwise it's undecided. |
+| `asks` | pick: fact, list, how to, rule, advice, action, recall, chat | Its top pick is 0.90 or more. |
+| `subject` | pick: dining, transport, places, people, academics, student life, housing, money, safety, none | The same. |
+| `named` | pick: place, office, person, group, event, course, several, none | The same. Which place or office it is needs the campus name list (milestone 5). |
+| `needs` | pick: campus information, the conversation, their own account, someone else's private information, right now, a guess, outside knowledge | The same. Code reads it as supported, private, live-only or unsupported. |
+| `multi_part` | yes/no | Sure at 0.90 or more, or 0.10 or less. |
+
+From these, code names the handler a later milestone will build (`handler` in
+`decisions.py`): safety, access limit, can't answer, several parts, exact, conversation,
+document or policy, or GPT. What Jev isn't sure of goes to GPT. For now the turn still
+ends with the safety help, the account limit or "not ready"; the handler is in the dev
+diagnostics (`metrics.handler`) and the turn log.
+
+`scripts/check_decisions.py` asks Jev the 130 labeled questions in
+`evals/decisions/cases.json` (the 30-question audit and the 100-question stress run) and
+scores each item. Its results are in `evals/decisions/results.md`.
 
 Every question asks about the student's own words, never the Brain's labels. The
 wording is the old Brain's, tested on Jev. The numbers are in the comments in

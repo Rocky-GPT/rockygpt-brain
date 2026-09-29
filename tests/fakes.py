@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from rockygpt_brain.decisions import ASKS, NAMED, NEEDS, SUBJECTS
 from rockygpt_brain.jev import JEV_PRICE, Jev, JevError, Reply
 from rockygpt_brain.spending import Category, SpendingError
 
@@ -38,13 +39,26 @@ def pick(chosen: str, spread: dict[str, float], confidence: float = 0.95) -> dic
             "confidence": confidence}
 
 
+def sure_pick(chosen: str, options: Any, probability: float = 0.96) -> dict[str, Any]:
+    """Jev sure of `chosen` among the keys of `options`, the rest shared evenly."""
+    rest = (1 - probability) / (len(options) - 1)
+    return pick(chosen, {option: probability if option == chosen else rest
+                         for option in options})
+
+
 def calm(**changes: dict[str, Any]) -> dict[str, Any]:
-    """Jev's answers to an ordinary question, with `changes` on top."""
+    """Jev's answers to an ordinary question ("Where is the Registrar?"), with `changes`
+    on top."""
     return {
         "danger": pick("none", {"self_harm": 0.01, "danger": 0.02, "none": 0.97}),
         "own_account": yes(0.05),
         "own_account_only": yes(0.05),
         "needs_earlier": yes(0.03),
+        "asks": sure_pick("fact", ASKS),
+        "subject": sure_pick("places", SUBJECTS),
+        "named": sure_pick("office", NAMED),
+        "needs": sure_pick("campus_info", NEEDS),
+        "multi_part": yes(0.02),
         **changes,
     }
 

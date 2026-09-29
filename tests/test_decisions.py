@@ -4,17 +4,19 @@ import json
 import logging
 import re
 from collections.abc import Iterator
+from datetime import datetime
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-from fakes import MemoryLedger, ScriptedJev, calm, fake_jev, pick, yes
+from fakes import MemoryLedger, ScriptedJev, calm, fake_jev, pick, sure_pick, yes
 from rockygpt_brain.api.app import app, jev_service
-from rockygpt_brain.contract import ChatReply, FailureReply
-from rockygpt_brain.decisions import QUESTIONS
-from rockygpt_brain.jev import JevError
-from rockygpt_brain.safety import ACCOUNT_LIMIT, SAFETY_TEXT
+from rockygpt_brain.context import CAMPUS_TIMEZONE, read_context
+from rockygpt_brain.contract import ChatReply, ChatRequest, FailureReply
+from rockygpt_brain.decisions import ASKS, NEEDS, QUESTIONS, Decisions, decide, handler
+from rockygpt_brain.jev import JevError, checked
+from rockygpt_brain.safety import ACCOUNT_LIMIT, SAFETY_TEXT, Danger
 from rockygpt_brain.turn import NOT_YET
 from rockygpt_brain.work import revision
 
@@ -177,8 +179,11 @@ def test_the_dev_ui_sees_jevs_readings_in_development(
     assert metrics["jev"]["answers"]["own_account"] == {"yes": 0.96}
     assert metrics["jev"]["answers"]["danger"] == {
         "choice": "none", "probability": 0.97, "confidence": 0.95}
-    assert metrics["jev"]["decided"] == {"danger": None, "ownAccount": True,
-                                         "needsEarlier": False}
+    assert metrics["jev"]["decided"] == {
+        "danger": None, "ownAccount": True, "needsEarlier": False, "asks": "fact",
+        "subject": "places", "named": "office", "needs": "campus_info", "reach": "supported",
+        "multiPart": False}
+    assert metrics["handler"] == "access_limit"
     assert metrics["dangerPhrase"] is None
     assert metrics["jev"]["costNusd"] == 1000 * 42
     assert "Birch" not in json.dumps(metrics)
@@ -288,3 +293,44 @@ def test_diagnostics_stay_out_of_production(
         jev: ScriptedJev, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BRAIN_ENVIRONMENT", "production")
     assert "diagnostics" not in ask(**{"x-rockygpt-diagnostics": "1"}).json()
+
+
+def decided(**picks: Any) -> Decisions:
+    return Decisions(danger=picks.pop("danger", None),
+                     own_account=picks.pop("own_account", False),
+                     needs_earlier=picks.pop("needs_earlier", False), **picks)
+
+
+@pytest.mark.parametrize(("picks", "said", "expected"), [
+    ({"danger": "danger", "needs": "campus_info", "asks": "how_to"}, None, "safety"),
+    ({"needs": "campus_info", "asks": "fact", "multi_part": True}, "danger", "safety"),
+    ({"own_account": True}, None, "access_limit"),
+    ({"needs": "own_account", "asks": "action"}, None, "access_limit"),
+    ({"needs": "campus_info", "asks": "fact", "multi_part": True}, None, "multi_part"),
+    ({"needs": "private", "asks": "fact"}, None, "cannot_answer"),
+    ({"needs": "right_now", "asks": "fact"}, None, "cannot_answer"),
+    ({"needs": "outside", "asks": "fact"}, None, "cannot_answer"),
+    ({"needs": "guess", "asks": "advice"}, None, "cannot_answer"),
+    ({"needs": "conversation", "asks": "recall"}, None, "conversation"),
+    ({"needs": "conversation", "asks": "chat"}, None, "gpt"),
+    ({"needs": "campus_info", "asks": "fact"}, None, "exact"),
+    ({"needs": "campus_info", "asks": "list"}, None, "exact"),
+    ({"needs": "campus_info", "asks": "rule"}, None, "document_policy"),
+    ({"needs": "campus_info", "asks": "how_to"}, None, "document_policy"),
+    ({"needs": "campus_info", "asks": "advice"}, None, "gpt"),
+    ({"needs": "campus_info", "asks": "recall"}, None, "conversation"),
+    ({"needs": "campus_info"}, None, "gpt"),
+    ({}, None, "gpt"),
+])
+def test_code_names_the_handler_from_what_jev_was_sure_of(
+        picks: dict[str, Any], said: Danger | None, expected: str) -> None:
+    assert handler(decided(**picks), said) == expected
+
+
+def test_a_pick_jev_isnt_sure_of_stays_undecided() -> None:
+    answers = calm(asks=sure_pick("fact", ASKS, 0.6), needs=sure_pick("private", NEEDS))
+    request = ChatRequest.model_validate({"messages": [user("Give me Sam's phone number")]})
+    context = read_context(request, datetime(2026, 9, 29, 12, 0, tzinfo=CAMPUS_TIMEZONE))
+    decisions = decide(context, checked(answers, QUESTIONS))
+    assert (decisions.asks, decisions.needs, decisions.reach) == (None, "private", "private")
+    assert handler(decisions) == "cannot_answer"

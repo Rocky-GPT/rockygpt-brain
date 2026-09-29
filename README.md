@@ -16,7 +16,7 @@ gets `not_ready` with emergency help until later milestones teach it to answer.
 | 1. Brain contract | `contract.py`, [docs/contract.md](docs/contract.md) |
 | 2. Conversation context | `context.py`: the conversation read once, with the cut-off count and one campus clock |
 | 3. Safety and boundaries | `safety.py` (danger help first, what the Brain won't do), `failures.py` (every failure, each with the 911/988 help), a turn log without the student's words |
-| 4. Jev decisions | `spending.py` (the spending cap: every paid call holds money in the ledger first and settles after), `jev.py` (Jev's client and price), `decisions.py` (Jev's questions, one call per turn), [docs/jev.md](docs/jev.md) |
+| 4. Jev decisions | `spending.py` (the spending cap: every paid call holds money in the ledger first and settles after), `jev.py` (Jev's client and price), `decisions.py` (Jev's questions, one call per turn, and the handler code names from them), `scripts/check_decisions.py` with `evals/decisions/` (the 130 labeled questions and their live results), [docs/jev.md](docs/jev.md) |
 
 `api/app.py` is the web service. `turn.py` runs one turn, and each milestone adds its
 step there.
