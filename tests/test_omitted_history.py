@@ -49,11 +49,24 @@ def test_the_writer_is_told_only_when_messages_were_left_out() -> None:
     told = developer_context(turn(18))
     assert ("The client sent only the latest 1 messages; 18 earlier messages are not shown."
             in told)
-    assert "say you can't see that part of the conversation" in told
+    # The question asks what was said before, so the writer is told to say it can't see it.
+    assert "say you can't see that part" in told
     # Nothing changes for a complete conversation, so the cached prompt stays the same.
     whole = developer_context(turn(0))
     assert "not shown" not in whole
     assert told.startswith(whole.rstrip("\n"))
+
+
+def test_a_request_that_asks_nothing_about_before_is_not_told_to_say_so() -> None:
+    # Q30 asks for a shuttle, an office and first aid; told to say it can't see the earlier
+    # part every time, the writer added that line there too (09-29).
+    client = Mock()
+    client.create.side_effect = [answer("The Registrar is in D-224."), review()]
+    run_turn([ChatMessage(role="user", content="Where is the Registrar?")], client=client,
+             data=Mock(), model="test", now=NOW, omitted_messages=20)
+    told = developer_context(client)
+    assert "20 earlier messages are not shown" in told
+    assert "can't see" not in told
 
 
 def test_the_reviewer_is_told_how_many_messages_it_cannot_see() -> None:
