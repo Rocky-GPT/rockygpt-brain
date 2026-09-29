@@ -213,14 +213,15 @@ def test_a_request_for_the_students_own_account_is_answered_by_code() -> None:
     assert result["metrics"]["modelCalls"] == result["metrics"]["routingCalls"] == 1
     assert result["metrics"]["routing"]["route"] == "own_account"
     # Jev not sure, a follow-up that leans on earlier messages, or danger: GPT writes.
-    for turn, choices in [
+    cases: list[tuple[list[ChatMessage], dict[str, Any]]] = [
         (messages("register me for CMPS 147"), {"own_account": 0.85}),
         ([*messages("What is CMPS 147?"),
           ChatMessage(role="assistant", content="Computer Science I."),
           ChatMessage(role="user", content="sign me up for it")],
          {"own_account": 0.98, "needs_earlier": 0.9}),
         (messages("register me for CMPS 147"), {"own_account": 0.98, "danger": "self_harm"}),
-    ]:
+    ]
+    for turn, choices in cases:
         gpt, data = Mock(), data_mock()
         data.search.return_value = {"status": "ok", "records": []}
         gpt.create.side_effect = [answer("I can't do that.", "limitation", status="unavailable"),
