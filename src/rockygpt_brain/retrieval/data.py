@@ -157,6 +157,11 @@ _DOCUMENT_SEARCH_SCANNING_HEADINGS = (
 )
 
 
+def page_sections(limit: int) -> int:
+    """The sections one page may hold in a document search before other pages have had theirs."""
+    return max(2, limit // 2)
+
+
 # "Spring 2026 - Check Out Information" says overnight guests aren't permitted after May 11,
 # 2026, and GPT read it as today's rule (09-28). A page named for a term that has ended
 # states what applied then. Each term's latest possible end: fall runs into January.
@@ -654,21 +659,35 @@ class CampusData:
         vocabulary = self._artifact("search-vocabulary") or {}
         terms = expand_document_query(query.query, vocabulary)
         parts = document_query_parts(query.query, vocabulary)
-        # Room for the copies and ended-term pages set aside below.
-        fetch = min(100, query.limit * 2)
-        if self._has_heading_path_index:
-            rows = self._fetch(
-                _DOCUMENT_SEARCH_WITH_HEADING_INDEX,
-                (terms, parts, self.dataset["id"], terms, fetch, fetch),
-            )
-        else:
-            rows = self._fetch(
-                _DOCUMENT_SEARCH_SCANNING_HEADINGS,
-                (terms, parts, self.dataset["id"], terms, fetch),
-            )
-        records = []
+        # Room for the copies, ended-term pages and further passages of one page set aside
+        # below. When those fill the window, a wider one is read once: 2021-2025 "Previous
+        # Deadlines" pages took all eight places for "class withdrawal deadline" (09-29), so
+        # no current page reached GPT.
+        for fetch in dict.fromkeys((min(100, query.limit * 2), 100)):
+            if self._has_heading_path_index:
+                rows = self._fetch(
+                    _DOCUMENT_SEARCH_WITH_HEADING_INDEX,
+                    (terms, parts, self.dataset["id"], terms, fetch, fetch),
+                )
+            else:
+                rows = self._fetch(
+                    _DOCUMENT_SEARCH_SCANNING_HEADINGS,
+                    (terms, parts, self.dataset["id"], terms, fetch),
+                )
+            records, later = self._document_records(rows, query)
+            if len(records) >= query.limit or len(rows) < fetch:
+                break
+        return [*records, *later][: query.limit], rows[0]["total"] if rows else 0
+
+    def _document_records(
+        self, rows: list[dict[str, Any]], query: SearchQuery
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """The passages to list first, and the ones set aside to follow them, in rank order."""
+        records: list[dict[str, Any]] = []
+        crowded: list[dict[str, Any]] = []
         ended: list[dict[str, Any]] = []
         seen: set[str] = set()
+        page_titles: dict[str, set[str]] = {}
         for row in rows:
             metadata = row.get("metadata") or {}
             if metadata.get("collectedAt"):
@@ -709,8 +728,20 @@ class CampusData:
                     if term.casefold() not in query.query.casefold():
                         ended.append(record)
                         continue
+                # A page's further sections wait until other pages have had theirs: the
+                # academic calendar's "Last Day to Withdraw" dates, each its own section,
+                # held the first seven places for "withdrawal after deadline transcript
+                # grade W class" (09-29), and the Registrar's rule came eighth. The rest of
+                # a section already listed still follows it: Guest Procedures' second
+                # passage holds the three-night rule.
+                titles = page_titles.setdefault(
+                    str(metadata.get("canonicalUrl") or row["document_id"]), set())
+                if record["title"] not in titles and len(titles) >= page_sections(query.limit):
+                    crowded.append(record)
+                    continue
+                titles.add(record["title"])
                 records.append(record)
-        return [*records, *ended][: query.limit], rows[0]["total"] if rows else 0
+        return records, [*crowded, *ended]
 
     def _public(self, record: dict[str, Any], detail: bool = False) -> dict[str, Any]:
         size = 12000 if detail else 2000

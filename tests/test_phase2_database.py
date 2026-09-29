@@ -777,19 +777,15 @@ def test_documents_rank_the_same_with_and_without_the_heading_path_index(
     def compare() -> list[dict[str, Any]]:
         scanned: list[dict[str, Any]] = []
         for query in DOCUMENT_QUERIES:
-            # The scanning order (weight, score, id) is total, so its top 40 holds every
-            # smaller list as a prefix.
-            data._has_heading_path_index = False
-            full = data.search(SearchQuery(collection="documents", query=query, limit=40))
-            data._has_heading_path_index = True
+            # How many sections one page may hold depends on the places asked, so each
+            # number of places is compared on its own.
             for limit in (1, 6, 40):
+                data._has_heading_path_index = False
+                full = data.search(SearchQuery(collection="documents", query=query, limit=limit))
+                data._has_heading_path_index = True
                 indexed = data.search(SearchQuery(collection="documents", query=query, limit=limit))
-                if limit == 40:
-                    assert indexed == full, query
-                else:
-                    assert indexed["records"] == full["records"][:limit], (query, limit)
-                    assert indexed["total_matches"] == full["total_matches"], (query, limit)
-            scanned.append(full)
+                assert indexed == full, (query, limit)
+                scanned.append(full)
         return scanned
 
     data.search(SearchQuery(collection="documents", query="library", limit=1))

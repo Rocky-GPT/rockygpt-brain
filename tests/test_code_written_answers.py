@@ -531,6 +531,73 @@ def test_document_search_skips_copies_and_puts_ended_terms_last() -> None:
         assert named[0]["title"].endswith("Overnight Guest Policy Ends")
 
 
+def test_document_search_lets_one_page_hold_half_the_places_and_reads_on_past_set_asides() -> None:
+    # "withdrawal after deadline transcript grade W class" (09-29): the academic calendar's
+    # "Last Day to Withdraw" dates held the first seven places and the Registrar's rule came
+    # eighth. "class withdrawal deadline": 2021-2025 "Previous Deadlines" pages took all eight
+    # places read, so no current page reached GPT.
+    def row(index: int, title: str, url: str | None = None) -> dict[str, Any]:
+        return {"id": f"chunk-{index}",
+                "document_id": "calendar" if url is None else f"doc-{index}",
+                "chunk_index": index, "content": f"{title} passage {index}.",
+                "metadata": {"headingPath": title, **({"canonicalUrl": url} if url else {})},
+                "source_id": "s", "title": title, "collected_at": NOW.isoformat(), "total": 900}
+
+    calendar = [row(i, f"Academic Calendar › Fall 2026 › Last Day to Withdraw {i}")
+                for i in range(7)]
+    registrar = row(7, "Registrar › Withdraw from a Course", "https://www.ramapo.edu/registrar/w/")
+    late = row(8, "Registrar › Late Administrative Withdrawal", "https://www.ramapo.edu/registrar/w/")
+    form = row(9, "Registrar › Withdrawal Form", "https://www.ramapo.edu/registrar/w/")
+    archive = [row(10 + i, f"Student Accounts › Previous Deadlines › Fall {2021 + i} Withdrawal "
+                   "Deadlines", f"https://www.ramapo.edu/student-accounts/{2021 + i}/")
+               for i in range(5)]
+    data = CampusData("", NOW)
+    data.sources = {"s": {"title": "Registrar", "trust_tier": "official_primary",
+                          "source_key": "registrar", "freshness_sla_hours": 24,
+                          "canonical_url": "https://ramapo.edu"}}
+    data.dataset = {"id": "release"}
+    data._has_heading_path_index = True
+    with (patch.object(CampusData, "_artifact", return_value={}),
+          patch.object(CampusData, "_fetch",
+                       return_value=[*calendar, registrar, late, form]) as fetch):
+        records, _ = data._documents(
+            SearchQuery(collection="documents", query="withdrawal after deadline", limit=4))
+        # Two calendar dates, then the Registrar's rule and the next Registrar section.
+        assert [record["title"].split(" › ")[-1] for record in records] == [
+            "Last Day to Withdraw 0", "Last Day to Withdraw 1", "Withdraw from a Course",
+            "Late Administrative Withdrawal"]
+        assert fetch.call_count == 1
+        # Ten places leave a page five of them.
+        wide, _ = data._documents(
+            SearchQuery(collection="documents", query="withdrawal after deadline", limit=10))
+        assert [record["title"].split(" › ")[-1] for record in wide][:6] == [
+            *(f"Last Day to Withdraw {i}" for i in range(5)), "Withdraw from a Course"]
+        assert [record["title"].split(" › ")[-1] for record in wide][-2:] == [
+            "Last Day to Withdraw 5", "Last Day to Withdraw 6"]
+    # The rest of a section already listed follows it: Guest Procedures' second passage
+    # holds the three-night rule.
+    rule = {**row(10, "Registrar › Withdraw from a Course", "https://www.ramapo.edu/registrar/w/"),
+            "content": "A student may NOT withdraw after the published deadline."}
+    with (patch.object(CampusData, "_artifact", return_value={}),
+          patch.object(CampusData, "_fetch",
+                       return_value=[registrar, late, form, rule, *calendar])):
+        records, _ = data._documents(
+            SearchQuery(collection="documents", query="withdrawal after deadline", limit=4))
+        assert [record["content"] for record in records][:3] == [
+            registrar["content"], late["content"], rule["content"]]
+        assert records[3]["title"].endswith("Last Day to Withdraw 0")
+    ended_first = [*archive, *calendar[:3]]
+    with (patch.object(CampusData, "_artifact", return_value={}),
+          patch.object(CampusData, "_fetch", side_effect=[ended_first[:4],
+                                                          [*ended_first, registrar]]) as fetch):
+        records, _ = data._documents(
+            SearchQuery(collection="documents", query="class withdrawal deadline", limit=2))
+        # The first window held only ended terms, so a wider one was read.
+        assert [call.args[1][-1] for call in fetch.call_args_list] == [4, 100]
+        assert [record["title"].split(" › ")[-1] for record in records] == [
+            "Last Day to Withdraw 0", "Last Day to Withdraw 1"]
+
+
 def test_a_place_asked_about_with_no_day_is_looked_up_for_today() -> None:
     # "What's on the menu at the Atrium" names no day; the lookup's day was left unset, so
     # code couldn't state that no menu is published today and GPT wrote (09-28).
