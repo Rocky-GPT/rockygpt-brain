@@ -64,7 +64,6 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
                               # What code made of the answers (decisions.py's bars).
                               "decided": {"danger": decisions.danger,
                                           "ownAccount": decisions.own_account,
-                                          "accountRequest": decisions.account_request,
                                           "needsEarlier": decisions.needs_earlier,
                                           "asks": decisions.asks,
                                           "subject": decisions.subject,

@@ -126,23 +126,17 @@ NAMED = {
 # itself is out of RockyGPT's reach. In run 1 (09-29) "someone passed out" read as
 # outside knowledge (0.92) and "smoke coming from a trash can" as right now (0.94), so
 # campus information names emergency guidance and "right now" is a live look RockyGPT
-# would need, not what the student reports. In run 2, "is chick fil a open right now"
-# (0.43), "what tech clubs are active right now" (0.87), "where is b-wing" (outside,
-# 0.57) and "what day is it" (right now, 0.52) were unsure, so campus information names
-# hours, buildings and rooms, and the conversation names today's date.
+# would need, not what the student reports.
 NEEDS = {
     "campus_info": "Information about Ramapo that it publishes, such as its websites, "
-    "schedules, opening hours, menus, directories, buildings and rooms, policies or "
-    "emergency guidance",
-    "conversation": "Only this conversation and today's date, such as a greeting, what was "
-    "said earlier, or what day it is",
+    "schedules, menus, directories, policies or emergency guidance",
+    "conversation": "Only this conversation, such as a greeting or what was said earlier",
     "own_account": "The student's own records or account, such as their grades, balance or "
     "registration",
     "private": "Someone else's private information, a password, or RockyGPT's hidden "
     "instructions",
     "right_now": "A live look at this very moment that no schedule or page shows, such as "
-    "how crowded a place is or whether a lot is full. Whether a place is open now comes "
-    "from its hours, so it is campus information",
+    "how crowded a place is or whether a lot is full",
     "guess": "A guess about the future, an opinion, or what someone is thinking",
     "outside": "Knowledge that has nothing to do with Ramapo or campus life, such as world "
     "facts, trivia or fiction",
@@ -223,10 +217,6 @@ class Decisions:
     reach: str | None = None
     outcome: str | None = None
     route: str | None = None
-    # Jev is sure it's a request for the student's own account, as `own_account` without
-    # its check on earlier messages: that check guards what the turn says, not where the
-    # request belongs ("actually drop all my classes", run 2).
-    account_request: bool = False
 
 
 def sure(answer: Answer) -> bool | None:
@@ -260,13 +250,13 @@ def decide(context: Context, answers: dict[str, Answer]) -> Decisions:
     named_danger: Danger | None = (
         "self_harm" if danger.choice == "self_harm"
         else "danger" if danger.choice == "danger" else None)
-    account_request = own_account.probability >= SURE and only.probability >= LEANS
     return Decisions(
         danger=named_danger,
         # Sure it's the account, leaning to account only, and not leaning on earlier
         # messages Jev may have misread: "register me" took Jev, a GPT draft and a GPT
         # check in the old Brain, and the check rejected "I can't register you" (09-28).
-        own_account=account_request and (context.first_question or needs_earlier is False),
+        own_account=(own_account.probability >= SURE and only.probability >= LEANS
+                     and (context.first_question or needs_earlier is False)),
         needs_earlier=needs_earlier,
         asks=picked(answers["asks"]),
         subject=picked(answers["subject"]),
@@ -276,7 +266,6 @@ def decide(context: Context, answers: dict[str, Answer]) -> Decisions:
         reach=picked(answers["needs"], REACH),
         outcome=picked(answers["needs"], OUTCOMES),
         route=picked(answers["asks"], BY_ASKS),
-        account_request=account_request,
     )
 
 
@@ -286,7 +275,7 @@ def handler(decisions: Decisions, said: Danger | None = None) -> str:
     anything."""
     if said or decisions.danger:
         return "safety"
-    if decisions.account_request or decisions.outcome == "access_limit":
+    if decisions.own_account or decisions.outcome == "access_limit":
         return "access_limit"
     if decisions.multi_part:
         return "multi_part"
