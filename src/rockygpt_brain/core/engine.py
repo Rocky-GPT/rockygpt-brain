@@ -803,13 +803,18 @@ def answer_turn(
             # Paragraph labels alone are insufficient: there must be no campus
             # evidence, retrieval, citations or campus-fact paragraphs. Prompts
             # and fresh adversarial evaluations must also establish scope fidelity.
+            # A refusal ("I can't provide or retrieve an admin password") states nothing
+            # about the campus for a check to verify: reviewed, the checker rejected one
+            # for lacking evidence that the assistant can't see passwords, and the student
+            # got "I couldn't verify a reliable answer" (2 of 18 replays, 09-29).
             general = (
                 candidate.general_scope is not None
                 and not evidence
                 and all(entry["tool"] == "calculate" for entry in trace)
-                and candidate.status in {"answered", "clarification"}
+                and candidate.status in {"answered", "clarification", "unavailable"}
                 and all(
-                    part.kind in {"guidance", "clarification"} and not part.evidence_ids
+                    part.kind in {"guidance", "clarification", "limitation"}
+                    and not part.evidence_ids
                     for part in candidate.parts
                 )
             )
@@ -840,6 +845,11 @@ def answer_turn(
                         )
                         response_mode = "urgent_safety"
                         metrics["safetyFacts"] = safety.evidence_ids
+                if (candidate.parts and candidate.parts[0].kind == "limitation"
+                        and candidate.status != "clarification"):
+                    # It declines what was asked.
+                    candidate = candidate.model_copy(update={"status": "unavailable"})
+                    result = render_answer(candidate, evidence)
                 drafted["outcome"] = "general_unreviewed"
                 return {
                     **result,
