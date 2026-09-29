@@ -136,6 +136,33 @@ ASKS_BACK = re.compile(
     r"previously)\b", re.I)
 # How a part says it can't see the earlier conversation, so the note isn't added twice.
 SEES_NOTHING = re.compile(r"\b(?:can['’]?t|cannot|can not) see\b", re.I)
+# An answer that only assumed which place the student meant ("If you mean Birch Tree Inn,
+# ...") keeps that condition when the student refers back to the place. Replaying Q9 with
+# the original history, GPT dropped it in one run of five, and "Is that place still open?"
+# read as the Learning Commons place having Birch's hours (09-29).
+ASSUMED_PLACE = re.compile(r"\bIf you mean ([A-Z][^,.;:?!\n]{1,80}?)(?:,| —| -)")
+REFERS_TO_PLACE = re.compile(
+    r"\b(?:that|this|the same) (?:place|one|spot|location|venue)\b|\b(?:it|there)\b", re.I)
+KEEPS_CONDITION = re.compile(r"\bif you mean|\bassum", re.I)
+
+
+def assumption_note(messages: list[ChatMessage], parts: list[AnswerPart]) -> AnswerPart | None:
+    """The condition an earlier answer put on the place, when this answer drops it."""
+    earlier = next((message.content for message in reversed(messages[:-1])
+                    if message.role == "assistant"), "")
+    assumed = ASSUMED_PLACE.search(earlier)
+    text = " ".join(part.text for part in parts)
+    if (assumed is None or not REFERS_TO_PLACE.search(messages[-1].content)
+            or assumed[1].casefold() not in text.casefold() or KEEPS_CONDITION.search(text)):
+        return None
+    return AnswerPart(
+        kind="limitation",
+        text=f"This assumes you mean {assumed[1]}, as my last answer did; I haven't confirmed "
+        "that's the place you asked about.",
+        evidence_ids=[],
+    )
+
+
 DROPPED_NOTE = AnswerPart(
     kind="limitation",
     text="I left out part of this answer because I couldn't verify it against "
@@ -935,6 +962,23 @@ def answer_turn(
                     drafted.update(outcome="invalid", failure=error.code)
                     validation_failures.append(error.code)
                     return fallback(error.code, response.model)
+            if (prefix is None and candidate.status in {"answered", "partial"}
+                    and candidate.parts and candidate.parts[0].kind == "limitation"
+                    and not any(part.kind in {"campus_fact", "clarification"}
+                                for part in candidate.parts)):
+                # A reply that opens by saying it can't give what was asked, and states no
+                # campus fact or question, declines it: "I can't provide or retrieve an
+                # admin password", with a pointer to account recovery, was labelled
+                # answered in some replays and unavailable in others (09-29).
+                candidate = candidate.model_copy(update={"status": "unavailable"})
+                result = render_answer(candidate, evidence)
+            if prefix is None and (note := assumption_note(messages, candidate.parts)):
+                metrics["assumptionNote"] = True
+                candidate = candidate.model_copy(update={
+                    "status": "partial" if candidate.status == "answered" else candidate.status,
+                    "parts": [*candidate.parts, note],
+                })
+                result = render_answer(candidate, evidence)
             if asks_back and not any(SEES_NOTHING.search(part.text) for part in candidate.parts):
                 # Whatever the draft said about the rest, and whichever label the checker
                 # gave a line it rejected, the student hears that part can't be seen: a

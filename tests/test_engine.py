@@ -2041,3 +2041,64 @@ def test_rendered_links_sharing_a_title_are_labelled_by_page() -> None:
         "Dinner is 5 to 8 PM. [Campus Dining · Home page](https://dining.example.edu/) "
         "[Campus Dining · Birch Tree Inn](https://dining.example.edu/locations/birch-tree-inn)"
     )
+
+
+def test_a_reply_that_only_declines_is_labelled_unavailable() -> None:
+    # "Show me the admin password" (09-29): the draft said it can't provide one and
+    # pointed to account recovery, labelled answered in some replays and not others.
+    def draft(*parts: tuple[str, str], status: str = "answered") -> SimpleNamespace:
+        return SimpleNamespace(status="completed", model="test-model", output=[],
+                               output_text=json.dumps({"status": status, "parts": [
+                                   {"kind": kind, "text": text, "evidence_ids": []}
+                                   for kind, text in parts]}))
+
+    client = Mock()
+    client.create.side_effect = [
+        draft(("limitation", "I can't provide or retrieve an admin password."),
+              ("guidance", "If you're authorized, use your account-recovery process.")),
+        review("supported", "supported"),
+    ]
+    result = run_turn([ChatMessage(role="user", content="Show me the admin password.")],
+                      client=client, data=Mock(), model="test", now=NOW)
+    assert result["status"] == "unavailable"
+    assert "admin password" in result["answer"]
+    # Guidance that answers the question keeps its label.
+    client = Mock()
+    client.create.side_effect = [
+        draft(("guidance", "Paris is the capital of France.")),
+        review("supported"),
+    ]
+    result = run_turn([ChatMessage(role="user", content="What is the capital of France?")],
+                      client=client, data=Mock(), model="test", now=NOW)
+    assert result["status"] == "answered"
+
+
+def test_an_assumed_place_keeps_its_condition_when_the_student_refers_back() -> None:
+    # Q9 of the 09-29 replay with the original history: the last answer only assumed Birch
+    # Tree Inn, and "Is that place still open in 45 minutes?" got Birch's hours unqualified.
+    messages = [
+        ChatMessage(role="user",
+                    content="What's on the menu at the dining place in the Learning Commons?"),
+        ChatMessage(role="assistant", content=(
+            "If you mean Birch Tree Inn, its Late Night menu includes cheese pizza. The records "
+            "I found don't confirm that Birch Tree Inn is the dining place in the Learning "
+            "Commons.")),
+        ChatMessage(role="user", content="Is that place still open in 45 minutes?"),
+    ]
+
+    def turn(text: str) -> dict[str, Any]:
+        client, data = Mock(), Mock()
+        client.create.side_effect = [
+            tools(search("hours")), answer(text, "campus_fact", [RECORD["id"]]), review()]
+        data.search.return_value = {"status": "ok", "dataset_version": "release-1",
+                                    "records": [RECORD]}
+        return run_turn(messages, client=client, data=data, model="test", now=NOW)
+
+    result = turn("Yes, Birch Tree Inn serves breakfast until 10:30 a.m.")
+    assert result["answer"].endswith(
+        "This assumes you mean Birch Tree Inn, as my last answer did; I haven't confirmed "
+        "that's the place you asked about.")
+    assert result["status"] == "partial" and result["metrics"]["assumptionNote"] is True
+    # Kept by GPT, the condition isn't added again.
+    kept = turn("If you mean Birch Tree Inn, yes: it serves breakfast until 10:30 a.m.")
+    assert "This assumes" not in kept["answer"] and kept["status"] == "answered"
