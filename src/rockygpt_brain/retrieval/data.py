@@ -157,6 +157,11 @@ _DOCUMENT_SEARCH_SCANNING_HEADINGS = (
 )
 
 
+# "Ask" and "questions" say what the student wants to do, not what a passage is about, and
+# every FAQ page's title ("Frequently Asked Questions") has them: "financial aid ask office
+# location" (09-29) listed scholarship FAQs above the office's own room and phone.
+ASKING = re.compile(r"\b(?:ask|asks|asking|asked|question|questions)\b", re.IGNORECASE)
+
 # The markdown heading line a section's first passage opens with.
 HEADING_LINE = re.compile(r"\A\s*#{1,6} [^\n]*(?:\n|\Z)")
 
@@ -661,8 +666,9 @@ class CampusData:
 
     def _documents(self, query: SearchQuery) -> tuple[list[dict[str, Any]], int]:
         vocabulary = self._artifact("search-vocabulary") or {}
-        terms = expand_document_query(query.query, vocabulary)
-        parts = document_query_parts(query.query, vocabulary)
+        words = " ".join(ASKING.sub(" ", query.query).split()) or query.query
+        terms = expand_document_query(words, vocabulary)
+        parts = document_query_parts(words, vocabulary)
         # Room for the copies, ended-term pages and further passages of one page set aside
         # below. When those fill the window, a wider one is read once: 2021-2025 "Previous
         # Deadlines" pages took all eight places for "class withdrawal deadline" (09-29), so
