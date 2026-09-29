@@ -71,8 +71,8 @@ Headers:
 - Every failure carries `emergency` help, except a cancelled request that nobody is
   waiting for.
 - `retryable` is true only when trying again right away can help: `busy`,
-  `rate_limited`, `model_timeout`, `model_unreachable`, `model_provider_error` and
-  `invalid_model_output`.
+  `rate_limited`, `model_timeout`, `model_unreachable`, `model_provider_error`,
+  `invalid_model_output` and `data_unavailable` (the campus data can't be read).
 - Answers and failures have an `X-Request-Id` header, the same as `requestId`.
 - A malformed request gets 422, and a missing or wrong token gets 401. Both use
   FastAPI's usual `{"detail": …}` body.

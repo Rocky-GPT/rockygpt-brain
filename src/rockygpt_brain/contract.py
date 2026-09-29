@@ -112,6 +112,8 @@ ErrorCode = Literal[
     "model_provider_error",
     "model_not_configured",
     "invalid_model_output",
+    # The campus data can't be read, or isn't trustworthy enough to answer from.
+    "data_unavailable",
     "context_limit",
     "retrieval_context_limit",
     "turn_cost_limit",
@@ -127,7 +129,7 @@ ErrorCode = Literal[
 # Worth the student pressing Try again right away.
 RETRYABLE: frozenset[str] = frozenset({
     "busy", "rate_limited", "model_timeout", "model_unreachable", "model_provider_error",
-    "invalid_model_output",
+    "invalid_model_output", "data_unavailable",
 })
 
 

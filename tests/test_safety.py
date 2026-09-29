@@ -2,13 +2,19 @@
 
 import json
 import logging
-from typing import Any
+from typing import Any, get_args
 
 import pytest
 from fastapi.testclient import TestClient
 
 from rockygpt_brain.api.app import app
-from rockygpt_brain.contract import EMERGENCY_TEXT, RETRYABLE, ChatReply, FailureReply
+from rockygpt_brain.contract import (
+    EMERGENCY_TEXT,
+    RETRYABLE,
+    ChatReply,
+    ErrorCode,
+    FailureReply,
+)
 from rockygpt_brain.failures import FAILURES, failure
 from rockygpt_brain.safety import SAFETY_TEXT, said_danger
 
@@ -52,6 +58,10 @@ def test_a_streaming_app_gets_the_safety_help_before_the_answer() -> None:
     assert frames[-1]["body"]["answer"].startswith(SAFETY_TEXT["self_harm"])
 
 
+def test_every_error_code_has_a_failure() -> None:
+    assert set(get_args(ErrorCode)) == set(FAILURES)
+
+
 @pytest.mark.parametrize("code", sorted(FAILURES))
 def test_every_failure_has_a_status_a_message_and_the_emergency_help(code: str) -> None:
     status, body = failure(code, "r")  # type: ignore[arg-type]
@@ -63,6 +73,16 @@ def test_every_failure_has_a_status_a_message_and_the_emergency_help(code: str) 
     else:
         assert body.error.emergency is not None
         assert body.error.emergency.text == EMERGENCY_TEXT
+
+
+def test_a_campus_data_outage_is_a_503_the_student_can_retry_with_the_help() -> None:
+    status, body = failure("data_unavailable", "r")
+    assert status == 503
+    assert body.error.retryable is True
+    assert body.error.message == (
+        "RockyGPT couldn't reach its campus information just now. Please try again in a moment.")
+    assert body.error.emergency is not None and body.error.emergency.text == EMERGENCY_TEXT
+    assert "data_unavailable" in RETRYABLE
 
 
 def test_a_spent_allowance_says_when_it_comes_back() -> None:
