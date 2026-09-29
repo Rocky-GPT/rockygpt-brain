@@ -26,6 +26,7 @@ from rockygpt_brain.core.routing import (
     FIELDS,
     GRAPH_TOOLS,
     ROUTED_SECTIONS,
+    answer_fields,
     filter_records,
     graph_first,
     interpret,
@@ -989,9 +990,10 @@ def test_a_follow_up_looks_things_up_itself_only_when_its_subject_is_clear(
     if not direct:
         assert result.tool is None and result.reason == "follow_up"
     elif needs_earlier > 0.1 and "Registrar" in latest:
-        # Named in a request Jev reads with the earlier turns: Jev may have read what it
-        # asks from them, so GPT writes the answer.
-        assert result.answer_fields is None and result.template is None
+        # Named in a request Jev reads with the earlier turns: what it asks may come from
+        # them ("What about the Registrar?" after the Bursar's phone), and code writes it
+        # when Jev is sure, as for a first message (09-29).
+        assert result.answer_fields == answer_fields(answers)
 
 
 def browse_answers(payload: dict[str, Any], **changes: Any) -> dict[str, Any]:
@@ -1174,7 +1176,7 @@ def test_jevs_danger_pick_puts_the_safety_block_first(danger: str) -> None:
 def test_gpt_is_not_told_about_a_block_it_wont_see() -> None:
     gpt = Mock()
     gpt.create.side_effect = [answer("Talking with someone you trust can help."), review()]
-    safety_turn(gpt, danger="none")
+    safety_turn(gpt, danger="none", text="Where is the Registrar?")
     [developer] = [item for item in gpt.create.call_args_list[0].kwargs["input"]
                    if isinstance(item, dict) and item.get("role") == "developer"]
     assert "safety message" not in developer["content"]
@@ -1227,7 +1229,7 @@ def test_a_failed_answer_leaves_only_the_safety_block(failure: Any, reason: str)
     assert result["metrics"]["fallbackReason"] == reason
     gpt.create.side_effect = [failure]
     with pytest.raises((InvalidAnswer, PaidCallError, TimeoutError)):
-        safety_turn(gpt, danger="none")
+        safety_turn(gpt, danger="none", text="Where is the Registrar?")
 
 
 def test_an_urgent_safety_answer_gets_the_numbers_once_from_the_block() -> None:

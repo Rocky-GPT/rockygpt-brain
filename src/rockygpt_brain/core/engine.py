@@ -62,6 +62,7 @@ from rockygpt_brain.core.routing import (
     graph_first,
     pick_dishes,
     route_request,
+    said_danger,
 )
 from rockygpt_brain.core.tools import function_tool, tool_definitions
 from rockygpt_brain.governance.accounting import PaidCallError
@@ -479,8 +480,12 @@ def answer_turn(
             # The same record the metrics carry, so it also says whether Jev's lookup ran.
             work.decided(work.at(), routing=metrics["routing"])
         if routing_mode == "active":
-            if decision.danger is not None:
-                net.kind = decision.danger
+            danger = decision.danger
+            if danger is None and (danger := said_danger(messages[-1].content)):
+                # Jev missed words that name an emergency outright (SAID_DANGER).
+                metrics["routing"]["dangerFrom"] = "words"
+            if danger is not None:
+                net.kind = danger
                 net.records, net.dataset_version = safety_facts(data)
                 # The call-911 block is written by code, so a streaming student sees it now,
                 # not after lookups, drafts and review: Q30's came only with the final
@@ -489,7 +494,7 @@ def answer_turn(
             selected_tool = decision.tool
             campus_route = (jev_answered and decision.route in CAMPUS_ROUTES
                             and (decision.confidence or 0) >= CAMPUS_ROUTE_BAR)
-            if decision.danger is None:
+            if danger is None:
                 # Code states plain contact details, menus and hours itself; the safety
                 # block needs GPT.
                 fact_fields = decision.answer_fields

@@ -24,13 +24,13 @@ from test_general import SAFETY
 from test_routing import data_mock, messages, router_mock
 
 
-def turn(danger: str, updates: list[ProgressUpdate],
-         work: WorkLog | None = None) -> dict[str, Any]:
+def turn(danger: str, updates: list[ProgressUpdate], work: WorkLog | None = None,
+         text: str = "My friend passed out and won't wake up.") -> dict[str, Any]:
     gpt = Mock()
     gpt.create.side_effect = [answer("Stay with them until help arrives."), review()]
     data = data_mock()
     data.search.return_value = {"status": "ok", "dataset_version": "v1", "records": SAFETY}
-    return run_turn(messages("My friend passed out and won't wake up."), client=gpt, data=data,
+    return run_turn(messages(text), client=gpt, data=data,
                     model=RELEASE.model, now=NOW,
                     progress=updates.append if work is None else work.watch(updates.append),
                     routing_client=router_mock(route="unresolved", entity="unresolved",
@@ -61,8 +61,28 @@ def test_the_safety_block_is_sent_as_soon_as_danger_is_read(danger: str) -> None
 
 def test_no_safety_block_without_danger() -> None:
     updates: list[ProgressUpdate] = []
-    turn("none", updates)
+    result = turn("none", updates, text="I passed out flyers for my club. Where is the Registrar?")
     assert updates and all("safety" not in update for update in updates)
+    assert "dangerFrom" not in result["metrics"]["routing"]
+
+
+@pytest.mark.parametrize("text,kind", [
+    # Q30's wording: Jev read "if someone is unconscious" as danger on one run and not
+    # the next (09-29 replay).
+    ("Tell me the next shuttle, where the Registrar is, and what I should do if someone is "
+     "unconscious.", "danger"),
+    ("My roommate isn't breathing", "danger"),
+    ("I think I want to kill myself", "self_harm"),
+])
+def test_words_that_name_an_emergency_send_the_block_when_jev_misses_it(
+    text: str, kind: str
+) -> None:
+    updates: list[ProgressUpdate] = []
+    result = turn("none", updates, text=text)
+    [safety] = [update["safety"] for update in updates if "safety" in update]
+    assert safety["answer"].startswith(SAFETY_NET[kind])
+    assert result["answer"].startswith(safety["answer"])
+    assert result["metrics"]["routing"]["dangerFrom"] == "words"
 
 
 def test_the_work_log_and_stream_pass_the_block_through_unchanged() -> None:
@@ -105,7 +125,8 @@ def test_the_safety_block_adds_no_timeline_step(danger: str) -> None:
     # "understanding" on danger turns; the update still reaches the student.
     work = WorkLog(monotonic())
     updates: list[ProgressUpdate] = []
-    turn(danger, updates, work)
+    # Words that name no emergency, so only Jev's pick decides.
+    turn(danger, updates, work, text="Where is the Registrar?")
     steps = work.report()["steps"]
     assert [step["stage"] for step in steps] == [
         "connecting", "understanding", "understanding", "reviewing"]

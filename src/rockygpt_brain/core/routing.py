@@ -261,6 +261,31 @@ DANGER = {
     "emergency or an injury.",
     "none": "No one is described as being in danger.",
 }
+# Words that name an emergency outright, read by code when Jev picks "none" or doesn't
+# answer. "Tell me the next shuttle, where the Registrar is, and what I should do if
+# someone is unconscious" got the call-911 block on one run and not on the next (09-29):
+# Jev can read "if someone is unconscious" as nothing happening now. A danger pick only
+# adds the safety block, so a false one costs little. Words with everyday meanings
+# ("passed out flyers", "a weapons policy", "a stroke of luck") are left out.
+SAID_DANGER = {
+    "self_harm": ("kill myself", "end my life", "suicide", "suicidal", "hurt myself",
+                  "self harm", "don't want to be alive", "dont want to be alive",
+                  "don't want to live", "dont want to live"),
+    "danger": ("unconscious", "not breathing", "isn't breathing", "stopped breathing",
+               "can't breathe", "cannot breathe", "won't wake", "isn't waking",
+               "not waking up", "unresponsive", "overdose", "overdosed", "seizure",
+               "choking", "heart attack", "bleeding heavily", "bleeding badly",
+               "active shooter", "being attacked", "sexually assaulted", "raped"),
+}
+
+
+def said_danger(text: str) -> str | None:
+    """The danger a request names in so many words, for when Jev's pick misses it."""
+    latest = f" {words(text)} "
+    for kind, phrases in SAID_DANGER.items():
+        if any(f" {words(phrase)} " in latest for phrase in phrases):
+            return kind
+    return None
 # Whether a search result helps, as one Jev yes/no per record. On 121 results from the
 # routing cases it dropped 23 and nothing a real answer used.
 HELPS = ("Gives some or all of what `latest_request` asks for, or a fact needed to answer it",
@@ -1124,8 +1149,8 @@ def interpret(
         if (leading == str(explicit[0].id)
                 and answers["entity"]["probabilities"][leading] >= LEANS_TOWARD):
             entity_id = leading
-    # Code writes the answer only when Jev reads the request as it would a first message.
-    code_writes = True
+    # A follow-up that names its own subject but no day may mean an earlier turn's day.
+    named_follow_up = False
     if len(messages) > 1:
         # A follow-up runs its own lookup when it stands alone and names its entity, or
         # when it names none and Jev is sure who "their" or "it" is, as for "What is their
@@ -1138,8 +1163,10 @@ def interpret(
             # Commons today?" needed the earlier messages to Jev, so GPT looked up Birch, or
             # searched every menu, instead of the building the request names (09-29). A
             # request that names one place and points back at nothing is about that place.
-            # Jev may still have read what it asks from earlier turns, so GPT writes.
-            entity_id, code_writes = str(subject.id), False
+            # What it asks may come from earlier turns ("What about the Atrium?"), which is
+            # how Jev read it; code still writes only when Jev is sure of that. Leaving it
+            # to GPT searched every menu and named no venue (09-29 replay).
+            entity_id, named_follow_up = str(subject.id), True
         elif not (stands_alone or (not explicit and entity_id is not None)):
             decision.reason = "follow_up"
             return decision
@@ -1175,8 +1202,6 @@ def interpret(
         decision.answer_fields = answer_fields(answers) or (
             contact_fields(messages[-1].content, entity)
             if len(messages) == 1 and explicit == [entity] else None)
-        if not code_writes:
-            decision.answer_fields = None
     else:
         sections = ["conveners"] if convener else sections_asked(answers)
         arguments: dict[str, Any] = {
@@ -1187,7 +1212,7 @@ def interpret(
             # the day it read, or names none: "next Saturday" also reads as Saturday.
             if day_asked(answers, messages) in {None, "other"}:
                 return decision
-            if not code_writes and day is None:
+            if named_follow_up and day is None:
                 # "What about the Atrium?" after Birch's hours tomorrow means tomorrow: a
                 # follow-up that names no day of its own may mean an earlier one.
                 decision.reason = "follow_up"
@@ -1209,8 +1234,7 @@ def interpret(
             arguments["menu_limit"] = 100 if complete or narrowed else 12
         decision.arguments = ProfileQuery.model_validate(arguments).model_dump(mode="json")
         decision.template = ("convener" if convener
-                             else written_by_code(answers, decision.arguments)
-                             if code_writes else None)
+                             else written_by_code(answers, decision.arguments))
     decision.tool = TOOLS[route]
     decision.reason = None
     return decision

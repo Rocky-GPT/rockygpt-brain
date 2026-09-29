@@ -63,8 +63,10 @@ def test_a_follow_up_naming_a_place_looks_up_that_place(entity: str) -> None:
     assert decision.arguments["entity_id"] == BUILDING["id"]
     assert decision.arguments["include"] == ["menu", "hours"]
     assert decision.arguments["date"] == TODAY
-    # Jev may have read what it asks from the earlier turns, so GPT writes the answer.
-    assert decision.template is None and decision.answer_fields is None
+    # Jev is sure the request asks only for the menu, so code writes it, as it would for
+    # the question alone: left to GPT, the 09-29 replay searched every menu and named no
+    # venue, and the next question couldn't tell which place was meant.
+    assert decision.template == "menu"
     # The building's one dining place is what its menu lookup reads.
     data = repository()
     data._artifacts["campus-identities"]["entities"] = [BUILDING, CAFE, BIRCH]
