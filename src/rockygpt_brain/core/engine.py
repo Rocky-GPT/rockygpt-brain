@@ -129,6 +129,13 @@ HISTORY_NOTE = AnswerPart(
     "you there.",
     evidence_ids=[],
 )
+# Words by which a student asks what the assistant said before ("What did you tell me the
+# first shuttle was?"). With the history cut, that part of the conversation is unknown.
+ASKS_BACK = re.compile(
+    r"\b(?:you (?:told|said|mentioned|gave)|did you (?:tell|say|mention|give)|earlier|"
+    r"previously)\b", re.I)
+# How a part says it can't see the earlier conversation, so the note isn't added twice.
+SEES_NOTHING = re.compile(r"\b(?:can['’]?t|cannot|can not) see\b", re.I)
 DROPPED_NOTE = AnswerPart(
     kind="limitation",
     text="I left out part of this answer because I couldn't verify it against "
@@ -456,6 +463,9 @@ def answer_turn(
         f"Today is {now.strftime('%A, %B %d, %Y')}. "
         f"The current campus calendar week is {week_start} through {week_end}.\n"
     )
+    # The student asks what was said before a cut in the history: the answer is reviewed
+    # even if GPT calls it general, and says that part can't be seen (09-29).
+    asks_back = bool(omitted_messages and ASKS_BACK.search(messages[-1].content))
     if omitted_messages:
         # Only when the client cut history, so ordinary turns keep the cached bytes.
         campus_clock += (
@@ -767,9 +777,11 @@ def answer_turn(
                     for part in candidate.parts
                 )
             )
-            if general and campus_route and candidate.general_scope != "urgent_safety":
+            if (general and (campus_route or asks_back)
+                    and candidate.general_scope != "urgent_safety"):
                 # Jev read a campus lookup, so GPT's general label is checked, not trusted
-                # (CAMPUS_ROUTES). 911 guidance never waits for a review.
+                # (CAMPUS_ROUTES); or the student asked about messages that were cut, and
+                # only the review catches a denial of them. 911 guidance never waits.
                 general = False
                 metrics["generalScopeReviewed"] = True
             if general:
@@ -887,11 +899,11 @@ def answer_turn(
                 # student hears that part can't be seen, even if nothing else stands.
                 cut = {part.part_index for part in rejected
                        if omitted_messages and part.denies_earlier_message}
-                if not kept and not cut:
+                if not kept and not cut and not asks_back:
                     return fallback("unsupported_answer", response.model)
                 dropped = [index for index in range(len(candidate.parts)) if index not in kept]
                 metrics["reviewDroppedParts"] = dropped
-                if cut:
+                if cut or asks_back:
                     metrics["historyNote"] = True
                 # A clarification whose question was dropped asks nothing (09-29).
                 status = candidate.status
@@ -900,7 +912,7 @@ def answer_turn(
                 elif status == "answered" or (status == "clarification" and not any(
                         candidate.parts[index].kind == "clarification" for index in kept)):
                     status = "partial"
-                notes = [*([HISTORY_NOTE] if cut else []),
+                notes = [*([HISTORY_NOTE] if cut or asks_back else []),
                          *([DROPPED_NOTE] if set(dropped) - cut else [])]
                 candidate = candidate.model_copy(
                     update={
@@ -914,6 +926,17 @@ def answer_turn(
                     drafted.update(outcome="invalid", failure=error.code)
                     validation_failures.append(error.code)
                     return fallback(error.code, response.model)
+            if asks_back and not any(SEES_NOTHING.search(part.text) for part in candidate.parts):
+                # Whatever the draft said about the rest, and whichever label the checker
+                # gave a line it rejected, the student hears that part can't be seen: a
+                # checker once rejected GPT's own "I can't see the earlier part" as
+                # contradicted, and the student got only "I left out part" (09-29).
+                metrics["historyNote"] = True
+                candidate = candidate.model_copy(update={
+                    "status": "partial" if candidate.status == "answered" else candidate.status,
+                    "parts": [*candidate.parts, HISTORY_NOTE],
+                })
+                result = render_answer(with_prefix(candidate, prefix), evidence)
             if monotonic() - started >= TURN_SECONDS:
                 raise TimeoutError("Turn deadline exceeded during evidence review")
             return {
