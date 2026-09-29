@@ -9,7 +9,7 @@ from typing import Any, NamedTuple
 
 from rockygpt_brain.context import Context
 from rockygpt_brain.contract import ChatReply, ErrorCode, FailureReply, ProgressEvent, SafetyBlock
-from rockygpt_brain.decisions import Decisions, ask_jev, readings
+from rockygpt_brain.decisions import Decisions, ask_jev, handler, readings
 from rockygpt_brain.failures import failure
 from rockygpt_brain.jev import Jev, JevError
 from rockygpt_brain.safety import ACCOUNT_LIMIT, Danger, safety_block, said_danger
@@ -64,7 +64,13 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
                               # What code made of the answers (decisions.py's bars).
                               "decided": {"danger": decisions.danger,
                                           "ownAccount": decisions.own_account,
-                                          "needsEarlier": decisions.needs_earlier},
+                                          "needsEarlier": decisions.needs_earlier,
+                                          "asks": decisions.asks,
+                                          "subject": decisions.subject,
+                                          "named": decisions.named,
+                                          "needs": decisions.needs,
+                                          "reach": decisions.reach,
+                                          "multiPart": decisions.multi_part},
                               "costNusd": asked.cost_nusd,
                               "inputTokens": asked.input_tokens, "elapsedMs": asked.elapsed_ms}
         except JevError as error:
@@ -75,6 +81,10 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
             stop = error
             metrics["jev"] = {"skipped": error.code}
 
+    # Which later handler should take it. Until those milestones, the turn still ends
+    # below with safety help, the account limit or "not ready".
+    metrics["handler"] = (handler(decisions, said) if decisions
+                          else "safety" if said else None)
     danger = worst(said, decisions.danger if decisions else None)
     if danger is not None and danger != said:
         shown = safety_block(danger)
