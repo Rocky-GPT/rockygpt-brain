@@ -376,6 +376,18 @@ def test_just_the_very_next_departure_names_every_route_leaving_then() -> None:
         "The next published departures from campus on 2026-09-16 (America/New_York) are: "
         "Ramsey Route 17 at 7:00 PM; Roadrunner Express at 7:00 PM."
     )
+    # Asked for the very next one, a later route's next isn't listed: "that exact trip"
+    # then names one trip (09-29). Asked for the next shuttle, each route's still is.
+    roadrunner = trip(2, "7:05 PM", "7:15 PM", "7:35 PM")
+    roadrunner["fields"]["route"] = "Roadrunner Express"
+    piece = exact_search(question, messages(question), query, output(ramsey, roadrunner), NOW)
+    assert piece is not None and piece.answer.parts[0].text == (
+        "The next published departure from campus on Ramsey Route 17 is 7:00 PM on "
+        "2026-09-16 (America/New_York)."
+    )
+    plain = "when is the next shuttle"
+    piece = exact_search(plain, messages(plain), query, output(ramsey, roadrunner), NOW)
+    assert piece is not None and "Roadrunner Express at 7:05 PM" in piece.answer.parts[0].text
 
 
 def test_failed_format_does_not_mutate_evidence() -> None:
