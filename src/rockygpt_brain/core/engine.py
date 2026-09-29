@@ -121,6 +121,14 @@ ACCESS_LIMIT = AnswerPart(
     evidence_ids=[],
 )
 # Written by code, not the model: it only says that something was left out.
+# Written by code, not the model, when a part denying something said before a cut in
+# the history was dropped: that part of the conversation is unknown, not empty (09-29).
+HISTORY_NOTE = AnswerPart(
+    kind="limitation",
+    text="I can't see the earlier part of our conversation, so I can't say what I told "
+    "you there.",
+    evidence_ids=[],
+)
 DROPPED_NOTE = AnswerPart(
     kind="limitation",
     text="I left out part of this answer because I couldn't verify it against "
@@ -875,20 +883,29 @@ def answer_turn(
                 # The student is told something was left out; nothing is rewritten.
                 kept = supported_parts(candidate, review)
                 drafted.update(outcome="partly_rejected" if kept else "rejected", keptParts=kept)
-                if not kept:
+                # Parts that denied something said before the cut in the history: the
+                # student hears that part can't be seen, even if nothing else stands.
+                cut = {part.part_index for part in rejected
+                       if omitted_messages and part.denies_earlier_message}
+                if not kept and not cut:
                     return fallback("unsupported_answer", response.model)
-                metrics["reviewDroppedParts"] = [
-                    index for index in range(len(candidate.parts)) if index not in kept
-                ]
+                dropped = [index for index in range(len(candidate.parts)) if index not in kept]
+                metrics["reviewDroppedParts"] = dropped
+                if cut:
+                    metrics["historyNote"] = True
                 # A clarification whose question was dropped asks nothing (09-29).
                 status = candidate.status
-                if status == "answered" or (status == "clarification" and not any(
+                if not kept:
+                    status = "unavailable"
+                elif status == "answered" or (status == "clarification" and not any(
                         candidate.parts[index].kind == "clarification" for index in kept)):
                     status = "partial"
+                notes = [*([HISTORY_NOTE] if cut else []),
+                         *([DROPPED_NOTE] if set(dropped) - cut else [])]
                 candidate = candidate.model_copy(
                     update={
                         "status": status,
-                        "parts": [*(candidate.parts[index] for index in kept), DROPPED_NOTE],
+                        "parts": [*(candidate.parts[index] for index in kept), *notes],
                     }
                 )
                 try:

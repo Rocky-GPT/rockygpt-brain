@@ -5,6 +5,7 @@ answer from Q4, and the Brain said "I didn't give you a departure time earlier".
 """
 
 import json
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock, patch
 
@@ -14,7 +15,7 @@ from pydantic import ValidationError
 
 from rockygpt_brain.api.app import app
 from rockygpt_brain.contracts import ChatMessage, ChatRequest
-from rockygpt_brain.core.engine import run_turn
+from rockygpt_brain.core.engine import DROPPED_NOTE, HISTORY_NOTE, run_turn
 from test_api import deployment_environment, gateway_context  # noqa: F401
 from test_engine import NOW, answer, review
 
@@ -84,6 +85,34 @@ def test_a_denial_of_something_said_earlier_is_dropped_when_that_part_was_cut(
     else:
         assert "didn't give you" not in result["answer"]
         assert result["metrics"]["validationFailures"] == ["wrong_context"]
+        # What is true instead, written by code: not the generic "couldn't verify".
+        assert result["answer"] == HISTORY_NOTE.text
+        assert result["status"] == "unavailable"
+
+
+def test_a_denial_beside_a_kept_part_is_replaced_by_the_history_note() -> None:
+    client = Mock()
+    client.create.side_effect = [
+        SimpleNamespace(status="completed", model="test-model", output=[], output_text=json.dumps({
+            "status": "answered", "parts": [
+                {"kind": "guidance", "text": "I didn't give you a time earlier.",
+                 "evidence_ids": []},
+                {"kind": "guidance", "text": "Ask again and I'll look up today's timetable.",
+                 "evidence_ids": []},
+            ]})),
+        SimpleNamespace(status="completed", model="test-model", output=[], output_text=json.dumps({
+            "parts": [{"part_index": index, "verdict": "supported", "reason": "",
+                       "unverified_premises": [], "uses_event_for_entity": False,
+                       "infers_food_safety": False, "denies_earlier_message": index == 0,
+                       "depends_on_parts": [], "plan_deadlines": []} for index in (0, 1)]})),
+    ]
+    result = run_turn([ChatMessage.model_validate(QUESTION)], client=client, data=Mock(),
+                      model="test", now=NOW, omitted_messages=18)
+    assert result["answer"] == (
+        "Ask again and I'll look up today's timetable.\n\n" + HISTORY_NOTE.text)
+    assert result["status"] == "partial" and result["metrics"]["historyNote"] is True
+    # Nothing else was left out, so the generic note isn't added.
+    assert DROPPED_NOTE.text not in result["answer"]
 
 
 def test_the_api_passes_the_count_to_the_turn() -> None:
