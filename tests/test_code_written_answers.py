@@ -333,7 +333,7 @@ def test_a_search_for_a_job_title_ranks_the_person_who_holds_it_first() -> None:
 
 
 
-def test_food_right_now_fetches_the_hours_and_only_the_meal_being_served() -> None:
+def test_food_right_now_fetches_the_hours_and_the_meal_being_served_or_next() -> None:
     # "What can I eat on campus right now?" fetched the whole day's menu (66 of 141 items
     # arrived) and no hours (09-28).
     from rockygpt_brain.core.routing import RouteDecision, eating_now, serving_now
@@ -347,8 +347,12 @@ def test_food_right_now_fetches_the_hours_and_only_the_meal_being_served() -> No
     lookups = serving_now(data, now)
     assert [lookup["arguments"]["collection"] for lookup in lookups] == ["dining_hours", "menu"]
     assert lookups[1]["arguments"]["filters"]["meal"] == "Dinner"
-    # Between meals only the hours are fetched; no meal is assumed.
-    assert len(serving_now(data, now.replace(hour=15))) == 1
+    # Between meals, the next meal today is the one fetched: at 8:15 PM, Late Night at
+    # 9 (09-28), never the Dinner that ended at 8.
+    between = serving_now(data, now.replace(hour=20, minute=15))
+    assert [lookup["arguments"]["collection"] for lookup in between] == ["dining_hours", "menu"]
+    assert between[1]["arguments"]["filters"]["meal"] == "Late Night"
+    assert serving_now(data, now.replace(hour=15))[1]["arguments"]["filters"]["meal"] == "Dinner"
     request = [ChatMessage(role="user", content="What can I actually eat on campus right now?")]
     payload, day = routing_payload(request, [], now)
     answers = answers_for(payload, route="search", kind="menu", entity="none")
@@ -356,8 +360,22 @@ def test_food_right_now_fetches_the_hours_and_only_the_meal_being_served() -> No
     assert eating_now(decision, answers, [], day, request, now)
     unsure = answers_for(payload, route="search", kind="other", entity="none", list_menu=0.94)
     assert eating_now(decision, unsure, [], day, request, now)
+    # Jev put 0.90-0.91 on the menu kind four times (09-28); leaning is enough.
+    leaning = answers_for(payload, route="search", kind="menu", entity="none")
+    leaning["kind"] = {**leaning["kind"], "confidence": 0.62,
+                       "probabilities": {option: 0.0 for option in leaning["kind"]["probabilities"]}
+                       | {"menu": 0.6, "dining_hours": 0.4}}
+    assert eating_now(decision, leaning, [], day, request, now)
+    elsewhere = {**leaning, "kind": {**leaning["kind"], "choice": "dining_hours",
+                                     "probabilities": {**leaning["kind"]["probabilities"],
+                                                       "menu": 0.4, "dining_hours": 0.6}}}
+    assert not eating_now(decision, elsewhere, [], day, request, now)
     later = [ChatMessage(role="user", content="What can I eat on campus tonight?")]
     assert not eating_now(decision, answers, [], day, later, now)
+    # After the day's last meal, only the hours are fetched.
+    data.search.return_value = {"records": [{"fields": {"name": "Birch Tree Inn", "periods": [
+        {"label": "Late Night", "start": "09:00 PM", "end": "11:00 PM"}]}}]}
+    assert len(serving_now(data, now.replace(hour=23, minute=30))) == 1
 
 
 @pytest.mark.parametrize("title,ended", [

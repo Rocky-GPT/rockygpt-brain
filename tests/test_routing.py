@@ -236,7 +236,8 @@ def test_the_work_log_says_why_each_step_ran_and_what_each_lookup_found() -> Non
     assert steps[4]["draft"]["by"] == "gpt" and steps[4]["draft"]["call"] == 1
     assert [asked["tool"] for asked in steps[4]["draft"]["asked"]] == ["search_campus"]
     assert steps[4]["draft"]["asked"][0]["arguments"]["collection"] == "contacts"
-    assert steps[6]["draft"] == {"by": "gpt", "call": 2, "answerOnly": True, "asked": []}
+    assert steps[6]["draft"] == {"by": "gpt", "call": 2, "answerOnly": "tool_budget",
+                                 "asked": []}
     # Each lookup's counts sit on its own step.
     [profile] = steps[3]["lookups"]
     assert profile["tool"] == "lookup_profile" and profile["delivered"] == 1
