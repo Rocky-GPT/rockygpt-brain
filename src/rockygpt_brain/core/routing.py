@@ -146,6 +146,19 @@ CONTACT_ASKS = {
               "Asks for an email address",
               "Asks for something else, such as a phone number, hours or a location"),
 }
+# Whether the request is for the student's own account, which RockyGPT can't reach. Asked
+# alone of 22 requests (09-28), Jev put 0.90-0.98 on the 10 that were ("register me for
+# CMPS 147", "what are my grades", "email my professor that I'll miss class") and 0.29 or
+# less on the 12 that weren't ("where can I see my grades", "how do I drop a class").
+OWN_ACCOUNT = (
+    "Does `latest_request` ask RockyGPT to look into the student's own account or records, "
+    "or to do something in it for them?",
+    "Asks RockyGPT to show the student's own private information, such as their grades, GPA, "
+    "class schedule, balance, holds or aid award, or to act for them, such as registering, "
+    "dropping a class, paying, submitting a form or sending a message",
+    "Asks how to do something, where to find it, what a rule or requirement is, or anything "
+    "that doesn't need the student's own account",
+)
 ADDS_PURPOSE = ("Does `latest_request` add a purpose or condition to what it asks, such as "
                 "'for transcripts', 'after hours' or 'if my aid is cancelled'?",
                 "Adds a purpose or condition beyond the office's name",
@@ -293,6 +306,8 @@ class RouteDecision:
     template: Template | None = None
     # Several lookups and searches, one per part of a multi-part request.
     lookups: list[dict[str, Any]] | None = None
+    # The request is for the student's own account: code says it can't be reached.
+    own_account: bool = False
     calls: int = 0
     elapsed_ms: int = 0
 
@@ -514,6 +529,7 @@ def routing_payload(
             },
         ),
         "needs_earlier": noul(*NEEDS_EARLIER),
+        "own_account": noul(*OWN_ACCOUNT),
         **{"asks_" + field: noul(*question) for field, question in CONTACT_ASKS.items()},
         "adds_purpose": noul(*ADDS_PURPOSE),
         **{
@@ -1184,6 +1200,14 @@ def route_request(
         if eating_now(decision, answers, candidates, day, messages, now):
             decision.lookups = serving_now(data, now)
             decision.route, decision.reason = "unresolved", None
+        if answers["own_account"]["noul"] >= RELEASE.routing.threshold and (
+                len(messages) == 1 or answers["needs_earlier"]["noul"] <= RULED_OUT):
+            # "Register me for CMPS 147" took Jev, a GPT draft and a GPT check (6.3 s),
+            # and the check rejected "I can't register you" as a campus claim with no
+            # source, so the student read "I couldn't verify a reliable answer" (09-28).
+            decision = RouteDecision(route="own_account",
+                                     confidence=answers["own_account"]["noul"],
+                                     own_account=True)
         dated = {
             arguments.get("date") or arguments.get("date_from")
             for arguments in [decision.arguments or {},
