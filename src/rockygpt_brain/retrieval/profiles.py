@@ -131,6 +131,20 @@ CAMPUS_PREFIX = re.compile(
 )
 
 
+def name_phrase_match(value: str, entities: list[Identity]) -> Identity | None:
+    """The one entity whose name or an alias contains `value` as whole words, if exactly
+    one does and `value` is at least two words. Students say "Common Grounds" for the
+    venue published as "We Proudly Serve Starbucks at Common Grounds", and "is that place
+    still open in 45 minutes?" found no hours for it (09-28). A phrase two entities
+    share, or one word, names nothing on its own."""
+    phrase = name_key(value)
+    if len(phrase.split()) < 2:
+        return None
+    found = [entity for entity in entities
+             if any(f" {phrase} " in f" {term} " for term in lookup_terms(entity))]
+    return found[0] if len(found) == 1 else None
+
+
 def _without_campus_prefix(value: str) -> str | None:
     """The rest of a name after a leading article or campus name, if it has one."""
     text = " ".join(value.replace("’", "'").split())
@@ -1365,6 +1379,12 @@ def lookup_profile(data: CampusData, query: ProfileQuery) -> dict[str, Any]:
         result["resolution"]["read_as"] = read_as
         matches = [entity for entity in registry.entities
                    if name_key(read_as) in lookup_terms(entity)]
+    if query.entity is not None and not matches:
+        # Last, a name that is whole words of exactly one published name.
+        within = name_phrase_match(read_as or query.entity, registry.entities)
+        if within is not None:
+            result["resolution"]["read_as"] = within.name
+            matches = [within]
     matches = _event_date_candidates(data, matches, query)
     matches, set_aside = _plan_candidates(matches, query)
     variants = _named_variants(matches, read_as or query.entity)

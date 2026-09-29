@@ -320,7 +320,7 @@ def test_the_last_shuttle_after_it_left_says_when_and_gives_the_next() -> None:
     late = NOW.replace(hour=23, minute=10)
     assert answer("when is the last shuttle", late)[:3] == [
         f"The last published departures from campus on {NOW.date()} (America/New_York) are: "
-        "Route 17 at 8:00 AM (already left); Roadrunner at 2:00 PM (already left).",
+        "Route 17 at 8:00 AM (time passed); Roadrunner at 2:00 PM (time passed).",
         f"The next published departure from campus on Route 17 is 8:00 AM on {tomorrow} "
         "(America/New_York).",
         f"The next published departure from campus on Roadrunner is 7:00 AM on {tomorrow} "
@@ -329,12 +329,12 @@ def test_the_last_shuttle_after_it_left_says_when_and_gives_the_next() -> None:
     # Before it leaves, the last is still today's, never tomorrow's.
     assert answer("when is the last shuttle", NOW.replace(hour=10))[0] == (
         f"The last published departures from campus on {NOW.date()} (America/New_York) are: "
-        "Route 17 at 8:00 AM (already left); Roadrunner at 2:00 PM.")
+        "Route 17 at 8:00 AM (time passed); Roadrunner at 2:00 PM.")
     # One stop.
     assert answer("when is the last shuttle to garden state plaza", late)[:2] == [
         "The last published departure from campus that reaches Garden State Plaza on "
-        f"{NOW.date()} (America/New_York) was Roadrunner at 2:00 PM, arriving at 2:25 PM; it "
-        "has already left.",
+        f"{NOW.date()} (America/New_York) was Roadrunner at 2:00 PM, arriving at 2:25 PM; "
+        "that time has passed.",
         "The next published departure from campus that reaches Garden State Plaza is 9:00 AM "
         f"on {tomorrow} (America/New_York), arriving at 9:25 AM.",
     ]
