@@ -59,6 +59,7 @@ def calm(**changes: dict[str, Any]) -> dict[str, Any]:
         "named": sure_pick("office", NAMED),
         "needs": sure_pick("campus_info", NEEDS),
         "multi_part": yes(0.02),
+        "open_ended": yes(0.03),
         **changes,
     }
 

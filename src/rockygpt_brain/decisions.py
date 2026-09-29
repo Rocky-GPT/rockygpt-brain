@@ -6,13 +6,15 @@ whether or not a menu was asked; asked "Does `latest_request` ask what food is s
 it answered 0.9+ or 0.1- (old Brain, docs/routing/README.md). The wording below is the
 old Brain's, tested on Jev; the numbers in the comments come from those tests.
 
-Jev acts only when sure. What it isn't sure of stays undecided, and undecided never
-acts. Later milestones add their questions to the same call.
+Jev decides; code follows its top pick on every reading, sure or not (Dan, 09-29). How
+likely Jev put each pick is kept, and a pick under SURE is listed as low confidence in
+the diagnostics, so a wrong pick shows up in the export and gets fixed at its root.
+Later milestones add their questions to the same call.
 
 Milestone 4's bar: Jev identifies what each question asks, whether it needs the earlier
 messages, whether it describes danger, whether it's something RockyGPT can't answer
 (private, live-only or unsupported), which campus area and what kind of named thing it's
-about, and so which later handler should take it. Code maps Jev's readings to the
+about, and so which later handler should take it. Code maps Jev's picks to the
 handler (`handler` below). evals/decisions/ holds the labeled questions and their live
 results.
 """
@@ -25,11 +27,10 @@ from rockygpt_brain.context import Context
 from rockygpt_brain.jev import Answer, Asked, Jev, Pick, Question, Timed, Yes, choice, noul
 from rockygpt_brain.safety import Danger
 
-# Sure of yes at or above this (Typesafe's own guidance for acting on an answer), and sure
-# of no at or below RULED_OUT.
+# A yes/no pick is yes at YES or more. A pick Jev put under SURE (Typesafe's own guidance
+# for acting on an answer) is still followed, and marked low confidence.
+YES = 0.5
 SURE = 0.9
-RULED_OUT = 0.1
-LEANS = 0.5
 
 # Whether the student describes danger. The top pick is enough: a danger pick only adds
 # the safety help, so a false one costs little. The danger phrases (safety.py) stay as
@@ -165,6 +166,19 @@ MULTI_PART = noul(
     "Asks two or more separate things, such as a shuttle time and where an office is",
     "Asks one thing, even if it has several details",
 )
+# Whether answering takes RockyGPT's own words. GPT is where Jev sends a question on
+# purpose, never where a question lands because Jev wasn't sure (Dan, 09-29). The
+# examples are not among the labeled questions in evals/decisions/.
+OPEN_ENDED = noul(
+    "Does `latest_request` want RockyGPT to explain, reason, advise, compare, give a view or "
+    "just talk, rather than give facts, a list, steps or a rule that a campus page, "
+    "schedule, menu or directory states?",
+    "Wants an explanation, advice, a comparison, a view or conversation, such as 'why does "
+    "the library close early on Fridays', 'should I live on or off campus' or 'thanks, that "
+    "helped'",
+    "Wants facts, a list, steps or a rule that a page states, such as 'when does the gym "
+    "open', 'what majors are there' or 'how do I get a parking permit'",
+)
 
 QUESTIONS: dict[str, Question] = {
     "danger": choice("Is the student in latest_request describing danger right now? Prior "
@@ -180,6 +194,7 @@ QUESTIONS: dict[str, Question] = {
                     "with words like 'it', 'that place' or 'their'?", NAMED),
     "needs": choice("What would RockyGPT need to answer `latest_request`?", NEEDS),
     "multi_part": MULTI_PART,
+    "open_ended": OPEN_ENDED,
 }
 
 
@@ -196,94 +211,130 @@ def state(context: Context) -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class Decisions:
-    """What Jev decided about this turn."""
+    """Jev's picks for this turn. Code follows every one."""
 
     # The danger Jev's top pick names, if any.
     danger: Danger | None
     # Everything the request asks needs the student's own account, so code says what
     # RockyGPT can't reach.
     own_account: bool
-    # True when sure it leans on earlier messages, False when sure it doesn't, None unsure.
-    needs_earlier: bool | None
-    # Jev's picks when sure, else None: keys of ASKS, SUBJECTS, NAMED and NEEDS.
-    asks: str | None = None
-    subject: str | None = None
-    named: str | None = None
-    needs: str | None = None
-    multi_part: bool | None = None
-    # What code reads from those when sure, counting options that lead to the same thing
-    # together: supported, private, live_only or unsupported (REACH); answer,
-    # access_limit or cannot_answer (OUTCOMES); and the handler for what it asks (BY_ASKS).
-    reach: str | None = None
-    outcome: str | None = None
-    route: str | None = None
+    needs_earlier: bool
+    # Keys of ASKS, SUBJECTS, NAMED and NEEDS.
+    asks: str
+    subject: str
+    named: str
+    needs: str
+    multi_part: bool
+    open_ended: bool
+    # What code reads from those, counting options that lead to the same thing together:
+    # supported, private, live_only or unsupported (REACH); answer, access_limit or
+    # cannot_answer (OUTCOMES); and the handler for what it asks (BY_ASKS).
+    reach: str
+    outcome: str
+    route: str
+    # How likely Jev put each pick above, by its name.
+    sureness: Mapping[str, float]
 
 
-def sure(answer: Answer) -> bool | None:
-    """True or False when Jev is sure, None when it isn't."""
+def said_yes(answer: Answer) -> tuple[bool, float]:
+    """Jev's yes/no pick, and how likely it put that pick."""
     if not isinstance(answer, Yes):
         raise TypeError("Not a yes/no answer")
-    if answer.probability >= SURE:
-        return True
-    return False if answer.probability <= RULED_OUT else None
+    return answer.probability >= YES, max(answer.probability, 1 - answer.probability)
 
 
-def picked(answer: Answer, groups: Mapping[str, str] | None = None) -> str | None:
-    """A pick-one answer's choice when Jev is sure of it, else None. With `groups`, the
-    group Jev is sure of, adding up the options in each."""
+def top(answer: Answer, groups: Mapping[str, str] | None = None) -> tuple[str, float]:
+    """A pick-one answer's choice, or with `groups` the group whose options add up to the
+    most, and how likely Jev put it."""
     if not isinstance(answer, Pick):
         raise TypeError("Not a pick-one answer")
     if groups is None:
-        return answer.choice if answer.probability >= SURE else None
+        return answer.choice, answer.probability
     totals: dict[str, float] = {}
     for option, probability in answer.probabilities.items():
         totals[groups[option]] = totals.get(groups[option], 0.0) + probability
-    group, total = max(totals.items(), key=lambda item: item[1])
-    return group if total >= SURE else None
+    return max(totals.items(), key=lambda item: item[1])
 
 
 def decide(context: Context, answers: dict[str, Answer]) -> Decisions:
     danger = answers["danger"]
-    own_account, only = answers["own_account"], answers["own_account_only"]
-    assert isinstance(danger, Pick) and isinstance(own_account, Yes) and isinstance(only, Yes)
-    needs_earlier = sure(answers["needs_earlier"])
+    assert isinstance(danger, Pick)
     named_danger: Danger | None = (
         "self_harm" if danger.choice == "self_harm"
         else "danger" if danger.choice == "danger" else None)
+    own, own_sureness = said_yes(answers["own_account"])
+    only, only_sureness = said_yes(answers["own_account_only"])
+    needs_earlier, earlier_sureness = said_yes(answers["needs_earlier"])
+    # It's the account, all of it is, and it doesn't lean on earlier messages Jev may
+    # have misread: "register me" took Jev, a GPT draft and a GPT check in the old Brain,
+    # and the check rejected "I can't register you" (09-28). Its sureness is that of the
+    # picks it went through.
+    own_account = own and only and (context.first_question or not needs_earlier)
+    account_sureness = min([own_sureness]
+                           + ([only_sureness] if own else [])
+                           + ([earlier_sureness] if own and only and not context.first_question
+                              else []))
+    picks = {
+        "asks": top(answers["asks"]),
+        "subject": top(answers["subject"]),
+        "named": top(answers["named"]),
+        "needs": top(answers["needs"]),
+        "reach": top(answers["needs"], REACH),
+        "outcome": top(answers["needs"], OUTCOMES),
+        "route": top(answers["asks"], BY_ASKS),
+    }
+    multi_part, multi_sureness = said_yes(answers["multi_part"])
+    open_ended, open_sureness = said_yes(answers["open_ended"])
     return Decisions(
         danger=named_danger,
-        # Sure it's the account, leaning to account only, and not leaning on earlier
-        # messages Jev may have misread: "register me" took Jev, a GPT draft and a GPT
-        # check in the old Brain, and the check rejected "I can't register you" (09-28).
-        own_account=(own_account.probability >= SURE and only.probability >= LEANS
-                     and (context.first_question or needs_earlier is False)),
+        own_account=own_account,
         needs_earlier=needs_earlier,
-        asks=picked(answers["asks"]),
-        subject=picked(answers["subject"]),
-        named=picked(answers["named"]),
-        needs=picked(answers["needs"]),
-        multi_part=sure(answers["multi_part"]),
-        reach=picked(answers["needs"], REACH),
-        outcome=picked(answers["needs"], OUTCOMES),
-        route=picked(answers["asks"], BY_ASKS),
+        multi_part=multi_part,
+        open_ended=open_ended,
+        **{name: pick for name, (pick, _) in picks.items()},
+        sureness={"danger": danger.probability, "own_account": account_sureness,
+                  "needs_earlier": earlier_sureness, "multi_part": multi_sureness,
+                  "open_ended": open_sureness,
+                  **{name: sureness for name, (_, sureness) in picks.items()}},
     )
 
 
-def handler(decisions: Decisions, said: Danger | None = None) -> str:
-    """Which later handler should take the request, from what Jev was sure of and the
-    danger phrases. What Jev wasn't sure of goes to GPT, the one path that can take
-    anything."""
-    if said or decisions.danger:
-        return "safety"
-    if decisions.own_account or decisions.outcome == "access_limit":
-        return "access_limit"
-    if decisions.multi_part:
-        return "multi_part"
-    if decisions.outcome == "cannot_answer":
-        return "cannot_answer"
-    if decisions.outcome == "answer" and decisions.route:
-        return decisions.route
-    return "gpt"
+@dataclass(frozen=True)
+class Handler:
+    """The later handler code picked, the picks it went through to get there in order
+    (the last one settled it), and those Jev put under SURE."""
+
+    name: str
+    path: tuple[str, ...]
+    low_confidence: dict[str, float]
+
+
+def handler(decisions: Decisions, said: Danger | None = None) -> Handler:
+    """Which later handler should take the request. Code goes down Jev's picks in this
+    order and follows the first that settles it. Several separate asks go before what
+    answering needs, which reads the request as one. GPT is one place Jev's picks send a
+    question (open_ended, or advice and chat in BY_ASKS), not where it lands when Jev
+    isn't sure."""
+    if said:
+        return Handler("safety", (), {})
+    steps = (
+        ("danger", "safety" if decisions.danger else None),
+        ("own_account", "access_limit" if decisions.own_account else None),
+        ("multi_part", "multi_part" if decisions.multi_part else None),
+        # access_limit or cannot_answer.
+        ("outcome", None if decisions.outcome == "answer" else decisions.outcome),
+        ("open_ended", "gpt" if decisions.open_ended else None),
+        ("route", decisions.route),
+    )
+    path: list[str] = []
+    for reading, settled in steps:
+        path.append(reading)
+        if settled:
+            break
+    assert settled, "BY_ASKS names a handler for every pick"
+    low = {reading: round(decisions.sureness[reading], 3) for reading in path
+           if decisions.sureness[reading] < SURE}
+    return Handler(settled, tuple(path), low)
 
 
 def ask_jev(jev: Jev, context: Context, request_id: str,
