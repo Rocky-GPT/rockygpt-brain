@@ -590,9 +590,13 @@ def validate_answer(answer: Any, question: dict[str, Any]) -> None:
         values = [number(value) for value in probabilities.values()]
         number(answer.get("confidence"))
         selected = answer.get("choice")
+        # Jev sends each probability rounded to the hundredth, so a well-formed reply can
+        # sum to 0.99 or 1.01: each option may be off by half a hundredth. Held to 0.001,
+        # a meal pick of 0.54/0.32/0.13 (0.99) on "what can i eat right now" threw away the
+        # whole route one time in eight, and GPT planned the lookups itself (09-28).
         if (
             selected not in options
-            or abs(sum(values) - 1) > 0.001
+            or abs(sum(values) - 1) > 0.005 * len(values) + 1e-9
             or (probabilities[selected] < max(values))
         ):
             raise ValueError("Invalid routing distribution")

@@ -34,6 +34,7 @@ from rockygpt_brain.core.routing import (
     routing_payload,
     selected,
     shortlist,
+    validate_answer,
     validate_answers,
 )
 from rockygpt_brain.governance.accounting import PaidCallError
@@ -192,6 +193,27 @@ def test_direct_profile_preserves_review_and_allows_more_retrieval() -> None:
     assert first["input"][2].name == "lookup_profile"
     assert first["input"][3]["call_id"] == first["input"][2].call_id
     assert record["url"] in first["input"][3]["output"]
+
+
+@pytest.mark.parametrize("probabilities,valid", [
+    # Rounded to hundredths, six options can sum to 0.99 (09-28) or 1.01.
+    ({"none": 0.54, "other": 0.32, "dinner": 0.13}, True),
+    ({"none": 0.55, "other": 0.33, "dinner": 0.13}, True),
+    # Off by more than rounding explains is still not a distribution.
+    ({"none": 0.54, "other": 0.30, "dinner": 0.12}, False),
+    ({"none": 0.60, "other": 0.32, "dinner": 0.13}, False),
+])
+def test_a_rounded_distribution_is_still_a_reply(probabilities: dict[str, float],
+                                                valid: bool) -> None:
+    question = {"type": "choice", "criteria": dict.fromkeys(
+        ["breakfast", "brunch", "lunch", "dinner", "none", "other"], "")}
+    answer = {"type": "choice", "choice": "none", "confidence": 0.54,
+              "probabilities": dict.fromkeys(question["criteria"], 0.0) | probabilities}
+    if valid:
+        validate_answer(answer, question)
+    else:
+        with pytest.raises(ValueError):
+            validate_answer(answer, question)
 
 
 def test_the_work_log_says_why_each_step_ran_and_what_each_lookup_found() -> None:
