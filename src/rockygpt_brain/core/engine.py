@@ -92,6 +92,15 @@ WRITTEN_MODES = {"menu": "exact_menu", "full_menu": "exact_menu", "hours": "exac
 # verified, and where it looked.
 UNVERIFIED = "I couldn't verify a reliable answer from the available information."
 CONSULTED = " The published pages I checked are linked below."
+# Written by code, not the model, when Jev reads a request for the student's own account:
+# no campus fact, only what RockyGPT can't do and what it can.
+ACCESS_LIMIT = AnswerPart(
+    kind="limitation",
+    text="I can't access student accounts or act in them, so I can't see your grades, "
+    "schedule, balance or holds, or register, drop, pay or send anything for you. I can "
+    "help you find the office or page that handles it, or work with details you share.",
+    evidence_ids=[],
+)
 # Written by code, not the model: it only says that something was left out.
 DROPPED_NOTE = AnswerPart(
     kind="limitation",
@@ -414,6 +423,7 @@ def answer_turn(
     selected_tool: str | None = None
     fact_fields: list[str] | None = None
     template: Template | None = None
+    own_account = False
     jev_answered = False
     if routing_mode != "off" and routing_client is not None:
         notify("understanding")
@@ -439,6 +449,7 @@ def answer_turn(
                 # block needs GPT.
                 fact_fields = decision.answer_fields
                 template = decision.template
+                own_account = decision.own_account
             if decision.arguments is not None and decision.tool is not None:
                 routed_calls = [OutputItem({
                     "type": "function_call", "call_id": "call_jev_initial",
@@ -500,6 +511,32 @@ def answer_turn(
                 "validationFailures": validation_failures,
                 "fallbackUsed": True,
                 "fallbackReason": reason,
+            },
+            "elapsedMs": round((monotonic() - started) * 1000),
+        }
+
+    if own_account:
+        # Jev read a request for the student's own account: code says what RockyGPT can't
+        # reach, with no GPT draft or check. Before, a GPT check rejected "I can't register
+        # you" as an unsupported campus claim (09-28).
+        notify("composing")
+        if work is not None:
+            work.decided(work.at(), written={"by": "code", "mode": "access_limit"})
+        metrics["responseMode"] = "access_limit"
+        return {
+            **render_answer(Answer(status="unavailable", parts=[ACCESS_LIMIT]), {}),
+            "model": RELEASE.routing.model,
+            "datasetVersion": dataset_version,
+            "trace": trace,
+            "metrics": {
+                **metrics,
+                "modelCalls": routing_calls,
+                "draftCalls": 0,
+                "reviewCalls": 0,
+                "toolRequests": 0,
+                "toolExecutions": 0,
+                "validationFailures": [],
+                "fallbackUsed": False,
             },
             "elapsedMs": round((monotonic() - started) * 1000),
         }

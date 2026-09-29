@@ -195,6 +195,44 @@ def test_direct_profile_preserves_review_and_allows_more_retrieval() -> None:
     assert record["url"] in first["input"][3]["output"]
 
 
+def test_a_request_for_the_students_own_account_is_answered_by_code() -> None:
+    # "Register me for CMPS 147" took Jev, a GPT draft and a GPT check (6.3 s), and the
+    # check rejected "I can't register you", so the student read "I couldn't verify a
+    # reliable answer" (09-28).
+    data, gpt = data_mock(), Mock()
+    progress = Mock()
+    result = run_turn(messages("register me for CMPS 147"), client=gpt, data=data,
+                      model=RELEASE.model, now=NOW, progress=progress,
+                      routing_client=router_mock(route="general", entity="none",
+                                                 own_account=0.98),
+                      routing_mode="active")
+    gpt.create.assert_not_called()
+    assert result["answer"].startswith("I can't access student accounts or act in them")
+    assert result["status"] == "unavailable" and result["citations"] == []
+    assert result["metrics"]["responseMode"] == "access_limit"
+    assert result["metrics"]["modelCalls"] == result["metrics"]["routingCalls"] == 1
+    assert result["metrics"]["routing"]["route"] == "own_account"
+    # Jev not sure, a follow-up that leans on earlier messages, or danger: GPT writes.
+    cases: list[tuple[list[ChatMessage], dict[str, Any]]] = [
+        (messages("register me for CMPS 147"), {"own_account": 0.85}),
+        ([*messages("What is CMPS 147?"),
+          ChatMessage(role="assistant", content="Computer Science I."),
+          ChatMessage(role="user", content="sign me up for it")],
+         {"own_account": 0.98, "needs_earlier": 0.9}),
+        (messages("register me for CMPS 147"), {"own_account": 0.98, "danger": "self_harm"}),
+    ]
+    for turn, choices in cases:
+        gpt, data = Mock(), data_mock()
+        data.search.return_value = {"status": "ok", "records": []}
+        gpt.create.side_effect = [answer("I can't do that.", "limitation", status="unavailable"),
+                                  review()]
+        result = run_turn(turn, client=gpt, data=data, model=RELEASE.model, now=NOW,
+                          routing_client=router_mock(route="general", entity="none", **choices),
+                          routing_mode="active")
+        assert result["metrics"].get("responseMode") != "access_limit", choices
+        assert gpt.create.called
+
+
 def test_a_departure_question_fetches_the_next_days_timetable_too() -> None:
     # "When is the last shuttle?" at 11:10 PM (09-28) had nothing after the day's last to
     # offer: only that day's timetable was fetched.
