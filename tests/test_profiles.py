@@ -188,6 +188,28 @@ def test_a_name_whose_matches_are_all_its_qualified_lines_returns_each_line() ->
     assert shared["resolution"]["status"] == "variants"
 
 
+def test_a_name_that_is_whole_words_of_one_published_name_matches_it() -> None:
+    # Students say "Common Grounds" for "We Proudly Serve Starbucks at Common Grounds", and
+    # "is that place still open in 45 minutes?" found no hours for it (09-28).
+    data = repository()
+    venue = copy.deepcopy(IDENTITY)
+    venue.update(name="We Proudly Serve Starbucks at Common Grounds", aliases=["Starbucks"])
+    other = copy.deepcopy(IDENTITY)
+    other.update(id="a8306d1b-0319-477a-88fa-c32e2bab5f4e", name="Common Room Services",
+                 aliases=[], links=[{"collection": "contacts", "source_key": "directory",
+                                     "source_record_keys": ["other"]}])
+    data._artifacts["campus-identities"]["entities"] = [venue, other]
+    attach_rows(data, *rows())
+    for spelled in ("Common Grounds", "common  grounds", "Starbucks at Common Grounds"):
+        result = data.lookup_profile(ProfileQuery(entity=spelled, include=["contact"]))
+        assert result["resolution"]["status"] == "matched", spelled
+        assert result["resolution"]["read_as"] == venue["name"]
+    # One word, a phrase two names share, or part of a word names nothing on its own.
+    for spelled in ("Grounds", "Common", "Common Ground", "Serve Starbucks at Common Room"):
+        result = data.lookup_profile(ProfileQuery(entity=spelled, include=["contact"]))
+        assert result["resolution"]["status"] == "no_match", spelled
+
+
 def test_a_name_matches_without_its_apostrophe() -> None:
     # "When does dunkin close" found nothing: the venue is published as "Dunkin'".
     data = repository()

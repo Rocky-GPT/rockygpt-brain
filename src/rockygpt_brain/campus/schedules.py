@@ -249,6 +249,7 @@ def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime)
                 groups.setdefault((fields["route"], origin), []).append(
                     {
                         "evidence_id": record["id"],
+                        "service_date": str(day),
                         "departure_at": departure.isoformat(),
                         "remaining_stops": [
                             {
@@ -291,6 +292,7 @@ def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime)
                 "last": remaining[-1] if remaining else None,
                 "scheduled_departure_count": len(trips),
                 "remaining_departure_count": len(remaining),
+                "days": _days(trips),
                 "destinations": _destinations(trips, now),
             }
         )
@@ -311,6 +313,9 @@ def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime)
             "time now. Next and last are within the retrieved dates only; null does not mean "
             "service ends. destinations gives, per stop, the first, next and last departure "
             "that reaches it.",
+            "days gives each service date's first and last scheduled departure whatever the "
+            "time now. A departure before as_of is one whose scheduled time has passed; the "
+            "timetable can't say a bus actually left. next is the one after as_of.",
             "Preserve source pickup/drop-off restrictions. No walking or eating time is assumed.",
             *(
                 ["A withheld origin repeats within a trip; its next/last departure is unknown."]
@@ -319,6 +324,25 @@ def departure_summary(output: dict[str, Any], query: SearchQuery, now: datetime)
             ),
         ],
     }
+
+
+def _days(trips: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each service date's first and last departure, whatever the time now. "When is the
+    last shuttle?" asked at 11:10 PM (09-28) found no later departure and said so for
+    every route: the day's last had left at 9:40 PM, and nothing said when."""
+    days: dict[str, list[dict[str, Any]]] = {}
+    for trip in trips:
+        days.setdefault(trip["service_date"], []).append(trip)
+    return [
+        {"service_date": day,
+         **{selection: {key: chosen[key] for key in DAY_KEYS if key in chosen}
+            for selection, chosen in (("first", ordered[0]), ("last", ordered[-1]))}}
+        for day, ordered in sorted(days.items())
+    ]
+
+
+# What a day's first or last departure keeps: enough to name, cite and time it.
+DAY_KEYS = ("evidence_id", "departure_at", "arrives_at", "origin_restriction")
 
 
 def _destinations(trips: list[dict[str, Any]], now: datetime) -> list[dict[str, Any]]:
@@ -337,6 +361,7 @@ def _destinations(trips: list[dict[str, Any]], now: datetime) -> list[dict[str, 
                 continue  # The return to campus is where every trip ends, not a stop.
             reaching.setdefault(stop["location"], []).append({
                 "evidence_id": trip["evidence_id"],
+                "service_date": trip["service_date"],
                 "departure_at": trip["departure_at"],
                 "arrives_at": stop["scheduled_at"],
                 "origin_restriction": trip["origin_restriction"],
@@ -347,7 +372,8 @@ def _destinations(trips: list[dict[str, Any]], now: datetime) -> list[dict[str, 
                      if datetime.fromisoformat(trip["departure_at"]).timestamp() > now.timestamp()]
         result.append({"stop": stop, "first": reached[0],
                        "next": remaining[0] if remaining else None,
-                       "last": remaining[-1] if remaining else None})
+                       "last": remaining[-1] if remaining else None,
+                       "days": _days(reached)})
     return result
 
 
@@ -381,6 +407,7 @@ def review_summary(summary: dict[str, Any]) -> dict[str, Any]:
                 },
                 "scheduled_departure_count": group["scheduled_departure_count"],
                 "remaining_departure_count": group["remaining_departure_count"],
+                "days": group["days"],
                 "destinations": group["destinations"],
             }
             for group in summary["departures"]

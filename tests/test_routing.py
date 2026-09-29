@@ -16,6 +16,7 @@ import psycopg
 import pytest
 
 from rockygpt_brain.campus.formats import SAFETY_NET
+from rockygpt_brain.campus.progress import WorkLog
 from rockygpt_brain.config import RELEASE, Deployment
 from rockygpt_brain.contracts import ChatMessage
 from rockygpt_brain.core.engine import run_turn
@@ -33,6 +34,7 @@ from rockygpt_brain.core.routing import (
     routing_payload,
     selected,
     shortlist,
+    validate_answer,
     validate_answers,
 )
 from rockygpt_brain.governance.accounting import PaidCallError
@@ -191,6 +193,152 @@ def test_direct_profile_preserves_review_and_allows_more_retrieval() -> None:
     assert first["input"][2].name == "lookup_profile"
     assert first["input"][3]["call_id"] == first["input"][2].call_id
     assert record["url"] in first["input"][3]["output"]
+
+
+def test_a_request_for_the_students_own_account_is_answered_by_code() -> None:
+    # "Register me for CMPS 147" took Jev, a GPT draft and a GPT check (6.3 s), and the
+    # check rejected "I can't register you", so the student read "I couldn't verify a
+    # reliable answer" (09-28).
+    data, gpt = data_mock(), Mock()
+    progress = Mock()
+    result = run_turn(messages("register me for CMPS 147"), client=gpt, data=data,
+                      model=RELEASE.model, now=NOW, progress=progress,
+                      routing_client=router_mock(route="general", entity="none",
+                                                 own_account=0.98, own_account_only=0.96),
+                      routing_mode="active")
+    gpt.create.assert_not_called()
+    assert result["answer"].startswith("I can't access student accounts or act in them")
+    assert result["status"] == "unavailable" and result["citations"] == []
+    assert result["metrics"]["responseMode"] == "access_limit"
+    assert result["metrics"]["modelCalls"] == result["metrics"]["routingCalls"] == 1
+    assert result["metrics"]["routing"]["route"] == "own_account"
+    # Jev not sure, a follow-up that leans on earlier messages, or danger: GPT writes.
+    cases: list[tuple[list[ChatMessage], dict[str, Any]]] = [
+        (messages("register me for CMPS 147"), {"own_account": 0.85, "own_account_only": 0.96}),
+        # Another part besides: code's answer would drop it (09-29).
+        (messages("register me for CS 450 and tell me where the registrar is"),
+         {"own_account": 0.97, "own_account_only": 0.08}),
+        ([*messages("What is CMPS 147?"),
+          ChatMessage(role="assistant", content="Computer Science I."),
+          ChatMessage(role="user", content="sign me up for it")],
+         {"own_account": 0.98, "own_account_only": 0.96, "needs_earlier": 0.9}),
+        (messages("register me for CMPS 147"),
+         {"own_account": 0.98, "own_account_only": 0.96, "danger": "self_harm"}),
+    ]
+    for turn, choices in cases:
+        gpt, data = Mock(), data_mock()
+        data.search.return_value = {"status": "ok", "records": []}
+        gpt.create.side_effect = [answer("I can't do that.", "limitation", status="unavailable"),
+                                  review()]
+        result = run_turn(turn, client=gpt, data=data, model=RELEASE.model, now=NOW,
+                          routing_client=router_mock(route="general", entity="none", **choices),
+                          routing_mode="active")
+        assert result["metrics"].get("responseMode") != "access_limit", choices
+        assert gpt.create.called
+
+
+def test_a_departure_question_fetches_the_next_days_timetable_too() -> None:
+    # "When is the last shuttle?" at 11:10 PM (09-28) had nothing after the day's last to
+    # offer: only that day's timetable was fetched.
+    request = messages("when is the last shuttle")
+    payload, day = routing_payload(request, [], NOW)
+    answers = answers_for(payload, route="search", kind="shuttle", entity="none", date="none")
+    decision = interpret(answers, [], day, request, NOW.date().isoformat())
+    assert decision.template == "departures"
+    assert decision.arguments is not None
+    assert decision.arguments["collection"] == "shuttle"
+    assert decision.arguments["date_from"] == NOW.date().isoformat()
+    assert decision.arguments["date_to"] == (NOW.date() + timedelta(days=1)).isoformat()
+    # Mid-conversation, Jev leaning that it stands alone is enough (0.20-0.32 on 09-29);
+    # a follow-up that needs the earlier messages (0.78+) is GPT's.
+    talk = [*messages("when is the next shuttle"),
+            ChatMessage(role="assistant", content="The next shuttle is at 6:10 PM."),
+            *request]
+    payload, day = routing_payload(talk, [], NOW)
+    for needs, template in [(0.27, "departures"), (0.78, None)]:
+        answers = answers_for(payload, route="search", kind="shuttle", entity="none",
+                              date="none", needs_earlier=needs)
+        assert interpret(answers, [], day, talk, NOW.date().isoformat()).template == template
+
+
+@pytest.mark.parametrize("probabilities,valid", [
+    # Rounded to hundredths, six options can sum to 0.99 (09-28) or 1.01.
+    ({"none": 0.54, "other": 0.32, "dinner": 0.13}, True),
+    ({"none": 0.55, "other": 0.33, "dinner": 0.13}, True),
+    # Off by more than rounding explains is still not a distribution.
+    ({"none": 0.54, "other": 0.30, "dinner": 0.12}, False),
+    ({"none": 0.60, "other": 0.32, "dinner": 0.13}, False),
+])
+def test_a_rounded_distribution_is_still_a_reply(probabilities: dict[str, float],
+                                                valid: bool) -> None:
+    question = {"type": "choice", "criteria": dict.fromkeys(
+        ["breakfast", "brunch", "lunch", "dinner", "none", "other"], "")}
+    answer = {"type": "choice", "choice": "none", "confidence": 0.54,
+              "probabilities": dict.fromkeys(question["criteria"], 0.0) | probabilities}
+    if valid:
+        validate_answer(answer, question)
+    else:
+        with pytest.raises(ValueError):
+            validate_answer(answer, question)
+
+
+def test_the_work_log_says_why_each_step_ran_and_what_each_lookup_found() -> None:
+    """The Dev control room's Timeline reads these; it never guesses from step names."""
+    data = data_mock()
+    record = contact_record()
+    data.lookup_profile.return_value = result_for(
+        [record], total_matches=1,
+        components={"contact": {"status": "available", "total_matches": 3,
+                                "returned_count": 1, "omitted_count": 2,
+                                "reason": "item_limit", "evidence_ids": [record["id"]]}})
+    data.search.return_value = result_for([record], total_matches=7, truncated=True)
+    gpt = Mock()
+    gpt.create.side_effect = [
+        tools(search()),
+        answer("Office D-224", "campus_fact", [record["id"]]),
+        review(),
+    ]
+    work = WorkLog(monotonic())
+    run_turn(
+        messages("Tell me about the Registrar"),
+        client=gpt,
+        data=data,
+        model=RELEASE.model,
+        now=NOW,
+        routing_client=router_mock(route="profile"),
+        routing_mode="active",
+        progress=work.watch(None),
+        diagnostics={"work": work},
+    )
+    steps = work.report()["steps"]
+    assert [step["stage"] for step in steps] == [
+        "connecting", "understanding", "understanding", "retrieving", "composing",
+        "retrieving", "composing", "reviewing"]
+    # Jev's route sits where it was decided, and says its lookup ran.
+    assert steps[1]["routing"]["route"] == "profile"
+    assert steps[1]["routing"]["directRetrieval"] is True
+    # Jev asked for the first lookup; GPT's first draft asked for a search; its
+    # second answered, with no lookups left after two rounds.
+    assert steps[2]["draft"] == {"by": "jev", "asked": [
+        {"tool": "lookup_profile", "arguments": steps[2]["draft"]["asked"][0]["arguments"]}]}
+    assert steps[4]["draft"]["by"] == "gpt" and steps[4]["draft"]["call"] == 1
+    assert [asked["tool"] for asked in steps[4]["draft"]["asked"]] == ["search_campus"]
+    assert steps[4]["draft"]["asked"][0]["arguments"]["collection"] == "contacts"
+    assert steps[6]["draft"] == {"by": "gpt", "call": 2, "answerOnly": "tool_budget",
+                                 "asked": []}
+    # Each lookup's counts sit on its own step.
+    [profile] = steps[3]["lookups"]
+    assert profile["tool"] == "lookup_profile" and profile["delivered"] == 1
+    assert profile["sections"] == {"contact": {
+        "status": "available", "total_matches": 3, "returned_count": 1,
+        "omitted_count": 2, "reason": "item_limit"}}
+    [found] = steps[5]["lookups"]
+    assert {key: found[key] for key in ("tool", "matched", "fetched", "delivered",
+                                        "truncated")} == {
+        "tool": "search_campus", "matched": 7, "fetched": 1, "delivered": 1,
+        "truncated": True}
+    assert found["arguments"]["collection"] == "contacts"
+    assert "lookups" not in steps[4] and "Office D-224" not in json.dumps(steps)
 
 
 @pytest.mark.parametrize("mode", ["off", "shadow"])

@@ -146,6 +146,32 @@ CONTACT_ASKS = {
               "Asks for an email address",
               "Asks for something else, such as a phone number, hours or a location"),
 }
+# Whether the request is for the student's own account, which RockyGPT can't reach. Asked
+# alone of 22 requests (09-28), Jev put 0.90-0.98 on the 10 that were ("register me for
+# CMPS 147", "what are my grades", "email my professor that I'll miss class") and 0.29 or
+# less on the 12 that weren't ("where can I see my grades", "how do I drop a class").
+OWN_ACCOUNT = (
+    "Does `latest_request` ask RockyGPT to look into the student's own account or records, "
+    "or to do something in it for them?",
+    "Asks RockyGPT to show the student's own private information, such as their grades, GPA, "
+    "class schedule, balance, holds or aid award, or to act for them, such as registering, "
+    "dropping a class, paying, submitting a form or sending a message",
+    "Asks how to do something, where to find it, what a rule or requirement is, or anything "
+    "that doesn't need the student's own account",
+)
+# Whether that is all the request asks. The question above also put 0.95-0.97 on "register me
+# for CS 450 and tell me where the registrar is" and four more two-part requests (09-29),
+# and code's answer would have dropped their other part. This one put 0.07-0.16 on those
+# five and 0.81-0.97 on the ten account requests alone.
+OWN_ACCOUNT_ONLY = (
+    "Is everything `latest_request` asks something only the student's own account could "
+    "answer or do, such as showing their grades, GPA, schedule, balance, holds or aid award, "
+    "or registering, dropping a class, paying, submitting a form or sending a message for "
+    "them?",
+    "Yes: all of it needs the student's own account",
+    "No: some or all of it asks how to do something, where to find it, a rule, a campus fact "
+    "or anything else that doesn't need their account",
+)
 ADDS_PURPOSE = ("Does `latest_request` add a purpose or condition to what it asks, such as "
                 "'for transcripts', 'after hours' or 'if my aid is cancelled'?",
                 "Adds a purpose or condition beyond the office's name",
@@ -293,6 +319,8 @@ class RouteDecision:
     template: Template | None = None
     # Several lookups and searches, one per part of a multi-part request.
     lookups: list[dict[str, Any]] | None = None
+    # The request is for the student's own account: code says it can't be reached.
+    own_account: bool = False
     calls: int = 0
     elapsed_ms: int = 0
 
@@ -514,6 +542,8 @@ def routing_payload(
             },
         ),
         "needs_earlier": noul(*NEEDS_EARLIER),
+        "own_account": noul(*OWN_ACCOUNT),
+        "own_account_only": noul(*OWN_ACCOUNT_ONLY),
         **{"asks_" + field: noul(*question) for field, question in CONTACT_ASKS.items()},
         "adds_purpose": noul(*ADDS_PURPOSE),
         **{
@@ -590,9 +620,13 @@ def validate_answer(answer: Any, question: dict[str, Any]) -> None:
         values = [number(value) for value in probabilities.values()]
         number(answer.get("confidence"))
         selected = answer.get("choice")
+        # Jev sends each probability rounded to the hundredth, so a well-formed reply can
+        # sum to 0.99 or 1.01: each option may be off by half a hundredth. Held to 0.001,
+        # a meal pick of 0.54/0.32/0.13 (0.99) on "what can i eat right now" threw away the
+        # whole route one time in eight, and GPT planned the lookups itself (09-28).
         if (
             selected not in options
-            or abs(sum(values) - 1) > 0.001
+            or abs(sum(values) - 1) > 0.005 * len(values) + 1e-9
             or (probabilities[selected] < max(values))
         ):
             raise ValueError("Invalid routing distribution")
@@ -830,13 +864,19 @@ def events_asked(answers: dict[str, Any], candidates: list[Identity], day: str |
 def departure_asked(answers: dict[str, Any], candidates: list[Identity], day: str | None,
                     messages: list[ChatMessage]) -> bool:
     """Whether Jev reads a shuttle question and its words ask a first, next or last
-    departure on one sure day, with no place named and nothing earlier needed."""
+    departure on one sure day, with no place named and nothing earlier needed.
+
+    Mid-conversation, Jev leaning that it stands alone is enough: after three shuttle
+    answers it put 0.20-0.32 on "What's the first shuttle today?" needing the earlier
+    messages, and 0.78-0.97 on follow-ups like "Where does that exact trip stop?" (09-29).
+    Held to 0.1, GPT wrote it instead, and the checker dropped it. Code's answer still
+    refuses any word it can't place, such as "that route" or "there"."""
     said = set(words(messages[-1].content).split())
     return (
         selected(answers, "kind") == "shuttle"
         and bool(said & {"first", "earliest", "next", "last"}) and bool(said & DEPARTURE_WORDS)
         and not named(messages[-1].content, candidates)
-        and (len(messages) == 1 or answers["needs_earlier"]["noul"] <= RULED_OUT)
+        and (len(messages) == 1 or answers["needs_earlier"]["noul"] < LEANS_TOWARD)
         and day is not None and day_asked(answers, messages) in {"named", "none"}
     )
 
@@ -903,7 +943,8 @@ def multi_part(
     return lookups
 
 
-NOW_WORDS = {"now", "currently"}
+# "rn" is how students type "right now".
+NOW_WORDS = {"now", "currently", "rn"}
 
 
 def eating_now(decision: RouteDecision, answers: dict[str, Any], candidates: list[Identity],
@@ -912,11 +953,25 @@ def eating_now(decision: RouteDecision, answers: dict[str, Any], candidates: lis
     left for GPT to plan. "What can I eat on campus right now?" (09-28) fetched the whole
     day's menu, 66 of its 141 items arrived, and GPT never looked up which meal was on."""
     said = set(words(messages[-1].content).split())
+    kind = answers["kind"]
+    browsed = decision.arguments
     return (
-        decision.route == "search" and decision.arguments is None and not decision.lookups
+        decision.route == "search" and not decision.lookups
+        # Code's own browse of the whole day's menu, as for "what's on the menu right
+        # now" (09-28), is the meal on now instead: the day's 141 items don't fit.
+        and (browsed is None or (browsed["collection"] == "menu" and not browsed["filters"]
+                                 and decision.template is None))
         # Jev put 0.72 on the menu kind for "what can I eat right now" but 0.94 on asking
-        # what food is served on campus at no named dining hall (09-28).
-        and (selected(answers, "kind") == "menu"
+        # what food is served on campus at no named dining hall (09-28). Later that night
+        # it put 0.87-0.91 on the menu kind and 0.07-0.09 on dining hours, and only one
+        # run in four reached the 0.9 bar: the rest left GPT to search the whole day's
+        # menu, which didn't fit. Both kinds are what this lookup fetches, so Jev need
+        # only lead with the menu and put the bar's worth on the two together, as a
+        # contact/profile split does for a route. Asked 10 non-food "right now"
+        # questions twice each, Jev never led with the menu.
+        and ((kind["choice"] == "menu"
+              and kind["probabilities"]["menu"] + kind["probabilities"]["dining_hours"]
+              >= RELEASE.routing.threshold)
              or answers["list_menu"]["noul"] >= RELEASE.routing.threshold)
         and bool(said & NOW_WORDS)
         and not named(messages[-1].content, candidates)
@@ -927,7 +982,11 @@ def eating_now(decision: RouteDecision, answers: dict[str, Any], candidates: lis
 
 def serving_now(data: CampusData, now: datetime) -> list[dict[str, Any]]:
     """Today's dining hours, and the menu of each meal being served now: the hours say
-    which meal is on, so the menu is that meal's, not the whole day's."""
+    which meal is on, so the menu is that meal's, not the whole day's. A place between
+    meals has its next meal today's menu instead. Asked at 8:15 PM on 09-28, between
+    Birch's Dinner (to 8 PM) and Late Night (from 9 PM), only the hours were fetched, so
+    GPT's first draft asked for the Late Night menu and a second draft wrote the answer:
+    about 5 s more, every time the question fell between two meals."""
     today = now.date().isoformat()
     hours = SearchQuery.model_validate({"collection": "dining_hours", "query": "",
                                         "date_from": today, "date_to": today, "limit": 100})
@@ -940,6 +999,8 @@ def serving_now(data: CampusData, now: datetime) -> list[dict[str, Any]]:
         return lookups  # GPT reads the hours itself; nothing about a meal is assumed.
     meals: set[str] = set()
     for record in records:
+        serving: list[str] = []
+        upcoming: list[tuple[datetime, str]] = []
         for period in record.get("fields", {}).get("periods") or []:
             try:
                 start = wall_time(str(period["start"]), now.date())
@@ -948,8 +1009,14 @@ def serving_now(data: CampusData, now: datetime) -> list[dict[str, Any]]:
                     end += timedelta(days=1)
             except (KeyError, TypeError, ValueError):
                 continue
-            if start <= now < end and isinstance(period.get("label"), str):
-                meals.add(period["label"].strip())
+            if not isinstance(period.get("label"), str):
+                continue
+            if start <= now < end:
+                serving.append(period["label"].strip())
+            elif now < start:
+                upcoming.append((start, period["label"].strip()))
+        # The published hours say when that next meal starts; nothing says it is on now.
+        meals.update(serving or [label for _, label in sorted(upcoming)[:1]])
     for meal in sorted(meal for meal in meals if meal)[:2]:
         menu = SearchQuery.model_validate({
             "collection": "menu", "query": "", "date_from": today, "date_to": today,
@@ -1005,9 +1072,13 @@ def interpret(
                                                            day or today, messages):
             # "When's the next shuttle?": the day's whole timetable, fetched without GPT
             # planning the search. Code answers a first, next or last departure; anything
-            # else in the question goes to GPT with the timetable already fetched.
-            timetable = SearchQuery.model_validate({"collection": "shuttle", "query": "",
-                                                    "date_from": day or today, "limit": 100})
+            # else in the question goes to GPT with the timetable already fetched. The next
+            # day's comes too, so a day whose last shuttle has left still has a next one.
+            when = day or today
+            asked = date.fromisoformat(when) if when else None
+            timetable = SearchQuery.model_validate({
+                "collection": "shuttle", "query": "", "date_from": asked, "limit": 100,
+                "date_to": asked + timedelta(days=1) if asked else None})
             decision.arguments = {**timetable.model_dump(mode="json"), "request_text": None}
             decision.template = "departures"
         return decision
@@ -1149,6 +1220,15 @@ def route_request(
         if eating_now(decision, answers, candidates, day, messages, now):
             decision.lookups = serving_now(data, now)
             decision.route, decision.reason = "unresolved", None
+        if (answers["own_account"]["noul"] >= RELEASE.routing.threshold
+                and answers["own_account_only"]["noul"] >= LEANS_TOWARD
+                and (len(messages) == 1 or answers["needs_earlier"]["noul"] <= RULED_OUT)):
+            # "Register me for CMPS 147" took Jev, a GPT draft and a GPT check (6.3 s),
+            # and the check rejected "I can't register you" as a campus claim with no
+            # source, so the student read "I couldn't verify a reliable answer" (09-28).
+            decision = RouteDecision(route="own_account",
+                                     confidence=answers["own_account"]["noul"],
+                                     own_account=True)
         dated = {
             arguments.get("date") or arguments.get("date_from")
             for arguments in [decision.arguments or {},
