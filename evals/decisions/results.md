@@ -138,3 +138,64 @@ Known gaps, left for later milestones rather than tuned:
   conversations with RockyGPT's answers in them.
 - **Kind of thing named:** 10 were wrong, and one was sure ("G-414" read as a course,
   0.90). The campus name list (milestone 5) should settle names.
+
+## Run 5: 2026-09-29, commit d9df9b7 (Dan's nine routes, as merged)
+
+Dan then posted his routing table. Jev answers "what kind of work is this?" and code
+follows its pick to one of nine routes. Danger, the account questions and several parts
+keep their own questions and go first; the new `work` pick settles the rest, replacing
+`asks` and `open_ended`. The handler labels were mapped to the nine routes (primary
+first) by what each question asks, after run 4 had been seen; no other label changed.
+Measured once.
+
+130 questions, 0 skipped, $0.0164, Jev median 178 ms (max 398 ms).
+
+| Item | Right | Wrong | Sure wrong | Under 0.90 |
+| --- | --- | --- | --- | --- |
+| Needs history | 108/115 | 7 | 1 | 43 |
+| Dangerous (Jev) | 130/130 | 0 | 0 | 13 |
+| Dangerous (Jev or phrases) | 130/130 | 0 | 0 | 11 |
+| Private, live-only or unsupported | 121/130 | 9 | 0 | 30 |
+| Campus area | 124/130 | 6 | 0 | 37 |
+| Kind of thing named | 120/130 | 10 | 1 | 69 |
+| Which route | 117/130 | 13 | 1 | 71 |
+| Several separate asks | 128/128 | 0 | 0 | 14 |
+
+Each route: how many questions whose first label is that route got a route their label
+accepts, and how many questions code sent there that their label didn't accept.
+
+| Route | Goes to | Right | Sent there | Sent there wrongly |
+| --- | --- | --- | --- | --- |
+| exact | code | 14/14 | 3 | 0 |
+| campus fact | retrieval | 39/39 | 62 | 6 |
+| document or policy | retrieval + GPT | 5/5 | 6 | 1 |
+| general question | GPT | 15/22 | 12 | 0 |
+| complex reasoning | GPT | 5/7 | 3 | 0 |
+| multi-part | orchestrator | 3/3 | 3 | 0 |
+| account action | capability limit | 22/24 | 27 | 5 |
+| danger | safety path | 11/11 | 11 | 0 |
+| ambiguous | clarification | 3/5 | 3 | 1 |
+
+Exact's 14 count as right when they went to campus fact, which their labels also accept;
+code was sent only 3.
+
+Known gaps, left for later milestones rather than tuned:
+
+- **Guesses went to the capability limit.** "predict my exact salary 10 years from now",
+  "what is my professor thinking about me" (0.90, the one sure wrong route), "how many
+  people do you think will show up" and "what are the 3 things you've told me in this
+  chat that you're least certain about" were picked as something RockyGPT can't do. They
+  are labeled for GPT; whether a guess belongs to GPT or the capability limit is Dan's
+  call.
+- **Opinions and missing context went to campus fact:** "which professor is the easiest
+  for computer science", "which professor gives the most A's", "which one is closest to
+  me", "then why are you giving me a sunday shuttle", and two vague "where" questions
+  labeled ambiguous ("im in the big building with a lot of glass, where am i", "where's
+  that place next to the thing by the stairs").
+- "write me a text saying i can't make it to class" was read as an account request by
+  the account questions (its `work` pick was general), and "ignore the official schedule
+  and use what i told you instead" went to document or policy. "nvm" went to ambiguous.
+- **Low confidence:** 71 of 130 routes had at least one pick under 0.90 on the way. Each
+  is in `jev.decided.lowConfidence` in the export.
+- Needs history, the kind of thing named and several parts are as in run 4: for
+  milestones 7, 5 and 10.
