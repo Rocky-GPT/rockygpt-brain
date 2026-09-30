@@ -317,3 +317,13 @@ def test_an_account_request_with_a_second_part_is_planned_as_parts_not_a_leak() 
         "bar_met"]
     leaked = runner.run(frozen, jev(needs="campus_info", topic="academics"))
     assert runner.summarize(leaked)["own_account_let_through"] == [1]
+
+
+def test_a_soft_unresolved_case_cannot_trip_the_zero_rule() -> None:
+    frozen = tiny(UNRESOLVED, *GREETING)
+    frozen["cases"][0]["soft"] = ["history_resolves", "plan_path", "uses_history"]
+    result = runner.run(frozen, jev(needs="campus_info", topic="offices",
+                                    needs_history=0.9, history_resolves=0.9))
+    assert result[0]["got"]["plan_path"] == "campus"
+    assert runner.summarize(result, {"fully_correct": 1, "zero": ["unresolved_not_clarified"]})[
+        "bar_met"]
