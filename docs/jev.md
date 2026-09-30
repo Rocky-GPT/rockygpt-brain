@@ -111,3 +111,17 @@ the turn, but danger help still comes first.
 Jev runs only when all three of these are set: `BRAIN_ENVIRONMENT`,
 `BRAIN_LEDGER_DATABASE_URL` and `BRAIN_TYPESAFE_API_KEY`. Without them, every turn
 says `routing_unavailable` in its diagnostics.
+
+## Shuttle questions (milestone 5)
+
+When the campus data is set up, six more questions ride in the same one call
+(`shuttle_ask.py`): is it about a shuttle's times or stops, what does it want to know,
+which trip, is a clock time attached, which day, and which stop. Code writes the day and
+stop options (seven dates from the campus clock, the stops from the timetable), so the
+timetable is read before Jev is asked. The nine questions above stay as they are.
+
+Code follows Jev's top pick on these too, with one rule of its own: an answer is never
+built on a near coin flip. If the least sure of these picks is under 0.6, the turn is "not
+ready" (`unsure`). The floor covers only the shuttle picks; the nine follow the rule above.
+The results, the miss against the bar and the known limits are in
+[shuttle-benchmark.md](shuttle-benchmark.md).

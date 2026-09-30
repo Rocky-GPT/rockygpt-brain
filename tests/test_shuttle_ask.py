@@ -328,6 +328,14 @@ def test_when_the_timetable_could_not_be_read_a_plain_shuttle_question_is_a_data
     assert go(asking=blind, chosen="document_policy").refused == "route"
 
 
+def test_a_coin_flip_is_not_an_outage_when_the_timetable_could_not_be_read() -> None:
+    blind = shuttle_questions(NOW, None)
+    days = blind.questions["shuttle_day"]["criteria"]
+    shaky = calm_shuttle(blind, shuttle_day=spread("d0", days, 0.49))
+    assert go(shaky, asking=blind).refused == "unsure"
+    assert go(asking=blind).refused == "data_unavailable"  # a firm reading still is
+
+
 def test_extra_questions_may_add_to_the_frozen_ones_never_replace_them() -> None:
     with pytest.raises(ValueError):
         ask_jev(fake_jev(ScriptedJev())[0], context(), "r1", None,
