@@ -129,7 +129,7 @@ _OWN_ACCOUNT = [re.compile(p) for p in (
 )]
 
 
-def _plain(text: str) -> str:
+def plain(text: str) -> str:
     """Lower case, no accents, apostrophes or invisible characters, punctuation as spaces."""
     text = re.sub(r"['`´ʹʻʼˈ’‘′‛＇]", "", text)
     text = unicodedata.normalize("NFKD", text).casefold()
@@ -139,7 +139,7 @@ def _plain(text: str) -> str:
 
 def check(turn: Turn) -> BoundaryResult:
     """Read the Turn's message. Only the latest message counts, not earlier ones."""
-    text = _plain(turn.message)
+    text = plain(turn.message)
     if any(pattern.search(text) for pattern in _DANGER):
         return BoundaryResult("safety", SAFETY_MESSAGE)
     if not _HOW_TO.match(text) and any(pattern.search(text) for pattern in _OWN_ACCOUNT):
