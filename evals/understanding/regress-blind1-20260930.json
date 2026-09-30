@@ -1,0 +1,734 @@
+{
+ "about": "REGRESSION COPY of blind-20260930 (already seen, not blind), for checking the new wording breaks nothing. Case 40's needs key is amended to campus_info as Dan ruled on 2026-09-30. Fields are scored as in the original; history_resolves has no expected value here. Do not edit.",
+ "campus_now": "2026-09-30T14:05:00-04:00",
+ "cases": [
+  {
+   "id": 1,
+   "messages": [
+    {
+     "role": "user",
+     "content": "does the shuttle run on weekends and also can i leave my car in lot c overnite"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "transport",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": true
+   }
+  },
+  {
+   "id": 2,
+   "messages": [
+    {
+     "role": "user",
+     "content": "is there a way to get from campus to the ramsey train station without a car"
+    },
+    {
+     "role": "assistant",
+     "content": "Yes. Ramapo runs a shuttle that connects campus with the nearby train station, and there are also ride share options."
+    },
+    {
+     "role": "user",
+     "content": "ok how much does it cost"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "transport",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 3,
+   "messages": [
+    {
+     "role": "user",
+     "content": "im a transfer student where do i even apply for housing"
+    },
+    {
+     "role": "assistant",
+     "content": "Housing applications go through Residence Life. You can start on their page once you've been admitted and paid your deposit."
+    },
+    {
+     "role": "user",
+     "content": "and whats the deadline for that"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "housing",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 4,
+   "messages": [
+    {
+     "role": "user",
+     "content": "any clubs meeting tonite that i can just walk in2"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "events",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 5,
+   "messages": [
+    {
+     "role": "user",
+     "content": "how many credits do u need to graduate with a psych degree at ramapo"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "academics",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 6,
+   "messages": [
+    {
+     "role": "user",
+     "content": "someone is banging on my dorm room door screaming theyre gonna kill me what number do i call on campus"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": false,
+    "danger": true,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 7,
+   "messages": [
+    {
+     "role": "user",
+     "content": "my friend in my class just told me she wants to hurt herself who at ramapo can i call rn"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": false,
+    "danger": true,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 8,
+   "messages": [
+    {
+     "role": "user",
+     "content": "is the food court open on sundays and do they have any vegan stuff"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "dining",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": true
+   }
+  },
+  {
+   "id": 9,
+   "messages": [
+    {
+     "role": "user",
+     "content": "what food places are open at 9pm on campus"
+    },
+    {
+     "role": "assistant",
+     "content": "The Grille is open until 11 PM and the campus market stays open until midnight."
+    },
+    {
+     "role": "user",
+     "content": "wait which one did u say was open the latest"
+    }
+   ],
+   "expected": {
+    "needs": "conversation",
+    "topic": "dining",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 10,
+   "messages": [
+    {
+     "role": "user",
+     "content": "whats going on this weekend at school"
+    },
+    {
+     "role": "assistant",
+     "content": "There's a movie night in the student center on Friday and a soccer game on Saturday at 1 PM."
+    },
+    {
+     "role": "user",
+     "content": "which one was on saturday again"
+    }
+   ],
+   "expected": {
+    "needs": "conversation",
+    "topic": "events",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 11,
+   "messages": [
+    {
+     "role": "user",
+     "content": "explain what a derivative is like im 12"
+    }
+   ],
+   "expected": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 12,
+   "messages": [
+    {
+     "role": "user",
+     "content": "can u help me write a strong first line for a cover letter for a marketing internship"
+    }
+   ],
+   "expected": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 13,
+   "messages": [
+    {
+     "role": "user",
+     "content": "where is the library"
+    },
+    {
+     "role": "assistant",
+     "content": "The library is in the center of campus, near the main academic buildings."
+    },
+    {
+     "role": "user",
+     "content": "thx. random but whats the capital of australia lol"
+    }
+   ],
+   "expected": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 14,
+   "messages": [
+    {
+     "role": "user",
+     "content": "did my transcript request from last week go thru yet"
+    }
+   ],
+   "expected": {
+    "needs": "own_account",
+    "topic": "academics",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 15,
+   "messages": [
+    {
+     "role": "user",
+     "content": "what shuttle goes to the mall on sundays"
+    },
+    {
+     "role": "assistant",
+     "content": "There is a weekend shuttle that makes a mall stop, but it's best to check the current schedule before heading out."
+    },
+    {
+     "role": "user",
+     "content": "cool thx. can u put me in the 10am intro stats section"
+    }
+   ],
+   "expected": {
+    "needs": "own_account",
+    "topic": "academics",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 16,
+   "messages": [
+    {
+     "role": "user",
+     "content": "whats my balance left on my meal plan and can u switch me to the bigger plan"
+    }
+   ],
+   "expected": {
+    "needs": "own_account",
+    "topic": "dining",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": true
+   }
+  },
+  {
+   "id": 17,
+   "messages": [
+    {
+     "role": "user",
+     "content": "which room did i get assigned for next semester"
+    }
+   ],
+   "expected": {
+    "needs": "own_account",
+    "topic": "housing",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 18,
+   "messages": [
+    {
+     "role": "user",
+     "content": "can u help me with the thing from before"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 19,
+   "messages": [
+    {
+     "role": "user",
+     "content": "my friend told me to ask u about it"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 20,
+   "messages": [
+    {
+     "role": "user",
+     "content": "so is it open rn"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 21,
+   "messages": [
+    {
+     "role": "user",
+     "content": "does the dinning hall have a salad bar and what time is dinner over"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "dining",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": true
+   }
+  },
+  {
+   "id": 22,
+   "messages": [
+    {
+     "role": "user",
+     "content": "when is the club fair this year and how do i start my own club"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "events",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": true
+   }
+  },
+  {
+   "id": 23,
+   "messages": [
+    {
+     "role": "user",
+     "content": "when do the dorms open in the fall and how do i request a single room"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "housing",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": true
+   }
+  },
+  {
+   "id": 24,
+   "messages": [
+    {
+     "role": "user",
+     "content": "i lost my student id where do i get a new one"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 25,
+   "messages": [
+    {
+     "role": "user",
+     "content": "how do i get to the ramsey train station from campus"
+    },
+    {
+     "role": "assistant",
+     "content": "Ramapo runs a shuttle that connects campus to a nearby train station. Want the details?"
+    },
+    {
+     "role": "user",
+     "content": "yeah and does it run on sundays"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "transport",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 26,
+   "messages": [
+    {
+     "role": "user",
+     "content": "is there an anime club"
+    },
+    {
+     "role": "assistant",
+     "content": "Yes, there is an Anime Club on campus."
+    },
+    {
+     "role": "user",
+     "content": "when do they meet tho"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "events",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 27,
+   "messages": [
+    {
+     "role": "user",
+     "content": "whats the last day to add a class this sem"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "academics",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 28,
+   "messages": [
+    {
+     "role": "user",
+     "content": "some guy is following me with a knife im near lot 6 how do i call campus police rn"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": false,
+    "danger": true,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 29,
+   "messages": [
+    {
+     "role": "user",
+     "content": "what gen ed classes count for the social science requirement"
+    },
+    {
+     "role": "assistant",
+     "content": "A few options are Intro to Sociology, Intro to Psychology, and Principles of Economics."
+    },
+    {
+     "role": "user",
+     "content": "wait which was the middle one you said"
+    }
+   ],
+   "expected": {
+    "needs": "conversation",
+    "topic": "academics",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 30,
+   "messages": [
+    {
+     "role": "user",
+     "content": "how do i get to the mall from campus"
+    },
+    {
+     "role": "assistant",
+     "content": "You could drive, which takes around 15 minutes, or take a bus from a stop near campus."
+    },
+    {
+     "role": "user",
+     "content": "can u put those two options in a list for me"
+    }
+   ],
+   "expected": {
+    "needs": "conversation",
+    "topic": "transport",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 31,
+   "messages": [
+    {
+     "role": "user",
+     "content": "Why does ice float on water?"
+    }
+   ],
+   "expected": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 32,
+   "messages": [
+    {
+     "role": "user",
+     "content": "my neighbor back home just said hes gonna shoot his ex and hes got a gun in his car what number do i call"
+    }
+   ],
+   "expected": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "danger": true,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 33,
+   "messages": [
+    {
+     "role": "user",
+     "content": "whats the difference between affect and effect"
+    }
+   ],
+   "expected": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 34,
+   "messages": [
+    {
+     "role": "user",
+     "content": "how many meal swipes do i have left this week"
+    }
+   ],
+   "expected": {
+    "needs": "own_account",
+    "topic": "dining",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 35,
+   "messages": [
+    {
+     "role": "user",
+     "content": "drop me from psych 101 pls"
+    }
+   ],
+   "expected": {
+    "needs": "own_account",
+    "topic": "academics",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 36,
+   "messages": [
+    {
+     "role": "user",
+     "content": "did my housing app for next fall get approved"
+    }
+   ],
+   "expected": {
+    "needs": "own_account",
+    "topic": "housing",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 37,
+   "messages": [
+    {
+     "role": "user",
+     "content": "did my parking permit payment go thru"
+    }
+   ],
+   "expected": {
+    "needs": "own_account",
+    "topic": "transport",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 38,
+   "messages": [
+    {
+     "role": "user",
+     "content": "wheres it at"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 39,
+   "messages": [
+    {
+     "role": "user",
+     "content": "can u do the thing for me pls"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 40,
+   "messages": [
+    {
+     "role": "user",
+     "content": "what time does the dining hall close on weekends"
+    },
+    {
+     "role": "assistant",
+     "content": "Ramapo has several dining locations. Which one do you mean?"
+    },
+    {
+     "role": "user",
+     "content": "the one by the building where i had class yesterday"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "dining",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   }
+  }
+ ]
+}
