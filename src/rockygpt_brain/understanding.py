@@ -21,11 +21,14 @@ MODEL = "jev-1.13.0"
 
 NEEDS = {
     "campus_info": "Facts about Ramapo College: places, offices, people, hours, shuttles, "
-                   "dining, events or rules",
-    "conversation": "What was said earlier in this chat, such as a follow-up to it",
+                   "dining, events or rules, even if the earlier messages were needed to "
+                   "understand the request",
+    "conversation": "The answer itself is in the earlier messages: what was said or asked "
+                    "before in this chat",
     "outside": "General knowledge that has nothing to do with Ramapo College",
     "own_account": "The student's own private records, or an action on their own account",
-    "unclear": "It is not possible to tell what the student is asking for",
+    "unclear": "Even with the earlier messages, it is not possible to tell what the student "
+               "wants",
 }
 TOPICS = {
     "transport": "Shuttles, buses, parking or getting around",
@@ -39,7 +42,8 @@ TOPICS = {
 QUESTIONS: dict[str, dict[str, Any]] = {
     "needs": {
         "type": "choice",
-        "instructions": "What does the student's latest message need in order to be answered?",
+        "instructions": "Once you know what the student means, using the earlier messages if "
+                        "the latest one leans on them, where does the answer come from?",
         "criteria": NEEDS,
     },
     "topic": {
@@ -50,7 +54,8 @@ QUESTIONS: dict[str, dict[str, Any]] = {
     },
     "needs_history": {
         "type": "noul",
-        "instructions": "The latest message cannot be understood without the earlier messages.",
+        "instructions": "What the student means by the latest message depends on the earlier "
+                        "messages.",
         "criteria": {
             "true": "It refers back to something said earlier, or leaves out what it is about",
             "false": "It makes sense on its own",

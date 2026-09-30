@@ -71,8 +71,9 @@ def test_the_same_turn_and_context_make_the_same_request() -> None:
 @pytest.mark.parametrize(("reply", "expected"), [
     (answers("campus_info", "transport"),
      Understanding("campus_info", "transport", False, False, False)),
-    (answers("conversation", "transport", history=0.98),
-     Understanding("conversation", "transport", True, False, False)),
+    (answers("campus_info", "transport", history=0.98),
+     Understanding("campus_info", "transport", True, False, False)),
+    (answers("conversation", "none"), Understanding("conversation", "none", False, False, False)),
     (answers("outside", "none"), Understanding("outside", "none", False, False, False)),
     (answers("own_account", "academics"),
      Understanding("own_account", "academics", False, False, False)),
