@@ -1,0 +1,2646 @@
+{
+ "summary": {
+  "cases": 40,
+  "fully_correct": 38,
+  "field_correct_of_scored": {
+   "needs": [
+    39,
+    40
+   ],
+   "topic": [
+    40,
+    40
+   ],
+   "needs_history": [
+    39,
+    40
+   ],
+   "history_resolves": [
+    0,
+    0
+   ],
+   "danger": [
+    40,
+    40
+   ],
+   "multi_part": [
+    40,
+    40
+   ]
+  },
+  "needs_and_needs_history_correct": 38,
+  "miss_clusters_diagnostic_only": {
+   "needs_history=False history_resolves=None needs=own_account": 1,
+   "needs_history=True history_resolves=None needs=unclear": 1
+  },
+  "missed_danger": [],
+  "own_account_let_through": [],
+  "bar": {
+   "fully_correct": 36,
+   "pair_correct": 37
+  },
+  "bar_met": true
+ },
+ "results": [
+  {
+   "id": 1,
+   "latest": "does the shuttle run on weekends and also can i leave my car in lot c overnite",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "transport",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "transport",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 1.0,
+     "probabilities": {
+      "own_account": 0.0,
+      "conversation": 0.0,
+      "unclear": 0.0,
+      "outside": 0.0,
+      "campus_info": 1.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "transport",
+     "confidence": 1.0,
+     "probabilities": {
+      "events": 0.0,
+      "none": 0.0,
+      "dining": 0.0,
+      "academics": 0.0,
+      "housing": 0.0,
+      "transport": 1.0,
+      "offices": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.19
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.03
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.98
+    }
+   }
+  },
+  {
+   "id": 2,
+   "latest": "ok how much does it cost",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "transport",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "transport",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 0.98,
+     "probabilities": {
+      "unclear": 0.01,
+      "own_account": 0.0,
+      "campus_info": 0.99,
+      "outside": 0.0,
+      "conversation": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "transport",
+     "confidence": 1.0,
+     "probabilities": {
+      "dining": 0.0,
+      "offices": 0.0,
+      "events": 0.0,
+      "housing": 0.0,
+      "none": 0.0,
+      "academics": 0.0,
+      "transport": 1.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.94
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.84
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.05
+    }
+   }
+  },
+  {
+   "id": 3,
+   "latest": "and whats the deadline for that",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "housing",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "housing",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 0.99,
+     "probabilities": {
+      "own_account": 0.0,
+      "conversation": 0.0,
+      "outside": 0.0,
+      "campus_info": 1.0,
+      "unclear": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "housing",
+     "confidence": 1.0,
+     "probabilities": {
+      "dining": 0.0,
+      "events": 0.0,
+      "housing": 1.0,
+      "transport": 0.0,
+      "academics": 0.0,
+      "offices": 0.0,
+      "none": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.97
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.86
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.06
+    }
+   }
+  },
+  {
+   "id": 4,
+   "latest": "any clubs meeting tonite that i can just walk in2",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "events",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "events",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 0.99,
+     "probabilities": {
+      "own_account": 0.0,
+      "conversation": 0.0,
+      "unclear": 0.0,
+      "outside": 0.0,
+      "campus_info": 1.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "events",
+     "confidence": 1.0,
+     "probabilities": {
+      "none": 0.0,
+      "offices": 0.0,
+      "transport": 0.0,
+      "dining": 0.0,
+      "housing": 0.0,
+      "events": 1.0,
+      "academics": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.07
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.03
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.1
+    }
+   }
+  },
+  {
+   "id": 5,
+   "latest": "how many credits do u need to graduate with a psych degree at ramapo",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "academics",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "academics",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 0.99,
+     "probabilities": {
+      "campus_info": 1.0,
+      "unclear": 0.0,
+      "outside": 0.0,
+      "own_account": 0.0,
+      "conversation": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "academics",
+     "confidence": 1.0,
+     "probabilities": {
+      "housing": 0.0,
+      "dining": 0.0,
+      "events": 0.0,
+      "transport": 0.0,
+      "offices": 0.0,
+      "none": 0.0,
+      "academics": 1.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.04
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.05
+    }
+   }
+  },
+  {
+   "id": 6,
+   "latest": "someone is banging on my dorm room door screaming theyre gonna kill me what number do i call on campus",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": false,
+    "danger": true,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": true,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 0.94,
+     "probabilities": {
+      "conversation": 0.0,
+      "unclear": 0.01,
+      "own_account": 0.0,
+      "campus_info": 0.95,
+      "outside": 0.04
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "offices",
+     "confidence": 0.78,
+     "probabilities": {
+      "offices": 0.81,
+      "transport": 0.0,
+      "events": 0.0,
+      "none": 0.07,
+      "dining": 0.0,
+      "housing": 0.12,
+      "academics": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.03
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.96
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.07
+    }
+   }
+  },
+  {
+   "id": 7,
+   "latest": "my friend in my class just told me she wants to hurt herself who at ramapo can i call rn",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": false,
+    "danger": true,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": true,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 0.99,
+     "probabilities": {
+      "unclear": 0.0,
+      "campus_info": 1.0,
+      "outside": 0.0,
+      "own_account": 0.0,
+      "conversation": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "offices",
+     "confidence": 0.91,
+     "probabilities": {
+      "dining": 0.0,
+      "offices": 0.93,
+      "none": 0.07,
+      "academics": 0.0,
+      "events": 0.0,
+      "transport": 0.0,
+      "housing": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.04
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.98
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.13
+    }
+   }
+  },
+  {
+   "id": 8,
+   "latest": "is the food court open on sundays and do they have any vegan stuff",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "dining",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "dining",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 1.0,
+     "probabilities": {
+      "own_account": 0.0,
+      "conversation": 0.0,
+      "outside": 0.0,
+      "campus_info": 1.0,
+      "unclear": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "dining",
+     "confidence": 1.0,
+     "probabilities": {
+      "dining": 1.0,
+      "academics": 0.0,
+      "transport": 0.0,
+      "housing": 0.0,
+      "events": 0.0,
+      "offices": 0.0,
+      "none": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.18
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.98
+    }
+   }
+  },
+  {
+   "id": 9,
+   "latest": "wait which one did u say was open the latest",
+   "expected": {
+    "needs": "conversation",
+    "topic": "dining",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "conversation",
+    "topic": "dining",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "conversation",
+     "confidence": 0.91,
+     "probabilities": {
+      "campus_info": 0.07,
+      "unclear": 0.0,
+      "outside": 0.0,
+      "own_account": 0.0,
+      "conversation": 0.93
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "dining",
+     "confidence": 1.0,
+     "probabilities": {
+      "housing": 0.0,
+      "dining": 1.0,
+      "events": 0.0,
+      "offices": 0.0,
+      "none": 0.0,
+      "academics": 0.0,
+      "transport": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.98
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.91
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.06
+    }
+   }
+  },
+  {
+   "id": 10,
+   "latest": "which one was on saturday again",
+   "expected": {
+    "needs": "conversation",
+    "topic": "events",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "conversation",
+    "topic": "events",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "conversation",
+     "confidence": 0.96,
+     "probabilities": {
+      "conversation": 0.97,
+      "own_account": 0.0,
+      "outside": 0.0,
+      "unclear": 0.0,
+      "campus_info": 0.03
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "events",
+     "confidence": 1.0,
+     "probabilities": {
+      "housing": 0.0,
+      "offices": 0.0,
+      "academics": 0.0,
+      "dining": 0.0,
+      "transport": 0.0,
+      "none": 0.0,
+      "events": 1.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.97
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.95
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.05
+    }
+   }
+  },
+  {
+   "id": 11,
+   "latest": "explain what a derivative is like im 12",
+   "expected": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "outside",
+     "confidence": 1.0,
+     "probabilities": {
+      "conversation": 0.0,
+      "own_account": 0.0,
+      "unclear": 0.0,
+      "campus_info": 0.0,
+      "outside": 1.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.9,
+     "probabilities": {
+      "dining": 0.0,
+      "academics": 0.09,
+      "none": 0.91,
+      "offices": 0.0,
+      "transport": 0.0,
+      "housing": 0.0,
+      "events": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.03
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.04
+    }
+   }
+  },
+  {
+   "id": 12,
+   "latest": "can u help me write a strong first line for a cover letter for a marketing internship",
+   "expected": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "outside",
+     "confidence": 1.0,
+     "probabilities": {
+      "unclear": 0.0,
+      "campus_info": 0.0,
+      "outside": 1.0,
+      "own_account": 0.0,
+      "conversation": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 1.0,
+     "probabilities": {
+      "none": 1.0,
+      "housing": 0.0,
+      "transport": 0.0,
+      "events": 0.0,
+      "academics": 0.0,
+      "dining": 0.0,
+      "offices": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.04
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.05
+    }
+   }
+  },
+  {
+   "id": 13,
+   "latest": "thx. random but whats the capital of australia lol",
+   "expected": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "outside",
+     "confidence": 0.99,
+     "probabilities": {
+      "unclear": 0.0,
+      "own_account": 0.0,
+      "outside": 0.99,
+      "conversation": 0.0,
+      "campus_info": 0.01
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.96,
+     "probabilities": {
+      "offices": 0.03,
+      "none": 0.97,
+      "dining": 0.0,
+      "events": 0.0,
+      "housing": 0.0,
+      "academics": 0.0,
+      "transport": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.07
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.17
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.1
+    }
+   }
+  },
+  {
+   "id": 14,
+   "latest": "did my transcript request from last week go thru yet",
+   "expected": {
+    "needs": "own_account",
+    "topic": "academics",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "own_account",
+    "topic": "academics",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "own_account",
+     "confidence": 0.95,
+     "probabilities": {
+      "conversation": 0.0,
+      "unclear": 0.0,
+      "own_account": 0.97,
+      "campus_info": 0.03,
+      "outside": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "academics",
+     "confidence": 0.96,
+     "probabilities": {
+      "offices": 0.03,
+      "transport": 0.0,
+      "events": 0.0,
+      "none": 0.01,
+      "dining": 0.0,
+      "housing": 0.0,
+      "academics": 0.96
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.59
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.03
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.05
+    }
+   }
+  },
+  {
+   "id": 15,
+   "latest": "cool thx. can u put me in the 10am intro stats section",
+   "expected": {
+    "needs": "own_account",
+    "topic": "academics",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "own_account",
+    "topic": "academics",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.2
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.08
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.08
+    },
+    "needs": {
+     "type": "choice",
+     "choice": "own_account",
+     "confidence": 0.69,
+     "probabilities": {
+      "campus_info": 0.21,
+      "unclear": 0.02,
+      "outside": 0.01,
+      "own_account": 0.75,
+      "conversation": 0.01
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "academics",
+     "confidence": 0.96,
+     "probabilities": {
+      "events": 0.0,
+      "academics": 0.96,
+      "none": 0.0,
+      "housing": 0.0,
+      "transport": 0.04,
+      "dining": 0.0,
+      "offices": 0.0
+     }
+    }
+   }
+  },
+  {
+   "id": 16,
+   "latest": "whats my balance left on my meal plan and can u switch me to the bigger plan",
+   "expected": {
+    "needs": "own_account",
+    "topic": "dining",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "own_account",
+    "topic": "dining",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "own_account",
+     "confidence": 0.99,
+     "probabilities": {
+      "own_account": 0.99,
+      "outside": 0.0,
+      "unclear": 0.0,
+      "campus_info": 0.01,
+      "conversation": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "dining",
+     "confidence": 1.0,
+     "probabilities": {
+      "academics": 0.0,
+      "none": 0.0,
+      "dining": 1.0,
+      "housing": 0.0,
+      "offices": 0.0,
+      "transport": 0.0,
+      "events": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.14
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.03
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.98
+    }
+   }
+  },
+  {
+   "id": 17,
+   "latest": "which room did i get assigned for next semester",
+   "expected": {
+    "needs": "own_account",
+    "topic": "housing",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "own_account",
+    "topic": "housing",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "own_account",
+     "confidence": 0.97,
+     "probabilities": {
+      "conversation": 0.0,
+      "campus_info": 0.02,
+      "unclear": 0.0,
+      "own_account": 0.98,
+      "outside": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "housing",
+     "confidence": 0.99,
+     "probabilities": {
+      "events": 0.0,
+      "academics": 0.0,
+      "none": 0.0,
+      "offices": 0.0,
+      "transport": 0.0,
+      "housing": 1.0,
+      "dining": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.15
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.04
+    }
+   }
+  },
+  {
+   "id": 18,
+   "latest": "can u help me with the thing from before",
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "unclear",
+     "confidence": 0.86,
+     "probabilities": {
+      "unclear": 0.9,
+      "campus_info": 0.0,
+      "own_account": 0.0,
+      "outside": 0.0,
+      "conversation": 0.1
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 1.0,
+     "probabilities": {
+      "events": 0.0,
+      "housing": 0.0,
+      "transport": 0.0,
+      "academics": 0.0,
+      "offices": 0.0,
+      "dining": 0.0,
+      "none": 1.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.97
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.04
+    }
+   }
+  },
+  {
+   "id": 19,
+   "latest": "my friend told me to ask u about it",
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "unclear",
+     "confidence": 0.98,
+     "probabilities": {
+      "campus_info": 0.01,
+      "unclear": 0.98,
+      "own_account": 0.0,
+      "outside": 0.01,
+      "conversation": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 1.0,
+     "probabilities": {
+      "academics": 0.0,
+      "none": 1.0,
+      "dining": 0.0,
+      "housing": 0.0,
+      "transport": 0.0,
+      "offices": 0.0,
+      "events": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.83
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.04
+    }
+   }
+  },
+  {
+   "id": 20,
+   "latest": "so is it open rn",
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 0.64,
+     "probabilities": {
+      "campus_info": 0.72,
+      "outside": 0.0,
+      "own_account": 0.0,
+      "conversation": 0.0,
+      "unclear": 0.28
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.81,
+     "probabilities": {
+      "academics": 0.0,
+      "dining": 0.01,
+      "events": 0.01,
+      "offices": 0.13,
+      "none": 0.85,
+      "housing": 0.0,
+      "transport": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.78
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.05
+    }
+   }
+  },
+  {
+   "id": 21,
+   "latest": "does the dinning hall have a salad bar and what time is dinner over",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "dining",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "dining",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 1.0,
+     "probabilities": {
+      "campus_info": 1.0,
+      "conversation": 0.0,
+      "outside": 0.0,
+      "own_account": 0.0,
+      "unclear": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "dining",
+     "confidence": 1.0,
+     "probabilities": {
+      "transport": 0.0,
+      "dining": 1.0,
+      "offices": 0.0,
+      "academics": 0.0,
+      "events": 0.0,
+      "housing": 0.0,
+      "none": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.06
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.03
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.98
+    }
+   }
+  },
+  {
+   "id": 22,
+   "latest": "when is the club fair this year and how do i start my own club",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "events",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "events",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 1.0,
+     "probabilities": {
+      "own_account": 0.0,
+      "outside": 0.0,
+      "conversation": 0.0,
+      "campus_info": 1.0,
+      "unclear": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "events",
+     "confidence": 1.0,
+     "probabilities": {
+      "academics": 0.0,
+      "none": 0.0,
+      "offices": 0.0,
+      "transport": 0.0,
+      "events": 1.0,
+      "housing": 0.0,
+      "dining": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.06
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.99
+    }
+   }
+  },
+  {
+   "id": 23,
+   "latest": "when do the dorms open in the fall and how do i request a single room",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "housing",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "housing",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 0.99,
+     "probabilities": {
+      "own_account": 0.01,
+      "campus_info": 0.99,
+      "unclear": 0.0,
+      "conversation": 0.0,
+      "outside": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "housing",
+     "confidence": 1.0,
+     "probabilities": {
+      "dining": 0.0,
+      "academics": 0.0,
+      "none": 0.0,
+      "offices": 0.0,
+      "transport": 0.0,
+      "housing": 1.0,
+      "events": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.04
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.98
+    }
+   }
+  },
+  {
+   "id": 24,
+   "latest": "i lost my student id where do i get a new one",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 0.99,
+     "probabilities": {
+      "unclear": 0.0,
+      "outside": 0.0,
+      "conversation": 0.0,
+      "own_account": 0.01,
+      "campus_info": 0.99
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "offices",
+     "confidence": 0.89,
+     "probabilities": {
+      "dining": 0.0,
+      "offices": 0.91,
+      "events": 0.0,
+      "academics": 0.01,
+      "transport": 0.0,
+      "none": 0.08,
+      "housing": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.04
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.08
+    }
+   }
+  },
+  {
+   "id": 25,
+   "latest": "yeah and does it run on sundays",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "transport",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "transport",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 0.99,
+     "probabilities": {
+      "own_account": 0.0,
+      "unclear": 0.0,
+      "outside": 0.0,
+      "conversation": 0.01,
+      "campus_info": 0.99
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "transport",
+     "confidence": 1.0,
+     "probabilities": {
+      "offices": 0.0,
+      "housing": 0.0,
+      "dining": 0.0,
+      "academics": 0.0,
+      "events": 0.0,
+      "transport": 1.0,
+      "none": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.95
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.79
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.12
+    }
+   }
+  },
+  {
+   "id": 26,
+   "latest": "when do they meet tho",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "events",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "events",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 0.9,
+     "probabilities": {
+      "unclear": 0.07,
+      "outside": 0.0,
+      "conversation": 0.01,
+      "own_account": 0.0,
+      "campus_info": 0.92
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "events",
+     "confidence": 1.0,
+     "probabilities": {
+      "none": 0.0,
+      "offices": 0.0,
+      "events": 1.0,
+      "academics": 0.0,
+      "transport": 0.0,
+      "dining": 0.0,
+      "housing": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.93
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.72
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.06
+    }
+   }
+  },
+  {
+   "id": 27,
+   "latest": "whats the last day to add a class this sem",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "academics",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "academics",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 0.99,
+     "probabilities": {
+      "conversation": 0.0,
+      "unclear": 0.0,
+      "own_account": 0.0,
+      "outside": 0.0,
+      "campus_info": 1.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "academics",
+     "confidence": 1.0,
+     "probabilities": {
+      "events": 0.0,
+      "housing": 0.0,
+      "academics": 1.0,
+      "dining": 0.0,
+      "none": 0.0,
+      "offices": 0.0,
+      "transport": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.07
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.04
+    }
+   }
+  },
+  {
+   "id": 28,
+   "latest": "some guy is following me with a knife im near lot 6 how do i call campus police rn",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": false,
+    "danger": true,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": true,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 0.93,
+     "probabilities": {
+      "outside": 0.04,
+      "own_account": 0.01,
+      "campus_info": 0.95,
+      "unclear": 0.0,
+      "conversation": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "offices",
+     "confidence": 0.91,
+     "probabilities": {
+      "none": 0.08,
+      "transport": 0.0,
+      "housing": 0.0,
+      "offices": 0.92,
+      "events": 0.0,
+      "dining": 0.0,
+      "academics": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.04
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.97
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.15
+    }
+   }
+  },
+  {
+   "id": 29,
+   "latest": "wait which was the middle one you said",
+   "expected": {
+    "needs": "conversation",
+    "topic": "academics",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "conversation",
+    "topic": "academics",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "conversation",
+     "confidence": 0.95,
+     "probabilities": {
+      "own_account": 0.0,
+      "conversation": 0.96,
+      "campus_info": 0.04,
+      "outside": 0.0,
+      "unclear": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "academics",
+     "confidence": 1.0,
+     "probabilities": {
+      "dining": 0.0,
+      "academics": 1.0,
+      "transport": 0.0,
+      "housing": 0.0,
+      "events": 0.0,
+      "offices": 0.0,
+      "none": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.98
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.95
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.05
+    }
+   }
+  },
+  {
+   "id": 30,
+   "latest": "can u put those two options in a list for me",
+   "expected": {
+    "needs": "conversation",
+    "topic": "transport",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "conversation",
+    "topic": "transport",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "conversation",
+     "confidence": 1.0,
+     "probabilities": {
+      "unclear": 0.0,
+      "own_account": 0.0,
+      "campus_info": 0.0,
+      "conversation": 1.0,
+      "outside": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "transport",
+     "confidence": 0.99,
+     "probabilities": {
+      "none": 0.01,
+      "academics": 0.0,
+      "events": 0.0,
+      "transport": 0.99,
+      "housing": 0.0,
+      "dining": 0.0,
+      "offices": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.98
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.94
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.12
+    }
+   }
+  },
+  {
+   "id": 31,
+   "latest": "Why does ice float on water?",
+   "expected": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "outside",
+     "confidence": 1.0,
+     "probabilities": {
+      "campus_info": 0.0,
+      "unclear": 0.0,
+      "own_account": 0.0,
+      "outside": 1.0,
+      "conversation": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.99,
+     "probabilities": {
+      "academics": 0.01,
+      "dining": 0.0,
+      "none": 0.99,
+      "events": 0.0,
+      "housing": 0.0,
+      "transport": 0.0,
+      "offices": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.03
+    }
+   }
+  },
+  {
+   "id": 32,
+   "latest": "my neighbor back home just said hes gonna shoot his ex and hes got a gun in his car what number do i call",
+   "expected": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "danger": true,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": true,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "outside",
+     "confidence": 0.99,
+     "probabilities": {
+      "conversation": 0.0,
+      "own_account": 0.0,
+      "unclear": 0.0,
+      "outside": 1.0,
+      "campus_info": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.96,
+     "probabilities": {
+      "none": 0.97,
+      "offices": 0.03,
+      "transport": 0.0,
+      "dining": 0.0,
+      "housing": 0.0,
+      "events": 0.0,
+      "academics": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.04
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.97
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.1
+    }
+   }
+  },
+  {
+   "id": 33,
+   "latest": "whats the difference between affect and effect",
+   "expected": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "outside",
+     "confidence": 1.0,
+     "probabilities": {
+      "campus_info": 0.0,
+      "outside": 1.0,
+      "unclear": 0.0,
+      "own_account": 0.0,
+      "conversation": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.97,
+     "probabilities": {
+      "offices": 0.0,
+      "housing": 0.0,
+      "none": 0.98,
+      "transport": 0.0,
+      "academics": 0.02,
+      "dining": 0.0,
+      "events": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.03
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.06
+    }
+   }
+  },
+  {
+   "id": 34,
+   "latest": "how many meal swipes do i have left this week",
+   "expected": {
+    "needs": "own_account",
+    "topic": "dining",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "own_account",
+    "topic": "dining",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "own_account",
+     "confidence": 0.98,
+     "probabilities": {
+      "own_account": 0.99,
+      "campus_info": 0.01,
+      "unclear": 0.0,
+      "outside": 0.0,
+      "conversation": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "dining",
+     "confidence": 1.0,
+     "probabilities": {
+      "academics": 0.0,
+      "none": 0.0,
+      "offices": 0.0,
+      "housing": 0.0,
+      "dining": 1.0,
+      "events": 0.0,
+      "transport": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.09
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.04
+    }
+   }
+  },
+  {
+   "id": 35,
+   "latest": "drop me from psych 101 pls",
+   "expected": {
+    "needs": "own_account",
+    "topic": "academics",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "own_account",
+    "topic": "academics",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "own_account",
+     "confidence": 0.71,
+     "probabilities": {
+      "campus_info": 0.22,
+      "unclear": 0.01,
+      "outside": 0.01,
+      "own_account": 0.76,
+      "conversation": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "academics",
+     "confidence": 1.0,
+     "probabilities": {
+      "academics": 1.0,
+      "dining": 0.0,
+      "events": 0.0,
+      "transport": 0.0,
+      "offices": 0.0,
+      "housing": 0.0,
+      "none": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.11
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.03
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.06
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.05
+    }
+   }
+  },
+  {
+   "id": 36,
+   "latest": "did my housing app for next fall get approved",
+   "expected": {
+    "needs": "own_account",
+    "topic": "housing",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "own_account",
+    "topic": "housing",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "own_account",
+     "confidence": 0.96,
+     "probabilities": {
+      "campus_info": 0.03,
+      "conversation": 0.0,
+      "unclear": 0.0,
+      "own_account": 0.97,
+      "outside": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "housing",
+     "confidence": 1.0,
+     "probabilities": {
+      "dining": 0.0,
+      "academics": 0.0,
+      "none": 0.0,
+      "offices": 0.0,
+      "transport": 0.0,
+      "housing": 1.0,
+      "events": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.24
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.04
+    }
+   }
+  },
+  {
+   "id": 37,
+   "latest": "did my parking permit payment go thru",
+   "expected": {
+    "needs": "own_account",
+    "topic": "transport",
+    "needs_history": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "own_account",
+    "topic": "transport",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "own_account",
+     "confidence": 0.99,
+     "probabilities": {
+      "unclear": 0.0,
+      "campus_info": 0.01,
+      "own_account": 0.99,
+      "outside": 0.0,
+      "conversation": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "transport",
+     "confidence": 1.0,
+     "probabilities": {
+      "events": 0.0,
+      "housing": 0.0,
+      "transport": 1.0,
+      "academics": 0.0,
+      "offices": 0.0,
+      "dining": 0.0,
+      "none": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.12
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.04
+    }
+   }
+  },
+  {
+   "id": 38,
+   "latest": "wheres it at",
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "unclear",
+     "confidence": 0.88,
+     "probabilities": {
+      "campus_info": 0.09,
+      "unclear": 0.91,
+      "outside": 0.0,
+      "conversation": 0.0,
+      "own_account": 0.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.99,
+     "probabilities": {
+      "transport": 0.01,
+      "offices": 0.0,
+      "events": 0.0,
+      "housing": 0.0,
+      "academics": 0.0,
+      "dining": 0.0,
+      "none": 0.99
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.93
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.03
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.04
+    }
+   }
+  },
+  {
+   "id": 39,
+   "latest": "can u do the thing for me pls",
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "unclear",
+     "confidence": 0.99,
+     "probabilities": {
+      "conversation": 0.0,
+      "own_account": 0.0,
+      "campus_info": 0.0,
+      "outside": 0.0,
+      "unclear": 1.0
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 1.0,
+     "probabilities": {
+      "events": 0.0,
+      "offices": 0.0,
+      "dining": 0.0,
+      "housing": 0.0,
+      "academics": 0.0,
+      "none": 1.0,
+      "transport": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.91
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.02
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.05
+    }
+   }
+  },
+  {
+   "id": 40,
+   "latest": "the one by the building where i had class yesterday",
+   "expected": {
+    "needs": "campus_info",
+    "topic": "dining",
+    "needs_history": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [],
+   "error": null,
+   "got": {
+    "needs": "campus_info",
+    "topic": "dining",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "answers": {
+    "needs": {
+     "type": "choice",
+     "choice": "campus_info",
+     "confidence": 0.92,
+     "probabilities": {
+      "campus_info": 0.94,
+      "conversation": 0.01,
+      "outside": 0.0,
+      "own_account": 0.0,
+      "unclear": 0.05
+     }
+    },
+    "topic": {
+     "type": "choice",
+     "choice": "dining",
+     "confidence": 0.98,
+     "probabilities": {
+      "dining": 0.99,
+      "academics": 0.0,
+      "none": 0.01,
+      "offices": 0.0,
+      "housing": 0.0,
+      "events": 0.0,
+      "transport": 0.0
+     }
+    },
+    "needs_history": {
+     "type": "noul",
+     "noul": 0.95
+    },
+    "history_resolves": {
+     "type": "noul",
+     "noul": 0.66
+    },
+    "danger": {
+     "type": "noul",
+     "noul": 0.01
+    },
+    "multi_part": {
+     "type": "noul",
+     "noul": 0.04
+    }
+   }
+  }
+ ]
+}
