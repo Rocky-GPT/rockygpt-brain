@@ -1,7 +1,7 @@
 # Brain contract
 
 What the apps send the Brain and what it sends back. The code is
-`src/rockygpt_brain/contract.py`, and `tests/test_contract.py` checks it at the wire.
+`src/rockygpt_brain/contract.py`, and `tests/test_chat_route.py` checks it at the wire.
 
 The student app (rockygpt-ui) and the dev UI (rockygpt-dev) already speak this
 shape. It matches the old Brain (commit c00eb91), so either app can point at the
@@ -74,8 +74,11 @@ Headers:
   `rate_limited`, `model_timeout`, `model_unreachable`, `model_provider_error`,
   `invalid_model_output` and `data_unavailable` (the campus data can't be read).
 - Answers and failures have an `X-Request-Id` header, the same as `requestId`.
-- A malformed request gets 422, and a missing or wrong token gets 401. Both use
-  FastAPI's usual `{"detail": …}` body.
+- A malformed request gets 422 `invalid_request` in this same shape, plus FastAPI's
+  `detail` list. Each `detail` item keeps `type`, `loc` and `msg` (both apps read them,
+  for example `extra_forbidden`) and never the student's words. A body that can't be
+  read at all (bad UTF-8, absurd nesting) gets the same 422. A missing or wrong token
+  gets 401 with FastAPI's usual `{"detail": …}` body.
 
 ## Streaming
 
@@ -111,53 +114,11 @@ These come back in later milestones:
 
 ## What the Brain does so far
 
-Only `/health` and `/v1/chat` exist. Each turn reads the conversation once, checks the
-danger phrases, then asks Jev what the question asks ([docs/jev.md](jev.md)). Code
-names the handler a later milestone will build for it; until then, the turn ends in one
-of these ways:
+Only `/health`, `/readiness` and `/v1/chat` exist, and the Brain is being rebuilt one
+step at a time. Everything below the request rules above is not built yet; earlier
+versions of this document described the code before the restart (commit 3dec0bd).
 
-- A question that names danger ("my friend isn't breathing", "I want to hurt myself"),
-  in the danger phrases or by Jev's reading, gets HTTP 200 with status `partial`: the
-  safety help first, then a line saying the new Brain can't answer the rest yet. A
-  streaming app gets the safety help in a `progress` event right away.
-- A request Jev picks as one only the student's own account could answer or do
-  ("register me for CMPS 147", "what are my grades") gets HTTP 200 with status
-  `unavailable`: what RockyGPT can't reach, written by code. So does any other request
-  Jev picks as work RockyGPT can't do, with the line for why: someone's private
-  information, a live look ("how crowded is the Learning Commons"), or "I can't help
-  with that one" for any other reason.
-- A request Jev picks as too unclear to read gets HTTP 200 with status `clarification`:
-  a question written by code, asking the student to say it another way.
-- A shuttle question Jev reads as asking when the next, first or last shuttle leaves
-  Ramapo, for one day in the coming week and with or without one stop, gets HTTP 200
-  with status `answered`, written by code from the campus timetable with no model
-  ([docs/shuttle-benchmark.md](shuttle-benchmark.md)). The reply carries `datasetVersion`,
-  the timetable records it rests on as `citations`, and always says when the timetable was
-  copied. A streaming app sees one `retrieving` progress event with the subject
-  `shuttle`. This needs the campus data (`BRAIN_CAMPUS_DATABASE_URL`); without it every
-  shuttle question is `not_ready`, as before. If Jev read a plain shuttle question and the
-  timetable can't be read, the turn gets 503 `data_unavailable` (retryable). Any other
-  shuttle question the skill can't answer, such as one that names a clock time, wants the
-  whole day's list, asks about the stops or leans on earlier messages, stays 503
-  `not_ready`, and so does one whose least sure shuttle pick is under 0.6.
-- When Jev fails (a timeout, no connection, a wrong-shaped answer), the turn has no plan
-  and fails on purpose: 504 `model_timeout`, 503 `model_unreachable`, 429 `busy`,
-  502 `model_provider_error` or `invalid_model_output`, 422 `context_limit` or 503
-  `model_not_configured`, each with the emergency help ([docs/jev.md](jev.md)). No model
-  takes over. A danger phrase still gets the safety help first, as a 200 `partial`.
-- Every other question gets HTTP 503 with code `not_ready` and the emergency help.
-- When the spending allowance is used up, the turn gets 429 `budget_exhausted` with
-  `resetAt`. When the ledger can't be reached, or a person paused spending, it gets 503
-  `accounting_unavailable` or `accounting_paused`. Danger help still comes first.
-- A bug in the Brain gets 500 `internal_error` with the emergency help, and the log
-  says where it happened.
-- In development, `x-rockygpt-diagnostics: 1` adds two things to answers and failures.
-  Neither holds the student's words.
-  - `metrics`: `responseMode`, `routingCalls`, `dangerPhrase` (the danger the phrase
-    list heard, if any), `handler` (which later handler should take the request), and
-    `jev`. `jev` has Jev's readings, what code `decided` from them (every pick, the
-    handler, the picks that led to it and those Jev put under 0.90), the cost and the
-    time (Typesafe's part only), or why Jev was skipped.
-  - `diagnostics`: `brain.revision` (the commit), `startedAt`, and `work`, the step
-    timeline the dev UI reads. `work` holds when each step began, each Jev call with its
-    step, and `endMs`.
+`/v1/chat` checks the request, makes a `Turn` (`turn.py`: the latest student message, a
+new conversation id, a new request id and the campus time in `America/New_York`), and
+then answers 503 `not_ready`. The failure has no `emergency` help yet. The apps send no
+conversation id, so every turn starts a new conversation.
