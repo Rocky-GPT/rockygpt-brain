@@ -119,7 +119,19 @@ Only `/health`, `/readiness` and `/v1/chat` exist, and the Brain is being rebuil
 step at a time. Everything below the request rules above is not built yet; earlier
 versions of this document described the code before the restart (commit 3dec0bd).
 
-`/v1/chat` checks the request, makes a `Turn` (`turn.py`: the latest student message, a
-conversation id, a new request id and the campus time in `America/New_York`), and
-then answers 503 `not_ready`. The failure has no `emergency` help yet. The conversation id is the
+`/v1/chat` checks the request, makes a `Turn` (`turn.py`: the latest student message,
+a conversation id, a new request id and the campus time in `America/New_York`), and then
+looks at the message once (`boundary.py`, code only, no model):
+
+- Immediate danger (a person collapsed or not breathing, self-harm, an attack or weapon,
+  fire or gas) gets HTTP 200 with status `partial`: the fixed 911/988 help, written by code.
+  Danger wins over everything else.
+- The student's own account or an action for them ("show me my grades", "register me for
+  CS 450") gets HTTP 200 with status `unavailable`: a fixed line saying RockyGPT can't see
+  or change it. "How do I check my grades?" is a general question and goes on.
+- Anything else answers 503 `not_ready`. That failure has no `emergency` help yet.
+
+Both 200 replies have `citations: []`. Streaming is not built: a request that asks for
+`text/event-stream` gets the same plain JSON. The phrases are a floor, not a reading of the
+message: unusual wording can get past them. The conversation id is the
 `x-rockygpt-conversation-id` header when one is sent (the apps send none yet), else a new one.

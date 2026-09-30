@@ -1,7 +1,8 @@
 """The Brain's web service.
 
 `/health` and `/readiness` are the probes the apps and run-local.sh look at. `/v1/chat` takes
-the turn in (step 1, `turn.py`); nothing answers it yet, so a valid question gets `not_ready`.
+the turn in (step 1, `turn.py`) and checks it (step 2, `boundary.py`); nothing answers the rest
+yet, so any other question gets `not_ready`.
 """
 
 from typing import Annotated
@@ -12,6 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
+from rockygpt_brain.boundary import check
 from rockygpt_brain.contract import CONVERSATION_ID_HEADER, CONVERSATION_ID_PATTERN, ChatRequest
 from rockygpt_brain.failures import failure
 from rockygpt_brain.turn import intake, new_id
@@ -59,4 +61,12 @@ def chat(
     ] = None,
 ) -> JSONResponse:
     turn = intake(request, conversation_id)
+    boundary = check(turn)
+    if boundary.kind != "continue":
+        status = "partial" if boundary.kind == "safety" else "unavailable"
+        body = {
+            "answer": boundary.message, "status": status, "citations": [],
+            "requestId": turn.request_id,
+        }
+        return JSONResponse(body, headers={"X-Request-Id": turn.request_id})
     return failure(503, "not_ready", "RockyGPT can't answer questions yet.", turn.request_id)
