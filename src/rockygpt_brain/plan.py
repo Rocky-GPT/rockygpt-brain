@@ -30,17 +30,17 @@ class Plan:
 
 
 def build_plan(understanding: Understanding, context: Context) -> Plan:
+    depends_on_history = understanding.needs_history or understanding.needs == "conversation"
+    # History is usable only if it exists and actually says what the message points back to.
+    usable_history = context.history_available and understanding.history_resolves
     if understanding.danger:
         path: Path = "safety"
-    elif understanding.needs == "own_account":
-        path = "capability_limit"
     elif understanding.multi_part:
         path = "multi_part"
-    elif not context.history_available and (
-            understanding.needs_history or understanding.needs == "conversation"):
-        path = "clarify"  # a follow-up or a recall has nothing to lean on
+    elif understanding.needs == "own_account":
+        path = "capability_limit"
+    elif depends_on_history and not usable_history:
+        path = "clarify"  # a follow-up or a recall with nothing it can really lean on
     else:
         path = _BY_NEEDS[understanding.needs]
-    uses_history = context.history_available and (
-        understanding.needs_history or path == "conversation")
-    return Plan(path, understanding.topic, uses_history)
+    return Plan(path, understanding.topic, usable_history and depends_on_history)
