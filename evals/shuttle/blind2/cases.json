@@ -1,0 +1,2408 @@
+{
+ "version": 1,
+ "about": "Blind test set 2 for the six-question shuttle design (milestone 5, step 4). Four fresh writers made the questions from the contract below alone, and never saw set 1, the 99 practice cases, the Jev wording or any code, and used no tools. Each question was labeled by its writer and by two other fresh labelers who saw only the contract and the message. 'firm' means all three agree on the outcome and reason and both labelers were sure. 'soft' means the three agree on the outcome but a reason differs or a labeler was unsure; soft rows are reported and not scored. Jev has not seen these. The set is spent once Jev has run on it. Labels change only with Dan's review, each change listed in `changes` with a new hash.",
+ "clock": "2026-09-29T13:00:00-04:00",
+ "contract": "RockyGPT is a chat assistant for students at Ramapo College of New Jersey. It has ONE built-in shuttle skill. From the published shuttle timetable, that skill answers exactly one kind of question: \"When does the next, first or last shuttle leave Ramapo's campus?\" The answer covers one day, and can be limited to trips that stop at one named place.\n\nSetup facts.\n- Right now it is Tuesday, September 29, 2026, 1:00 PM campus time.\n- The timetable knows these stops (a trip can stop at several): Ramsey Rt 17 Train, Interstate Plaza, Garden State Plaza, Ramsey Square, City MD Ramsey, Barnes & Noble/Fashion Center, Ramsey Farmers Market. A student's nickname for one of them counts as that stop.\n- Days it can answer: today and the next six days, through Monday, October 5. A student who names no day means today. A student who names just \"Tuesday\" means today.\n\nThe skill ANSWERS when all of these are true.\n1. The student asks when a shuttle leaves Ramapo: the next one, the first one of a day, or the last one of a day.\n2. No clock time and no part of the day is attached to the trip. Attaching one looks like: after 3, before noon, around 5, this afternoon, by 9 pm, to be there by 8. A day word alone (today, tonight, tomorrow, Friday) is not attached.\n3. Exactly one day is meant, or none is named (meaning today), and it is within the next seven days.\n4. At most one stop is named, and it is one of the listed stops. Naming no stop means any stop.\n5. The question stands on its own. It does not lean on earlier messages, and it is not mixed with a second, separate question.\n\nEverything else is NOT READY. The reason is the FIRST one in this list that applies.\n1. multi_part: the message also asks a second, separate thing.\n2. follow_up: it only makes sense with earlier messages in the conversation.\n3. not_a_departure: it is not asking when a shuttle leaves Ramapo. This includes which stops a trip makes, whether the shuttle goes to a place, how long the ride takes, a ride that starts somewhere other than Ramapo or the trip back to campus, price, rules or who may ride, where to wait, where the shuttle is right now or whether it is late, parking, other buses or trains, and anything that is not about the shuttle at all.\n4. clock: a clock time or part of the day is attached to the trip.\n5. whole_day_list: it wants every trip of a day, the full schedule.\n6. other_day: it means a day beyond the next seven days, a day already past, or several days at once (weekdays, the weekend, Saturday and Sunday).\n7. other_stop: it names a place that is not a listed stop, or names more than one place.",
+ "stops": [
+  "ramsey rt 17 train",
+  "interstate plaza",
+  "garden state plaza",
+  "ramsey square",
+  "city md ramsey",
+  "barnes & noble/fashion center",
+  "ramsey farmers market"
+ ],
+ "frozen_sha256": "93ea6e1edf6d7546be93af42e93a2c08a088a1bb235bfe5ed8d2e76d57f67144",
+ "hash_covers": "id, earlier, question, expect, plan, gate of every case, JSON with sorted keys",
+ "changes": [],
+ "cases": [
+  {
+   "id": "blind2-001",
+   "earlier": [],
+   "question": "We are coming to visit my son on the 12th of October, and I'd like to know what time the first shuttle leaves campus that day.",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "other_day",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "other_day",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "October 12 is beyond the next seven days."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "other_day",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "October 12 is beyond the next seven days."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "other_day",
+   "gate": "day"
+  },
+  {
+   "id": "blind2-002",
+   "earlier": [],
+   "question": "does the library have those little study rooms you can book, my group project is imploding and we need somewhere to scream quietly",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks about library study rooms, not the shuttle."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Library study rooms, not about the shuttle."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "not_a_departure",
+   "gate": "not_shuttle"
+  },
+  {
+   "id": "blind2-003",
+   "earlier": [],
+   "question": "when does the last shuttle leave campus on oct 14",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "other_day",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "other_day",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "October 14 is beyond the next seven days."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "other_day",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Oct 14 is beyond the next seven days."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "other_day",
+   "gate": "day"
+  },
+  {
+   "id": "blind2-004",
+   "earlier": [],
+   "question": "going to the farmers market with my roommate and we will absolutely wander for hours so when's the last shuttle that drops us back at campus",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks about the last shuttle back to campus, not a departure from Ramapo."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks about the ride back to campus."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "not_a_departure",
+   "gate": "not_shuttle"
+  },
+  {
+   "id": "blind2-005",
+   "earlier": [],
+   "question": "nxt shuttle that stops at the train station today",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": "Ramsey Rt 17 Train"
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": "Ramsey Rt 17 Train",
+     "sure": true,
+     "why": "Next shuttle today that stops at the train station, a nickname for the Rt 17 train stop."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": "Ramsey Rt 17 Train",
+     "sure": true,
+     "why": "Next shuttle today that stops at the train station, the only train stop."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": "ramsey rt 17 train"
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-006",
+   "earlier": [],
+   "question": "I'm in a hurry, when does the next shuttle leave campus?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": null,
+     "sure": true,
+     "why": "Next shuttle leaving campus, no day or stop named."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": null,
+     "sure": true,
+     "why": "Plain next shuttle leaving campus."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-007",
+   "earlier": [],
+   "question": "Could you tell me which building the financial aid office is in? I need to drop off a form before my night class.",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks where the financial aid office is, not about the shuttle."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks where the financial aid office is."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "not_a_departure",
+   "gate": "not_shuttle"
+  },
+  {
+   "id": "blind2-008",
+   "earlier": [],
+   "question": "I am standing by the library and cannot locate the posted schedule, so could you please tell me when the next shuttle leaves campus?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": null,
+     "sure": true,
+     "why": "Next shuttle leaving campus; the library detail is just background."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": null,
+     "sure": true,
+     "why": "Next shuttle leaving campus, today, any stop."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-009",
+   "earlier": [],
+   "question": "whens the next shuttle leaving that stops at newark airport",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "other_stop",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "other_stop",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Newark Airport is not a listed stop."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "other_stop",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Newark airport is not a listed stop."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "other_stop",
+   "gate": "stop"
+  },
+  {
+   "id": "blind2-010",
+   "earlier": [],
+   "question": "bro I have exactly one packet of ramen left in my dorm, when does the next shuttle to Interstate Plaza leave today",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": "Interstate Plaza"
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": "Interstate Plaza",
+     "sure": true,
+     "why": "Next shuttle to Interstate Plaza today; the ramen remark is chatter."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": "Interstate Plaza",
+     "sure": true,
+     "why": "Next shuttle to Interstate Plaza today."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": "interstate plaza"
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-011",
+   "earlier": [],
+   "question": "How do I send my Bergen Community College transcript to the registrar?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks about sending a transcript, not the shuttle."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Transcript question, not about the shuttle."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "not_a_departure",
+   "gate": "not_shuttle"
+  },
+  {
+   "id": "blind2-012",
+   "earlier": [],
+   "question": "is there a shuttle that leaves campus around quarter past 3, I have a thing in Ramsey and ubering is not in the budget lol",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "clock",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "clock",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Attaches a time, around quarter past 3, to the trip."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "clock",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Around quarter past 3 is a clock time."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "clock",
+   "gate": "clock"
+  },
+  {
+   "id": "blind2-013",
+   "earlier": [],
+   "question": "when does the next shuttle to Target leave, I need a shower curtain and a whole bag of snacks and I refuse to walk",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "other_stop",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "other_stop",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Target is not a listed stop."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "other_stop",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Target is not a listed stop."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "other_stop",
+   "gate": "stop"
+  },
+  {
+   "id": "blind2-014",
+   "earlier": [],
+   "question": "My roommate and I are hoping to do some shopping tomorrow, and I would like to be sure we do not get stranded, so could you tell me when the last shuttle leaves campus that stops at Garden State Plaza?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 1,
+     "stop": "Garden State Plaza"
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 1,
+     "stop": "Garden State Plaza",
+     "sure": true,
+     "why": "Last shuttle tomorrow that stops at Garden State Plaza."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 1,
+     "stop": "Garden State Plaza",
+     "sure": true,
+     "why": "Last shuttle tomorrow that stops at Garden State Plaza."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-09-30",
+    "stop": "garden state plaza"
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-015",
+   "earlier": [],
+   "question": "ok so I just got out of my stats midterm and my brain is literally soup, when is the next shuttle out of here",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": null,
+     "sure": true,
+     "why": "Next shuttle out; the midterm is only background."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": null,
+     "sure": true,
+     "why": "Next shuttle out of campus, today, any stop."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-016",
+   "earlier": [],
+   "question": "My seminar ends at 8:15 on Thursday, so could you tell me when the first shuttle leaves campus at or after that time?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "clock",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "clock",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Wants the first shuttle at or after 8:15, a clock time."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "clock",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Ties the trip to at or after 8:15."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "clock",
+   "gate": "clock"
+  },
+  {
+   "id": "blind2-017",
+   "earlier": [],
+   "question": "ok so my mom just flew in and she really wants to browse the Barnes and Noble store, so when's the next shuttle over there from campus lol",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": "Barnes & Noble/Fashion Center"
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": "Barnes & Noble/Fashion Center",
+     "sure": true,
+     "why": "Next shuttle from campus to the Barnes and Noble stop."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": "Barnes & Noble/Fashion Center",
+     "sure": true,
+     "why": "Next shuttle from campus to Barnes and Noble, today."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": "barnes & noble/fashion center"
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-018",
+   "earlier": [],
+   "question": "Saturday is my only free day so which shuttle goes first that day to the barnes and noble place, I wanna wander around the bookstore like a main character",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 4,
+     "stop": "Barnes & Noble/Fashion Center"
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 4,
+     "stop": "Barnes & Noble/Fashion Center",
+     "sure": true,
+     "why": "First shuttle on Saturday that goes to the Barnes and Noble stop."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 4,
+     "stop": "Barnes & Noble/Fashion Center",
+     "sure": true,
+     "why": "First shuttle Saturday to the Barnes and Noble place."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-10-03",
+    "stop": "barnes & noble/fashion center"
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-019",
+   "earlier": [
+    "is there a shuttle that goes to the mall",
+    "garden state plaza i mean"
+   ],
+   "question": "kk so when does the next one leave for there",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "follow_up",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "follow_up",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Says the next one and there, which depend on earlier messages."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "follow_up",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "'For there' depends on the earlier Garden State Plaza messages."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "follow_up",
+   "gate": "follow_up"
+  },
+  {
+   "id": "blind2-020",
+   "earlier": [],
+   "question": "Since I am in a late class tonight, could you tell me when the last shuttle leaves campus?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 0,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 0,
+     "stop": null,
+     "sure": true,
+     "why": "Last shuttle tonight is a day word alone, so it means the last one today."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 0,
+     "stop": null,
+     "sure": true,
+     "why": "Last shuttle tonight; tonight is a day word, not a clock time."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-021",
+   "earlier": [
+    "Hello, is there a shuttle that goes to Ramsey Square?",
+    "What time is the first one on Wednesday?"
+   ],
+   "question": "Thank you. Could you also tell me the last one for that same day?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "follow_up",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "follow_up",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Says that same day, which depends on earlier messages."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "follow_up",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "'That same day' depends on earlier messages."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "follow_up",
+   "gate": "follow_up"
+  },
+  {
+   "id": "blind2-022",
+   "earlier": [],
+   "question": "What time does the first shuttle pull out of Ramapo tomorrow?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 1,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 1,
+     "stop": null,
+     "sure": true,
+     "why": "First shuttle out of Ramapo tomorrow."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 1,
+     "stop": null,
+     "sure": true,
+     "why": "First shuttle out of Ramapo tomorrow, any stop."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-09-30",
+    "stop": null
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-023",
+   "earlier": [],
+   "question": "how long is the ride from campus to the Ramsey train stop, my stomach gets weird on buses and I need to mentally prepare lol",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks how long the ride takes."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks ride length."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "not_a_departure",
+   "gate": "not_shuttle"
+  },
+  {
+   "id": "blind2-024",
+   "earlier": [],
+   "question": "When does the first shuttle on Friday leave campus that stops at Paramus Park?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "other_stop",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "other_stop",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Paramus Park is not a listed stop."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "other_stop",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Paramus Park is not a listed stop."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "other_stop",
+   "gate": "stop"
+  },
+  {
+   "id": "blind2-025",
+   "earlier": [],
+   "question": "Tomorrow I have to stop at Interstate Plaza and also Ramsey Square, so could you tell me when the first shuttle leaves campus for both of them?",
+   "status": "soft",
+   "scored": false,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "other_stop",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "other_stop",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Names two places, Interstate Plaza and Ramsey Square."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "other_stop",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": false,
+     "why": "Names two places, though one could read it as two questions."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "other_stop",
+   "gate": "stop"
+  },
+  {
+   "id": "blind2-026",
+   "earlier": [],
+   "question": "Can you tell me when the next shuttle leaves campus and also whether visitors have to pay to ride it?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "multi_part",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "multi_part",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Also asks whether visitors pay to ride."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "multi_part",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Also asks whether visitors pay."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "multi_part",
+   "gate": "route"
+  },
+  {
+   "id": "blind2-027",
+   "earlier": [],
+   "question": "gimme all the shuttle times thursday",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "whole_day_list",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "whole_day_list",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Wants every shuttle time on Thursday."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "whole_day_list",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Wants all shuttle times on Thursday."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "whole_day_list",
+   "gate": "trip"
+  },
+  {
+   "id": "blind2-028",
+   "earlier": [],
+   "question": "whats the frst shuttle day after tmrw that stops by barnes n noble i gotta get a book for my class lol",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 2,
+     "stop": "Barnes & Noble/Fashion Center"
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 2,
+     "stop": "Barnes & Noble/Fashion Center",
+     "sure": true,
+     "why": "First shuttle the day after tomorrow, Thursday, that stops at Barnes and Noble."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 2,
+     "stop": "Barnes & Noble/Fashion Center",
+     "sure": true,
+     "why": "First shuttle the day after tomorrow that stops at Barnes and Noble."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-10-01",
+    "stop": "barnes & noble/fashion center"
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-029",
+   "earlier": [],
+   "question": "my friends and I are planning this whole GSP trip on Friday and we keep going back and forth on like everything but what's the last shuttle that leaves campus and stops at GSP that day",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 3,
+     "stop": "Garden State Plaza"
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 3,
+     "stop": "Garden State Plaza",
+     "sure": true,
+     "why": "Last shuttle Friday that stops at GSP, a nickname for Garden State Plaza."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 3,
+     "stop": "Garden State Plaza",
+     "sure": true,
+     "why": "Last shuttle Friday that stops at GSP."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-10-02",
+    "stop": "garden state plaza"
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-030",
+   "earlier": [],
+   "question": "hi sorry, my son goes here and im visiting from out of state so i dont know any of the buildings or names, whats the first shuttle that pulls out of the school the day after tomorrow??",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 2,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 2,
+     "stop": null,
+     "sure": true,
+     "why": "First shuttle leaving the school the day after tomorrow."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 2,
+     "stop": null,
+     "sure": true,
+     "why": "First shuttle out of the school the day after tomorrow, any stop."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-10-01",
+    "stop": null
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-031",
+   "earlier": [],
+   "question": "Quick one for my weekly plan: on Monday, when does the last shuttle leave campus that stops at the CityMD in Ramsey?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 6,
+     "stop": "City MD Ramsey"
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 6,
+     "stop": "City MD Ramsey",
+     "sure": true,
+     "why": "Monday, October 5, is within seven days; the stop is City MD Ramsey."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 6,
+     "stop": "City MD Ramsey",
+     "sure": true,
+     "why": "Last shuttle Monday that stops at CityMD, a nickname for City MD Ramsey."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-10-05",
+    "stop": "city md ramsey"
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-032",
+   "earlier": [],
+   "question": "About how many minutes does the shuttle ride to the big shopping mall take?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks how long the ride takes."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks ride length."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "not_a_departure",
+   "gate": "not_shuttle"
+  },
+  {
+   "id": "blind2-033",
+   "earlier": [],
+   "question": "when does the next shuttle to Ramsey Square leave and is it free or do I gotta pay, my wallet is crying",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "multi_part",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "multi_part",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Also asks whether the ride is free."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "multi_part",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Also asks whether the ride is free."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "multi_part",
+   "gate": "route"
+  },
+  {
+   "id": "blind2-034",
+   "earlier": [],
+   "question": "nxt shuttle leaving campus n also is the caf open rn",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "multi_part",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "multi_part",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Also asks whether the cafeteria is open."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "multi_part",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Also asks if the caf is open."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "multi_part",
+   "gate": "route"
+  },
+  {
+   "id": "blind2-035",
+   "earlier": [],
+   "question": "ok random but whats the last shuttle monday that stops at the farmers market in ramsey i wanna go with my roommate n dont wanna get stuck",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 6,
+     "stop": "Ramsey Farmers Market"
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 6,
+     "stop": "Ramsey Farmers Market",
+     "sure": true,
+     "why": "Last shuttle Monday that stops at the farmers market."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 6,
+     "stop": "Ramsey Farmers Market",
+     "sure": true,
+     "why": "Monday means Oct 5, six days out, within range."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-10-05",
+    "stop": "ramsey farmers market"
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-036",
+   "earlier": [],
+   "question": "yo when's the first shuttle leaving tomorrow, my roommate \"borrowed\" my charger for the third time and I'm going to go buy a new one out of pure spite",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 1,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 1,
+     "stop": null,
+     "sure": true,
+     "why": "First shuttle leaving tomorrow; the charger story is chatter."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 1,
+     "stop": null,
+     "sure": true,
+     "why": "First shuttle tomorrow; the charger story is just venting."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-09-30",
+    "stop": null
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-037",
+   "earlier": [],
+   "question": "ok so I need to catch the train on Route 17 in Ramsey and I dont have a car, when does the next shuttle leave campus that goes by that train stop",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": "Ramsey Rt 17 Train"
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": "Ramsey Rt 17 Train",
+     "sure": true,
+     "why": "Next shuttle from campus that goes by the Route 17 train stop."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": "Ramsey Rt 17 Train",
+     "sure": true,
+     "why": "Next shuttle that goes by the Route 17 train stop, today."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": "ramsey rt 17 train"
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-038",
+   "earlier": [],
+   "question": "whats the last shuttle off campus tmrw",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 1,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 1,
+     "stop": null,
+     "sure": true,
+     "why": "Last shuttle off campus tomorrow."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 1,
+     "stop": null,
+     "sure": true,
+     "why": "Last shuttle off campus tomorrow, any stop."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-09-30",
+    "stop": null
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-039",
+   "earlier": [],
+   "question": "any shuttle leaving campus between 4 and 6 today",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "clock",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "clock",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Attaches a window of time, between 4 and 6."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "clock",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Between 4 and 6 is a clock window."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "clock",
+   "gate": "clock"
+  },
+  {
+   "id": "blind2-040",
+   "earlier": [],
+   "question": "just give me every single shuttle time for Thursday, I want to screenshot it and never ask anybody again lol",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "whole_day_list",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "whole_day_list",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Wants every shuttle time on Thursday."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "whole_day_list",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Wants every shuttle time on Thursday."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "whole_day_list",
+   "gate": "trip"
+  },
+  {
+   "id": "blind2-041",
+   "earlier": [],
+   "question": "my parents are visiting on October 14 so when does the first shuttle leave campus that day, I want to be the kid with a plan",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "other_day",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "other_day",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "October 14 is beyond the next seven days."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "other_day",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "October 14 is beyond the next seven days."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "other_day",
+   "gate": "day"
+  },
+  {
+   "id": "blind2-042",
+   "earlier": [],
+   "question": "yo when does the next shuttle leave campus i been in my room forever and finally wanna get out of here",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": null,
+     "sure": true,
+     "why": "Next shuttle leaving campus."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "next",
+     "day_offset": 0,
+     "stop": null,
+     "sure": true,
+     "why": "Next shuttle leaving campus, today, any stop."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-043",
+   "earlier": [],
+   "question": "Sorry to bug you, I just transferred here and I'm still learning the schedule. What time does the first shuttle leave campus the day after tomorrow? I've got a lab I can't be late for.",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 2,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 2,
+     "stop": null,
+     "sure": true,
+     "why": "First shuttle leaving campus the day after tomorrow; the lab is background."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 2,
+     "stop": null,
+     "sure": true,
+     "why": "First shuttle the day after tomorrow; the lab remark is not a clock time."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-10-01",
+    "stop": null
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-044",
+   "earlier": [],
+   "question": "Could you list every time the shuttle leaves campus on Saturday? I want the whole schedule written out so I can hand it to my son.",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "whole_day_list",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "whole_day_list",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Wants every departure on Saturday."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "whole_day_list",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Wants every Saturday time written out."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "whole_day_list",
+   "gate": "trip"
+  },
+  {
+   "id": "blind2-045",
+   "earlier": [],
+   "question": "Hello, my daughter is coming home by train and I don't know any of your campus stops. What time does the first shuttle on Friday leave for the train station out on Route 17?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 3,
+     "stop": "Ramsey Rt 17 Train"
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 3,
+     "stop": "Ramsey Rt 17 Train",
+     "sure": true,
+     "why": "First shuttle Friday to the train station on Route 17."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 3,
+     "stop": "Ramsey Rt 17 Train",
+     "sure": true,
+     "why": "First shuttle Friday leaving for the Route 17 train station; the rest is background."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-10-02",
+    "stop": "ramsey rt 17 train"
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-046",
+   "earlier": [],
+   "question": "Is the shuttle late? I'm standing at the stop right now.",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks whether the shuttle is late right now."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks whether the shuttle is late right now."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "not_a_departure",
+   "gate": "not_shuttle"
+  },
+  {
+   "id": "blind2-047",
+   "earlier": [],
+   "question": "when is the first shuttle friday that stops at garden state plaza",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 3,
+     "stop": "Garden State Plaza"
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 3,
+     "stop": "Garden State Plaza",
+     "sure": true,
+     "why": "First shuttle Friday that stops at Garden State Plaza."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "first",
+     "day_offset": 3,
+     "stop": "Garden State Plaza",
+     "sure": true,
+     "why": "First shuttle Friday that stops at GSP."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-10-02",
+    "stop": "garden state plaza"
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-048",
+   "earlier": [],
+   "question": "How long is the shuttle ride from campus to Ramsey Square?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks how long the ride takes."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks ride length."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "not_a_departure",
+   "gate": "not_shuttle"
+  },
+  {
+   "id": "blind2-049",
+   "earlier": [],
+   "question": "I get out of class at 4:20. Which shuttle can I take from campus after that?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "clock",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "clock",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Attaches a time, after 4:20, to the trip."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "clock",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Ties the trip to after 4:20."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "clock",
+   "gate": "clock"
+  },
+  {
+   "id": "blind2-050",
+   "earlier": [],
+   "question": "What time does the first shuttle leave campus on October 14?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "other_day",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "other_day",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "October 14 is beyond the next seven days."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "other_day",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "October 14 is beyond the next seven days."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "other_day",
+   "gate": "day"
+  },
+  {
+   "id": "blind2-051",
+   "earlier": [],
+   "question": "When is the first shuttle out of campus on Wednesday, and is it free for transfer students?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "multi_part",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "multi_part",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Also asks whether it is free for transfer students."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "multi_part",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Also asks whether it is free for transfer students."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "multi_part",
+   "gate": "route"
+  },
+  {
+   "id": "blind2-052",
+   "earlier": [],
+   "question": "asking for a friend who definitely isn't dodging a bio lab lol, what's the last shuttle off campus the day after tomorrow",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 2,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 2,
+     "stop": null,
+     "sure": true,
+     "why": "Last shuttle off campus the day after tomorrow."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 2,
+     "stop": null,
+     "sure": true,
+     "why": "Last shuttle off campus the day after tomorrow, any stop."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-10-01",
+    "stop": null
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-053",
+   "earlier": [
+    "Does the shuttle stop at Ramsey Square?",
+    "When does the last one leave that stops there?"
+   ],
+   "question": "Ok, and what about Saturday?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "follow_up",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "follow_up",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "What about Saturday only makes sense with earlier messages."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "follow_up",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "'What about Saturday' leans on the earlier messages."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "follow_up",
+   "gate": "follow_up"
+  },
+  {
+   "id": "blind2-054",
+   "earlier": [],
+   "question": "I know the shuttle takes people out to Ramsey Square, but what time does the last one bring me back to campus?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks about the last shuttle back to campus."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks about the trip back to campus."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "not_a_departure",
+   "gate": "not_shuttle"
+  },
+  {
+   "id": "blind2-055",
+   "earlier": [],
+   "question": "When is today's last shuttle to Garden State Plaza?",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 0,
+     "stop": "Garden State Plaza"
+    },
+    "labeler_a": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 0,
+     "stop": "Garden State Plaza",
+     "sure": true,
+     "why": "Today's last shuttle to Garden State Plaza."
+    },
+    "labeler_b": {
+     "expect": "answer",
+     "reason": null,
+     "operation": "last",
+     "day_offset": 0,
+     "stop": "Garden State Plaza",
+     "sure": true,
+     "why": "Last shuttle today that goes to Garden State Plaza, stands alone."
+    }
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-09-29",
+    "stop": "garden state plaza"
+   },
+   "reason": null,
+   "gate": null
+  },
+  {
+   "id": "blind2-056",
+   "earlier": [],
+   "question": "how long is the shuttle ride to gsp",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks how long the ride takes."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks how long the ride takes."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "not_a_departure",
+   "gate": "not_shuttle"
+  },
+  {
+   "id": "blind2-057",
+   "earlier": [
+    "my throat feels like sandpaper and i think i need to get checked out today",
+    "wait is City MD Ramsey a stop on the shuttle route?"
+   ],
+   "question": "ok sweet, so what about the last one going there tomorrow lol",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "follow_up",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "follow_up",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Going there depends on earlier messages."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "follow_up",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Says 'going there' and only makes sense with the earlier City MD question."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "follow_up",
+   "gate": "follow_up"
+  },
+  {
+   "id": "blind2-058",
+   "earlier": [],
+   "question": "do we have to pay for the shuttle",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks about paying for the shuttle."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks about price."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "not_a_departure",
+   "gate": "not_shuttle"
+  },
+  {
+   "id": "blind2-059",
+   "earlier": [],
+   "question": "Please list all the shuttle departure times for Thursday.",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "whole_day_list",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "whole_day_list",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Wants all departure times for Thursday."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "whole_day_list",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Wants every departure time for Thursday, the full list."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "whole_day_list",
+   "gate": "trip"
+  },
+  {
+   "id": "blind2-060",
+   "earlier": [],
+   "question": "where do i pick up my package from the mail room",
+   "status": "firm",
+   "scored": true,
+   "labels": {
+    "writer": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null
+    },
+    "labeler_a": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "Asks about picking up a package, not the shuttle."
+    },
+    "labeler_b": {
+     "expect": "not_ready",
+     "reason": "not_a_departure",
+     "operation": null,
+     "day_offset": null,
+     "stop": null,
+     "sure": true,
+     "why": "A mail room question, not about the shuttle."
+    }
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "reason": "not_a_departure",
+   "gate": "not_shuttle"
+  }
+ ]
+}
