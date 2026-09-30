@@ -25,12 +25,14 @@ def new_id() -> str:
     return str(uuid.uuid4())
 
 
-def intake(request: ChatRequest, now: datetime | None = None) -> Turn:
-    """`now` is for tests and must carry a time zone."""
+def intake(
+    request: ChatRequest, conversation_id: str | None = None, now: datetime | None = None
+) -> Turn:
+    """`conversation_id` is the one the app sent, if any. `now` is for tests and needs a zone."""
     now = datetime.now(CAMPUS_TZ) if now is None else now.astimezone(CAMPUS_TZ)
     return Turn(
         message=request.messages[-1].content,
-        conversation_id=new_id(),  # the apps send none yet, so every turn starts a conversation
+        conversation_id=conversation_id or new_id(),
         request_id=new_id(),
         campus_now=now.replace(microsecond=0),
     )

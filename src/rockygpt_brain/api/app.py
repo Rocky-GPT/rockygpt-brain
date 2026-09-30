@@ -4,13 +4,15 @@
 the turn in (step 1, `turn.py`); nothing answers it yet, so a valid question gets `not_ready`.
 """
 
-from fastapi import FastAPI, Request
+from typing import Annotated
+
+from fastapi import FastAPI, Header, Request
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
-from rockygpt_brain.contract import ChatRequest
+from rockygpt_brain.contract import CONVERSATION_ID_HEADER, CONVERSATION_ID_PATTERN, ChatRequest
 from rockygpt_brain.failures import failure
 from rockygpt_brain.turn import intake, new_id
 
@@ -50,6 +52,11 @@ def readiness() -> dict[str, str]:
 
 
 @app.post("/v1/chat")
-def chat(request: ChatRequest) -> JSONResponse:
-    turn = intake(request)
+def chat(
+    request: ChatRequest,
+    conversation_id: Annotated[
+        str | None, Header(alias=CONVERSATION_ID_HEADER, pattern=CONVERSATION_ID_PATTERN)
+    ] = None,
+) -> JSONResponse:
+    turn = intake(request, conversation_id)
     return failure(503, "not_ready", "RockyGPT can't answer questions yet.", turn.request_id)

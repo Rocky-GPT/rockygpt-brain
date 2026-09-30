@@ -12,6 +12,8 @@ MAX_MESSAGES = 80
 MAX_MESSAGE_CHARS = 16_000
 MAX_CONVERSATION_CHARS = 48_000
 MAX_OMITTED_MESSAGES = 100_000
+CONVERSATION_ID_HEADER = "x-rockygpt-conversation-id"
+CONVERSATION_ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
 
 Content = Annotated[str, StringConstraints(min_length=1, max_length=MAX_MESSAGE_CHARS)]
 

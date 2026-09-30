@@ -35,6 +35,17 @@ def test_each_turn_gets_its_own_ids() -> None:
     assert first.conversation_id != second.conversation_id
 
 
+def test_the_same_conversation_keeps_its_conversation_id() -> None:
+    turns = [intake(ask(("user", "hi")), "abc_123-X") for _ in range(3)]
+    assert {turn.conversation_id for turn in turns} == {"abc_123-X"}
+    assert len({turn.request_id for turn in turns}) == 3
+
+
+def test_many_turns_all_get_different_request_ids() -> None:
+    turns = [intake(ask(("user", "hi")), "same") for _ in range(5000)]
+    assert len({turn.request_id for turn in turns}) == 5000
+
+
 def test_the_turn_cannot_be_changed() -> None:
     with pytest.raises(AttributeError):
         intake(ask(("user", "hi"))).message = "other"  # type: ignore[misc]
