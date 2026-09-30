@@ -30,7 +30,9 @@ def run(frozen: dict[str, Any], plan: Callable[..., Plan] = build_plan) -> list[
     results = []
     for case in frozen["cases"]:
         request = ChatRequest.model_validate({"messages": case["messages"]})
-        got = plan(Understanding(**case["understanding"]), build_context(request))
+        # Sets frozen before `history_resolves` existed leave it out; the plan does not read it yet.
+        understanding = Understanding(**{"history_resolves": True, **case["understanding"]})
+        got = plan(understanding, build_context(request))
         results.append({
             "id": case["id"], "latest": request.messages[-1].content,
             "understanding": case["understanding"], "expected": case["expected"],

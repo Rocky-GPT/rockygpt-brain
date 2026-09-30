@@ -30,25 +30,30 @@ def read(*lines: str) -> tuple[Turn, Context]:
 
 
 def answers(needs: str, topic: str, history: float = 0.0, danger: float = 0.0,
-            multi: float = 0.0) -> dict[str, Any]:
+            multi: float = 0.0, resolves: float = 0.0) -> dict[str, Any]:
     return {"model": "jev-1.13.0", "answers": {
         "needs": {"type": "choice", "choice": needs},
         "topic": {"type": "choice", "choice": topic},
         "needs_history": {"type": "noul", "noul": history},
+        "history_resolves": {"type": "noul", "noul": resolves},
         "danger": {"type": "noul", "noul": danger},
         "multi_part": {"type": "noul", "noul": multi},
     }}
 
 
-def test_the_request_asks_the_five_questions_with_the_spec_options() -> None:
+def test_the_request_asks_the_six_questions_with_the_spec_options() -> None:
     body = request_body(*read("What's the next shuttle?"))
     assert body["model"] == "jev-1.13.0"
-    assert list(body["questions"]) == ["needs", "topic", "needs_history", "danger", "multi_part"]
+    assert list(body["questions"]) == [
+        "needs", "topic", "needs_history", "history_resolves", "danger", "multi_part"
+    ]
     assert list(NEEDS) == ["campus_info", "conversation", "outside", "own_account", "unclear"]
     assert list(TOPICS) == [
         "transport", "dining", "offices", "academics", "events", "housing", "none"
     ]
-    assert [q["type"] for q in QUESTIONS.values()] == ["choice", "choice", "noul", "noul", "noul"]
+    assert [q["type"] for q in QUESTIONS.values()] == [
+        "choice", "choice", "noul", "noul", "noul", "noul"
+    ]
 
 
 def test_jev_is_given_the_turn_and_the_context() -> None:
@@ -70,27 +75,30 @@ def test_the_same_turn_and_context_make_the_same_request() -> None:
 
 @pytest.mark.parametrize(("reply", "expected"), [
     (answers("campus_info", "transport"),
-     Understanding("campus_info", "transport", False, False, False)),
-    (answers("campus_info", "transport", history=0.98),
-     Understanding("campus_info", "transport", True, False, False)),
-    (answers("conversation", "none", history=0.9),
-     Understanding("conversation", "none", True, False, False)),
-    (answers("outside", "none"), Understanding("outside", "none", False, False, False)),
+     Understanding("campus_info", "transport", False, False, False, False)),
+    (answers("campus_info", "transport", history=0.98, resolves=0.9),
+     Understanding("campus_info", "transport", True, True, False, False)),
+    (answers("conversation", "none", history=0.9, resolves=0.8),
+     Understanding("conversation", "none", True, True, False, False)),
+    (answers("outside", "none"), Understanding("outside", "none", False, False, False, False)),
     (answers("own_account", "academics"),
-     Understanding("own_account", "academics", False, False, False)),
+     Understanding("own_account", "academics", False, False, False, False)),
     (answers("campus_info", "offices", 0.1, 0.9, 0.7),
-     Understanding("campus_info", "offices", False, True, True)),
+     Understanding("campus_info", "offices", False, False, True, True)),
+    (answers("unclear", "none", history=0.9, resolves=0.1),
+     Understanding("unclear", "none", True, False, False, False)),
 ])
 def test_jevs_answers_become_an_understanding(
         reply: dict[str, Any], expected: Understanding) -> None:
     assert understand(*read("hi"), post=lambda body: reply) == expected
 
 
-@pytest.mark.parametrize("field", ["needs_history", "danger", "multi_part"])
+@pytest.mark.parametrize("field", ["needs_history", "history_resolves", "danger", "multi_part"])
 @pytest.mark.parametrize(("noul", "yes"), [(0.5, True), (0.51, True), (0.49, False), (0, False)])
 def test_yes_is_a_probability_of_half_or_more(field: str, noul: float, yes: bool) -> None:
-    reply = answers("outside", "none", **{{"needs_history": "history", "multi_part": "multi"}.get(
-        field, field): noul})
+    keyword = {"needs_history": "history", "history_resolves": "resolves",
+               "multi_part": "multi"}.get(field, field)
+    reply = answers("outside", "none", **{keyword: noul})
     assert getattr(understand(*read("hi"), post=lambda body: reply), field) is yes
 
 
