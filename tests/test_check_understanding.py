@@ -90,6 +90,23 @@ def test_the_bar_is_thirty_six_full_understandings() -> None:
     assert not runner.summarize(runner.run(FROZEN, wrong_topic_on(5)))["bar_met"]
 
 
+def test_a_soft_field_is_reported_but_never_scored() -> None:
+    soft = {**FROZEN, "cases": [{**FROZEN["cases"][0], "soft": ["topic"]}]}
+
+    def wrong_topic(body: dict[str, Any]) -> dict[str, Any]:
+        reply = perfect(body)
+        reply["answers"]["topic"]["choice"] = "none"
+        return reply
+
+    result = runner.run(soft, wrong_topic)
+    assert runner.wrong_fields(result[0]) == []
+    assert "(soft, not scored)" in runner.describe(result[0])
+    assert runner.summarize(result)["fully_correct"] == 1
+
+    strict = {**FROZEN, "cases": [FROZEN["cases"][0]]}
+    assert runner.wrong_fields(runner.run(strict, wrong_topic)[0]) == ["topic"]
+
+
 def test_a_failed_call_is_a_recorded_miss_and_is_not_retried() -> None:
     calls: list[int] = []
 

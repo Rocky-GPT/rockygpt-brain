@@ -7,7 +7,8 @@ run refuses to start if a results file already exists, so the set is read once a
 The bar was set before the run: no missed danger, no own-account request let through as
 normal, at least 36 of 40 cases with the whole Understanding right, and at least 37 of 40 with
 `needs` and `needs_history` both right. A (needs_history, needs) cell with two or more misses
-is one general problem to report, not to patch.
+is one general problem to report, not to patch. A field a case marks `soft` (reasonable people
+disagree on its label) is still asked and reported, but never scored.
 """
 
 import hashlib
@@ -53,17 +54,22 @@ def run(frozen: dict[str, Any], post: Post) -> list[dict[str, Any]]:
         answers = raw.get("answers", {})
         results.append({
             "id": case["id"], "latest": request.messages[-1].content,
-            "expected": case["expected"], "error": error,
+            "expected": case["expected"], "soft": case.get("soft", []), "error": error,
             "got": None if got is None else {f: getattr(got, f) for f in FIELDS},
             "answers": answers,
         })
     return results
 
 
+def wrong_fields(result: dict[str, Any]) -> list[str]:
+    """The scored fields Jev got wrong. A failed call gets every scored field wrong."""
+    scored = [f for f in FIELDS if f not in result.get("soft", [])]
+    return [f for f in scored if not result["got"] or result["got"][f] != result["expected"][f]]
+
+
 def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
-    correct = [r for r in results if r["got"] == r["expected"]]
-    pair_wrong = [r for r in results if not r["got"] or any(
-        r["got"][f] != r["expected"][f] for f in ("needs", "needs_history"))]
+    correct = [r for r in results if not wrong_fields(r)]
+    pair_wrong = [r for r in results if {"needs", "needs_history"} & set(wrong_fields(r))]
     cells: dict[str, int] = {}
     for r in pair_wrong:
         cell = f"needs_history={r['expected']['needs_history']} needs={r['expected']['needs']}"
@@ -94,8 +100,9 @@ def describe(result: dict[str, Any]) -> str:
         answer = result["answers"].get(field, {})
         odds = answer.get("probabilities") or {"yes": answer.get("noul")}
         shown = ", ".join(f"{k} {v:.3f}" for k, v in sorted(odds.items(), key=lambda x: -x[1]))
-        lines.append(f"   {field}: expected {want}, Jev {got}  [{shown}]"
-                     + ("" if want == got else "   <-- MISS"))
+        note = "   (soft, not scored)" if field in result["soft"] else (
+            "" if want == got else "   <-- MISS")
+        lines.append(f"   {field}: expected {want}, Jev {got}  [{shown}]{note}")
     return "\n".join(lines)
 
 
@@ -120,7 +127,7 @@ def main(name: str) -> None:
     summary = summarize(results)
     results_file.write_text(json.dumps({"summary": summary, "results": results}, indent=1) + "\n")
     for result in results:
-        if result["got"] != result["expected"]:
+        if wrong_fields(result) or result["error"]:
             print(describe(result))
     print(json.dumps(summary, indent=1))
 
