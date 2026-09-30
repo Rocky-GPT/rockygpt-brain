@@ -54,11 +54,10 @@ QUESTIONS: dict[str, dict[str, Any]] = {
     },
     "needs_history": {
         "type": "noul",
-        "instructions": "What the student means by the latest message depends on the earlier "
-                        "messages.",
+        "instructions": "Resolving the student's latest request requires the earlier messages.",
         "criteria": {
-            "true": "It refers back to something said earlier, or leaves out what it is about",
-            "false": "It makes sense on its own",
+            "true": "The request cannot be completed without looking at the earlier messages",
+            "false": "The request can be completed from the latest message alone",
         },
     },
     "danger": {
