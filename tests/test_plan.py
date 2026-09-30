@@ -18,8 +18,9 @@ AFTER = context("What's the next shuttle?", "What about tomorrow?")
 
 
 def understood(needs: str = "campus_info", topic: str = "transport", needs_history: bool = False,
-               danger: bool = False, multi_part: bool = False) -> Understanding:
-    return Understanding(needs, topic, needs_history, True, danger, multi_part)
+               danger: bool = False, multi_part: bool = False,
+               resolves: bool = True) -> Understanding:
+    return Understanding(needs, topic, needs_history, resolves, danger, multi_part)
 
 
 @pytest.mark.parametrize(("understanding", "ctx", "expected"), [
@@ -36,6 +37,8 @@ def understood(needs: str = "campus_info", topic: str = "transport", needs_histo
     (understood("conversation", "none"), ALONE, Plan("clarify", "none", False)),
     (understood("conversation", "none", needs_history=True), ALONE, Plan("clarify", "none", False)),
     (understood("outside", "none"), ALONE, Plan("general", "none", False)),
+    (understood(needs_history=True, resolves=False), AFTER, Plan("clarify", "transport", False)),
+    (understood("conversation", "none", resolves=False), AFTER, Plan("clarify", "none", False)),
 ])
 def test_each_path(understanding: Understanding, ctx: Context, expected: Plan) -> None:
     assert build_plan(understanding, ctx) == expected
@@ -45,18 +48,31 @@ def test_the_rules_run_in_order() -> None:
     everything = understood("own_account", needs_history=True, danger=True, multi_part=True)
     assert build_plan(everything, ALONE).path == "safety"
     assert build_plan(understood("own_account", multi_part=True, needs_history=True),
-                      ALONE).path == "capability_limit"
+                      ALONE).path == "multi_part"
     assert build_plan(understood("campus_info", multi_part=True, needs_history=True),
                       ALONE).path == "multi_part"
     assert build_plan(understood("unclear", multi_part=True), ALONE).path == "multi_part"
     assert build_plan(understood("unclear", needs_history=True), AFTER).path == "clarify"
     assert build_plan(understood("conversation", multi_part=True), ALONE).path == "multi_part"
+    assert build_plan(understood("own_account", needs_history=True), ALONE).path == (
+        "capability_limit")
+
+
+def test_an_unresolved_reference_is_clarified_even_when_history_exists() -> None:
+    """The earlier messages exist but do not say what "it" is: Jev may still call the message
+    a campus question, and the plan must ask instead of guessing."""
+    unresolved = understood("campus_info", needs_history=True, resolves=False)
+    assert build_plan(unresolved, AFTER) == Plan("clarify", "transport", False)
+    resolved = understood("campus_info", needs_history=True, resolves=True)
+    assert build_plan(resolved, AFTER) == Plan("campus", "transport", True)
 
 
 def test_uses_history_only_when_history_exists() -> None:
     assert build_plan(understood(danger=True, needs_history=True), ALONE).uses_history is False
     assert build_plan(understood(danger=True, needs_history=True), AFTER).uses_history is True
     assert build_plan(understood(needs_history=False), AFTER).uses_history is False
+    assert build_plan(understood(danger=True, needs_history=True, resolves=False),
+                      AFTER).uses_history is False
 
 
 def test_every_topic_is_carried_through() -> None:
