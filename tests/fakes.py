@@ -85,3 +85,21 @@ def fake_jev(script: ScriptedJev | None = None,
     script = script or ScriptedJev()
     ledger = ledger or MemoryLedger()
     return Jev(script, ledger), script, ledger
+
+
+def calm_shuttle(asking: Any, **changes: dict[str, Any]) -> dict[str, Any]:
+    """Jev's answers to the shuttle questions for "When is the next shuttle to Garden State
+    Plaza today?", all sure, with `changes` on top. `asking` is a shuttle_ask.Asking."""
+    questions = asking.questions
+    answers = {
+        "shuttle_times": yes(0.96),
+        "shuttle_wants": sure_pick("leaves", questions["shuttle_wants"]["criteria"]),
+        "shuttle_trip": sure_pick("next", questions["shuttle_trip"]["criteria"]),
+        "shuttle_clock": yes(0.04),
+        "shuttle_day": sure_pick("d0", questions["shuttle_day"]["criteria"]),
+        **changes,
+    }
+    if "shuttle_stop" in questions:  # left out when the timetable couldn't be read
+        stop = next(sid for sid, key in asking.stops.items() if key == "garden state plaza")
+        answers.setdefault("shuttle_stop", sure_pick(stop, questions["shuttle_stop"]["criteria"]))
+    return answers
