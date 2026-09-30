@@ -32,6 +32,8 @@ def understood(needs: str = "campus_info", topic: str = "transport", needs_histo
     (understood("conversation", "none", needs_history=True), AFTER,
      Plan("conversation", "none", True)),
     (understood(needs_history=True), AFTER, Plan("campus", "transport", True)),
+    (understood("conversation", "none"), ALONE, Plan("clarify", "none", False)),
+    (understood("conversation", "none", needs_history=True), ALONE, Plan("clarify", "none", False)),
     (understood("outside", "none"), ALONE, Plan("general", "none", False)),
 ])
 def test_each_path(understanding: Understanding, ctx: Context, expected: Plan) -> None:
@@ -47,6 +49,7 @@ def test_the_rules_run_in_order() -> None:
                       ALONE).path == "multi_part"
     assert build_plan(understood("unclear", multi_part=True), ALONE).path == "multi_part"
     assert build_plan(understood("unclear", needs_history=True), AFTER).path == "clarify"
+    assert build_plan(understood("conversation", multi_part=True), ALONE).path == "multi_part"
 
 
 def test_uses_history_only_when_history_exists() -> None:
