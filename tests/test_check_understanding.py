@@ -8,7 +8,8 @@ from typing import Any
 import check_understanding as runner
 import pytest
 
-FROZEN = json.loads(runner.CASES.read_text())
+OLD = "blind-20260930"
+FROZEN = json.loads((runner.DIR / f"{OLD}.json").read_text())
 
 
 def jev_says(expected: dict[str, Any]) -> dict[str, Any]:
@@ -28,9 +29,15 @@ def perfect(body: dict[str, Any]) -> dict[str, Any]:
     return jev_says(case["expected"])
 
 
-def test_the_frozen_set_matches_its_hash_and_has_forty_cases() -> None:
-    assert hashlib.sha256(runner.CASES.read_bytes()).hexdigest() == (
-        runner.HASH.read_text().split()[0])
+def test_every_frozen_set_matches_its_hash() -> None:
+    recorded = sorted(runner.DIR.glob("*.sha256"))
+    assert recorded
+    for hash_file in recorded:
+        cases = hash_file.with_suffix(".json")
+        assert hashlib.sha256(cases.read_bytes()).hexdigest() == hash_file.read_text().split()[0]
+
+
+def test_the_first_blind_set_has_forty_cases() -> None:
     assert [c["id"] for c in FROZEN["cases"]] == list(range(1, 41))
 
 
@@ -110,17 +117,35 @@ def test_a_miss_shows_expected_jevs_answer_and_probabilities() -> None:
     assert "<-- MISS" in text
 
 
+def test_the_pair_bar_is_thirty_seven_and_misses_are_counted_by_cell() -> None:
+    def wrong_needs_on(count: int) -> Any:
+        seen: list[str] = []
+
+        def post(body: dict[str, Any]) -> dict[str, Any]:
+            reply = perfect(body)
+            seen.append("x")
+            if len(seen) <= count:
+                reply["answers"]["needs"]["choice"] = (
+                    "outside" if reply["answers"]["needs"]["choice"] != "outside" else "unclear")
+            return reply
+        return post
+
+    ok = runner.summarize(runner.run(FROZEN, wrong_needs_on(3)))
+    assert ok["needs_and_needs_history_correct"] == 37 and ok["bar_met"]
+    assert sum(ok["pair_misses_by_cell"].values()) == 3
+    short = runner.summarize(runner.run(FROZEN, wrong_needs_on(4)))
+    assert short["needs_and_needs_history_correct"] == 36 and not short["bar_met"]
+
+
 def test_main_refuses_a_changed_set_and_a_second_run(
         tmp_path: Path, monkeypatch: Any) -> None:
-    frozen = runner.CASES
-    cases = tmp_path / "cases.json"
-    cases.write_bytes(frozen.read_bytes() + b" ")
-    monkeypatch.setattr(runner, "CASES", cases)
+    for tail in (".json", ".sha256"):
+        (tmp_path / f"{OLD}{tail}").write_bytes((runner.DIR / f"{OLD}{tail}").read_bytes())
+    monkeypatch.setattr(runner, "DIR", tmp_path)
+    (tmp_path / f"{OLD}.json").write_bytes((tmp_path / f"{OLD}.json").read_bytes() + b" ")
     with pytest.raises(SystemExit, match="hash"):
-        runner.main()
-    monkeypatch.setattr(runner, "CASES", frozen)
-    results = tmp_path / "results.json"
-    results.write_text("{}")
-    monkeypatch.setattr(runner, "RESULTS", results)
+        runner.main(OLD)
+    (tmp_path / f"{OLD}.json").write_bytes((tmp_path / f"{OLD}.json").read_bytes()[:-1])
+    (tmp_path / f"{OLD}-results.json").write_text("{}")
     with pytest.raises(SystemExit, match="once already"):
-        runner.main()
+        runner.main(OLD)
