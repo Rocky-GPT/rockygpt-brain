@@ -9,8 +9,9 @@ still runs in production from `main`.
 The Brain was started again from line one after commit 3dec0bd. `/v1/chat` checks the request
 against [docs/contract.md](docs/contract.md), makes a `Turn` (`turn.py`), gives danger help or an
 account limit when the message needs it (`boundary.py`), and otherwise answers `not_ready`.
-Built but not used by the route yet: the conversation `Context` (`context.py`) and the Jev call
-that reads it into an `Understanding` (`understanding.py`). Nothing answers questions yet.
+Built but not used by the route yet: the conversation `Context` (`context.py`), the Jev call
+that reads it into an `Understanding` (`understanding.py`) and the code `Plan` made from both
+(`plan.py`). Nothing answers questions yet.
 
 ## Run
 
