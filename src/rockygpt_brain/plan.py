@@ -36,8 +36,9 @@ def build_plan(understanding: Understanding, context: Context) -> Plan:
         path = "capability_limit"
     elif understanding.multi_part:
         path = "multi_part"
-    elif understanding.needs_history and not context.history_available:
-        path = "clarify"
+    elif not context.history_available and (
+            understanding.needs_history or understanding.needs == "conversation"):
+        path = "clarify"  # a follow-up or a recall has nothing to lean on
     else:
         path = _BY_NEEDS[understanding.needs]
     uses_history = understanding.needs_history and context.history_available
