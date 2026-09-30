@@ -43,7 +43,12 @@ JEV_FAILURES: dict[str, ErrorCode] = {
     "routing_timeout": "model_timeout",
     "routing_unavailable": "model_unreachable",
     "routing_rate_limited": "busy",
+    "routing_overloaded": "busy",
     "routing_provider_error": "model_provider_error",
+    # A rejected key is a setup problem, and trying again can't fix it.
+    "routing_auth_failed": "model_not_configured",
+    # A body Typesafe refuses as invalid is a bug in the Brain, in the turn log.
+    "routing_request_rejected": "internal_error",
     "routing_usage_unknown": "model_provider_error",
     "routing_model_changed": "model_provider_error",
     "routing_invalid_response": "invalid_model_output",
@@ -176,7 +181,10 @@ def run_turn(context: Context, request_id: str, jev: Jev | None, work: Work,
                               "inputTokens": asked.input_tokens, "elapsedMs": asked.elapsed_ms}
         except JevError as error:
             metrics["routingCalls"] = int(error.sent)
-            metrics["jev"] = {"skipped": error.code}
+            metrics["jev"] = {"skipped": error.code,
+                              **({"httpStatus": error.status} if error.status else {}),
+                              **({"elapsedMs": error.elapsed_ms}
+                                 if error.elapsed_ms is not None else {})}
             failed = JEV_FAILURES.get(error.code, "model_provider_error")
         except SpendingError as error:
             # Refused before the call, or its accounting failed after: all paid work stops.

@@ -23,8 +23,10 @@ class MemoryLedger:
         return operation
 
     def settle(self, operation: str, cost: int, usage: dict[str, int], response_id: str,
-               model: str, elapsed_ms: int, now: datetime) -> None:
+               model: str, elapsed_ms: int, now: datetime, error: str | None = None) -> None:
         self.holds[operation].update(state="settled", cost=cost, model=model)
+        if error:
+            self.holds[operation]["error"] = error
 
     def uncertain(self, operation: str, code: str, elapsed_ms: int) -> None:
         self.holds[operation].update(state="uncertain", code=code)

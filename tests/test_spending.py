@@ -54,6 +54,19 @@ def test_settling_charges_the_real_cost_and_frees_the_rest(admin: Any, database:
         dev.hold("r3", "routing", 1, {}, NOW)
 
 
+def test_a_call_refused_before_it_was_read_frees_its_hold_and_says_why(
+        admin: Any, database: str) -> None:
+    dev = ledger(database)
+    with pytest.raises(RuntimeError, match="rejected"):
+        with paid_call(dev, "r1", "routing", DOLLAR, NOW) as receipt:
+            receipt.cost, receipt.error = 0, "routing_auth_failed"
+            raise RuntimeError("rejected")
+    row = admin.execute("SELECT state, cost_nusd, error_code FROM brain_ops.operations "
+                        "WHERE request_id = 'r1'").fetchone()
+    assert row == ("settled", 0, "routing_auth_failed")
+    dev.hold("r2", "routing", DOLLAR, {}, NOW)  # the whole allowance is free again
+
+
 def test_costing_more_than_was_held_pauses_spending(admin: Any, database: str) -> None:
     dev = ledger(database)
     operation = dev.hold("r1", "routing", 100, {}, NOW)

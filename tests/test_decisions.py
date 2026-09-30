@@ -221,7 +221,8 @@ def test_a_jev_failure_shows_in_the_metrics_and_the_stream(
     jev.error = JevError("routing_timeout")
     metrics = ask(**{"x-rockygpt-diagnostics": "1"}).json()["metrics"]
     assert metrics["responseMode"] == "model_timeout"
-    assert metrics["jev"] == {"skipped": "routing_timeout"}
+    assert metrics["jev"]["skipped"] == "routing_timeout"
+    assert isinstance(metrics["jev"]["elapsedMs"], int)  # the failed call's time is kept
     assert metrics["handler"] is None
     result = frames(ask(accept="text/event-stream"))[-1]
     assert result["status"] == 504
@@ -337,7 +338,8 @@ def test_the_dev_ui_sees_jevs_readings_in_development(
     assert metrics["routingCalls"] == 1
     assert metrics["jev"]["answers"]["own_account"] == {"yes": 0.96}
     assert metrics["jev"]["answers"]["danger"] == {
-        "choice": "none", "probability": 0.97, "confidence": 0.95}
+        "choice": "none", "probability": 0.97, "confidence": 0.95,
+        "probabilities": {"self_harm": 0.01, "danger": 0.02, "none": 0.97}}
     assert metrics["jev"]["decided"] == {
         "danger": None, "ownAccount": True, "needsEarlier": False, "multiPart": False,
         "work": "look_up", "subject": "places", "named": "office", "needs": "campus_info",
