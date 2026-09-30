@@ -1,6 +1,7 @@
 """Jev's calls: held and settled at Jev's price, and only sound answers get through."""
 
 import json
+import time
 from datetime import date, datetime
 from typing import Any
 
@@ -13,6 +14,7 @@ from rockygpt_brain.jev import (
     CALL_TOKENS,
     JEV_PRICE,
     JEV_URL,
+    QUESTION_TOKENS,
     Jev,
     JevError,
     Pick,
@@ -22,6 +24,7 @@ from rockygpt_brain.jev import (
     choice,
     noul,
     token_bound,
+    token_estimate,
 )
 from rockygpt_brain.spending import CAMPUS_TIMEZONE, PostgresLedger
 
@@ -72,9 +75,32 @@ def test_an_expired_price_skips_jev_before_any_hold() -> None:
 def test_a_call_too_long_for_jev_is_not_sent() -> None:
     jev, script, ledger = fake_jev(ScriptedJev(ANSWERS))
     with pytest.raises(JevError) as skipped:
-        jev.ask("r1", {"latest_request": "x" * CALL_TOKENS}, QUESTIONS, NOW)
+        jev.ask("r1", {"latest_request": "x" * CALL_TOKENS * 2}, QUESTIONS, NOW)
     assert (skipped.value.code, skipped.value.sent) == ("routing_context_limit", False)
     assert not ledger.holds and not script.sent
+
+
+def test_a_chat_that_fits_jev_is_sent_though_its_worst_case_would_not() -> None:
+    # 40,000 bytes: past the limit at one byte to the token, under it at about three.
+    state = {"latest_request": "x" * 40_000}
+    assert token_bound({"state": state}) > QUESTION_TOKENS > token_estimate({"state": state})
+    jev, script, ledger = fake_jev(ScriptedJev(ANSWERS))
+    jev.ask("r1", state, QUESTIONS, NOW)
+    # The ledger still holds the worst case, so a dense chat can't cost more than was held.
+    (hold,) = ledger.holds.values()
+    assert hold["amount"] == token_bound(script.sent[0]) * 42
+
+
+def test_a_call_the_provider_never_read_costs_nothing_and_is_not_left_held() -> None:
+    error = JevError("routing_auth_failed", status=401, uncharged=True)
+    jev, _, ledger = fake_jev(ScriptedJev(error=error))
+    with pytest.raises(JevError) as failed:
+        jev.ask("r1", STATE, QUESTIONS, NOW)
+    assert (failed.value.code, failed.value.status) == ("routing_auth_failed", 401)
+    assert isinstance(failed.value.elapsed_ms, int)
+    (hold,) = ledger.holds.values()
+    assert (hold["state"], hold["cost"], hold["error"]) == (
+        "settled", 0, "routing_auth_failed")
 
 
 def test_a_call_that_times_out_stays_held_as_uncertain() -> None:
@@ -146,8 +172,14 @@ def test_typesafe_gets_the_call_with_the_key_and_reports_usage() -> None:
 
 @pytest.mark.parametrize(("response", "code"), [
     (httpx.Response(429), "routing_rate_limited"),
-    (httpx.Response(401), "routing_provider_error"),
-    (httpx.Response(529), "routing_provider_error"),
+    (httpx.Response(401), "routing_auth_failed"),
+    (httpx.Response(403), "routing_auth_failed"),
+    (httpx.Response(422), "routing_request_rejected"),
+    (httpx.Response(400), "routing_request_rejected"),
+    (httpx.Response(529), "routing_overloaded"),
+    (httpx.Response(500), "routing_provider_error"),
+    (httpx.Response(503), "routing_provider_error"),
+    (httpx.Response(408), "routing_provider_error"),
     (httpx.Response(200, json={"answers": ANSWERS}), "routing_usage_unknown"),
     (httpx.Response(200, json={"answers": ANSWERS, "usage": {"input_tokens": -1,
                                                              "output_tokens": 0}}),
@@ -161,17 +193,59 @@ def test_typesafe_trouble_is_named(response: httpx.Response, code: str) -> None:
     assert trouble.value.code == code
 
 
-@pytest.mark.parametrize(("error", "code"), [
-    (httpx.ReadTimeout("slow"), "routing_timeout"),
-    (httpx.ConnectError("down"), "routing_unavailable"),
+@pytest.mark.parametrize(("status", "uncharged"), [
+    (429, True), (529, True), (401, True), (403, True), (422, True), (400, True),
+    (500, False), (502, False), (408, False),
 ])
-def test_typesafe_out_of_reach_is_named(error: Exception, code: str) -> None:
+def test_only_a_refusal_before_the_call_was_read_is_free(status: int, uncharged: bool) -> None:
+    with pytest.raises(JevError) as trouble:
+        typesafe(lambda request: httpx.Response(status))(BODY, 2.0)
+    assert (trouble.value.status, trouble.value.uncharged) == (status, uncharged)
+
+
+def test_the_response_id_is_read_from_typesafes_own_header() -> None:
+    reply = typesafe(lambda request: httpx.Response(
+        200, headers={"x-typesafe-request-id": "req-7"},
+        json={"model": "jev-1.13.0", "answers": ANSWERS,
+              "usage": {"input_tokens": 1, "output_tokens": 0}}))(BODY, 2.0)
+    assert reply.response_id == "req-7"
+
+
+@pytest.mark.parametrize(("error", "code", "uncharged"), [
+    (httpx.ReadTimeout("slow"), "routing_timeout", False),
+    (httpx.WriteTimeout("slow"), "routing_timeout", False),
+    (httpx.ConnectError("down"), "routing_unavailable", True),
+    (httpx.ConnectTimeout("down"), "routing_unavailable", True),
+    (httpx.PoolTimeout("busy"), "routing_unavailable", True),
+    (httpx.ReadError("cut"), "routing_unavailable", False),
+    (httpx.RemoteProtocolError("hung up"), "routing_unavailable", False),
+])
+def test_typesafe_out_of_reach_is_named(error: Exception, code: str, uncharged: bool) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise error
 
     with pytest.raises(JevError) as trouble:
         typesafe(handler)(BODY, 2.0)
-    assert trouble.value.code == code
+    # Only a call that never left is free: a reset mid-reply may have been read and charged.
+    assert (trouble.value.code, trouble.value.uncharged) == (code, uncharged)
+
+
+def test_a_slow_call_is_cut_off_when_the_time_is_up_however_it_was_spent() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        time.sleep(1.0)  # the call was sent, and the reply is late
+        return httpx.Response(200, json={"answers": ANSWERS})
+
+    started = time.monotonic()
+    with pytest.raises(JevError) as late:
+        typesafe(handler)(BODY, 0.2)
+    assert late.value.code == "routing_timeout" and not late.value.uncharged
+    assert time.monotonic() - started < 0.6
+
+
+def test_the_default_client_opens_a_connection_twice_before_giving_up() -> None:
+    transport = TypesafeHttp("test-key")._client._transport
+    assert isinstance(transport, httpx.HTTPTransport)
+    assert transport._pool._retries == 1
 
 
 def test_a_call_is_settled_in_the_real_ledger(admin: psycopg.Connection[Any],

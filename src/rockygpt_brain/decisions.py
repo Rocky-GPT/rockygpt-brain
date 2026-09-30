@@ -27,8 +27,10 @@ from rockygpt_brain.context import Context
 from rockygpt_brain.jev import Answer, Asked, Jev, Pick, Question, Timed, Yes, choice, noul
 from rockygpt_brain.safety import Danger
 
-# A yes/no pick is yes at YES or more. A pick Jev put under SURE (Typesafe's own guidance
-# for acting on an answer) is still followed, and marked low confidence.
+# A yes/no pick is yes at YES or more. A pick Jev put under SURE is still followed, and
+# marked low confidence. Typesafe's docs use 0.9 for acting on `confidence`; here it is the
+# pick's own probability (a yes/no's leaning side), a slightly different number on questions
+# with few options (jev.Pick).
 YES = 0.5
 SURE = 0.9
 
@@ -336,12 +338,15 @@ def ask_jev(jev: Jev, context: Context, request_id: str, timed: Timed | None = N
 
 
 def readings(answers: dict[str, Answer]) -> dict[str, dict[str, Any]]:
-    """Jev's answers for diagnostics, rounded: probabilities only, no student words."""
+    """Jev's answers for diagnostics, rounded: probabilities only, no student words. A pick
+    keeps the whole spread, so what a soft pick was up against can be read afterwards."""
     shown: dict[str, dict[str, Any]] = {}
     for key, answer in answers.items():
         if isinstance(answer, Yes):
             shown[key] = {"yes": round(answer.probability, 3)}
         else:
             shown[key] = {"choice": answer.choice, "probability": round(answer.probability, 3),
-                          "confidence": round(answer.confidence, 3)}
+                          "confidence": round(answer.confidence, 3),
+                          "probabilities": {option: round(value, 3)
+                                            for option, value in answer.probabilities.items()}}
     return shown

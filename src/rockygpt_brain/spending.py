@@ -90,11 +90,13 @@ SELECT facts.*, EXISTS (SELECT 1 FROM held) AS held FROM facts
 
 # Settles a hold with what the call really cost, in the month it settles. Costing more
 # than was held still records the real cost, and pauses the account for a person to look.
+# A call refused before it was read settles at zero, with the error that says why.
 SETTLE = """
 WITH settled AS (
   UPDATE brain_ops.operations SET state = 'settled', cost_nusd = %(cost)s, usage = %(usage)s,
     charged_month = GREATEST(admitted_month, %(month)s), provider_response_id = %(response)s,
-    returned_model = %(model)s, elapsed_ms = %(elapsed)s, updated_at = clock_timestamp()
+    returned_model = %(model)s, elapsed_ms = %(elapsed)s, error_code = %(error)s,
+    updated_at = clock_timestamp()
   WHERE environment = %(environment)s AND operation_id = %(operation)s AND state <> 'settled'
   RETURNING reserved_nusd
 ), paused AS (
@@ -204,13 +206,13 @@ class PostgresLedger:
         raise SpendingError("accounting_unavailable")
 
     def settle(self, operation: str, cost: int, usage: dict[str, int], response_id: str,
-               model: str, elapsed_ms: int, now: datetime) -> None:
+               model: str, elapsed_ms: int, now: datetime, error: str | None = None) -> None:
         if cost < 0:
             raise SpendingError("invalid_usage")
         ((outcome,),) = self.run((SETTLE, {
             "environment": self.environment, "operation": operation, "cost": cost,
             "usage": Jsonb(usage), "month": month_of(now), "response": response_id,
-            "model": model, "elapsed": elapsed_ms,
+            "model": model, "elapsed": elapsed_ms, "error": error,
         }))
         if not outcome["settled"]:
             raise SpendingError("operation_not_found")
@@ -240,26 +242,29 @@ class Ledger(Protocol):
              metadata: dict[str, Any], now: datetime) -> str: ...
 
     def settle(self, operation: str, cost: int, usage: dict[str, int], response_id: str,
-               model: str, elapsed_ms: int, now: datetime) -> None: ...
+               model: str, elapsed_ms: int, now: datetime, error: str | None = None) -> None: ...
 
     def uncertain(self, operation: str, code: str, elapsed_ms: int) -> None: ...
 
 
 @dataclass
 class Receipt:
-    """What a paid call reports back: its cost once known, or that nothing was charged."""
+    """What a paid call reports back: its cost once known (zero for a call refused before it
+    was read, with `error` saying why)."""
 
     cost: int | None = None
     usage: dict[str, int] = field(default_factory=dict)
     response_id: str = ""
     model: str = ""
+    error: str = ""
 
 
 @contextmanager
 def paid_call(ledger: Ledger, request_id: str, category: Category, amount: int,
               now: datetime, metadata: dict[str, Any] | None = None) -> Iterator[Receipt]:
     """Holds `amount` before the call and settles after. A call that fails before its
-    cost is known stays held as uncertain, counted against this month."""
+    cost is known stays held as uncertain, counted against this month, unless the caller
+    knows it cost nothing and sets `receipt.cost` to 0."""
     operation = ledger.hold(request_id, category, amount, metadata or {}, now)
     started = monotonic()
     receipt = Receipt()
@@ -276,10 +281,10 @@ def paid_call(ledger: Ledger, request_id: str, category: Category, amount: int,
             ledger.uncertain(operation, code[:100], elapsed())
         else:
             ledger.settle(operation, receipt.cost, receipt.usage, receipt.response_id,
-                          receipt.model, elapsed(), now)
+                          receipt.model, elapsed(), now, receipt.error or None)
         raise
     if receipt.cost is None:
         ledger.uncertain(operation, "usage_unknown", elapsed())
         raise SpendingError("usage_unknown")
     ledger.settle(operation, receipt.cost, receipt.usage, receipt.response_id, receipt.model,
-                  elapsed(), now)
+                  elapsed(), now, receipt.error or None)

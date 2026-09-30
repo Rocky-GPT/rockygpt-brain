@@ -78,6 +78,14 @@ call.
 one token per byte of the call, plus 8,192, at 42 nanodollars per input token. After
 the call, it settles the tokens Typesafe reports. A call is about $0.0001.
 
+- A call Typesafe refused before reading it (no connection, a rejected key or request,
+  rate limiting, overload) cost nothing, so its hold is settled at zero with the error
+  that says why. Any other failed call stays held as uncertain and counts against the
+  month, because it may have been read and charged.
+- A call is sent only if it should fit Typesafe's limits (32k tokens for the state and
+  any one question, 64k in all), counting two bytes to the token. Our own calls ran about
+  three on 09-29 and English runs over four. The hold still uses one byte to the token, so
+  the estimate never lowers what is held.
 - The price lives in `src/rockygpt_brain/prices.json`. It was checked on
   <https://docs.typesafe.ai/models> on 2026-09-29 and is trusted until 2026-12-28.
 - `.github/workflows/price-window.yml` opens an issue two weeks before that date. Past
@@ -91,13 +99,18 @@ danger phrases still work, because they need no Jev.
 
 | What went wrong with Jev | What the student gets |
 | --- | --- |
-| a timeout (2 s) | 504 `model_timeout` |
-| no connection | 503 `model_unreachable` |
-| rate limiting | 429 `busy` |
-| a provider error, missing usage, or a different model | 502 `model_provider_error` |
+| a timeout (2 s for the whole call, connecting included) | 504 `model_timeout` |
+| no connection (opened twice before giving up) | 503 `model_unreachable` |
+| rate limiting or overload (429, 529) | 429 `busy` |
+| a rejected key (401, 403) | 503 `model_not_configured`, not retryable |
+| a request Typesafe refused as invalid (other 4xx) | 500 `internal_error`: a bug in the Brain, in the turn log |
+| another provider error (5xx, 408), missing usage, or a different model | 502 `model_provider_error` |
 | an answer in the wrong shape | 502 `invalid_model_output` |
 | a call too long for Jev | 422 `context_limit`, not retryable: a shorter chat helps |
 | an expired price | 503 `model_not_configured`, not retryable |
+
+The turn's diagnostics keep Typesafe's HTTP status (`metrics.jev.httpStatus`) and how long
+the failed call took (`elapsedMs`), and the turn log has the time as `jevMs`.
 
 `JEV_FAILURES` in `turn.py` holds the table, and a test checks that every error `jev.py`
 raises has a row. Until the route handlers exist, trying again still ends in `not_ready`
