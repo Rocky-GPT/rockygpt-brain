@@ -325,10 +325,13 @@ def handler(decisions: Decisions, said: Danger | None = None) -> Handler:
     return Handler(settled, tuple(path), low)
 
 
-def ask_jev(jev: Jev, context: Context, request_id: str,
-            timed: Timed | None = None) -> tuple[Decisions, Asked]:
-    """One Jev call for every question. Raises JevError or SpendingError."""
-    asked = jev.ask(request_id, state(context), QUESTIONS, context.now, timed)
+def ask_jev(jev: Jev, context: Context, request_id: str, timed: Timed | None = None,
+            extra: Mapping[str, Question] | None = None) -> tuple[Decisions, Asked]:
+    """One Jev call for every question, plus any `extra` a later milestone adds for this turn
+    (the shuttle's). Raises JevError or SpendingError."""
+    if extra and QUESTIONS.keys() & extra.keys():
+        raise ValueError("Extra questions may not reuse a frozen question's key")
+    asked = jev.ask(request_id, state(context), {**QUESTIONS, **(extra or {})}, context.now, timed)
     return decide(context, asked.answers), asked
 
 
