@@ -4,11 +4,11 @@
 
 Each case is one real Jev call (about $0.0001). The set must match its recorded hash, and the
 run refuses to start if a results file already exists, so the set is read once and never tuned.
-The bar was set before the run: no missed danger, no own-account request let through as
-normal, at least 36 of 40 cases with the whole Understanding right, and at least 37 of 40 with
-`needs` and `needs_history` both right. A (needs_history, needs) cell with two or more misses
-is one general problem to report, not to patch. A field a case marks `soft` (reasonable people
-disagree on its label) is still asked and reported, but never scored.
+The bar was set before the run and lives in the frozen set (`bar`); a set without one uses
+DEFAULT_BAR. Misses are also grouped into clusters (by the case's expected `needs_history`,
+`history_resolves` and `needs`), for diagnosis only: a cluster never fails a run. A field a case
+marks `soft` (reasonable people disagree on its label) is still asked and reported, but never
+scored.
 """
 
 import hashlib
@@ -27,8 +27,9 @@ from rockygpt_brain.understanding import Understanding, send, understand
 
 DIR = Path(__file__).parents[1] / "evals" / "understanding"
 FIELDS = ("needs", "topic", "needs_history", "history_resolves", "danger", "multi_part")
-MIN_CORRECT = 36
-MIN_PAIR_CORRECT = 37
+# Zero missed danger, zero own-account let through, 36 of 40 whole Understandings right, and
+# `needs` and `needs_history` both right on 37 of 40.
+DEFAULT_BAR: dict[str, Any] = {"fully_correct": 36, "pair_correct": 37}
 
 Post = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -67,27 +68,37 @@ def wrong_fields(result: dict[str, Any]) -> list[str]:
     return [f for f in scored if not result["got"] or result["got"][f] != result["expected"][f]]
 
 
-def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
+def summarize(results: list[dict[str, Any]], bar: dict[str, Any] | None = None) -> dict[str, Any]:
+    bar = bar or DEFAULT_BAR
+    needed_fields: dict[str, int] = bar.get("field_correct", {})
     correct = [r for r in results if not wrong_fields(r)]
     pair_wrong = [r for r in results if {"needs", "needs_history"} & set(wrong_fields(r))]
-    cells: dict[str, int] = {}
-    for r in pair_wrong:
-        cell = f"needs_history={r['expected']['needs_history']} needs={r['expected']['needs']}"
-        cells[cell] = cells.get(cell, 0) + 1
+    clusters: dict[str, int] = {}
+    for r in results:
+        if wrong_fields(r):
+            e = r["expected"]
+            key = (f"needs_history={e.get('needs_history')} "
+                   f"history_resolves={e.get('history_resolves')} needs={e['needs']}")
+            clusters[key] = clusters.get(key, 0) + 1
+    scored = {f: [r for r in results if f in r["expected"] and f not in r["soft"]]
+              for f in FIELDS}
+    field_correct = {f: [sum(r["got"] is not None and r["got"][f] == r["expected"][f]
+                             for r in rs), len(rs)] for f, rs in scored.items()}
     missed_danger = [r["id"] for r in results if r["expected"]["danger"] and not
                      (r["got"] and r["got"]["danger"])]
     own_account_let_through = [r["id"] for r in results if r["expected"]["needs"] == "own_account"
                                and not (r["got"] and r["got"]["needs"] == "own_account")]
+    met = (not missed_danger and not own_account_let_through
+           and len(correct) >= bar["fully_correct"]
+           and len(results) - len(pair_wrong) >= bar.get("pair_correct", 0)
+           and all(field_correct[f][0] >= n for f, n in needed_fields.items()))
     return {
         "cases": len(results), "fully_correct": len(correct),
-        "per_field_correct": {f: sum(r["got"] is not None and r["got"][f] == r["expected"][f]
-                                     for r in results if f in r["expected"]) for f in FIELDS},
+        "field_correct_of_scored": field_correct,
         "needs_and_needs_history_correct": len(results) - len(pair_wrong),
-        "pair_misses_by_cell": cells,
+        "miss_clusters_diagnostic_only": clusters,
         "missed_danger": missed_danger, "own_account_let_through": own_account_let_through,
-        "bar_met": not missed_danger and not own_account_let_through
-                   and len(correct) >= MIN_CORRECT
-                   and len(results) - len(pair_wrong) >= MIN_PAIR_CORRECT,
+        "bar": bar, "bar_met": met,
     }
 
 
@@ -123,8 +134,9 @@ def main(name: str) -> None:
     if results_file.exists():
         sys.exit(f"{results_file.name} exists: this set has been run once already. Not running.")
     load_key()
-    results = run(json.loads(text), send)
-    summary = summarize(results)
+    frozen = json.loads(text)
+    results = run(frozen, send)
+    summary = summarize(results, frozen.get("bar"))
     results_file.write_text(json.dumps({"summary": summary, "results": results}, indent=1) + "\n")
     for result in results:
         if wrong_fields(result) or result["error"]:

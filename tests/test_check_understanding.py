@@ -149,7 +149,7 @@ def test_the_pair_bar_is_thirty_seven_and_misses_are_counted_by_cell() -> None:
 
     ok = runner.summarize(runner.run(FROZEN, wrong_needs_on(3)))
     assert ok["needs_and_needs_history_correct"] == 37 and ok["bar_met"]
-    assert sum(ok["pair_misses_by_cell"].values()) == 3
+    assert sum(ok["miss_clusters_diagnostic_only"].values()) == 3
     short = runner.summarize(runner.run(FROZEN, wrong_needs_on(4)))
     assert short["needs_and_needs_history_correct"] == 36 and not short["bar_met"]
 
@@ -166,3 +166,79 @@ def test_main_refuses_a_changed_set_and_a_second_run(
     (tmp_path / f"{OLD}-results.json").write_text("{}")
     with pytest.raises(SystemExit, match="once already"):
         runner.main(OLD)
+
+
+HISTORY = json.loads((runner.DIR / "history-20260930.json").read_text())
+
+
+def perfect_for(frozen: dict[str, Any]) -> Any:
+    def post(body: dict[str, Any]) -> dict[str, Any]:
+        state = body["state"]
+        earlier = [m["content"] for m in state["recent_messages"]]
+        for case in frozen["cases"]:
+            if (case["messages"][-1]["content"] == state["latest_message"]
+                    and [m["content"] for m in case["messages"][:-1]] == earlier):
+                return jev_says(case["expected"])
+        raise AssertionError("no such case")
+    return post
+
+
+def test_the_history_set_has_the_planned_shape() -> None:
+    cases = HISTORY["cases"]
+    assert [c["id"] for c in cases] == list(range(1, 41))
+    cells = [(c["expected"]["needs_history"], c["expected"]["history_resolves"]) for c in cases]
+    assert (cells.count((True, True)), cells.count((True, False)), cells.count((False, False))) == (
+        16, 12, 12)
+    assert all("history_resolves" in c["soft"] for c in cases if not c["expected"]["needs_history"])
+    assert HISTORY["bar"] == {"fully_correct": 36,
+                              "field_correct": {"needs_history": 37, "history_resolves": 24}}
+
+
+def test_a_perfect_jev_meets_the_history_bar() -> None:
+    summary = runner.summarize(runner.run(HISTORY, perfect_for(HISTORY)), HISTORY["bar"])
+    assert summary["fully_correct"] == 40 and summary["bar_met"]
+    assert summary["field_correct_of_scored"]["history_resolves"] == [26, 26]
+
+
+def test_the_history_bar_needs_twenty_four_of_twenty_six_history_resolves() -> None:
+    def wrong_resolves_on(count: int) -> Any:
+        good = perfect_for(HISTORY)
+        flipped: list[int] = []
+
+        def post(body: dict[str, Any]) -> dict[str, Any]:
+            reply: dict[str, Any] = good(body)
+            answer = reply["answers"]["history_resolves"]
+            if body["state"]["recent_messages"] and answer["noul"] > 0.5 and len(flipped) < count:
+                flipped.append(1)
+                answer["noul"] = 0.05
+            return reply
+        return post
+
+    bar = HISTORY["bar"]
+    assert runner.summarize(runner.run(HISTORY, wrong_resolves_on(2)), bar)["bar_met"]
+    three = runner.summarize(runner.run(HISTORY, wrong_resolves_on(3)), bar)
+    assert three["field_correct_of_scored"]["history_resolves"][0] == 23 and not three["bar_met"]
+
+
+def test_soft_fields_and_clusters_never_fail_a_run() -> None:
+    def wrong_on_soft(body: dict[str, Any]) -> dict[str, Any]:
+        reply: dict[str, Any] = perfect_for(HISTORY)(body)
+        if body["state"]["latest_message"].startswith("ok going back to that thing"):
+            reply["answers"]["needs"]["choice"] = "campus_info"   # case 12: needs is soft
+            reply["answers"]["history_resolves"]["noul"] = 0.95   # and so is history_resolves
+        return reply
+
+    summary = runner.summarize(runner.run(HISTORY, wrong_on_soft), HISTORY["bar"])
+    assert summary["fully_correct"] == 40 and summary["bar_met"]
+    assert summary["miss_clusters_diagnostic_only"] == {}
+
+
+def test_the_regression_copies_keep_the_old_labels_but_the_amended_case_forty() -> None:
+    blind1 = json.loads((runner.DIR / "regress-blind1-20260930.json").read_text())
+    boundary = json.loads((runner.DIR / "regress-boundary-20260930.json").read_text())
+    original = json.loads((runner.DIR / "blind-20260930.json").read_text())
+    assert blind1["cases"][39]["expected"]["needs"] == "campus_info"
+    assert [c for c in blind1["cases"][:39]] == original["cases"][:39]
+    assert boundary["cases"] == json.loads(
+        (runner.DIR / "boundary-20260930.json").read_text())["cases"]
+    assert "bar" not in blind1 and "bar" not in boundary
