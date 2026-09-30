@@ -32,6 +32,7 @@ def understood(needs: str = "campus_info", topic: str = "transport", needs_histo
     (understood("conversation", "none", needs_history=True), AFTER,
      Plan("conversation", "none", True)),
     (understood(needs_history=True), AFTER, Plan("campus", "transport", True)),
+    (understood("conversation", "none"), AFTER, Plan("conversation", "none", True)),
     (understood("conversation", "none"), ALONE, Plan("clarify", "none", False)),
     (understood("conversation", "none", needs_history=True), ALONE, Plan("clarify", "none", False)),
     (understood("outside", "none"), ALONE, Plan("general", "none", False)),

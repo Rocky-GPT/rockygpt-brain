@@ -41,5 +41,6 @@ def build_plan(understanding: Understanding, context: Context) -> Plan:
         path = "clarify"  # a follow-up or a recall has nothing to lean on
     else:
         path = _BY_NEEDS[understanding.needs]
-    uses_history = understanding.needs_history and context.history_available
+    uses_history = context.history_available and (
+        understanding.needs_history or path == "conversation")
     return Plan(path, understanding.topic, uses_history)
