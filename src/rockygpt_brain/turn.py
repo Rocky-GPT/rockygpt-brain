@@ -5,10 +5,19 @@ each step (and the safety help) the moment it happens.
 """
 
 from collections.abc import Iterator
+from time import monotonic
 from typing import Any, Literal, NamedTuple
 
+from rockygpt_brain.campus import CampusReader, CampusUnavailable, Timetable
 from rockygpt_brain.context import Context
-from rockygpt_brain.contract import ChatReply, ErrorCode, FailureReply, ProgressEvent, SafetyBlock
+from rockygpt_brain.contract import (
+    ChatReply,
+    ErrorCode,
+    FailureReply,
+    ProgressEvent,
+    SafetyBlock,
+    Subject,
+)
 from rockygpt_brain.decisions import ROUTES, Decisions, Handler, ask_jev, handler, readings
 from rockygpt_brain.failures import failure
 from rockygpt_brain.jev import Jev, JevError
@@ -21,6 +30,8 @@ from rockygpt_brain.safety import (
     safety_block,
     said_danger,
 )
+from rockygpt_brain.shuttle_answer import ShuttleAnswer, answer
+from rockygpt_brain.shuttle_ask import Asking, Dispatch, dispatch, shuttle_questions
 from rockygpt_brain.spending import SpendingError
 from rockygpt_brain.work import Work
 
@@ -104,25 +115,60 @@ def stopped(error: SpendingError) -> ErrorCode:
     return "accounting_unavailable"
 
 
-def run_turn(context: Context, request_id: str, jev: Jev | None,
-             work: Work) -> Iterator[ProgressEvent | TurnResult]:
+def read_campus(campus: CampusReader | None, jev: Jev | None, said: Danger | None,
+                context: Context, metrics: dict[str, Any]) -> tuple[Timetable | None,
+                                                                    Asking | None]:
+    """The shuttle timetable and the shuttle questions for this turn. The stop list in the
+    questions is written from the timetable, so it is read before Jev is asked; a copy read in
+    the last few minutes is reused. Nothing is read when it could not be used: no campus
+    setting, no Jev, or a danger phrase, which needs neither. When the read fails the
+    questions still go, without the stop list, so a shuttle question can end as a data outage
+    and not as "not ready"."""
+    if campus is None:
+        metrics["campus"] = {"skipped": "campus_not_configured"}
+    elif jev is None:
+        metrics["campus"] = {"skipped": "routing_unavailable"}
+    elif said:
+        metrics["campus"] = {"skipped": "danger_phrase"}
+    else:
+        table = None
+        started = monotonic()
+        try:
+            table = campus.timetable()
+            metrics["campus"] = {"datasetVersion": table.dataset_version,
+                                 "collectedAt": table.collected_at.isoformat()}
+        except CampusUnavailable as error:
+            metrics["campus"] = {"skipped": error.code}
+        metrics["campus"]["readMs"] = round((monotonic() - started) * 1000)
+        return table, shuttle_questions(context.now, table)
+    return None, None
+
+
+def run_turn(context: Context, request_id: str, jev: Jev | None, work: Work,
+             campus: CampusReader | None = None) -> Iterator[ProgressEvent | TurnResult]:
     # Safety: the danger phrases need no model and no money, so their help goes out first.
     said = said_danger(context.question)
     shown = safety_block(said) if said else None
     yield ProgressEvent(stage="understanding", safety=shown)
 
-    # Jev: one call reads what the question asks.
+    # Jev: one call reads what the question asks, and the shuttle questions with it.
     metrics: dict[str, Any] = {"routingCalls": 0, "dangerPhrase": said}
+    table, asking = read_campus(campus, jev, said, context, metrics)
     decisions: Decisions | None = None
     chosen: Handler | None = None
+    shuttle: Dispatch | None = None
     stop: SpendingError | None = None
     failed: ErrorCode | None = None
     if jev is None:
         metrics["jev"] = {"skipped": "routing_unavailable"}
     else:
         try:
-            decisions, asked = ask_jev(jev, context, request_id, work.jev_call)
+            decisions, asked = ask_jev(jev, context, request_id, work.jev_call,
+                                       asking.questions if asking else None)
             chosen = handler(decisions, said)
+            if asking is not None:
+                shuttle = dispatch(asked.answers, asking, decisions, chosen, context)
+                metrics["shuttle"] = {"refused": shuttle.refused, "picks": shuttle.picks}
             metrics["routingCalls"] = 1
             metrics["jev"] = {"answers": readings(asked.answers),
                               "decided": decided(decisions, chosen),
@@ -145,6 +191,14 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
     if danger is not None and danger != said:
         shown = safety_block(danger)
         yield ProgressEvent(stage="understanding", safety=shown)
+
+    # The shuttle timetable answers a plan Jev's picks made, in code, with no model.
+    timetable_answer: ShuttleAnswer | None = None
+    if shuttle is not None and shuttle.plan is not None and table is not None:
+        yield ProgressEvent(stage="retrieving", subjects=[
+            Subject(topic="shuttle", date_from=shuttle.plan.day.isoformat())])
+        timetable_answer = answer(shuttle.plan, table, context.now)
+        metrics["shuttle"].update(kind=timetable_answer.kind, stale=timetable_answer.stale)
 
     # Final assembly.
     if shown is not None:
@@ -174,6 +228,17 @@ def run_turn(context: Context, request_id: str, jev: Jev | None,
         work.decided(written={"by": "code", "mode": said_it.mode})
         yield TurnResult(200, ChatReply(answer=said_it.text, status=said_it.status,
                                         citations=[], requestId=request_id), None, metrics)
+    elif timetable_answer is not None and table is not None:
+        metrics["responseMode"] = "shuttle_timetable"
+        work.decided(written={"by": "code", "mode": "shuttle_timetable"})
+        yield TurnResult(200, ChatReply(
+            answer=timetable_answer.text, status="answered",
+            citations=list(timetable_answer.citations), requestId=request_id,
+            datasetVersion=table.dataset_version), None, metrics)
+    elif shuttle is not None and shuttle.refused == "data_unavailable":
+        # A shuttle question Jev read plainly, and no timetable to answer it from.
+        metrics["responseMode"] = "data_unavailable"
+        yield TurnResult(*failure("data_unavailable", request_id), None, metrics)
     else:
         metrics["responseMode"] = "not_ready"
         yield TurnResult(*failure("not_ready", request_id), None, metrics)

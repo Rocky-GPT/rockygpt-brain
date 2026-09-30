@@ -200,10 +200,13 @@ def dispatch(answers: Mapping[str, Answer], asking: Asking, decisions: Decisions
         return refuse("trip")
     if picked_day is None:
         return refuse("day")
+    unsure = min(sureness.values()) < FLOOR  # every gate said yes, but on a coin flip
     if stop is None:
-        return refuse("data_unavailable")  # a plain shuttle question, and no timetable
+        # A plain shuttle question, and no timetable. Only a firm reading is an outage; a coin
+        # flip is "not ready", as it is when the timetable can be read.
+        return refuse("unsure" if unsure else "data_unavailable")
     if stop == "other":
         return refuse("stop")
-    if min(sureness.values()) < FLOOR:
-        return refuse("unsure")  # every gate said yes, but on a coin flip
+    if unsure:
+        return refuse("unsure")
     return Dispatch(ShuttlePlan(operation, picked_day, asking.stops.get(stop)), None, picks)

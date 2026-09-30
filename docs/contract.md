@@ -128,6 +128,18 @@ of these ways:
   with that one" for any other reason.
 - A request Jev picks as too unclear to read gets HTTP 200 with status `clarification`:
   a question written by code, asking the student to say it another way.
+- A shuttle question Jev reads as asking when the next, first or last shuttle leaves
+  Ramapo, for one day in the coming week and with or without one stop, gets HTTP 200
+  with status `answered`, written by code from the campus timetable with no model
+  ([docs/shuttle-benchmark.md](shuttle-benchmark.md)). The reply carries `datasetVersion`,
+  the timetable records it rests on as `citations`, and always says when the timetable was
+  copied. A streaming app sees one `retrieving` progress event with the subject
+  `shuttle`. This needs the campus data (`BRAIN_CAMPUS_DATABASE_URL`); without it every
+  shuttle question is `not_ready`, as before. If Jev read a plain shuttle question and the
+  timetable can't be read, the turn gets 503 `data_unavailable` (retryable). Any other
+  shuttle question the skill can't answer, such as one that names a clock time, wants the
+  whole day's list, asks about the stops or leans on earlier messages, stays 503
+  `not_ready`, and so does one whose least sure shuttle pick is under 0.6.
 - When Jev fails (a timeout, no connection, a wrong-shaped answer), the turn has no plan
   and fails on purpose: 504 `model_timeout`, 503 `model_unreachable`, 429 `busy`,
   502 `model_provider_error` or `invalid_model_output`, 422 `context_limit` or 503

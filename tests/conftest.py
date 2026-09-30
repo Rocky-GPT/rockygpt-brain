@@ -9,7 +9,7 @@ import psycopg
 import pytest
 from psycopg.conninfo import conninfo_to_dict
 
-from rockygpt_brain.api.app import app, jev_service
+from rockygpt_brain.api.app import app, campus_service, jev_service
 from rockygpt_brain.spending import close_pools
 
 MIGRATIONS = sorted((Path(__file__).parents[1] / "migrations").glob("*.sql"))
@@ -18,8 +18,9 @@ DOLLAR = 1_000_000_000
 
 @pytest.fixture(autouse=True)
 def no_real_jev() -> Iterator[None]:
-    """Jev is off unless a test hands the app its own."""
+    """Jev and the campus data are off unless a test hands the app its own."""
     app.dependency_overrides[jev_service] = lambda: None
+    app.dependency_overrides[campus_service] = lambda: None
     yield
     app.dependency_overrides.clear()
 

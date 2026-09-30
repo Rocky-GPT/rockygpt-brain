@@ -7,6 +7,8 @@ Settings, all server-side:
   development alone publishes the API description and answers diagnostics.
 - BRAIN_LEDGER_DATABASE_URL: the spending ledger (spending.py).
 - BRAIN_TYPESAFE_API_KEY: Jev. Without it, or without the two above, Jev is skipped.
+- BRAIN_CAMPUS_DATABASE_URL: a read-only login to the campus data (campus.py). Without it the
+  shuttle timetable is off and a shuttle question ends "not ready", as before.
 - STAGING_SERVICE_TOKEN: when set, every chat must carry it.
 """
 
@@ -26,6 +28,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
+from rockygpt_brain.campus import CampusReader, postgres_loader
 from rockygpt_brain.context import CAMPUS_TIMEZONE, Context, read_context
 from rockygpt_brain.contract import ChatReply, ChatRequest, ProgressEvent, ResultEvent
 from rockygpt_brain.failures import failure
@@ -68,6 +71,14 @@ def jev_service() -> Jev | None:
     return Jev(TypesafeHttp(key), PostgresLedger(ledger_url, env))
 
 
+@cache
+def campus_service() -> CampusReader | None:
+    """The campus data reader, built once so its copy and its connections are kept between
+    turns. The URL stays inside the loader."""
+    url = os.getenv("BRAIN_CAMPUS_DATABASE_URL", "").strip()
+    return CampusReader(postgres_loader(url)) if url else None
+
+
 def wire(model: BaseModel) -> dict[str, Any]:
     """Unset optional fields are left out, as the apps expect."""
     return model.model_dump(mode="json", exclude_none=True)
@@ -81,6 +92,7 @@ def log_turn(request_id: str, turn: TurnResult, started: float) -> None:
     """One line per turn, and never the student's words: only ids, codes and times."""
     body = turn.body
     jev = turn.metrics.get("jev", {})
+    shuttle = turn.metrics.get("shuttle", {})
     logging.getLogger("uvicorn.error").info("brain_turn %s", json.dumps({
         "requestId": request_id,
         "httpStatus": turn.status,
@@ -92,17 +104,20 @@ def log_turn(request_id: str, turn: TurnResult, started: float) -> None:
         "jevSkipped": jev.get("skipped"),
         "jevMs": jev.get("elapsedMs"),
         "jevCostNusd": jev.get("costNusd"),
+        "campusSkipped": turn.metrics.get("campus", {}).get("skipped"),
+        "shuttleRefused": shuttle.get("refused"),
+        "shuttleKind": shuttle.get("kind"),
         "elapsedMs": round((monotonic() - started) * 1000),
     }))
 
 
-def guarded(context: Context, request_id: str, jev: Jev | None,
-            work: Work) -> Iterator[ProgressEvent | TurnResult]:
+def guarded(context: Context, request_id: str, jev: Jev | None, work: Work,
+            campus: CampusReader | None = None) -> Iterator[ProgressEvent | TurnResult]:
     """The turn, and if a bug stops it, a failure that still carries the emergency help.
     The log gets the error's type and where it happened, not its message, which could
     hold the student's words."""
     try:
-        for step in run_turn(context, request_id, jev, work):
+        for step in run_turn(context, request_id, jev, work, campus):
             if isinstance(step, ProgressEvent):
                 work.step(step)
             yield step
@@ -119,6 +134,7 @@ def guarded(context: Context, request_id: str, jev: Jev | None,
 def chat(
     request: ChatRequest,
     jev: Annotated[Jev | None, Depends(jev_service)],
+    campus: Annotated[CampusReader | None, Depends(campus_service)],
     x_rockygpt_environment_token: Annotated[str | None, Header()] = None,
     x_rockygpt_diagnostics: Annotated[str | None, Header()] = None,
     accept: Annotated[str | None, Header()] = None,
@@ -146,7 +162,7 @@ def chat(
                             "startedAt": context.now.isoformat(), "work": work.report()},
         }))
 
-    steps = guarded(context, request_id, jev, work)
+    steps = guarded(context, request_id, jev, work, campus)
     if accept and "text/event-stream" in accept.lower():
 
         def events() -> Iterator[str]:
