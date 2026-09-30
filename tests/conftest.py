@@ -1,23 +1,14 @@
-"""Keep tests from loading a developer's .env.
-
-rockygpt-brain/.env can be a 1Password mount, and opening it waits for an
-unlock prompt. CI has no .env, so this also makes local runs match CI.
-"""
-
-import os
-
-os.environ["PYTHON_DOTENV_DISABLED"] = "1"
+"""Shared setup."""
 
 from collections.abc import Iterator
 
 import pytest
+from fastapi.testclient import TestClient
 
-from rockygpt_brain.core.provider import JEV_PAUSES
+from rockygpt_brain.api.app import app
 
 
-@pytest.fixture(autouse=True)
-def _jev_answers() -> Iterator[None]:
-    """A Jev pause one test causes never reaches another."""
-    yield
-    for pause in JEV_PAUSES.values():
-        pause.reset()
+@pytest.fixture
+def client() -> Iterator[TestClient]:
+    with TestClient(app) as client:
+        yield client

@@ -1,0 +1,1795 @@
+{
+ "about": "The rows of campus.QUERY for the active dataset of the local dev copy (dev-profiles-headings3-20260929), exported 2026-09-29: 51 trips of 4 published shuttle timetables. Public timetable data, no student words. Tests read it through tests/test_campus.py and never touch a database. To refresh it, run campus.QUERY against the dev copy and write the rows here (uuids and datetimes as text).",
+ "rows": [
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "316bb9a0-6e3b-497b-b986-58e872c18951",
+   "sequence": 0,
+   "departure": "7:00 AM",
+   "arrival": "7:20 AM",
+   "stops": [
+    {
+     "time": "7:10 AM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "7:10 AM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "769cbb64-0e59-4e48-9f1c-777facb51f58",
+   "sequence": 1,
+   "departure": "7:25 AM",
+   "arrival": "7:45 AM",
+   "stops": [
+    {
+     "time": "7:35 AM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "7:35 AM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "b49fd740-4db9-4d58-870e-c754d3c87df0",
+   "sequence": 2,
+   "departure": "7:50 AM",
+   "arrival": "8:17 AM",
+   "stops": [
+    {
+     "time": "8:00 AM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "8:07 AM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "adff9524-b5c4-4a69-ad43-8aa2c6e5ab08",
+   "sequence": 3,
+   "departure": "8:20 AM",
+   "arrival": "8:40 AM",
+   "stops": [
+    {
+     "time": "8:30 AM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "8:30 AM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "43aefa7d-9d88-4b73-a0e2-5c3e04250702",
+   "sequence": 4,
+   "departure": "8:40 AM",
+   "arrival": "9:00 AM",
+   "stops": [
+    {
+     "time": "8:50 AM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "8:50 AM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "7fbd5f4a-e31f-4053-ac3d-dab100cadcbb",
+   "sequence": 5,
+   "departure": "9:05 AM",
+   "arrival": "9:30 AM",
+   "stops": [
+    {
+     "time": "9:15 AM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "9:20 AM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "d86b09c7-9880-4768-9540-ca8732c175fa",
+   "sequence": 6,
+   "departure": "9:45 AM",
+   "arrival": "10:05 AM",
+   "stops": [
+    {
+     "time": "9:55 AM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "9:55 AM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "a0ec3b0e-8d23-4a9b-936e-08bb6fdeafda",
+   "sequence": 7,
+   "departure": "10:40 AM",
+   "arrival": "11:10 AM",
+   "stops": [
+    {
+     "time": "10:50 AM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "11:00 AM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "09476b7c-7534-4180-a5bf-41b72af0844c",
+   "sequence": 8,
+   "departure": "11:45 AM",
+   "arrival": "12:05 PM",
+   "stops": [
+    {
+     "time": "11:55 AM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "11:55 AM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "3b28f61d-dcba-4f46-b686-3e6895c87c23",
+   "sequence": 9,
+   "departure": "12:45 PM",
+   "arrival": "1:05 PM",
+   "stops": [
+    {
+     "time": "12:55 PM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "12:55 PM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "74435ecd-b492-43ea-b877-c5b4d0ea3ac3",
+   "sequence": 10,
+   "departure": "1:40 PM",
+   "arrival": "2:00 PM",
+   "stops": [
+    {
+     "time": "1:50 PM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "1:50 PM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "8dd2547c-a712-4f04-a352-fc7014698118",
+   "sequence": 11,
+   "departure": "2:35 PM",
+   "arrival": "2:55 PM",
+   "stops": [
+    {
+     "time": "2:45 PM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "2:45 PM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "dc26c0e7-cb77-4ac1-86cc-9f25b13c5641",
+   "sequence": 12,
+   "departure": "2:55 PM",
+   "arrival": "3:15 PM",
+   "stops": [
+    {
+     "time": "3:05 PM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "3:05 PM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "d819e3df-45be-4c21-a1f6-bb5684a97e4e",
+   "sequence": 13,
+   "departure": "3:25 PM",
+   "arrival": "3:50 PM",
+   "stops": [
+    {
+     "time": "3:35 PM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "3:40 PM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "5e3df0f1-6ad4-4be7-ba80-4c54b77a6a5f",
+   "sequence": 14,
+   "departure": "3:50 PM",
+   "arrival": "4:10 PM",
+   "stops": [
+    {
+     "time": "4:00 PM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "4:00 PM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "8c531ae9-bf66-4c6e-ab6b-c5fb9ca09160",
+   "sequence": 15,
+   "departure": "4:10 PM",
+   "arrival": "4:40 PM",
+   "stops": [
+    {
+     "time": "4:20 PM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "4:30 PM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "23b0a42f-0683-41a3-9dc5-6f21b7c5ab0f",
+   "sequence": 16,
+   "departure": "4:45 PM",
+   "arrival": "5:27 PM",
+   "stops": [
+    {
+     "time": "4:55 PM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    },
+    {
+     "time": "5:17 PM",
+     "location": "Depart Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "d791f606-1c64-4061-8780-fabff73a8138",
+   "route_name": "Ramsey Route 17",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "37dbbb67-59c0-4763-88d7-4af6c609601f",
+   "sequence": 17,
+   "departure": "5:30 PM",
+   "arrival": "N/A",
+   "stops": [
+    {
+     "time": "5:40 PM",
+     "location": "Arrive Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.190000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "03b846bc-38ba-4597-9179-10b252235b71",
+   "route_name": "Saturday Roadrunner Express",
+   "service_day": "saturday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "6a2862b2-70c7-4a79-a63f-69a1565de937",
+   "sequence": 0,
+   "departure": "9:00 AM",
+   "arrival": "9:30 AM",
+   "stops": [
+    {
+     "time": "9:10 AM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "9:15 AM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "9:20 AM",
+     "location": "CITY MD Ramsey"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.171000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "03b846bc-38ba-4597-9179-10b252235b71",
+   "route_name": "Saturday Roadrunner Express",
+   "service_day": "saturday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "832c2341-0d5b-40c4-b26f-362a802be52e",
+   "sequence": 1,
+   "departure": "9:55 AM",
+   "arrival": "10:45 AM",
+   "stops": [
+    {
+     "time": "10:05 AM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "10:10 AM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "10:15 AM",
+     "location": "CITY MD Ramsey"
+    },
+    {
+     "time": "10:25 AM",
+     "location": "Ramsey Square"
+    },
+    {
+     "time": "10:35 AM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.171000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "03b846bc-38ba-4597-9179-10b252235b71",
+   "route_name": "Saturday Roadrunner Express",
+   "service_day": "saturday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "a29f1790-3fda-4112-bb0d-d4de14bcc8c9",
+   "sequence": 2,
+   "departure": "11:00 AM",
+   "arrival": "12:25 PM",
+   "stops": [
+    {
+     "time": "11:10 AM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "11:15 AM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "11:35 AM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "11:45 AM",
+     "location": "Barnes & Noble/ Fashion Center"
+    },
+    {
+     "time": "12:00 PM",
+     "location": "Ramsey Square"
+    },
+    {
+     "time": "12:15 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.171000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "03b846bc-38ba-4597-9179-10b252235b71",
+   "route_name": "Saturday Roadrunner Express",
+   "service_day": "saturday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "45d60242-2d6e-494d-945b-07a887365df1",
+   "sequence": 3,
+   "departure": "12:50 PM",
+   "arrival": "1:30 PM",
+   "stops": [
+    {
+     "time": "1:00 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "1:05 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "1:10 PM",
+     "location": "CITY MD Ramsey"
+    },
+    {
+     "time": "1:20 PM",
+     "location": "Ramsey Square"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.171000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "03b846bc-38ba-4597-9179-10b252235b71",
+   "route_name": "Saturday Roadrunner Express",
+   "service_day": "saturday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "3784d51e-5364-4e5f-91e3-685ca045b8ae",
+   "sequence": 4,
+   "departure": "1:40 PM",
+   "arrival": "3:00 PM",
+   "stops": [
+    {
+     "time": "1:50 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "1:55 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "2:15 PM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "2:25 PM",
+     "location": "Barnes & Noble/ Fashion Center"
+    },
+    {
+     "time": "2:40 PM",
+     "location": "Ramsey Square"
+    },
+    {
+     "time": "2:50 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.171000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "03b846bc-38ba-4597-9179-10b252235b71",
+   "route_name": "Saturday Roadrunner Express",
+   "service_day": "saturday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "3c7aac83-f955-4ce2-808d-6a10f8f13275",
+   "sequence": 5,
+   "departure": "3:00 PM",
+   "arrival": "3:40 PM",
+   "stops": [
+    {
+     "time": "3:10 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "3:15 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "3:20 PM",
+     "location": "CITY MD Ramsey"
+    },
+    {
+     "time": "3:30 PM",
+     "location": "Ramsey Square"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.171000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "03b846bc-38ba-4597-9179-10b252235b71",
+   "route_name": "Saturday Roadrunner Express",
+   "service_day": "saturday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "8b6dab5f-7db3-4081-994b-3156fb1d7702",
+   "sequence": 6,
+   "departure": "4:40 PM",
+   "arrival": "5:20 PM",
+   "stops": [
+    {
+     "time": "4:50 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "4:55 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "5:00 PM",
+     "location": "CITY MD Ramsey"
+    },
+    {
+     "time": "5:10 PM",
+     "location": "Ramsey Square"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.171000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "03b846bc-38ba-4597-9179-10b252235b71",
+   "route_name": "Saturday Roadrunner Express",
+   "service_day": "saturday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "96145d0e-8181-45ea-a817-a1ef158d59d5",
+   "sequence": 7,
+   "departure": "5:25 PM",
+   "arrival": "6:35 PM",
+   "stops": [
+    {
+     "time": "5:35 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "5:40 PM",
+     "location": "CITY MD Ramsey"
+    },
+    {
+     "time": "6:00 PM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "6:10 PM",
+     "location": "Barnes & Noble/ Fashion Center"
+    },
+    {
+     "time": "6:25 PM",
+     "location": "Ramsey Square"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.171000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "03b846bc-38ba-4597-9179-10b252235b71",
+   "route_name": "Saturday Roadrunner Express",
+   "service_day": "saturday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "1d6801d9-97cc-4abf-8c57-4efa0c1567b8",
+   "sequence": 8,
+   "departure": "6:50 PM",
+   "arrival": "7:25 PM",
+   "stops": [
+    {
+     "time": "7:00 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "7:05 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "7:15 PM",
+     "location": "Ramsey Square"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.171000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "03b846bc-38ba-4597-9179-10b252235b71",
+   "route_name": "Saturday Roadrunner Express",
+   "service_day": "saturday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "09026d8c-7973-4646-9f56-7ef6a182f1a7",
+   "sequence": 9,
+   "departure": "7:30 PM",
+   "arrival": "8:45 PM",
+   "stops": [
+    {
+     "time": "7:40 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "8:00 PM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "8:10 PM",
+     "location": "Barnes & Noble/ Fashion Center"
+    },
+    {
+     "time": "8:25 PM",
+     "location": "Ramsey Square"
+    },
+    {
+     "time": "8:35 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.171000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "03b846bc-38ba-4597-9179-10b252235b71",
+   "route_name": "Saturday Roadrunner Express",
+   "service_day": "saturday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "0c922640-9fc1-42e1-8825-f4299979be10",
+   "sequence": 10,
+   "departure": "8:55 PM",
+   "arrival": "9:42 PM",
+   "stops": [
+    {
+     "time": "9:05 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "9:10 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "9:20 PM",
+     "location": "Ramsey Square"
+    },
+    {
+     "time": "9:32 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.171000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "03b846bc-38ba-4597-9179-10b252235b71",
+   "route_name": "Saturday Roadrunner Express",
+   "service_day": "saturday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "e9db5eb2-8811-4d05-9de2-8d289c2f4bdb",
+   "sequence": 11,
+   "departure": "9:55 PM",
+   "arrival": "11:00 PM",
+   "stops": [
+    {
+     "time": "10:05 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "10:10 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "10:30 PM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "10:50 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.171000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "f17a2b63-7302-4e42-b5a5-9da2db70ecfb",
+   "route_name": "Sunday Roadrunner Express",
+   "service_day": "sunday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "9add2053-c440-4bc4-a935-e8bd76af989a",
+   "sequence": 0,
+   "departure": "10:00 AM",
+   "arrival": "10:45 AM",
+   "stops": [
+    {
+     "time": "10:10 AM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "10:15 AM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "10:25 AM",
+     "location": "Ramsey Farmers Market"
+    },
+    {
+     "time": "10:35 AM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.247000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "f17a2b63-7302-4e42-b5a5-9da2db70ecfb",
+   "route_name": "Sunday Roadrunner Express",
+   "service_day": "sunday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "3ad244f4-b01d-4e68-b7af-bc2c339724c9",
+   "sequence": 1,
+   "departure": "11:00 AM",
+   "arrival": "11:45 AM",
+   "stops": [
+    {
+     "time": "11:10 AM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "11:15 AM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "11:25 AM",
+     "location": "Ramsey Farmers Market"
+    },
+    {
+     "time": "11:35 AM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.247000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "f17a2b63-7302-4e42-b5a5-9da2db70ecfb",
+   "route_name": "Sunday Roadrunner Express",
+   "service_day": "sunday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "f554186f-bf92-4b66-951a-f416aa3ab4af",
+   "sequence": 2,
+   "departure": "12:00 PM",
+   "arrival": "12:40 PM",
+   "stops": [
+    {
+     "time": "12:10 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "12:15 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "12:25 PM",
+     "location": "Ramsey Farmers Market"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.247000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "f17a2b63-7302-4e42-b5a5-9da2db70ecfb",
+   "route_name": "Sunday Roadrunner Express",
+   "service_day": "sunday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "c44ed3d4-214a-44ef-9285-575d819317a7",
+   "sequence": 3,
+   "departure": "1:00 PM",
+   "arrival": "1:45 PM",
+   "stops": [
+    {
+     "time": "1:10 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "1:15 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "1:25 PM",
+     "location": "Ramsey Farmers Market"
+    },
+    {
+     "time": "1:35 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.247000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "f17a2b63-7302-4e42-b5a5-9da2db70ecfb",
+   "route_name": "Sunday Roadrunner Express",
+   "service_day": "sunday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "6f6edc66-f912-4e90-b9ad-33915b15156b",
+   "sequence": 4,
+   "departure": "2:00 PM",
+   "arrival": "3:05 PM",
+   "stops": [
+    {
+     "time": "2:10 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "2:15 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "2:35 PM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "2:55 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.247000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "f17a2b63-7302-4e42-b5a5-9da2db70ecfb",
+   "route_name": "Sunday Roadrunner Express",
+   "service_day": "sunday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "2432358c-9774-4cb5-b18b-131e6a4a2afb",
+   "sequence": 5,
+   "departure": "3:15 PM",
+   "arrival": "3:50 PM",
+   "stops": [
+    {
+     "time": "3:25 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "3:30 PM",
+     "location": "City MD Ramsey"
+    },
+    {
+     "time": "3:40 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.247000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "f17a2b63-7302-4e42-b5a5-9da2db70ecfb",
+   "route_name": "Sunday Roadrunner Express",
+   "service_day": "sunday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "2163fb7c-ff0b-4b28-aa4b-9fe7c50a104b",
+   "sequence": 6,
+   "departure": "3:50 PM",
+   "arrival": "5:00 PM",
+   "stops": [
+    {
+     "time": "4:00 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "4:05 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "4:10 PM",
+     "location": "City MD Ramsey"
+    },
+    {
+     "time": "4:30 PM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "4:50 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.247000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "f17a2b63-7302-4e42-b5a5-9da2db70ecfb",
+   "route_name": "Sunday Roadrunner Express",
+   "service_day": "sunday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "25501efd-6926-4820-bf14-e83d869eaf5f",
+   "sequence": 7,
+   "departure": "5:45 PM",
+   "arrival": "6:55 PM",
+   "stops": [
+    {
+     "time": "5:55 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "6:00 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "6:05 PM",
+     "location": "City MD Ramsey"
+    },
+    {
+     "time": "6:25 PM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "6:45 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.247000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "f17a2b63-7302-4e42-b5a5-9da2db70ecfb",
+   "route_name": "Sunday Roadrunner Express",
+   "service_day": "sunday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "dad5ecb2-22fe-4133-96be-b6837b2dbdaf",
+   "sequence": 8,
+   "departure": "6:55 PM",
+   "arrival": "8:00 PM",
+   "stops": [
+    {
+     "time": "7:05 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "7:10 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "7:30 PM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "7:50 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.247000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "8cc2c76e-3579-4965-8bf5-1c7694972e69",
+   "route_name": "Weekday Roadrunner Express",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "76aea056-de1d-459d-be56-2acb07dc7bae",
+   "sequence": 0,
+   "departure": "7:00 AM",
+   "arrival": "7:55 AM",
+   "stops": [
+    {
+     "time": "7:30 AM",
+     "location": "Garden State Plaza"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.136000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "8cc2c76e-3579-4965-8bf5-1c7694972e69",
+   "route_name": "Weekday Roadrunner Express",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "4da2066d-9dd9-44a8-9108-55c7e71b9b5d",
+   "sequence": 1,
+   "departure": "8:25 AM",
+   "arrival": "9:25 AM",
+   "stops": [
+    {
+     "time": "8:35 AM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "8:55 AM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "9:15 AM",
+     "location": "Ramsey Square"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.136000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "8cc2c76e-3579-4965-8bf5-1c7694972e69",
+   "route_name": "Weekday Roadrunner Express",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "11e12ee7-116e-4cf1-9d3d-1a24fa3b1e75",
+   "sequence": 2,
+   "departure": "10:15 AM",
+   "arrival": "11:20 AM",
+   "stops": [
+    {
+     "time": "10:25 AM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "10:45 AM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "10:55 AM",
+     "location": "Barnes & Noble/ Fashion Center"
+    },
+    {
+     "time": "11:10 AM",
+     "location": "Ramsey Square"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.136000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "8cc2c76e-3579-4965-8bf5-1c7694972e69",
+   "route_name": "Weekday Roadrunner Express",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "0c9f869d-b3da-4335-bdcf-7c011c6fb4be",
+   "sequence": 3,
+   "departure": "11:35 AM",
+   "arrival": "12:10 PM",
+   "stops": [
+    {
+     "time": "11:45 AM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "12:00 PM",
+     "location": "Ramsey Square"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.136000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "8cc2c76e-3579-4965-8bf5-1c7694972e69",
+   "route_name": "Weekday Roadrunner Express",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "7de2dff5-6709-40f2-b272-1f2150456f8d",
+   "sequence": 4,
+   "departure": "12:20 PM",
+   "arrival": "1:30 PM",
+   "stops": [
+    {
+     "time": "12:30 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "12:55 PM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "1:05 PM",
+     "location": "Barnes & Noble/ Fashion Center"
+    },
+    {
+     "time": "1:20 PM",
+     "location": "Ramsey Square"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.136000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "8cc2c76e-3579-4965-8bf5-1c7694972e69",
+   "route_name": "Weekday Roadrunner Express",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "80add532-75b8-4917-b084-9d48c0310c70",
+   "sequence": 5,
+   "departure": "2:05 PM",
+   "arrival": "3:05 PM",
+   "stops": [
+    {
+     "time": "2:15 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "2:35 PM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "2:45 PM",
+     "location": "Barnes & Noble/ Fashion Center"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.136000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "8cc2c76e-3579-4965-8bf5-1c7694972e69",
+   "route_name": "Weekday Roadrunner Express",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "1c22efb8-f204-4939-a188-d86b937fdc52",
+   "sequence": 6,
+   "departure": "3:10 PM",
+   "arrival": "3:45 PM",
+   "stops": [
+    {
+     "time": "3:20 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "3:35 PM",
+     "location": "Ramsey Square"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.136000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "8cc2c76e-3579-4965-8bf5-1c7694972e69",
+   "route_name": "Weekday Roadrunner Express",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "a0c06d90-0c84-4147-98cc-35d725ed0d06",
+   "sequence": 7,
+   "departure": "3:50 PM",
+   "arrival": "4:25 PM",
+   "stops": [
+    {
+     "time": "4:05 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "4:15 PM",
+     "location": "Ramsey Square"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.136000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "8cc2c76e-3579-4965-8bf5-1c7694972e69",
+   "route_name": "Weekday Roadrunner Express",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "9af3185b-ddbe-4c68-bb47-c4ac0bec75fe",
+   "sequence": 8,
+   "departure": "4:40 PM",
+   "arrival": "6:10 PM",
+   "stops": [
+    {
+     "time": "4:50 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "4:55 PM",
+     "location": "City MD Ramsey"
+    },
+    {
+     "time": "5:25 PM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "5:40 PM",
+     "location": "Barnes & Noble/ Fashion Center"
+    },
+    {
+     "time": "6:00 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.136000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "8cc2c76e-3579-4965-8bf5-1c7694972e69",
+   "route_name": "Weekday Roadrunner Express",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "7e4ba912-03de-41ae-8f23-3625b326bc43",
+   "sequence": 9,
+   "departure": "6:10 PM",
+   "arrival": "7:35 PM",
+   "stops": [
+    {
+     "time": "6:20 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "6:25 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "6:30 PM",
+     "location": "City MD Ramsey"
+    },
+    {
+     "time": "6:50 PM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "7:00 PM",
+     "location": "Barnes & Noble/ Fashion Center"
+    },
+    {
+     "time": "7:15 PM",
+     "location": "Ramsey Square"
+    },
+    {
+     "time": "7:25 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.136000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "8cc2c76e-3579-4965-8bf5-1c7694972e69",
+   "route_name": "Weekday Roadrunner Express",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "ac0a71b0-fa8d-4452-9375-d08ce1aa8e5a",
+   "sequence": 10,
+   "departure": "8:20 PM",
+   "arrival": "9:35 PM",
+   "stops": [
+    {
+     "time": "8:30 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "8:35 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "8:55 PM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "9:10 PM",
+     "location": "Barnes & Noble/ Fashion Center"
+    },
+    {
+     "time": "9:20 PM",
+     "location": "Ramsey Square"
+    },
+    {
+     "time": "9:25 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.136000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  },
+  {
+   "version": "dev-profiles-headings3-20260929",
+   "verified_trips": 51,
+   "source_title": "Transportation Services",
+   "source_url": "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "trust_tier": "official_primary",
+   "freshness_sla_hours": 168,
+   "route_id": "8cc2c76e-3579-4965-8bf5-1c7694972e69",
+   "route_name": "Weekday Roadrunner Express",
+   "service_day": "weekday",
+   "route_valid_from": null,
+   "route_valid_until": null,
+   "trip_id": "31e7fe42-ea10-430c-8fb7-42837c2c5d4b",
+   "sequence": 11,
+   "departure": "9:40 PM",
+   "arrival": "10:45 PM",
+   "stops": [
+    {
+     "time": "9:50 PM",
+     "location": "Ramsey Rt 17 Train"
+    },
+    {
+     "time": "9:55 PM",
+     "location": "Interstate Plaza"
+    },
+    {
+     "time": "10:15 PM",
+     "location": "Garden State Plaza"
+    },
+    {
+     "time": "10:35 PM",
+     "location": "Ramsey Rt 17 Train"
+    }
+   ],
+   "collected_at": "2026-09-23T18:39:39.136000-04:00",
+   "trip_valid_from": null,
+   "trip_valid_until": null
+  }
+ ]
+}

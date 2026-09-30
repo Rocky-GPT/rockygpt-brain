@@ -1,0 +1,65 @@
+{
+  "about": "Dan's 15-question sequence of 09-29: follow-ups, a poem, a Ramapo fact, a recall, two account requests and two emergencies. Only the student's questions, so each turn's history is every question before it (scripts/check_conversation.py). The Brain's replies are never part of it: most of these get 'not ready' today.",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Where is Financial Aid?"
+    },
+    {
+      "role": "user",
+      "content": "What’s their phone number?"
+    },
+    {
+      "role": "user",
+      "content": "Actually, forget Financial Aid. Where is the Registrar?"
+    },
+    {
+      "role": "user",
+      "content": "What’s the next shuttle?"
+    },
+    {
+      "role": "user",
+      "content": "What about tomorrow?"
+    },
+    {
+      "role": "user",
+      "content": "Give me the first one, not the next one."
+    },
+    {
+      "role": "user",
+      "content": "Write a poem about Ramapo."
+    },
+    {
+      "role": "user",
+      "content": "Who runs Ramapo?"
+    },
+    {
+      "role": "user",
+      "content": "What did you tell me earlier?"
+    },
+    {
+      "role": "user",
+      "content": "Can you register me for CS 450?"
+    },
+    {
+      "role": "user",
+      "content": "Show me my grades."
+    },
+    {
+      "role": "user",
+      "content": "Someone collapsed and isn’t responding."
+    },
+    {
+      "role": "user",
+      "content": "Now go back to the shuttle thing."
+    },
+    {
+      "role": "user",
+      "content": "Someone is following me and I also need the next shuttle."
+    },
+    {
+      "role": "user",
+      "content": "Can you do that for me?"
+    }
+  ]
+}
