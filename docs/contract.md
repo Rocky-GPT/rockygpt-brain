@@ -31,6 +31,7 @@ Headers:
 | --- | --- | --- |
 | `Accept: text/event-stream` | student app | Stream progress, then the result (below) |
 | `x-rockygpt-environment-token` | both apps | Required when `STAGING_SERVICE_TOKEN` is set |
+| `x-rockygpt-conversation-id` | either app (optional) | Names the conversation, 1 to 64 letters, digits, `-` or `_`; without one the turn starts a new conversation |
 | `x-rockygpt-diagnostics: 1` | dev UI | Adds `metrics` and `diagnostics`, in development only |
 
 ## An answer: HTTP 200
@@ -119,6 +120,6 @@ step at a time. Everything below the request rules above is not built yet; earli
 versions of this document described the code before the restart (commit 3dec0bd).
 
 `/v1/chat` checks the request, makes a `Turn` (`turn.py`: the latest student message, a
-new conversation id, a new request id and the campus time in `America/New_York`), and
-then answers 503 `not_ready`. The failure has no `emergency` help yet. The apps send no
-conversation id, so every turn starts a new conversation.
+conversation id, a new request id and the campus time in `America/New_York`), and
+then answers 503 `not_ready`. The failure has no `emergency` help yet. The conversation id is the
+`x-rockygpt-conversation-id` header when one is sent (the apps send none yet), else a new one.

@@ -19,8 +19,8 @@ def test_a_valid_request_is_taken_in_as_a_turn(
         client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     turns: list[Turn] = []
 
-    def spy(request: ChatRequest) -> Turn:
-        turns.append(intake(request))
+    def spy(request: ChatRequest, conversation_id: str | None = None) -> Turn:
+        turns.append(intake(request, conversation_id))
         return turns[-1]
 
     monkeypatch.setattr(app_module, "intake", spy)
@@ -41,6 +41,30 @@ def test_a_valid_request_is_taken_in_as_a_turn(
     assert body["requestId"] == turns[0].request_id
     assert UUID.match(body["requestId"])
     assert response.headers["x-request-id"] == body["requestId"]
+
+
+def test_the_conversation_id_the_app_sends_is_kept(
+        client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    turns: list[Turn] = []
+
+    def spy(request: ChatRequest, conversation_id: str | None = None) -> Turn:
+        turns.append(intake(request, conversation_id))
+        return turns[-1]
+
+    monkeypatch.setattr(app_module, "intake", spy)
+    for header in ({"x-rockygpt-conversation-id": "abc-123"},) * 2 + ({},):
+        client.post("/v1/chat", json=HI, headers=header)
+    assert [t.conversation_id for t in turns[:2]] == ["abc-123", "abc-123"]
+    assert UUID.match(turns[2].conversation_id)
+    assert len({t.request_id for t in turns}) == 3
+
+
+@pytest.mark.parametrize("bad", ["has space", "a" * 65, "semi;colon", ""])
+def test_a_bad_conversation_id_gets_the_same_error(client: TestClient, bad: str) -> None:
+    response = client.post("/v1/chat", json=HI, headers={"x-rockygpt-conversation-id": bad})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_request"
+    assert response.json()["detail"][0]["loc"] == ["header", "x-rockygpt-conversation-id"]
 
 
 INVALID: list[tuple[str, dict[str, Any]]] = [
