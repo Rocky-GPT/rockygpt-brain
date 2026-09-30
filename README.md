@@ -8,8 +8,9 @@ still runs in production from `main`.
 
 The Brain was started again from line one after commit 3dec0bd. It takes in a chat request,
 checks it against [docs/contract.md](docs/contract.md), makes a `Turn` (`turn.py`), gives
-danger help or an account limit when the message needs it (`boundary.py`) and otherwise answers
-`not_ready`. Nothing answers questions yet. Each step adds to `api/app.py`.
+danger help or an account limit when the message needs it (`boundary.py`), builds the
+conversation's `Context` (`context.py`, not used by the route yet) and otherwise answers
+`not_ready`. Nothing answers questions yet.
 
 ## Run
 
