@@ -27,8 +27,8 @@ NEEDS = {
                     "before in this chat",
     "outside": "General knowledge that has nothing to do with Ramapo College",
     "own_account": "The student's own private records, or an action on their own account",
-    "unclear": "Even with the earlier messages, it is not possible to tell what the student "
-               "wants",
+    "unclear": "Even after using all available context, it is still not possible to tell which "
+               "source would answer it",
 }
 TOPICS = {
     "transport": "Shuttles, buses, parking or getting around",
@@ -42,8 +42,8 @@ TOPICS = {
 QUESTIONS: dict[str, dict[str, Any]] = {
     "needs": {
         "type": "choice",
-        "instructions": "Once you know what the student means, using the earlier messages if "
-                        "the latest one leans on them, where does the answer come from?",
+        "instructions": "Once any earlier references are resolved, which source would answer "
+                        "the request?",
         "criteria": NEEDS,
     },
     "topic": {
@@ -54,10 +54,12 @@ QUESTIONS: dict[str, dict[str, Any]] = {
     },
     "needs_history": {
         "type": "noul",
-        "instructions": "Resolving the student's latest request requires the earlier messages.",
+        "instructions": "The latest message depends on earlier conversation either to identify "
+                        "what it means or to get information from that conversation.",
         "criteria": {
-            "true": "The request cannot be completed without looking at the earlier messages",
-            "false": "The request can be completed from the latest message alone",
+            "true": "It refers back to earlier conversation, either vaguely (such as it, that, "
+                    "they, there, the one) or explicitly (such as asking what was said earlier)",
+            "false": "It can be understood and answered without earlier conversation",
         },
     },
     "danger": {
