@@ -6,11 +6,11 @@ still runs in production from `main`.
 
 ## Status
 
-The Brain was started again from line one after commit 3dec0bd. It takes in a chat request,
-checks it against [docs/contract.md](docs/contract.md), makes a `Turn` (`turn.py`), gives
-danger help or an account limit when the message needs it (`boundary.py`), builds the
-conversation's `Context` (`context.py`, not used by the route yet) and otherwise answers
-`not_ready`. Nothing answers questions yet.
+The Brain was started again from line one after commit 3dec0bd. `/v1/chat` checks the request
+against [docs/contract.md](docs/contract.md), makes a `Turn` (`turn.py`), gives danger help or an
+account limit when the message needs it (`boundary.py`), and otherwise answers `not_ready`.
+Built but not used by the route yet: the conversation `Context` (`context.py`) and the Jev call
+that reads it into an `Understanding` (`understanding.py`). Nothing answers questions yet.
 
 ## Run
 
