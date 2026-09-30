@@ -242,3 +242,78 @@ def test_the_regression_copies_keep_the_old_labels_but_the_amended_case_forty() 
     assert boundary["cases"] == json.loads(
         (runner.DIR / "boundary-20260930.json").read_text())["cases"]
     assert "bar" not in blind1 and "bar" not in boundary
+
+
+def tiny(expected: dict[str, Any], *lines: tuple[str, str]) -> dict[str, Any]:
+    return {"campus_now": "2026-09-30T14:05:00-04:00", "cases": [{
+        "id": 1, "messages": [{"role": r, "content": c} for r, c in lines], "expected": expected}]}
+
+
+def jev(**answers: Any) -> Any:
+    """A fake Jev that answers `needs`, `topic` and the yes/no questions as given."""
+    def post(body: dict[str, Any]) -> dict[str, Any]:
+        yes = {"needs_history": 0.05, "history_resolves": 0.05, "danger": 0.05, "multi_part": 0.05}
+        yes.update({k: v for k, v in answers.items() if k in yes})
+        return jev_says_raw(answers.get("needs", "campus_info"), answers.get("topic", "none"), yes)
+    return post
+
+
+def jev_says_raw(needs: str, topic: str, yes: dict[str, float]) -> dict[str, Any]:
+    return {"answers": {
+        "needs": {"type": "choice", "choice": needs, "probabilities": {needs: 0.9}},
+        "topic": {"type": "choice", "choice": topic, "probabilities": {topic: 0.9}},
+        **{k: {"type": "noul", "noul": v} for k, v in yes.items()},
+    }}
+
+
+UNRESOLVED = {"needs": "unclear", "topic": "none", "needs_history": True, "history_resolves": False,
+              "danger": False, "multi_part": False, "plan_path": "clarify", "uses_history": False}
+GREETING = (("user", "hi"), ("assistant", "Hello!"), ("user", "is it open on sundays"))
+
+
+def test_an_unresolved_reference_makes_needs_and_topic_diagnostic_not_decisive() -> None:
+    frozen = tiny(UNRESOLVED, *GREETING)
+    # Jev calls it a campus question, but says the history does not resolve it: the plan asks.
+    result = runner.run(frozen, jev(needs="campus_info", topic="offices",
+                                    needs_history=0.9, history_resolves=0.05))
+    assert result[0]["got"]["plan_path"] == "clarify"
+    assert runner.wrong_fields(result[0]) == []
+    summary = runner.summarize(result, {"fully_correct": 1, "zero": ["unresolved_not_clarified"]})
+    assert summary["bar_met"] and summary["unresolved_not_clarified"] == []
+
+
+def test_guessing_at_an_unresolved_reference_fails_the_zero_rule() -> None:
+    frozen = tiny(UNRESOLVED, *GREETING)
+    result = runner.run(frozen, jev(needs="campus_info", topic="offices",
+                                    needs_history=0.9, history_resolves=0.9))
+    assert result[0]["got"]["plan_path"] == "campus"
+    summary = runner.summarize(result, {"fully_correct": 0, "zero": ["unresolved_not_clarified"]})
+    assert summary["unresolved_not_clarified"] == [1] and not summary["bar_met"]
+    assert runner.wrong_fields(result[0]) == ["history_resolves", "plan_path", "uses_history"]
+
+
+def test_a_resolved_follow_up_still_needs_the_right_source() -> None:
+    expected = {"needs": "campus_info", "topic": "dining", "needs_history": True,
+                "history_resolves": True, "danger": False, "multi_part": False,
+                "plan_path": "campus", "uses_history": True}
+    frozen = tiny(expected, ("user", "whats for lunch"), ("assistant", "Pasta."),
+                  ("user", "and dinner"))
+    good = runner.run(frozen, jev(needs="campus_info", topic="dining",
+                                  needs_history=0.9, history_resolves=0.9))
+    assert runner.wrong_fields(good[0]) == []
+    wrong = runner.run(frozen, jev(needs="outside", topic="dining",
+                                   needs_history=0.9, history_resolves=0.9))
+    assert runner.wrong_fields(wrong[0]) == ["needs", "plan_path"]
+
+
+def test_an_account_request_with_a_second_part_is_planned_as_parts_not_a_leak() -> None:
+    expected = {"needs": "own_account", "topic": "academics", "needs_history": False,
+                "history_resolves": False, "danger": False, "multi_part": True,
+                "plan_path": "multi_part", "uses_history": False}
+    frozen = tiny(expected, ("user", "show me my grades and when is the next shuttle"))
+    parts = runner.run(frozen, jev(needs="own_account", topic="academics", multi_part=0.9))
+    assert parts[0]["got"]["plan_path"] == "multi_part"
+    assert runner.summarize(parts, {"fully_correct": 1, "zero": ["own_account_let_through"]})[
+        "bar_met"]
+    leaked = runner.run(frozen, jev(needs="campus_info", topic="academics"))
+    assert runner.summarize(leaked)["own_account_let_through"] == [1]
