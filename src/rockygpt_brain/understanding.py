@@ -1,8 +1,8 @@
 """Step 4, Jev understanding: one Jev call reads the Turn and its Context.
 
-Jev (Typesafe's reading model) answers five questions. Each is about the student's own words,
+Jev (Typesafe's reading model) answers six questions. Each is about the student's own words,
 stands alone and asks one thing, so no answer leans on another. Jev never writes anything; code
-only turns its five answers into an `Understanding`. This does not spend money safely yet: no
+only turns its six answers into an `Understanding`. This does not spend money safely yet: no
 spending ledger stands in front of it, so nothing in the Brain calls it.
 """
 
@@ -58,8 +58,19 @@ QUESTIONS: dict[str, dict[str, Any]] = {
                         "what it means or to get information from that conversation.",
         "criteria": {
             "true": "It refers back to earlier conversation, either vaguely (such as it, that, "
-                    "they, there, the one) or explicitly (such as asking what was said earlier)",
+                    "they, there, the one), by leaving out what it is about, or explicitly "
+                    "(such as asking what was said earlier)",
             "false": "It can be understood and answered without earlier conversation",
+        },
+    },
+    "history_resolves": {
+        "type": "noul",
+        "instructions": "The earlier messages say what the latest message refers back to.",
+        "criteria": {
+            "true": "What it points at or leaves out (it, that, the one, a topic or a question) "
+                    "is named in the earlier messages",
+            "false": "Nothing earlier says what it points at or leaves out, or there are no "
+                     "earlier messages",
         },
     },
     "danger": {
@@ -87,6 +98,7 @@ class Understanding:
     needs: str
     topic: str
     needs_history: bool
+    history_resolves: bool
     danger: bool
     multi_part: bool
 
@@ -124,12 +136,12 @@ def request_body(turn: Turn, context: Context) -> dict[str, Any]:
 def understand(
     turn: Turn, context: Context, post: Callable[[dict[str, Any]], dict[str, Any]] = send
 ) -> Understanding:
-    """Ask Jev the five questions and read its top pick on each (yes at 0.5 or more)."""
+    """Ask Jev the six questions and read its top pick on each (yes at 0.5 or more)."""
     try:
         answers = post(request_body(turn, context))["answers"]
         needs, topic = answers["needs"]["choice"], answers["topic"]["choice"]
         yes = {name: answers[name]["noul"] >= 0.5
-               for name in ("needs_history", "danger", "multi_part")}
+               for name in ("needs_history", "history_resolves", "danger", "multi_part")}
         if needs not in NEEDS or topic not in TOPICS:
             raise JevError(f"Jev picked an option that does not exist: {needs}, {topic}")
     except (KeyError, TypeError) as error:

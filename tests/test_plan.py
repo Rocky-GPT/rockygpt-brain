@@ -19,7 +19,7 @@ AFTER = context("What's the next shuttle?", "What about tomorrow?")
 
 def understood(needs: str = "campus_info", topic: str = "transport", needs_history: bool = False,
                danger: bool = False, multi_part: bool = False) -> Understanding:
-    return Understanding(needs, topic, needs_history, danger, multi_part)
+    return Understanding(needs, topic, needs_history, True, danger, multi_part)
 
 
 @pytest.mark.parametrize(("understanding", "ctx", "expected"), [

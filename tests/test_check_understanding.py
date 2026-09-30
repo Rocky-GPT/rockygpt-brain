@@ -18,8 +18,8 @@ def jev_says(expected: dict[str, Any]) -> dict[str, Any]:
 
     return {"answers": {
         "needs": choice(expected["needs"]), "topic": choice(expected["topic"]),
-        **{f: {"type": "noul", "noul": 0.95 if expected[f] else 0.05}
-           for f in ("needs_history", "danger", "multi_part")},
+        **{f: {"type": "noul", "noul": 0.95 if expected.get(f) else 0.05}
+           for f in ("needs_history", "history_resolves", "danger", "multi_part")},
     }}
 
 

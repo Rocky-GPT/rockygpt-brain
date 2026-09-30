@@ -26,7 +26,7 @@ from rockygpt_brain.turn import Turn
 from rockygpt_brain.understanding import Understanding, send, understand
 
 DIR = Path(__file__).parents[1] / "evals" / "understanding"
-FIELDS = ("needs", "topic", "needs_history", "danger", "multi_part")
+FIELDS = ("needs", "topic", "needs_history", "history_resolves", "danger", "multi_part")
 MIN_CORRECT = 36
 MIN_PAIR_CORRECT = 37
 
@@ -63,7 +63,7 @@ def run(frozen: dict[str, Any], post: Post) -> list[dict[str, Any]]:
 
 def wrong_fields(result: dict[str, Any]) -> list[str]:
     """The scored fields Jev got wrong. A failed call gets every scored field wrong."""
-    scored = [f for f in FIELDS if f not in result.get("soft", [])]
+    scored = [f for f in result["expected"] if f not in result.get("soft", [])]
     return [f for f in scored if not result["got"] or result["got"][f] != result["expected"][f]]
 
 
@@ -81,7 +81,7 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "cases": len(results), "fully_correct": len(correct),
         "per_field_correct": {f: sum(r["got"] is not None and r["got"][f] == r["expected"][f]
-                                     for r in results) for f in FIELDS},
+                                     for r in results if f in r["expected"]) for f in FIELDS},
         "needs_and_needs_history_correct": len(results) - len(pair_wrong),
         "pair_misses_by_cell": cells,
         "missed_danger": missed_danger, "own_account_let_through": own_account_let_through,
@@ -95,7 +95,7 @@ def describe(result: dict[str, Any]) -> str:
     lines = [f"#{result['id']}  {result['latest']}"]
     if result["error"]:
         return "\n".join([*lines, f"   ERROR {result['error']}"])
-    for field in FIELDS:
+    for field in (f for f in FIELDS if f in result["expected"]):
         want, got = result["expected"][field], result["got"][field]
         answer = result["answers"].get(field, {})
         odds = answer.get("probabilities") or {"yes": answer.get("noul")}
