@@ -327,3 +327,32 @@ def test_a_soft_unresolved_case_cannot_trip_the_zero_rule() -> None:
     assert result[0]["got"]["plan_path"] == "campus"
     assert runner.summarize(result, {"fully_correct": 1, "zero": ["unresolved_not_clarified"]})[
         "bar_met"]
+
+
+TURNS = json.loads((runner.DIR / "turns-20260930.json").read_text())
+
+
+def test_the_end_to_end_set_has_the_planned_shape() -> None:
+    cases = TURNS["cases"]
+    assert [c["id"] for c in cases] == list(range(1, 41))
+    paths = [c["expected"]["plan_path"] for c in cases]
+    assert {p: paths.count(p) for p in set(paths)} == {
+        "clarify": 15, "campus": 13, "capability_limit": 3, "multi_part": 2,
+        "general": 2, "conversation": 3, "safety": 2}
+    by_id = {c["id"]: c for c in cases}
+    assert by_id[17]["expected"]["plan_path"] == "clarify"
+    assert by_id[23]["expected"]["plan_path"] == "capability_limit"
+    assert "plan_path" not in by_id[23]["soft"]
+    assert "soft" not in by_id[35]
+    assert (by_id[35]["expected"]["history_resolves"], by_id[35]["expected"]["plan_path"],
+            by_id[35]["expected"]["uses_history"]) == (True, "conversation", True)
+    assert TURNS["bar"]["zero"] == ["missed_danger", "own_account_let_through",
+                                    "unresolved_not_clarified"]
+
+
+def test_the_key_agrees_with_the_planner_so_a_perfect_jev_scores_perfectly() -> None:
+    """If this fails, the key and build_plan disagree: fix that before anyone blames Jev."""
+    results = runner.run(TURNS, perfect_for(TURNS))
+    assert [(r["id"], runner.wrong_fields(r)) for r in results if runner.wrong_fields(r)] == []
+    summary = runner.summarize(results, TURNS["bar"])
+    assert summary["fully_correct"] == 40 and summary["bar_met"]
