@@ -136,7 +136,8 @@ def describe(result: dict[str, Any]) -> str:
     for field in (f for f in FIELDS if f in result["expected"]):
         want, got = result["expected"][field], result["got"][field]
         answer = result["answers"].get(field, {})
-        odds = answer.get("probabilities") or {"yes": answer.get("noul")}
+        odds = answer.get("probabilities") or (
+            {"yes": answer["noul"]} if "noul" in answer else {})  # plan fields have no odds
         shown = ", ".join(f"{k} {v:.3f}" for k, v in sorted(odds.items(), key=lambda x: -x[1]))
         note = "   (soft, not scored)" if field in result["soft"] else (
             "" if want == got else "   <-- MISS")
