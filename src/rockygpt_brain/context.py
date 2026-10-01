@@ -1,60 +1,40 @@
-"""Step 3, context: what the conversation so far means for the current turn.
+"""Bounded conversation data, never an authority for campus facts.
 
-A pure function of the request, so the same conversation always gives the same Context. The
-latest message is kept apart from the older ones, which stay in the order they were said.
-Jev reads `recent_messages` later; that is how "their" in "What's their phone number?" can
-still be understood as Financial Aid. The topic and entities are only a first guess from the
-student's own words and the small table below, a stand-in for what Jev and the campus data will
-say. Messages the app left out (`omittedMessages`) are not counted here.
+Keep the latest message intact and a contiguous suffix of earlier messages. Both the
+client's omissions and our own omissions travel with the context. There is no topic table
+or classifier deciding whether the assistant may read earlier conversation.
 """
 
-import re
 from dataclasses import dataclass
 
-from rockygpt_brain.boundary import plain
 from rockygpt_brain.contract import ChatMessage, ChatRequest
 
-MAX_RECENT_MESSAGES = 8
-
-# (topic, the office it names if it names one, words that mention it; a trailing "s" also counts)
-_TABLE = (
-    ("shuttle", None, ("shuttle", "bus", "buses")),
-    ("financial aid", "Financial Aid", ("financial aid", "fafsa")),
-    ("registrar", "Registrar", ("registrar",)),
-)
-_ROWS = [(topic, entity, re.compile(rf"\b(?:{'|'.join(words)})s?\b"))
-         for topic, entity, words in _TABLE]
+MAX_HISTORY_BYTES = 32_000
 
 
 @dataclass(frozen=True, slots=True)
 class Context:
     latest_message: str
-    recent_messages: tuple[ChatMessage, ...]  # older than the latest, oldest first
-    current_topic: str | None
-    referenced_entities: tuple[str, ...]  # oldest mention first
-    history_available: bool  # whether recent_messages holds anything
+    recent_messages: tuple[ChatMessage, ...]
+    client_omitted_messages: int
+    server_omitted_messages: int
+
+    @property
+    def omitted_messages(self) -> int:
+        return self.client_omitted_messages + self.server_omitted_messages
 
 
-def _mentioned(message: ChatMessage) -> list[tuple[str, str | None]]:
-    """The table rows the student's words name. What RockyGPT said never counts."""
-    if message.role != "user":
-        return []
-    text = plain(message.content)
-    return [(topic, entity) for topic, entity, pattern in _ROWS if pattern.search(text)]
-
-
-def build_context(request: ChatRequest) -> Context:
+def build_context(request: ChatRequest, *, history_bytes: int = MAX_HISTORY_BYTES) -> Context:
+    if history_bytes < 0:
+        raise ValueError("history_bytes must be nonnegative")
     *earlier, latest = request.messages
-    recent = tuple(earlier[-MAX_RECENT_MESSAGES:])
-    mentions = [_mentioned(message) for message in (*recent, latest)]
-    topic = next((hits[0][0] for hits in reversed(mentions) if hits), None)
-    entities = dict.fromkeys(
-        entity for hits in mentions for _, entity in hits if entity is not None
-    )
-    return Context(
-        latest_message=latest.content,
-        recent_messages=recent,
-        current_topic=topic,
-        referenced_entities=tuple(entities),
-        history_available=bool(recent),
-    )
+    kept: list[ChatMessage] = []
+    remaining = min(history_bytes, max(0, 48_000 - len(latest.content.encode("utf-8"))))
+    for message in reversed(earlier):
+        size = len(message.content.encode("utf-8"))
+        if size > remaining:
+            break
+        kept.append(message)
+        remaining -= size
+    kept.reverse()
+    return Context(latest.content, tuple(kept), request.omittedMessages, len(earlier) - len(kept))

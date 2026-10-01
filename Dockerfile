@@ -16,7 +16,7 @@ RUN groupadd --system rockygpt && useradd --system --gid rockygpt --no-create-ho
 
 WORKDIR /app
 
-# The installed package, with release.json, prompt.md and review.md, is the artifact.
+# The installed package includes provider-release.json and the current runtime code.
 COPY --from=builder /install /usr/local
 
 ENV PYTHONUNBUFFERED=1 \

@@ -1,0 +1,548 @@
+"""Canonical office facts, preserving every linked observation and its boundaries.
+
+Discovery is deliberately separate from fact authority. Names locate canonical
+identities; only exact published identity links select the evidence records.
+"""
+
+import json
+import math
+import re
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
+from copy import deepcopy
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
+from typing import Any
+from urllib.parse import unquote, urlsplit
+from zoneinfo import ZoneInfo
+
+from rockygpt_brain.retrieval.projection import FIELD_ALIASES, OFFICE_FIELDS, clean, project_contact
+
+MAX_ENTITIES = 5_000
+MAX_CONTACTS = 128
+MAX_EVIDENCE_BYTES = 128_000
+CAMPUS_TIMEZONE = ZoneInfo("America/New_York")
+_DISCOVERY_FILLER = frozenset({"a", "an", "the", "of", "for", "and", "office", "offices"})
+
+
+def _discovery_tokens(value: str) -> frozenset[str]:
+    """Compare published name words only; no stemming, synonyms, or identity merging."""
+    possessive_free = re.sub(r"(?<=\w)['’]s\b", "", value.casefold())
+    return frozenset(re.findall(r"[^\W_]+", possessive_free)) - _DISCOVERY_FILLER
+
+
+class EvidenceUnavailable(RuntimeError):
+    """Published evidence cannot be read completely and safely."""
+
+
+class DatasetChanged(EvidenceUnavailable):
+    """The caller's release pin no longer names the active publication."""
+
+
+class UnknownEntity(ValueError):
+    """The requested office does not exist in this publication."""
+
+
+class InvalidFactRequest(ValueError):
+    """The request names unsupported fields or exceeds a bounded input."""
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    dataset_version: str
+    identity_hash: str
+    entities: list[dict[str, Any]]
+    contact_reader: Callable[[dict[str, Any]], list[dict[str, Any]]]
+    alias_sources: list[dict[str, Any]]
+
+
+def _text(value: Any) -> str:
+    return value if isinstance(value, str) else ""
+
+
+def _instant(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+        except ValueError:
+            return None
+    return None
+
+
+def _date(value: Any) -> date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, float) and not math.isfinite(value):
+        raise EvidenceUnavailable("Published values must be finite JSON numbers.")
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return value
+    raise EvidenceUnavailable("Unsupported published value type.")
+
+
+def _present(value: Any) -> bool:
+    # False and zero are observations, not missing values.
+    return value is not None and value != "" and value != [] and value != {}
+
+
+def _url(value: Any) -> str | None:
+    if not isinstance(value, str) or len(value) > 4_096:
+        return None
+    try:
+        parsed = urlsplit(value)
+        _ = parsed.port
+    except ValueError:
+        return None
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or any(character.isspace() or ord(character) < 32 for character in value)
+        or any(ord(character) < 32 for character in unquote(value))
+        or "\\" in value
+    ):
+        return None
+    return value
+
+
+def _source(row: dict[str, Any], now: datetime) -> dict[str, Any]:
+    captured = _instant(row.get("collected_at"))
+    since, until = _date(row.get("valid_from")), _date(row.get("valid_until"))
+    for key, parsed in (("valid_from", since), ("valid_until", until)):
+        if row.get(key) is not None and parsed is None:
+            raise EvidenceUnavailable("Invalid published validity boundary.")
+    if since and until and since > until:
+        raise EvidenceUnavailable("Invalid published validity interval.")
+    freshness = "unknown"
+    sla = row.get("freshness_sla_hours")
+    if captured and isinstance(sla, int) and not isinstance(sla, bool) and sla > 0:
+        freshness = "fresh" if captured <= now <= captured + timedelta(hours=sla) else "stale"
+    today = now.astimezone(CAMPUS_TIMEZONE).date()
+    validity = "unspecified"
+    if since or until:
+        validity = (
+            "future"
+            if since and today < since
+            else ("expired" if until and today > until else "current")
+        )
+    metadata = row.get("normalization_metadata") or {}
+    evidence = metadata.get("evidence", {}) if isinstance(metadata, dict) else {}
+    urls = evidence.get("source_urls", []) if isinstance(evidence, dict) else []
+    if not isinstance(urls, list):
+        raise EvidenceUnavailable("Invalid citation provenance.")
+    primary = _url(row.get("canonical_url"))
+    citations = list(dict.fromkeys(url for value in urls if (url := _url(value))))
+    if not citations and primary:
+        citations = [primary]
+    caveats = []
+    if not captured:
+        caveats.append("No usable capture time is published.")
+    if not since and not until:
+        caveats.append("The source publishes no validity interval.")
+    if not citations:
+        caveats.append("The original record has no usable citation URL.")
+    if freshness != "fresh":
+        caveats.append(f"Source freshness is {freshness}; this does not establish current facts.")
+    if isinstance(evidence, dict) and evidence.get("withheld"):
+        caveats.append("The publisher withheld unsupported contact values; see metadata.")
+    return {
+        "id": row["id"],
+        "collection": "contacts",
+        "source_key": row["source_key"],
+        "source_record_key": row["source_record_key"],
+        "url": primary,
+        "citation_urls": citations,
+        "collected_at": captured.isoformat() if captured else None,
+        "valid_from": since.isoformat() if since else None,
+        "valid_until": until.isoformat() if until else None,
+        "freshness": freshness,
+        "validity": validity,
+        "freshness_sla_hours": sla,
+        "content_hash": row.get("content_hash"),
+        "normalization_metadata": _json_safe(metadata),
+        "caveats": caveats,
+    }
+
+
+def _disjoint(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    # Explicit complete intervals only. Unknown boundaries never establish separation.
+    a, b = left.get("valid_from"), left.get("valid_until")
+    c, d = right.get("valid_from"), right.get("valid_until")
+    return bool(a and b and c and d and (b < c or d < a))
+
+
+def canonical_properties(
+    rows: Sequence[dict[str, Any]],
+    fields: Sequence[str],
+    sources: Sequence[dict[str, Any]],
+    *,
+    registry_name: str = "",
+    reviewed_aliases: Sequence[str] = (),
+) -> list[dict[str, Any]]:
+    """Resolve observations without voting, preferring a record, or inventing support."""
+    if not all(isinstance(item.get("id"), str) and item["id"] for item in [*rows, *sources]):
+        raise EvidenceUnavailable("Every fact needs an original evidence identifier.")
+    source_map = {source["id"]: source for source in sources}
+    if len(source_map) != len(sources) or {row["id"] for row in rows} != set(source_map):
+        raise EvidenceUnavailable("Every fact needs exactly one original evidence record.")
+    canonical_name_published = any(clean(row.get("name")) == registry_name for row in rows)
+    properties = []
+    for field in fields:
+        assertions: list[dict[str, Any]] = []
+        groups: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            value, raw, caveats = project_contact(row, field)
+            if field == "name" and canonical_name_published and value in reviewed_aliases:
+                caveats.append(f"Published name is a reviewed alias of {registry_name}.")
+                value = registry_name
+            assertion_id = f"{row['id']}:{field}"
+            assertion = {
+                "id": assertion_id,
+                "source_id": row["id"],
+                "field": field,
+                "raw_value": _json_safe(raw),
+                "value": _json_safe(value),
+                "caveats": caveats,
+            }
+            assertions.append(assertion)
+            if _present(value):
+                # JSON keeps true, 1 and "1" distinct, unlike Python equality.
+                key = json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False)
+                group = groups.setdefault(
+                    key,
+                    {
+                        "value": _json_safe(value),
+                        "assertion_ids": [],
+                        "source_ids": [],
+                    },
+                )
+                group["assertion_ids"].append(assertion_id)
+                if row["id"] not in group["source_ids"]:
+                    group["source_ids"].append(row["id"])
+        values = list(groups.values())
+        status = "unknown" if not values else "known"
+        if len(values) > 1:
+            distinct_pairs = (
+                (left, right) for i, left in enumerate(values) for right in values[i + 1 :]
+            )
+            separate = all(
+                _disjoint(source_map[a], source_map[b])
+                for left, right in distinct_pairs
+                for a in left["source_ids"]
+                for b in right["source_ids"]
+            )
+            status = "multiple" if separate else "conflicting"
+        properties.append(
+            {
+                "key": field,
+                "label": field.replace("_", " ").capitalize(),
+                "category": "identity" if field in {"name", "department"} else "contact",
+                "status": status,
+                "values": values,
+                "assertions": assertions,
+            }
+        )
+    return properties
+
+
+def validate_entities(entities: Any) -> list[dict[str, Any]]:
+    if not isinstance(entities, list) or len(entities) > MAX_ENTITIES:
+        raise EvidenceUnavailable("Invalid or oversized identity registry.")
+    ids: set[str] = set()
+    owners: dict[tuple[str, str], list[set[str] | None]] = {}
+    for entity in entities:
+        if not isinstance(entity, dict) or not all(
+            isinstance(entity.get(key), str) and entity[key] for key in ("id", "name", "kind")
+        ):
+            raise EvidenceUnavailable("Invalid canonical identity.")
+        if entity["id"] in ids:
+            raise EvidenceUnavailable("Duplicate canonical identity.")
+        ids.add(entity["id"])
+        aliases = entity.get("aliases")
+        if not isinstance(aliases, list) or not all(isinstance(a, str) for a in aliases):
+            raise EvidenceUnavailable("Invalid canonical aliases.")
+        links = entity.get("links")
+        if not isinstance(links, list) or len(links) > 32:
+            raise EvidenceUnavailable("Invalid canonical links.")
+        for link in links:
+            if not isinstance(link, dict):
+                raise EvidenceUnavailable("Invalid canonical link.")
+            if link.get("collection") != "contacts":
+                continue
+            keys, pinned = link.get("source_record_keys"), link.get("source_record_ids")
+            if (
+                not isinstance(keys, list)
+                or not all(isinstance(k, str) for k in keys)
+                or len(keys) > MAX_CONTACTS
+                or not _text(link.get("source_key"))
+            ):
+                raise EvidenceUnavailable("Invalid contact identity link.")
+            if pinned is not None and (
+                not isinstance(pinned, list)
+                or not pinned
+                or not all(isinstance(p, str) for p in pinned)
+            ):
+                raise EvidenceUnavailable("Invalid contact row pins.")
+            pin_set = set(pinned) if pinned else None
+            for key in keys:
+                ownership = owners.setdefault((link["source_key"], key), [])
+                if any(
+                    prior is None or pin_set is None or bool(prior & pin_set) for prior in ownership
+                ):
+                    raise EvidenceUnavailable("Contact evidence has multiple canonical owners.")
+                ownership.append(pin_set)
+    return entities
+
+
+def linked_contacts(entity: dict[str, Any], rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    links = [link for link in entity["links"] if link.get("collection") == "contacts"]
+    return [
+        row
+        for row in rows
+        if any(
+            row.get("source_key") == link["source_key"]
+            and row.get("source_record_key") in link["source_record_keys"]
+            and (not link.get("source_record_ids") or row.get("id") in link["source_record_ids"])
+            for link in links
+        )
+    ]
+
+
+class EntityFacts:
+    """Shared office search and canonical fact reader; adapters supply one snapshot."""
+
+    def __init__(self, *, now: Callable[[], datetime] | None = None) -> None:
+        self.now = now or (lambda: datetime.now(UTC))
+
+    @contextmanager
+    def snapshot(self) -> Iterator[Snapshot]:
+        raise NotImplementedError
+        yield  # pragma: no cover
+
+    @staticmethod
+    def _pin(snapshot: Snapshot, version: str | None, identity_hash: str | None) -> None:
+        if (version is not None and version != snapshot.dataset_version) or (
+            identity_hash is not None and identity_hash != snapshot.identity_hash
+        ):
+            raise DatasetChanged("The active dataset changed; resolve the office again.")
+
+    def readiness(self) -> dict[str, Any]:
+        try:
+            with self.snapshot() as snapshot:
+                offices = [entity for entity in snapshot.entities if entity["kind"] == "office"]
+                if not offices:
+                    raise EvidenceUnavailable("No published offices.")
+                # Verify the contact read path as well as registry availability.
+                if not snapshot.contact_reader(offices[0]):
+                    raise EvidenceUnavailable("No published office contact evidence.")
+                return {
+                    "ready": True,
+                    "dataset_version": snapshot.dataset_version,
+                    "identity_hash": snapshot.identity_hash,
+                }
+        except EvidenceUnavailable:
+            return {"ready": False}
+
+    def search_offices(
+        self,
+        query: str,
+        *,
+        dataset_version: str | None = None,
+        identity_hash: str | None = None,
+        limit: int = 8,
+    ) -> dict[str, Any]:
+        if not isinstance(query, str) or not query.strip() or len(query) > 200:
+            raise InvalidFactRequest("Office search needs 1–200 characters.")
+        if not 1 <= limit <= 20:
+            raise InvalidFactRequest("Office search limit must be between 1 and 20.")
+        needle = " ".join(query.casefold().split())
+        query_tokens = _discovery_tokens(query)
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            found = []
+            for entity in snapshot.entities:
+                if entity["kind"] != "office":
+                    continue
+                names = [
+                    " ".join(name.casefold().split())
+                    for name in [entity["name"], *entity["aliases"]]
+                ]
+                exact = needle in names
+                name_tokens = [_discovery_tokens(name) for name in names]
+                partial = bool(query_tokens) and any(
+                    needle in name
+                    or (bool(tokens) and (query_tokens <= tokens or tokens <= query_tokens))
+                    for name, tokens in zip(names, name_tokens, strict=True)
+                )
+                if exact or partial:
+                    found.append(
+                        {
+                            "entity_id": entity["id"],
+                            "name": entity["name"],
+                            "aliases": list(entity["aliases"]),
+                            "match": "exact" if exact else "partial",
+                        }
+                    )
+            found.sort(key=lambda item: (item["match"] != "exact", item["name"], item["entity_id"]))
+            return {
+                "dataset_version": snapshot.dataset_version,
+                "identity_hash": snapshot.identity_hash,
+                "candidates": found[:limit],
+                "truncated": len(found) > limit,
+            }
+
+    def get_office_facts(
+        self,
+        entity_id: str,
+        fields: Sequence[str] | None,
+        dataset_version: str,
+        *,
+        identity_hash: str | None = None,
+        as_of: datetime | None = None,
+    ) -> dict[str, Any]:
+        if fields is None:
+            fields = OFFICE_FIELDS
+        if (
+            not isinstance(entity_id, str)
+            or not entity_id
+            or len(entity_id) > 100
+            or not isinstance(dataset_version, str)
+            or not dataset_version
+        ):
+            raise InvalidFactRequest("A canonical entity and dataset pin are required.")
+        if (
+            isinstance(fields, str)
+            or not fields
+            or len(fields) > len(OFFICE_FIELDS)
+            or not all(isinstance(field, str) for field in fields)
+        ):
+            raise InvalidFactRequest("Select a bounded list of office fields.")
+        selected = list(dict.fromkeys(FIELD_ALIASES.get(field, field) for field in fields))
+        if any(field not in OFFICE_FIELDS for field in selected):
+            raise InvalidFactRequest("An unsupported office field was requested.")
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            entity = next(
+                (
+                    entity
+                    for entity in snapshot.entities
+                    if entity["id"] == entity_id and entity["kind"] == "office"
+                ),
+                None,
+            )
+            if not entity:
+                raise UnknownEntity("No office has that canonical identity.")
+            rows = snapshot.contact_reader(entity)
+            if len(rows) > MAX_CONTACTS:
+                raise EvidenceUnavailable("Office evidence exceeds the bounded read.")
+            if len(json.dumps(_json_safe(rows), allow_nan=False).encode()) > MAX_EVIDENCE_BYTES:
+                raise EvidenceUnavailable("Office evidence exceeds the bounded response.")
+            if len(linked_contacts(entity, rows)) != len(rows):
+                raise EvidenceUnavailable("A fact record has no exact canonical identity link.")
+            row_ids = [_text(row.get("id")) for row in rows]
+            if not all(row_ids) or len(set(row_ids)) != len(row_ids):
+                raise EvidenceUnavailable("Duplicate or missing original evidence identifiers.")
+            now = as_of if as_of is not None else self.now()
+            if now.tzinfo is None:
+                raise InvalidFactRequest("The fact clock must include its timezone.")
+            sources = [_source(row, now) for row in rows]
+            reviewed = [
+                entry["alias"]
+                for entry in snapshot.alias_sources
+                if entry.get("entity_id") == entity_id
+                and isinstance(entry.get("alias"), str)
+                and any(
+                    source.get("basis") in {"identity_map", "human_reviewed", "department"}
+                    for source in entry.get("sources", [])
+                    if isinstance(source, dict)
+                )
+            ]
+            properties = canonical_properties(
+                rows,
+                selected,
+                sources,
+                registry_name=entity["name"],
+                reviewed_aliases=reviewed,
+            )
+            caveats = []
+            for link in entity["links"]:
+                if link.get("collection") != "contacts":
+                    continue
+                for key in link["source_record_keys"]:
+                    if not any(
+                        row["source_key"] == link["source_key"] and row["source_record_key"] == key
+                        for row in rows
+                    ):
+                        caveats.append(
+                            f"Linked contact evidence is missing: {link['source_key']}/{key}."
+                        )
+                if link.get("source_record_ids") and not set(link["source_record_ids"]) <= set(
+                    row_ids
+                ):
+                    caveats.append("One or more pinned original contact records are missing.")
+            if not rows:
+                caveats.append("No original contact evidence is published for this office.")
+            return {
+                "schema_version": 3,
+                "mapping_version": "entity-facts-1",
+                "dataset_version": snapshot.dataset_version,
+                "identity_hash": snapshot.identity_hash,
+                "entity": {key: entity[key] for key in ("id", "kind", "name")},
+                "properties": properties,
+                "sources": sources,
+                "evidence_count": len(sources),
+                "caveats": caveats,
+                "complete": not caveats,
+            }
+
+
+class MemoryEntityFacts(EntityFacts):
+    """Same resolver with explicit published fixtures; never a production fallback."""
+
+    def __init__(
+        self,
+        *,
+        dataset_version: str,
+        identity_hash: str,
+        entities: list[dict[str, Any]],
+        contacts: list[dict[str, Any]],
+        alias_sources: list[dict[str, Any]] | None = None,
+        now: Callable[[], datetime] | None = None,
+    ) -> None:
+        super().__init__(now=now)
+        self.dataset_version = dataset_version
+        self.identity_hash = identity_hash
+        self.entities = deepcopy(validate_entities(entities))
+        self.contacts = deepcopy(contacts)
+        self.alias_sources = deepcopy(alias_sources or [])
+
+    @contextmanager
+    def snapshot(self) -> Iterator[Snapshot]:
+        entities, contacts = deepcopy(self.entities), deepcopy(self.contacts)
+        yield Snapshot(
+            self.dataset_version,
+            self.identity_hash,
+            validate_entities(entities),
+            lambda entity: linked_contacts(entity, contacts),
+            deepcopy(self.alias_sources),
+        )

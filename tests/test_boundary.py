@@ -1,4 +1,4 @@
-"""Step 2: three predictable paths, and every reply written by code."""
+"""The immediate-danger phrase floor; ordinary intent belongs to the assistant."""
 
 from datetime import datetime
 from typing import Any
@@ -6,11 +6,10 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from rockygpt_brain.boundary import CAPABILITY_MESSAGE, SAFETY_MESSAGE, BoundaryResult, check
+from rockygpt_brain.boundary import SAFETY_MESSAGE, BoundaryResult, check
 from rockygpt_brain.turn import CAMPUS_TZ, Turn
 
 SAFETY = BoundaryResult("safety", SAFETY_MESSAGE)
-LIMIT = BoundaryResult("capability_limit", CAPABILITY_MESSAGE)
 CONTINUE = BoundaryResult("continue", "")
 
 
@@ -57,8 +56,8 @@ def test_danger_gets_the_safety_help(message: str) -> None:
     "hey please send my transcript to Rutgers",
     "i need you to submit my application",
 ])
-def test_the_students_own_account_gets_the_limit(message: str) -> None:
-    assert read(message) == LIMIT
+def test_account_words_do_not_discard_public_parts(message: str) -> None:
+    assert read(message) == CONTINUE
 
 
 @pytest.mark.parametrize("message", [
@@ -110,14 +109,10 @@ def test_only_the_latest_message_is_read() -> None:
     assert read("what time is the shuttle") == CONTINUE
 
 
-def test_the_same_message_always_takes_the_same_path() -> None:
-    assert {read("Show me my grades") for _ in range(100)} == {LIMIT}
-
-
 def test_the_replies_are_fixed_text() -> None:
     assert "911" in SAFETY_MESSAGE and "988" in SAFETY_MESSAGE
     assert read("someone collapsed").message == SAFETY_MESSAGE
-    assert read("show me my grades").message == CAPABILITY_MESSAGE
+    assert read("show me my grades") == CONTINUE
     assert read("hi").message == ""
 
 
@@ -135,15 +130,18 @@ def test_a_danger_message_gets_a_200_with_the_safety_help(client: TestClient) ->
     assert body["citations"] == []
 
 
-def test_an_account_message_gets_a_200_with_the_limit(client: TestClient) -> None:
+def test_account_request_needs_the_assistant_not_a_phrase_refusal(client: TestClient) -> None:
     status, body = ask(client, "Register me for CS 450")
-    assert status == 200
-    assert body["status"] == "unavailable"
-    assert body["answer"] == CAPABILITY_MESSAGE
-    assert body["citations"] == []
+    assert status == 503
+    assert body["reason"] == "model_not_configured"
 
 
-def test_any_other_message_goes_on_and_is_not_ready(client: TestClient) -> None:
+def test_unconfigured_service_reports_configuration_failure(client: TestClient) -> None:
     status, body = ask(client, "What's the next shuttle?")
     assert status == 503
-    assert body["reason"] == "not_ready"
+    assert body["reason"] == "model_not_configured"
+
+
+def test_normal_medication_mention_is_not_an_overdose() -> None:
+    assert read("I took my medication this morning; where is the bookstore?") == CONTINUE
+    assert read("I took too many pills") == SAFETY

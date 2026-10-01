@@ -1,140 +1,114 @@
-# Brain restart checkpoint — September 4, 2026
+# Current verification
 
-The original checkpoint `e2ddd39` failed its later frozen acceptance run:
-17/20 conversations and 24/27 turns passed semantic review. Its failures were
-a program/club HTTP error, an event-to-library location inference, and an overly
-broad Saturday lunch exclusion. The composite described below is historical and
-does not mark that frozen checkpoint verified.
+This document describes checks for the bounded office-facts rebuild. The
+[September 4 verification report](historical/verification-20260904.md) is historical
+and does not certify the current code.
 
-The current branch adds bounded recovery, a required evidence-support gate,
-code-enforced event/source scope, discovery of small published collections,
-official source fallback for uncitable record websites, retained expanded
-evidence, and reserved database/network time. Menu paragraphs can retain up to
-50 record citations, and inferred allergy safety receives an explicit runtime
-veto. The synthesis prompt is unchanged.
-The latest fixes give summaries access to earlier same-answer citations and
-mechanically reject conclusions with identified unverified factual premises.
-Conditional service rules retain their condition in the time-check contract
-instead of being treated as expired dated plans.
-Local validation: 120 Brain tests, Ruff, and strict mypy pass. The complete
-acceptance report and independent semantic review are recorded in
-`rockygpt-evals/brain-reset/checkpoints/2026-09-04-behavior/` after execution.
+## Checks with no paid calls
 
-The evidence gate and source-use interpretation still depend on a model; the
-runtime checks do not guarantee correctness outside the tested conversations.
+```sh
+ruff check .
+mypy src tests scripts
+pytest -q
+python scripts/check_chat.py --out /tmp/chat-regression.json
+```
 
----
+Use a new report path on every run. CI runs these checks and uploads the HTTP
+regression report. Database integration tests require an isolated test database;
+tests that cannot run must be reported as skipped, never counted as verified.
+CI supplies `BRAIN_GATEWAY_TEST_DATABASE_URL` using its new disposable PostgreSQL
+service. Locally, that optional integration test requires a fresh isolated cluster
+and an empty localhost database named `brain_gateway_test*`; it applies migrations
+and creates cluster roles, so it must never target a shared database or cluster.
 
-This checkpoint replaces the label-only classifier with a student assistant.
-Implementation decisions came from the product goal and the current published
-campus dataset, not historical Brain branches or designs.
+The regression runner sends full requests to `/v1/chat` through FastAPI TestClient.
+Each follow-up includes the actual service answer from the preceding turn. It uses
+the production gateway with a scripted transport and memory ledger, plus synthetic
+canonical office facts. It loads no credentials, creates no database connection,
+and makes no paid calls. It is an integration check of code behavior; the scripted
+model already knows which tool to select and therefore does not test interpretation.
+Its elapsed times measure local fixture execution, not provider or production latency.
 
-## Data and execution
+Reports record the Git commit and dirty state, runtime source fingerprint (including
+the provider release), public fixture configuration, prompt, scorer and adapter,
+case set, and source-data fingerprint. Source fingerprints include uncommitted
+runtime files, so the commit alone is never presented as sufficient provenance.
 
-The inspected active dataset is `v2-20260904145456`, activated September 4 at
-15:01:54 UTC. It contains 14 critical facts, 242 contacts, 77 campus-hours rows,
-63 dining-hours rows, 504 menu items, four shuttle routes and 51 trips, 144
-academic-date rows, 274 events, 254 clubs, 146 programs, 14 documents with 3,039
-chunks, and 13 published artifacts including 3,344 catalog courses.
+Each result keeps the request, full response, expected assertions, and failures
+separately for contract, support checks, completion, refusal, and error handling.
+The summary reports how many turns actually asserted each dimension. Here,
+"support" means expected source membership and known-value checks, not a semantic
+entailment score. A citation present in the answer does not prove arbitrary prose.
 
-The checkpoint default and final live evaluation use `gpt-5.4-2026-03-05` through
-the `gpt-5.4` alias. The local Brain model setting was updated accordingly;
-credentials and published data were unchanged. Database inspection and evaluation
-use read-only transactions. No ingestion, database migration, deployment, or push
-was performed.
+## October 1, 2026 saved results
 
-## Findings corrected during verification
+Final local checks: **282 tests passed, one skipped**; Ruff, strict mypy across 33
+files, and `git diff --check` passed. The skipped test is the opt-in real PostgreSQL
+ledger integration test. It ran separately against a disposable cluster and passed
+at 1:24:57 PM Eastern after credential hardening; the spending implementation and
+migrations remained unchanged afterward. The built wheel matched current runtime
+source, included `provider-release.json`, and excluded retired modules.
 
-- Added a trusted CA bundle while preserving `verify-full` and explicit CA
-  settings. Moved read-only enforcement from rejected Neon startup options to
-  per-query transactions, with local SQL timeouts.
-- Preserved missing-data distinctions: no library-hours row, no published map,
-  and missing menu dates do not imply closure or nonexistence.
-- Enriched menu venue/URL from the published menu-context metadata. A query for
-  the venue now finds menu rows; no-match searches are refined before claiming
-  data is missing. Removed duplicate serialized evidence content.
-- Restored shuttle endpoint meanings from the data contract: campus departure,
-  intermediate stops in published order, and campus return. Generic departure
-  and arrival labels had caused an incomplete answer about evening returns.
-- Clarified evidence scope: an event room does not establish the general location
-  or entrance of an entire facility. Official sources must support actual claims.
-- Required explicit dates for schedule searches and supplied the current weekday
-  and calendar-week boundaries. A Friday request had advanced to the following
-  week, and a shuttle query had omitted its Saturday filter.
-- Included dining meal labels only after an exact match to the published venue,
-  day, validity, and interval sequence. Travel plans must preserve departure and
-  arrival locations rather than confuse campus departures with return times.
-- Described each collection's contents and required checking concise verified
-  facts before declaring a public fact unavailable. A repeated password-reset
-  case had searched only documents and contacts, missing the published action URL.
-- Fixed client error and environment-token contracts, bounded request/answer
-  sizes and active turns, and added an HTTP deadline whose worker retains its
-  slot until cleanup finishes.
-- Replaced machine field keys and individual menu items in citation labels with
-  source titles; retained individual record identity for inspection.
+The [offline HTTP report](../evals/chat/office-slice-20261001-results.json) passes
+16/16 regression turns with no paid calls. All turns assert the wire/error
+contract; 12 assert support checks, 12 completion, and three refusal behavior.
+The cases are authored and inspected, not blind. Their scripted interpretation
+cannot establish live-model reliability.
 
-The early GPT-4.1 run hit that model's project quota and also incorrectly reported
-an available menu as missing. It was not counted as successful verification.
-The final model's observed limits were 500 requests/minute and 500,000 tokens/minute.
-A later HTTP 429 was diagnosed as `insufficient_quota` /
-`credit_balance_exhausted`, with no reset headers. Model calls stopped; no credits
-were purchased. This prevented completion of the last full sweep after the
-collection-description change. Brain now distinguishes this non-retryable quota
-failure from a temporary rate limit, and the eval harness stops on HTTP 429.
+Three development smoke runs used the real provider, published campus data, and
+durable accounting through the HTTP route. Earlier reports remain unchanged:
 
-## Verification results
+| Saved run | Observed outcome | Settled ledger cost | Uncertain reservation |
+| --- | --- | --- | --- |
+| [Initial](../evals/chat/office-slice-20261001-live-smoke.json) | An office lookup missed the canonical match; the follow-up returned 503 `provider_unavailable`. | $0.000428625 | $0.001645875 |
+| [Second](../evals/chat/office-slice-20261001-live-smoke-2.json) | The lookup resolved with stale-data limitations; the follow-up returned 502 because a finish result reference passed the tool schema but failed runtime validation. | $0.000617250 | $0 |
+| [Final](../evals/chat/office-slice-20261001-live-smoke-3.json) | All three requests returned HTTP 200: the office lookup, its email follow-up, and a mixed account/public-information request. All had `status: unavailable` because the published contact capture was stale. | $0.000901500 | $0 |
 
-- Brain: 67 tests passed; Ruff and strict mypy passed. Tests cover history,
-  tool output replay, citation and freshness rejection, failure recovery,
-  read-only retrieval, schedule/date semantics, size bounds, and timeout cleanup.
-  Exhausted credit returns HTTP 429 with a distinct non-retryable error;
-  ordinary rate limits remain retryable.
-- Evaluation harness: eight tests passed, including actual HTTP history replay,
-  pacing, resumable reports, and stopping immediately on HTTP 429.
-- Student UI: four Playwright HTTP-route tests passed for payload validation,
-  exact history forwarding, upstream failures, and per-client rate limiting.
-  Four additional browser checks passed across desktop and mobile: exhausted
-  quota preserves the service message without a retry button, while temporary
-  rate limits retain retry. These browser requests used a local mock.
-- Both web clients passed TypeScript checks and lint. Live CLI → Dev → Brain
-  follow-ups preserved all four messages. UI → Brain readiness and malformed
-  chat smoke checks passed without a model call.
-- The Brain wheel built successfully and included the runtime prompt without
-  credentials or retired classifier files.
+The final run resolved the real canonical Registrar record from
+`dev-profiles-headings3-20260929`. Its contact evidence was captured September 23,
+so the response displayed dated observations with explicit current-value
+limitations. The mixed request retained the dated phone observation and the
+private-account limitation. No current-contact verification or data refresh was
+claimed. Fresh publication evidence is still needed for current factual answers.
 
-The [reviewed composite](../../rockygpt-evals/brain-reset/checkpoints/2026-09-04/verified-checkpoint.md)
-contains 20 conversations / 27 turns, including four actual multi-turn
-conversations. All composite requests returned HTTP 200 and passed contract
-checks. An [independent agent review](../../rockygpt-evals/brain-reset/verification-review.md)
-corroborated the campus claims against published records and found no remaining
-material unsupported claim in that answer set. The corrected shuttle case also
-passed two independent repetitions.
+Final live latencies were 5.976, 5.783, and 5.846 seconds (median 5.846 seconds).
+Each turn made two provider calls; all six settled. The second run recorded 7.595
+and 6.291 seconds; the initial report did not record per-turn latency. These are
+sequential smoke timings, not load-test percentiles or representative averages.
+Across the three reports, settled ledger cost is $0.001947375, with the initial
+$0.001645875 reservation still unresolved in the saved evidence. A reservation is
+not proof of a provider charge; it remains charged against the allowance pending
+reconciliation.
 
-Composite HTTP latency was 6.680 seconds median, 11.644 seconds at the
-nearest-rank 95th percentile, and 12.028 seconds maximum. These are sequential
-sample timings, not a load test.
+The fixes addressed shared contracts: office discovery accepts name-word ordering
+variations; every retrieved office result is rendered by code; and `finish` now
+adds only nonfactual parts instead of supplying fact references. SDK response
+serialization also drops null optional fields. The latter corrects an integration
+risk, but the initial provider failure's cause was not proven. These changes do not
+establish success on unseen student conversations, and the earlier failures have
+not been relabeled as passes.
 
-This is a composite across iterations, not a complete pass on the final runtime.
-It uses the last complete run with the password case replaced by its successful
-targeted rerun after the collection-discovery correction. The global effects of
-that final prompt/tool-description change remain unverified across all 27 turns
-because API credits were exhausted. Original failure reports remain available.
+The three-request final run is a small integration smoke test, not an independent
+quality evaluation, safety audit, broad campus-coverage check, or production release
+approval. It supplies no measured overall accuracy or calibrated confidence score.
 
-Only synthetic conversations were used. Contract checks and independent agent
-semantic review are separate; no human review was performed. The TestClient
-emits one upstream deprecation warning about its HTTP client, without a failing
-check.
+## Before calling a release ready for students
 
-## Practical limits
+1. Verify the deployed identity publication and linked contact evidence through the
+   read-only adapter, and verify ledger roles and durable allowance enforcement.
+2. Freeze unseen student conversations and expected supported outcomes. Include
+   long and omitted histories, ambiguity, mixed requests, absent and conflicting
+   records, safety, failures, and adversarial source text. Run through the actual
+   HTTP path using the same provider gateway and a bounded development allowance.
+3. Review factual support and useful completion independently of topic labels.
+   Record unnecessary refusals, missed limitations, latency, and total charged cost
+   including failed calls. Preserve original failures and report partial coverage.
 
-Citation membership, source trust, freshness, validity, and request bounds are
-checked in code. Semantic entailment still depends on the model and requires
-ongoing evaluation; source presence alone is not a factual-accuracy score.
-Search returns bounded results with explicit truncation, so lists may be partial.
-Historical assertions from sources beyond their freshness SLA are conservatively
-withheld. Live seat counts, personal accounts, map directions, appointment
-availability, and live shuttle telemetry are unavailable in the current data.
+No live-model quality claim follows from the offline regression report. No benchmark
+in `plan/` or `understanding/` can substitute for this HTTP-path evaluation. Once a
+case has been inspected, later runs are regressions even if its filename says blind.
 
-This is a local source checkpoint. The pre-existing Docker stack still lacks a
-Python Brain Dockerfile; deployment was outside this request. The current Brain
-serves chat and probes, not the old campus-panel, feedback, or admin-log APIs.
+Provider/configuration unit tests verify fail-closed handling of malformed or expired
+pricing, not that deployed prices remain current. Provider timeouts can leave an
+uncertain charge; operators must reconcile those rows against provider usage before
+releasing them. Do not retry them by resetting counters or switching environments.

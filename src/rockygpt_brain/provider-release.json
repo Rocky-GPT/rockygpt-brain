@@ -1,0 +1,12 @@
+{
+  "version": "2026-10-01-gpt-6-luna",
+  "model": "gpt-6-luna",
+  "verified_at": "2026-10-01T00:00:00-04:00",
+  "valid_until": "2026-11-01T00:00:00-04:00",
+  "source": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+  "input_nusd_per_token": 125,
+  "cached_input_nusd_per_token": 10,
+  "output_nusd_per_token": 500,
+  "cost_basis": "Conservative: uncached input includes the 125 nanoUSD cache-write rate; ordinary input is 100 nanoUSD. Usage without cache-write breakdown settles at this upper rate.",
+  "service_tier": "default"
+}

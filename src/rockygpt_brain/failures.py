@@ -15,4 +15,5 @@ def failure(
         "requestId": request_id,
         **extra,
     }
-    return JSONResponse(body, status_code=status, headers={"X-Request-Id": request_id})
+    return JSONResponse(body, status_code=status,
+                        headers={"X-Request-Id": request_id, "Cache-Control": "no-store"})

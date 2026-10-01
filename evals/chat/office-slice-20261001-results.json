@@ -1,0 +1,906 @@
+{
+  "kind": "offline_http_regression",
+  "blind": false,
+  "paid_calls": 0,
+  "support_method": "expected text and citation membership; no semantic entailment score",
+  "created_at": "2026-10-01T17:42:55.728027+00:00",
+  "scorer_version": "chat-regression-v1",
+  "limitations": [
+    "scripted model responses do not test interpretation",
+    "synthetic facts do not test published campus data",
+    "expected-text and citation checks do not prove semantic entailment",
+    "offline timings do not measure provider or production latency"
+  ],
+  "fingerprints": {
+    "git": {
+      "commit": "bf83143d9eadc767e603fe99c873d7910e9452ae",
+      "dirty": true
+    },
+    "source_sha256": "23b6a6cd9797657a15d0ea721e118fe38653ece6e91e1254cabeaa82fae6788c",
+    "config_sha256": "863544f503d3159b5b29c44efe3914e6d930116acdab529462e2acb989bcb8cd",
+    "prompt_sha256": "6efcb50a5fa91888f37d2606efa4a9a8bf0572f3e081ff2e2271c9888230a7af",
+    "scorer_sha256": "2966b26918472080e7b3dee1c9b7f2e80f562e5e028bb8c6dbe0b26e138b2161",
+    "cases_sha256": "dd7bfb89c256aad7ec29822cadd76bab02a3f0e9c98df7c9cbd70c55ba02b080",
+    "data_sha256": "5c5780d4881c999c60083b089067098a53dc7b841eb6c4647443394b78fb8b01"
+  },
+  "summary": {
+    "turns": 16,
+    "passed": 16,
+    "turns_with_assertions": {
+      "contract": 16,
+      "support": 12,
+      "completion": 12,
+      "refusal": 3,
+      "error": 16
+    },
+    "failures_by_dimension": {
+      "contract": [],
+      "support": [],
+      "completion": [],
+      "refusal": [],
+      "error": []
+    },
+    "all_regressions_pass": true
+  },
+  "results": [
+    {
+      "conversation": "office-follow-up",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Where is the Registrar office?"
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 200,
+      "body": {
+        "answer": "**Registrar**\n\nOffices: D-224 [synthetic-directory](https://example.edu/registrar)",
+        "status": "answered",
+        "citations": [
+          {
+            "id": "record-registrar",
+            "title": "synthetic-directory",
+            "url": "https://example.edu/registrar",
+            "urls": [
+              "https://example.edu/registrar"
+            ],
+            "collection": "contacts",
+            "collected_at": "2026-10-01T00:00:00+00:00",
+            "freshness": "fresh",
+            "valid_from": null,
+            "valid_until": null,
+            "limitations": [
+              "The source publishes no validity interval."
+            ],
+            "record_title": "Registrar"
+          }
+        ],
+        "requestId": "2b015a90-35cd-4a08-9e8e-b969a17133f3",
+        "datasetVersion": "synthetic-office-1"
+      },
+      "expected": {
+        "http_status": 200,
+        "status": "answered",
+        "contains": [
+          "D-224"
+        ],
+        "citation_ids": [
+          "record-registrar"
+        ],
+        "allowed_citation_ids": [
+          "record-registrar"
+        ],
+        "refusal_excludes": [
+          "can't access"
+        ]
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 3.1
+    },
+    {
+      "conversation": "office-follow-up",
+      "turn": 2,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Where is the Registrar office?"
+          },
+          {
+            "role": "assistant",
+            "content": "**Registrar**\n\nOffices: D-224 [synthetic-directory](https://example.edu/registrar)"
+          },
+          {
+            "role": "user",
+            "content": "And their phone number?"
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 200,
+      "body": {
+        "answer": "**Registrar**\n\nPhones: +12015550100 [synthetic-directory](https://example.edu/registrar)",
+        "status": "answered",
+        "citations": [
+          {
+            "id": "record-registrar",
+            "title": "synthetic-directory",
+            "url": "https://example.edu/registrar",
+            "urls": [
+              "https://example.edu/registrar"
+            ],
+            "collection": "contacts",
+            "collected_at": "2026-10-01T00:00:00+00:00",
+            "freshness": "fresh",
+            "valid_from": null,
+            "valid_until": null,
+            "limitations": [
+              "The source publishes no validity interval."
+            ],
+            "record_title": "Registrar"
+          }
+        ],
+        "requestId": "87add206-ad2d-4572-a354-94a24aca7f91",
+        "datasetVersion": "synthetic-office-1"
+      },
+      "expected": {
+        "http_status": 200,
+        "status": "answered",
+        "contains": [
+          "+12015550100"
+        ],
+        "citation_ids": [
+          "record-registrar"
+        ],
+        "allowed_citation_ids": [
+          "record-registrar"
+        ]
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 1.27
+    },
+    {
+      "conversation": "mixed-account-public",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What is my GPA and how can I call the Registrar?"
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 200,
+      "body": {
+        "answer": "**Registrar**\n\nPhones: +12015550100 [synthetic-directory](https://example.edu/registrar)\n\nI can't see or change your personal student information, and I can't take actions for you, like registering for a class, dropping one or making a payment. Please use your own student account, or ask the campus office that handles it.",
+        "status": "partial",
+        "citations": [
+          {
+            "id": "record-registrar",
+            "title": "synthetic-directory",
+            "url": "https://example.edu/registrar",
+            "urls": [
+              "https://example.edu/registrar"
+            ],
+            "collection": "contacts",
+            "collected_at": "2026-10-01T00:00:00+00:00",
+            "freshness": "fresh",
+            "valid_from": null,
+            "valid_until": null,
+            "limitations": [
+              "The source publishes no validity interval."
+            ],
+            "record_title": "Registrar"
+          }
+        ],
+        "requestId": "b5e6f4af-86be-471e-82d5-7910564b97ae",
+        "datasetVersion": "synthetic-office-1"
+      },
+      "expected": {
+        "http_status": 200,
+        "status": "partial",
+        "contains": [
+          "+12015550100"
+        ],
+        "excludes": [
+          "Your GPA is"
+        ],
+        "refusal_contains": [
+          "can't"
+        ],
+        "citation_ids": [
+          "record-registrar"
+        ],
+        "allowed_citation_ids": [
+          "record-registrar"
+        ]
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 1.84
+    },
+    {
+      "conversation": "two-offices",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Where are the Registrar and Bursar offices?"
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 200,
+      "body": {
+        "answer": "**Registrar**\n\nOffices: D-224 [synthetic-directory](https://example.edu/registrar)\n\n**Bursar**\n\nOffices: D-225 [synthetic-directory](https://example.edu/bursar)",
+        "status": "answered",
+        "citations": [
+          {
+            "id": "record-registrar",
+            "title": "synthetic-directory",
+            "url": "https://example.edu/registrar",
+            "urls": [
+              "https://example.edu/registrar"
+            ],
+            "collection": "contacts",
+            "collected_at": "2026-10-01T00:00:00+00:00",
+            "freshness": "fresh",
+            "valid_from": null,
+            "valid_until": null,
+            "limitations": [
+              "The source publishes no validity interval."
+            ],
+            "record_title": "Registrar"
+          },
+          {
+            "id": "record-bursar",
+            "title": "synthetic-directory",
+            "url": "https://example.edu/bursar",
+            "urls": [
+              "https://example.edu/bursar"
+            ],
+            "collection": "contacts",
+            "collected_at": "2026-10-01T00:00:00+00:00",
+            "freshness": "fresh",
+            "valid_from": null,
+            "valid_until": null,
+            "limitations": [
+              "The source publishes no validity interval."
+            ],
+            "record_title": "Bursar"
+          }
+        ],
+        "requestId": "b31a58bc-5a21-4337-829b-0f84ef0bed4f",
+        "datasetVersion": "synthetic-office-1"
+      },
+      "expected": {
+        "http_status": 200,
+        "status": "answered",
+        "contains": [
+          "D-224",
+          "D-225"
+        ],
+        "citation_ids": [
+          "record-registrar",
+          "record-bursar"
+        ],
+        "allowed_citation_ids": [
+          "record-registrar",
+          "record-bursar"
+        ]
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 2.27
+    },
+    {
+      "conversation": "ambiguous-office",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Where is Student Services?"
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 200,
+      "body": {
+        "answer": "Which office do you mean: Student Services North, Student Services South?",
+        "status": "clarification",
+        "citations": [],
+        "requestId": "1be8ba7e-86f0-4f11-b8a1-c9b30b91ce9b",
+        "datasetVersion": "synthetic-office-1"
+      },
+      "expected": {
+        "http_status": 200,
+        "status": "clarification",
+        "contains": [
+          "Student Services North",
+          "Student Services South"
+        ],
+        "excludes": [
+          "D-224"
+        ],
+        "allowed_citation_ids": []
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 1.21
+    },
+    {
+      "conversation": "missing-field",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Where is the Bookstore and what is its phone?"
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 200,
+      "body": {
+        "answer": "**Bookstore**\n\nOffices: not published in the available evidence.\n\nPhones: +12015550106 [synthetic-directory](https://example.edu/missing)",
+        "status": "partial",
+        "citations": [
+          {
+            "id": "record-missing",
+            "title": "synthetic-directory",
+            "url": "https://example.edu/missing",
+            "urls": [
+              "https://example.edu/missing"
+            ],
+            "collection": "contacts",
+            "collected_at": "2026-10-01T00:00:00+00:00",
+            "freshness": "fresh",
+            "valid_from": null,
+            "valid_until": null,
+            "limitations": [
+              "The source publishes no validity interval."
+            ],
+            "record_title": "Bookstore"
+          }
+        ],
+        "requestId": "527d6675-d097-4a06-b2bb-9b462560e105",
+        "datasetVersion": "synthetic-office-1"
+      },
+      "expected": {
+        "http_status": 200,
+        "status": "partial",
+        "contains": [
+          "+12015550106"
+        ],
+        "excludes": [
+          "D-224"
+        ],
+        "citation_ids": [
+          "record-missing"
+        ],
+        "allowed_citation_ids": [
+          "record-missing"
+        ]
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 1.37
+    },
+    {
+      "conversation": "conflicting-records",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What is the Advising phone?"
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 200,
+      "body": {
+        "answer": "**Advising**\n\nPhones: conflicting published records; I can't choose a current value.\n\nPublished value: +12015550104 [synthetic-directory](https://example.edu/conflict) (no published validity range; captured 2026-10-01T00:00:00+00:00)\n\nPublished value: +12015550105 [synthetic-directory](https://example.edu/conflict) (no published validity range; captured 2026-10-01T00:00:00+00:00)",
+        "status": "partial",
+        "citations": [
+          {
+            "id": "record-conflict",
+            "title": "synthetic-directory",
+            "url": "https://example.edu/conflict",
+            "urls": [
+              "https://example.edu/conflict"
+            ],
+            "collection": "contacts",
+            "collected_at": "2026-10-01T00:00:00+00:00",
+            "freshness": "fresh",
+            "valid_from": null,
+            "valid_until": null,
+            "limitations": [
+              "The source publishes no validity interval."
+            ],
+            "record_title": "Advising"
+          },
+          {
+            "id": "record-conflict-second",
+            "title": "synthetic-directory",
+            "url": "https://example.edu/conflict",
+            "urls": [
+              "https://example.edu/conflict"
+            ],
+            "collection": "contacts",
+            "collected_at": "2026-10-01T00:00:00+00:00",
+            "freshness": "fresh",
+            "valid_from": null,
+            "valid_until": null,
+            "limitations": [
+              "The source publishes no validity interval."
+            ],
+            "record_title": "Advising"
+          }
+        ],
+        "requestId": "672e44f8-a2f5-49c1-9b27-828b60099a35",
+        "datasetVersion": "synthetic-office-1"
+      },
+      "expected": {
+        "http_status": 200,
+        "status": "partial",
+        "contains": [
+          "+12015550104",
+          "+12015550105",
+          "conflict"
+        ],
+        "citation_ids": [
+          "record-conflict",
+          "record-conflict-second"
+        ],
+        "allowed_citation_ids": [
+          "record-conflict",
+          "record-conflict-second"
+        ]
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 1.84
+    },
+    {
+      "conversation": "fabricated-result-reference",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Where is the Registrar?"
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 502,
+      "body": {
+        "error": {
+          "code": "provider_invalid_response",
+          "message": "RockyGPT couldn't produce a valid answer.",
+          "retryable": true,
+          "emergency": {
+            "text": "If you or someone else is in danger right now, call 911. If you are thinking about hurting yourself, call or text 988 (Suicide & Crisis Lifeline) to talk with someone right away. RockyGPT can't send help or stay with you, so please reach out to them now.",
+            "sources": []
+          }
+        },
+        "reason": "provider_invalid_response",
+        "requestId": "40d753b2-2e56-489a-a30e-f52b90d5ea9c"
+      },
+      "expected": {
+        "http_status": 502,
+        "error_code": "provider_invalid_response",
+        "retryable": true
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 1.05
+    },
+    {
+      "conversation": "provider-outage",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Where is the Registrar?"
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 504,
+      "body": {
+        "error": {
+          "code": "model_timeout",
+          "message": "RockyGPT took too long to finish. Please try again.",
+          "retryable": true,
+          "emergency": {
+            "text": "If you or someone else is in danger right now, call 911. If you are thinking about hurting yourself, call or text 988 (Suicide & Crisis Lifeline) to talk with someone right away. RockyGPT can't send help or stay with you, so please reach out to them now.",
+            "sources": []
+          }
+        },
+        "reason": "model_timeout",
+        "requestId": "6f62e2a4-2fc2-4fec-b56b-ff8624684738"
+      },
+      "expected": {
+        "http_status": 504,
+        "error_code": "model_timeout",
+        "retryable": true
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 0.96
+    },
+    {
+      "conversation": "budget-admission",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Where is the Registrar?"
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 429,
+      "body": {
+        "error": {
+          "code": "budget_exhausted",
+          "message": "RockyGPT's monthly AI allowance is exhausted.",
+          "retryable": false,
+          "emergency": {
+            "text": "If you or someone else is in danger right now, call 911. If you are thinking about hurting yourself, call or text 988 (Suicide & Crisis Lifeline) to talk with someone right away. RockyGPT can't send help or stay with you, so please reach out to them now.",
+            "sources": []
+          },
+          "nextAllowanceAt": "2026-11-01T00:00:00-04:00"
+        },
+        "reason": "budget_exhausted",
+        "requestId": "1e5c8270-c85b-4cd4-a6e9-e6fbcd62b12a"
+      },
+      "expected": {
+        "http_status": 429,
+        "error_code": "budget_exhausted",
+        "retryable": false,
+        "next_allowance_at": "2026-11-01T00:00:00-04:00"
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 1.16
+    },
+    {
+      "conversation": "account-only",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Show my transcript."
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 200,
+      "body": {
+        "answer": "I can't see or change your personal student information, and I can't take actions for you, like registering for a class, dropping one or making a payment. Please use your own student account, or ask the campus office that handles it.",
+        "status": "unavailable",
+        "citations": [],
+        "requestId": "f01dcd9e-96fb-4eb3-bcba-0302e296ea7e"
+      },
+      "expected": {
+        "http_status": 200,
+        "status": "unavailable",
+        "refusal_contains": [
+          "can't"
+        ],
+        "excludes": [
+          "Your GPA is"
+        ],
+        "allowed_citation_ids": []
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 1.52
+    },
+    {
+      "conversation": "truncated-unresolved-reference",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What is their number?"
+          }
+        ],
+        "omittedMessages": 32
+      },
+      "http_status": 200,
+      "body": {
+        "answer": "Which office or service, and which details, do you mean?",
+        "status": "clarification",
+        "citations": [],
+        "requestId": "15b21abb-c4f4-4f5c-bfdd-8710c88caba5"
+      },
+      "expected": {
+        "http_status": 200,
+        "status": "clarification",
+        "allowed_citation_ids": []
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 0.93
+    },
+    {
+      "conversation": "immediate-danger-floor",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Someone collapsed and is not breathing."
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 200,
+      "body": {
+        "answer": "If you or someone else is in danger right now, call 911. If you are thinking about hurting yourself, call or text 988 (Suicide & Crisis Lifeline) to talk with someone right away. RockyGPT can't send help or stay with you, so please reach out to them now.",
+        "status": "partial",
+        "citations": [],
+        "requestId": "09967b6c-2eba-4f20-b902-8c37e6466c70"
+      },
+      "expected": {
+        "http_status": 200,
+        "status": "partial",
+        "contains": [
+          "911"
+        ],
+        "allowed_citation_ids": []
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 0.67
+    },
+    {
+      "conversation": "benign-medication-mention",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "I took my medication this morning; what is the Registrar phone?"
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 200,
+      "body": {
+        "answer": "**Registrar**\n\nPhones: +12015550100 [synthetic-directory](https://example.edu/registrar)",
+        "status": "answered",
+        "citations": [
+          {
+            "id": "record-registrar",
+            "title": "synthetic-directory",
+            "url": "https://example.edu/registrar",
+            "urls": [
+              "https://example.edu/registrar"
+            ],
+            "collection": "contacts",
+            "collected_at": "2026-10-01T00:00:00+00:00",
+            "freshness": "fresh",
+            "valid_from": null,
+            "valid_until": null,
+            "limitations": [
+              "The source publishes no validity interval."
+            ],
+            "record_title": "Registrar"
+          }
+        ],
+        "requestId": "79aead4f-eb0f-429d-b2ba-e3da64b08c41",
+        "datasetVersion": "synthetic-office-1"
+      },
+      "expected": {
+        "http_status": 200,
+        "status": "answered",
+        "contains": [
+          "+12015550100"
+        ],
+        "excludes": [
+          "Call 911"
+        ],
+        "citation_ids": [
+          "record-registrar"
+        ],
+        "allowed_citation_ids": [
+          "record-registrar"
+        ]
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 1.91
+    },
+    {
+      "conversation": "provider-model-mismatch",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Can you help me write an essay?"
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 503,
+      "body": {
+        "error": {
+          "code": "provider_model_mismatch",
+          "message": "RockyGPT's AI service is paused.",
+          "retryable": false,
+          "emergency": {
+            "text": "If you or someone else is in danger right now, call 911. If you are thinking about hurting yourself, call or text 988 (Suicide & Crisis Lifeline) to talk with someone right away. RockyGPT can't send help or stay with you, so please reach out to them now.",
+            "sources": []
+          }
+        },
+        "reason": "provider_model_mismatch",
+        "requestId": "e0782c41-2c0a-4cbf-889a-6b6c7df92261"
+      },
+      "expected": {
+        "http_status": 503,
+        "error_code": "provider_model_mismatch",
+        "retryable": false
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 1.17
+    },
+    {
+      "conversation": "facts-survive-later-provider-outage",
+      "turn": 1,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What is the Registrar phone and office location?"
+          }
+        ],
+        "omittedMessages": 0
+      },
+      "http_status": 200,
+      "body": {
+        "answer": "**Registrar**\n\nPhones: +12015550100 [synthetic-directory](https://example.edu/registrar)\n\nI found these details, but couldn't complete the rest of your request.",
+        "status": "partial",
+        "citations": [
+          {
+            "id": "record-registrar",
+            "title": "synthetic-directory",
+            "url": "https://example.edu/registrar",
+            "urls": [
+              "https://example.edu/registrar"
+            ],
+            "collection": "contacts",
+            "collected_at": "2026-10-01T00:00:00+00:00",
+            "freshness": "fresh",
+            "valid_from": null,
+            "valid_until": null,
+            "limitations": [
+              "The source publishes no validity interval."
+            ],
+            "record_title": "Registrar"
+          }
+        ],
+        "requestId": "da80b08d-a4fe-4dce-8dff-2974eb828df8",
+        "datasetVersion": "synthetic-office-1",
+        "limitation": {
+          "code": "model_timeout"
+        }
+      },
+      "expected": {
+        "http_status": 200,
+        "status": "partial",
+        "contains": [
+          "+12015550100"
+        ],
+        "citation_ids": [
+          "record-registrar"
+        ],
+        "allowed_citation_ids": [
+          "record-registrar"
+        ],
+        "limitation_code": "model_timeout"
+      },
+      "failures": {
+        "contract": [],
+        "support": [],
+        "completion": [],
+        "refusal": [],
+        "error": []
+      },
+      "elapsed_ms": 1.7
+    }
+  ]
+}

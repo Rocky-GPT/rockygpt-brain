@@ -1,0 +1,248 @@
+{
+  "kind": "live-integration-smoke-not-quality-evaluation",
+  "started_at": "2026-10-01T17:41:39.554775+00:00",
+  "environment": "development",
+  "model": "gpt-6-luna",
+  "max_total_nusd": 75000000,
+  "source_hashes": {
+    "src/rockygpt_brain/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/rockygpt_brain/answers.py": "c418a6ae0df8e9220f62ca5f2f17fa4a2e4375975563f06a8a33a0dac0fe67de",
+    "src/rockygpt_brain/api/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/rockygpt_brain/api/app.py": "90294850f5addf7d6a515586f921a18dc3e9811b66b51328c17a6984b25ba279",
+    "src/rockygpt_brain/boundary.py": "fe23e79a1445088437bebed20b6e9c2fdfbfd51ce5efb7ca3e8ed50d28c0a242",
+    "src/rockygpt_brain/context.py": "474c8ab50990f7774bd12a184ab85a22d259ad23db2f0a094ae9f081cfb15ae4",
+    "src/rockygpt_brain/contract.py": "6cf96d6d6576cd803908160db645d43675274295360ca8aaae5597f4c023e577",
+    "src/rockygpt_brain/engine.py": "c0f6510e31dfd62cb87baddd293d6b940b3bc447dd4f0bc5536b8c74b81f697e",
+    "src/rockygpt_brain/failures.py": "4a7989ecc9a552af271128fca0a1ee9c4c1dfcd20c0bbc172d5ada08ec5e798d",
+    "src/rockygpt_brain/provider-release.json": "391bba72f71df64b63f0d62ea5cca798e67ac0c9b44ad008dde157bd696d1f1f",
+    "src/rockygpt_brain/provider.py": "ed92ba1bd0df368192da0fcf65fd7c0da9bc9b2f83368fc9106d40e77de65868",
+    "src/rockygpt_brain/retrieval/__init__.py": "7f8472d2021d6c42d3dc25bb1729a66a247fe8454eb3c1c3a8fe7338e1f2e018",
+    "src/rockygpt_brain/retrieval/entity_facts.py": "462538bb5f4181611a860eac4cbdeac8ff116b984346ef57c57d4e17ad00a252",
+    "src/rockygpt_brain/retrieval/postgres.py": "46f0b5e30ba1bfaab84d82ab137e9ad55a752a26bdd9a73916881fd61be33093",
+    "src/rockygpt_brain/retrieval/projection.py": "70a3ec09fec3a2fef46371ea3f70edeabc60b69edd92e1f8e1582db89a5791fe",
+    "src/rockygpt_brain/settings.py": "9196554f646934551d006427297804b1379cf686b5a27eabce28d1fec023e7c1",
+    "src/rockygpt_brain/spending.py": "1d3b01fc1ca5b51654d5a27223b8f4425e6b69e2a30da4e739815f30264cf4dc",
+    "src/rockygpt_brain/turn.py": "c498b3033713cd3810c49e481129b461a9bfb11b207e5983527e9aaffcf4230f"
+  },
+  "turns": [
+    {
+      "question": "Where is the Registrar office and what is their phone number?",
+      "http_status": 200,
+      "elapsed_seconds": 5.976,
+      "body": {
+        "answer": "**Registrar**\n\nOffices (dated observation; current value unverified): D-224 [campus-directory](https://www.ramapo.edu/registrar/) (stale capture; captured 2026-09-23T18:39:39.952000-04:00)\n\nOffices: I can't verify a current value from fresh, citable evidence.\n\nPhones (dated observation; current value unverified): +12016847695 [campus-directory](https://www.ramapo.edu/registrar/) (stale capture; captured 2026-09-23T18:39:39.952000-04:00)\n\nPhones: I can't verify a current value from fresh, citable evidence.",
+        "status": "unavailable",
+        "citations": [
+          {
+            "id": "459ec642-5ad3-4203-87bb-de11de277da3",
+            "title": "campus-directory",
+            "url": "https://www.ramapo.edu/registrar/",
+            "urls": [
+              "https://www.ramapo.edu/registrar/"
+            ],
+            "collection": "contacts",
+            "collected_at": "2026-09-23T18:39:39.952000-04:00",
+            "freshness": "stale",
+            "valid_from": null,
+            "valid_until": null,
+            "limitations": [
+              "The source publishes no validity interval.",
+              "Source freshness is stale; this does not establish current facts."
+            ],
+            "record_title": "Registrar"
+          }
+        ],
+        "requestId": "32a658c2-c94a-4475-9fb5-0b0cb9596c25",
+        "datasetVersion": "dev-profiles-headings3-20260929"
+      }
+    },
+    {
+      "question": "And their email address?",
+      "http_status": 200,
+      "elapsed_seconds": 5.783,
+      "body": {
+        "answer": "**Registrar**\n\nEmail (dated observation; current value unverified): reg@ramapo.edu [campus-directory](https://www.ramapo.edu/registrar/) (stale capture; captured 2026-09-23T18:39:39.952000-04:00)\n\nEmail: I can't verify a current value from fresh, citable evidence.",
+        "status": "unavailable",
+        "citations": [
+          {
+            "id": "459ec642-5ad3-4203-87bb-de11de277da3",
+            "title": "campus-directory",
+            "url": "https://www.ramapo.edu/registrar/",
+            "urls": [
+              "https://www.ramapo.edu/registrar/"
+            ],
+            "collection": "contacts",
+            "collected_at": "2026-09-23T18:39:39.952000-04:00",
+            "freshness": "stale",
+            "valid_from": null,
+            "valid_until": null,
+            "limitations": [
+              "The source publishes no validity interval.",
+              "Source freshness is stale; this does not establish current facts."
+            ],
+            "record_title": "Registrar"
+          }
+        ],
+        "requestId": "ace7bfe6-036a-4cf1-9ac0-d32fd262ffbe",
+        "datasetVersion": "dev-profiles-headings3-20260929"
+      }
+    },
+    {
+      "question": "Can you check my tuition balance and give me the Registrar phone number?",
+      "http_status": 200,
+      "elapsed_seconds": 5.846,
+      "body": {
+        "answer": "**Registrar**\n\nPhones (dated observation; current value unverified): +12016847695 [campus-directory](https://www.ramapo.edu/registrar/) (stale capture; captured 2026-09-23T18:39:39.952000-04:00)\n\nPhones: I can't verify a current value from fresh, citable evidence.\n\nI can't see or change your personal student information, and I can't take actions for you, like registering for a class, dropping one or making a payment. Please use your own student account, or ask the campus office that handles it.",
+        "status": "unavailable",
+        "citations": [
+          {
+            "id": "459ec642-5ad3-4203-87bb-de11de277da3",
+            "title": "campus-directory",
+            "url": "https://www.ramapo.edu/registrar/",
+            "urls": [
+              "https://www.ramapo.edu/registrar/"
+            ],
+            "collection": "contacts",
+            "collected_at": "2026-09-23T18:39:39.952000-04:00",
+            "freshness": "stale",
+            "valid_from": null,
+            "valid_until": null,
+            "limitations": [
+              "The source publishes no validity interval.",
+              "Source freshness is stale; this does not establish current facts."
+            ],
+            "record_title": "Registrar"
+          }
+        ],
+        "requestId": "1b73b218-859e-46e3-854b-82ee184639da",
+        "datasetVersion": "dev-profiles-headings3-20260929"
+      }
+    }
+  ],
+  "provider_trace": [
+    {
+      "calls": [
+        {
+          "name": "office_facts",
+          "arguments": "{\"requests\":[{\"query\":\"Registrar office\",\"fields\":[\"offices\",\"phones\"]}]}"
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "name": "finish",
+          "arguments": "{\"parts\":[]}"
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "name": "office_facts",
+          "arguments": "{\"requests\":[{\"query\":\"Registrar's Office, Ramapo College\",\"fields\":[\"email\"]}]}"
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "name": "finish",
+          "arguments": "{\"parts\":[]}"
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "name": "office_facts",
+          "arguments": "{\"requests\":[{\"query\":\"Ramapo College Registrar\",\"fields\":[\"phones\"]}]}"
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "name": "finish",
+          "arguments": "{\"parts\":[{\"kind\":\"account_limit\",\"message_index\":null}]}"
+        }
+      ]
+    }
+  ],
+  "readiness_status": 200,
+  "accounting": [
+    {
+      "request_id": "32a658c2-c94a-4475-9fb5-0b0cb9596c25",
+      "state": "settled",
+      "reserved_nusd": 1337000,
+      "cost_nusd": 128375,
+      "usage": {
+        "input_tokens": 899,
+        "cached_tokens": 0,
+        "output_tokens": 32
+      },
+      "returned_model": "gpt-6-luna"
+    },
+    {
+      "request_id": "32a658c2-c94a-4475-9fb5-0b0cb9596c25",
+      "state": "settled",
+      "reserved_nusd": 1463125,
+      "cost_nusd": 148875,
+      "usage": {
+        "input_tokens": 1127,
+        "cached_tokens": 0,
+        "output_tokens": 16
+      },
+      "returned_model": "gpt-6-luna"
+    },
+    {
+      "request_id": "ace7bfe6-036a-4cf1-9ac0-d32fd262ffbe",
+      "state": "settled",
+      "reserved_nusd": 1421875,
+      "cost_nusd": 161500,
+      "usage": {
+        "input_tokens": 1096,
+        "cached_tokens": 0,
+        "output_tokens": 49
+      },
+      "returned_model": "gpt-6-luna"
+    },
+    {
+      "request_id": "ace7bfe6-036a-4cf1-9ac0-d32fd262ffbe",
+      "state": "settled",
+      "reserved_nusd": 1691000,
+      "cost_nusd": 166000,
+      "usage": {
+        "input_tokens": 1264,
+        "cached_tokens": 0,
+        "output_tokens": 16
+      },
+      "returned_model": "gpt-6-luna"
+    },
+    {
+      "request_id": "1b73b218-859e-46e3-854b-82ee184639da",
+      "state": "settled",
+      "reserved_nusd": 1338375,
+      "cost_nusd": 147125,
+      "usage": {
+        "input_tokens": 901,
+        "cached_tokens": 0,
+        "output_tokens": 69
+      },
+      "returned_model": "gpt-6-luna"
+    },
+    {
+      "request_id": "1b73b218-859e-46e3-854b-82ee184639da",
+      "state": "settled",
+      "reserved_nusd": 1627375,
+      "cost_nusd": 149625,
+      "usage": {
+        "input_tokens": 1089,
+        "cached_tokens": 0,
+        "output_tokens": 27
+      },
+      "returned_model": "gpt-6-luna"
+    }
+  ],
+  "finished_at": "2026-10-01T17:41:59.496134+00:00"
+}

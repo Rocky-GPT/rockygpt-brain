@@ -1,16 +1,8 @@
-"""Step 2, safety and capability boundaries: the first look at every Turn.
+"""Immediate, model-independent danger help.
 
-Code alone reads the message and code alone writes every reply here. No model is involved, so
-the same message always takes the same path:
-
-- `safety`: someone may be in immediate danger. Danger wins over everything else.
-- `capability_limit`: the student's own account, or something RockyGPT would have to do for
-  them. RockyGPT can't see or change either.
-- `continue`: anything else goes on to the next step.
-
-Deciding by phrases is blunt on purpose. A wrong `safety` shows 911 help nobody needed; a wrong
-`continue` could miss an emergency. A wrong `capability_limit` sends the student to the office
-that has their account, so those phrases are the narrowest.
+This phrase floor is not a semantic safety classifier. The primary assistant also reads the
+bounded context. Account access is absent from the tool set; phrases about "my" records must
+not discard answerable public parts of a request.
 """
 
 import re
@@ -35,7 +27,7 @@ CAPABILITY_MESSAGE = (
 
 @dataclass(frozen=True, slots=True)
 class BoundaryResult:
-    kind: Literal["continue", "safety", "capability_limit"]
+    kind: Literal["continue", "safety"]
     message: str = ""
 
 
@@ -59,8 +51,8 @@ _DANGER = [re.compile(p) for p in (
     r"\bjump(ing)? (off|from) (the |a |my )?(roof|bridge|building|garage|parking garage|balcony)\b",
     # taking too much of something
     r"\boverdos",
-    r"\b(took|taken|swallowed|popped|downed) (a |an |the |my |some |too |way |whole |bunch |"
-    r"handful |lot )*(bottle|pills?|bunch|handful|something|meds|medication|much|many)\b",
+    r"\b(took|taken|swallowed|popped|downed) (a |an |the |my )?"
+    r"(whole bottle|bottle of|handful of|too many|too much|a lot of)\b",
     r"\b(spiked|drugged|roofied)\b|\bput something in my (drink|water|cup)\b",
     # a body in trouble
     r"\b(not|isnt|arent|stopped|stop|cant|cannot|wont|hardly|barely) breath(e|ing)\b",
@@ -99,36 +91,6 @@ _DANGER = [re.compile(p) for p in (
     r"danger\b",
 )]
 
-_HOW_TO = re.compile(
-    r"^(?:(?:hey|hi|hello|please) )*(?:how (?:do|can|could|would|should|does|to)\b|"
-    r"where (?:do|can|could|would|to)\b|who (?:do|can|should|would) i\b|"
-    r"(?:which|what) (?:office|department)\b)"
-)
-_MINE = r"my (?:(?:current|final|midterm|overall|student|account|total|exam|test|class|semester|"
-_MINE += r"unofficial|official|remaining|outstanding|tuition|financial|meal|dining|parking|"
-_MINE += r"housing|room|next) )*"
-_OWN_ACCOUNT = [re.compile(p) for p in (
-    _MINE + r"(grades?|gpa|transcripts?|schedule|classes|courses|balance|bills?|tuition|"
-    r"financial aid|aid|scholarships?|loans?|refund|holds?|degree audit|registration|account|"
-    r"password|login|student id|id number|credits|application|admission status|"
-    r"enrollment status|room assignment|housing assignment|advisors?|permit|swipes|"
-    r"dollars)\b",
-    r"\bmeal plan (balance|swipes)\b",
-    r"\bhow (many credits|much) (do|have|did) i (have|owe|complete\w*|earn\w*)\b|"
-    r"\bhow many credits have i\b|\bdo i owe\b",
-    r"\b(financial aid|aid|scholarship|loans?|refund) did i (get|receive)\b",
-    r"\bam i (registered|enrolled|failing|passing|on (academic )?probation|on the deans list)\b",
-    r"\bdid i (pass|fail|get accepted|get in)\b",
-    r"\bdo i have (a |any )?holds?\b",
-    r"\bhave i (paid|registered)\b",
-    r"(?:^|\b(?:also|and|then|plus) )(?:(?:hey|hi|hello|please|pls|ok|okay|so) )*"
-    r"(?:(?:can|could|would|will) you (?:please )?|i (?:need|want) you to |id like you to )?"
-    r"(?:register|enroll|unenroll|sign|drop|withdraw|waitlist|add|remove|pay|apply|"
-    r"submit|cancel|reset|unlock|change|update|book|reserve|schedule|email|send|order|request|"
-    r"file|transfer|switch|swap|check in|declare|waive|renew)\b.{0,25}?\b(me|my)\b",
-)]
-
-
 def plain(text: str) -> str:
     """Lower case, no accents, apostrophes or invisible characters, punctuation as spaces."""
     text = re.sub(r"['`´ʹʻʼˈ’‘′‛＇]", "", text)
@@ -142,6 +104,4 @@ def check(turn: Turn) -> BoundaryResult:
     text = plain(turn.message)
     if any(pattern.search(text) for pattern in _DANGER):
         return BoundaryResult("safety", SAFETY_MESSAGE)
-    if not _HOW_TO.match(text) and any(pattern.search(text) for pattern in _OWN_ACCOUNT):
-        return BoundaryResult("capability_limit", CAPABILITY_MESSAGE)
     return CONTINUE
