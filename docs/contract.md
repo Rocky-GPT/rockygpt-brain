@@ -1,137 +1,141 @@
-# Brain contract
+# Brain HTTP contract
 
-What the apps send the Brain and what it sends back. The code is
-`src/rockygpt_brain/contract.py`, and `tests/test_chat_route.py` checks it at the wire.
+The current routes are `/health`, `/readiness`, `/v1/chat`, and the shared office
+fact endpoint `/v1/entities/{entity_id}/facts`. The student and
+developer apps use the existing message/answer envelope. Campus panels, feedback,
+admin APIs, streaming progress, and arbitrary generated explanations are not part
+of this office-facts slice.
 
-The student app (rockygpt-ui) and the dev UI (rockygpt-dev) already speak this
-shape. It matches the old Brain (commit c00eb91), so either app can point at the
-new Brain without changing.
+## Request
 
-## Asking: `POST /v1/chat`
+`POST /v1/chat` accepts JSON:
 
 ```json
 {
   "messages": [
-    {"role": "user", "content": "When is the next shuttle?"}
+    {"role": "user", "content": "Where is the Registrar office?"},
+    {"role": "assistant", "content": "The previously returned answer."},
+    {"role": "user", "content": "And their phone number?"}
   ],
-  "omittedMessages": 12
+  "omittedMessages": 0
 }
 ```
 
-- `messages`: the visible conversation, oldest first. 1 to 80 messages. Each is
-  `user` or `assistant`, 1 to 16,000 characters, not blank. It starts and ends with
-  a `user` message. The whole conversation is at most 48,000 characters.
-- `omittedMessages` (optional, 0 to 100,000): how many earlier messages the app
-  left out. The Brain never claims something wasn't said when it simply wasn't sent.
-- Any other field is refused with HTTP 422.
+- `messages` contains 1–80 messages, oldest first, starting and ending with a user
+  message. Each role is `user` or `assistant`; each content is nonblank and at most
+  16,000 characters. The whole conversation is at most 48,000 characters.
+- `omittedMessages` is an optional integer from 0 to 100,000. It records messages
+  removed by the caller. The service also reports its own context truncation to
+  the model. Missing history is not evidence that something was never said.
+- Unknown JSON fields are rejected. Malformed input returns HTTP 422 with the
+  standard failure envelope and sanitized validation details; student input is
+  not echoed into those details.
+- The encoded HTTP body is limited to 64 KiB before parsing; a larger body returns
+  HTTP 413. This byte limit also applies when Unicode text meets the character limits.
+  A body taking more than ten seconds to arrive returns HTTP 408 `request_timeout`.
 
-Headers:
+`x-rockygpt-conversation-id` optionally supplies 1–64 letters, digits, hyphens or
+underscores. Every turn receives a new request ID. Protected environments require
+`x-rockygpt-environment-token` matching `STAGING_SERVICE_TOKEN`; this token is
+required in production and optional in development. Production without a configured
+token returns 503; a missing or incorrect configured token returns 401. A model
+cannot grant authentication or select a spending environment.
 
-| Header | Who sends it | What it does |
-| --- | --- | --- |
-| `Accept: text/event-stream` | student app | Stream progress, then the result (below) |
-| `x-rockygpt-environment-token` | both apps | Required when `STAGING_SERVICE_TOKEN` is set |
-| `x-rockygpt-conversation-id` | either app (optional) | Names the conversation, 1 to 64 letters, digits, `-` or `_`; without one the turn starts a new conversation |
-| `x-rockygpt-diagnostics: 1` | dev UI | Adds `metrics` and `diagnostics`, in development only |
+The `Accept: text/event-stream` header currently receives ordinary JSON, not SSE.
+Clients must inspect the response content type. The diagnostics header does not
+enable internal logs or expose prompts.
 
-## An answer: HTTP 200
+## Successful envelope
 
 ```json
 {
-  "answer": "The next shuttle leaves at 7:00 AM. [Shuttle Schedule](https://www.ramapo.edu/shuttle/)",
+  "answer": "The supported answer, with source links.",
   "status": "answered",
-  "citations": [{"id": "…", "title": "Shuttle Schedule", "url": "https://www.ramapo.edu/shuttle/"}],
-  "requestId": "…",
-  "datasetVersion": "…"
+  "citations": [{"id": "record-id", "title": "Source title", "url": "https://example.edu/source"}],
+  "requestId": "request-id",
+  "datasetVersion": "published-dataset-version"
 }
 ```
 
-- `status`: `answered`, `partial`, `clarification` or `unavailable`.
-- `answer`: markdown, at most 12,000 characters. Its only links are its citations.
-- Each citation has `id`, `title` and an `https://` `url`. It may also have
-  `record_title`, `collection`, `collected_at`, `freshness`, `valid_from`,
-  `valid_until`, `trust_tier` and `limitations`, which the dev UI's Sources panel shows.
+HTTP 200 indicates a successfully handled request. `status` describes the result:
 
-## A failure: any other status
+- `answered`: all rendered requested parts are available.
+- `partial`: useful public facts or safety help remain alongside limitations.
+- `clarification`: a concrete missing detail or ambiguous office needs resolution.
+- `unavailable`: the requested capability or usable facts are absent.
+
+`datasetVersion` identifies the fact publication when facts were read. Citations
+refer to original linked evidence, not prior assistant messages. Citation metadata
+can include record provenance, freshness, validity dates, and limitations.
+
+Office facts come only from the shared canonical fact reader. Their values and
+citations are rendered by code. Every office lookup result is included automatically;
+the model's finish tool adds only bounded parts such as account limitations or
+clarification, with an empty parts list finalizing the retrieved facts. The model
+cannot supply new campus fact values, invented result or citation references, arbitrary SQL,
+account actions, or tool names outside the allowed set. Missing values, conflicting
+records, and stale/dated evidence remain explicit. Supported public parts can be
+answered even when private-account parts cannot.
+
+The latest message stays intact. Earlier context is a contiguous suffix bounded
+to 32,000 UTF-8 bytes, with an additional shared 48,000-byte content ceiling; the
+model receives separate counts for client and server omissions.
+
+History resolves references and can be quoted as conversation history. It is never
+promoted to current campus evidence. The service cannot recover messages that the
+caller omitted, and it has no persistent conversation memory or account tools.
+
+## Failure envelope
 
 ```json
 {
   "error": {
     "code": "budget_exhausted",
-    "message": "RockyGPT's monthly AI allowance is exhausted. Use the official campus resources.",
-    "retryable": false,
-    "resetAt": "2026-10-01T04:00:00Z",
-    "resources": [{"title": "…", "url": "https://…"}],
-    "emergency": {"text": "If you or someone else is in danger, call 911. …", "sources": []}
+    "message": "A safe service explanation.",
+    "retryable": false
   },
   "reason": "budget_exhausted",
-  "requestId": "…"
+  "requestId": "request-id"
 }
 ```
 
-- Every failure carries `emergency` help, except a cancelled request that nobody is
-  waiting for.
-- `retryable` is true only when trying again right away can help: `busy`,
-  `rate_limited`, `model_timeout`, `model_unreachable`, `model_provider_error`,
-  `invalid_model_output` and `data_unavailable` (the campus data can't be read).
-- Answers and failures have an `X-Request-Id` header, the same as `requestId`.
-- A malformed request gets 422 `invalid_request` in this same shape, plus FastAPI's
-  `detail` list. Each `detail` item keeps `type`, `loc` and `msg` (both apps read them,
-  for example `extra_forbidden`) and never the student's words. A body that can't be
-  read at all (bad UTF-8, absurd nesting) gets the same 422. A missing or wrong token
-  gets 401 with FastAPI's usual `{"detail": …}` body.
+Failures distinguish configuration/readiness, provider availability, malformed
+model output, execution limits, budget admission, and unavailable campus data.
+The server supplies `retryable`; clients should not infer it from HTTP status.
+Do not retry a budget limit, invalid configuration, or exhausted turn automatically.
+Provider failures never expose raw provider errors, credentials, or student text.
+An exhausted allowance includes `error.nextAllowanceAt`, the next monthly boundary
+in campus time. It is not a promised recovery time: unresolved reservations and a
+paused account can still block requests then. Unexpected model identity or usage
+pauses the provider account and returns a non-retryable error.
 
-## Streaming
+Chat answers and failures include `X-Request-Id` matching the body request ID. Invalid
+requests retain only the `type`, `loc`, and `msg` validation fields.
+Chat responses and standard failure envelopes use `Cache-Control: no-store`.
 
-With `Accept: text/event-stream`, the HTTP status is 200 and the body is a stream of
-events:
+## Probes and operations
 
-```
-event: progress
-data: {"stage":"retrieving","subjects":[{"topic":"shuttle","date_from":"2026-09-29"}]}
+`GET /v1/entities/{entity_id}/facts` requires `dataset_version` and `identity_hash`
+query parameters from the canonical publication. It uses the same reader as chat;
+it does not independently reconcile source values. A changed publication returns
+409, an unknown office 404, and unavailable data 503. The endpoint shares ingress
+authentication with chat.
 
-event: result
-data: {"status":200,"body":{…the answer or failure above…}}
-```
+If retrieved public facts are usable but a later provider call fails, chat returns
+HTTP 200 with `status: partial`, preserves those facts and citations, and adds a
+`limitation.code` naming the incomplete operation. This must not be counted as a
+fully completed answer. A publication change invalidates the whole turn's fact set.
 
-- `progress` events come in any number. `stage` is one of `connecting`,
-  `understanding`, `retrieving`, `calculating`, `composing` or `reviewing`. They also
-  carry `subjects` (what the step is about), `operation` (for `calculating`), and
-  `draft` (only while `reviewing`). A `safety` block is sent the moment danger is
-  read, so the 911 help shows before the answer is ready.
-- `result` comes once, last. Its `status` and `body` are exactly what a plain request
-  would get.
+`GET /health` reports process liveness. `/readiness` verifies configured provider
+pricing, spending access, and the published canonical fact read path; it fails
+closed when these are unavailable. It makes no paid model call and does not certify
+the provider network, model quality, or complete campus data coverage.
 
-## Other routes the apps call
+The gateway bounds calls, input, output, total turn cost, and elapsed time. It
+reserves spending before each provider request, disables automatic retries, and
+retains charges when a provider request has an uncertain outcome. The ledger is
+shared across workers; memory counters are not spending authority.
 
-These come back in later milestones:
-
-- Student app: `/v1/feedback`, `/v1/menu`, `/v1/menu/browse`, `/v1/dining-hours`,
-  `/v1/shuttle`, `/v1/map`, `/v1/directory`, `/v1/entities/{id}/facts` and
-  `/v1/data/{artifact}`.
-- Dev UI: the development-only routes under `/v1/logs`, `/v1/evals`, `/v1/prompts`,
-  `/v1/config`, `/v1/releases`, `/v1/templates`, `/v1/capabilities`,
-  `/v1/documents`, `/v1/storage` and `/v1/dev/`.
-
-## What the Brain does so far
-
-Only `/health`, `/readiness` and `/v1/chat` exist, and the Brain is being rebuilt one
-step at a time. Everything below the request rules above is not built yet; earlier
-versions of this document described the code before the restart (commit 3dec0bd).
-
-`/v1/chat` checks the request, makes a `Turn` (`turn.py`: the latest student message,
-a conversation id, a new request id and the campus time in `America/New_York`), and then
-looks at the message once (`boundary.py`, code only, no model):
-
-- Immediate danger (a person collapsed or not breathing, self-harm, an attack or weapon,
-  fire or gas) gets HTTP 200 with status `partial`: the fixed 911/988 help, written by code.
-  Danger wins over everything else.
-- The student's own account or an action for them ("show me my grades", "register me for
-  CS 450") gets HTTP 200 with status `unavailable`: a fixed line saying RockyGPT can't see
-  or change it. "How do I check my grades?" is a general question and goes on.
-- Anything else answers 503 `not_ready`. That failure has no `emergency` help yet.
-
-Both 200 replies have `citations: []`. Streaming is not built: a request that asks for
-`text/event-stream` gets the same plain JSON. The phrases are a floor, not a reading of the
-message: unusual wording can get past them. The conversation id is the
-`x-rockygpt-conversation-id` header when one is sent (the apps send none yet), else a new one.
+For coverage and evaluation limits, see [verification](verification.md). The
+[previous contract draft](historical/contract-pre-office-slice.md) is historical;
+its unimplemented API and streaming promises do not apply to this runtime.

@@ -1,0 +1,817 @@
+{
+  "name": "Office slice HTTP regressions",
+  "kind": "offline_regression",
+  "blind": false,
+  "synthetic": true,
+  "fixtures": {
+    "dataset_version": "synthetic-office-1",
+    "identity_hash": "synthetic-identities-1",
+    "entities": [
+      {
+        "id": "office-registrar",
+        "kind": "office",
+        "name": "Registrar",
+        "aliases": [
+          "Registrar Office"
+        ],
+        "links": [
+          {
+            "collection": "contacts",
+            "source_key": "synthetic-directory",
+            "source_record_keys": [
+              "office:registrar"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "office-bursar",
+        "kind": "office",
+        "name": "Bursar",
+        "aliases": [],
+        "links": [
+          {
+            "collection": "contacts",
+            "source_key": "synthetic-directory",
+            "source_record_keys": [
+              "office:bursar"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "office-student-services-a",
+        "kind": "office",
+        "name": "Student Services North",
+        "aliases": [
+          "Student Services"
+        ],
+        "links": [
+          {
+            "collection": "contacts",
+            "source_key": "synthetic-directory",
+            "source_record_keys": [
+              "office:student-services-a"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "office-student-services-b",
+        "kind": "office",
+        "name": "Student Services South",
+        "aliases": [
+          "Student Services"
+        ],
+        "links": [
+          {
+            "collection": "contacts",
+            "source_key": "synthetic-directory",
+            "source_record_keys": [
+              "office:student-services-b"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "office-conflict",
+        "kind": "office",
+        "name": "Advising",
+        "aliases": [],
+        "links": [
+          {
+            "collection": "contacts",
+            "source_key": "synthetic-directory",
+            "source_record_keys": [
+              "office:conflict",
+              "office:conflict-second"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "office-missing",
+        "kind": "office",
+        "name": "Bookstore",
+        "aliases": [],
+        "links": [
+          {
+            "collection": "contacts",
+            "source_key": "synthetic-directory",
+            "source_record_keys": [
+              "office:missing"
+            ]
+          }
+        ]
+      }
+    ],
+    "contacts": [
+      {
+        "id": "record-registrar",
+        "source_key": "synthetic-directory",
+        "source_record_key": "office:registrar",
+        "name": "Registrar",
+        "phone": "201-555-0100",
+        "phones": [
+          {
+            "number": "201-555-0100"
+          }
+        ],
+        "office": "D-224",
+        "offices": [
+          "D-224"
+        ],
+        "email": "registrar@example.edu",
+        "canonical_url": "https://example.edu/registrar",
+        "collected_at": "2026-10-01T00:00:00+00:00",
+        "freshness_sla_hours": 168
+      },
+      {
+        "id": "record-bursar",
+        "source_key": "synthetic-directory",
+        "source_record_key": "office:bursar",
+        "name": "Bursar",
+        "phone": "201-555-0101",
+        "phones": [
+          {
+            "number": "201-555-0101"
+          }
+        ],
+        "office": "D-225",
+        "offices": [
+          "D-225"
+        ],
+        "email": "bursar@example.edu",
+        "canonical_url": "https://example.edu/bursar",
+        "collected_at": "2026-10-01T00:00:00+00:00",
+        "freshness_sla_hours": 168
+      },
+      {
+        "id": "record-student-services-a",
+        "source_key": "synthetic-directory",
+        "source_record_key": "office:student-services-a",
+        "name": "Student Services North",
+        "phone": "201-555-0102",
+        "phones": [
+          {
+            "number": "201-555-0102"
+          }
+        ],
+        "office": "A-101",
+        "offices": [
+          "A-101"
+        ],
+        "email": "student-services-a@example.edu",
+        "canonical_url": "https://example.edu/student-services-a",
+        "collected_at": "2026-10-01T00:00:00+00:00",
+        "freshness_sla_hours": 168
+      },
+      {
+        "id": "record-student-services-b",
+        "source_key": "synthetic-directory",
+        "source_record_key": "office:student-services-b",
+        "name": "Student Services South",
+        "phone": "201-555-0103",
+        "phones": [
+          {
+            "number": "201-555-0103"
+          }
+        ],
+        "office": "B-101",
+        "offices": [
+          "B-101"
+        ],
+        "email": "student-services-b@example.edu",
+        "canonical_url": "https://example.edu/student-services-b",
+        "collected_at": "2026-10-01T00:00:00+00:00",
+        "freshness_sla_hours": 168
+      },
+      {
+        "id": "record-conflict",
+        "source_key": "synthetic-directory",
+        "source_record_key": "office:conflict",
+        "name": "Advising",
+        "phone": "201-555-0104",
+        "phones": [
+          {
+            "number": "201-555-0104"
+          }
+        ],
+        "office": "C-101",
+        "offices": [
+          "C-101"
+        ],
+        "email": "conflict@example.edu",
+        "canonical_url": "https://example.edu/conflict",
+        "collected_at": "2026-10-01T00:00:00+00:00",
+        "freshness_sla_hours": 168
+      },
+      {
+        "id": "record-conflict-second",
+        "source_key": "synthetic-directory",
+        "source_record_key": "office:conflict-second",
+        "name": "Advising",
+        "phone": "201-555-0105",
+        "phones": [
+          {
+            "number": "201-555-0105"
+          }
+        ],
+        "office": "C-101",
+        "offices": [
+          "C-101"
+        ],
+        "email": "conflict@example.edu",
+        "canonical_url": "https://example.edu/conflict",
+        "collected_at": "2026-10-01T00:00:00+00:00",
+        "freshness_sla_hours": 168
+      },
+      {
+        "id": "record-missing",
+        "source_key": "synthetic-directory",
+        "source_record_key": "office:missing",
+        "name": "Bookstore",
+        "phone": "201-555-0106",
+        "phones": [
+          {
+            "number": "201-555-0106"
+          }
+        ],
+        "office": null,
+        "offices": [],
+        "email": "missing@example.edu",
+        "canonical_url": "https://example.edu/missing",
+        "collected_at": "2026-10-01T00:00:00+00:00",
+        "freshness_sla_hours": 168
+      }
+    ]
+  },
+  "conversations": [
+    {
+      "id": "office-follow-up",
+      "turns": [
+        {
+          "user": "Where is the Registrar office?",
+          "expected": {
+            "http_status": 200,
+            "status": "answered",
+            "contains": [
+              "D-224"
+            ],
+            "citation_ids": [
+              "record-registrar"
+            ],
+            "allowed_citation_ids": [
+              "record-registrar"
+            ],
+            "refusal_excludes": [
+              "can't access"
+            ]
+          }
+        },
+        {
+          "user": "And their phone number?",
+          "expected": {
+            "http_status": 200,
+            "status": "answered",
+            "contains": [
+              "+12015550100"
+            ],
+            "citation_ids": [
+              "record-registrar"
+            ],
+            "allowed_citation_ids": [
+              "record-registrar"
+            ]
+          }
+        }
+      ],
+      "provider_steps": [
+        {
+          "tool": "office_facts",
+          "arguments": {
+            "requests": [
+              {
+                "query": "Registrar",
+                "fields": [
+                  "offices"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "tool": "finish",
+          "arguments": {
+            "parts": []
+          }
+        },
+        {
+          "tool": "office_facts",
+          "arguments": {
+            "requests": [
+              {
+                "query": "Registrar",
+                "fields": [
+                  "phones"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "tool": "finish",
+          "arguments": {
+            "parts": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "mixed-account-public",
+      "turns": [
+        {
+          "user": "What is my GPA and how can I call the Registrar?",
+          "expected": {
+            "http_status": 200,
+            "status": "partial",
+            "contains": [
+              "+12015550100"
+            ],
+            "excludes": [
+              "Your GPA is"
+            ],
+            "refusal_contains": [
+              "can't"
+            ],
+            "citation_ids": [
+              "record-registrar"
+            ],
+            "allowed_citation_ids": [
+              "record-registrar"
+            ]
+          }
+        }
+      ],
+      "provider_steps": [
+        {
+          "tool": "office_facts",
+          "arguments": {
+            "requests": [
+              {
+                "query": "Registrar",
+                "fields": [
+                  "phones"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "tool": "finish",
+          "arguments": {
+            "parts": [
+              {
+                "kind": "account_limit",
+                "message_index": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "two-offices",
+      "turns": [
+        {
+          "user": "Where are the Registrar and Bursar offices?",
+          "expected": {
+            "http_status": 200,
+            "status": "answered",
+            "contains": [
+              "D-224",
+              "D-225"
+            ],
+            "citation_ids": [
+              "record-registrar",
+              "record-bursar"
+            ],
+            "allowed_citation_ids": [
+              "record-registrar",
+              "record-bursar"
+            ]
+          }
+        }
+      ],
+      "provider_steps": [
+        {
+          "tool": "office_facts",
+          "arguments": {
+            "requests": [
+              {
+                "query": "Registrar",
+                "fields": [
+                  "offices"
+                ]
+              },
+              {
+                "query": "Bursar",
+                "fields": [
+                  "offices"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "tool": "finish",
+          "arguments": {
+            "parts": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "ambiguous-office",
+      "turns": [
+        {
+          "user": "Where is Student Services?",
+          "expected": {
+            "http_status": 200,
+            "status": "clarification",
+            "contains": [
+              "Student Services North",
+              "Student Services South"
+            ],
+            "excludes": [
+              "D-224"
+            ],
+            "allowed_citation_ids": []
+          }
+        }
+      ],
+      "provider_steps": [
+        {
+          "tool": "office_facts",
+          "arguments": {
+            "requests": [
+              {
+                "query": "Student Services",
+                "fields": [
+                  "offices"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "tool": "finish",
+          "arguments": {
+            "parts": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "missing-field",
+      "turns": [
+        {
+          "user": "Where is the Bookstore and what is its phone?",
+          "expected": {
+            "http_status": 200,
+            "status": "partial",
+            "contains": [
+              "+12015550106"
+            ],
+            "excludes": [
+              "D-224"
+            ],
+            "citation_ids": [
+              "record-missing"
+            ],
+            "allowed_citation_ids": [
+              "record-missing"
+            ]
+          }
+        }
+      ],
+      "provider_steps": [
+        {
+          "tool": "office_facts",
+          "arguments": {
+            "requests": [
+              {
+                "query": "Bookstore",
+                "fields": [
+                  "offices",
+                  "phones"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "tool": "finish",
+          "arguments": {
+            "parts": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "conflicting-records",
+      "turns": [
+        {
+          "user": "What is the Advising phone?",
+          "expected": {
+            "http_status": 200,
+            "status": "partial",
+            "contains": [
+              "+12015550104",
+              "+12015550105",
+              "conflict"
+            ],
+            "citation_ids": [
+              "record-conflict",
+              "record-conflict-second"
+            ],
+            "allowed_citation_ids": [
+              "record-conflict",
+              "record-conflict-second"
+            ]
+          }
+        }
+      ],
+      "provider_steps": [
+        {
+          "tool": "office_facts",
+          "arguments": {
+            "requests": [
+              {
+                "query": "Advising",
+                "fields": [
+                  "phones"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "tool": "finish",
+          "arguments": {
+            "parts": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "fabricated-result-reference",
+      "turns": [
+        {
+          "user": "Where is the Registrar?",
+          "expected": {
+            "http_status": 502,
+            "error_code": "provider_invalid_response",
+            "retryable": true
+          }
+        }
+      ],
+      "provider_steps": [
+        {
+          "tool": "finish",
+          "arguments": {
+            "parts": [
+              {
+                "kind": "unsupported",
+                "result_id": "invented",
+                "message_index": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "provider-outage",
+      "turns": [
+        {
+          "user": "Where is the Registrar?",
+          "expected": {
+            "http_status": 504,
+            "error_code": "model_timeout",
+            "retryable": true
+          }
+        }
+      ],
+      "provider_steps": [
+        {
+          "error": "timeout"
+        }
+      ]
+    },
+    {
+      "id": "budget-admission",
+      "turns": [
+        {
+          "user": "Where is the Registrar?",
+          "expected": {
+            "http_status": 429,
+            "error_code": "budget_exhausted",
+            "retryable": false,
+            "next_allowance_at": "2026-11-01T00:00:00-04:00"
+          }
+        }
+      ],
+      "provider_steps": [],
+      "ledger_error": "budget_exhausted"
+    },
+    {
+      "id": "account-only",
+      "turns": [
+        {
+          "user": "Show my transcript.",
+          "expected": {
+            "http_status": 200,
+            "status": "unavailable",
+            "refusal_contains": [
+              "can't"
+            ],
+            "excludes": [
+              "Your GPA is"
+            ],
+            "allowed_citation_ids": []
+          }
+        }
+      ],
+      "provider_steps": [
+        {
+          "tool": "finish",
+          "arguments": {
+            "parts": [
+              {
+                "kind": "account_limit",
+                "message_index": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "truncated-unresolved-reference",
+      "turns": [
+        {
+          "user": "What is their number?",
+          "expected": {
+            "http_status": 200,
+            "status": "clarification",
+            "allowed_citation_ids": []
+          },
+          "omitted_messages": 32
+        }
+      ],
+      "provider_steps": [
+        {
+          "tool": "finish",
+          "arguments": {
+            "parts": [
+              {
+                "kind": "clarification",
+                "message_index": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "immediate-danger-floor",
+      "turns": [
+        {
+          "user": "Someone collapsed and is not breathing.",
+          "expected": {
+            "http_status": 200,
+            "status": "partial",
+            "contains": [
+              "911"
+            ],
+            "allowed_citation_ids": []
+          }
+        }
+      ],
+      "provider_steps": []
+    },
+    {
+      "id": "benign-medication-mention",
+      "turns": [
+        {
+          "user": "I took my medication this morning; what is the Registrar phone?",
+          "expected": {
+            "http_status": 200,
+            "status": "answered",
+            "contains": [
+              "+12015550100"
+            ],
+            "excludes": [
+              "Call 911"
+            ],
+            "citation_ids": [
+              "record-registrar"
+            ],
+            "allowed_citation_ids": [
+              "record-registrar"
+            ]
+          }
+        }
+      ],
+      "provider_steps": [
+        {
+          "tool": "office_facts",
+          "arguments": {
+            "requests": [
+              {
+                "query": "Registrar",
+                "fields": [
+                  "phones"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "tool": "finish",
+          "arguments": {
+            "parts": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "provider-model-mismatch",
+      "turns": [
+        {
+          "user": "Can you help me write an essay?",
+          "expected": {
+            "http_status": 503,
+            "error_code": "provider_model_mismatch",
+            "retryable": false
+          }
+        }
+      ],
+      "provider_steps": [
+        {
+          "tool": "finish",
+          "arguments": {
+            "parts": [
+              {
+                "kind": "unsupported",
+                "message_index": null
+              }
+            ]
+          },
+          "model": "unexpected-provider-model"
+        }
+      ]
+    },
+    {
+      "id": "facts-survive-later-provider-outage",
+      "turns": [
+        {
+          "user": "What is the Registrar phone and office location?",
+          "expected": {
+            "http_status": 200,
+            "status": "partial",
+            "contains": [
+              "+12015550100"
+            ],
+            "citation_ids": [
+              "record-registrar"
+            ],
+            "allowed_citation_ids": [
+              "record-registrar"
+            ],
+            "limitation_code": "model_timeout"
+          }
+        }
+      ],
+      "provider_steps": [
+        {
+          "tool": "office_facts",
+          "arguments": {
+            "requests": [
+              {
+                "query": "Registrar",
+                "fields": [
+                  "phones"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "error": "timeout"
+        }
+      ]
+    }
+  ]
+}

@@ -33,11 +33,11 @@ def test_a_valid_request_is_taken_in_as_a_turn(
     body = response.json()
     assert [turn.message for turn in turns] == ["latest"]
     assert response.status_code == 503
-    assert body["error"] == {
-        "code": "not_ready", "message": "RockyGPT can't answer questions yet.",
+    assert {k: v for k, v in body["error"].items() if k != "emergency"} == {
+        "code": "model_not_configured", "message": "RockyGPT isn't configured to answer yet.",
         "retryable": False,
     }
-    assert body["reason"] == "not_ready"
+    assert body["reason"] == "model_not_configured"
     assert body["requestId"] == turns[0].request_id
     assert UUID.match(body["requestId"])
     assert response.headers["x-request-id"] == body["requestId"]
@@ -81,7 +81,6 @@ INVALID: list[tuple[str, dict[str, Any]]] = [
     ("application/json", {"content": b"{not json"}),
     ("application/json", {"content": b""}),
     ("application/json", {"content": b'{"messages":[{"role":"user","content":"\xff"}]}'}),
-    ("application/json", {"content": b"[" * 200_000}),
     ("application/json", {"content": b'{"omittedMessages":' + b"9" * 5000 + b"}"}),
     ("text/plain", {"content": PRIVATE.encode()}),
 ]
@@ -112,7 +111,7 @@ def test_an_unknown_field_is_reported_the_way_the_student_app_looks_for(
         client: TestClient) -> None:
     """rockygpt-ui retries without omittedMessages when a 422 lists it as extra_forbidden."""
     detail = client.post("/v1/chat", json={**HI, "omittedMessages": 1, "x": 1}).json()["detail"]
-    assert {"type": "extra_forbidden", "loc": ["body", "x"]} == {
+    assert {"type": "extra_forbidden", "loc": ["body", "unknown_field"]} == {
         k: v for k, v in detail[0].items() if k != "msg"
     }
 
@@ -124,4 +123,5 @@ def test_other_errors_keep_fastapis_answer(client: TestClient) -> None:
 
 def test_the_probes_work(client: TestClient) -> None:
     assert client.get("/health").json() == {"status": "ok"}
-    assert client.get("/readiness").json() == {"status": "ready"}
+    assert client.get("/readiness").status_code == 503
+    assert client.get("/readiness").json() == {"status": "not_ready"}
