@@ -356,3 +356,10 @@ def test_the_key_agrees_with_the_planner_so_a_perfect_jev_scores_perfectly() -> 
     assert [(r["id"], runner.wrong_fields(r)) for r in results if runner.wrong_fields(r)] == []
     summary = runner.summarize(results, TURNS["bar"])
     assert summary["fully_correct"] == 40 and summary["bar_met"]
+
+
+def test_a_report_can_be_printed_for_a_case_with_plan_fields() -> None:
+    result = runner.run(tiny(UNRESOLVED, *GREETING), jev(needs="campus_info", topic="offices",
+                                                          needs_history=0.9, history_resolves=0.9))
+    text = runner.describe(result[0])
+    assert "plan_path: expected clarify, Jev campus" in text and "<-- MISS" in text
