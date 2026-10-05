@@ -235,3 +235,31 @@ def test_derived_source_cannot_point_to_another_original_record_or_field() -> No
     result["sources"][1]["original_record_id"] = "invented"
     with pytest.raises(EvidenceUnavailable, match="original record and exact field"):
         canonical_properties([row], ["phones"], result["sources"])
+
+
+def test_an_observation_older_than_the_record_does_not_demote_a_fresh_record() -> None:
+    row = observed_row("phones", collected_at="2026-10-01T11:30:00+00:00")
+    seen = row["normalization_metadata"]["contact_observations"]["fields"]["phones"]
+    seen["captured_at"] = "2026-09-25T10:00:00+00:00"
+    for page in seen["pages"]:
+        page["fetched_at"] = "2026-09-25T10:00:00+00:00"
+    result = get_facts([row], ["phones"])
+    assert [source["id"] for source in result["sources"]] == ["r1"]
+    assert result["sources"][0]["freshness"] == "fresh"
+    assert property_for(result, "phones")["assertions"][0]["source_id"] == "r1"
+    rendered = render_facts(result)
+    assert rendered.supported and "dated observation" not in rendered.text
+
+
+def test_an_observation_exactly_as_recent_as_the_record_adds_nothing() -> None:
+    row = observed_row("phones", collected_at="2026-10-01T10:00:00+00:00")
+    result = get_facts([row], ["phones"])  # The observation was captured at the same instant.
+    assert [source["id"] for source in result["sources"]] == ["r1"]
+
+
+def test_an_invalid_older_observation_still_fails_the_read() -> None:
+    row = observed_row("phones", collected_at="2026-10-01T11:30:00+00:00")
+    row["normalization_metadata"]["contact_observations"]["fields"]["phones"][
+        "value_sha256"] = "f" * 64
+    with pytest.raises(EvidenceUnavailable):
+        get_facts([row], ["phones"])
