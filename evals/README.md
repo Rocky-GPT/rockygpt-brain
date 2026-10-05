@@ -1,7 +1,10 @@
 # Evaluation evidence
 
-`chat/` contains current HTTP-route regression cases. It is an offline integration
-check using a scripted provider and synthetic canonical facts. It checks how the
+`chat/` contains current HTTP-route regression cases (an offline integration check using a
+scripted provider and synthetic canonical facts) and also live evidence from October 1:
+paid captures, a real-directory oracle, a readiness diagnostic and an AI-authored review
+(`office-holdout-20261001-*`, `office-slice-20261001-live-smoke*`). Those live files are
+dated evidence, not regression sets. It checks how the
 service handles tool results and failures; it does **not** measure a real model's
 understanding, real campus coverage, or readiness for production.
 

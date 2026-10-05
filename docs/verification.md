@@ -107,7 +107,7 @@ before any paid calls through the real fact endpoint and PostgreSQL shared reade
 All 34 offices resolved: 28 published emails, 33 phones and 25 locations were fresh;
 missing properties remained unknown. Original labels, preferences, notes and other
 data were not newly verified. The oracle embeds the Data staging report and exact
-release/identity pins. The first whole-record refresh was rejected before use.
+release/identity pins.
 
 The [frozen cases](../evals/chat/office-holdout-20261001-cases.json) contain 12
 conversations and 20 student turns. A separate author prepared them without reading
@@ -118,10 +118,12 @@ pins on each evidence read and records requests, responses, source fingerprints,
 latency and durable ledger operations. It does not grade its own answers.
 
 The [first attempt](../evals/chat/office-holdout-20261001-capture.json) stopped at
-HTTP 503 readiness with zero attempted turns and zero model operations. A subsequent
-[read-only diagnostic](../evals/chat/office-holdout-20261001-readiness.json) passed
-both dependencies; the initial failure's cause remains unproven. It was preserved,
-and no timeout, prompt or runtime change was made before retrying.
+HTTP 503 readiness with zero attempted turns and zero model operations; its cause
+remains unproven. It was preserved, and no timeout, prompt or runtime change was made
+before the second attempt, which passed its own readiness check (HTTP 200) at its
+start. A [read-only readiness diagnostic](../evals/chat/office-holdout-20261001-readiness.json)
+was recorded at 18:28:01Z, inside the second attempt's window (18:27:15Z to 18:29:01Z),
+so it did not gate that attempt. It found the ledger and the fact reader ready.
 
 The [second attempt](../evals/chat/office-holdout-20261001-capture-2.json) captured
 20/20 HTTP responses. Its 35 provider operations settled at **$0.00530925**, with
@@ -152,10 +154,14 @@ PYTHONPATH=src python scripts/capture_chat_live.py --live \
 
 The command refuses production, existing output files and a planned worst-case cost
 above the ceiling. A frozen publication pin does not itself establish freshness;
-review source capture times before running. This candidate was activated only in
-its isolated local database for evaluation. Configured local consumers, production,
-API keys and the original development database were left unchanged. Later runs of
-these now-inspected cases are regressions, not fresh holdouts.
+review source capture times before running. The oracle's embedded staging report
+predates activation (it records `activated: false`). On October 5 a read-only query of
+the local database `rockygpt_profiles_dev_offices_20261001_v2` showed
+`dev-offices-20261001-v2` active, and the earlier development database
+(`rockygpt_profiles_dev_headings3_20260929`) still had its own earlier publication
+active. Nothing recorded here establishes what other consumers or credentials
+were or were not changed. Later runs of these now-inspected cases are regressions,
+not fresh holdouts.
 
 ## Before calling a release ready for students
 
@@ -177,3 +183,28 @@ Provider/configuration unit tests verify fail-closed handling of malformed or ex
 pricing, not that deployed prices remain current. Provider timeouts can leave an
 uncertain charge; operators must reconcile those rows against provider usage before
 releasing them. Do not retry them by resetting counters or switching environments.
+
+## October 5, 2026: live browser session and repairs
+
+A 50-question session in the student app against the real model and the fresh publication
+found three faults and three smaller ones. Those questions were authored by the same
+reviewer who then fixed the faults; they are regression material, not a blind evaluation.
+
+- Greetings and thanks ("hey", "thx", "who r u") returned HTTP 502
+  `provider_invalid_response`: the model had no valid way to finish a message that needs no
+  lookup, and an empty answer was an error. The server now writes greeting, thanks and
+  about replies, and a finish with nothing in it asks what the student needs.
+- Nicknames and services ("new student id", "my transcript", "advising") found no office:
+  office search compares published names only, and the model was never shown them. The model
+  now receives the published office names and aliases each turn and queries by exact name.
+- After a danger message, every later turn repeated the 911/988 text and never gave the
+  requested Public Safety number. Safety now follows the latest message, and the server
+  shows the safety text first and keeps any contact the student asked for.
+- Smaller: lookups for shuttles and policies, an unrequested clock, a duplicated
+  "which office?" line, and a fresh record being demoted by an older field observation.
+
+After the repairs the same questions were asked again in the browser and behaved as intended,
+including the account-limit, instruction-override and fake-"system"-message checks. Local
+checks after the repairs: 352 tests passed, one skipped; Ruff and strict mypy pass. This is a small, one-reviewer session on
+synthetic questions and is not a population accuracy estimate. Model behavior still varies
+between runs.
