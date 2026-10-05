@@ -498,6 +498,30 @@ class EntityFacts:
         except EvidenceUnavailable:
             return {"ready": False}
 
+    def list_offices(
+        self,
+        *,
+        dataset_version: str | None = None,
+        identity_hash: str | None = None,
+        limit: int = 200,
+    ) -> dict[str, Any]:
+        """Published office names and aliases, so callers choose real names, not guesses."""
+        if not 1 <= limit <= 500:
+            raise InvalidFactRequest("Office listing limit must be between 1 and 500.")
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            offices = sorted(
+                ({"name": entity["name"], "aliases": sorted(set(entity["aliases"]))}
+                 for entity in snapshot.entities if entity["kind"] == "office"),
+                key=lambda office: office["name"],
+            )
+            return {
+                "dataset_version": snapshot.dataset_version,
+                "identity_hash": snapshot.identity_hash,
+                "offices": offices[:limit],
+                "truncated": len(offices) > limit,
+            }
+
     def search_offices(
         self,
         query: str,
