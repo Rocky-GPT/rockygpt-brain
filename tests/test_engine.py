@@ -9,10 +9,11 @@ from typing import Any
 
 import pytest
 
+from rockygpt_brain.boundary import SAFETY_MESSAGE
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine, ChatResult
-from rockygpt_brain.provider import Completion, ToolCall, TurnBudget, Usage
-from rockygpt_brain.retrieval import MemoryEntityFacts
+from rockygpt_brain.provider import Completion, GatewayError, ToolCall, TurnBudget, Usage
+from rockygpt_brain.retrieval import EvidenceUnavailable, MemoryEntityFacts
 from rockygpt_brain.turn import intake
 
 NOW = datetime(2026, 10, 1, 12, tzinfo=UTC)
@@ -309,6 +310,76 @@ def test_safety_alone_is_just_the_safety_text() -> None:
     assert result.body["citations"] == []
 
 
+def two_student_offices() -> MemoryEntityFacts:
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": f"office-{n}", "name": name, "kind": "office", "aliases": [], "links": []}
+                  for n, name in enumerate(("Student Accounts", "Student Conduct"))],
+        contacts=[], now=lambda: NOW)
+
+
+def student_lookup(query: str) -> Completion:
+    return completion("office_facts", {"requests": [{"query": query, "fields": ["email"]}]})
+
+
+def test_safety_keeps_the_question_about_which_office_was_meant() -> None:
+    result = answer(ScriptedGateway(student_lookup("student"), finish("safety")),
+                    service=two_student_offices())
+    text = result.body["answer"]
+    assert text.startswith(SAFETY_MESSAGE)
+    assert "Which office do you mean: Student Accounts, Student Conduct?" in text
+    assert result.body["status"] == "partial"
+
+
+def test_safety_keeps_the_note_that_no_office_matched() -> None:
+    result = answer(ScriptedGateway(student_lookup("Cafeteria"), finish("safety")))
+    assert result.body["answer"].startswith(SAFETY_MESSAGE)
+    assert "couldn't find a matching office" in result.body["answer"]
+
+
+def test_safety_does_not_hide_a_data_outage() -> None:
+    class Down(MemoryEntityFacts):
+        def search_offices(self, *_: Any, **__: Any) -> dict[str, Any]:
+            raise EvidenceUnavailable("down")
+
+    service = facts()
+    down = Down(dataset_version="release-1", identity_hash="identities-1",
+                entities=service.entities, contacts=service.contacts, now=lambda: NOW)
+    result = answer(ScriptedGateway(LOOKUP, finish("safety")), service=down)
+    assert result.status_code == 503 and result.body["error"]["code"] == "data_unavailable"
+    assert result.body["error"]["emergency"]["text"] == SAFETY_MESSAGE
+
+
+def test_safety_parts_are_validated_like_every_other_part() -> None:
+    result = answer(ScriptedGateway(finish("safety", message_index=0)))
+    assert result.status_code == 502 and result.body["error"]["code"] == "provider_invalid_response"
+
+
+def test_an_empty_finish_right_after_a_safety_reply_repeats_the_safety_text() -> None:
+    result = answer(ScriptedGateway(finish()), messages=[
+        {"role": "user", "content": "my roommate collapsed"},
+        {"role": "assistant", "content": SAFETY_MESSAGE},
+        {"role": "user", "content": "please hurry"},
+    ])
+    assert result.status_code == 200 and result.body["answer"] == SAFETY_MESSAGE
+    ordinary = answer(ScriptedGateway(finish()), messages=[
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "Hi! Which office do you need?"},
+        {"role": "user", "content": "thx"},
+    ])
+    assert ordinary.body["status"] == "clarification"
+
+
+def test_a_reply_cut_short_by_a_provider_failure_still_carries_the_emergency_numbers() -> None:
+    def provider_down() -> Completion:
+        raise GatewayError("provider_unavailable")
+
+    result = answer(ScriptedGateway(LOOKUP, provider_down))
+    assert result.body["status"] == "partial"
+    assert "published@example.edu" in result.body["answer"]
+    assert result.body["answer"].endswith(SAFETY_MESSAGE)
+
+
 def test_a_lookup_that_already_asks_which_office_is_not_asked_twice() -> None:
     both = MemoryEntityFacts(
         dataset_version="release-1", identity_hash="identities-1",
@@ -342,21 +413,46 @@ def test_the_model_is_given_the_published_office_names_and_aliases() -> None:
     ]
 
 
-def test_office_listing_is_bounded_and_pinned() -> None:
-    service = facts()
+def test_office_listing_is_sorted_deduplicated_bounded_and_pinned() -> None:
+    service = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[
+            {"id": "c", "name": "Zeta Office", "kind": "office", "aliases": [], "links": []},
+            {"id": "a", "name": "Alpha Office", "kind": "office",
+             "aliases": ["Beta", "Alpha", "Beta"], "links": []},
+            {"id": "b", "name": "Middle Office", "kind": "office", "aliases": [], "links": []},
+        ],
+        contacts=[], now=lambda: NOW)
     listing = service.list_offices()
-    assert listing["offices"] == [{"name": "Registrar", "aliases": []}]
+    assert listing["offices"] == [
+        {"name": "Alpha Office", "aliases": ["Alpha", "Beta"]},
+        {"name": "Middle Office", "aliases": []},
+        {"name": "Zeta Office", "aliases": []},
+    ]
     assert listing["dataset_version"] == "release-1" and listing["truncated"] is False
-    assert service.list_offices(limit=1)["truncated"] is False
+    shorter = service.list_offices(limit=2)
+    assert [o["name"] for o in shorter["offices"]] == ["Alpha Office", "Middle Office"]
+    assert shorter["truncated"] is True
     with pytest.raises(Exception, match="between 1 and 500"):
         service.list_offices(limit=0)
     with pytest.raises(Exception, match="changed"):
         service.list_offices(dataset_version="other")
 
 
-def test_if_the_office_list_cannot_be_read_small_talk_still_works() -> None:
-    from rockygpt_brain.retrieval import EvidenceUnavailable
+@pytest.mark.parametrize("changed_pin", ["dataset_version", "identity_hash"])
+def test_a_lookup_must_match_the_publication_the_office_list_came_from(changed_pin: str) -> None:
+    service = facts()
 
+    def changed_release() -> Completion:
+        setattr(service, changed_pin, "changed-release")
+        return LOOKUP
+
+    result = answer(ScriptedGateway(changed_release, finish()), service=service)
+    assert result.status_code == 503 and result.body["error"]["code"] == "dataset_changed"
+    assert "published@example.edu" not in json.dumps(result.body)
+
+
+def test_if_the_office_list_cannot_be_read_the_turn_says_data_is_unavailable() -> None:
     class Broken(MemoryEntityFacts):
         def list_offices(self, **_: Any) -> dict[str, Any]:
             raise EvidenceUnavailable("down")
@@ -364,7 +460,8 @@ def test_if_the_office_list_cannot_be_read_small_talk_still_works() -> None:
     service = facts()
     broken = Broken(dataset_version="release-1", identity_hash="identities-1",
                     entities=service.entities, contacts=service.contacts, now=lambda: NOW)
-    gateway = ScriptedGateway(finish("greeting"))
+    gateway = ScriptedGateway(finish("unsupported"))
     result = answer(gateway, service=broken)
-    assert result.status_code == 200 and result.body["status"] == "answered"
-    assert json.loads(gateway.inputs[0][1]["content"])["published_offices"] is None
+    assert result.status_code == 503 and result.body["error"]["code"] == "data_unavailable"
+    assert result.body["error"]["retryable"] is True
+    assert gateway.inputs == []  # No paid call is made without the evidence store.
