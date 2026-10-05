@@ -40,9 +40,13 @@ SELECT c.id::text AS id, c.source_record_key, c.name, c.department, c.email,
        c.phone, c.phones, c.office, c.offices, c.prefers_email, c.preferred_contact,
        c.contact_note, c.normalization_metadata, c.collected_at, c.valid_from,
        c.valid_until, c.content_hash, s.source_key, s.canonical_url,
-       s.freshness_sla_hours
+       s.freshness_sla_hours,
+       contact_capture.content_hash AS contact_observation_artifact_hash
 FROM rockygpt_v2.campus_contacts c
 JOIN rockygpt_v2.sources s ON s.id = c.source_id
+LEFT JOIN rockygpt_v2.release_artifacts contact_capture
+  ON contact_capture.dataset_version_id = c.dataset_version_id
+  AND contact_capture.artifact_key = 'development-office-contact-evidence'
 WHERE c.dataset_version_id = %s::uuid AND EXISTS (
   SELECT 1 FROM links l WHERE l.source_key = s.source_key
     AND l.source_record_keys ? c.source_record_key

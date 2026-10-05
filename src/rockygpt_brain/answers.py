@@ -183,6 +183,10 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
                     "limitations": source["caveats"],
                     "record_title": str(entity["name"]),
                 }
+                if "original_record_id" in source:
+                    citations[sid].update({key: source[key] for key in (
+                        "original_record_id", "observation_field", "original_collected_at",
+                    )})
                 links = " ".join(f"[{literal(source['source_key'])}]({url})" for url in urls)
                 boundary = _boundaries(source, show_dates=prop["status"] != "known")
                 references.append(links + (f" ({boundary})" if boundary else ""))

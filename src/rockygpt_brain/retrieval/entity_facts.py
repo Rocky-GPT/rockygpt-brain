@@ -4,6 +4,7 @@ Discovery is deliberately separate from fact authority. Names locate canonical
 identities; only exact published identity links select the evidence records.
 """
 
+import hashlib
 import json
 import math
 import re
@@ -21,6 +22,9 @@ from rockygpt_brain.retrieval.projection import FIELD_ALIASES, OFFICE_FIELDS, cl
 MAX_ENTITIES = 5_000
 MAX_CONTACTS = 128
 MAX_EVIDENCE_BYTES = 128_000
+CONTACT_OBSERVATION_ARTIFACT = "development-office-contact-evidence"
+OBSERVED_FIELDS = frozenset({"email", "phones", "offices"})
+MAX_OBSERVATION_PAGES = 16
 CAMPUS_TIMEZONE = ZoneInfo("America/New_York")
 _DISCOVERY_FILLER = frozenset({"a", "an", "the", "of", "for", "and", "office", "offices"})
 
@@ -191,6 +195,123 @@ def _disjoint(left: dict[str, Any], right: dict[str, Any]) -> bool:
     return bool(a and b and c and d and (b < c or d < a))
 
 
+def _bounded_observation_text(value: Any, maximum: int) -> bool:
+    return (isinstance(value, str) and bool(value.strip()) and len(value) <= maximum
+            and not any(ord(character) < 32 for character in value))
+
+
+def _observation_time(value: Any, now: datetime) -> datetime:
+    if not _bounded_observation_text(value, 64):
+        raise EvidenceUnavailable("Invalid field-observation time.")
+    try:
+        captured = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise EvidenceUnavailable("Invalid field-observation time.") from error
+    if captured.tzinfo is None or captured.utcoffset() is None or captured > now:
+        raise EvidenceUnavailable("Field-observation times must be aware and not in the future.")
+    return captured
+
+
+def _observation_hash(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def _projection_hash(row: dict[str, Any], field: str) -> str:
+    if field == "email":
+        raw = row.get("email")
+    elif field in {"phones", "offices"}:
+        singular = {"phones": "phone", "offices": "office"}[field]
+        raw = {singular: row.get(singular), field: row.get(field)}
+    else:
+        raise EvidenceUnavailable("Unsupported field-observation projection.")
+
+    def valid(value: Any, depth: int = 0) -> bool:
+        if depth > 12:
+            return False
+        if value is None or isinstance(value, str):
+            return True
+        if isinstance(value, list):
+            return all(valid(item, depth + 1) for item in value)
+        if isinstance(value, dict):
+            return all(isinstance(key, str) and valid(item, depth + 1)
+                       for key, item in value.items())
+        return False  # Numbers and booleans are not contact-observation representations.
+
+    if not valid(raw):
+        raise EvidenceUnavailable("Invalid field-observation raw projection.")
+    encoded = json.dumps(raw, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _observation_sources(row: dict[str, Any], original: dict[str, Any],
+                         now: datetime) -> list[dict[str, Any]]:
+    """Refresh only a fully observed projection, retaining the original record source.
+
+    The hash-only database join supplies the trusted same-release artifact hash.
+    The publisher verifies page support; this reader validates its bounded metadata
+    and binding to the complete raw projection, without fetching or interpreting pages.
+    """
+    metadata = row.get("normalization_metadata")
+    if not isinstance(metadata, dict) or "contact_observations" not in metadata:
+        return []
+    observation = metadata["contact_observations"]
+    required = {"schema_version", "artifact_key", "artifact_hash", "base_version", "fields"}
+    if (not isinstance(observation, dict) or set(observation) != required
+            or type(observation["schema_version"]) is not int or observation["schema_version"] != 1
+            or observation["artifact_key"] != CONTACT_OBSERVATION_ARTIFACT
+            or not _observation_hash(observation["artifact_hash"])
+            or observation["artifact_hash"] != row.get("contact_observation_artifact_hash")
+            or not _bounded_observation_text(observation["base_version"], 256)):
+        raise EvidenceUnavailable("Invalid or unbound field-observation metadata.")
+    fields = observation["fields"]
+    if not isinstance(fields, dict) or not fields or not set(fields) <= OBSERVED_FIELDS:
+        raise EvidenceUnavailable("Unsupported field-observation projection.")
+    derived = []
+    for field, details in fields.items():
+        if (not isinstance(details, dict)
+                or set(details) != {"captured_at", "value_sha256", "pages"}
+                or not _observation_hash(details["value_sha256"])
+                or details["value_sha256"] != _projection_hash(row, field)
+                or not _present(project_contact(row, field)[0])):
+            raise EvidenceUnavailable("Field observation does not match the complete raw value.")
+        captured = _observation_time(details["captured_at"], now)
+        pages = details["pages"]
+        if not isinstance(pages, list) or not 1 <= len(pages) <= MAX_OBSERVATION_PAGES:
+            raise EvidenceUnavailable("Invalid field-observation pages.")
+        instants = []
+        urls = []
+        for page in pages:
+            page_keys = {"url", "section", "fetched_at", "html_sha256"}
+            if (not isinstance(page, dict) or not page_keys <= set(page)
+                    or not set(page) <= page_keys | {"near"} or _url(page["url"]) is None
+                    or not _bounded_observation_text(page["section"], 1_000)
+                    or ("near" in page and not _bounded_observation_text(page["near"], 2_000))
+                    or not _observation_hash(page["html_sha256"])):
+                raise EvidenceUnavailable("Invalid field-observation page provenance.")
+            urls.append(page["url"])
+            instants.append(_observation_time(page["fetched_at"], now))
+        if captured != min(instants):
+            raise EvidenceUnavailable("Field-observation capture must be its oldest cited page.")
+        source = _source({
+            **row, "id": f"{row['id']}:contact_observation:{field}", "collected_at": captured,
+            "canonical_url": urls[0], "normalization_metadata": {"evidence": {"source_urls": urls}},
+        }, now)
+        source.update(
+            original_record_id=row["id"], observation_field=field,
+            original_collected_at=original["collected_at"],
+            original_freshness=original["freshness"], original_caveats=list(original["caveats"]),
+            normalization_metadata={"contact_observation": {
+                key: observation[key] for key in ("artifact_key", "artifact_hash", "base_version")
+            } | {"value_sha256": details["value_sha256"], "pages": deepcopy(pages)}},
+        )
+        source["caveats"].append(
+            f"Only {field} was re-observed; the original record capture "
+            f"({original['collected_at'] or 'unknown'}) and other fields remain unchanged."
+        )
+        derived.append(source)
+    return derived
+
+
 def canonical_properties(
     rows: Sequence[dict[str, Any]],
     fields: Sequence[str],
@@ -203,8 +324,21 @@ def canonical_properties(
     if not all(isinstance(item.get("id"), str) and item["id"] for item in [*rows, *sources]):
         raise EvidenceUnavailable("Every fact needs an original evidence identifier.")
     source_map = {source["id"]: source for source in sources}
-    if len(source_map) != len(sources) or {row["id"] for row in rows} != set(source_map):
+    row_ids = {row["id"] for row in rows}
+    if (len(source_map) != len(sources) or len(row_ids) != len(rows)
+            or not row_ids <= source_map.keys()):
         raise EvidenceUnavailable("Every fact needs exactly one original evidence record.")
+    field_sources: dict[tuple[str, str], str] = {}
+    for sid, source in source_map.items():
+        if sid in row_ids:
+            continue
+        original_id = source.get("original_record_id")
+        observed_field = source.get("observation_field")
+        if (not isinstance(original_id, str) or original_id not in row_ids
+                or not isinstance(observed_field, str) or observed_field not in OBSERVED_FIELDS
+                or sid != f"{original_id}:contact_observation:{observed_field}"):
+            raise EvidenceUnavailable("A derived source needs its original record and exact field.")
+        field_sources[(original_id, observed_field)] = sid
     canonical_name_published = any(clean(row.get("name")) == registry_name for row in rows)
     properties = []
     for field in fields:
@@ -216,9 +350,10 @@ def canonical_properties(
                 caveats.append(f"Published name is a reviewed alias of {registry_name}.")
                 value = registry_name
             assertion_id = f"{row['id']}:{field}"
+            source_id = field_sources.get((row["id"], field), row["id"])
             assertion = {
                 "id": assertion_id,
-                "source_id": row["id"],
+                "source_id": source_id,
                 "field": field,
                 "raw_value": _json_safe(raw),
                 "value": _json_safe(value),
@@ -237,8 +372,8 @@ def canonical_properties(
                     },
                 )
                 group["assertion_ids"].append(assertion_id)
-                if row["id"] not in group["source_ids"]:
-                    group["source_ids"].append(row["id"])
+                if source_id not in group["source_ids"]:
+                    group["source_ids"].append(source_id)
         values = list(groups.values())
         status = "unknown" if not values else "known"
         if len(values) > 1:
@@ -465,7 +600,10 @@ class EntityFacts:
             now = as_of if as_of is not None else self.now()
             if now.tzinfo is None:
                 raise InvalidFactRequest("The fact clock must include its timezone.")
-            sources = [_source(row, now) for row in rows]
+            sources = []
+            for row in rows:
+                original = _source(row, now)
+                sources.extend([original, *_observation_sources(row, original, now)])
             reviewed = [
                 entry["alias"]
                 for entry in snapshot.alias_sources
@@ -504,13 +642,13 @@ class EntityFacts:
                 caveats.append("No original contact evidence is published for this office.")
             return {
                 "schema_version": 3,
-                "mapping_version": "entity-facts-1",
+                "mapping_version": "entity-facts-2",
                 "dataset_version": snapshot.dataset_version,
                 "identity_hash": snapshot.identity_hash,
                 "entity": {key: entity[key] for key in ("id", "kind", "name")},
                 "properties": properties,
                 "sources": sources,
-                "evidence_count": len(sources),
+                "evidence_count": len(rows),
                 "caveats": caveats,
                 "complete": not caveats,
             }
