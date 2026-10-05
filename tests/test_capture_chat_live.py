@@ -118,6 +118,8 @@ def test_200_without_answer_is_not_a_complete_capture_or_followup_context() -> N
     with TestClient(app_for([(200, {"status": "answered"}), answer()], seen)) as client:
         results = run_cases(suite(2, 1), client, lambda: None)
     assert results[0]["status"] == "invalid_response"
+    assert results[1]["status"] == "skipped_dependent_followup"  # No answer, no follow-up context.
+    assert len(seen) == 2  # The first turn and the independent second case only.
     assert results[0]["http_success"] is True
     assert summary(results)["http_200_turns"] == 2
     assert summary(results)["captured_answer_turns"] == 1
@@ -141,19 +143,23 @@ def test_publication_change_stops_all_remaining_turns_before_http() -> None:
 
 
 def test_each_actual_fact_snapshot_is_pinned_too(monkeypatch: pytest.MonkeyPatch) -> None:
-    release = {"version": "fixture-release"}
+    release = {"version": "fixture-release", "identity": "fixture-identity"}
 
     @contextmanager
     def snapshot(_: Any) -> Any:
-        yield Snapshot(release["version"], "fixture-identity", [], lambda _: [], [])
+        yield Snapshot(release["version"], release["identity"], [], lambda _: [], [])
 
     monkeypatch.setattr(PostgresEntityFacts, "snapshot", snapshot)
     facts = PinnedFacts("unused", ORACLE)
     facts.assert_publication()
-    release["version"] = "changed-after-preflight"
-    with pytest.raises(DatasetChanged):
-        with facts.snapshot():
-            pytest.fail("Changed publication must not be read")
+    for key, changed in (("version", "changed-after-preflight"),
+                         ("identity", "changed-identity-registry")):
+        original = release[key]
+        release[key] = changed
+        with pytest.raises(DatasetChanged):
+            with facts.snapshot():
+                pytest.fail("A changed publication must not be read")
+        release[key] = original
 
 
 def test_run_allowance_uses_all_planned_turns_at_conservative_maximum() -> None:
@@ -186,24 +192,87 @@ def test_public_settings_never_include_credentials() -> None:
     assert "project" not in serialized
 
 
-def test_explicit_live_and_new_output_are_required_before_configuration(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def configured() -> Any:
-        pytest.fail("Must reject before loading credentials or opening runtime")
+def runner_files(tmp_path: Path) -> tuple[Path, Path, Path]:
+    cases, oracle, out = (tmp_path / name for name in ("cases.json", "oracle.json", "capture.json"))
+    cases.write_text(json.dumps(suite(1)))
+    oracle.write_text(json.dumps(ORACLE))
+    return cases, oracle, out
 
-    monkeypatch.setattr(ProviderSettings, "from_env", configured)
-    out = tmp_path / "capture.json"
-    args = ["--cases", "unused", "--oracle", "unused", "--out", str(out),
+
+def arm_tripwires(monkeypatch: pytest.MonkeyPatch, *, settings: ProviderSettings | None) -> None:
+    """Every paid or database-touching step fails the test if it is ever reached."""
+    import capture_chat_live as runner
+
+    def never(*_: Any, **__: Any) -> Any:
+        pytest.fail("Refusals must happen before any runtime is built")
+
+    monkeypatch.setattr(runner, "PinnedFacts", never)
+    monkeypatch.setattr(runner, "CaptureGateway", never)
+    if settings is None:
+        monkeypatch.setattr(ProviderSettings, "from_env", never)
+    else:
+        monkeypatch.setattr(ProviderSettings, "from_env", lambda: settings)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://nobody@127.0.0.1:1/none")
+
+
+def test_a_paid_run_needs_live_and_never_replaces_existing_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    arm_tripwires(monkeypatch, settings=None)
+    cases, oracle, out = runner_files(tmp_path)
+    args = ["--cases", str(cases), "--oracle", str(oracle), "--out", str(out),
             "--max-total-usd", "0.50"]
     with pytest.raises(SystemExit) as missing_live:
         main(args)
     assert missing_live.value.code == 2
+    assert "--live is required" in capsys.readouterr().err
     assert not out.exists()
     out.write_text("preserved evidence")
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit) as existing:
         main(["--live", *args])
+    assert existing.value.code == 2
+    assert "output already exists" in capsys.readouterr().err
     assert out.read_text() == "preserved evidence"
+
+
+def test_the_run_ceiling_is_required(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    arm_tripwires(monkeypatch, settings=SETTINGS)
+    cases, oracle, out = runner_files(tmp_path)
+    with pytest.raises(SystemExit) as caught:
+        main(["--live", "--cases", str(cases), "--oracle", str(oracle), "--out", str(out)])
+    assert caught.value.code == 2
+    assert "--max-total-usd" in capsys.readouterr().err
+    assert not out.exists()
+
+
+def test_production_and_over_ceiling_runs_are_refused_by_main(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    cases, oracle, out = runner_files(tmp_path)
+    base = ["--live", "--cases", str(cases), "--oracle", str(oracle), "--out", str(out)]
+    arm_tripwires(monkeypatch, settings=replace(SETTINGS, environment="production"))
+    with pytest.raises(SystemExit) as production:
+        main([*base, "--max-total-usd", "0.50"])
+    assert production.value.code == 2
+    assert "restricted to the development environment" in capsys.readouterr().err
+    assert not out.exists()
+    arm_tripwires(monkeypatch, settings=SETTINGS)
+    just_under = SETTINGS.max_turn_nusd - 1  # One planned turn at its maximum allowance.
+    with pytest.raises(SystemExit) as too_costly:
+        main([*base, "--max-total-usd", str(just_under / 1_000_000_000)])
+    assert too_costly.value.code == 2
+    assert "exceed the run ceiling" in capsys.readouterr().err
+    assert not out.exists()
+
+
+def test_only_an_explicitly_synthetic_suite_is_accepted() -> None:
+    for change in ({"synthetic": False}, {"real_student_traffic": True}, {"synthetic": None}):
+        cases = suite(1)
+        cases["method_metadata"].update(change)
+        with pytest.raises(CaptureError, match="synthetic"):
+            preflight(cases, ORACLE, SETTINGS, 25_000_000)
 
 
 def test_unattempted_turns_remain_visible_after_interruption() -> None:
