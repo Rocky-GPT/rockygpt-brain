@@ -20,7 +20,7 @@ The active consumers are:
 - `GET /v1/entities/{entity_id}/facts`, which returns the same office facts for
   applications. It requires `dataset_version` and `identity_hash` query parameters.
 
-The reader exposes schema version `3`, mapping version `entity-facts-1`. Those
+The reader exposes schema version `3`, mapping version `entity-facts-2`. Those
 identifiers describe the response envelope, not support for every entity type.
 The [previous broader contract](historical/entity-facts-pre-office-slice.md) is a
 historical record of an earlier implementation and must not be used as a current
@@ -85,6 +85,55 @@ renderer presents current values only with fresh, usable HTTPS evidence. It show
 conflicts and unknowns, and does not promote stale values or prior conversation
 claims into current facts. A provenance URL alone does not establish an office's
 own website.
+
+## Field observations and freshness
+
+A publisher can attach a fresh observation of the complete raw `email`, `phones`,
+or `offices` projection without changing the contact row's `collected_at`. It
+cannot refresh names, departments, preferences, notes, or other fields this way.
+An absent observation leaves the original source and freshness behavior unchanged.
+
+The optional `normalization_metadata.contact_observations` object has exactly:
+
+- `schema_version: 1`, `artifact_key: development-office-contact-evidence`, the
+  artifact's SHA256 `artifact_hash`, a nonempty `base_version`, and `fields`.
+- `fields` maps only the supported contact field names to `captured_at`,
+  `value_sha256`, and a nonempty `pages` list.
+- Each page has `url`, `section`, `fetched_at`, and `html_sha256`, with optional
+  `near` text. URLs must be safe HTTPS URLs. Capture/fetch timestamps must include
+  a timezone, not lie in the future, and the field capture must equal its oldest
+  supporting page time. There are at most 16 pages per field; section and nearby
+  text are bounded to 1,000 and 2,000 characters respectively.
+
+The raw projection is `row.email`, `{phone: row.phone, phones: row.phones}`, or
+`{office: row.office, offices: row.offices}`. Its hash uses compact UTF-8 JSON with
+recursively sorted object keys, unescaped Unicode, and preserved array order.
+Only strings, nulls, arrays, and objects are accepted in observed projections;
+no cleaned or partial value substitutes for the complete raw hash.
+
+The Postgres adapter obtains the observation artifact hash through a hash-only
+join to `release_artifacts` in the **same dataset version** as the contact row.
+It does not load the artifact's full page payload. The metadata hash must match
+that trusted join, and the raw projection hash must match the current row. Invalid,
+unsupported, or incomplete supplied observation metadata fails the read, even if
+that field was not requested; it never silently falls back to stale evidence.
+
+The publisher is responsible for proving that the cited pages support the complete
+projection. The reader checks the publication binding and metadata, without fetching
+pages or independently interpreting their text. A hash alone is not semantic proof.
+
+For each valid observation the reader retains the original source and adds
+`<original-record-id>:contact_observation:<field>`. Assertions and canonical values
+use this derived source only for that field. It carries `original_record_id`,
+`observation_field`, the unchanged `original_collected_at`, original freshness and
+caveats, plus the field's capture/page provenance. Chat citations expose the
+original record ID, field, and original capture too.
+
+The field capture and the source's existing freshness allowance determine that
+derived source's freshness. Original validity dates still apply. Reobserving a
+phone does not make its office name fresh, resolve a disagreement, extend a dated
+record, or refresh the full row. `evidence_count` still counts original contact
+rows; derived sources are not additional independent records or votes.
 
 ## Implemented representation normalization
 

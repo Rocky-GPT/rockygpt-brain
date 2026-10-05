@@ -484,6 +484,9 @@ def test_postgres_read_is_parameterized_read_only_and_deadline_bounded(
     assert "default_transaction_read_only=on" in kwargs_seen["options"]
     assert calls[0][0] == "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"
     contact_query, params = next(call for call in calls if "campus_contacts c" in call[0])
+    assert "contact_capture.dataset_version_id = c.dataset_version_id" in contact_query
+    assert "contact_capture.content_hash AS contact_observation_artifact_hash" in contact_query
+    assert "contact_capture.payload" not in contact_query  # Never load the large page artifact.
     assert malicious_key not in contact_query
     assert malicious_key in params[0]
     assert params[2] == 129
