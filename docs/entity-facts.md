@@ -20,16 +20,11 @@ The active consumers are:
 - `GET /v1/entities/{entity_id}/facts`, which returns the same office facts for
   applications. It requires `dataset_version` and `identity_hash` query parameters.
 
-The checks above are not exhaustive. The reader also requires 64-character lowercase hex
-hashes, a nonempty `base_version` of at most 256 characters, a nonempty `fields` map, no
-control characters in `section`, `near` or `base_version`, a nonempty raw projection of at
-most 12 nesting levels, and it fails the whole read, not just one field, when any
-observation metadata on a row is invalid. An observation whose capture is not newer than the
-record's own `collected_at` is validated and then ignored for that field.
-
-`list_offices` returns every published office name with its aliases (bounded to 200 by
-default) from the same pinned publication, so a caller can choose a published name. It adds
-no synonyms and does not change how `search_offices` matches.
+`list_offices` returns published office names with their aliases, sorted by name, from
+the same pinned publication, so a caller can choose a published name. It returns at most 200
+offices by default (500 at most) and sets `truncated` when more exist; the chat engine does
+not yet handle a truncated listing, so a directory larger than 200 offices needs a design
+change first. It adds no synonyms and does not change how `search_offices` matches.
 
 The reader exposes schema version `3`, mapping version `entity-facts-2`. Those
 identifiers describe the response envelope, not support for every entity type.
@@ -128,6 +123,13 @@ It does not load the artifact's full page payload. The metadata hash must match
 that trusted join, and the raw projection hash must match the current row. Invalid,
 unsupported, or incomplete supplied observation metadata fails the read, even if
 that field was not requested; it never silently falls back to stale evidence.
+
+The reader also requires 64-character lowercase hex hashes, a nonempty `base_version` of
+at most 256 characters, a nonempty `fields` map, no control characters in `section`, `near`
+or `base_version`, a nonempty raw projection of at most 12 nesting levels, and it fails the
+whole read, not just one field, when any observation metadata on a row is invalid. An
+observation whose capture is not newer than the record's own `collected_at` is validated
+and then ignored for that field.
 
 The publisher is responsible for proving that the cited pages support the complete
 projection. The reader checks the publication binding and metadata, without fetching

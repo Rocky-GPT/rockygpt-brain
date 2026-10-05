@@ -76,13 +76,21 @@ capture, unchanged). A client must not treat such an `id` as a bare record id. A
 observation that is not newer than its record is ignored.
 
 Greetings, thanks and "who are you" get fixed server-written replies with
-`status: answered` and no citations. A message whose danger is still current gets the
-911/988 text first; any office contact the student asked for follows it (`partial`).
+`status: answered` and no citations. When the model reports danger that is current, the
+911/988 text comes first (`partial`) and everything else the turn produced follows it:
+contact details, "which office?" choices, "no matching office" notes and unsupported or
+account-limit notes. A data outage on such a turn is still an error that carries the
+emergency text. A finish with nothing in it gets HTTP 200 `clarification` ("Which office or
+service ... do you mean?"), except directly after a safety reply, where it repeats the
+911/988 text. An incomplete reply (facts found, then a provider failure) ends with the
+911/988 text, as every error does. If the office directory cannot be read at the start of a
+turn, the turn fails with retryable `data_unavailable` before any model call.
 
 Office facts come only from the shared canonical fact reader. Their values and
 citations are rendered by code. Every office lookup result is included automatically;
-the model's finish tool adds only bounded parts such as account limitations or
-clarification, with an empty parts list finalizing the retrieved facts. The model
+the model's finish tool adds only bounded parts (account limitation, unsupported,
+clarification, safety, recall, clock, greeting, thanks, about), with an empty parts list
+finalizing the retrieved facts. The model
 cannot supply new campus fact values, invented result or citation references, arbitrary SQL,
 account actions, or tool names outside the allowed set. Missing values, conflicting
 records, and stale/dated evidence remain explicit. Supported public parts can be

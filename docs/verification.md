@@ -94,7 +94,7 @@ approval. It supplies no measured overall accuracy or calibrated confidence scor
 
 ## Field observations and prospective run, October 1
 
-Current local checks: **339 tests passed, one optional PostgreSQL ledger test
+Local checks on October 1: **339 tests passed, one optional PostgreSQL ledger test
 skipped**; Ruff and strict mypy across 36 files pass. Spending code and migrations
 have not changed since the real ledger integration check above. The
 [new offline HTTP report](../evals/chat/office-field-observations-20261001-results.json)
@@ -199,12 +199,28 @@ reviewer who then fixed the faults; they are regression material, not a blind ev
   now receives the published office names and aliases each turn and queries by exact name.
 - After a danger message, every later turn repeated the 911/988 text and never gave the
   requested Public Safety number. Safety now follows the latest message, and the server
-  shows the safety text first and keeps any contact the student asked for.
+  shows the safety text first and keeps everything else the turn produced.
 - Smaller: lookups for shuttles and policies, an unrequested clock, a duplicated
-  "which office?" line, and a fresh record being demoted by an older field observation.
+  "which office?" line and a fresh record being demoted by an older field
+  observation.
+
+An independent offline review of those repairs (no live calls) then found, and a second
+pass fixed: a `safety` finish discarded "which office?" questions, "no matching office"
+notes and outages, and skipped the validation and length cap of every other finish; an
+empty finish right after a safety reply, and a provider failure after a lookup, ended with
+no 911/988 text where the old error path had carried it; and a failed office listing was
+hidden behind the model's "unsupported". Safety is now an ordinary part of the single
+answer path, the two degraded endings carry the emergency text, and an unreadable
+directory fails the turn as `data_unavailable`. Tests were added for each, for the
+publication pin between the listing and a lookup, and for `list_offices` ordering,
+de-duplication and truncation; ten removals of those behaviors on a scratch copy are
+each caught. Known and left as is: the phrase floor is deliberately a short list, so some
+danger phrasings reach the model; a greeting, thanks or about part beside a failed lookup
+shows the outage text in a 200 (as recall and clock already did); and the directory is
+passed to the model whole, up to 200 offices.
 
 After the repairs the same questions were asked again in the browser and behaved as intended,
 including the account-limit, instruction-override and fake-"system"-message checks. Local
-checks after the repairs: 352 tests passed, one skipped; Ruff and strict mypy pass. This is a small, one-reviewer session on
-synthetic questions and is not a population accuracy estimate. Model behavior still varies
+checks after the repairs and the review fixes: 363 tests passed, one skipped; Ruff and strict
+mypy pass. This is a small, one-reviewer session on synthetic questions and is not a population accuracy estimate. Model behavior still varies
 between runs.
