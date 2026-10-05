@@ -1,0 +1,16 @@
+{
+  "recorded_at": "2026-10-01T18:28:01.911436+00:00",
+  "kind": "read_only_readiness_followup",
+  "after_capture": "office-holdout-20261001-capture.json",
+  "prices_valid": true,
+  "ledger_ready": true,
+  "ledger_elapsed_ms": 1308,
+  "facts_ready": true,
+  "facts_elapsed_ms": 62,
+  "dataset_version": "dev-offices-20261001-v2",
+  "identity_hash": "3f68b8ec0ad94f7623310ee66969cab4786d0051a225c56b0cae20d9ac28f355",
+  "model_calls": 0,
+  "credential_changes": false,
+  "causal_conclusion": null,
+  "limitation": "Read-only diagnostic passed after the readiness failure. The cause of the earlier failure was not captured; cold start or transient dependency failure is not proven."
+}

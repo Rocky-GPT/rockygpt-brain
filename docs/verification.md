@@ -42,7 +42,7 @@ entailment score. A citation present in the answer does not prove arbitrary pros
 
 ## October 1, 2026 saved results
 
-Final local checks: **282 tests passed, one skipped**; Ruff, strict mypy across 33
+Initial rebuild checks: **282 tests passed, one skipped**; Ruff, strict mypy across 33
 files, and `git diff --check` passed. The skipped test is the opt-in real PostgreSQL
 ledger integration test. It ran separately against a disposable cluster and passed
 at 1:24:57 PM Eastern after credential hardening; the spending implementation and
@@ -69,7 +69,7 @@ The final run resolved the real canonical Registrar record from
 so the response displayed dated observations with explicit current-value
 limitations. The mixed request retained the dated phone observation and the
 private-account limitation. No current-contact verification or data refresh was
-claimed. Fresh publication evidence is still needed for current factual answers.
+claimed in those smoke runs. Fresh publication evidence was still needed then.
 
 Final live latencies were 5.976, 5.783, and 5.846 seconds (median 5.846 seconds).
 Each turn made two provider calls; all six settled. The second run recorded 7.595
@@ -91,6 +91,71 @@ not been relabeled as passes.
 The three-request final run is a small integration smoke test, not an independent
 quality evaluation, safety audit, broad campus-coverage check, or production release
 approval. It supplies no measured overall accuracy or calibrated confidence score.
+
+## Field observations and prospective run, October 1
+
+Current local checks: **339 tests passed, one optional PostgreSQL ledger test
+skipped**; Ruff and strict mypy across 36 files pass. Spending code and migrations
+have not changed since the real ledger integration check above. The
+[new offline HTTP report](../evals/chat/office-field-observations-20261001-results.json)
+passes the same 16 regression turns. It remains scripted integration evidence.
+
+The isolated publication `dev-offices-20261001-v2` preserves original record
+capture dates and adds only source-supported email, phone and location observations.
+The [frozen oracle](../evals/chat/office-holdout-20261001-oracle.json) was saved
+before any paid calls through the real fact endpoint and PostgreSQL shared reader.
+All 34 offices resolved: 28 published emails, 33 phones and 25 locations were fresh;
+missing properties remained unknown. Original labels, preferences, notes and other
+data were not newly verified. The oracle embeds the Data staging report and exact
+release/identity pins. The first whole-record refresh was rejected before use.
+
+The [frozen cases](../evals/chat/office-holdout-20261001-cases.json) contain 12
+conversations and 20 student turns. A separate author prepared them without reading
+runtime prompts, implementation, previous tests or results. These are prospective
+synthetic cases, not real student traffic or a blind human study. The runner replays
+actual assistant answers, preserves omitted-history counts, validates publication
+pins on each evidence read and records requests, responses, source fingerprints,
+latency and durable ledger operations. It does not grade its own answers.
+
+The [first attempt](../evals/chat/office-holdout-20261001-capture.json) stopped at
+HTTP 503 readiness with zero attempted turns and zero model operations. A subsequent
+[read-only diagnostic](../evals/chat/office-holdout-20261001-readiness.json) passed
+both dependencies; the initial failure's cause remains unproven. It was preserved,
+and no timeout, prompt or runtime change was made before retrying.
+
+The [second attempt](../evals/chat/office-holdout-20261001-capture-2.json) captured
+20/20 HTTP responses. Its 35 provider operations settled at **$0.00530925**, with
+no unsettled reservation from this run, under a $0.50 maximum admission allowance.
+Costs use configured conservative prices and are not a provider invoice or hosting
+cost estimate. Observed latency was 1.208–8,655.383 ms, median 5,474.831 ms; this tiny
+sequential sample includes immediate safety responses and is not a load test.
+Runtime, prompt, cases, oracle and public configuration fingerprints stayed unchanged.
+These capture counts describe delivery, not semantic success; see the separate
+[answer review](office-holdout-20261001-review.md).
+
+That AI-authored review judged 11 turns complete, six adequate and three material
+misses. All three misses gave emergency guidance while omitting requested Public
+Safety contacts. No unsupported returned campus contact value was observed. The
+missing-history explanation has an explicitly documented scoring ambiguity; a
+stricter reading changes adequate-or-better from 17/20 to 16/20. Neither count is a
+population accuracy estimate or approval for a student pilot. Runtime and prompts
+were not changed to improve these exposed cases.
+
+To capture a future run, supply credentials through the normal environment launcher,
+review a fresh oracle, then explicitly select a new output and spending ceiling:
+
+```sh
+PYTHONPATH=src python scripts/capture_chat_live.py --live \
+  --cases <frozen-cases.json> --oracle <fresh-oracle.json> \
+  --out <new-capture.json> --max-total-usd 0.50
+```
+
+The command refuses production, existing output files and a planned worst-case cost
+above the ceiling. A frozen publication pin does not itself establish freshness;
+review source capture times before running. This candidate was activated only in
+its isolated local database for evaluation. Configured local consumers, production,
+API keys and the original development database were left unchanged. Later runs of
+these now-inspected cases are regressions, not fresh holdouts.
 
 ## Before calling a release ready for students
 
