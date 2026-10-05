@@ -292,6 +292,9 @@ def _observation_sources(row: dict[str, Any], original: dict[str, Any],
             instants.append(_observation_time(page["fetched_at"], now))
         if captured != min(instants):
             raise EvidenceUnavailable("Field-observation capture must be its oldest cited page.")
+        original_capture = _instant(row.get("collected_at"))
+        if original_capture is not None and captured <= original_capture:
+            continue  # The record itself is at least as recent; an older look must not demote it.
         source = _source({
             **row, "id": f"{row['id']}:contact_observation:{field}", "collected_at": captured,
             "canonical_url": urls[0], "normalization_metadata": {"evidence": {"source_urls": urls}},
