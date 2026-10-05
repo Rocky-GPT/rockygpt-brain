@@ -169,10 +169,11 @@ def test_retrieved_results_are_scoped_to_the_current_turn() -> None:
     service = facts()
     first = answer(gateway, service=service)
     assert first.body["status"] == "answered"
-    second = answer(gateway, service=service)
-    assert second.status_code == 502
-    assert second.body["error"]["code"] == "provider_invalid_response"
+    second = answer(gateway, service=service)  # An empty finish must not reuse turn one's facts.
+    assert second.status_code == 200
+    assert second.body["status"] == "clarification"
     assert "source-registrar" not in json.dumps(second.body)
+    assert "published@example.edu" not in json.dumps(second.body)
 
 
 def test_longer_conversation_is_retained_without_promoting_old_answers() -> None:
@@ -267,3 +268,103 @@ def test_model_cannot_omit_missing_evidence_to_report_full_success() -> None:
     assert result.body["status"] == "partial"
     assert "published@example.edu" in result.body["answer"]
     assert "Offices: not published in the available evidence" in result.body["answer"]
+
+
+@pytest.mark.parametrize(("kind", "phrase"), [
+    ("greeting", "Which office do you need?"),
+    ("thanks", "You're welcome"),
+    ("about", "I can't see your personal student records"),
+])
+def test_small_talk_gets_a_fixed_server_written_reply_not_an_error(kind: str, phrase: str) -> None:
+    result = answer(ScriptedGateway(finish(kind)),
+                    messages=[{"role": "user", "content": "hey"}])
+    assert result.status_code == 200
+    assert result.body["status"] == "answered"
+    assert phrase in result.body["answer"]
+    assert result.body["citations"] == []
+
+
+def test_a_finish_with_nothing_in_it_asks_what_the_student_needs_instead_of_failing() -> None:
+    result = answer(ScriptedGateway(finish()), messages=[{"role": "user", "content": "thx"}])
+    assert result.status_code == 200
+    assert result.body["status"] == "clarification"
+    assert result.body["answer"] == "Which office or service, and which details, do you mean?"
+
+
+def test_safety_still_shows_the_contact_the_student_asked_for() -> None:
+    result = answer(ScriptedGateway(LOOKUP, finish("safety")),
+                    messages=[{"role": "user", "content": "She's awake now. Registrar email?"}])
+    text = result.body["answer"]
+    assert result.status_code == 200 and result.body["status"] == "partial"
+    assert text.startswith("If you or someone else is in danger right now, call 911.")
+    assert "published@example.edu" in text
+    assert [c["id"] for c in result.body["citations"]] == ["source-registrar"]
+
+
+def test_safety_alone_is_just_the_safety_text() -> None:
+    result = answer(ScriptedGateway(finish("safety")),
+                    messages=[{"role": "user", "content": "my roommate collapsed"}])
+    assert result.body["answer"].startswith("If you or someone else is in danger right now")
+    assert "published@example.edu" not in result.body["answer"]
+    assert result.body["citations"] == []
+
+
+def test_a_lookup_that_already_asks_which_office_is_not_asked_twice() -> None:
+    both = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": f"office-{n}", "name": name, "kind": "office", "aliases": [], "links": []}
+                  for n, name in enumerate(("Student Accounts", "Student Conduct"))],
+        contacts=[], now=lambda: NOW)
+    lookup = completion("office_facts", {"requests": [{"query": "student", "fields": ["email"]}]})
+    result = answer(ScriptedGateway(lookup, finish("clarification")), service=both)
+    text = result.body["answer"]
+    assert "Which office do you mean: Student Accounts, Student Conduct?" in text
+    assert "Which office or service, and which details, do you mean?" not in text
+    assert result.body["status"] == "clarification"
+
+
+def test_the_model_is_given_the_published_office_names_and_aliases() -> None:
+    service = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[
+            {"id": "b", "name": "ID Card Room", "kind": "office", "aliases": ["Husky Card"],
+             "links": []},
+            {"id": "a", "name": "Registrar", "kind": "office", "aliases": [], "links": []},
+            {"id": "p", "name": "A Person", "kind": "person", "aliases": [], "links": []},
+        ],
+        contacts=[], now=lambda: NOW)
+    gateway = ScriptedGateway(finish("greeting"))
+    answer(gateway, service=service)
+    state = json.loads(gateway.inputs[0][1]["content"])
+    assert state["published_offices"] == [
+        {"name": "ID Card Room", "aliases": ["Husky Card"]},
+        {"name": "Registrar", "aliases": []},
+    ]
+
+
+def test_office_listing_is_bounded_and_pinned() -> None:
+    service = facts()
+    listing = service.list_offices()
+    assert listing["offices"] == [{"name": "Registrar", "aliases": []}]
+    assert listing["dataset_version"] == "release-1" and listing["truncated"] is False
+    assert service.list_offices(limit=1)["truncated"] is False
+    with pytest.raises(Exception, match="between 1 and 500"):
+        service.list_offices(limit=0)
+    with pytest.raises(Exception, match="changed"):
+        service.list_offices(dataset_version="other")
+
+
+def test_if_the_office_list_cannot_be_read_small_talk_still_works() -> None:
+    from rockygpt_brain.retrieval import EvidenceUnavailable
+
+    class Broken(MemoryEntityFacts):
+        def list_offices(self, **_: Any) -> dict[str, Any]:
+            raise EvidenceUnavailable("down")
+
+    service = facts()
+    broken = Broken(dataset_version="release-1", identity_hash="identities-1",
+                    entities=service.entities, contacts=service.contacts, now=lambda: NOW)
+    gateway = ScriptedGateway(finish("greeting"))
+    result = answer(gateway, service=broken)
+    assert result.status_code == 200 and result.body["status"] == "answered"
+    assert json.loads(gateway.inputs[0][1]["content"])["published_offices"] is None
