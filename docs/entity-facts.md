@@ -20,6 +20,17 @@ The active consumers are:
 - `GET /v1/entities/{entity_id}/facts`, which returns the same office facts for
   applications. It requires `dataset_version` and `identity_hash` query parameters.
 
+The checks above are not exhaustive. The reader also requires 64-character lowercase hex
+hashes, a nonempty `base_version` of at most 256 characters, a nonempty `fields` map, no
+control characters in `section`, `near` or `base_version`, a nonempty raw projection of at
+most 12 nesting levels, and it fails the whole read, not just one field, when any
+observation metadata on a row is invalid. An observation whose capture is not newer than the
+record's own `collected_at` is validated and then ignored for that field.
+
+`list_offices` returns every published office name with its aliases (bounded to 200 by
+default) from the same pinned publication, so a caller can choose a published name. It adds
+no synonyms and does not change how `search_offices` matches.
+
 The reader exposes schema version `3`, mapping version `entity-facts-2`. Those
 identifiers describe the response envelope, not support for every entity type.
 The [previous broader contract](historical/entity-facts-pre-office-slice.md) is a

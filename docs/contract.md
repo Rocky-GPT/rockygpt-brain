@@ -68,6 +68,17 @@ HTTP 200 indicates a successfully handled request. `status` describes the result
 refer to original linked evidence, not prior assistant messages. Citation metadata
 can include record provenance, freshness, validity dates, and limitations.
 
+A field that a publisher re-observed (email, phones or offices) is cited through a
+derived source: the citation `id` is `<record id>:contact_observation:<field>`, its
+`collected_at` is that field's re-observation time, and the citation also carries
+`original_record_id`, `observation_field` and `original_collected_at` (the record's own
+capture, unchanged). A client must not treat such an `id` as a bare record id. An
+observation that is not newer than its record is ignored.
+
+Greetings, thanks and "who are you" get fixed server-written replies with
+`status: answered` and no citations. A message whose danger is still current gets the
+911/988 text first; any office contact the student asked for follows it (`partial`).
+
 Office facts come only from the shared canonical fact reader. Their values and
 citations are rendered by code. Every office lookup result is included automatically;
 the model's finish tool adds only bounded parts such as account limitations or
