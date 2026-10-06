@@ -30,6 +30,11 @@ offices by default (500 at most) and sets `truncated` when more exist; the chat 
 not yet handle a truncated listing, so a directory larger than 200 offices needs a design
 change first. It adds no synonyms and does not change how `search_offices` matches.
 
+Adapters supply the same snapshot to the one shared reader: Postgres (the source of truth), an
+in-memory fixture for tests, and an optional derived graph file of one release
+(`retrieval/graph_store.py`). The graph only stores and returns what the source adapter returned;
+it never chooses, merges or normalizes a value.
+
 The reader exposes schema version `3`, mapping version `entity-facts-3`. Those
 identifiers describe the response envelope, not support for every entity type.
 The [previous broader contract](historical/entity-facts-pre-office-slice.md) is a

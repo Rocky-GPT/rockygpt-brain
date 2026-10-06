@@ -20,6 +20,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Optional: the derived release graph (BRAIN_GRAPH_DIR). Pinned because the project is young.
+graph = [
+  "ladybug==0.21.2",
+]
 dev = [
   "ruff>=0.6,<1.0",
   "mypy>=1.11,<2.0",

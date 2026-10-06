@@ -422,6 +422,7 @@ class ChatEngine:
             "model": prices["model"] if prices else None,
             "prices": prices,
             "nusdPerDollar": NUSD_PER_DOLLAR,
+            "factsBackend": getattr(self.facts, "serving", self.facts.backend),
             "limits": {
                 "turnSeconds": self.turn_seconds, "maxTurnNusd": self.max_turn_nusd,
                 "maxModelCalls": TurnBudget.max_calls, "maxToolAttempts": MAX_TOOL_ATTEMPTS,
