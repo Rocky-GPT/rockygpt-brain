@@ -58,9 +58,9 @@ When history is omitted, never claim something was not said; clarify missing ref
 
 Every campus lookup starts at graph_root (Ramapo). Use graph_lookup with the office name,
 nickname or service the student asked for and the fields needed. In ONE request, code walks
-Ramapo -> Offices -> matching office -> Published records. Do not request individual hops or
-provide node IDs. Root and category links organize navigation, not evidence; only linked records
-supply facts. Batch independent office queries together in one tool call.
+Ramapo -> Offices -> matching office and reads its published records. Do not request individual
+hops or provide node IDs. Root and category links organize navigation, not evidence; only linked
+records supply facts. Batch independent office queries together in one tool call.
 Use the student's office or service wording, resolved from the conversation for follow-ups;
 never invent an office name from your memory. The reader matches published names and aliases.
 An ambiguous match returns office choices: ask the student rather than choosing arbitrarily.
@@ -148,10 +148,11 @@ def _tool(name: str, description: str, model: type[BaseModel]) -> dict[str, Any]
 
 
 TOOLS = [
-    _tool("graph_lookup", "Traverse from Ramapo through Offices to matching published records "
-          "in one request. Supply an office name, alias or service query and requested fields. "
-          "Batch independent queries together. Code records the entire path and renders evidence; "
-          "ambiguous matches ask which office. Results enter the answer automatically.", GraphRequests),
+    _tool("graph_lookup", "Traverse from Ramapo through Offices to the matching office's "
+          "published records in one request. Supply an office name, alias or service query and "
+          "requested fields. Batch independent queries together. Code records the entire path "
+          "and renders evidence; ambiguous matches ask which office. Results enter the answer "
+          "automatically.", GraphRequests),
     _tool("finish", "Finish the answer. Office results are included automatically. List only "
           "additional limitation, greeting, thanks, okay, about, recall, clock or safety parts; "
           "otherwise use an empty list. "
@@ -460,7 +461,7 @@ class ChatEngine:
                               truncated=opened["truncated"])
                 return OfficeResult(Rendered(text, complete=False), clarification=True, detail=detail)
             return OfficeResult(Rendered(NOT_FOUND_TEXT, complete=False), detail=detail)
-        detail["office"] = opened["office"]
+        detail["office"] = opened["label"]
         with measure("Render verified evidence"):
             rendered = render_facts(opened["facts"])
         detail["answer"] = {"text": rendered.text, "citations": rendered.citations,

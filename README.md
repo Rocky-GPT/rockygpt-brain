@@ -3,8 +3,8 @@
 The service behind RockyGPT, the Ramapo College student assistant.
 
 The current rebuild implements a small complete answering path: one bounded
-assistant traverses Ramapo → Offices → office → Published records, and code renders the
-published facts and citations. Code also handles account limitations, safety
+assistant traverses Ramapo → Offices → office and reads its published records, and code
+renders the published facts and citations. Code also handles account limitations, safety
 help, missing context, provider failures, deadlines, and spending. Jev and the
 classification-to-planner pipeline are retired from the active runtime.
 
@@ -83,8 +83,8 @@ answering path.
 
 Each chat turn receives the Ramapo navigation root. One `graph_lookup` request
 supplies an office name, nickname or service query and the requested fields. Code
-walks Ramapo → Offices → matched office → Published records, without a model call
-between nodes. Independent queries can be batched. A normal answer uses one model
+walks Ramapo → Offices → matched office and reads its published records, without a model
+call between nodes. Independent queries can be batched. A normal answer uses one model
 call to request the traversal and another to finish; the existing four-call and
 spending ceilings remain in place. Every query, including a follow-up, starts at
 the root. Unknown or ambiguous matches stay explicit.
