@@ -42,8 +42,9 @@ token returns 503; a missing or incorrect configured token returns 401. A model
 cannot grant authentication or select a spending environment.
 
 The `Accept: text/event-stream` header currently receives ordinary JSON, not SSE.
-Clients must inspect the response content type. The diagnostics header does not
-enable internal logs or expose prompts.
+Clients must inspect the response content type. The diagnostics header adds the
+development-only `trace` and `metrics` described below; it does not enable internal logs
+or expose prompts.
 
 ## Successful envelope
 
@@ -110,16 +111,23 @@ A chat request that carries `x-rockygpt-diagnostics: 1`, sent to a Brain running
 development, gets two more fields in the reply. A production Brain ignores the header, and the
 student app never sends it.
 
-- `trace`: one entry per office lookup the model made, in order. Each has `tool`
-  (`office_facts`), `arguments.query` and `arguments.fields` as the model sent them, `status`
-  (`ok`, `ambiguous`, `not_found` or `data_unavailable`), `result_count` (offices that matched),
-  and either `office` (the one chosen) or `candidates` (up to five names).
-- `metrics`: `decidedBy` (`model`, `phrase_floor` or `error`), `modelCalls`, `committedNusd`
-  (the spend reserved for the turn, in nanodollars), `officesListed` (how many published
-  offices the model was shown), and `finish` (the part kinds the model ended with).
+- `trace`: one entry per office lookup the model asked for, in order, recorded before the
+  lookup runs so a lookup that fails still appears. Each has `tool` (`office_facts`),
+  `arguments.query` and `arguments.fields` as the model sent them, `status` (`ok`,
+  `ambiguous`, `not_found`, `data_unavailable`, `dataset_changed` or `rejected`),
+  `result_count` (how many offices the search returned; an exact match plus partial matches
+  counts them all), `office` when one was chosen, and `candidates` (up to five names) with
+  `truncated` when several fit. A `not_found` or `data_unavailable` entry has neither.
+- `metrics`: `decidedBy` (`model`, `phrase_floor` or `error`), `errorCode` when `decidedBy` is
+  `error` (also set when a reply was cut short but kept the lookups it had), `modelCalls`,
+  `committedNusd` (the turn's model spend in nanodollars: the actual cost once a call settles,
+  the held amount while a charge is uncertain), `officesListed` (how many published offices the
+  model was shown), and `finish` (the part kinds the model ended with, as it sent them, even
+  when the reply was then rejected).
 
-An empty `trace` means the turn made no lookup, and the dev UI says so only when the field is
-present. A reply without the field means the Brain did not send one.
+`trace: []` means the engine ran and recorded no lookup. A turn that fails outside the engine (a
+crash, or the API-level timeout) sends `metrics.decidedBy: "error"` and no `trace` field at all,
+because nothing was kept.
 
 ## Failure envelope
 

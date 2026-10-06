@@ -13,7 +13,7 @@ from rockygpt_brain.boundary import SAFETY_MESSAGE
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine, ChatResult
 from rockygpt_brain.provider import Completion, GatewayError, ToolCall, TurnBudget, Usage
-from rockygpt_brain.retrieval import EvidenceUnavailable, MemoryEntityFacts
+from rockygpt_brain.retrieval import EvidenceUnavailable, MemoryEntityFacts, UnknownEntity
 from rockygpt_brain.turn import intake
 
 NOW = datetime(2026, 10, 1, 12, tzinfo=UTC)
@@ -474,7 +474,7 @@ def test_the_trace_records_each_lookup_the_model_asked_for_and_how_it_ended() ->
     assert result.trace["finish"] == ["unsupported"]
     assert result.trace["lookups"] == [{
         "tool": "office_facts", "arguments": {"query": "Registrar", "fields": ["email"]},
-        "status": "ok", "result_count": 1, "office": "Registrar", "matches": 1}]
+        "status": "ok", "result_count": 1, "office": "Registrar"}]
 
 
 def test_the_trace_says_when_a_lookup_was_ambiguous_missing_or_down() -> None:
@@ -503,3 +503,92 @@ def test_a_turn_with_no_lookup_still_says_what_the_model_chose() -> None:
     result = answer(ScriptedGateway(finish("greeting")))
     assert result.trace is not None
     assert result.trace["lookups"] == [] and result.trace["finish"] == ["greeting"]
+
+
+class MeteredGateway(ScriptedGateway):
+    """Spends like the real gateway: every call adds to the turn's budget."""
+
+    async def complete(self, *, input: list[dict[str, Any]], tools: list[dict[str, Any]],
+                       budget: TurnBudget) -> Completion:
+        budget.calls += 1
+        budget.committed_nusd += 7
+        return await super().complete(input=input, tools=tools, budget=budget)
+
+
+def test_the_trace_counts_model_calls_and_spend_even_when_the_turn_fails() -> None:
+    done = answer(MeteredGateway(LOOKUP, finish()))
+    assert done.trace is not None
+    assert (done.trace["modelCalls"], done.trace["committedNusd"]) == (2, 14)
+
+    def provider_down() -> Completion:
+        raise GatewayError("provider_unavailable")
+
+    broken = answer(MeteredGateway(LOOKUP, provider_down))
+    assert broken.trace is not None
+    assert (broken.trace["modelCalls"], broken.trace["committedNusd"]) == (2, 14)
+
+
+def test_a_turn_ended_by_an_error_says_so_and_keeps_the_lookups_it_made() -> None:
+    def provider_down() -> Completion:
+        raise GatewayError("provider_unavailable")
+
+    cut_short = answer(ScriptedGateway(LOOKUP, provider_down))
+    assert cut_short.status_code == 200 and cut_short.trace is not None
+    assert cut_short.trace["decidedBy"] == "error"
+    assert cut_short.trace["errorCode"] == "provider_unavailable"
+    assert [c["status"] for c in cut_short.trace["lookups"]] == ["ok"]
+
+    no_lookup = answer(ScriptedGateway(provider_down))
+    assert no_lookup.status_code == 503 and no_lookup.trace is not None
+    assert (no_lookup.trace["decidedBy"], no_lookup.trace["lookups"]) == ("error", [])
+
+    class Broken(MemoryEntityFacts):
+        def list_offices(self, **_: Any) -> dict[str, Any]:
+            raise EvidenceUnavailable("down")
+
+    service = facts()
+    broken = Broken(dataset_version="release-1", identity_hash="identities-1",
+                    entities=service.entities, contacts=service.contacts, now=lambda: NOW)
+    outage = answer(ScriptedGateway(finish()), service=broken)
+    assert outage.trace is not None and outage.trace["errorCode"] == "data_unavailable"
+
+
+@pytest.mark.parametrize("changed_pin", ["dataset_version", "identity_hash"])
+def test_a_lookup_that_hits_a_changed_publication_still_shows_in_the_trace(
+        changed_pin: str) -> None:
+    service = facts()
+
+    def changed_release() -> Completion:
+        setattr(service, changed_pin, "changed-release")
+        return LOOKUP
+
+    result = answer(ScriptedGateway(changed_release, finish()), service=service)
+    assert result.trace is not None and result.trace["errorCode"] == "dataset_changed"
+    assert [c["status"] for c in result.trace["lookups"]] == ["dataset_changed"]
+
+
+def test_a_lookup_the_data_rejects_shows_in_the_trace() -> None:
+    class Gone(MemoryEntityFacts):
+        def get_office_facts(self, *_: Any, **__: Any) -> dict[str, Any]:
+            raise UnknownEntity("gone")
+
+    service = facts()
+    gone = Gone(dataset_version="release-1", identity_hash="identities-1",
+                entities=service.entities, contacts=service.contacts, now=lambda: NOW)
+    result = answer(ScriptedGateway(LOOKUP, finish()), service=gone)
+    assert result.trace is not None
+    assert [c["status"] for c in result.trace["lookups"]] == ["rejected"]
+
+
+def test_the_trace_shows_five_candidates_and_how_many_matched() -> None:
+    many = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": f"o{n}", "name": f"Student Office {n}", "kind": "office", "aliases": [],
+                   "links": []} for n in range(7)],
+        contacts=[], now=lambda: NOW)
+    result = answer(ScriptedGateway(student_lookup("student"), finish()), service=many)
+    assert result.trace is not None
+    entry = result.trace["lookups"][0]
+    assert entry["status"] == "ambiguous" and entry["result_count"] == 7
+    assert entry["candidates"] == [f"Student Office {n}" for n in range(5)]
+    assert entry["truncated"] is False

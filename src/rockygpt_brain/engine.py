@@ -265,23 +265,29 @@ class ChatEngine:
                 if found["truncated"]:
                     text += " There are additional matches; a more specific name will help."
                 result = OfficeResult(Rendered(text, complete=False), clarification=True,
-                                      detail={"candidates": [c["name"] for c in candidates[:5]]})
+                                      detail={"candidates": [c["name"] for c in candidates[:5]],
+                                              "truncated": found["truncated"]})
             else:
                 result = OfficeResult(Rendered(
                     "I couldn't find a matching office in the published directory. "
                     "That doesn't establish that the office doesn't exist.", complete=False))
-            result.detail["matches"] = len(candidates)
+            result.detail["result_count"] = len(candidates)
             return result, version, identity_hash
         facts = self.facts.get_office_facts(
             chosen[0]["entity_id"], list(request.fields), version, identity_hash=identity_hash,
             as_of=as_of)
-        detail = {"office": chosen[0]["name"], "matches": len(candidates)}
+        detail = {"office": chosen[0]["name"], "result_count": len(candidates)}
         return OfficeResult(render_facts(facts), detail=detail), version, identity_hash
 
     async def answer(self, turn: Turn, request: ChatRequest) -> ChatResult:
         trace: dict[str, Any] = {"decidedBy": "model", "modelCalls": 0, "committedNusd": 0,
                                  "lookups": []}
-        return replace(await self._answer(turn, request, trace), trace=trace)
+        result = await self._answer(turn, request, trace)
+        # A failure, or a reply cut short by one, was decided by the error, not the model.
+        code = result.body.get("reason") or result.body.get("limitation", {}).get("code")
+        if code:
+            trace["decidedBy"], trace["errorCode"] = "error", code
+        return replace(result, trace=trace)
 
     async def _answer(self, turn: Turn, request: ChatRequest,
                       trace: dict[str, Any]) -> ChatResult:
@@ -321,23 +327,27 @@ class ChatEngine:
                     output: list[dict[str, Any]] = []
                     for office in requests:
                         rid = f"r{len(results) + 1}"
+                        # Recorded before the lookup, so a lookup that fails still shows.
+                        entry: dict[str, Any] = {
+                            "tool": "office_facts", "status": "failed", "result_count": 0,
+                            "arguments": {"query": office.query, "fields": list(office.fields)}}
+                        trace["lookups"].append(entry)
                         try:
                             result, version, identity_hash = await asyncio.to_thread(
                                 self._lookup, office, version, identity_hash, turn.campus_now)
                         except DatasetChanged:
+                            entry["status"] = "dataset_changed"
                             raise GatewayError("dataset_changed") from None
                         except EvidenceUnavailable:
                             result = OfficeResult(Rendered(
                                 "Campus data is temporarily unavailable.", complete=False),
                                 error_code="data_unavailable")
                         except (UnknownEntity, InvalidFactRequest):
+                            entry["status"] = "rejected"
                             raise GatewayError("provider_invalid_response") from None
                         results[rid] = result
-                        trace["lookups"].append({
-                            "tool": "office_facts",
-                            "arguments": {"query": office.query, "fields": list(office.fields)},
-                            "status": _lookup_status(result),
-                            "result_count": result.detail.get("matches", 0), **result.detail})
+                        entry["status"] = _lookup_status(result)
+                        entry.update(result.detail)
                         output.append({"rendered": result.rendered.text,
                                        "supported": result.rendered.supported,
                                        "complete": result.rendered.complete,
