@@ -11,6 +11,7 @@ from psycopg.rows import dict_row
 
 from rockygpt_brain.retrieval.entity_facts import (
     MAX_CONTACTS,
+    MAX_SCHEDULE_ROWS,
     EntityFacts,
     EvidenceUnavailable,
     Snapshot,
@@ -53,6 +54,27 @@ WHERE c.dataset_version_id = %s::uuid AND EXISTS (
     AND (l.source_record_ids IS NULL OR l.source_record_ids ? c.id::text)
 )
 ORDER BY c.id
+LIMIT %s
+"""
+
+# Optional columns are read through to_jsonb so a database that has not run a newer migration
+# yet returns them empty instead of failing the whole read.
+_SCHEDULES = """
+WITH links AS (
+  SELECT * FROM jsonb_to_recordset(%s::jsonb) AS link(source_key text, source_record_keys jsonb)
+)
+SELECT h.id::text AS id, h.source_record_key, h.name, h.day, h.schedule,
+       to_jsonb(h) ->> 'notes' AS notes, to_jsonb(h) ->> 'source_url' AS source_url,
+       h.collected_at, (to_jsonb(h) ->> 'valid_from')::date AS valid_from,
+       (to_jsonb(h) ->> 'valid_until')::date AS valid_until, h.content_hash,
+       s.source_key, s.canonical_url, s.freshness_sla_hours
+FROM rockygpt_v2.campus_hours h
+JOIN rockygpt_v2.sources s ON s.id = h.source_id
+WHERE h.dataset_version_id = %s::uuid AND EXISTS (
+  SELECT 1 FROM links l WHERE l.source_key = s.source_key
+    AND l.source_record_keys ? h.source_record_key
+)
+ORDER BY h.name, h.day, h.id
 LIMIT %s
 """
 
@@ -138,12 +160,28 @@ class PostgresEntityFacts(EntityFacts):
                         raise EvidenceUnavailable("Office evidence exceeds the bounded read.")
                     return result
 
+                def schedules(entity: dict[str, Any]) -> list[dict[str, Any]]:
+                    links = [
+                        link for link in entity["links"] if link.get("collection") == "campus_hours"
+                    ]
+                    if not links:
+                        return []
+                    result = read(
+                        _SCHEDULES,
+                        (json.dumps(links), release["dataset_id"], MAX_SCHEDULE_ROWS + 1),
+                    )
+                    if len(result) > MAX_SCHEDULE_ROWS:
+                        raise EvidenceUnavailable(
+                            "Office schedule evidence exceeds the bounded read.")
+                    return result
+
                 yield Snapshot(
                     release["dataset_version"],
                     release["identity_hash"],
                     entities,
                     contacts,
                     release["alias_sources"] or [],
+                    schedules,
                 )
         except psycopg.Error as exc:
             # Database URLs, passwords, row contents, and provider diagnostics are private.

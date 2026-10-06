@@ -105,6 +105,11 @@ account-limit note points to them ("The contact details above are the best way t
 directly"); with no office shown, the unsupported note says what can be looked up and asks which
 office. A recalled reply is quoted as plain words, without RockyGPT's own bold marks and links.
 
+The model can ask for `hours` with the usual contact fields. They are the office's linked schedule
+records (see [entity-facts.md](entity-facts.md)), rendered by the code as runs of weekdays with the
+published sentence, validity window and source. An office with no schedule record answers
+"Hours: not published in the available evidence."
+
 Office facts come only from the shared canonical fact reader. Their values and
 citations are rendered by code. Every office lookup result is included automatically;
 the model's finish tool adds only bounded parts (account limitation, unsupported,

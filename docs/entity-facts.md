@@ -7,10 +7,10 @@ must not reconcile raw rows or infer its own fact values.
 
 ## Current implementation: offices
 
-The current rebuild reads **office contact facts only**. It does not yet implement
-fact projections for people, venues, programs, clubs, events, buildings, schools,
-subjects, courses, menus, or schedules. It does not implement developer graph
-projections, profiles, paginated context groups, or versioned cursors.
+The current rebuild reads **office contact facts and office schedules**. It does not
+yet implement fact projections for people, venues, programs, clubs, events, buildings,
+schools, subjects, courses, or menus. It does not implement developer graph projections,
+profiles, paginated context groups, or versioned cursors.
 
 The active consumers are:
 
@@ -26,7 +26,7 @@ offices by default (500 at most) and sets `truncated` when more exist; the chat 
 not yet handle a truncated listing, so a directory larger than 200 offices needs a design
 change first. It adds no synonyms and does not change how `search_offices` matches.
 
-The reader exposes schema version `3`, mapping version `entity-facts-2`. Those
+The reader exposes schema version `3`, mapping version `entity-facts-3`. Those
 identifiers describe the response envelope, not support for every entity type.
 The [previous broader contract](historical/entity-facts-pre-office-slice.md) is a
 historical record of an earlier implementation and must not be used as a current
@@ -62,7 +62,10 @@ tests and offline regressions, never a fallback when production data is absent.
 ## Properties and boundaries
 
 Supported fields are `name`, `department`, `email`, `phones`, `offices`,
-`prefers_email`, `preferred_contact`, `contact_note`, and `website`.
+`prefers_email`, `preferred_contact`, `contact_note`, `website`, and `hours`. The first
+nine come from the office's linked contact records. `hours` comes from its linked schedule
+records (see "Hours" below). An empty value stays empty, with status `unknown`. A placeholder
+such as "N/A" is never a value.
 
 Each property carries a key, label, category, status, canonical `values`, and
 original `assertions`. Values retain every supporting assertion ID and source ID.
@@ -91,6 +94,40 @@ renderer presents current values only with fresh, usable HTTPS evidence. It show
 conflicts and unknowns, and does not promote stale values or prior conversation
 claims into current facts. A provenance URL alone does not establish an office's
 own website.
+
+## Hours
+
+The graph already links an office to its schedule records: the `campus_hours` collection,
+one record per weekday, with a name, the published hours text, the official sentence it was
+read from (`notes`), the page it came from (`source_url`), its capture time, and an optional
+validity window. The identity registry links them by exact `source_key` and
+`source_record_keys`, like contacts. The reader reads them only when `hours` is requested,
+bounded to 128 records, and a record that is not linked to the office fails the read.
+
+The `hours` property has category `schedule`. One **value** is one named schedule for one
+validity window: `{schedule, days: [{day, hours}], notes: [...]}`. The weekdays are published
+text, never parsed, expanded or merged by the reader, and they are not values of their own
+(Monday and Tuesday do not disagree). One **source** backs one value: its `record_ids` are the
+weekday records, its validity window is theirs, its capture time is the oldest of them, and its
+citation is the record's own `source_url`, else the source's page.
+
+Statuses follow the contact rules, but are decided per schedule name. Schedules with different
+names (a library's circulation desk and its research desk) are separate answers and never
+conflict. The same name with overlapping validity and different content is `conflicting`. The
+same name with fully specified, disjoint windows is `multiple`. Two different texts for one
+weekday inside one window are a conflict too, and each reading is kept. An office with no
+schedule link has `unknown` hours, which is not missing evidence. A linked record that cannot
+be found is a caveat, but only on a read that asked for `hours`.
+
+Hours are dated, not current by default. A window that has ended is `expired`, one that has
+not begun is `future`, and an old capture is `stale`. The chat renderer shows each of those as
+a dated observation, shows runs of weekdays with identical text as one span ("Monday to
+Friday"), and shows the official sentence as a published note. The reader never decides that an
+office is open now, and it adds no summer, holiday or walk-in rule that the records do not hold.
+
+The collector writes the text "Hours unavailable" for a weekday the page does not list. The
+reader passes it through as published. It is a placeholder that should be an empty value with a
+reason, and that belongs in the collector, not the reader.
 
 ## Field observations and freshness
 

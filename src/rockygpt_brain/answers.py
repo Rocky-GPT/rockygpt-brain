@@ -81,6 +81,30 @@ def _value_text(key: str, value: Any) -> str:
     return literal(value)
 
 
+def _day_span(first: str, last: str, count: int) -> str:
+    if count == 1:
+        return first
+    return f"{first} and {last}" if count == 2 else f"{first} to {last}"
+
+
+def _hours_text(value: dict[str, Any], *, name_it: bool) -> str:
+    """One schedule as published: runs of weekdays with the same text share one span."""
+    runs: list[list[Any]] = []
+    for entry in value["days"]:
+        if runs and runs[-1][2] == entry["hours"]:
+            runs[-1][1], runs[-1][3] = entry["day"], runs[-1][3] + 1
+        else:
+            runs.append([entry["day"], entry["day"], entry["hours"], 1])
+    text = "; ".join(
+        f"{literal(_day_span(first, last, count))}: {literal(hours)}"
+        for first, last, hours, count in runs
+    )
+    if name_it and value.get("schedule"):
+        text = f"{literal(value['schedule'])}. {text}"
+    notes = " ".join(literal(note) for note in value.get("notes", []))
+    return f"{text}. Published note: {notes}" if notes else text
+
+
 def _current(source: dict[str, Any]) -> bool:
     return source["freshness"] == "fresh" and source["validity"] in {"current", "unspecified"}
 
@@ -206,7 +230,17 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
                 )
                 if not value_current:
                     prefix += " (dated observation; current value unverified)"
-                formatted = _value_text(prop["key"], value["value"])
+                if prop["key"] == "hours":
+                    # A schedule name is shown when there are several, or when it isn't the
+                    # office's own name (the heading already says that).
+                    own = str(value["value"].get("schedule", "")).casefold()
+                    formatted = _hours_text(
+                        value["value"],
+                        name_it=len(prop["values"]) > 1
+                        or str(entity["name"]).casefold() not in own,
+                    )
+                else:
+                    formatted = _value_text(prop["key"], value["value"])
                 lines.append(f"{prefix}: {formatted} {'; '.join(dict.fromkeys(references))}")
                 displayed = True
                 current_supported |= value_current
