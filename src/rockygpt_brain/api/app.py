@@ -6,6 +6,7 @@ import os
 import secrets
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import datetime
 from typing import Annotated
 
@@ -37,6 +38,8 @@ MAX_BODY_BYTES = 64 * 1_024
 BODY_SECONDS = 10
 LOG = logging.getLogger(__name__)
 INVALID = "The request isn't in the shape RockyGPT expects."
+# The dev UI asks for the turn's trace and metrics with this header. Never honored in production.
+DEBUG_HEADER = "x-rockygpt-diagnostics"
 
 
 class Admission:
@@ -181,7 +184,8 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
                 else intake(request, conversation_id))
         boundary = check(turn)
         if boundary.kind == "safety":
-            result = answered(turn, boundary.message, "partial")
+            result = replace(answered(turn, boundary.message, "partial"),
+                             trace={"decidedBy": "phrase_floor", "modelCalls": 0})
         elif application.state.engine is None or application.state.startup_error:
             result = failed(turn, application.state.startup_error or "model_not_configured")
         else:
@@ -191,7 +195,12 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
                                turn.request_id, retryable=True)
             async with capacity:
                 result = await _connected_answer(application.state.engine, turn, request, transport)
-        return JSONResponse(result.body, status_code=result.status_code,
+        body = result.body
+        if active_environment == "development" and transport.headers.get(DEBUG_HEADER) == "1":
+            trace = result.trace or {"decidedBy": "error"}
+            body = {**body, "trace": trace.get("lookups", []),
+                    "metrics": {k: v for k, v in trace.items() if k != "lookups"}}
+        return JSONResponse(body, status_code=result.status_code,
                             headers={"X-Request-Id": turn.request_id, "Cache-Control": "no-store"})
 
     @application.get("/v1/entities/{entity_id}/facts")

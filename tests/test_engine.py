@@ -465,3 +465,41 @@ def test_if_the_office_list_cannot_be_read_the_turn_says_data_is_unavailable() -
     assert result.status_code == 503 and result.body["error"]["code"] == "data_unavailable"
     assert result.body["error"]["retryable"] is True
     assert gateway.inputs == []  # No paid call is made without the evidence store.
+
+
+def test_the_trace_records_each_lookup_the_model_asked_for_and_how_it_ended() -> None:
+    result = answer(ScriptedGateway(LOOKUP, finish("unsupported")))
+    assert result.trace is not None and "trace" not in result.body  # The API decides who sees it.
+    assert result.trace["decidedBy"] == "model" and result.trace["officesListed"] == 1
+    assert result.trace["finish"] == ["unsupported"]
+    assert result.trace["lookups"] == [{
+        "tool": "office_facts", "arguments": {"query": "Registrar", "fields": ["email"]},
+        "status": "ok", "result_count": 1, "office": "Registrar", "matches": 1}]
+
+
+def test_the_trace_says_when_a_lookup_was_ambiguous_missing_or_down() -> None:
+    ambiguous = answer(ScriptedGateway(student_lookup("student"), finish()),
+                       service=two_student_offices())
+    assert ambiguous.trace is not None
+    assert ambiguous.trace["lookups"][0]["status"] == "ambiguous"
+    assert ambiguous.trace["lookups"][0]["candidates"] == ["Student Accounts", "Student Conduct"]
+    missing = answer(ScriptedGateway(student_lookup("Cafeteria"), finish()))
+    assert missing.trace is not None
+    assert missing.trace["lookups"][0]["status"] == "not_found"
+    assert missing.trace["lookups"][0]["result_count"] == 0
+
+    class Down(MemoryEntityFacts):
+        def search_offices(self, *_: Any, **__: Any) -> dict[str, Any]:
+            raise EvidenceUnavailable("down")
+
+    service = facts()
+    down = Down(dataset_version="release-1", identity_hash="identities-1",
+                entities=service.entities, contacts=service.contacts, now=lambda: NOW)
+    outage = answer(ScriptedGateway(LOOKUP, finish()), service=down)
+    assert outage.trace is not None and outage.trace["lookups"][0]["status"] == "data_unavailable"
+
+
+def test_a_turn_with_no_lookup_still_says_what_the_model_chose() -> None:
+    result = answer(ScriptedGateway(finish("greeting")))
+    assert result.trace is not None
+    assert result.trace["lookups"] == [] and result.trace["finish"] == ["greeting"]

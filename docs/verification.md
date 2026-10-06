@@ -221,6 +221,7 @@ passed to the model whole, up to 200 offices.
 
 After the repairs the same questions were asked again in the browser and behaved as intended,
 including the account-limit, instruction-override and fake-"system"-message checks. Local
-checks after the repairs and the review fixes: 363 tests passed, one skipped; Ruff and strict
+checks after the repairs and the review fixes: 363 tests passed, one skipped (368 after the
+developer trace below); Ruff and strict
 mypy pass. This is a small, one-reviewer session on synthetic questions and is not a population accuracy estimate. Model behavior still varies
 between runs.

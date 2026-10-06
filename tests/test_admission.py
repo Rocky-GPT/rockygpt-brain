@@ -145,3 +145,41 @@ def test_whole_turn_deadline_stops_work() -> None:
         response = client.post("/v1/chat", json=QUESTION)
     assert response.status_code == 504
     assert engine.cancelled.is_set()
+
+
+class TracedEngine(BoundaryEngine):
+    async def answer(self, turn: Turn, request: ChatRequest) -> ChatResult:
+        result = await super().answer(turn, request)
+        return ChatResult(result.status_code, result.body, trace={
+            "decidedBy": "model", "modelCalls": 2, "lookups": [{"tool": "office_facts"}]})
+
+
+def _ask(environment: str, headers: dict[str, str]) -> dict[str, object]:
+    application = create_app(TracedEngine(), service_token="t",  # noqa: S106
+                             environment=environment)
+    with TestClient(application) as client:
+        response = client.post("/v1/chat", json=QUESTION,
+                               headers={"x-rockygpt-environment-token": "t", **headers})
+    assert response.status_code == 200
+    return dict(response.json())
+
+
+def test_the_trace_reaches_only_a_development_request_that_asks_for_it() -> None:
+    shown = _ask("development", {"x-rockygpt-diagnostics": "1"})
+    assert shown["trace"] == [{"tool": "office_facts"}]
+    assert shown["metrics"] == {"decidedBy": "model", "modelCalls": 2}
+    for body in (_ask("development", {}), _ask("development", {"x-rockygpt-diagnostics": "yes"}),
+                 _ask("production", {"x-rockygpt-diagnostics": "1"})):
+        assert "trace" not in body and "metrics" not in body
+
+
+def test_the_phrase_floor_reports_that_it_decided() -> None:
+    engine = TracedEngine()
+    with TestClient(create_app(engine, service_token="", environment="development")) as client:
+        body = client.post(
+            "/v1/chat", headers={"x-rockygpt-diagnostics": "1"},
+            json={"messages": [{"role": "user",
+                                "content": "my roommate just collapsed and isnt breathing"}]},
+        ).json()
+    assert body["metrics"] == {"decidedBy": "phrase_floor", "modelCalls": 0}
+    assert body["trace"] == [] and engine.calls == 0

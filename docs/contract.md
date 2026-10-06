@@ -104,6 +104,23 @@ History resolves references and can be quoted as conversation history. It is nev
 promoted to current campus evidence. The service cannot recover messages that the
 caller omitted, and it has no persistent conversation memory or account tools.
 
+## Developer diagnostics
+
+A chat request that carries `x-rockygpt-diagnostics: 1`, sent to a Brain running in
+development, gets two more fields in the reply. A production Brain ignores the header, and the
+student app never sends it.
+
+- `trace`: one entry per office lookup the model made, in order. Each has `tool`
+  (`office_facts`), `arguments.query` and `arguments.fields` as the model sent them, `status`
+  (`ok`, `ambiguous`, `not_found` or `data_unavailable`), `result_count` (offices that matched),
+  and either `office` (the one chosen) or `candidates` (up to five names).
+- `metrics`: `decidedBy` (`model`, `phrase_floor` or `error`), `modelCalls`, `committedNusd`
+  (the spend reserved for the turn, in nanodollars), `officesListed` (how many published
+  offices the model was shown), and `finish` (the part kinds the model ended with).
+
+An empty `trace` means the turn made no lookup, and the dev UI says so only when the field is
+present. A reply without the field means the Brain did not send one.
+
 ## Failure envelope
 
 ```json
