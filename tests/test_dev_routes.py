@@ -8,15 +8,22 @@ import pytest
 from fastapi.testclient import TestClient
 
 from rockygpt_brain.api.app import create_app
-from rockygpt_brain.boundary import CAPABILITY_MESSAGE, SAFETY_MESSAGE
+from rockygpt_brain.boundary import (
+    CAPABILITY_AFTER_LOOKUP_MESSAGE,
+    CAPABILITY_MESSAGE,
+    SAFETY_MESSAGE,
+    SAFETY_TEXTS,
+)
 from rockygpt_brain.context import build_context
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import (
     AMBIGUOUS_TEXT,
     CLOCK_TEXT,
+    HELP_TEXT,
     MODEL_INPUT_KEYS,
     RECALL_TEXT,
     SYSTEM_PROMPT,
+    UNSUPPORTED_AFTER_LOOKUP_MESSAGE,
     UNSUPPORTED_MESSAGE,
     AnswerPart,
     ChatEngine,
@@ -86,8 +93,13 @@ def test_runtime_describes_the_prompt_tools_parts_and_fixed_texts_the_engine_rea
     kinds = AnswerPart.model_fields["kind"].annotation.__args__  # type: ignore[union-attr]
     assert [part["kind"] for part in body["parts"]] == list(kinds)
     texts = {item["id"]: item["text"] for item in body["fixedTexts"]}
-    assert texts["safety"] == SAFETY_MESSAGE and texts["capability"] == CAPABILITY_MESSAGE
+    assert texts["safety_other"] == SAFETY_MESSAGE
+    assert {name: texts[f"safety_{name}"] for name in SAFETY_TEXTS} == SAFETY_TEXTS
+    assert texts["campus_help"] == HELP_TEXT
+    assert texts["capability"] == CAPABILITY_MESSAGE
+    assert texts["capability_after_lookup"] == CAPABILITY_AFTER_LOOKUP_MESSAGE
     assert texts["unsupported"] == UNSUPPORTED_MESSAGE
+    assert texts["unsupported_after_lookup"] == UNSUPPORTED_AFTER_LOOKUP_MESSAGE
     assert {"greeting", "thanks", "okay", "about", "not_found", "incomplete"} <= set(texts)
     assert body["limits"]["maxTurnNusd"] == 25_000_000 and body["limits"]["maxModelCalls"] == 4
     assert body["model"] is None  # No real gateway here, so there is no price table.
@@ -165,5 +177,32 @@ def test_every_fixed_text_says_who_picks_it_and_matches_the_template_the_engine_
         when="<weekday, month day, year at time and zone>")
     assert entries["recall"]["text"] == RECALL_TEXT.format(
         speaker="<you or RockyGPT>", quote="> <the quoted message>")
-    assert entries["safety"]["pickedBy"] == ["the danger phrase list", "the model"]
+    specific = ["the danger phrase list", "the model"]
+    assert {k: v["pickedBy"] for k, v in entries.items()} == {
+        "safety_self_harm": specific, "safety_medical": specific, "safety_danger": specific,
+        "safety_fire": specific,
+        "safety_other": ["the danger phrase list", "the model", "the code"],
+        "campus_help": ["the code"],
+        "capability": ["the model"], "capability_after_lookup": ["the model"],
+        "unsupported": ["the model"], "unsupported_after_lookup": ["the model"],
+        "clarification": ["the model", "the code"], "greeting": ["the model"],
+        "thanks": ["the model"], "okay": ["the model"], "about": ["the model"],
+        "ambiguous": ["the lookup result"], "ambiguous_more": ["the lookup result"],
+        "not_found": ["the lookup result"], "data_unavailable": ["the lookup result"],
+        "incomplete": ["a provider failure"], "clock": ["the model"], "recall": ["the model"],
+        "recall_omitted": ["the model"]}
     assert body["nusdPerDollar"] == 1_000_000_000
+
+
+def test_a_truncated_search_always_asks_even_with_one_exact_match() -> None:
+    crowded = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": f"o{n}", "name": f"Student Office {n}", "kind": "office", "aliases": [],
+                   "links": []} for n in range(12)],
+        contacts=[], now=lambda: NOW)
+    application = create_app(ChatEngine(NoGateway(), crowded), service_token="",
+                             environment="development")
+    with TestClient(application) as http:
+        body = http.get("/v1/dev/offices/search", params={"q": "student office"},
+                        headers=ASKED).json()
+    assert body["truncated"] is True and body["outcome"] == "asks" and body["chosen"] == []
