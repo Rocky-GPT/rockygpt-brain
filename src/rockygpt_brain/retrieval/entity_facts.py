@@ -17,10 +17,18 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 from zoneinfo import ZoneInfo
 
-from rockygpt_brain.retrieval.projection import FIELD_ALIASES, OFFICE_FIELDS, clean, project_contact
+from rockygpt_brain.retrieval.projection import (
+    CONTACT_FIELDS,
+    FIELD_ALIASES,
+    OFFICE_FIELDS,
+    clean,
+    project_contact,
+)
 
 MAX_ENTITIES = 5_000
 MAX_CONTACTS = 128
+MAX_SCHEDULE_ROWS = 128
+WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 MAX_EVIDENCE_BYTES = 128_000
 CONTACT_OBSERVATION_ARTIFACT = "development-office-contact-evidence"
 OBSERVED_FIELDS = frozenset({"email", "phones", "offices"})
@@ -58,6 +66,8 @@ class Snapshot:
     entities: list[dict[str, Any]]
     contact_reader: Callable[[dict[str, Any]], list[dict[str, Any]]]
     alias_sources: list[dict[str, Any]]
+    # Linked schedule records (one per weekday). An adapter with none reads nothing.
+    schedule_reader: Callable[[dict[str, Any]], list[dict[str, Any]]] = lambda entity: []
 
 
 def _text(value: Any) -> str:
@@ -425,6 +435,16 @@ def validate_entities(entities: Any) -> list[dict[str, Any]]:
         for link in links:
             if not isinstance(link, dict):
                 raise EvidenceUnavailable("Invalid canonical link.")
+            if link.get("collection") == "campus_hours":
+                # A schedule belongs to its office by exact record key, like a contact does. Two
+                # entities may name the same schedule, so no single-owner rule applies here.
+                schedule_keys = link.get("source_record_keys")
+                if (not isinstance(schedule_keys, list)
+                        or not all(isinstance(k, str) for k in schedule_keys)
+                        or len(schedule_keys) > MAX_SCHEDULE_ROWS
+                        or not _text(link.get("source_key"))):
+                    raise EvidenceUnavailable("Invalid schedule identity link.")
+                continue
             if link.get("collection") != "contacts":
                 continue
             keys, pinned = link.get("source_record_keys"), link.get("source_record_ids")
@@ -464,6 +484,117 @@ def linked_contacts(entity: dict[str, Any], rows: Sequence[dict[str, Any]]) -> l
             for link in links
         )
     ]
+
+
+def linked_schedules(
+    entity: dict[str, Any], rows: Sequence[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    links = [link for link in entity["links"] if link.get("collection") == "campus_hours"]
+    return [
+        row
+        for row in rows
+        if any(
+            row.get("source_key") == link["source_key"]
+            and row.get("source_record_key") in link["source_record_keys"]
+            for link in links
+        )
+    ]
+
+
+def _day_order(day: str) -> tuple[int, str]:
+    return (WEEKDAYS.index(day), day) if day in WEEKDAYS else (len(WEEKDAYS), day)
+
+
+def schedule_property(
+    rows: Sequence[dict[str, Any]], now: datetime
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """The office's published schedules as one `hours` property, plus the sources behind it.
+
+    One value is one named schedule for one published validity window: its weekdays, exactly as
+    published, and the official sentence it was read from. The days of a schedule are never
+    values of their own (Monday and Tuesday do not disagree). Two schedules disagree only when
+    they have the same name, overlapping validity, and different content. Different names (a
+    library's circulation desk and its research desk) are separate answers.
+    """
+    buckets: dict[tuple[str, str | None, str | None], list[dict[str, Any]]] = {}
+    for row in rows:
+        name, day, text = clean(row.get("name")), clean(row.get("day")), clean(row.get("schedule"))
+        if not all(isinstance(part, str) and part for part in (name, day, text)):
+            raise EvidenceUnavailable("A schedule record needs a name, a day and its hours.")
+        since, until = _date(row.get("valid_from")), _date(row.get("valid_until"))
+        buckets.setdefault((name, since.isoformat() if since else None,
+                            until.isoformat() if until else None), []).append(row)
+    sources: list[dict[str, Any]] = []
+    assertions: list[dict[str, Any]] = []
+    groups: dict[str, dict[str, Any]] = {}
+    ordered = sorted(
+        buckets.items(), key=lambda item: (item[0][0], item[0][1] or "", item[0][2] or ""))
+    for (name, _, _), bucket in ordered:
+        by_day: dict[str, list[dict[str, Any]]] = {}
+        for row in sorted(bucket, key=lambda r: (_day_order(clean(r["day"])), str(r.get("id")))):
+            by_day.setdefault(clean(row["day"]), []).append(row)
+        # Two different texts for one day are a disagreement, so each reading gets its own value.
+        readings: dict[str, list[dict[str, Any]]] = {}
+        for index in range(max(len(rows_for_day) for rows_for_day in by_day.values())):
+            picked = [days[min(index, len(days) - 1)] for days in by_day.values()]
+            key = json.dumps([[clean(r["day"]), clean(r["schedule"])] for r in picked])
+            readings.setdefault(key, picked)
+        for picked in readings.values():
+            value: dict[str, Any] = {
+                "schedule": name,
+                "days": [{"day": clean(r["day"]), "hours": clean(r["schedule"])} for r in picked],
+                "notes": list(dict.fromkeys(
+                    clean(r["notes"]) for r in picked if _present(r.get("notes")))),
+            }
+            captured = [t for r in picked if (t := _instant(r.get("collected_at")))]
+            urls = list(dict.fromkeys(u for r in picked if (u := _url(r.get("source_url")))))
+            source = _source({
+                **picked[0], "id": f"{picked[0]['id']}:schedule",
+                "collected_at": min(captured) if len(captured) == len(picked) else None,
+                "canonical_url": urls[0] if urls else picked[0].get("canonical_url"),
+                "normalization_metadata": {"evidence": {"source_urls": urls}},
+            }, now)
+            source.update(
+                collection="campus_hours",
+                source_record_keys=[r["source_record_key"] for r in picked],
+                record_ids=[r["id"] for r in picked],
+                content_hash=hashlib.sha256(
+                    "|".join(sorted(str(r.get("content_hash")) for r in picked)).encode()
+                ).hexdigest(),
+            )
+            sources.append(source)
+            assertion_id = f"{source['id']}:hours"
+            assertions.append({
+                "id": assertion_id, "source_id": source["id"], "field": "hours",
+                "raw_value": _json_safe([{"day": r["day"], "schedule": r["schedule"],
+                                           "notes": r.get("notes")} for r in picked]),
+                "value": _json_safe(value), "caveats": [],
+            })
+            key = json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False)
+            group = groups.setdefault(key, {"value": _json_safe(value), "assertion_ids": [],
+                                            "source_ids": []})
+            group["assertion_ids"].append(assertion_id)
+            group["source_ids"].append(source["id"])
+    values = list(groups.values())
+    status = "known" if values else "unknown"
+    by_schedule: dict[str, list[dict[str, Any]]] = {}
+    for found in values:
+        by_schedule.setdefault(found["value"]["schedule"], []).append(found)
+    source_map = {source["id"]: source for source in sources}
+    for same_name in by_schedule.values():
+        if len(same_name) < 2:
+            continue
+        separate = all(
+            _disjoint(source_map[a], source_map[b])
+            for i, left in enumerate(same_name) for right in same_name[i + 1:]
+            for a in left["source_ids"] for b in right["source_ids"]
+        )
+        if not separate:
+            status = "conflicting"
+        elif status != "conflicting":
+            status = "multiple"
+    return ({"key": "hours", "label": "Hours", "category": "schedule", "status": status,
+             "values": values, "assertions": assertions}, sources)
 
 
 class EntityFacts:
@@ -617,9 +748,18 @@ class EntityFacts:
             if not entity:
                 raise UnknownEntity("No office has that canonical identity.")
             rows = snapshot.contact_reader(entity)
+            schedule_rows = snapshot.schedule_reader(entity) if "hours" in selected else []
+            if len(schedule_rows) > MAX_SCHEDULE_ROWS:
+                raise EvidenceUnavailable("Office schedule evidence exceeds the bounded read.")
+            if len(linked_schedules(entity, schedule_rows)) != len(schedule_rows):
+                raise EvidenceUnavailable("A schedule record has no exact canonical identity link.")
+            schedule_ids = [_text(row.get("id")) for row in schedule_rows]
+            if not all(schedule_ids) or len(set(schedule_ids)) != len(schedule_ids):
+                raise EvidenceUnavailable("Duplicate or missing schedule evidence identifiers.")
             if len(rows) > MAX_CONTACTS:
                 raise EvidenceUnavailable("Office evidence exceeds the bounded read.")
-            if len(json.dumps(_json_safe(rows), allow_nan=False).encode()) > MAX_EVIDENCE_BYTES:
+            if len(json.dumps(_json_safe([*rows, *schedule_rows]),
+                              allow_nan=False).encode()) > MAX_EVIDENCE_BYTES:
                 raise EvidenceUnavailable("Office evidence exceeds the bounded response.")
             if len(linked_contacts(entity, rows)) != len(rows):
                 raise EvidenceUnavailable("A fact record has no exact canonical identity link.")
@@ -646,11 +786,16 @@ class EntityFacts:
             ]
             properties = canonical_properties(
                 rows,
-                selected,
+                [field for field in selected if field in CONTACT_FIELDS],
                 sources,
                 registry_name=entity["name"],
                 reviewed_aliases=reviewed,
             )
+            if "hours" in selected:
+                hours, schedule_sources = schedule_property(schedule_rows, now)
+                sources.extend(schedule_sources)
+                properties = sorted(
+                    [*properties, hours], key=lambda prop: list(selected).index(prop["key"]))
             caveats = []
             for link in entity["links"]:
                 if link.get("collection") != "contacts":
@@ -667,17 +812,30 @@ class EntityFacts:
                     row_ids
                 ):
                     caveats.append("One or more pinned original contact records are missing.")
+            if "hours" in selected:
+                for link in entity["links"]:
+                    if link.get("collection") != "campus_hours":
+                        continue
+                    for key in link["source_record_keys"]:
+                        if not any(
+                            row["source_key"] == link["source_key"]
+                            and row["source_record_key"] == key
+                            for row in schedule_rows
+                        ):
+                            caveats.append(
+                                f"Linked schedule evidence is missing: {link['source_key']}/{key}."
+                            )
             if not rows:
                 caveats.append("No original contact evidence is published for this office.")
             return {
                 "schema_version": 3,
-                "mapping_version": "entity-facts-2",
+                "mapping_version": "entity-facts-3",
                 "dataset_version": snapshot.dataset_version,
                 "identity_hash": snapshot.identity_hash,
                 "entity": {key: entity[key] for key in ("id", "kind", "name")},
                 "properties": properties,
                 "sources": sources,
-                "evidence_count": len(rows),
+                "evidence_count": len(rows) + len(schedule_rows),
                 "caveats": caveats,
                 "complete": not caveats,
             }
@@ -694,6 +852,7 @@ class MemoryEntityFacts(EntityFacts):
         entities: list[dict[str, Any]],
         contacts: list[dict[str, Any]],
         alias_sources: list[dict[str, Any]] | None = None,
+        schedules: list[dict[str, Any]] | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         super().__init__(now=now)
@@ -702,14 +861,17 @@ class MemoryEntityFacts(EntityFacts):
         self.entities = deepcopy(validate_entities(entities))
         self.contacts = deepcopy(contacts)
         self.alias_sources = deepcopy(alias_sources or [])
+        self.schedules = deepcopy(schedules or [])
 
     @contextmanager
     def snapshot(self) -> Iterator[Snapshot]:
         entities, contacts = deepcopy(self.entities), deepcopy(self.contacts)
+        schedules = deepcopy(self.schedules)
         yield Snapshot(
             self.dataset_version,
             self.identity_hash,
             validate_entities(entities),
             lambda entity: linked_contacts(entity, contacts),
             deepcopy(self.alias_sources),
+            lambda entity: linked_schedules(entity, schedules),
         )

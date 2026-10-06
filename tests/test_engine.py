@@ -853,3 +853,45 @@ def test_a_recalled_reply_is_quoted_as_plain_words() -> None:
         {"role": "user", "content": "what did i say"},
     ])
     assert "I typed \\*\\*this\\*\\*" in own.body["answer"]  # A student's own words are kept.
+
+
+def hours_facts() -> MemoryEntityFacts:
+    base = facts()
+    days = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    entity = deepcopy(base.entities[0])
+    entity["links"].append({"collection": "campus_hours", "source_key": "campus-hours",
+                            "source_record_keys": [f"Registrar:{day}" for day in days]})
+    schedules = [{
+        "id": f"hours-{day}", "source_key": "campus-hours", "source_record_key": f"Registrar:{day}",
+        "name": "Registrar", "day": day,
+        "schedule": "8:30am-4:30pm" if day not in ("Saturday", "Sunday") else "Hours unavailable",
+        "notes": "Fall/Spring Hours: 8:30 A.M. - 4:30 P.M. Monday - Friday",
+        "source_url": "https://example.edu/registrar", "collected_at": NOW,
+        "valid_from": "2026-08-26", "valid_until": "2026-12-16", "content_hash": f"h-{day}",
+        "canonical_url": "https://example.edu/campus-hours", "freshness_sla_hours": 4_320,
+    } for day in days]
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1", entities=[entity],
+        contacts=base.contacts, schedules=schedules, now=lambda: NOW)
+
+
+def test_the_model_can_ask_for_hours_and_the_code_writes_them_with_their_source() -> None:
+    asked = completion("office_facts", {"requests": [
+        {"query": "Registrar", "fields": ["email", "phones", "offices", "hours"]}]})
+    result = answer(ScriptedGateway(asked, finish()), service=hours_facts(),
+                    messages=[{"role": "user", "content": "is the registrar open fridays"}])
+    text = result.body["answer"]
+    assert "Monday to Friday: 8:30am-4:30pm" in text and "Saturday and Sunday" in text
+    assert "published validity 2026-08-26 through 2026-12-16" in text
+    assert {c["collection"] for c in result.body["citations"]} == {"contacts", "campus_hours"}
+    # The fixture publishes no phone or room, so the reply is partial for that reason only.
+    assert "Phones: not published" in text and result.body["status"] == "partial"
+
+
+def test_hours_for_an_office_without_a_schedule_say_not_published() -> None:
+    asked = completion("office_facts", {"requests": [
+        {"query": "Registrar", "fields": ["email", "hours"]}]})
+    result = answer(ScriptedGateway(asked, finish("unsupported")),
+                    messages=[{"role": "user", "content": "registrar hours"}])
+    assert "Hours: not published in the available evidence." in result.body["answer"]
+    assert "published@example.edu" in result.body["answer"]

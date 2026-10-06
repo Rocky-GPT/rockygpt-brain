@@ -96,6 +96,7 @@ def test_fact_route_returns_shared_all_field_result_without_a_model(
         "preferred_contact",
         "contact_note",
         "website",
+        "hours",
     }
     assert response.headers["cache-control"] == "no-store"
 

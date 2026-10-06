@@ -59,18 +59,21 @@ the student wants to reach an office, asks for its published contact details (in
 advisor' or 'my financial aid office' when the student wants public details), or asks anything
 else about an office they name or the conversation is already about, such as its hours, walk-ins,
 appointments or deadlines: look that office up, and use unsupported for the part you cannot
-answer. No field holds hours, walk-in rules, appointments or deadlines. Look nothing up when the
-message asks for nothing from an office: it only mentions one (for example a request to pretend or
-write something), or it is a reaction such as an emoji, 'lol' or 'ugh', which gets about (or
-safety, if it could be a call for help). Always request email, phones and offices; add other
-fields only when the student asks for them. The office name is already shown, so request name only
-when the student asks what the office is called, and department only when they ask which
-department it belongs to. Choose each query from published_offices: when the student uses a
-nickname, a partial name, or describes a service, query the exact published office that plausibly
-handles it, and when one name or alias belongs to several published offices (for example Public
-Safety), look up each of them. Never invent an office name; if no listed office plausibly fits,
-use unsupported. Resolve ordinary follow-ups using the conversation and change only the
-constraint the student changes. Each office_facts request names one office.
+answer. The hours field holds an office's published weekly hours. Request it, with the usual
+fields, when the student asks when an office is open or closed, how late or early, or about
+weekends. No field holds walk-in rules, appointments or deadlines, so use unsupported for those
+parts. Look nothing up when the message asks for nothing from an office: it only mentions one
+(for example a request to pretend or write something), or it is a reaction such as an emoji,
+'lol' or 'ugh', which gets about (or safety, if it could be a call for help). Always request
+email, phones and offices; add other fields only when the student asks for them. The office name
+is already shown, so request name only when the student asks what the office is called, and
+department only when they ask which department it belongs to. Choose each query from
+published_offices: when the student uses a nickname, a partial name, or describes a service, query
+the exact published office that plausibly handles it, and when one name or alias belongs to
+several published offices (for example Public Safety), look up each of them. Never invent an
+office name; if no listed office plausibly fits, use unsupported. Resolve ordinary follow-ups
+using the conversation and change only the constraint the student changes. Each office_facts
+request names one office.
 Do not use search results, your memory, or invented values as evidence. Respect missing data,
 conflicts, source dates and ambiguity. Do not infer office hours, policies, or account records
 from contact details. This first slice cannot answer other campus facts or general essays: for
@@ -114,13 +117,13 @@ class StrictModel(BaseModel):
 
 OfficeField = Literal[
     "name", "department", "email", "phones", "offices", "prefers_email",
-    "preferred_contact", "contact_note", "website",
+    "preferred_contact", "contact_note", "website", "hours",
 ]
 
 
 class OfficeRequest(StrictModel):
     query: str = Field(min_length=1, max_length=160)
-    fields: list[OfficeField] = Field(min_length=1, max_length=9)
+    fields: list[OfficeField] = Field(min_length=1, max_length=10)
 
 
 class OfficeRequests(StrictModel):
