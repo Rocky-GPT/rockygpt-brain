@@ -225,3 +225,36 @@ checks after the repairs and the review fixes: 363 tests passed, one skipped (36
 developer trace below); Ruff and strict
 mypy pass. This is a small, one-reviewer session on synthetic questions and is not a population accuracy estimate. Model behavior still varies
 between runs.
+
+## October 6, 2026: emergency texts, hours, and a 72-question live session
+
+What changed: the danger phrase list and the model now name the kind of emergency, and each kind gets
+its own text (self harm leads with 988; medical and danger lead with 911; fire says to get out and
+call 911 from a safe place, or right away for someone who cannot get out). The code adds the
+published Public Safety (and, for self harm, Counseling Center) numbers after it, read through the
+shared reader with a three second limit and an exact-name rule. An office's linked schedule records
+are now read as its `hours` (see `entity-facts.md`). Refusals point at the office shown above them,
+and a recalled reply is quoted as plain words.
+
+Live session, in the developer UI against the real model and a local release copy with the 17
+nicknames, 66 service labels and the hours reader: 72 messages as one conversation, 0 errors, 118
+model calls, median 5.3 s (phrase-list replies about 0.1 s). 57 answers carried a published contact
+(47 in the previous session), 5 gave hours with their source and 2 said hours are not published (the
+Health Services page states none). The 72 messages are AI-written and partly written by the same
+author as the fixes: they are regression material, not a measure of what students ask. There is no
+real student data yet.
+
+Independent review: five read-only reviewers (safety, hours reader, collector and registry, prompt
+and decision layer, data honesty) reported 29 findings; two skeptics tried to refute each. 26 held
+up, 3 were refuted. All 26 were fixed and each fix has a regression test; 15 of the new tests fail
+on the pre-fix source. The main ones: the emergency numbers could be cut off by the turn deadline
+and turn an emergency reply into a timeout (they now run after the model's time); a near office
+name could stand in for a missing Public Safety (only the exact name counts); two readings of one
+weekday shared a source id; weekday spans could cover days with no record; and 66 aliases were
+labelled reviewed while their notes said nobody had reviewed them (the notes now say Dan approved
+them as a batch). Known and left: a withheld schedule is shown as a known value with its note; the
+phrase list sends a completed assault to the general text until a survivor text is written and
+reviewed (a copy decision for Dan or a counselor).
+
+Local checks after the fixes: 468 Brain tests passed, one skipped; Ruff and strict mypy pass; the
+data repo has 382 tests passing and 5 skipped; the developer UI checks pass.
