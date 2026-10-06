@@ -9,16 +9,20 @@ must not reconcile raw rows or infer its own fact values.
 
 The current rebuild reads **office contact facts and office schedules**. It does not
 yet implement fact projections for people, venues, programs, clubs, events, buildings,
-schools, subjects, courses, or menus. It does not implement developer graph projections,
+schools, subjects, courses, or menus. The development graph-node inspector exposes
+this same office branch. It does not yet implement broad developer graph projections,
 profiles, paginated context groups, or versioned cursors.
 
 The active consumers are:
 
-- The chat `graph_open` tool (after root/category/office traversal), which discovers a canonical office and reads only
-  the requested supported fields. Code renders every retrieved office result;
+- The chat `graph_lookup` tool (one root/category/office traversal in code), which
+  discovers a canonical office and reads only the requested supported fields.
+  Code renders every retrieved office result;
   the model does not select which published values or conflicts survive the answer.
 - `GET /v1/entities/{entity_id}/facts`, which returns the same office facts for
   applications. It requires `dataset_version` and `identity_hash` query parameters.
+- Development-only `GET /v1/dev/graph/node`, which reconstructs the selected node's
+  root path and uses the same fact reader for its records.
 
 `list_offices` returns published office names with their aliases, sorted by name, from
 the same pinned publication, so a caller can choose a published name. It returns at most 200

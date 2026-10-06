@@ -142,12 +142,14 @@ student app never sends it.
 - `trace`: one entry per office lookup the model asked for, in order, recorded before the
   lookup runs so a lookup that fails still appears. A lookup the code makes for an emergency
   reply has `tool` `emergency_contacts` (and status `timeout` when it ran out of time); the model
-  never asks for it. Each has `tool` (`office_facts`),
+  never asks for it. Each has `tool` (`graph_lookup`),
   `arguments.query` and `arguments.fields` as the model sent them, `status` (`ok`,
   `ambiguous`, `not_found`, `data_unavailable`, `dataset_changed` or `rejected`),
   `result_count` (how many offices the search returned; an exact match plus partial matches
   counts them all), `office` when one was chosen, and `candidates` (up to five names) with
-  `truncated` when several fit. A `not_found` or `data_unavailable` entry has neither.
+  `truncated` when several fit. The `path` records navigation from Ramapo to the last reached node. Publication pins,
+  `as_of`, and the rendered `answer` with citations support developer inspection.
+  `traversedBy: "code"` means the model requested one lookup and code followed its path.
 - `metrics`: `decidedBy` (`model`, `phrase_floor` or `error`), `errorCode` when `decidedBy` is
   `error` (also set when a reply was cut short but kept the lookups it had), `situation` (the kind
   of emergency, on an emergency reply), `modelCalls`,
@@ -238,3 +240,11 @@ shared across workers; memory counters are not spending authority.
 For coverage and evaluation limits, see [verification](verification.md). The
 [previous contract draft](historical/contract-pre-office-slice.md) is historical;
 its unimplemented API and streaming promises do not apply to this runtime.
+
+
+Development-only `GET /v1/dev/graph/node` reads a node through the same root-first
+reader. It accepts `node_id`, paired `dataset_version` and `identity_hash` pins,
+an optional timezone-aware `as_of`, and optional comma-separated fact `fields`.
+It returns the node, its path and children, and shared-reader facts for a records
+node. An inactive publication returns 409. The route requires the diagnostics
+header, performs no paid calls or writes, and exposes only the current office branch.
