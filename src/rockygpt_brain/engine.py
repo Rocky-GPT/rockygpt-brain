@@ -9,7 +9,7 @@ import asyncio
 import json
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any, Literal, Protocol
 
@@ -138,6 +138,8 @@ class ModelGateway(Protocol):
 class ChatResult:
     status_code: int
     body: dict[str, Any]
+    # What the turn did, for the developer inspector. The API sends it only in development.
+    trace: dict[str, Any] | None = None
 
 
 @dataclass
@@ -145,6 +147,7 @@ class OfficeResult:
     rendered: Rendered
     error_code: str | None = None
     clarification: bool = False
+    detail: dict[str, Any] = field(default_factory=dict)  # Which office, or which candidates.
 
 
 def answered(turn: Turn, answer: str, status: str, citations: list[dict[str, Any]] | None = None,
@@ -224,6 +227,14 @@ def model_input(turn: Turn, context: Context,
             {"role": "user", "content": json.dumps(state, ensure_ascii=False)}]
 
 
+def _lookup_status(result: OfficeResult) -> str:
+    if result.error_code:
+        return result.error_code
+    if result.clarification:
+        return "ambiguous"
+    return "ok" if "office" in result.detail else "not_found"
+
+
 class ChatEngine:
     def __init__(self, gateway: ModelGateway, facts: EntityFacts, *,
                  turn_seconds: float = TURN_SECONDS, max_turn_nusd: int = 25_000_000) -> None:
@@ -253,18 +264,27 @@ class ChatEngine:
                 text = f"Which office do you mean: {names}?"
                 if found["truncated"]:
                     text += " There are additional matches; a more specific name will help."
-                result = OfficeResult(Rendered(text, complete=False), clarification=True)
+                result = OfficeResult(Rendered(text, complete=False), clarification=True,
+                                      detail={"candidates": [c["name"] for c in candidates[:5]]})
             else:
                 result = OfficeResult(Rendered(
                     "I couldn't find a matching office in the published directory. "
                     "That doesn't establish that the office doesn't exist.", complete=False))
+            result.detail["matches"] = len(candidates)
             return result, version, identity_hash
         facts = self.facts.get_office_facts(
             chosen[0]["entity_id"], list(request.fields), version, identity_hash=identity_hash,
             as_of=as_of)
-        return OfficeResult(render_facts(facts)), version, identity_hash
+        detail = {"office": chosen[0]["name"], "matches": len(candidates)}
+        return OfficeResult(render_facts(facts), detail=detail), version, identity_hash
 
     async def answer(self, turn: Turn, request: ChatRequest) -> ChatResult:
+        trace: dict[str, Any] = {"decidedBy": "model", "modelCalls": 0, "committedNusd": 0,
+                                 "lookups": []}
+        return replace(await self._answer(turn, request, trace), trace=trace)
+
+    async def _answer(self, turn: Turn, request: ChatRequest,
+                      trace: dict[str, Any]) -> ChatResult:
         context = build_context(request)
         budget = TurnBudget(turn.request_id, time.monotonic() + self.turn_seconds,
                             max_cost_nusd=self.max_turn_nusd)
@@ -276,6 +296,7 @@ class ChatEngine:
         except EvidenceUnavailable:
             return failed(turn, "data_unavailable")
         version, identity_hash = listing["dataset_version"], listing["identity_hash"]
+        trace["officesListed"] = len(listing["offices"])
         inputs = model_input(turn, context, listing["offices"])
         attempts = 0
         try:
@@ -289,6 +310,7 @@ class ChatEngine:
                     inputs.extend(completion.output)
                     if call.name == "finish":
                         finish = Finish.model_validate(call.arguments)
+                        trace["finish"] = [part.kind for part in finish.parts]
                         return self._finish(turn, context, finish, results, version)
                     if call.name != "office_facts":
                         raise GatewayError("provider_invalid_response")
@@ -311,6 +333,11 @@ class ChatEngine:
                         except (UnknownEntity, InvalidFactRequest):
                             raise GatewayError("provider_invalid_response") from None
                         results[rid] = result
+                        trace["lookups"].append({
+                            "tool": "office_facts",
+                            "arguments": {"query": office.query, "fields": list(office.fields)},
+                            "status": _lookup_status(result),
+                            "result_count": result.detail.get("matches", 0), **result.detail})
                         output.append({"rendered": result.rendered.text,
                                        "supported": result.rendered.supported,
                                        "complete": result.rendered.complete,
@@ -325,6 +352,7 @@ class ChatEngine:
         except GatewayError as error:
             return self._fallback(turn, results, version, error.code)
         finally:
+            trace["modelCalls"], trace["committedNusd"] = budget.calls, budget.committed_nusd
             LOG.info("brain_turn request_id=%s model_calls=%d committed_nusd=%d tools=%d",
                      turn.request_id, budget.calls, budget.committed_nusd, attempts)
 
