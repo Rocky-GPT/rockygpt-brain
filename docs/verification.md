@@ -1,5 +1,10 @@
 # Current verification
 
+The subsequent root-first `graph_open` implementation and Dev UI traversal trace
+have not been tested or built, at the user's request. The results below predate
+that change and do not verify it. Existing scripted office-tool fixtures have not
+been migrated to the new traversal contract.
+
 This document describes checks for the bounded office-facts rebuild. The
 [September 4 verification report](historical/verification-20260904.md) is historical
 and does not certify the current code.
