@@ -27,12 +27,16 @@ def literal(value: Any) -> str:
 
 
 def readable_quote(content: str, role: str) -> str:
-    """An earlier reply as plain words, so RockyGPT's own formatting never shows as symbols."""
+    """An earlier reply as plain words, so RockyGPT's own formatting never shows as symbols.
+
+    Only unescaped marks are RockyGPT's own formatting. Published text that happened to contain
+    brackets or asterisks was escaped when it was written, and stays as it was published.
+    """
     if role != "assistant":
         return content
-    text = re.sub(r"\\([\\`*_{}\[\]()#!|])", r"\1", content)  # Undo the escaping literal() adds.
-    text = re.sub(r"\[([^\]]*)\]\([^)\s]*\)", r"\1", text)  # [label](url) becomes label.
-    return re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"(?<!\\)\[([^\]]*)\]\([^)\s]*\)", r"\1", content)  # [label](url) becomes label.
+    text = re.sub(r"(?<!\\)\*\*(.+?)(?<!\\)\*\*", r"\1", text)
+    return re.sub(r"\\([\\`*_{}\[\]()#!|])", r"\1", text)  # Undo the escaping literal() adds.
 
 
 def citation_url(value: Any) -> str | None:
@@ -81,23 +85,37 @@ def _value_text(key: str, value: Any) -> str:
     return literal(value)
 
 
+_WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
+
 def _day_span(first: str, last: str, count: int) -> str:
     if count == 1:
         return first
     return f"{first} and {last}" if count == 2 else f"{first} to {last}"
 
 
+def _plain_name(name: str) -> str:
+    """A name without a trailing abbreviation such as "(CSI)", which adds nothing to read."""
+    return re.sub(r"\s*\([A-Z]{2,6}\)\s*$", "", name).casefold().strip()
+
+
 def _hours_text(value: dict[str, Any], *, name_it: bool) -> str:
-    """One schedule as published: runs of weekdays with the same text share one span."""
-    runs: list[list[Any]] = []
+    """One schedule as published. Next weekdays with the same text share a span; a day with no
+    record is never covered by one."""
+    runs: list[dict[str, Any]] = []
     for entry in value["days"]:
-        if runs and runs[-1][2] == entry["hours"]:
-            runs[-1][1], runs[-1][3] = entry["day"], runs[-1][3] + 1
+        day = entry["day"]
+        index = _WEEKDAYS.index(day) if day in _WEEKDAYS else None
+        last = runs[-1] if runs else None
+        if (last and last["hours"] == entry["hours"] and index is not None
+                and last["index"] is not None and index == last["index"] + 1):
+            last.update(last=day, index=index, count=last["count"] + 1)
         else:
-            runs.append([entry["day"], entry["day"], entry["hours"], 1])
+            runs.append({"first": day, "last": day, "hours": entry["hours"], "index": index,
+                         "count": 1})
     text = "; ".join(
-        f"{literal(_day_span(first, last, count))}: {literal(hours)}"
-        for first, last, hours, count in runs
+        f"{literal(_day_span(r['first'], r['last'], r['count']))}: {literal(r['hours'])}"
+        for r in runs
     )
     if name_it and value.get("schedule"):
         text = f"{literal(value['schedule'])}. {text}"
@@ -231,13 +249,12 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
                 if not value_current:
                     prefix += " (dated observation; current value unverified)"
                 if prop["key"] == "hours":
-                    # A schedule name is shown when there are several, or when it isn't the
-                    # office's own name (the heading already says that).
-                    own = str(value["value"].get("schedule", "")).casefold()
+                    # A schedule name is shown when there are several, or when it says more than
+                    # the office's own name (the heading already says that).
+                    own = _plain_name(str(value["value"].get("schedule", "")))
                     formatted = _hours_text(
                         value["value"],
-                        name_it=len(prop["values"]) > 1
-                        or str(entity["name"]).casefold() not in own,
+                        name_it=len(prop["values"]) > 1 or own != _plain_name(str(entity["name"])),
                     )
                 else:
                     formatted = _value_text(prop["key"], value["value"])

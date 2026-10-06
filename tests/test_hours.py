@@ -196,6 +196,21 @@ def test_two_readings_of_one_day_in_one_window_are_a_conflict() -> None:
     assert fridays == ["8:30am-3:00pm", "8:30am-4:30pm"]
 
 
+def test_a_conflict_on_a_later_weekday_keeps_every_reading_with_its_own_source() -> None:
+    # Monday has one record and Friday two: both readings start from Monday's row.
+    changed = {"Friday": "8:30am-3:00pm"}
+    rows = schedule_rows(tag="a") + schedule_rows(week=changed, tag="b")
+    result = hours(reader(rows))
+    prop = hours_property(result)
+    assert prop["status"] == "conflicting" and len(prop["values"]) == 2
+    source_ids = [s["id"] for s in result["sources"] if s["collection"] == "campus_hours"]
+    assert len(source_ids) == len(set(source_ids)) == 2
+    assertion_ids = [a["id"] for a in prop["assertions"]]
+    assert len(assertion_ids) == len(set(assertion_ids)) == 2
+    text = render_facts(result).text  # Rendering a conflict must not raise.
+    assert "conflicting published records" in text and text.count("Published value:") == 2
+
+
 def test_identical_records_for_one_day_are_one_reading() -> None:
     rows = schedule_rows(tag="a") + schedule_rows(tag="b")
     prop = hours_property(hours(reader(rows)))
@@ -263,6 +278,23 @@ def test_rendering_names_a_schedule_only_when_it_adds_something() -> None:
     assert "Hours: Game Lab. Monday to Friday: 8:30am-4:30pm" in renamed
 
 
+def test_a_weekday_with_no_record_is_never_covered_by_a_span() -> None:
+    week = {"Monday": "9am-5pm", "Tuesday": "9am-5pm", "Thursday": "9am-5pm", "Saturday": "9am-5pm"}
+    text = render_facts(hours(reader(schedule_rows(week=week)))).text
+    assert "Monday and Tuesday: 9am-5pm; Thursday: 9am-5pm; Saturday: 9am-5pm" in text
+    assert "Monday to" not in text and "Wednesday" not in text
+    gap = {"Monday": "9am-5pm", "Wednesday": "9am-5pm", "Friday": "9am-5pm"}
+    assert "Monday: 9am-5pm; Wednesday: 9am-5pm; Friday: 9am-5pm" in render_facts(
+        hours(reader(schedule_rows(week=gap)))).text
+
+
+def test_a_qualified_schedule_name_is_shown_even_for_one_schedule() -> None:
+    qualified = render_facts(hours(reader(
+        schedule_rows("Library Research Help Desk", {d: "9am-9pm" for d in DAYS}, tag="r"),
+        office(name="Library", schedules=["Library Research Help Desk"])))).text
+    assert "Hours: Library Research Help Desk. Monday to Sunday: 9am-9pm" in qualified
+
+
 def test_text_is_quoted_not_executed() -> None:
     rows = schedule_rows(note="<b>Open</b> [x](http://evil.example) *now*")
     text = render_facts(hours(reader(rows))).text
@@ -310,11 +342,20 @@ def test_a_row_that_is_not_linked_to_the_office_fails_the_read() -> None:
 
 
 def test_too_many_schedule_rows_fail_instead_of_being_cut_short() -> None:
+    # Each link may name up to 128 records; two links can still pass the link check and then
+    # return more rows than one read allows.
     rows = []
     for n in range(20):
         rows += schedule_rows(f"Schedule {n}", tag=f"s{n}")
-    entity = office(schedules=[f"Schedule {n}" for n in range(20)])
-    with pytest.raises(EvidenceUnavailable):
+    entity = office()
+    entity["links"] = [
+        entity["links"][0],
+        {"collection": "campus_hours", "source_key": "campus-hours",
+         "source_record_keys": [f"Schedule {n}:{day}" for n in range(10) for day in DAYS]},
+        {"collection": "campus_hours", "source_key": "campus-hours",
+         "source_record_keys": [f"Schedule {n}:{day}" for n in range(10, 20) for day in DAYS]},
+    ]
+    with pytest.raises(EvidenceUnavailable, match="exceeds the bounded read"):
         hours(reader(rows, entity))
 
 
