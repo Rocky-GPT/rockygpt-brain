@@ -507,6 +507,7 @@ class EntityFacts:
         dataset_version: str | None = None,
         identity_hash: str | None = None,
         limit: int = 200,
+        with_ids: bool = False,
     ) -> dict[str, Any]:
         """Published office names and aliases, so callers choose real names, not guesses."""
         if not 1 <= limit <= 500:
@@ -514,7 +515,8 @@ class EntityFacts:
         with self.snapshot() as snapshot:
             self._pin(snapshot, dataset_version, identity_hash)
             offices = sorted(
-                ({"name": entity["name"], "aliases": sorted(set(entity["aliases"]))}
+                ({"name": entity["name"], "aliases": sorted(set(entity["aliases"])),
+                  **({"entity_id": entity["id"]} if with_ids else {})}
                  for entity in snapshot.entities if entity["kind"] == "office"),
                 key=lambda office: office["name"],
             )
