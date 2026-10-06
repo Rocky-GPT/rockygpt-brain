@@ -79,6 +79,20 @@ and [evaluation notes](evals/README.md). Earlier modules, runners, and reports r
 as [historical evidence](docs/historical/README.md); they do not describe the active
 answering path.
 
+## Release graph (optional, off by default)
+
+Postgres stays the source of truth. With `BRAIN_GRAPH_DIR` set to a writable directory and the
+`graph` extra installed (`pip install -e '.[graph]'`, which adds LadybugDB), the Brain keeps a
+read-only graph-database copy of the active release (`retrieval/graph_store.py`). It builds the
+file on first use, reuses it until the active release changes, and deletes the old file. The
+graph hands the shared reader the same entities and the same linked evidence rows the source
+returned, joined by edges; the reader still resolves every value, conflict, unknown and date
+boundary. If the graph cannot be built or opened, reads fall back to the source for 60 seconds
+at a time, so a graph problem never takes campus answers down. The directory belongs to one
+Brain process. On Render's free tier the disk is erased on every sleep, so the file is rebuilt
+after each wake (about 0.6 seconds for the development release). The developer runtime page
+shows which store is serving (`factsBackend`).
+
 ## Root-first traversal
 
 Each chat turn receives the Ramapo navigation root. One `graph_lookup` request

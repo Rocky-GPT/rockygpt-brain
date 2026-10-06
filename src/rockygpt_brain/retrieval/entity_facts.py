@@ -603,6 +603,8 @@ def schedule_property(
 class EntityFacts:
     """Shared office search and canonical fact reader; adapters supply one snapshot."""
 
+    backend = "unspecified"  # Which store the adapter reads, shown by the developer runtime page.
+
     def __init__(self, *, now: Callable[[], datetime] | None = None) -> None:
         self.now = now or (lambda: datetime.now(UTC))
 
@@ -610,6 +612,15 @@ class EntityFacts:
     def snapshot(self) -> Iterator[Snapshot]:
         raise NotImplementedError
         yield  # pragma: no cover
+
+    def active_release(self) -> tuple[str, str]:
+        """The (dataset_version, identity_hash) of the active publication.
+
+        A derived store asks this before reading, so it can follow a new release. Adapters
+        that can answer without reading the whole registry should override it.
+        """
+        with self.snapshot() as snapshot:
+            return snapshot.dataset_version, snapshot.identity_hash
 
     @staticmethod
     def _pin(snapshot: Snapshot, version: str | None, identity_hash: str | None) -> None:
@@ -846,6 +857,8 @@ class EntityFacts:
 
 class MemoryEntityFacts(EntityFacts):
     """Same resolver with explicit published fixtures; never a production fallback."""
+
+    backend = "memory"
 
     def __init__(
         self,

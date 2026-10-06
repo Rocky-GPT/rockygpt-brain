@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, Header, Query, Request
@@ -27,11 +28,13 @@ from rockygpt_brain.failures import failure
 from rockygpt_brain.provider import Gateway, GatewayError
 from rockygpt_brain.retrieval import (
     DatasetChanged,
+    EntityFacts,
     EvidenceUnavailable,
     InvalidFactRequest,
     PostgresEntityFacts,
     UnknownEntity,
 )
+from rockygpt_brain.retrieval.graph_store import GraphUnavailable, ReleaseGraphFacts
 from rockygpt_brain.settings import ConfigurationError, ProviderSettings
 from rockygpt_brain.spending import SpendingError
 from rockygpt_brain.timing import measure, request_timing
@@ -145,8 +148,16 @@ def _configured_engine() -> ChatEngine:
     database_url = os.getenv("DATABASE_URL", "").strip()
     if not database_url:
         raise ConfigurationError("Missing DATABASE_URL")
-    return ChatEngine(Gateway(settings), PostgresEntityFacts(database_url),
-                      max_turn_nusd=settings.max_turn_nusd)
+    facts: EntityFacts = PostgresEntityFacts(database_url)
+    # Off unless set: the graph is a derived copy of the active release that Postgres still owns.
+    graph_directory = os.getenv("BRAIN_GRAPH_DIR", "").strip()
+    if graph_directory:
+        try:
+            facts = ReleaseGraphFacts(facts, Path(graph_directory))
+        except GraphUnavailable as error:
+            LOG.error("brain_graph_store_not_installed")
+            raise ConfigurationError("BRAIN_GRAPH_DIR is set but LadybugDB is missing") from error
+    return ChatEngine(Gateway(settings), facts, max_turn_nusd=settings.max_turn_nusd)
 
 
 def create_app(engine: ChatEngine | None = None, *, service_token: str | None = None,
