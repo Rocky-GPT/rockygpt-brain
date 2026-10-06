@@ -274,6 +274,7 @@ def test_model_cannot_omit_missing_evidence_to_report_full_success() -> None:
 @pytest.mark.parametrize(("kind", "phrase"), [
     ("greeting", "Which office do you need?"),
     ("thanks", "You're welcome"),
+    ("okay", "call 911, or call or text 988"),
     ("about", "I can't see your personal student records"),
 ])
 def test_small_talk_gets_a_fixed_server_written_reply_not_an_error(kind: str, phrase: str) -> None:
@@ -592,3 +593,33 @@ def test_the_trace_shows_five_candidates_and_how_many_matched() -> None:
     assert entry["status"] == "ambiguous" and entry["result_count"] == 7
     assert entry["candidates"] == [f"Student Office {n}" for n in range(5)]
     assert entry["truncated"] is False
+
+
+def test_an_all_clear_is_not_answered_as_a_thank_you() -> None:
+    result = answer(ScriptedGateway(finish("okay")), messages=[
+        {"role": "user", "content": "someone collapsed in the caf"},
+        {"role": "assistant", "content": SAFETY_MESSAGE},
+        {"role": "user", "content": "update: it was a false alarm, no need to send anyone"},
+    ])
+    assert result.status_code == 200 and result.body["status"] == "answered"
+    assert "You're welcome" not in result.body["answer"]
+    assert "911" in result.body["answer"] and result.body["citations"] == []
+
+
+def test_a_named_office_is_looked_up_even_when_the_rest_cannot_be_answered() -> None:
+    result = answer(ScriptedGateway(LOOKUP, finish("unsupported")), messages=[
+        {"role": "user", "content": "is the registrar open fridays"}])
+    assert "published@example.edu" in result.body["answer"]
+    assert "I don't have verified information" in result.body["answer"]
+    assert result.body["status"] == "partial"
+
+
+def test_a_name_row_is_not_added_beside_the_contact_fields_the_student_needs() -> None:
+    with_email = completion("office_facts", {"requests": [
+        {"query": "Registrar", "fields": ["name", "email"]}]})
+    result = answer(ScriptedGateway(with_email, finish()))
+    assert "published@example.edu" in result.body["answer"]
+    assert "Name" not in result.body["answer"]
+    only_name = completion("office_facts", {"requests": [
+        {"query": "Registrar", "fields": ["name"]}]})
+    assert "Name" in answer(ScriptedGateway(only_name, finish())).body["answer"]

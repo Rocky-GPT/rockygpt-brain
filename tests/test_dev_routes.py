@@ -12,7 +12,10 @@ from rockygpt_brain.boundary import CAPABILITY_MESSAGE, SAFETY_MESSAGE
 from rockygpt_brain.context import build_context
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import (
+    AMBIGUOUS_TEXT,
+    CLOCK_TEXT,
     MODEL_INPUT_KEYS,
+    RECALL_TEXT,
     SYSTEM_PROMPT,
     UNSUPPORTED_MESSAGE,
     AnswerPart,
@@ -85,7 +88,7 @@ def test_runtime_describes_the_prompt_tools_parts_and_fixed_texts_the_engine_rea
     texts = {item["id"]: item["text"] for item in body["fixedTexts"]}
     assert texts["safety"] == SAFETY_MESSAGE and texts["capability"] == CAPABILITY_MESSAGE
     assert texts["unsupported"] == UNSUPPORTED_MESSAGE
-    assert {"greeting", "thanks", "about", "not_found", "incomplete"} <= set(texts)
+    assert {"greeting", "thanks", "okay", "about", "not_found", "incomplete"} <= set(texts)
     assert body["limits"]["maxTurnNusd"] == 25_000_000 and body["limits"]["maxModelCalls"] == 4
     assert body["model"] is None  # No real gateway here, so there is no price table.
 
@@ -122,3 +125,45 @@ def test_the_chat_route_and_probes_are_unchanged_by_the_dev_routes(environment: 
     application = create_app(engine(), service_token="t", environment=environment)  # noqa: S106
     with TestClient(application) as http:
         assert http.get("/health").status_code == 200
+
+
+def test_the_search_says_what_a_lookup_would_do_using_the_engines_own_rule() -> None:
+    shared = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[
+            {"id": "a", "name": "Public Safety (Emergency)", "kind": "office",
+             "aliases": ["Campus Police"], "links": []},
+            {"id": "b", "name": "Public Safety (Non-Emergency)", "kind": "office",
+             "aliases": ["Campus Police"], "links": []},
+            {"id": "c", "name": "Registrar", "kind": "office", "aliases": [], "links": []},
+        ],
+        contacts=[], now=lambda: NOW)
+    application = create_app(ChatEngine(NoGateway(), shared), service_token="",
+                             environment="development")
+    with TestClient(application) as http:
+        def ask(text: str) -> dict[str, Any]:
+            found = http.get("/v1/dev/offices/search", params={"q": text}, headers=ASKED)
+            return dict(found.json())
+
+        one_exact = ask("registrar")
+        two_exact = ask("campus police")
+        one_partial = ask("registr")
+        none = ask("cafeteria")
+    assert (one_exact["outcome"], one_exact["chosen"]) == ("answers", ["Registrar"])
+    assert (two_exact["outcome"], two_exact["chosen"]) == ("asks", [])
+    assert (one_partial["outcome"], one_partial["chosen"]) == ("answers", ["Registrar"])
+    assert (none["outcome"], none["candidates"]) == ("not_found", [])
+
+
+def test_every_fixed_text_says_who_picks_it_and_matches_the_template_the_engine_uses() -> None:
+    with client() as http:
+        body = http.get("/v1/dev/runtime", headers=ASKED).json()
+    entries = {item["id"]: item for item in body["fixedTexts"]}
+    assert all(item["pickedBy"] for item in entries.values())
+    assert entries["ambiguous"]["text"] == AMBIGUOUS_TEXT.format(names="<up to five office names>")
+    assert entries["clock"]["text"] == CLOCK_TEXT.format(
+        when="<weekday, month day, year at time and zone>")
+    assert entries["recall"]["text"] == RECALL_TEXT.format(
+        speaker="<you or RockyGPT>", quote="> <the quoted message>")
+    assert entries["safety"]["pickedBy"] == ["the danger phrase list", "the model"]
+    assert body["nusdPerDollar"] == 1_000_000_000

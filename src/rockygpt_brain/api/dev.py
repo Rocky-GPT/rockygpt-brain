@@ -11,6 +11,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import JSONResponse
 
+from rockygpt_brain.engine import lookup_choice
 from rockygpt_brain.failures import failure
 from rockygpt_brain.retrieval import EvidenceUnavailable, InvalidFactRequest
 from rockygpt_brain.turn import new_id
@@ -64,9 +65,14 @@ def add_dev_routes(application: FastAPI) -> None:
         except (EvidenceUnavailable, TimeoutError):
             return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
                            retryable=True)
+        outcome, chosen = lookup_choice(found["candidates"], found["truncated"])
         return JSONResponse({
             "query": q, "datasetVersion": found["dataset_version"],
             "identityHash": found["identity_hash"], "truncated": found["truncated"],
+            # What a lookup does with this result, decided by the engine's own function:
+            # answer for one office, ask which, or find none.
+            "outcome": outcome,
+            "chosen": [c["name"] for c in chosen] if outcome == "answers" else [],
             "candidates": [{"entityId": c["entity_id"], "name": c["name"], "match": c["match"]}
                            for c in found["candidates"]],
         }, headers=NO_STORE)
