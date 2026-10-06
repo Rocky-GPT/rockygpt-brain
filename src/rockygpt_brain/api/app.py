@@ -197,9 +197,12 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
                 result = await _connected_answer(application.state.engine, turn, request, transport)
         body = result.body
         if active_environment == "development" and transport.headers.get(DEBUG_HEADER) == "1":
-            trace = result.trace or {"decidedBy": "error"}
-            body = {**body, "trace": trace.get("lookups", []),
-                    "metrics": {k: v for k, v in trace.items() if k != "lookups"}}
+            if result.trace is None:  # The turn failed outside the engine, so nothing was kept.
+                body = {**body, "metrics": {"decidedBy": "error"}}
+            else:
+                trace = result.trace
+                body = {**body, "trace": trace.get("lookups", []),
+                        "metrics": {k: v for k, v in trace.items() if k != "lookups"}}
         return JSONResponse(body, status_code=result.status_code,
                             headers={"X-Request-Id": turn.request_id, "Cache-Control": "no-store"})
 

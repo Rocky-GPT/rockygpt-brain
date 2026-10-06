@@ -183,3 +183,12 @@ def test_the_phrase_floor_reports_that_it_decided() -> None:
         ).json()
     assert body["metrics"] == {"decidedBy": "phrase_floor", "modelCalls": 0}
     assert body["trace"] == [] and engine.calls == 0
+
+
+def test_a_crash_outside_the_trace_sends_no_trace_rather_than_an_empty_one() -> None:
+    engine = BoundaryEngine(RuntimeError("boom"))
+    with TestClient(create_app(engine, service_token="", environment="development")) as client:
+        response = client.post("/v1/chat", json=QUESTION, headers={"x-rockygpt-diagnostics": "1"})
+    body = response.json()
+    assert response.status_code == 503 and body["reason"] == "internal_error"
+    assert "trace" not in body and body["metrics"] == {"decidedBy": "error"}
