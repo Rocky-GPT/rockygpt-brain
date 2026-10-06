@@ -41,6 +41,7 @@ from rockygpt_brain.retrieval import (
     UnknownEntity,
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph
+from rockygpt_brain.timing import measure
 from rockygpt_brain.turn import Turn
 
 LOG = logging.getLogger(__name__)
@@ -263,6 +264,7 @@ ERRORS: dict[str, tuple[int, str, bool]] = {
 }
 
 
+@measure("Prepare failure response")
 def failed(turn: Turn, code: str) -> ChatResult:
     status, message, retryable = ERRORS.get(code, (503, "RockyGPT is unavailable.", True))
     error: dict[str, Any] = {"code": code, "message": message, "retryable": retryable,
@@ -459,7 +461,8 @@ class ChatEngine:
                 return OfficeResult(Rendered(text, complete=False), clarification=True, detail=detail)
             return OfficeResult(Rendered(NOT_FOUND_TEXT, complete=False), detail=detail)
         detail["office"] = opened["office"]
-        rendered = render_facts(opened["facts"])
+        with measure("Render verified evidence"):
+            rendered = render_facts(opened["facts"])
         detail["answer"] = {"text": rendered.text, "citations": rendered.citations,
                             "complete": rendered.complete}
         return OfficeResult(rendered, detail=detail)
@@ -476,36 +479,39 @@ class ChatEngine:
 
     async def _answer(self, turn: Turn, request: ChatRequest,
                       trace: dict[str, Any]) -> ChatResult:
-        context = build_context(request)
-        budget = TurnBudget(turn.request_id, time.monotonic() + self.turn_seconds,
-                            max_cost_nusd=self.max_turn_nusd)
-        results: dict[str, OfficeResult] = {}
-        version: str | None = None
-        identity_hash: str | None = None
-        graph = CampusGraph(self.facts)
-        trace["root"] = graph.root()
-        inputs = model_input(turn, context, graph.root())
+        with measure("Prepare conversation and root"):
+            context = build_context(request)
+            budget = TurnBudget(turn.request_id, time.monotonic() + self.turn_seconds,
+                                max_cost_nusd=self.max_turn_nusd)
+            results: dict[str, OfficeResult] = {}
+            version: str | None = None
+            identity_hash: str | None = None
+            graph = CampusGraph(self.facts)
+            trace["root"] = graph.root()
+            inputs = model_input(turn, context, graph.root())
         attempts = 0
         finish: Finish | None = None
         try:
             async with asyncio.timeout(self.turn_seconds):
                 while finish is None:
-                    completion = await self.gateway.complete(
-                        input=inputs, tools=TOOLS, budget=budget)
-                    if len(completion.tool_calls) != 1 or completion.text.strip():
-                        raise GatewayError("provider_invalid_response")
-                    call = completion.tool_calls[0]
-                    inputs.extend(completion.output)
-                    if call.name == "finish":
-                        finish = Finish.model_validate(call.arguments)
-                        trace["finish"] = [part.kind for part in finish.parts]
-                        continue
-                    if call.name != "graph_lookup":
-                        raise GatewayError("provider_invalid_response")
-                    requests = GraphRequests.model_validate(call.arguments).requests
-                    attempts += len(requests)
-                    if attempts > MAX_TOOL_ATTEMPTS or len(results) + len(requests) > MAX_RESULTS:
-                        raise GatewayError("turn_budget_exhausted")
+                    with measure(f"Model call {budget.calls + 1}"):
+                        completion = await self.gateway.complete(
+                            input=inputs, tools=TOOLS, budget=budget)
+                    with measure("Validate model decision and tool arguments"):
+                        if len(completion.tool_calls) != 1 or completion.text.strip():
+                            raise GatewayError("provider_invalid_response")
+                        call = completion.tool_calls[0]
+                        inputs.extend(completion.output)
+                        if call.name == "finish":
+                            finish = Finish.model_validate(call.arguments)
+                            trace["finish"] = [part.kind for part in finish.parts]
+                            continue
+                        if call.name != "graph_lookup":
+                            raise GatewayError("provider_invalid_response")
+                        requests = GraphRequests.model_validate(call.arguments).requests
+                        attempts += len(requests)
+                        if attempts > MAX_TOOL_ATTEMPTS or len(results) + len(requests) > MAX_RESULTS:
+                            raise GatewayError("turn_budget_exhausted")
                     output: list[dict[str, Any]] = []
                     for item in requests:
                         # A fresh traversal per query, pinned to the turn's first publication.
@@ -518,8 +524,9 @@ class ChatEngine:
                         entry["as_of"] = turn.campus_now.isoformat()
                         trace["lookups"].append(entry)
                         try:
-                            result = await asyncio.to_thread(
-                                self._lookup, item, traversal, turn.campus_now)
+                            with measure(f"Lookup {len(trace['lookups'])}"):
+                                result = await asyncio.to_thread(
+                                    self._lookup, item, traversal, turn.campus_now)
                         except DatasetChanged:
                             entry["status"] = "dataset_changed"
                             raise GatewayError("dataset_changed") from None
@@ -547,12 +554,14 @@ class ChatEngine:
                                        "complete": result.rendered.complete,
                                        "clarification": result.clarification,
                                        "error": result.error_code})
-                    inputs.append({"type": "function_call_output", "call_id": call.call_id,
-                                   "output": json.dumps(output, ensure_ascii=False)})
+                    with measure("Prepare lookup output for model"):
+                        inputs.append({"type": "function_call_output", "call_id": call.call_id,
+                                       "output": json.dumps(output, ensure_ascii=False)})
             # Outside the model's time: the emergency numbers have their own short limit, and
             # the turn deadline must never turn an emergency reply into a timeout.
-            return await self._finish(turn, context, finish, results, version, identity_hash,
-                                      trace)
+            with measure("Compose final response"):
+                return await self._finish(turn, context, finish, results, version, identity_hash,
+                                          trace)
         except TimeoutError:
             return self._fallback(turn, results, version, "model_timeout")
         except ValidationError:
@@ -576,17 +585,19 @@ class ChatEngine:
                  if n not in shown]
         entries = [{"tool": "emergency_contacts", "status": "failed", "result_count": 0,
                     "arguments": {"query": n, "fields": list(HELP_FIELDS)}} for n in names]
+        first_lookup = len(trace["lookups"]) + 1
         trace["lookups"].extend(entries)
 
         def read() -> list[tuple[dict[str, Any], Rendered | None]]:
             # Works on its own results: a read that outlives the timeout must not touch the trace.
             read_results: list[tuple[dict[str, Any], Rendered | None]] = []
-            for name in names:
+            for lookup_number, name in enumerate(names, start=first_lookup):
                 try:
-                    result = self._lookup(
-                        OfficeRequest(query=name, fields=HELP_FIELDS),
-                        CampusGraph(self.facts, dataset_version=version, identity_hash=identity_hash),
-                        as_of, exact_name_only=True)
+                    with measure(f"Lookup {lookup_number}"):
+                        result = self._lookup(
+                            OfficeRequest(query=name, fields=HELP_FIELDS),
+                            CampusGraph(self.facts, dataset_version=version, identity_hash=identity_hash),
+                            as_of, exact_name_only=True)
                 except Exception as error:  # Best effort: the emergency text never depends on it.
                     LOG.warning("brain_campus_help_unreadable office=%s exception_type=%s",
                                 name, type(error).__name__)
@@ -604,7 +615,8 @@ class ChatEngine:
             return []
         try:
             async with asyncio.timeout(HELP_SECONDS):
-                read_results = await asyncio.to_thread(read)
+                with measure("Read emergency contact evidence"):
+                    read_results = await asyncio.to_thread(read)
         except TimeoutError:
             LOG.warning("brain_campus_help_timeout")
             for entry in entries:
@@ -623,10 +635,12 @@ class ChatEngine:
         kind = situation or "other"
         trace: dict[str, Any] = {"decidedBy": "phrase_floor", "modelCalls": 0, "committedNusd": 0,
                                  "situation": kind, "lookups": []}
-        help_ = await self._campus_help([kind], trace, None, None, turn.campus_now)
-        citations = {c["id"]: c for r in help_ for c in r.citations}
-        text = "\n\n".join(self._emergency_chunks([kind], help_))
-        return replace(answered(turn, text, "partial", list(citations.values())), trace=trace)
+        with measure("Look up emergency contacts"):
+            help_ = await self._campus_help([kind], trace, None, None, turn.campus_now)
+        with measure("Compose safety response"):
+            citations = {c["id"]: c for r in help_ for c in r.citations}
+            text = "\n\n".join(self._emergency_chunks([kind], help_))
+            return replace(answered(turn, text, "partial", list(citations.values())), trace=trace)
 
     async def _finish(self, turn: Turn, context: Context, finish: Finish,
                       results: dict[str, OfficeResult], version: str | None,
@@ -716,6 +730,7 @@ class ChatEngine:
             "answered" if supported else ("clarification" if clarify else "unavailable"))
         return answered(turn, text, status, list(citations.values()), version)
 
+    @measure("Compose partial or failed response")
     def _fallback(self, turn: Turn, results: dict[str, OfficeResult], version: str | None,
                   code: str) -> ChatResult:
         # Keep independently retrieved requested facts even if a later provider call fails.

@@ -18,6 +18,7 @@ from openai import APIStatusError, APITimeoutError, AsyncOpenAI
 
 from rockygpt_brain.settings import ProviderSettings
 from rockygpt_brain.spending import Ledger, PostgresLedger, Reservation, SpendingError
+from rockygpt_brain.timing import measure
 
 LOG = logging.getLogger(__name__)
 
@@ -202,7 +203,8 @@ class Gateway:
 
     async def _uncertain(self, reservation: Reservation, code: str) -> None:
         try:
-            await self.ledger.uncertain(reservation, code)
+            with measure("Record uncertain model charge"):
+                await self.ledger.uncertain(reservation, code)
         except SpendingError:
             # The original reserved row still consumes the full allowance.
             pass
@@ -247,24 +249,28 @@ class Gateway:
         reserve_cost = settings.prices.cost(input_bound, settings.max_output_tokens)
         if budget.committed_nusd + reserve_cost > budget.max_cost_nusd:
             raise GatewayError("turn_budget_exhausted")
-        reservation = await self.ledger.reserve(
-            budget.request_id, reserve_cost,
-            {"provider": "openai", "project": settings.project,
-             "price": settings.prices.metadata(), "input_token_bound": input_bound,
-             "max_output_tokens": settings.max_output_tokens}, self._now(),
-        )
+        with measure("Reserve model allowance"):
+            reservation = await self.ledger.reserve(
+                budget.request_id, reserve_cost,
+                {"provider": "openai", "project": settings.project,
+                 "price": settings.prices.metadata(), "input_token_bound": input_bound,
+                 "max_output_tokens": settings.max_output_tokens}, self._now(),
+            )
         budget.committed_nusd += reserve_cost
         remaining = budget.deadline - self._monotonic()
         if remaining <= 0 or not settings.prices.valid(self._now()):
-            await self.ledger.release(reservation, "not_sent_deadline_or_price", self._now())
+            with measure("Release unused model allowance"):
+                await self.ledger.release(reservation, "not_sent_deadline_or_price", self._now())
             budget.committed_nusd -= reserve_cost
             raise GatewayError("deadline_exceeded" if remaining <= 0 else "model_not_configured")
         budget.calls += 1
         try:
             async with asyncio.timeout(remaining):
-                response = await self.transport.send(request, remaining)
+                with measure("Provider request · network and model"):
+                    response = await self.transport.send(request, remaining)
         except NotSentError as error:
-            await self.ledger.release(reservation, "not_sent", self._now())
+            with measure("Release unused model allowance"):
+                await self.ledger.release(reservation, "not_sent", self._now())
             budget.committed_nusd -= reserve_cost
             raise GatewayError("provider_unavailable", retryable=True) from error
         except asyncio.CancelledError:
@@ -289,7 +295,8 @@ class Gateway:
             await self._uncertain(reservation, code)
             raise GatewayError(code, retryable=retryable) from error
         try:
-            usage = _usage(response)
+            with measure("Validate model usage"):
+                usage = _usage(response)
         except GatewayError:
             await self._uncertain(reservation, "invalid_usage")
             raise
@@ -299,17 +306,21 @@ class Gateway:
             # The configured rates cannot price an unexpected model. Preserve
             # the full hold and pause admission for operator reconciliation.
             await self._uncertain(reservation, "provider_model_mismatch")
-            await self.ledger.pause()
+            with measure("Pause model spending"):
+                await self.ledger.pause()
             raise GatewayError("provider_model_mismatch")
         # Charge known usage even when the rest of the response is malformed.
-        await self.ledger.settle(
-            reservation, actual, usage.as_dict(),
-            response_id if isinstance(response_id, str) else "",
-            returned_model if isinstance(returned_model, str) else "", self._now(),
-        )
+        with measure("Settle model usage"):
+            await self.ledger.settle(
+                reservation, actual, usage.as_dict(),
+                response_id if isinstance(response_id, str) else "",
+                returned_model if isinstance(returned_model, str) else "", self._now(),
+            )
         budget.committed_nusd += actual - reserve_cost
         if (actual > reserve_cost or usage.output_tokens > settings.max_output_tokens
                 or usage.input_tokens > input_bound):
-            await self.ledger.pause()
+            with measure("Pause model spending"):
+                await self.ledger.pause()
             raise GatewayError("provider_usage_exceeded")
-        return _completion(response, usage)
+        with measure("Decode model decision"):
+            return _completion(response, usage)

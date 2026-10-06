@@ -99,5 +99,9 @@ and citations. `GET /v1/dev/graph/node` lets the developer UI inspect a reached 
 through the same root path, without model calls. Trace links carry the publication,
 fields and lookup time; a publication change returns 409 instead of mixing releases.
 
-The single-request traversal and graph inspector have not been tested or built at
+Development diagnostics also partition request time into non-overlapping measured
+steps, with a total header that includes response encoding. See [the timing
+contract](docs/contract.md#developer-diagnostics).
+
+The single-request traversal, graph inspector and request timing have not been tested or built at
 the user's request. Earlier saved results do not verify these changes.

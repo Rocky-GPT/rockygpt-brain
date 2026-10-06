@@ -1,7 +1,7 @@
 # Current verification
 
 The subsequent single-request `graph_lookup` implementation, graph-node inspector
-and clickable Dev UI traversal trace have not been tested or built, at the user's request. The results below predate
+and clickable Dev UI traversal trace, request timing, and tab persistence have not been tested or built, at the user's request. The results below predate
 that change and do not verify it. Existing scripted office-tool fixtures have not
 been migrated to the new traversal contract.
 
