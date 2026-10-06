@@ -1,13 +1,26 @@
 """Turn-local root-first navigation over the shared office evidence reader.
 
 Root/category edges organize navigation; only the shared reader supplies facts.
-Children must be discovered before they can be opened, even on follow-up turns.
+One lookup walks the root, directory, office and records in code. Children must
+still be discovered before they can be opened, even on follow-up turns.
 """
 
 from datetime import datetime
 from typing import Any
 
 from rockygpt_brain.retrieval.entity_facts import EntityFacts, InvalidFactRequest
+from rockygpt_brain.retrieval.projection import OFFICE_FIELDS
+
+
+def lookup_choice(
+    candidates: list[dict[str, Any]], truncated: bool,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Resolve only a unique untruncated match; otherwise preserve the alternatives."""
+    exact = [candidate for candidate in candidates if candidate["match"] == "exact"]
+    chosen = exact if len(exact) == 1 and not truncated else candidates
+    if len(chosen) == 1 and not truncated:
+        return "answers", chosen
+    return ("asks" if candidates else "not_found"), candidates
 
 
 class CampusGraph:
@@ -21,6 +34,7 @@ class CampusGraph:
             "offices": {"id": "offices", "label": "Offices", "kind": "category"},
         }
         self.paths = {"ramapo": ["ramapo"], "offices": ["ramapo", "offices"]}
+        self.current_node = "ramapo"
 
     def root(self) -> dict[str, Any]:
         return {**self.nodes["ramapo"], "children": [self.nodes["offices"]],
@@ -29,6 +43,53 @@ class CampusGraph:
 
     def path(self, node_id: str) -> list[dict[str, Any]]:
         return [dict(self.nodes[key]) for key in self.paths.get(node_id, [])]
+
+    def lookup(self, query: str, fields: list[str], as_of: datetime, *,
+               exact_name_only: bool = False) -> dict[str, Any]:
+        """Run one complete root-first traversal, without intermediate model decisions."""
+        self.open("ramapo", [], as_of)
+        listing = self.open("offices", [], as_of)
+        found = self.facts.search_offices(query, dataset_version=self.version,
+                                         identity_hash=self.identity_hash)
+        candidates = found["candidates"]
+        truncated = found["truncated"] or listing["truncated"]
+        if exact_name_only:
+            # Emergency contact routing may never substitute a similar office name.
+            candidates = [candidate for candidate in candidates if candidate["name"] == query]
+        outcome, chosen = lookup_choice(candidates, truncated)
+        result = {"candidates": candidates, "truncated": truncated,
+                  "dataset_version": self.version, "identity_hash": self.identity_hash}
+        if outcome != "answers":
+            return result
+        office = self.open(f"office:{chosen[0]['entity_id']}", [], as_of)
+        records = office["children"][0]
+        return {**result, **self.open(records["id"], fields, as_of)}
+
+    def inspect(self, node_id: str, as_of: datetime, fields: list[str] | None = None) -> dict[str, Any]:
+        """Reconstruct a developer deep link through the same published root path."""
+        root = self.open("ramapo", [], as_of)
+        listing = self.open("offices", [], as_of)  # Validate the publication even at the root.
+        if node_id == "ramapo":
+            opened = root
+        elif node_id == "offices":
+            opened = listing
+        else:
+            office_id = (
+                "office:" + node_id.removeprefix("records:")
+                if node_id.startswith("records:") else node_id
+            )
+            if office_id not in self.nodes or self.nodes[office_id]["kind"] != "office":
+                raise InvalidFactRequest("This node is not in the available office graph.")
+            opened = self.open(office_id, [], as_of)
+            if node_id.startswith("records:"):
+                opened = self.open(node_id, fields if fields is not None else list(OFFICE_FIELDS), as_of)
+        return {
+            "node": self.nodes[node_id], "path": self.path(node_id),
+            "children": opened.get("children", []), "truncated": listing["truncated"],
+            "facts": opened.get("facts"), "scope": root["scope"],
+            "dataset_version": self.version, "identity_hash": self.identity_hash,
+            "as_of": as_of.isoformat(),
+        }
 
     def _child(self, parent: str, node: dict[str, Any]) -> dict[str, Any]:
         key = node["id"]
@@ -42,6 +103,7 @@ class CampusGraph:
         node = self.nodes[node_id]
         if node["kind"] != "records" and fields:
             raise InvalidFactRequest("Select fields only on a published-records node.")
+        self.current_node = node_id
         if node_id == "ramapo":
             return self.root()
         if node_id == "offices":

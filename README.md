@@ -81,19 +81,23 @@ answering path.
 
 ## Root-first traversal
 
-Each chat turn receives only the Ramapo navigation root. The `graph_open` tool opens
-children returned during that turn: Offices, a canonical office, then its Published
-records. There is no direct office lookup tool. Parent and undiscovered child cannot
-be opened in the same batch. Follow-ups start at the root again. Independent nodes
-at the same depth can be batched; the existing four-model-call and spending limits
-remain in place. A normal lookup takes three navigation calls followed by `finish`.
+Each chat turn receives the Ramapo navigation root. One `graph_lookup` request
+supplies an office name, nickname or service query and the requested fields. Code
+walks Ramapo → Offices → matched office → Published records, without a model call
+between nodes. Independent queries can be batched. A normal answer uses one model
+call to request the traversal and another to finish; the existing four-call and
+spending ceilings remain in place. Every query, including a follow-up, starts at
+the root. Unknown or ambiguous matches stay explicit.
 
-The root/category links are navigation structure, not published campus facts. Only
-the office branch is implemented. Records still come from the shared fact reader,
-pinned to the dataset and identity hash selected when Offices is opened. Emergency
-campus contacts traverse the same structure in code under their existing time limit;
-emergency text does not depend on successful traversal.
+Root/category edges organize navigation; linked published records supply facts.
+Only the office branch is implemented. All reads use the shared reader and the
+turn's dataset/identity pins. Emergency contacts use the same path in code, require
+an exact office name, and retain their separate time limit.
 
-Development traces include each attempted path, publication pins, rendered answer
-contributions and their citations. Navigation does not establish current facts.
-This change has not been tested; earlier saved test results describe earlier code.
+Development traces record full paths, pins, the lookup time, answer contributions
+and citations. `GET /v1/dev/graph/node` lets the developer UI inspect a reached node
+through the same root path, without model calls. Trace links carry the publication,
+fields and lookup time; a publication change returns 409 instead of mixing releases.
+
+The single-request traversal and graph inspector have not been tested or built at
+the user's request. Earlier saved results do not verify these changes.

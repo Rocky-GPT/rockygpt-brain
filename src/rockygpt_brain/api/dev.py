@@ -6,14 +6,20 @@ They are left out of the OpenAPI schema, so the route count the dev UI shows sta
 """
 
 import asyncio
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from rockygpt_brain.engine import lookup_choice
 from rockygpt_brain.failures import failure
-from rockygpt_brain.retrieval import EvidenceUnavailable, InvalidFactRequest
+from rockygpt_brain.retrieval import (
+    DatasetChanged,
+    EvidenceUnavailable,
+    InvalidFactRequest,
+    UnknownEntity,
+)
+from rockygpt_brain.retrieval.campus_graph import CampusGraph, lookup_choice
 from rockygpt_brain.turn import new_id
 
 DIAGNOSTICS_HEADER = "x-rockygpt-diagnostics"
@@ -51,6 +57,36 @@ def add_dev_routes(application: FastAPI) -> None:
             "offices": [{"entityId": o["entity_id"], "name": o["name"], "aliases": o["aliases"]}
                         for o in listing["offices"]],
         }, headers=NO_STORE)
+
+    @router.get("/graph/node")
+    async def graph_node(
+        node_id: Annotated[str, Query(min_length=1, max_length=160)] = "ramapo",
+        dataset_version: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
+        identity_hash: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
+        as_of: datetime | None = None,
+        fields: Annotated[str | None, Query(min_length=1, max_length=200)] = None,
+    ) -> JSONResponse:
+        engine = application.state.engine
+        if engine is None:
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id())
+        if (dataset_version is None) != (identity_hash is None):
+            return failure(422, "invalid_request", "Supply both publication pins or neither.", new_id())
+        if as_of is not None and as_of.utcoffset() is None:
+            return failure(422, "invalid_request", "The inspection time needs a timezone.", new_id())
+        graph = CampusGraph(engine.facts, dataset_version=dataset_version, identity_hash=identity_hash)
+        try:
+            async with asyncio.timeout(5):
+                node = await asyncio.to_thread(graph.inspect, node_id, as_of or datetime.now(UTC),
+                                               fields.split(",") if fields else None)
+        except DatasetChanged:
+            return failure(409, "dataset_changed",
+                           "This trace's publication is no longer active. Its saved path remains "
+                           "in the trace; open the current root to inspect newer data.", new_id())
+        except (InvalidFactRequest, UnknownEntity):
+            return failure(422, "invalid_request", "The node or requested fields are unavailable.", new_id())
+        except (EvidenceUnavailable, TimeoutError):
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(), retryable=True)
+        return JSONResponse(node, headers=NO_STORE)
 
     @router.get("/offices/search")
     async def search(q: Annotated[str, Query(min_length=1, max_length=200)]) -> JSONResponse:
