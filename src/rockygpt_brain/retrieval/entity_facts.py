@@ -548,8 +548,11 @@ def schedule_property(
             }
             captured = [t for r in picked if (t := _instant(r.get("collected_at")))]
             urls = list(dict.fromkeys(u for r in picked if (u := _url(r.get("source_url")))))
+            # One id per reading: two readings of one day can both start from the same first row.
+            reading = hashlib.sha256(
+                "|".join(str(r["id"]) for r in picked).encode()).hexdigest()[:16]
             source = _source({
-                **picked[0], "id": f"{picked[0]['id']}:schedule",
+                **picked[0], "id": f"{picked[0]['id']}:schedule:{reading}",
                 "collected_at": min(captured) if len(captured) == len(picked) else None,
                 "canonical_url": urls[0] if urls else picked[0].get("canonical_url"),
                 "normalization_metadata": {"evidence": {"source_urls": urls}},

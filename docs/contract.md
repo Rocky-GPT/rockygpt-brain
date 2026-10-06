@@ -85,13 +85,18 @@ list names the kind from the group of phrases that matched (`self_harm`, `medica
 model reports danger that is current, it sets `situation` on its `safety` part, or leaves it null.
 One kind gets its own text; several different kinds, or none, get the general `other` text, which
 is also the text of every failure and of a reply cut short. The self-harm text leads with 988;
-the medical, danger and fire texts lead with 911 and do not mention 988.
+the medical and danger texts lead with 911 and do not mention 988. The fire text says to get out
+and call 911 from a safe place, or right away for someone who cannot get out. A completed assault, or
+a stalker or abuser, gets the general text until a separate survivor text is written and reviewed.
+Naming 911 or an ambulance beside a specific emergency keeps that emergency's own text.
 
 Right after the emergency text the code adds the published phone numbers of the campus office for
 that kind of emergency (Public Safety (Emergency) for every kind, and the Counseling Center first
 for `self_harm`), read through the shared fact reader like every other fact, so each carries its
-source. The code does this, not the model, so it also happens on the phrase-list path. It waits at
-most three seconds; if the numbers cannot be read in time, the emergency text goes out alone. Then
+source. Only the exact published office name counts; a near name is never used in its place, and an
+office the model already looked up is repeated only if its phones were not shown. The code does this, not the model, so it also happens on the phrase-list path. It waits at
+most three seconds, after the model's own time, so the turn deadline never replaces an emergency
+reply with a timeout; if the numbers cannot be read in time, the emergency text goes out alone. Then
 everything else the turn produced follows: contact details, "which office?" choices, "no matching
 office" notes and unsupported or account-limit notes. A data outage on such a turn is still an
 error that carries the emergency text. A finish with nothing in it gets HTTP 200 `clarification`
@@ -101,8 +106,8 @@ ends with the general emergency text, as every error does. If the office directo
 at the start of a turn, the turn fails with retryable `data_unavailable` before any model call.
 
 A refusal says what it can. When office details are shown above it, an unsupported or
-account-limit note points to them ("The contact details above are the best way to ask the office
-directly"); with no office shown, the unsupported note says what can be looked up and asks which
+account-limit note points to them without claiming the office handles the refused part ("If the
+office above handles it, its contact details are the best way to ask"); with no office shown, the unsupported note says what can be looked up and asks which
 office. A recalled reply is quoted as plain words, without RockyGPT's own bold marks and links.
 
 The model can ask for `hours` with the usual contact fields. They are the office's linked schedule

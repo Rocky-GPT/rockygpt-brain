@@ -21,7 +21,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from rockygpt_brain.api.dev import add_dev_routes
 from rockygpt_brain.boundary import check
 from rockygpt_brain.contract import CONVERSATION_ID_HEADER, CONVERSATION_ID_PATTERN, ChatRequest
-from rockygpt_brain.engine import ChatEngine, ChatResult, answered, failed
+from rockygpt_brain.engine import HELP_SECONDS, ChatEngine, ChatResult, answered, failed
 from rockygpt_brain.failures import failure
 from rockygpt_brain.provider import Gateway, GatewayError
 from rockygpt_brain.retrieval import (
@@ -252,7 +252,7 @@ async def _connected_answer(engine: ChatEngine, turn: Turn, request: ChatRequest
     work = asyncio.create_task(engine.answer(turn, request))
     gone = asyncio.create_task(disconnected())
     try:
-        async with asyncio.timeout(engine.turn_seconds + 2):
+        async with asyncio.timeout(engine.turn_seconds + HELP_SECONDS + 2):
             done, _ = await asyncio.wait((work, gone), return_when=asyncio.FIRST_COMPLETED)
             if gone in done:
                 return ChatResult(499, {"requestId": turn.request_id, "reason": "cancelled"})

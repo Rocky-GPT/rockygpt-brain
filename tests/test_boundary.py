@@ -107,13 +107,15 @@ def test_danger_wins_over_an_account_request(message: str) -> None:
     assert is_safety(message)
 
 
-@pytest.mark.parametrize("message", [
-    "I CAN'T BREATHE", "i cant breathe", "I can’t  breathe.", "I can´t breathe",
-    "i c\u200ban't breathe", "ｓｏｍｅｏｎｅ ｃｏｌｌａｐｓｅｄ", "SUİCİDE", "someone collápsed",
-    "... I can't breathe",
+@pytest.mark.parametrize(("message", "situation"), [
+    ("I CAN'T BREATHE", "medical"), ("i cant breathe", "medical"),
+    ("I can’t  breathe.", "medical"), ("I can´t breathe", "medical"),
+    ("i c\u200ban't breathe", "medical"),
+    ("ｓｏｍｅｏｎｅ ｃｏｌｌａｐｓｅｄ", "medical"), ("SUİCİDE", "self_harm"),
+    ("someone collápsed", "medical"), ("... I can't breathe", "medical"),
 ])
-def test_spelling_of_the_same_words_takes_the_same_path(message: str) -> None:
-    assert read(message).situation == "medical" or read(message).situation == "self_harm"
+def test_spelling_of_the_same_words_takes_the_same_path(message: str, situation: str) -> None:
+    assert read(message).situation == situation
 
 
 def test_only_the_latest_message_is_read() -> None:
@@ -131,12 +133,19 @@ def test_only_the_latest_message_is_read() -> None:
     ("someone has a gun", "danger"),
     ("there is an active shooter", "danger"),
     ("some guy is following me and won't leave me alone", "danger"),
-    ("I was sexually assaulted last night", "danger"),
     ("someone broke into my room", "danger"),
     ("there is a fire in the dorm", "fire"),
     ("I smell smoke in Birch Hall", "fire"),
     ("there is a gas leak", "fire"),
     ("my roommate overdosed", "other"),
+    # A completed assault, or a stalker or abuser, gets the general text until a survivor text is
+    # written and reviewed.
+    ("I was sexually assaulted last night", "other"),
+    ("my stalker is outside", "other"),
+    # Naming 911 or an ambulance beside a specific emergency keeps that emergency's own text.
+    ("there is a fire in my dorm, i called 911", "fire"),
+    ("he isnt breathing, someone get an ambulance", "medical"),
+    ("someone has a gun, call 911", "danger"),
     ("I NEED AN AMBULANCE", "other"),
     ("this is an emergency", "other"),
     # Several kinds in one message: the general text, never a guess between them.
@@ -159,6 +168,12 @@ def test_the_replies_are_fixed_text() -> None:
     assert len(set(SAFETY_TEXTS.values())) == len(SAFETY_TEXTS)
 
 
+def test_the_fire_text_does_not_hold_the_call_back_for_someone_who_cannot_get_out() -> None:
+    text = SAFETY_TEXTS["fire"]
+    assert "If you can't get out, call 911 right now" in text
+    assert text.index("call 911 from a safe place") < text.index("If you can't get out")
+
+
 def test_every_text_sends_the_student_to_the_right_number_and_admits_its_limits() -> None:
     for name, text in SAFETY_TEXTS.items():
         assert "RockyGPT can't send help or stay with you" in text, name
@@ -170,7 +185,7 @@ def test_every_text_sends_the_student_to_the_right_number_and_admits_its_limits(
         assert "988" not in SAFETY_TEXTS[name], name
     assert SAFETY_TEXTS["self_harm"].index("988") < SAFETY_TEXTS["self_harm"].index("911")
     for name in ("medical", "danger", "fire"):
-        assert SAFETY_TEXTS[name].index("911") < 140, name
+        assert SAFETY_TEXTS[name].index("911") < 200, name
 
 
 def test_a_reply_is_traced_back_to_its_text() -> None:

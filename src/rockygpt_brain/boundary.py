@@ -33,9 +33,10 @@ SAFETY_TEXTS = {
         "RockyGPT can't send help or stay with you, so please call now."
     ),
     "fire": (
-        "Get out and away from the fire, smoke or gas right now, and don't go back in for "
-        "anything. Then call 911 from a safe place. "
-        "RockyGPT can't send help or stay with you, so please call as soon as you are out."
+        "If you can, get out and away from the fire, smoke or gas right now, and don't go back "
+        "in for anything. Then call 911 from a safe place. If you can't get out, call 911 right "
+        "now and tell them where you are. "
+        "RockyGPT can't send help or stay with you, so please call as soon as you can."
     ),
     "other": (
         "If you or someone else is in danger right now, call 911. "
@@ -63,7 +64,7 @@ _CAPABILITY_LIMIT = (
 )
 CAPABILITY_MESSAGE = _CAPABILITY_LIMIT + "or ask the campus office that handles it."
 # Used when an office's published details are already shown above it.
-CAPABILITY_AFTER_LOOKUP_MESSAGE = _CAPABILITY_LIMIT + "or contact the office above."
+CAPABILITY_AFTER_LOOKUP_MESSAGE = _CAPABILITY_LIMIT + "or ask the office above if it handles that."
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,8 +121,6 @@ _DANGER: dict[str, list[re.Pattern[str]]] = {
             r"\b(attacking|hurting|threatening|stalking|following|chasing|shooting|hitting|"
             r"beating|hit|punched|slapped|choked|grabbed|dragged|pinned|trapped|locked|cornered|"
             r"kidnapped) me\b",
-            r"\b(was|been|got)( just| recently| again)? (raped|sexually assaulted|molested)\b",
-            r"\b(my )?(stalker|abuser|attacker)\b",
             r"\b(intruder|stranger|someone|somebody) (is |was |got |broke )?"
             r"(in|into|inside|breaking into) (my|our|the) (room|dorm|apartment|house|townhouse)\b|"
             r"\bbroke into my\b",
@@ -135,17 +134,25 @@ _DANGER: dict[str, list[re.Pattern[str]]] = {
         # Taking too much could be an accident or on purpose, and a spiked drink is both a
         # danger and a medical problem, so these get the general text.
         "other": (
+            # A completed assault, or a stalker or abuser, needs more than "get away": the general
+            # text is used until a separate survivor text is written and reviewed.
+            r"\b(was|been|got)( just| recently| again)? (raped|sexually assaulted|molested)\b",
+            r"\b(my )?(stalker|abuser|attacker)\b",
             r"\boverdos",
             r"\b(took|taken|swallowed|popped|downed) (a |an |the |my )?"
             r"(whole bottle|bottle of|handful of|too many|too much|a lot of)\b",
             r"\b(spiked|drugged|roofied)\b|\bput something in my (drink|water|cup)\b",
-            r"\b(911|ambulance)\b",
-            r"\b(this is|its|it is|there is|theres) an emergency\b",
-            r"\b(im|i am|we are|were|he is|hes|she is|shes|they are) in "
-            r"(immediate |serious |real )?danger\b",
         ),
     }.items()
 }
+# Words that name an emergency without saying which kind. They count only when nothing more
+# specific matched, so "there is a fire, call 911" keeps the fire text.
+_GENERIC = [re.compile(p) for p in (
+    r"\b(911|ambulance)\b",
+    r"\b(this is|its|it is|there is|theres) an emergency\b",
+    r"\b(im|i am|we are|were|he is|hes|she is|shes|they are) in "
+    r"(immediate |serious |real )?danger\b",
+)]
 
 
 def plain(text: str) -> str:
@@ -160,6 +167,8 @@ def check(turn: Turn) -> BoundaryResult:
     """Read the Turn's message. Only the latest message counts, not earlier ones."""
     text = plain(turn.message)
     kinds = {name for name, patterns in _DANGER.items() if any(p.search(text) for p in patterns)}
+    if not kinds and any(p.search(text) for p in _GENERIC):
+        kinds = {"other"}
     if not kinds:
         return CONTINUE
     situation = kinds.pop() if len(kinds) == 1 else "other"

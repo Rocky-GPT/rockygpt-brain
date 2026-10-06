@@ -141,7 +141,7 @@ def test_busy_requests_do_not_queue_and_disconnect_cancels_work() -> None:
 def test_whole_turn_deadline_stops_work() -> None:
     engine = BoundaryEngine(block=True)
     # The normal engine owns the 40s deadline; the HTTP guard also bounds a broken engine.
-    engine.turn_seconds = -1.99
+    engine.turn_seconds = -4.99  # The guard allows the turn, the emergency numbers' wait and 2 s.
     with TestClient(create_app(engine, service_token="", environment="development")) as client:
         response = client.post("/v1/chat", json=QUESTION)
     assert response.status_code == 504

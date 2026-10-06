@@ -141,7 +141,7 @@ def answer(
         finish("clock", value="invented@example.edu"),
         completion(
             "finish",
-            {"parts": [{"kind": "clock", "message_index": None}]},
+            {"parts": [{"kind": "clock", "message_index": None, "situation": None}]},
             text="Registrar's email is invented@example.edu.",
         ),
         completion("update_student_account", {"password": "new-password"}),
@@ -895,3 +895,90 @@ def test_hours_for_an_office_without_a_schedule_say_not_published() -> None:
                     messages=[{"role": "user", "content": "registrar hours"}])
     assert "Hours: not published in the available evidence." in result.body["answer"]
     assert "published@example.edu" in result.body["answer"]
+
+
+def test_a_model_emergency_near_the_turn_deadline_still_gets_its_own_text(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    import time
+
+    from rockygpt_brain import engine as engine_module
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+
+    class SlowFacts(MemoryEntityFacts):
+        def search_offices(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+            time.sleep(0.6)
+            return super().search_offices(*args, **kwargs)
+
+    class SlowGateway(ScriptedGateway):
+        async def complete(self, **kwargs: Any) -> Completion:
+            await asyncio.sleep(0.4)  # The model answers 0.1 s before the turn's 0.5 s deadline.
+            return await super().complete(**kwargs)
+
+    base = campus_help_facts()
+    slow = SlowFacts(dataset_version="release-1", identity_hash="identities-1",
+                     entities=base.entities, contacts=base.contacts, now=lambda: NOW)
+    monkeypatch.setattr(engine_module, "HELP_SECONDS", 0.2)
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "smoke"}]})
+    result = asyncio.run(ChatEngine(
+        SlowGateway(finish("safety", situation="fire")), slow, turn_seconds=0.5,
+    ).answer(intake(request, now=NOW), request))
+    assert result.status_code == 200 and result.body["answer"] == SAFETY_TEXTS["fire"]
+    assert result.trace is not None and result.trace["lookups"][0]["status"] == "timeout"
+
+
+def test_only_the_exact_published_office_name_is_used_for_emergency_numbers() -> None:
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+
+    near = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "ns", "name": "Public Safety (Non-Emergency)", "kind": "office",
+                   "aliases": [], "links": [{"collection": "contacts", "source_key": "directory",
+                                             "source_record_keys": ["ns"]}]},
+                  {"id": "cc", "name": "Counseling Center for Students", "kind": "office",
+                   "aliases": [], "links": [{"collection": "contacts", "source_key": "directory",
+                                             "source_record_keys": ["cc"]}]}],
+        contacts=[{"id": "source-ns", "source_key": "directory", "source_record_key": "ns",
+                   "name": "NS", "phone": "(201) 555-1111", "canonical_url": "https://example.edu/ns",
+                   "collected_at": NOW, "freshness_sla_hours": 24},
+                  {"id": "source-cc", "source_key": "directory", "source_record_key": "cc",
+                   "name": "CC", "phone": "(201) 555-7522", "canonical_url": "https://example.edu/cc",
+                   "collected_at": NOW, "freshness_sla_hours": 24}],
+        now=lambda: NOW)
+    result = answer(ScriptedGateway(finish("safety", situation="self_harm")), service=near)
+    assert result.body["answer"] == SAFETY_TEXTS["self_harm"]  # No near name stands in.
+    assert result.body["citations"] == []
+    assert result.trace is not None
+    assert [e["status"] for e in result.trace["lookups"]] == ["not_found", "not_found"]
+
+
+def test_campus_numbers_still_come_when_the_models_own_lookup_left_out_the_phones() -> None:
+    from rockygpt_brain.engine import HELP_TEXT
+
+    email_only = completion("office_facts", {"requests": [
+        {"query": "Public Safety (Emergency)", "fields": ["email"]}]})
+    result = answer(ScriptedGateway(email_only, finish("safety", situation="danger")),
+                    service=campus_help_facts(),
+                    messages=[{"role": "user", "content": "someone is following me"}])
+    assert HELP_TEXT in result.body["answer"] and "+12015556666" in result.body["answer"]
+    phones = completion("office_facts", {"requests": [
+        {"query": "Public Safety (Emergency)", "fields": ["email", "phones"]}]})
+    again = answer(ScriptedGateway(phones, finish("safety", situation="danger")),
+                   service=campus_help_facts(),
+                   messages=[{"role": "user", "content": "someone is following me"}])
+    assert again.body["answer"].count("+12015556666") == 1  # Already shown, not repeated.
+
+
+def test_a_refusal_after_a_lookup_does_not_claim_the_office_handles_the_refused_part() -> None:
+    from rockygpt_brain.engine import UNSUPPORTED_AFTER_LOOKUP_MESSAGE
+
+    assert "If the office above handles it" in UNSUPPORTED_AFTER_LOOKUP_MESSAGE
+    assert "best way to ask the office directly" not in UNSUPPORTED_AFTER_LOOKUP_MESSAGE
+
+
+def test_a_recalled_quote_keeps_published_text_that_looks_like_markup() -> None:
+    from rockygpt_brain.answers import literal, readable_quote
+
+    published = "Call [the desk](tel:555) or use **bold** text"
+    earlier = f"**Registrar**\n\nNote: {literal(published)} [source](https://example.edu/x)"
+    plain = readable_quote(earlier, "assistant")
+    assert plain == f"Registrar\n\nNote: {published} source"

@@ -177,11 +177,10 @@ def test_every_fixed_text_says_who_picks_it_and_matches_the_template_the_engine_
         when="<weekday, month day, year at time and zone>")
     assert entries["recall"]["text"] == RECALL_TEXT.format(
         speaker="<you or RockyGPT>", quote="> <the quoted message>")
-    specific = ["the danger phrase list", "the model"]
+    safety = ["the danger phrase list", "the model", "the code"]
     assert {k: v["pickedBy"] for k, v in entries.items()} == {
-        "safety_self_harm": specific, "safety_medical": specific, "safety_danger": specific,
-        "safety_fire": specific,
-        "safety_other": ["the danger phrase list", "the model", "the code"],
+        "safety_self_harm": safety, "safety_medical": safety, "safety_danger": safety,
+        "safety_fire": safety, "safety_other": safety,
         "campus_help": ["the code"],
         "capability": ["the model"], "capability_after_lookup": ["the model"],
         "unsupported": ["the model"], "unsupported_after_lookup": ["the model"],

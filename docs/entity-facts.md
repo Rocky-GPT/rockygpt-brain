@@ -125,9 +125,16 @@ a dated observation, shows runs of weekdays with identical text as one span ("Mo
 Friday"), and shows the official sentence as a published note. The reader never decides that an
 office is open now, and it adds no summer, holiday or walk-in rule that the records do not hold.
 
-The collector writes the text "Hours unavailable" for a weekday the page does not list. The
-reader passes it through as published. It is a placeholder that should be an empty value with a
+The collector writes the text "Hours unavailable" for a weekday the page does not list, and a
+withheld schedule (one the collector could not verify) is written as seven such days with its
+reason in the note. The reader passes both through as published, so a withheld schedule counts as
+a known value and is shown with its note. It is a placeholder that should be an empty value with a
 reason, and that belongs in the collector, not the reader.
+
+Runs of weekdays are drawn only over days that follow each other in the week and have the same
+text. A weekday with no record is never inside a span. A schedule's own name is shown when there
+are several schedules or when the name says more than the office's name (a trailing abbreviation
+such as "(CSI)" says nothing more).
 
 ## Field observations and freshness
 

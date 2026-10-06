@@ -222,9 +222,9 @@ MODEL_INPUT_KEYS = ("campus_now", "client_omitted_messages", "server_omitted_mes
 UNSUPPORTED_MESSAGE = ("I don't have verified information about that. I can look up published "
                        "contact details for Ramapo offices, like email, phone and room, if you "
                        "tell me which office.")
-UNSUPPORTED_AFTER_LOOKUP_MESSAGE = ("I don't have verified information about that part. The "
-                                    "contact details above are the best way to ask the office "
-                                    "directly.")
+UNSUPPORTED_AFTER_LOOKUP_MESSAGE = ("I don't have verified information about that part. If the "
+                                    "office above handles it, its contact details are the best "
+                                    "way to ask.")
 CLARIFICATION_MESSAGE = "Which office or service, and which details, do you mean?"
 FIXED_REPLIES = {
     "greeting": ("Hi! I'm RockyGPT. I can look up published contact details for Ramapo offices, "
@@ -315,8 +315,8 @@ def emergency_kind(situations: list[str]) -> str:
 
 
 def safety_picked_by(situation: str) -> list[str]:
-    return (["the danger phrase list", "the model", "the code"] if situation == "other"
-            else ["the danger phrase list", "the model"])
+    # The code repeats whichever emergency text the previous reply began with, so every kind has it.
+    return ["the danger phrase list", "the model", "the code"]
 
 
 def safety_when(situation: str) -> str:
@@ -328,10 +328,10 @@ def safety_when(situation: str) -> str:
         "other": "none of these fits, several do, or someone took too much of something",
     }
     text = (f"The danger phrase list or the model finds: {kinds[situation]}. It goes first, "
-            "and the rest of the reply follows it.")
+            "and the rest of the reply follows it. The code repeats it when the model finishes "
+            "with nothing right after a safety reply that began with it.")
     if situation == "other":
-        text += (" The code also repeats it when the model finishes with nothing right after a "
-                 "safety reply, after a reply cut short, and with every failure.")
+        text += " It is also the text of a reply cut short and of every failure."
     return text
 
 
@@ -502,9 +502,10 @@ class ChatEngine:
         trace["officesListed"] = len(listing["offices"])
         inputs = model_input(turn, context, listing["offices"])
         attempts = 0
+        finish: Finish | None = None
         try:
             async with asyncio.timeout(self.turn_seconds):
-                while True:
+                while finish is None:
                     completion = await self.gateway.complete(
                         input=inputs, tools=TOOLS, budget=budget)
                     if len(completion.tool_calls) != 1 or completion.text.strip():
@@ -514,8 +515,7 @@ class ChatEngine:
                     if call.name == "finish":
                         finish = Finish.model_validate(call.arguments)
                         trace["finish"] = [part.kind for part in finish.parts]
-                        return await self._finish(turn, context, finish, results, version,
-                                                  identity_hash, trace)
+                        continue
                     if call.name != "office_facts":
                         raise GatewayError("provider_invalid_response")
                     requests = OfficeRequests.model_validate(call.arguments).requests
@@ -552,6 +552,10 @@ class ChatEngine:
                                        "error": result.error_code})
                     inputs.append({"type": "function_call_output", "call_id": call.call_id,
                                    "output": json.dumps(output, ensure_ascii=False)})
+            # Outside the model's time: the emergency numbers have their own short limit, and
+            # the turn deadline must never turn an emergency reply into a timeout.
+            return await self._finish(turn, context, finish, results, version, identity_hash,
+                                      trace)
         except TimeoutError:
             return self._fallback(turn, results, version, "model_timeout")
         except ValidationError:
@@ -568,9 +572,11 @@ class ChatEngine:
                             as_of: datetime) -> list[Rendered]:
         """The campus phone numbers for these emergencies, or nothing when they can't be read."""
         kinds = [k for k in SITUATIONS if k in situations]
-        looked_up = {e.get("office") for e in trace["lookups"]}
+        # An office the model already looked up is not repeated, but only if its phones were shown.
+        shown = {e.get("office") for e in trace["lookups"] if e.get("status") == "ok"
+                 and "phones" in e.get("arguments", {}).get("fields", [])}
         names = [n for n in dict.fromkeys(n for k in kinds for n in HELP_OFFICES[k])
-                 if n not in looked_up]
+                 if n not in shown]
         entries = [{"tool": "emergency_contacts", "status": "failed", "result_count": 0,
                     "arguments": {"query": n, "fields": list(HELP_FIELDS)}} for n in names]
         trace["lookups"].extend(entries)
@@ -587,9 +593,12 @@ class ChatEngine:
                                 name, type(error).__name__)
                     read_results.append(({}, None))
                     continue
-                shown = "office" in result.detail and bool(result.rendered.citations)
+                if result.detail.get("office") != name:
+                    # Only the exact published name counts; a near name is another office.
+                    read_results.append(({"status": "not_found"}, None))
+                    continue
                 read_results.append(({"status": _lookup_status(result), **result.detail},
-                                     result.rendered if shown else None))
+                                     result.rendered if result.rendered.citations else None))
             return read_results
 
         if not names:
