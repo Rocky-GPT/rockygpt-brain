@@ -162,6 +162,25 @@ student app never sends it.
 crash, or the API-level timeout) sends `metrics.decidedBy: "error"` and no `trace` field at all,
 because nothing was kept.
 
+Development chat responses also include `metrics.timing`, including JSON admission
+and validation failures. It has `unit: "microseconds"`, `accounting:
+"exclusive_wall_time"`, `totalUs`, and ordered `steps` with `label`, `status`,
+`startUs`, `endUs`, and `durationUs`. A monotonic clock measures model allowance
+reservation/settlement, provider round trips, decision validation, each root-first
+lookup hop, shared evidence reading, rendering, and response composition. Small
+intervals between instrumented steps are labelled as request handling or call
+coordination. Nested spans replace parent time, so durations partition `totalUs`
+exactly. Timed-out workers are clipped to the interval their parent awaited them.
+These are observed execution stages, not the model's private reasoning.
+
+`x-rockygpt-brain-total-us` includes the additional time to assemble timing and
+encode the final JSON response. A client can subtract that header from its own
+wait-for-headers interval to account for surrounding transport/proxy time. The
+provider request span includes network and model time together; those components
+are not independently measurable here. Browser preparation, body reading, and
+response decoding are measured by the Dev UI, not by the Brain. Production and
+requests without the diagnostics header do not record spans or expose timings.
+
 ## Development routes
 
 A Brain running in development also serves three read-only routes for the dev UI. Each needs

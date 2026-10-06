@@ -10,6 +10,7 @@ from typing import Any
 
 from rockygpt_brain.retrieval.entity_facts import EntityFacts, InvalidFactRequest
 from rockygpt_brain.retrieval.projection import OFFICE_FIELDS
+from rockygpt_brain.timing import measure
 
 
 def lookup_choice(
@@ -47,10 +48,13 @@ class CampusGraph:
     def lookup(self, query: str, fields: list[str], as_of: datetime, *,
                exact_name_only: bool = False) -> dict[str, Any]:
         """Run one complete root-first traversal, without intermediate model decisions."""
-        self.open("ramapo", [], as_of)
-        listing = self.open("offices", [], as_of)
-        found = self.facts.search_offices(query, dataset_version=self.version,
-                                         identity_hash=self.identity_hash)
+        with measure("Open root · Ramapo"):
+            self.open("ramapo", [], as_of)
+        with measure("Open Offices · read published directory"):
+            listing = self.open("offices", [], as_of)
+        with measure("Match office name or service"):
+            found = self.facts.search_offices(query, dataset_version=self.version,
+                                             identity_hash=self.identity_hash)
         candidates = found["candidates"]
         truncated = found["truncated"] or listing["truncated"]
         if exact_name_only:
@@ -61,9 +65,11 @@ class CampusGraph:
                   "dataset_version": self.version, "identity_hash": self.identity_hash}
         if outcome != "answers":
             return result
-        office = self.open(f"office:{chosen[0]['entity_id']}", [], as_of)
+        with measure("Open matched office"):
+            office = self.open(f"office:{chosen[0]['entity_id']}", [], as_of)
         records = office["children"][0]
-        return {**result, **self.open(records["id"], fields, as_of)}
+        with measure("Read published records · shared entity facts"):
+            return {**result, **self.open(records["id"], fields, as_of)}
 
     def inspect(self, node_id: str, as_of: datetime, fields: list[str] | None = None) -> dict[str, Any]:
         """Reconstruct a developer deep link through the same published root path."""

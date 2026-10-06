@@ -1,6 +1,7 @@
 """HTTP admission and the single bounded chat path."""
 
 import asyncio
+import json
 import logging
 import os
 import secrets
@@ -33,6 +34,7 @@ from rockygpt_brain.retrieval import (
 )
 from rockygpt_brain.settings import ConfigurationError, ProviderSettings
 from rockygpt_brain.spending import SpendingError
+from rockygpt_brain.timing import measure, request_timing
 from rockygpt_brain.turn import Turn, intake, new_id
 
 MAX_BODY_BYTES = 64 * 1_024
@@ -50,6 +52,46 @@ class Admission:
         self.app, self.token, self.environment = app, token, environment
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        diagnostic = (scope["type"] == "http" and scope["path"] == "/v1/chat"
+                      and scope["method"] == "POST" and self.environment == "development"
+                      and Headers(scope=scope).get(DEBUG_HEADER) == "1")
+        if not diagnostic:
+            await self._admit(scope, receive, send)
+            return
+        # Chat returns one JSON document. Record the whole admission/engine path,
+        # including early refusals, before attaching diagnostics to that document.
+        with request_timing() as timeline:
+            start: Message | None = None
+            chunks: list[bytes] = []
+
+            async def timed_send(event: Message) -> None:
+                nonlocal start
+                if event["type"] == "http.response.start":
+                    start = event
+                    return
+                if event["type"] != "http.response.body" or start is None:
+                    await send(event)
+                    return
+                chunks.append(event.get("body", b""))
+                if event.get("more_body", False):
+                    return
+                body = json.loads(b"".join(chunks))
+                body["metrics"] = {**body.get("metrics", {}), "timing": timeline.report()}
+                encoded = JSONResponse(body).body
+                headers = [(key, value) for key, value in start["headers"]
+                           if key.lower() not in (b"content-length", b"x-rockygpt-brain-total-us")]
+                headers.extend([
+                    (b"content-length", str(len(encoded)).encode()),
+                    # Includes diagnostic assembly and final JSON encoding. The UI
+                    # accounts for that tail separately from the recorded spans.
+                    (b"x-rockygpt-brain-total-us", str(timeline.elapsed_us()).encode()),
+                ])
+                await send({**start, "headers": headers})
+                await send({"type": "http.response.body", "body": encoded})
+
+            await self._admit(scope, receive, timed_send)
+
+    async def _admit(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http" or not scope["path"].startswith("/v1/"):
             await self.app(scope, receive, send)
             return
@@ -71,7 +113,8 @@ class Admission:
         try:
             async with asyncio.timeout(BODY_SECONDS):
                 while True:
-                    event = await receive()
+                    with measure("Read request body"):
+                        event = await receive()
                     if event["type"] == "http.disconnect":
                         return
                     body.extend(event.get("body", b""))
@@ -181,9 +224,10 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
             str | None, Header(alias=CONVERSATION_ID_HEADER, pattern=CONVERSATION_ID_PATTERN)
         ] = None,
     ) -> JSONResponse:
-        turn = (intake(request, conversation_id, now=clock()) if clock
-                else intake(request, conversation_id))
-        boundary = check(turn)
+        with measure("Prepare turn and check safety boundary"):
+            turn = (intake(request, conversation_id, now=clock()) if clock
+                    else intake(request, conversation_id))
+            boundary = check(turn)
         if boundary.kind == "safety":
             floor = application.state.engine
             if floor is None or application.state.startup_error:
