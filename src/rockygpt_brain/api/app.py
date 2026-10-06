@@ -18,6 +18,7 @@ from starlette.datastructures import Headers
 from starlette.exceptions import HTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from rockygpt_brain.api.dev import add_dev_routes
 from rockygpt_brain.boundary import check
 from rockygpt_brain.contract import CONVERSATION_ID_HEADER, CONVERSATION_ID_PATTERN, ChatRequest
 from rockygpt_brain.engine import ChatEngine, ChatResult, answered, failed
@@ -230,6 +231,9 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
         except (EvidenceUnavailable, TimeoutError):
             return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
                            retryable=True)
+
+    if active_environment == "development":
+        add_dev_routes(application)
 
     return application
 

@@ -11,14 +11,19 @@ import logging
 import time
 from dataclasses import dataclass, field, replace
 from datetime import datetime
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from rockygpt_brain.answers import Rendered, literal, render_facts
 from rockygpt_brain.boundary import CAPABILITY_MESSAGE, SAFETY_MESSAGE
-from rockygpt_brain.context import Context, build_context
-from rockygpt_brain.contract import ChatRequest
+from rockygpt_brain.context import MAX_HISTORY_BYTES, Context, build_context
+from rockygpt_brain.contract import (
+    MAX_CONVERSATION_CHARS,
+    MAX_MESSAGE_CHARS,
+    MAX_MESSAGES,
+    ChatRequest,
+)
 from rockygpt_brain.provider import Completion, GatewayError, TurnBudget
 from rockygpt_brain.retrieval import (
     DatasetChanged,
@@ -159,6 +164,12 @@ def answered(turn: Turn, answer: str, status: str, citations: list[dict[str, Any
     return ChatResult(200, body)
 
 
+NOT_FOUND_TEXT = ("I couldn't find a matching office in the published directory. "
+                  "That doesn't establish that the office doesn't exist.")
+DATA_UNAVAILABLE_TEXT = "Campus data is temporarily unavailable."
+INCOMPLETE_TEXT = "I found these details, but couldn't complete the rest of your request."
+MODEL_INPUT_KEYS = ("campus_now", "client_omitted_messages", "server_omitted_messages",
+                    "published_offices", "earlier_messages", "latest_message")
 UNSUPPORTED_MESSAGE = ("I don't have verified information to answer that part of your request. "
                        "I can look up published office contact details.")
 CLARIFICATION_MESSAGE = "Which office or service, and which details, do you mean?"
@@ -227,6 +238,50 @@ def model_input(turn: Turn, context: Context,
             {"role": "user", "content": json.dumps(state, ensure_ascii=False)}]
 
 
+PART_NOTES = {
+    "account_limit": "The request needs private records or an action. The code writes the text.",
+    "clarification": "A needed detail is missing. The code writes the question.",
+    "unsupported": "Nothing this Brain can look up answers it. The code writes the refusal.",
+    "safety": "Someone may be in danger now. The code writes the emergency text and puts it first.",
+    "recall": "The student asks what was said earlier. The code quotes it; message_index picks it.",
+    "clock": "The student asks the date or time. The code writes it from the turn's campus clock.",
+    "greeting": "A plain hello. The code writes the reply.",
+    "thanks": "A thank-you or goodbye. The code writes the reply.",
+    "about": "Who or what RockyGPT is. The code writes the reply.",
+}
+
+
+def fixed_texts() -> list[dict[str, str]]:
+    """Every text the code writes itself, with when it is used. <angle brackets> are filled in."""
+    def entry(name: str, when: str, text: str) -> dict[str, str]:
+        return {"id": name, "when": when, "text": text}
+    return [
+        entry("safety", "The danger phrase list matches, or the model finishes with a safety part. "
+              "Always first.", SAFETY_MESSAGE),
+        entry("capability", "A finish part account_limit.", CAPABILITY_MESSAGE),
+        entry("unsupported", "A finish part unsupported.", UNSUPPORTED_MESSAGE),
+        entry("clarification", "A finish part clarification, or an empty finish.",
+              CLARIFICATION_MESSAGE),
+        entry("greeting", "A finish part greeting.", FIXED_REPLIES["greeting"]),
+        entry("thanks", "A finish part thanks.", FIXED_REPLIES["thanks"]),
+        entry("about", "A finish part about.", FIXED_REPLIES["about"]),
+        entry("ambiguous", "A lookup matched several offices.",
+              "Which office do you mean: <up to five office names>?"),
+        entry("ambiguous_more", "Added to the line above when the search had more matches.",
+              "There are additional matches; a more specific name will help."),
+        entry("not_found", "A lookup matched no office.", NOT_FOUND_TEXT),
+        entry("data_unavailable", "The campus data could not be read during a lookup.",
+              DATA_UNAVAILABLE_TEXT),
+        entry("incomplete", "Added after facts that were found before a provider failure.",
+              INCOMPLETE_TEXT),
+        entry("clock", "A finish part clock.",
+              "The campus date and time is <weekday, month day, year at time and zone>."),
+        entry("recall", "A finish part recall.",
+              "Earlier in the visible conversation, <you or RockyGPT> said: <quoted message> "
+              "This quotes the chat; it doesn't verify current campus facts."),
+    ]
+
+
 def _lookup_status(result: OfficeResult) -> str:
     if result.error_code:
         return result.error_code
@@ -250,6 +305,33 @@ class ChatEngine:
         except (TimeoutError, GatewayError, EvidenceUnavailable):
             return False
 
+    def runtime(self) -> dict[str, Any]:
+        """What this engine is set to do, for the dev UI: prompt, tools, limits, fixed texts."""
+        settings = getattr(self.gateway, "settings", None)
+        prices = settings.prices.metadata() if settings is not None else None
+        return {
+            "environment": settings.environment if settings is not None else None,
+            "model": prices["model"] if prices else None,
+            "prices": prices,
+            "limits": {
+                "turnSeconds": self.turn_seconds, "maxTurnNusd": self.max_turn_nusd,
+                "maxModelCalls": TurnBudget.max_calls, "maxToolAttempts": MAX_TOOL_ATTEMPTS,
+                "maxLookupResults": MAX_RESULTS, "maxAnswerChars": MAX_ANSWER_CHARS,
+                "maxInputBytes": settings.max_input_bytes if settings is not None else None,
+                "maxOutputTokens": settings.max_output_tokens if settings is not None else None,
+                "maxMessages": MAX_MESSAGES, "maxMessageChars": MAX_MESSAGE_CHARS,
+                "maxConversationChars": MAX_CONVERSATION_CHARS,
+                "maxHistoryBytes": MAX_HISTORY_BYTES,
+            },
+            "prompt": SYSTEM_PROMPT,
+            "modelInputKeys": list(MODEL_INPUT_KEYS),
+            "tools": [{"name": t["name"], "description": t["description"],
+                       "parameters": t["parameters"]} for t in TOOLS],
+            "parts": [{"kind": kind, "note": PART_NOTES[kind]}
+                      for kind in get_args(AnswerPart.model_fields["kind"].annotation)],
+            "fixedTexts": fixed_texts(),
+        }
+
     def _lookup(self, request: OfficeRequest, version: str | None,
                 identity_hash: str | None, as_of: datetime) -> tuple[OfficeResult, str, str]:
         found = self.facts.search_offices(request.query, dataset_version=version,
@@ -268,9 +350,7 @@ class ChatEngine:
                                       detail={"candidates": [c["name"] for c in candidates[:5]],
                                               "truncated": found["truncated"]})
             else:
-                result = OfficeResult(Rendered(
-                    "I couldn't find a matching office in the published directory. "
-                    "That doesn't establish that the office doesn't exist.", complete=False))
+                result = OfficeResult(Rendered(NOT_FOUND_TEXT, complete=False))
             result.detail["result_count"] = len(candidates)
             return result, version, identity_hash
         facts = self.facts.get_office_facts(
@@ -339,9 +419,8 @@ class ChatEngine:
                             entry["status"] = "dataset_changed"
                             raise GatewayError("dataset_changed") from None
                         except EvidenceUnavailable:
-                            result = OfficeResult(Rendered(
-                                "Campus data is temporarily unavailable.", complete=False),
-                                error_code="data_unavailable")
+                            result = OfficeResult(Rendered(DATA_UNAVAILABLE_TEXT, complete=False),
+                                                  error_code="data_unavailable")
                         except (UnknownEntity, InvalidFactRequest):
                             entry["status"] = "rejected"
                             raise GatewayError("provider_invalid_response") from None
@@ -453,7 +532,7 @@ class ChatEngine:
                   if r.rendered.supported or r.rendered.citations]
         if usable and code != "dataset_changed":
             text = "\n\n".join(r.text for r in usable)
-            text += "\n\nI found these details, but couldn't complete the rest of your request."
+            text += "\n\n" + INCOMPLETE_TEXT
             text += "\n\n" + SAFETY_MESSAGE  # Every incomplete reply carries the emergency numbers.
             if len(text) <= MAX_ANSWER_CHARS:
                 citations = {c["id"]: c for r in usable for c in r.citations}

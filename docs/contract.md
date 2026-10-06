@@ -129,6 +129,21 @@ student app never sends it.
 crash, or the API-level timeout) sends `metrics.decidedBy: "error"` and no `trace` field at all,
 because nothing was kept.
 
+## Development routes
+
+A Brain running in development also serves three read-only routes for the dev UI. Each needs
+`x-rockygpt-diagnostics: 1` and returns 404 without it. A production Brain does not register them,
+and they are left out of `/openapi.json`.
+
+- `GET /v1/dev/runtime`: `environment`, `model` and `prices`, `limits` (turn time and spend, model
+  calls, lookups, answer size, request and history bounds), the system `prompt`, the
+  `modelInputKeys` the model is given, the `tools` with their JSON schemas, the finish `parts` with
+  what each does, and every `fixedTexts` entry with when it is used.
+- `GET /v1/dev/offices`: `datasetVersion`, `identityHash`, and each published office's `entityId`,
+  `name` and `aliases`. The ids and pins feed `GET /v1/entities/{id}/facts`.
+- `GET /v1/dev/offices/search?q=`: the offices the search would return for the text, each with
+  `match` (`exact` or `partial`), so a nickname can be checked the way the model's lookup sees it.
+
 ## Failure envelope
 
 ```json
