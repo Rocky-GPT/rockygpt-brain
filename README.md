@@ -3,7 +3,7 @@
 The service behind RockyGPT, the Ramapo College student assistant.
 
 The current rebuild implements a small complete answering path: one bounded
-assistant chooses read-only canonical office lookups, and code renders the
+assistant traverses Ramapo → Offices → office → Published records, and code renders the
 published facts and citations. Code also handles account limitations, safety
 help, missing context, provider failures, deadlines, and spending. Jev and the
 classification-to-planner pipeline are retired from the active runtime.
@@ -78,3 +78,22 @@ Read the [current contract](docs/contract.md), [verification scope](docs/verific
 and [evaluation notes](evals/README.md). Earlier modules, runners, and reports remain
 as [historical evidence](docs/historical/README.md); they do not describe the active
 answering path.
+
+## Root-first traversal
+
+Each chat turn receives only the Ramapo navigation root. The `graph_open` tool opens
+children returned during that turn: Offices, a canonical office, then its Published
+records. There is no direct office lookup tool. Parent and undiscovered child cannot
+be opened in the same batch. Follow-ups start at the root again. Independent nodes
+at the same depth can be batched; the existing four-model-call and spending limits
+remain in place. A normal lookup takes three navigation calls followed by `finish`.
+
+The root/category links are navigation structure, not published campus facts. Only
+the office branch is implemented. Records still come from the shared fact reader,
+pinned to the dataset and identity hash selected when Offices is opened. Emergency
+campus contacts traverse the same structure in code under their existing time limit;
+emergency text does not depend on successful traversal.
+
+Development traces include each attempted path, publication pins, rendered answer
+contributions and their citations. Navigation does not establish current facts.
+This change has not been tested; earlier saved test results describe earlier code.

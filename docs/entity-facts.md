@@ -14,7 +14,7 @@ profiles, paginated context groups, or versioned cursors.
 
 The active consumers are:
 
-- The chat `office_facts` tool, which discovers a canonical office and reads only
+- The chat `graph_open` tool (after root/category/office traversal), which discovers a canonical office and reads only
   the requested supported fields. Code renders every retrieved office result;
   the model does not select which published values or conflicts survive the answer.
 - `GET /v1/entities/{entity_id}/facts`, which returns the same office facts for
