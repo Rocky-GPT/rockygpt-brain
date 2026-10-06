@@ -76,8 +76,8 @@ derived source: the citation `id` is `<record id>:contact_observation:<field>`, 
 capture, unchanged). A client must not treat such an `id` as a bare record id. An
 observation that is not newer than its record is ignored.
 
-Greetings, thanks and "who are you" get fixed server-written replies with
-`status: answered` and no citations. When the model reports danger that is current, the
+Greetings, thanks, "it was a false alarm" and "who are you" get fixed server-written replies with
+`status: answered` and no citations. The false-alarm reply repeats the 911/988 numbers. When the model reports danger that is current, the
 911/988 text comes first (`partial`) and everything else the turn produced follows it:
 contact details, "which office?" choices, "no matching office" notes and unsupported or
 account-limit notes. A data outage on such a turn is still an error that carries the
@@ -132,17 +132,24 @@ because nothing was kept.
 ## Development routes
 
 A Brain running in development also serves three read-only routes for the dev UI. Each needs
-`x-rockygpt-diagnostics: 1` and returns 404 without it. A production Brain does not register them,
-and they are left out of `/openapi.json`.
+`x-rockygpt-diagnostics: 1` and returns 404 without it (with a service token configured, the
+environment token is checked first). A production Brain does not register them, and they are left
+out of `/openapi.json`. Every `*Nusd` and `*_nusd*` number is in nanodollars; `nusdPerDollar` says
+how many make a dollar.
 
-- `GET /v1/dev/runtime`: `environment`, `model` and `prices`, `limits` (turn time and spend, model
-  calls, lookups, answer size, request and history bounds), the system `prompt`, the
+- `GET /v1/dev/runtime`: `environment`, `model`, `prices` (the rates the Brain bills per token),
+  `nusdPerDollar`, `limits` (turn time and spend, model calls, lookup attempts and results, answer
+  size, model input and output, and the request and history bounds), the system `prompt`, the
   `modelInputKeys` the model is given, the `tools` with their JSON schemas, the finish `parts` with
-  what each does, and every `fixedTexts` entry with when it is used.
-- `GET /v1/dev/offices`: `datasetVersion`, `identityHash`, and each published office's `entityId`,
-  `name` and `aliases`. The ids and pins feed `GET /v1/entities/{id}/facts`.
-- `GET /v1/dev/offices/search?q=`: the offices the search would return for the text, each with
-  `match` (`exact` or `partial`), so a nickname can be checked the way the model's lookup sees it.
+  what each does, and `fixedTexts`: the reply texts the code writes, each with `pickedBy` (who
+  chooses it: the model, the danger phrase list, a lookup result, a provider failure) and `when`.
+  How facts are worded and the error messages are not in `fixedTexts`.
+- `GET /v1/dev/offices`: `datasetVersion`, `identityHash`, `truncated`, and each published office's
+  `entityId`, `name` and `aliases`. The ids and pins feed `GET /v1/entities/{id}/facts`.
+- `GET /v1/dev/offices/search?q=`: the offices the search returns for the text, each with `match`
+  (`exact` or `partial`), plus `outcome` and `chosen`: what a lookup does with that result, decided
+  by the engine's own function (`answers` for one office, `asks` which when several fit, or
+  `not_found`). In a chat the model picks the query from the published list.
 
 ## Failure envelope
 
