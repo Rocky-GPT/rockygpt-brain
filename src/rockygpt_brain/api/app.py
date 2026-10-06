@@ -185,8 +185,12 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
                 else intake(request, conversation_id))
         boundary = check(turn)
         if boundary.kind == "safety":
-            result = replace(answered(turn, boundary.message, "partial"),
-                             trace={"decidedBy": "phrase_floor", "modelCalls": 0})
+            floor = application.state.engine
+            if floor is None or application.state.startup_error:
+                result = replace(answered(turn, boundary.message, "partial"), trace={
+                    "decidedBy": "phrase_floor", "modelCalls": 0, "situation": boundary.situation})
+            else:  # The emergency text, then the campus numbers if they can be read in time.
+                result = await floor.safety_reply(turn, boundary.situation)
         elif application.state.engine is None or application.state.startup_error:
             result = failed(turn, application.state.startup_error or "model_not_configured")
         else:

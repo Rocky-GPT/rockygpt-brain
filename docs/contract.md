@@ -77,20 +77,38 @@ capture, unchanged). A client must not treat such an `id` as a bare record id. A
 observation that is not newer than its record is ignored.
 
 Greetings, thanks, "it was a false alarm" and "who are you" get fixed server-written replies with
-`status: answered` and no citations. The false-alarm reply repeats the 911/988 numbers. When the model reports danger that is current, the
-911/988 text comes first (`partial`) and everything else the turn produced follows it:
-contact details, "which office?" choices, "no matching office" notes and unsupported or
-account-limit notes. A data outage on such a turn is still an error that carries the
-emergency text. A finish with nothing in it gets HTTP 200 `clarification` ("Which office or
-service ... do you mean?"), except directly after a safety reply, where it repeats the
-911/988 text. An incomplete reply (facts found, then a provider failure) ends with the
-911/988 text, as every error does. If the office directory cannot be read at the start of a
-turn, the turn fails with retryable `data_unavailable` before any model call.
+`status: answered` and no citations. The false-alarm reply repeats the 911/988 numbers.
+
+An emergency reply is `partial`, and its text depends on the kind of emergency. The danger phrase
+list names the kind from the group of phrases that matched (`self_harm`, `medical`, `danger`,
+`fire`, or `other` for an overdose, a spiked drink, "this is an emergency" and similar). When the
+model reports danger that is current, it sets `situation` on its `safety` part, or leaves it null.
+One kind gets its own text; several different kinds, or none, get the general `other` text, which
+is also the text of every failure and of a reply cut short. The self-harm text leads with 988;
+the medical, danger and fire texts lead with 911 and do not mention 988.
+
+Right after the emergency text the code adds the published phone numbers of the campus office for
+that kind of emergency (Public Safety (Emergency) for every kind, and the Counseling Center first
+for `self_harm`), read through the shared fact reader like every other fact, so each carries its
+source. The code does this, not the model, so it also happens on the phrase-list path. It waits at
+most three seconds; if the numbers cannot be read in time, the emergency text goes out alone. Then
+everything else the turn produced follows: contact details, "which office?" choices, "no matching
+office" notes and unsupported or account-limit notes. A data outage on such a turn is still an
+error that carries the emergency text. A finish with nothing in it gets HTTP 200 `clarification`
+("Which office or service ... do you mean?"), except directly after a safety reply of any kind,
+where it repeats that emergency text. An incomplete reply (facts found, then a provider failure)
+ends with the general emergency text, as every error does. If the office directory cannot be read
+at the start of a turn, the turn fails with retryable `data_unavailable` before any model call.
+
+A refusal says what it can. When office details are shown above it, an unsupported or
+account-limit note points to them ("The contact details above are the best way to ask the office
+directly"); with no office shown, the unsupported note says what can be looked up and asks which
+office. A recalled reply is quoted as plain words, without RockyGPT's own bold marks and links.
 
 Office facts come only from the shared canonical fact reader. Their values and
 citations are rendered by code. Every office lookup result is included automatically;
 the model's finish tool adds only bounded parts (account limitation, unsupported,
-clarification, safety, recall, clock, greeting, thanks, about), with an empty parts list
+clarification, safety, recall, clock, greeting, thanks, okay, about), with an empty parts list
 finalizing the retrieved facts. The model
 cannot supply new campus fact values, invented result or citation references, arbitrary SQL,
 account actions, or tool names outside the allowed set. Missing values, conflicting
@@ -112,14 +130,17 @@ development, gets two more fields in the reply. A production Brain ignores the h
 student app never sends it.
 
 - `trace`: one entry per office lookup the model asked for, in order, recorded before the
-  lookup runs so a lookup that fails still appears. Each has `tool` (`office_facts`),
+  lookup runs so a lookup that fails still appears. A lookup the code makes for an emergency
+  reply has `tool` `emergency_contacts` (and status `timeout` when it ran out of time); the model
+  never asks for it. Each has `tool` (`office_facts`),
   `arguments.query` and `arguments.fields` as the model sent them, `status` (`ok`,
   `ambiguous`, `not_found`, `data_unavailable`, `dataset_changed` or `rejected`),
   `result_count` (how many offices the search returned; an exact match plus partial matches
   counts them all), `office` when one was chosen, and `candidates` (up to five names) with
   `truncated` when several fit. A `not_found` or `data_unavailable` entry has neither.
 - `metrics`: `decidedBy` (`model`, `phrase_floor` or `error`), `errorCode` when `decidedBy` is
-  `error` (also set when a reply was cut short but kept the lookups it had), `modelCalls`,
+  `error` (also set when a reply was cut short but kept the lookups it had), `situation` (the kind
+  of emergency, on an emergency reply), `modelCalls`,
   `committedNusd` (the turn's model spend in nanodollars: the actual cost once a call settles,
   the held amount while a charge is uncertain), `officesListed` (how many published offices the
   model was shown), and `finish` (the part kinds the model ended with, as it sent them, even
@@ -142,14 +163,16 @@ how many make a dollar.
   size, model input and output, and the request and history bounds), the system `prompt`, the
   `modelInputKeys` the model is given, the `tools` with their JSON schemas, the finish `parts` with
   what each does, and `fixedTexts`: the reply texts the code writes, each with `pickedBy` (who
-  chooses it: the model, the danger phrase list, a lookup result, a provider failure) and `when`.
+  chooses it: the model, the danger phrase list, a lookup result, a provider failure, or the code itself) and `when`.
   How facts are worded and the error messages are not in `fixedTexts`.
 - `GET /v1/dev/offices`: `datasetVersion`, `identityHash`, `truncated`, and each published office's
   `entityId`, `name` and `aliases`. The ids and pins feed `GET /v1/entities/{id}/facts`.
-- `GET /v1/dev/offices/search?q=`: the offices the search returns for the text, each with `match`
-  (`exact` or `partial`), plus `outcome` and `chosen`: what a lookup does with that result, decided
-  by the engine's own function (`answers` for one office, `asks` which when several fit, or
-  `not_found`). In a chat the model picks the query from the published list.
+- `GET /v1/dev/offices/search?q=`: `query`, `datasetVersion`, `identityHash`, `truncated`, the
+  `candidates` the search returns (each with `entityId`, `name` and `match`, `exact` or `partial`),
+  and `outcome` and `chosen`: what a lookup does with that result, decided by the engine's own
+  function. `outcome` is `answers` (one office, named in `chosen`, a list of office names),
+  `asks` (several fit, or the result was truncated: the Brain asks which, naming up to five) or
+  `not_found`. In a chat the model picks the query from the published list.
 
 ## Failure envelope
 

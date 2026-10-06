@@ -15,8 +15,16 @@ from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from rockygpt_brain.answers import Rendered, literal, render_facts
-from rockygpt_brain.boundary import CAPABILITY_MESSAGE, SAFETY_MESSAGE
+from rockygpt_brain.answers import Rendered, literal, readable_quote, render_facts
+from rockygpt_brain.boundary import (
+    CAPABILITY_AFTER_LOOKUP_MESSAGE,
+    CAPABILITY_MESSAGE,
+    SAFETY_MESSAGE,
+    SAFETY_TEXTS,
+    SITUATIONS,
+    safety_text,
+    situation_of,
+)
 from rockygpt_brain.context import MAX_HISTORY_BYTES, Context, build_context
 from rockygpt_brain.contract import (
     MAX_CONVERSATION_CHARS,
@@ -51,13 +59,18 @@ the student wants to reach an office, asks for its published contact details (in
 advisor' or 'my financial aid office' when the student wants public details), or asks anything
 else about an office they name or the conversation is already about, such as its hours, walk-ins,
 appointments or deadlines: look that office up, and use unsupported for the part you cannot
-answer. Do not look an office up when it is only mentioned, for example in a request to pretend
-or write something. Always request email, phones and offices; add other fields only when the
-student asks for them. Choose each query from published_offices: when the student uses a
-nickname, a partial name, or describes a service, query the exact published office that
-plausibly handles it. Never invent an office name; if no listed office plausibly fits, use
-unsupported. Resolve ordinary follow-ups using the conversation and change only the constraint the
-student changes. Each office_facts request names one office.
+answer. No field holds hours, walk-in rules, appointments or deadlines. Look nothing up when the
+message asks for nothing from an office: it only mentions one (for example a request to pretend or
+write something), or it is a reaction such as an emoji, 'lol' or 'ugh', which gets about (or
+safety, if it could be a call for help). Always request email, phones and offices; add other
+fields only when the student asks for them. The office name is already shown, so request name only
+when the student asks what the office is called, and department only when they ask which
+department it belongs to. Choose each query from published_offices: when the student uses a
+nickname, a partial name, or describes a service, query the exact published office that plausibly
+handles it, and when one name or alias belongs to several published offices (for example Public
+Safety), look up each of them. Never invent an office name; if no listed office plausibly fits,
+use unsupported. Resolve ordinary follow-ups using the conversation and change only the
+constraint the student changes. Each office_facts request names one office.
 Do not use search results, your memory, or invented values as evidence. Respect missing data,
 conflicts, source dates and ambiguity. Do not infer office hours, policies, or account records
 from contact details. This first slice cannot answer other campus facts or general essays: for
@@ -74,19 +87,24 @@ Use unsupported for a part the available tools cannot answer. Do not discard a s
 public part because another part needs account access or is unsupported.
 
 Use greeting for a plain hello, thanks for a thank-you or goodbye, okay when the student says an
-earlier emergency, scare or worry is over, was a false alarm, or needs no help now, and about
-when the student asks who or what you are or what you can do. Use clarification when a missing
+earlier emergency, scare or worry is over, was a false alarm, or needs no help now (okay, not
+thanks, even if the student also says thanks), and about when the student asks who or what you are
+or what you can do. Use clarification when a missing
 detail prevents understanding; ambiguous office results already include specific office choices,
 so add no clarification then. Never ask the student to clarify a provider/database outage. Use
 recall with an earlier message_index only when asked what was said in this chat; this quotes
 conversation and does not assert the quoted facts are true today. Use clock only when the student
 asks for the current campus date or time.
 Use safety when the latest message, read with the conversation, shows someone is in immediate
-danger or at risk of self-harm right now, even if the phrase floor missed it. Do not use safety
-only because an earlier message was an emergency: if the student says it is over or asks an
-ordinary question, answer that question. When safety applies, still look up any office contact
-the student asked for; the server shows the safety text first. The server writes all safety,
-limitation, clarification, greeting and factual text.
+danger or at risk of self-harm right now, even if the phrase floor missed it. Set its situation to
+self_harm (the student may hurt themselves, or fears someone else will), medical (someone is
+hurt, ill, unconscious or not breathing), danger (a threat from another person: a weapon, an
+attack, a break-in, being followed), fire (fire, smoke or gas), or other (none of these fits,
+several do, or someone took too much of something). Every other part has a null situation. Do not
+use safety only because an earlier message was an emergency: if the student says it is over or
+asks an ordinary question, answer that question. When safety applies, still look up any office
+contact the student asked for; the server shows the safety text first. The server writes all
+safety, limitation, clarification, greeting and factual text.
 """
 
 
@@ -115,6 +133,7 @@ class AnswerPart(StrictModel):
         "greeting", "thanks", "okay", "about",
     ]
     message_index: int | None = Field(ge=0, le=79)
+    situation: Literal["self_harm", "medical", "danger", "fire", "other"] | None
 
 
 class Finish(StrictModel):
@@ -133,7 +152,8 @@ TOOLS = [
     _tool("finish", "Finish the answer. Office results are included automatically. List only "
           "additional limitation, greeting, thanks, okay, about, recall, clock or safety parts; "
           "otherwise use an empty list. "
-          "message_index is only for recall and must otherwise be null.", Finish),
+          "message_index is only for recall, and situation only for safety; each is otherwise "
+          "null.", Finish),
 ]
 
 
@@ -181,11 +201,27 @@ RECALL_OMITTED_TEXT = ("Some earlier messages are unavailable, so this is not a 
                        "of the conversation.")
 CLOCK_TEXT = "The campus date and time is {when}."
 CLOCK_FORMAT = "%A, %B %d, %Y at %I:%M %p %Z"
+# Who to call on campus for each kind of emergency: published offices, read through the shared
+# reader like every other fact. A name the release does not publish is skipped, never guessed.
+HELP_OFFICES = {
+    "self_harm": ("Counseling Center", "Public Safety (Emergency)"),
+    "medical": ("Public Safety (Emergency)",),
+    "danger": ("Public Safety (Emergency)",),
+    "fire": ("Public Safety (Emergency)",),
+    "other": ("Public Safety (Emergency)",),
+}
+HELP_FIELDS: list[OfficeField] = ["phones"]
+HELP_TEXT = "On campus, these published numbers can also help:"
+HELP_SECONDS = 3.0  # Emergency text never waits longer than this for the campus numbers.
 NUSD_PER_DOLLAR = 1_000_000_000
 MODEL_INPUT_KEYS = ("campus_now", "client_omitted_messages", "server_omitted_messages",
                     "published_offices", "earlier_messages", "latest_message")
-UNSUPPORTED_MESSAGE = ("I don't have verified information to answer that part of your request. "
-                       "I can look up published office contact details.")
+UNSUPPORTED_MESSAGE = ("I don't have verified information about that. I can look up published "
+                       "contact details for Ramapo offices, like email, phone and room, if you "
+                       "tell me which office.")
+UNSUPPORTED_AFTER_LOOKUP_MESSAGE = ("I don't have verified information about that part. The "
+                                    "contact details above are the best way to ask the office "
+                                    "directly.")
 CLARIFICATION_MESSAGE = "Which office or service, and which details, do you mean?"
 FIXED_REPLIES = {
     "greeting": ("Hi! I'm RockyGPT. I can look up published contact details for Ramapo offices, "
@@ -269,6 +305,33 @@ PART_NOTES = {
 }
 
 
+def emergency_kind(situations: list[str]) -> str:
+    """One kind keeps its own text. Several different kinds get the general one."""
+    kinds = set(situations)
+    return kinds.pop() if len(kinds) == 1 else "other"
+
+
+def safety_picked_by(situation: str) -> list[str]:
+    return (["the danger phrase list", "the model", "the code"] if situation == "other"
+            else ["the danger phrase list", "the model"])
+
+
+def safety_when(situation: str) -> str:
+    kinds = {
+        "self_harm": "thoughts of self-harm, or worry that someone else may",
+        "medical": "someone is hurt, ill, unconscious or not breathing",
+        "danger": "a threat from another person: a weapon, an attack, a break-in, being followed",
+        "fire": "fire, smoke or gas",
+        "other": "none of these fits, several do, or someone took too much of something",
+    }
+    text = (f"The danger phrase list or the model finds: {kinds[situation]}. It goes first, "
+            "and the rest of the reply follows it.")
+    if situation == "other":
+        text += (" The code also repeats it when the model finishes with nothing right after a "
+                 "safety reply, after a reply cut short, and with every failure.")
+    return text
+
+
 def fixed_texts() -> list[dict[str, Any]]:
     """The reply texts the code writes, with when each is used and who picks it.
 
@@ -280,14 +343,26 @@ def fixed_texts() -> list[dict[str, Any]]:
     model = ["the model"]
     lookup = ["the lookup result"]
     return [
-        entry("safety", ["the danger phrase list", "the model"],
-              "The danger phrase list matches (the whole reply), or the model finishes with a "
-              "safety part (placed first). Also shown after a reply cut short, and with every "
-              "failure.", SAFETY_MESSAGE),
-        entry("capability", model, "A finish part account_limit.", CAPABILITY_MESSAGE),
-        entry("unsupported", model, "A finish part unsupported.", UNSUPPORTED_MESSAGE),
+        *(entry(f"safety_{name}", safety_picked_by(name), safety_when(name), SAFETY_TEXTS[name])
+          for name in SITUATIONS),
+        entry("campus_help", ["the code"],
+              "Added right after any emergency text: the published phone numbers of the campus "
+              "office for that kind of emergency, read from the same data as every other fact. "
+              "Left out when the data can't be read within a few seconds.", HELP_TEXT),
+        entry("capability", model, "A finish part account_limit, when no office facts are shown.",
+              CAPABILITY_MESSAGE),
+        entry("capability_after_lookup", model,
+              "A finish part account_limit, when office facts are shown above it.",
+              CAPABILITY_AFTER_LOOKUP_MESSAGE),
+        entry("unsupported", model, "A finish part unsupported, when no office facts are shown.",
+              UNSUPPORTED_MESSAGE),
+        entry("unsupported_after_lookup", model,
+              "A finish part unsupported, when office facts are shown above it.",
+              UNSUPPORTED_AFTER_LOOKUP_MESSAGE),
         entry("clarification", model + ["the code"],
-              "A finish part clarification, or an empty finish.", CLARIFICATION_MESSAGE),
+              "A finish part clarification (not added when a lookup already asked which office), "
+              "or a finish with nothing in it, no lookup result and no safety reply just before.",
+              CLARIFICATION_MESSAGE),
         entry("greeting", model, "A finish part greeting.", FIXED_REPLIES["greeting"]),
         entry("thanks", model, "A finish part thanks.", FIXED_REPLIES["thanks"]),
         entry("okay", model, "A finish part okay.", FIXED_REPLIES["okay"]),
@@ -392,11 +467,9 @@ class ChatEngine:
                 result = OfficeResult(Rendered(NOT_FOUND_TEXT, complete=False))
             result.detail["result_count"] = len(candidates)
             return result, version, identity_hash
-        # The answer already names the office, so a name row beside contact fields only adds a
-        # stale-capture warning.
-        fields: list[str] = [f for f in request.fields if f != "name"] or list(request.fields)
         facts = self.facts.get_office_facts(
-            chosen[0]["entity_id"], fields, version, identity_hash=identity_hash, as_of=as_of)
+            chosen[0]["entity_id"], list(request.fields), version, identity_hash=identity_hash,
+            as_of=as_of)
         detail = {"office": chosen[0]["name"], "result_count": len(candidates)}
         return OfficeResult(render_facts(facts), detail=detail), version, identity_hash
 
@@ -438,7 +511,8 @@ class ChatEngine:
                     if call.name == "finish":
                         finish = Finish.model_validate(call.arguments)
                         trace["finish"] = [part.kind for part in finish.parts]
-                        return self._finish(turn, context, finish, results, version)
+                        return await self._finish(turn, context, finish, results, version,
+                                                  identity_hash, trace)
                     if call.name != "office_facts":
                         raise GatewayError("provider_invalid_response")
                     requests = OfficeRequests.model_validate(call.arguments).requests
@@ -486,14 +560,72 @@ class ChatEngine:
             LOG.info("brain_turn request_id=%s model_calls=%d committed_nusd=%d tools=%d",
                      turn.request_id, budget.calls, budget.committed_nusd, attempts)
 
-    def _finish(self, turn: Turn, context: Context, finish: Finish,
-                results: dict[str, OfficeResult], version: str | None) -> ChatResult:
+    async def _campus_help(self, situations: list[str], trace: dict[str, Any],
+                            version: str | None, identity_hash: str | None,
+                            as_of: datetime) -> list[Rendered]:
+        """The campus phone numbers for these emergencies, or nothing when they can't be read."""
+        kinds = [k for k in SITUATIONS if k in situations]
+        looked_up = {e.get("office") for e in trace["lookups"]}
+        names = [n for n in dict.fromkeys(n for k in kinds for n in HELP_OFFICES[k])
+                 if n not in looked_up]
+        entries = [{"tool": "emergency_contacts", "status": "failed", "result_count": 0,
+                    "arguments": {"query": n, "fields": list(HELP_FIELDS)}} for n in names]
+        trace["lookups"].extend(entries)
+
+        def read() -> list[tuple[dict[str, Any], Rendered | None]]:
+            # Works on its own results: a read that outlives the timeout must not touch the trace.
+            read_results: list[tuple[dict[str, Any], Rendered | None]] = []
+            for name in names:
+                try:
+                    result, _, _ = self._lookup(OfficeRequest(query=name, fields=HELP_FIELDS),
+                                                version, identity_hash, as_of)
+                except Exception as error:  # Best effort: the emergency text never depends on it.
+                    LOG.warning("brain_campus_help_unreadable office=%s exception_type=%s",
+                                name, type(error).__name__)
+                    read_results.append(({}, None))
+                    continue
+                shown = "office" in result.detail and bool(result.rendered.citations)
+                read_results.append(({"status": _lookup_status(result), **result.detail},
+                                     result.rendered if shown else None))
+            return read_results
+
+        if not names:
+            return []
+        try:
+            async with asyncio.timeout(HELP_SECONDS):
+                read_results = await asyncio.to_thread(read)
+        except TimeoutError:
+            LOG.warning("brain_campus_help_timeout")
+            for entry in entries:
+                entry["status"] = "timeout"
+            return []
+        for entry, (update, _) in zip(entries, read_results, strict=True):
+            entry.update(update)
+        return [rendered for _, rendered in read_results if rendered is not None]
+
+    def _emergency_chunks(self, situations: list[str], help_: list[Rendered]) -> list[str]:
+        return [safety_text(emergency_kind(situations)),
+                *([HELP_TEXT] if help_ else []), *(r.text for r in help_)]
+
+    async def safety_reply(self, turn: Turn, situation: str | None) -> ChatResult:
+        """The phrase floor's reply: the emergency text, then the campus numbers if readable."""
+        kind = situation or "other"
+        trace: dict[str, Any] = {"decidedBy": "phrase_floor", "modelCalls": 0, "committedNusd": 0,
+                                 "situation": kind, "lookups": []}
+        help_ = await self._campus_help([kind], trace, None, None, turn.campus_now)
+        citations = {c["id"]: c for r in help_ for c in r.citations}
+        text = "\n\n".join(self._emergency_chunks([kind], help_))
+        return replace(answered(turn, text, "partial", list(citations.values())), trace=trace)
+
+    async def _finish(self, turn: Turn, context: Context, finish: Finish,
+                      results: dict[str, OfficeResult], version: str | None,
+                      identity_hash: str | None, trace: dict[str, Any]) -> ChatResult:
         chunks: list[str] = []
         citations: dict[str, dict[str, Any]] = {}
         supported = False
         limited = False
         clarify = False
-        emergency = False
+        situations: list[str] = []  # The kind of each emergency the model named.
         errors: list[str] = []
         # Every lookup is a requested answer part. A later model decision cannot
         # discard its public facts, missing evidence, conflict, or outage.
@@ -506,13 +638,14 @@ class ChatEngine:
             if result.error_code:
                 errors.append(result.error_code)
         lookup_clarified = clarify
+        shown = any(r.rendered.supported for r in results.values())  # Office facts are above.
         for part in finish.parts:
             if part.kind == "recall":
                 if (part.message_index is None
                         or part.message_index >= len(context.recent_messages)):
                     raise GatewayError("provider_invalid_response")
                 message = context.recent_messages[part.message_index]
-                quote = literal(message.content[:4_000])
+                quote = literal(readable_quote(message.content[:4_000], message.role))
                 if len(message.content) > 4_000:
                     quote += RECALL_SHORTENED_TEXT
                 speaker = "you" if message.role == "user" else "RockyGPT"
@@ -525,12 +658,13 @@ class ChatEngine:
                 if part.message_index is not None:
                     raise GatewayError("provider_invalid_response")
                 if part.kind == "safety":
-                    emergency = True
+                    situations.append(part.situation or "other")
                 elif part.kind == "account_limit":
-                    chunks.append(CAPABILITY_MESSAGE)
+                    chunks.append(CAPABILITY_AFTER_LOOKUP_MESSAGE if shown else CAPABILITY_MESSAGE)
                     limited = True
                 elif part.kind == "unsupported":
-                    chunks.append(UNSUPPORTED_MESSAGE)
+                    chunks.append(UNSUPPORTED_AFTER_LOOKUP_MESSAGE if shown
+                                  else UNSUPPORTED_MESSAGE)
                     limited = True
                 elif part.kind == "clarification":
                     if not lookup_clarified:  # A lookup already asked which office.
@@ -547,20 +681,27 @@ class ChatEngine:
                     raise GatewayError("provider_invalid_response")
         if errors and not supported:
             return failed(turn, errors[0])
-        if not chunks and not emergency:
+        if not chunks and not situations:
             # The model finished with nothing to say. Never fail a harmless message for it,
-            # but right after a safety reply the safe thing to repeat is the safety text.
+            # but right after a safety reply the safe thing to repeat is that safety text.
             LOG.warning("brain_empty_finish request_id=%s", turn.request_id)
             last = context.recent_messages[-1] if context.recent_messages else None
-            if last is None or last.role != "assistant" or not last.content.startswith(
-                    SAFETY_MESSAGE):
+            earlier = situation_of(last.content) if last and last.role == "assistant" else None
+            if earlier is None:
                 return answered(turn, CLARIFICATION_MESSAGE, "clarification", None, version)
-            emergency = True
+            situations.append(earlier)
         # Safety text comes first; everything else the student asked for still follows it.
-        text = "\n\n".join(dict.fromkeys(([SAFETY_MESSAGE] if emergency else []) + chunks))
+        emergency: list[str] = []
+        if situations:
+            help_ = await self._campus_help(situations, trace, version, identity_hash,
+                                            turn.campus_now)
+            emergency = self._emergency_chunks(situations, help_)
+            trace["situation"] = emergency_kind(situations)
+            citations.update({c["id"]: c for r in help_ for c in r.citations})
+        text = "\n\n".join(dict.fromkeys(emergency + chunks))
         if len(text) > MAX_ANSWER_CHARS:
             raise GatewayError("provider_invalid_response")
-        status = "partial" if emergency or supported and limited else (
+        status = "partial" if situations or supported and limited else (
             "answered" if supported else ("clarification" if clarify else "unavailable"))
         return answered(turn, text, status, list(citations.values()), version)
 

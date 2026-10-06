@@ -45,6 +45,7 @@ def finish(kind: str | None = None, **changes: Any) -> Completion:
                 {
                     "kind": kind,
                     "message_index": None,
+                    "situation": None,
                     **changes,
                 }
             ]
@@ -614,12 +615,241 @@ def test_a_named_office_is_looked_up_even_when_the_rest_cannot_be_answered() -> 
     assert result.body["status"] == "partial"
 
 
-def test_a_name_row_is_not_added_beside_the_contact_fields_the_student_needs() -> None:
-    with_email = completion("office_facts", {"requests": [
+def test_a_name_the_student_asked_for_keeps_its_conflicts_and_unknowns() -> None:
+    asked = completion("office_facts", {"requests": [
         {"query": "Registrar", "fields": ["name", "email"]}]})
-    result = answer(ScriptedGateway(with_email, finish()))
-    assert "published@example.edu" in result.body["answer"]
-    assert "Name" not in result.body["answer"]
-    only_name = completion("office_facts", {"requests": [
-        {"query": "Registrar", "fields": ["name"]}]})
-    assert "Name" in answer(ScriptedGateway(only_name, finish())).body["answer"]
+    text = answer(ScriptedGateway(asked, finish())).body["answer"]
+    assert "published@example.edu" in text and "Name" in text
+
+
+def test_the_clock_and_the_which_office_line_use_the_shared_texts() -> None:
+    from zoneinfo import ZoneInfo
+
+    from rockygpt_brain.engine import AMBIGUOUS_MORE_TEXT, CLOCK_FORMAT, CLOCK_TEXT
+
+    clock = answer(ScriptedGateway(finish("clock")))
+    campus_now = NOW.astimezone(ZoneInfo("America/New_York"))
+    assert clock.body["answer"] == CLOCK_TEXT.format(when=campus_now.strftime(CLOCK_FORMAT))
+    many = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": f"o{n}", "name": f"Student Office {n}", "kind": "office", "aliases": [],
+                   "links": []} for n in range(12)],
+        contacts=[], now=lambda: NOW)
+    result = answer(ScriptedGateway(student_lookup("student office"), finish()), service=many)
+    assert result.trace is not None and result.trace["lookups"][0]["truncated"] is True
+    assert result.body["answer"].endswith(AMBIGUOUS_MORE_TEXT.strip())
+
+
+def campus_help_facts() -> MemoryEntityFacts:
+    """The registrar, plus the two offices an emergency reply points to, each with a phone."""
+    names = (("registrar", "Registrar", "(201) 555-0100"),
+             ("public-safety", "Public Safety (Emergency)", "(201) 555-6666"),
+             ("counseling", "Counseling Center", "(201) 555-7522"))
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": key, "name": name, "kind": "office", "aliases": [],
+                   "links": [{"collection": "contacts", "source_key": "directory",
+                              "source_record_keys": [key]}]} for key, name, _ in names],
+        contacts=[{"id": f"source-{key}", "source_key": "directory", "source_record_key": key,
+                   "name": name, "email": f"{key}@example.edu", "phone": phone,
+                   "canonical_url": f"https://example.edu/{key}", "collected_at": NOW,
+                   "freshness_sla_hours": 24} for key, name, phone in names],
+        now=lambda: NOW)
+
+
+def test_the_model_names_the_kind_of_emergency_and_gets_that_text_first() -> None:
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+
+    for kind in ("self_harm", "medical", "danger", "fire", "other"):
+        result = answer(ScriptedGateway(finish("safety", situation=kind)),
+                        messages=[{"role": "user", "content": "help"}])
+        assert result.body["answer"] == SAFETY_TEXTS[kind]
+        assert result.trace is not None and result.trace["situation"] == kind
+    unnamed = answer(ScriptedGateway(finish("safety")), messages=[{"role": "user", "content": "h"}])
+    assert unnamed.body["answer"] == SAFETY_MESSAGE
+
+
+def test_two_different_kinds_of_emergency_get_the_general_text() -> None:
+    both = completion("finish", {"parts": [
+        {"kind": "safety", "message_index": None, "situation": "fire"},
+        {"kind": "safety", "message_index": None, "situation": "medical"}]})
+    assert answer(ScriptedGateway(both)).body["answer"] == SAFETY_MESSAGE
+    same = completion("finish", {"parts": [
+        {"kind": "safety", "message_index": None, "situation": "fire"},
+        {"kind": "safety", "message_index": None, "situation": "fire"}]})
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+    assert answer(ScriptedGateway(same)).body["answer"] == SAFETY_TEXTS["fire"]
+
+
+def test_a_situation_on_a_part_that_is_not_safety_is_ignored() -> None:
+    result = answer(ScriptedGateway(finish("greeting", situation="fire")),
+                    messages=[{"role": "user", "content": "hi"}])
+    assert result.body["answer"].startswith("Hi! I'm RockyGPT")
+    assert "911" not in result.body["answer"] and result.body["status"] == "answered"
+
+
+def test_an_emergency_reply_adds_the_published_campus_numbers_with_sources() -> None:
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+    from rockygpt_brain.engine import HELP_TEXT
+
+    result = answer(ScriptedGateway(finish("safety", situation="fire")),
+                    service=campus_help_facts(),
+                    messages=[{"role": "user", "content": "there is smoke"}])
+    text = result.body["answer"]
+    assert text.startswith(SAFETY_TEXTS["fire"] + "\n\n" + HELP_TEXT)
+    assert "Public Safety \\(Emergency\\)" in text and "+12015556666" in text
+    assert "Counseling" not in text and "+12015557522" not in text
+    assert [c["id"] for c in result.body["citations"]] == ["source-public-safety"]
+    assert result.body["status"] == "partial"
+    assert result.trace is not None
+    entry = result.trace["lookups"][0]
+    assert entry["tool"] == "emergency_contacts" and entry["status"] == "ok"
+    assert entry["office"] == "Public Safety (Emergency)"
+    assert entry["arguments"] == {"query": "Public Safety (Emergency)", "fields": ["phones"]}
+
+
+def test_a_self_harm_reply_also_points_to_the_counseling_center() -> None:
+    result = answer(ScriptedGateway(finish("safety", situation="self_harm")),
+                    service=campus_help_facts(),
+                    messages=[{"role": "user", "content": "i want to disappear"}])
+    text = result.body["answer"]
+    assert text.index("988") < text.index("+12015557522") < text.index("+12015556666")
+    assert {c["id"] for c in result.body["citations"]} == {"source-counseling",
+                                                          "source-public-safety"}
+
+
+def test_the_rest_of_the_request_follows_the_emergency_text_and_numbers() -> None:
+    lookup = completion("office_facts", {"requests": [{"query": "Registrar", "fields": ["email"]}]})
+    result = answer(ScriptedGateway(lookup, finish("safety", situation="medical")),
+                    service=campus_help_facts(),
+                    messages=[{"role": "user", "content": "she fainted, also registrar email"}])
+    text = result.body["answer"]
+    assert text.index("Call 911") < text.index("+12015556666") < text.index("registrar@example.edu")
+
+
+def test_an_office_the_model_already_looked_up_is_not_looked_up_twice() -> None:
+    lookup = completion("office_facts", {"requests": [
+        {"query": "Public Safety (Emergency)", "fields": ["email", "phones"]}]})
+    result = answer(ScriptedGateway(lookup, finish("safety", situation="danger")),
+                    service=campus_help_facts(),
+                    messages=[{"role": "user", "content": "someone is following me"}])
+    assert result.body["answer"].count("+12015556666") == 1
+    assert result.trace is not None
+    assert [e["tool"] for e in result.trace["lookups"]] == ["office_facts"]
+
+
+def test_emergency_text_still_comes_when_the_campus_numbers_cannot_be_read() -> None:
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+
+    class Down(MemoryEntityFacts):
+        def search_offices(self, *_: Any, **__: Any) -> dict[str, Any]:
+            raise EvidenceUnavailable("down")
+
+    base = campus_help_facts()
+    down = Down(dataset_version="release-1", identity_hash="identities-1",
+                entities=base.entities, contacts=base.contacts, now=lambda: NOW)
+    result = answer(ScriptedGateway(finish("safety", situation="fire")), service=down)
+    assert result.status_code == 200 and result.body["answer"] == SAFETY_TEXTS["fire"]
+    assert result.body["citations"] == []
+    assert result.trace is not None and result.trace["lookups"][0]["status"] == "failed"
+
+
+def test_a_slow_read_of_the_campus_numbers_never_delays_the_emergency_text(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    import time
+
+    from rockygpt_brain import engine as engine_module
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+
+    class Slow(MemoryEntityFacts):
+        def search_offices(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+            time.sleep(0.4)
+            return super().search_offices(*args, **kwargs)
+
+    base = campus_help_facts()
+    slow = Slow(dataset_version="release-1", identity_hash="identities-1",
+                entities=base.entities, contacts=base.contacts, now=lambda: NOW)
+    monkeypatch.setattr(engine_module, "HELP_SECONDS", 0.05)
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "help"}]})
+    timing: list[float] = []
+
+    async def timed() -> ChatResult:
+        started = time.monotonic()
+        # The reply returns at the timeout. The slow read is left to finish on its own thread.
+        found = await ChatEngine(ScriptedGateway(finish("safety", situation="medical")),
+                                 slow).answer(intake(request, now=NOW), request)
+        timing.append(time.monotonic() - started)
+        return found
+
+    result = asyncio.run(timed())
+    assert timing[0] < 0.3
+    assert result.body["answer"] == SAFETY_TEXTS["medical"]
+    assert result.trace is not None and result.trace["lookups"][0]["status"] == "timeout"
+
+
+def test_the_phrase_floor_reply_has_its_own_text_and_the_campus_numbers() -> None:
+    from rockygpt_brain.boundary import SAFETY_TEXTS, check
+    from rockygpt_brain.engine import HELP_TEXT
+
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "there is a fire in my dorm"}]})
+    turn = intake(request, now=NOW)
+    boundary = check(turn)
+    engine_ = ChatEngine(ScriptedGateway(), campus_help_facts())
+    result = asyncio.run(engine_.safety_reply(turn, boundary.situation))
+    assert boundary.situation == "fire"
+    assert result.body["answer"].startswith(SAFETY_TEXTS["fire"] + "\n\n" + HELP_TEXT)
+    assert "+12015556666" in result.body["answer"]
+    assert result.trace is not None
+    assert (result.trace["decidedBy"], result.trace["modelCalls"],
+            result.trace["situation"]) == ("phrase_floor", 0, "fire")
+
+
+def test_an_empty_finish_after_any_emergency_text_repeats_that_text() -> None:
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+
+    result = answer(ScriptedGateway(finish()), messages=[
+        {"role": "user", "content": "there is a fire"},
+        {"role": "assistant", "content": SAFETY_TEXTS["fire"] + "\n\nOn campus: ..."},
+        {"role": "user", "content": "ok"},
+    ])
+    assert result.body["answer"] == SAFETY_TEXTS["fire"]
+
+
+def test_a_refusal_points_at_the_office_shown_above_it_and_otherwise_asks_for_one() -> None:
+    from rockygpt_brain.boundary import CAPABILITY_AFTER_LOOKUP_MESSAGE, CAPABILITY_MESSAGE
+    from rockygpt_brain.engine import UNSUPPORTED_AFTER_LOOKUP_MESSAGE, UNSUPPORTED_MESSAGE
+
+    messages = [{"role": "user", "content": "is the registrar open fridays"}]
+    with_office = answer(ScriptedGateway(LOOKUP, finish("unsupported")), messages=messages)
+    assert with_office.body["answer"].endswith(UNSUPPORTED_AFTER_LOOKUP_MESSAGE)
+    alone = answer(ScriptedGateway(finish("unsupported")), messages=messages)
+    assert alone.body["answer"] == UNSUPPORTED_MESSAGE
+    assert "tell me which office" in UNSUPPORTED_MESSAGE
+    own = answer(ScriptedGateway(LOOKUP, finish("account_limit")), messages=messages)
+    assert own.body["answer"].endswith(CAPABILITY_AFTER_LOOKUP_MESSAGE)
+    assert answer(ScriptedGateway(finish("account_limit")),
+                  messages=messages).body["answer"] == CAPABILITY_MESSAGE
+    # An office lookup that found nothing shows no details, so nothing is "above".
+    nothing = answer(ScriptedGateway(student_lookup("Cafeteria"), finish("unsupported")))
+    assert UNSUPPORTED_AFTER_LOOKUP_MESSAGE not in nothing.body["answer"]
+
+
+def test_a_recalled_reply_is_quoted_as_plain_words() -> None:
+    earlier = ("**Registrar**\n\nEmail: registrar@example.edu "
+               "[directory](https://example.edu/directory)\n\n"
+               "**Public Safety \\(Emergency\\)**")
+    result = answer(ScriptedGateway(finish("recall", message_index=1)), messages=[
+        {"role": "user", "content": "registrar email"},
+        {"role": "assistant", "content": earlier},
+        {"role": "user", "content": "what did you say first"},
+    ])
+    quote = result.body["answer"]
+    assert "**" not in quote and "](" not in quote and "https://" not in quote
+    assert "> Registrar" in quote and "Email: registrar@example.edu directory" in quote
+    assert "Public Safety \\(Emergency\\)" in quote  # Escaped once, as plain text.
+    own = answer(ScriptedGateway(finish("recall", message_index=0)), messages=[
+        {"role": "user", "content": "I typed **this** and [that](x)"},
+        {"role": "user", "content": "what did i say"},
+    ])
+    assert "I typed \\*\\*this\\*\\*" in own.body["answer"]  # A student's own words are kept.

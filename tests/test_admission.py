@@ -9,6 +9,7 @@ from starlette.types import Message, Receive, Scope, Send
 
 from rockygpt_brain.api import app as app_module
 from rockygpt_brain.api.app import Admission, create_app
+from rockygpt_brain.boundary import SAFETY_TEXTS
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine, ChatResult, answered
 from rockygpt_brain.provider import GatewayError
@@ -181,8 +182,11 @@ def test_the_phrase_floor_reports_that_it_decided() -> None:
             json={"messages": [{"role": "user",
                                 "content": "my roommate just collapsed and isnt breathing"}]},
         ).json()
-    assert body["metrics"] == {"decidedBy": "phrase_floor", "modelCalls": 0}
-    assert body["trace"] == [] and engine.calls == 0
+    assert body["metrics"] == {"decidedBy": "phrase_floor", "modelCalls": 0, "committedNusd": 0,
+                               "situation": "medical"}
+    # This engine has no campus data, so the one lookup for the campus numbers says it failed.
+    assert [(e["tool"], e["status"]) for e in body["trace"]] == [("emergency_contacts", "failed")]
+    assert body["answer"] == SAFETY_TEXTS["medical"] and engine.calls == 0
 
 
 def test_a_crash_outside_the_trace_sends_no_trace_rather_than_an_empty_one() -> None:

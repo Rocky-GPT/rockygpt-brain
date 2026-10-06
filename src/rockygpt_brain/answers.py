@@ -26,6 +26,15 @@ def literal(value: Any) -> str:
     return re.sub(r"([\\`*_{}\[\]()#!|])", r"\\\1", value)
 
 
+def readable_quote(content: str, role: str) -> str:
+    """An earlier reply as plain words, so RockyGPT's own formatting never shows as symbols."""
+    if role != "assistant":
+        return content
+    text = re.sub(r"\\([\\`*_{}\[\]()#!|])", r"\1", content)  # Undo the escaping literal() adds.
+    text = re.sub(r"\[([^\]]*)\]\([^)\s]*\)", r"\1", text)  # [label](url) becomes label.
+    return re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+
+
 def citation_url(value: Any) -> str | None:
     if (
         not isinstance(value, str)
