@@ -661,10 +661,106 @@ def test_a_graph_that_fails_a_read_is_dropped_and_the_source_takes_over(
     monkeypatch.undo()
     assert email(service) == "published@example.edu"  # ...and the next is answered by the source.
     assert service.serving == "memory (graph not ready)"
+    assert service.stats()["retryInSeconds"] > 0  # The graph is set aside for a while.
+    for _ in range(3):
+        email(service)
+    assert counting.builds == 1  # Nobody rebuilds inside the pause.
     ticks[0] = graph_store.RETRY_SECONDS + 1
     email(service)
     assert service.wait_for_build() and email(service) == "published@example.edu"
     assert service.serving == "graph"
+
+
+def test_a_file_holding_another_release_than_its_name_says_is_rebuilt(folder: Path) -> None:
+    other = Counting(basic())
+    other.dataset_version, other.identity_hash = "release-9", "identities-9"
+    build_release_graph(other, folder).rename(graph_path(folder, VERSION, IDENTITY))
+    counting = Counting(basic())
+    service = follow(counting, folder)
+    email(service)
+    assert service.wait_for_build() and counting.builds == 1  # Rebuilt, not trusted by its name.
+    assert email(service) == "published@example.edu" and service.serving == "graph"
+
+
+def test_a_graph_names_the_release_it_was_built_from(folder: Path) -> None:
+    graph = opened(basic(), folder)
+    assert graph.active_release() == (VERSION, IDENTITY)
+    assert graph.evidence_fingerprint() == ""  # The in-memory source has no digest to keep.
+
+
+def test_the_graph_keeps_the_registry_order_not_alphabetical_order(folder: Path) -> None:
+    memory = source([office("zeta", "Zeta"), office("alpha", "Alpha")],
+                    [contact("z1", "zeta"), contact("a1", "alpha")])
+    with memory.snapshot() as expected, opened(memory, folder).snapshot() as actual:
+        assert [e["id"] for e in actual.entities] == [e["id"] for e in expected.entities]
+        assert [e["id"] for e in actual.entities] == ["zeta", "alpha"]
+
+
+def test_a_graph_built_for_more_kinds_holds_their_evidence(folder: Path) -> None:
+    memory = aliases()
+    graph = GraphEntityFacts(
+        build_release_graph(memory, folder, kinds=("office", "person")), now=lambda: NOW)
+    with memory.snapshot() as expected, graph.snapshot() as actual:
+        person = next(e for e in actual.entities if e["kind"] == "person")
+        rows = actual.contact_reader(person)
+        assert [row["id"] for row in rows] == ["p1"] == [
+            row["id"] for row in expected.contact_reader(person)]
+
+
+def test_a_damaged_entity_document_is_refused_not_read(folder: Path) -> None:
+    path = build_release_graph(basic(), folder)
+    lb = graph_store.ladybug_module()
+    database = lb.Database(str(path))
+    connection = lb.Connection(database)
+    connection.execute("MATCH (e:Entity {id: 'registrar'}) SET e.doc = $doc",
+                       {"doc": '{"id":"registrar","kind":"office"}'})  # The name is missing.
+    connection.close()
+    database.close()
+    with pytest.raises(EvidenceUnavailable, match="Invalid canonical identity"):
+        with GraphEntityFacts(path).snapshot():
+            pass
+
+
+def test_an_evidence_query_that_fails_puts_the_graph_aside(folder: Path) -> None:
+    graph = opened(basic(), folder)
+    real = graph._lb  # noqa: SLF001 - swapped for a flaky engine.
+
+    class Flaky:
+        def __init__(self, inner: Any) -> None:
+            self.inner = inner
+
+        def execute(self, query: str, params: Any = None) -> Any:
+            if "HAS_RECORD" in query:
+                raise RuntimeError("disk error")
+            return self.inner.execute(query, params) if params else self.inner.execute(query)
+
+        def close(self) -> None:
+            self.inner.close()
+
+    class Engine:
+        @staticmethod
+        def Connection(database: Any) -> Flaky:  # noqa: N802 - mirrors the engine's API.
+            return Flaky(real.Connection(database))
+
+    graph._lb = Engine  # noqa: SLF001
+    assert graph.broken is False
+    with pytest.raises(EvidenceUnavailable, match="could not be read"):
+        graph.get_office_facts("registrar", ["email"], VERSION)
+    assert graph.broken is True
+
+
+def test_a_build_thread_that_cannot_start_leaves_the_answers_alone(
+        folder: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def cannot(self: threading.Thread) -> None:
+        raise RuntimeError("can't start new thread")
+
+    counting = Counting(basic())
+    service = follow(counting, folder)
+    monkeypatch.setattr(threading.Thread, "start", cannot)
+    assert email(service) == "published@example.edu"
+    stats = service.stats()
+    assert stats["building"] is False and stats["lastError"] == "RuntimeError"
+    assert stats["retryInSeconds"] > 0 and counting.builds == 0
 
 
 # ---- Postgres: the probes and the build read ------------------------------------------------
