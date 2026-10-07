@@ -31,11 +31,12 @@ not yet handle a truncated listing, so a directory larger than 200 offices needs
 change first. It adds no synonyms and does not change how `search_offices` matches.
 
 Adapters supply the same snapshot to the one shared reader: Postgres (the source of truth), an
-in-memory fixture for tests, and an optional derived graph file of one release
-(`retrieval/graph_store.py`, built in the background from `release_inputs()` and checked against
-`active_release()` and `evidence_fingerprint()`). The graph only stores and returns what the
-source adapter returned; it never chooses, merges or normalizes a value, and it is never an
-authority: any doubt about it sends the question to the source.
+in-memory fixture for tests, and optional graph-file adapters (`retrieval/graph_store.py`). One
+follows Postgres and builds its own copy (`ReleaseGraphFacts`, which falls back to Postgres). The
+other serves a release a publisher built (`GraphOnlyFacts`, `scripts/build_graph.py`) and never
+connects to Postgres. A graph only stores and returns what the source adapter returned; it never
+chooses, merges or normalizes a value, and it is never an authority: the self-building copy sends
+any doubt to the source, and the graph-only adapter reports it as an error.
 
 The reader exposes schema version `3`, mapping version `entity-facts-3`. Those
 identifiers describe the response envelope, not support for every entity type.
