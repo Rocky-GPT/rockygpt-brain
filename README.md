@@ -130,29 +130,37 @@ On Render's free tier the disk is erased on every sleep, so a graph-only Brain t
 published directory delivered to it (nothing does that yet); the self-building copy simply
 rebuilds after each wake.
 
-## JSON output (optional, off by default)
+## Fact Packet output (optional, off by default)
 
-With `BRAIN_OUTPUT=json` a turn returns the facts as typed JSON and writes no answer text: the
-AI still picks the lookup, the code returns what it found and stops, with no template and no model
-writing step. `answer` is `""`, `status`, `citations`, `datasetVersion` and `requestId` are the same
-as in text mode, and the body gains `facts: { asOf, parts: [...] }`. Errors are unchanged. Each part
-has a `kind`:
+The design is two steps with a hard wall between them: the Brain understands the question,
+resolves entities, reads the graph, applies dates and rules, and ends with a validated **Fact
+Packet**; a writer (a template first, a model later) turns the packet into words and sees nothing
+else. The writer has zero context, so the packet stands alone, and it may not discover, infer,
+calculate or retrieve a fact. No factual answer reaches a writer until a packet has passed
+`validate_packet`; if it fails, the turn is a `503 invalid_fact_packet` error, never a guess.
 
-| kind | what it holds |
+With `BRAIN_OUTPUT=json` a turn returns that packet and writes no answer text (no template and no
+writing model yet). `answer` is `""`; `status`, `citations`, `datasetVersion` and `requestId` are
+as in text mode, and the body gains `facts` (the packet). Errors are unchanged, and text mode stays
+the default, so the student UI is unaffected. `GET /v1/dev/runtime` reports `output`.
+
+Packet version `"1.0"` (`src/rockygpt_brain/fact_packet.py`):
+
+| key | what it holds |
 |---|---|
-| `office_facts` | `query`, `fields`, `office {id, name}` and `facts`: exactly what the shared reader returned (each property's status, values, assertions, sources, freshness and caveats; nothing merged or chosen) |
-| `ambiguous` | `query`, `candidates [{id, name, match}]`, `truncated` |
-| `not_found` | `query` |
-| `safety` | `situation`, and `campusContacts`: the `office_facts` parts of the campus numbers, empty when they cannot be read in time |
-| `recall` | `messageIndex`, `speaker`, `text`, `shortened`, `earlierMessagesOmitted` |
-| `clock` | `campusNow` |
-| `greeting`, `thanks`, `okay`, `about` | nothing else |
-| `unsupported`, `account_limit`, `clarification` | `afterLookup` |
-| `incomplete` | `code`: a provider failure cut the turn short; the facts found so far are kept |
+| `request` | `intent` (`contact`, `hours`, `contact_and_hours`, `office_facts`, `office_lookup`, `safety`, `recall`, `clock`...), `entities [{id, name, kind, query}]`, `fields`, `asOf` (the campus time every freshness check used), `dataset {version, identityHash}` |
+| `status` | `complete`, `partial` (something missing, stale, conflicting or unanswerable), `insufficient`, `ambiguous`, `not_found`, `emergency`, `no_facts_needed` |
+| `facts` | `[{id, subject {id, name, kind}, predicate, value, status, current, source_ids}]`. `value` is exactly what the shared reader returned; `status` is `known`, `conflicting` or `multiple` (conflicts are listed side by side, none is chosen); `current` is false when no source is fresh and inside its published validity. Campus numbers sent for an emergency carry `purpose: "emergency_contact"` |
+| `derived_facts` | reserved for values the Brain computes (for example "open at 8 pm"); empty for now |
+| `missing` | `[{subject, predicate, reason}]`: a requested fact the evidence does not hold |
+| `ambiguities` | `[{query, candidates [{id, name, match}], truncated}]` |
+| `unresolved` | `[{query, reason}]`: a name that matched no office |
+| `notices` | replies that carry no facts, each with a `type`: `greeting`, `thanks`, `okay`, `about`, `unsupported`, `account_limit`, `clarification`, `clock` (`campusNow`), `recall` (the quoted message), `safety` (`situation`, `contacts`), `incomplete` (`code`: a provider failure cut the turn short; the facts found are kept), `emergency_reminder` (the standing reminder on a cut-short reply; not an emergency) |
+| `sources` | `[{id, title, collection, urls, captured_at, freshness, validity, valid_from, valid_until, current, limitations}]`; only `https` links are listed |
 
-A turn cut short also carries a `safety` part (`situation: "other"`), as the text reply carries the
-emergency numbers. `GET /v1/dev/runtime` reports `output`. Text mode stays the default, so the
-student UI is unaffected.
+A notice that stands for words the Brain used to write itself carries them as `approved_text`
+(the emergency guidance, "I can't see your student record", the greeting). The writer states them
+and never composes them; a `safety` notice without its `approved_text` is refused.
 
 ## Root-first traversal
 
