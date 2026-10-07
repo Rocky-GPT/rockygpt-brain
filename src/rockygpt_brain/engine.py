@@ -44,6 +44,7 @@ from rockygpt_brain.retrieval import (
 from rockygpt_brain.retrieval.campus_graph import CampusGraph
 from rockygpt_brain.timing import measure
 from rockygpt_brain.turn import Turn
+from rockygpt_brain.writer_view import writer_view
 
 LOG = logging.getLogger(__name__)
 TURN_SECONDS = 40.0
@@ -206,8 +207,9 @@ DATA_UNAVAILABLE_TEXT = "Campus data is temporarily unavailable."
 INCOMPLETE_TEXT = "I found these details, but couldn't complete the rest of your request."
 AMBIGUOUS_TEXT = "Which office do you mean: {names}?"
 AMBIGUOUS_MORE_TEXT = " There are additional matches; a more specific name will help."
+RECALL_CAUTION = "This quotes the chat; it doesn't verify current campus facts."
 RECALL_TEXT = ("Earlier in the visible conversation, {speaker} said:\n\n{quote}\n\n"
-               "This quotes the chat; it doesn't verify current campus facts.")
+               + RECALL_CAUTION)
 RECALL_SHORTENED_TEXT = " … [quotation shortened]"
 RECALL_OMITTED_TEXT = ("Some earlier messages are unavailable, so this is not a complete record "
                        "of the conversation.")
@@ -417,7 +419,8 @@ class ChatEngine:
         self.output = output
 
     def _json(self, result: ChatResult, parts: list[dict[str, Any]], turn: Turn) -> ChatResult:
-        """In JSON output the written answer is dropped and the facts go out as they are."""
+        """In JSON output the written answer is dropped and the facts go out as they are: the full
+        packet (the Brain's record) and the cut-down view a writer would receive."""
         if self.output != "json":
             return result
         try:
@@ -425,7 +428,14 @@ class ChatEngine:
         except PacketInvalid as error:
             LOG.error("brain_invalid_fact_packet reason=%s", error)
             raise GatewayError("invalid_fact_packet") from error
-        return replace(result, body={**result.body, "answer": "", "facts": packet})
+        try:
+            writer_input = writer_view(packet)
+        except (KeyError, TypeError, ValueError) as error:
+            # A packet the view cannot be cut from is one nothing may be written from.
+            LOG.error("brain_invalid_writer_view exception_type=%s", type(error).__name__)
+            raise GatewayError("invalid_fact_packet") from error
+        return replace(result, body={**result.body, "answer": "", "facts": packet,
+                                     "writerInput": writer_input})
 
     async def readiness(self) -> bool:
         try:
@@ -481,18 +491,21 @@ class ChatEngine:
             if candidates:
                 names = ", ".join(literal(candidate["name"]) for candidate in candidates[:5])
                 text = AMBIGUOUS_TEXT.format(names=names)
-                if opened["truncated"]:
+                # Five are shown: more than five, however the reader counted, is a cut-off list.
+                more = bool(opened["truncated"]) or len(candidates) > 5
+                if more:
                     text += AMBIGUOUS_MORE_TEXT
                 detail.update(candidates=[candidate["name"] for candidate in candidates[:5]],
-                              truncated=opened["truncated"])
+                              truncated=more)
                 part = {"kind": "ambiguous", "query": request.query,
-                        "truncated": opened["truncated"],
+                        "truncated": more,
                         "candidates": [{"id": c["entity_id"], "name": c["name"],
                                         "match": c["match"]} for c in candidates[:5]]}
                 return OfficeResult(Rendered(text, complete=False), clarification=True,
                                     detail=detail, part=part)
             return OfficeResult(Rendered(NOT_FOUND_TEXT, complete=False), detail=detail,
-                                part={"kind": "not_found", "query": request.query})
+                                part={"kind": "not_found", "query": request.query,
+                                      "approved_text": NOT_FOUND_TEXT})
         detail["office"] = opened["label"]
         with measure("Render verified evidence"):
             rendered = render_facts(opened["facts"])
@@ -726,10 +739,17 @@ class ChatEngine:
                 if len(message.content) > 4_000:
                     quote += RECALL_SHORTENED_TEXT
                 speaker = "you" if message.role == "user" else "RockyGPT"
-                parts.append({"kind": "recall", "messageIndex": part.message_index,
-                              "speaker": message.role, "text": message.content[:4_000],
-                              "shortened": len(message.content) > 4_000,
-                              "earlierMessagesOmitted": bool(context.omitted_messages)})
+                recall: dict[str, Any] = {
+                    "kind": "recall", "messageIndex": part.message_index,
+                    "speaker": message.role, "text": message.content[:4_000],
+                    "shortened": len(message.content) > 4_000,
+                    "earlierMessagesOmitted": bool(context.omitted_messages),
+                    "approved_text": RECALL_CAUTION}
+                if recall["shortened"]:
+                    recall["shortened_text"] = RECALL_SHORTENED_TEXT.strip()
+                if recall["earlierMessagesOmitted"]:
+                    recall["omitted_text"] = RECALL_OMITTED_TEXT
+                parts.append(recall)
                 chunks.append(RECALL_TEXT.format(
                     speaker=speaker, quote="\n".join(f"> {line}" for line in quote.splitlines())))
                 if context.omitted_messages:
@@ -754,15 +774,16 @@ class ChatEngine:
                                   else UNSUPPORTED_MESSAGE)
                     limited = True
                 elif part.kind == "clarification":
-                    parts.append({"kind": "clarification", "afterLookup": lookup_clarified,
-                                  "approved_text": CLARIFICATION_MESSAGE})
                     if not lookup_clarified:  # A lookup already asked which office.
+                        parts.append({"kind": "clarification", "afterLookup": False,
+                                      "approved_text": CLARIFICATION_MESSAGE})
                         chunks.append(CLARIFICATION_MESSAGE)
                     limited = clarify = True
                 elif part.kind == "clock":
-                    parts.append({"kind": "clock", "campusNow": turn.campus_now.isoformat()})
-                    chunks.append(CLOCK_TEXT.format(
-                        when=turn.campus_now.strftime(CLOCK_FORMAT)))
+                    said = CLOCK_TEXT.format(when=turn.campus_now.strftime(CLOCK_FORMAT))
+                    parts.append({"kind": "clock", "campusNow": turn.campus_now.isoformat(),
+                                  "approved_text": said})
+                    chunks.append(said)
                     supported = True
                 elif part.kind in FIXED_REPLIES:
                     parts.append({"kind": part.kind, "approved_text": FIXED_REPLIES[part.kind]})

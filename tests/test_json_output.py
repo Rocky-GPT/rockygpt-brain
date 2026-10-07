@@ -20,6 +20,7 @@ from rockygpt_brain.fact_packet import PacketInvalid, validate_packet
 from rockygpt_brain.provider import Completion, GatewayError
 from rockygpt_brain.retrieval import MemoryEntityFacts, PostgresEntityFacts
 from rockygpt_brain.turn import intake
+from rockygpt_brain.writer_view import writer_view
 from test_engine import LOOKUP, NOW, ScriptedGateway, completion, facts, finish, two_student_offices
 from test_graph_store import contact, office, source
 
@@ -71,6 +72,16 @@ def test_a_lookup_returns_the_readers_facts_in_a_packet_and_no_written_answer() 
     assert {s["id"] for s in found["sources"]} == set(fact["source_ids"])
 
 
+def test_json_output_also_carries_the_cut_down_view_a_writer_would_receive() -> None:
+    result = run(ScriptedGateway(LOOKUP, finish()))
+    view = result.body["writerInput"]
+    assert view == writer_view(packet(result))
+    (fact,) = view["facts"]
+    assert fact == {"subject": "Registrar", "predicate": "email", "value": "published@example.edu",
+                    "sources": [1]}
+    assert "writerInput" not in run(ScriptedGateway(LOOKUP, finish()), output="text").body
+
+
 def test_status_citations_and_release_match_text_mode_and_text_stays_the_default() -> None:
     as_text = run(ScriptedGateway(LOOKUP, finish()), output="text")
     as_json = run(ScriptedGateway(LOOKUP, finish()))
@@ -91,7 +102,9 @@ def test_an_ambiguous_or_missing_office_is_named_in_the_packet_not_written_as_a_
     assert all(c["id"] and c["match"] for c in entry["candidates"])
     missing = packet(run(ScriptedGateway(lookup_of("Cafeteria"), finish())))
     assert missing["status"] == "not_found"
-    assert missing["unresolved"] == [{"query": "Cafeteria", "reason": "no_matching_office"}]
+    # The caveat the Brain always said with it travels with it: not found is not "does not exist".
+    assert missing["unresolved"] == [{"query": "Cafeteria", "reason": "no_matching_office",
+                                      "approved_text": engine_module.NOT_FOUND_TEXT}]
 
 
 def test_what_the_code_used_to_write_is_a_notice_with_the_approved_wording() -> None:
@@ -112,6 +125,11 @@ def test_what_the_code_used_to_write_is_a_notice_with_the_approved_wording() -> 
     assert notices(after)[0]["approved_text"] == engine_module.UNSUPPORTED_AFTER_LOOKUP_MESSAGE
     (clock,) = notices(run(ScriptedGateway(finish("clock"))))
     assert clock["type"] == "clock" and datetime.fromisoformat(clock["campusNow"]) == NOW
+    # The weekday and the zone's name are worked out by code; a writer is handed the sentence.
+    # (The timestamp alone cannot say "EDT": an offset does not name its zone.)
+    campus = datetime.fromisoformat(clock["campusNow"])
+    assert clock["approved_text"] == (
+        f"The campus date and time is {campus.strftime('%A, %B %d, %Y at %I:%M %p')} EDT.")
 
 
 def test_a_message_naming_no_office_is_a_question_to_ask_with_no_lookup() -> None:
@@ -130,7 +148,8 @@ def test_a_recall_carries_the_quoted_message_not_a_sentence_about_it() -> None:
     result = run(ScriptedGateway(finish("recall", message_index=0)), messages=messages)
     assert notices(result) == [{
         "type": "recall", "messageIndex": 0, "speaker": "user", "text": "hello there",
-        "shortened": False, "earlierMessagesOmitted": False}]
+        "shortened": False, "earlierMessagesOmitted": False,
+        "approved_text": engine_module.RECALL_CAUTION}]
     assert result.body["answer"] == "" and packet(result)["request"]["intent"] == "recall"
 
 
@@ -249,3 +268,22 @@ def test_the_output_mode_comes_from_the_environment_and_defaults_to_text(
     engine = configured(monkeypatch, setting)
     assert engine.output == expected and isinstance(engine.facts, PostgresEntityFacts)
     assert engine.runtime()["output"] == expected
+
+
+def test_a_packet_the_view_cannot_be_cut_from_is_refused_like_an_invalid_packet(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken(_packet: dict[str, Any]) -> dict[str, Any]:
+        raise KeyError("id")
+
+    monkeypatch.setattr("rockygpt_brain.engine.writer_view", broken)
+    result = run(ScriptedGateway(LOOKUP, finish()))
+    assert result.status_code == 503 and result.body["error"]["code"] == "invalid_fact_packet"
+
+
+def test_a_clarification_after_a_lookup_that_asked_which_office_is_not_asked_twice() -> None:
+    result = run(ScriptedGateway(lookup_of("student"), finish("clarification")),
+                 two_student_offices())
+    found = packet(result)
+    assert found["status"] == "ambiguous" and len(found["ambiguities"]) == 1
+    # The ambiguity already carries the question; a second, generic one would be a second ask.
+    assert found["notices"] == []
