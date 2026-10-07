@@ -113,23 +113,27 @@ def _hours_text(value: dict[str, Any], *, name_it: bool) -> str:
     runs: list[dict[str, Any]] = []
     for entry in value["days"]:
         day = entry["day"]
+        hours = entry["hours"] if entry["hours"] is not None else (
+            "Not published" if entry.get("status") == "not_published" else "Hours unavailable")
         index = _WEEKDAYS.index(day) if day in _WEEKDAYS else None
         last = runs[-1] if runs else None
-        if (last and last["hours"] == entry["hours"] and index is not None
+        if (last and last["hours"] == hours and index is not None
                 and last["index"] is not None and index == last["index"] + 1):
             last.update(last=day, index=index, count=last["count"] + 1)
         else:
-            runs.append({"first": day, "last": day, "hours": entry["hours"], "index": index,
+            runs.append({"first": day, "last": day, "hours": hours, "index": index,
                          "count": 1})
     text = "; ".join(
         f"{literal(_day_span(r['first'], r['last'], r['count']))}: "
-        f"{literal(r['hours']) if r['hours'] is not None else 'Hours unavailable'}"
+        f"{literal(r['hours'])}"
         for r in runs
     )
     if name_it and value.get("schedule"):
         text = f"{literal(value['schedule'])}. {text}"
     if value.get("season") and value["season"] not in str(value.get("schedule", "")):
         text = f"{literal(value['season'])}. {text}"
+    for bound in value.get("validity_absence", {}):
+        text += f". {'Start' if bound == 'valid_from' else 'End'} date: not published"
     notes = " ".join(literal(note) for note in value.get("notes", []))
     return f"{text}. Published note: {notes}" if notes else text
 
@@ -265,7 +269,11 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
             }
             links = " ".join(f"[{literal(first['source_key'])}]({url})" for url in urls)
             checked = literal(absence["checked_at"][:10])
-            line = f"{label}: not published on Ramapo's pages (checked {checked}) {links}"
+            line = f"{label}: not published on the reviewed official pages (checked {checked}) {links}"
+            if absence.get("scope"):
+                line += f". Scope: {literal(absence['scope'])}"
+            if absence.get("reason"):
+                line += f". {literal(absence['reason'])}"
             fresh = any(_current(source) for source in checked_sources)
             if absence.get("current") is True and fresh:
                 supported = True
@@ -318,6 +326,10 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
                 boundary = _boundaries(source, show_dates=prop["status"] != "known")
                 references.append(links + (f" ({boundary})" if boundary else ""))
                 value_current |= _current(source)
+            if prop["key"] == "hours":
+                value_current = value_current and all(
+                    day["absence"]["current"] for day in value["value"]["days"]
+                    if day.get("status") == "not_published")
             if references:
                 prefix = (
                     "Published value" if prop["status"] in {"conflicting", "multiple"} else label

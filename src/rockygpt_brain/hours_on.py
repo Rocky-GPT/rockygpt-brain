@@ -78,6 +78,8 @@ def hours_on(value: dict[str, Any], sources: list[dict[str, Any]], day: date) ->
     out: dict[str, Any] = {"schedule": value.get("schedule")}
     if value.get("season"):
         out["season"] = value["season"]
+    if value.get("validity_absence"):
+        out["validity_absence"] = value["validity_absence"]
     applies = covers(sources, day)
     unverified = bool(value.get("season")) and not any(
         _day(source.get("valid_from")) is not None
@@ -92,6 +94,9 @@ def hours_on(value: dict[str, Any], sources: list[dict[str, Any]], day: date) ->
         listed = (e for e in value.get("days", []) if isinstance(e, dict))
         entry = next((e for e in listed if e.get("day") == name), None)
         out["hours"] = entry.get("hours") if entry else None
+        if entry and entry.get("status") == "not_published" and entry.get("absence"):
+            out["status"] = "not_published"
+            out["absence"] = entry["absence"]
     else:
         out["hours"] = None
         out["window"] = window(sources)

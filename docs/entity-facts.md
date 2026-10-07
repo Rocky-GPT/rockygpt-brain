@@ -38,7 +38,7 @@ connects to Postgres. A graph only stores and returns what the source adapter re
 chooses, merges or normalizes a value, and it is never an authority: the self-building copy sends
 any doubt to the source, and the graph-only adapter reports it as an error.
 
-The reader exposes schema version `4`, mapping version `entity-facts-5`. Those
+The reader exposes schema version `4`, mapping version `entity-facts-6`. Those
 identifiers describe the response envelope, not support for every entity type.
 The [previous broader contract](historical/entity-facts-pre-office-slice.md) is a
 historical record of an earlier implementation and must not be used as a current
@@ -86,9 +86,17 @@ validity dates, freshness, normalization metadata, and caveats.
 
 Statuses describe observations, not official authority or confidence:
 
+The publisher's checked `normalization_metadata.evidence.contact_conflicts` retains
+same-purpose alternate phone, email or room assertions with their published label,
+URL, section and capture time. These remain assertions of the original contact record,
+with its original provenance, rather than invented independent records. A different
+same-purpose value contributes to the usual conflicting status; the reader does not
+select the office page or directory as a winner. Role-specific contacts belong in
+typed additions and contact notes instead.
+
 - `known`: one distinct nonempty value, possibly alongside empty observations.
 - `unknown`: no nonempty value is published, and nobody confirmed whether the office publishes one.
-- `not_published`: no value is published, and the publisher confirmed that the office's own pages were read and state none. The property carries `absence` (`source_ids`, the `checks` of page section and capture time, and the oldest `checked_at`). It is read only when there is no value, only for `email`, `phones`, `offices` and `hours`, and a malformed confirmation confirms nothing (the field stays `unknown`). It is an answer, not a gap.
+- `not_published`: no value is published, and the publisher confirmed that the reviewed pages state none within the specified scope. The property carries `absence` (`source_ids`, `checks` of page section and capture time, the oldest `checked_at`, and optional `scope` and `reason`). A check retains an optional exact-section `text_sha256`. It is read only when there is no value, for `email`, `phones`, `offices`, `hours`, `department`, `contact_note`, `prefers_email` and `preferred_contact`. A malformed confirmation confirms nothing (the field stays `unknown`). It is an answer, not a gap; absence of a ranked contact preference never means `prefers_email: false`.
 - `conflicting`: different values have overlapping or unspecified validity.
 - `multiple`: different values have fully specified, disjoint validity intervals.
 
@@ -151,13 +159,13 @@ office is open now, and it adds no summer, holiday or walk-in rule that the reco
 
 The legacy collector marker `Hours unavailable`, an empty string, or null becomes canonical
 `hours: null`. Its raw text remains in the assertion. A partially observed week retains these
-unknown days; they never mean closed. An entirely unavailable schedule contributes no canonical
+unknown days unless a source-bound review explicitly confirms their omission; they never mean closed. An entirely unavailable schedule contributes no canonical
 value and cannot make `hours` known. The assertion, source records, notes, and explanation remain
 visible. `issues` carries each unavailable or withheld schedule's `schedule`, optional `season`,
 `status` (`unknown` or `conflicting`), `reason`, `days`, `source_statements`, and `source_ids`.
 
 The optional schedule-row `normalization_metadata.evidence.schedule` has only `season`, `status`,
-`reason`, and `source_statements`. A status must be `unknown` or `conflicting` and have a reason.
+`reason`, `source_statements`, and `not_published`. A status must be `unknown` or `conflicting` and have a reason.
 Season is the source's actual seasonal heading, not an inferred semester; it is bounded to 300
 characters, reasons/statements to 2,000 characters each, and statements to 16. Malformed supplied
 metadata fails the read. Source statements may retain line breaks and tabs from their page section;
@@ -165,12 +173,35 @@ other control characters are rejected. The metadata and all raw assertions remai
 validity dates remain missing. A seasonal schedule without both published interval boundaries is
 a dated observation whose current applicability is unverified, even with a fresh capture.
 
+`not_published` is an optional list of at most three reviewed omissions. Each has `field`
+(`weekday_hours`, `valid_from`, or `valid_until`), nonempty `scope`, `reason`, and `checks`.
+A weekday claim also has a nonempty, unique `days` list naming only the seven weekdays. Each check
+has exactly `url`, `section`, timezone-aware `checked_at`, and a lowercase SHA256 `html_sha256`.
+The publisher must review the precise schedule section against that captured HTML; merely finding
+an empty normalized slot is not proof. The reader requires an HTTPS page, bounded text, a valid
+hash, no future checks, and a check matching the record's exact `source_url` and `collected_at`.
+A supplied claim contradicting an actual weekday value or date fails the read. The publisher
+must never describe conflict-withheld hours as absent from the source.
+
+For a reading with published hours, an explicitly reviewed missing weekday retains `hours: null`
+and gains `status: not_published` and `absence` with the source IDs, checks, oldest capture,
+freshness, scope and reason. It no longer creates an unknown-weekday issue. Actual schedule
+conflicts remain separate issues. An entirely withheld reading still contributes no known value.
+Reviewed missing boundaries appear in `value.validity_absence` keyed by `valid_from`/`valid_until`,
+and on the source and any withheld-schedule issue. These are source-scoped findings, not dates:
+they do not make a seasonal schedule apply to a requested day. Equal opening-time readings merge
+their review proofs without treating different hashes or capture times as different hours.
+
 The Fact Packet retains schedule issues as cited `missing` entries, so the writer receives their
 reasons and original source statements instead of a fabricated opening time. A date-specific
 lookup of a seasonal schedule without complete dates returns `applies: false`, `current: false`,
 `applicability: unverified`, and an `applicability_reason`; this differs from a known out-of-window
 date. The derived value contains null hours. Derived facts retain conflict/multiple status from
 their full schedule. Unknown weekday hours likewise never become a current derived opening time.
+When the schedule applies, a reviewed weekday omission propagates as `value.status: not_published`
+with its `value.absence`; a fresh omission is a current answer about missing publication, never an
+opening time. Ordinary unknown nulls retain their unknown wording. Verified missing validity
+boundaries and their scope remain in the derived value even when applicability is unverified.
 
 Runs of weekdays are drawn only over days that follow each other in the week and have the same
 text. A weekday with no record is never inside a span. A schedule's own name is shown when there

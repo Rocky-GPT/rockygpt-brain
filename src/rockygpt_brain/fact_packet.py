@@ -77,7 +77,8 @@ def _source(raw: dict[str, Any]) -> dict[str, Any]:
         "valid_until": raw.get("valid_until"), "current": source_is_current(raw),
         "limitations": list(raw.get("caveats", [])),
     }
-    for key in ("original_record_id", "observation_field", "original_collected_at", "season"):
+    for key in ("original_record_id", "observation_field", "original_collected_at", "season",
+                "validity_absence"):
         if key in raw:
             source[key] = raw[key]
     return source
@@ -131,6 +132,8 @@ class _Builder:
                          "source_ids": ids}
                 if issue.get("season"):
                     entry["season"] = issue["season"]
+                if issue.get("validity_absence"):
+                    entry["validity_absence"] = issue["validity_absence"]
                 if purpose:
                     entry["purpose"] = purpose
                 self.missing.append(entry)
@@ -143,7 +146,8 @@ class _Builder:
                          "checked_at": absence["checked_at"], "checks": list(absence["checks"]),
                          "current": (absence.get("current") is True
                                      and any(local[sid]["current"] for sid in ids)),
-                         "source_ids": ids}
+                         "source_ids": ids,
+                         **{key: absence[key] for key in ("scope", "reason") if key in absence}}
                 if purpose:
                     entry["purpose"] = purpose
                 self.not_published.append(entry)
@@ -168,6 +172,10 @@ class _Builder:
                         "predicate": prop["key"], "value": value["value"],
                         "status": prop["status"],
                         "current": any(local[sid]["current"] for sid in ids), "source_ids": ids}
+                if prop["key"] == "hours":
+                    fact["current"] = fact["current"] and all(
+                        day["absence"]["current"] for day in value["value"]["days"]
+                        if day.get("status") == "not_published")
                 if purpose:
                     fact["purpose"] = purpose
                 self.facts.append(fact)
@@ -194,7 +202,8 @@ class _Builder:
                     "predicate": "hours_on", "day": picked["day"], "date": picked["date"],
                     "value": picked["value"], "applies": picked["applies"],
                     "current": (fact["current"] and picked["applies"]
-                                and picked["value"].get("hours") is not None),
+                                and (picked["value"].get("hours") is not None
+                                     or picked["value"].get("absence", {}).get("current") is True)),
                     "from": [fact["id"]], "source_ids": list(fact["source_ids"]),
                     **({"status": fact["status"]} if fact["status"] != "known" else {}),
                     **{key: picked[key] for key in ("applicability", "applicability_reason")
@@ -289,7 +298,8 @@ def build_packet(as_of: str, parts: list[dict[str, Any]]) -> dict[str, Any]:
     return packet
 
 
-ABSENCE_PREDICATES = frozenset({"email", "phones", "offices", "hours"})
+ABSENCE_PREDICATES = frozenset({"email", "phones", "offices", "hours", "department",
+                               "prefers_email", "preferred_contact", "contact_note"})
 
 
 def _plain(value: Any) -> bool:
@@ -316,6 +326,8 @@ def _validate_absence(entry: Any, source_ids: set[str], held: set[tuple[Any, Any
         raise PacketInvalid("A not-published entry names a field that cannot be absent.")
     if not _instant_text(entry["checked_at"]) or not isinstance(entry["current"], bool):
         raise PacketInvalid("A not-published entry needs its check date and whether it is current.")
+    if any(key in entry and not _plain(entry[key]) for key in ("scope", "reason")):
+        raise PacketInvalid("A not-published entry needs plain review scope and reason.")
     checks = entry["checks"]
     if not isinstance(checks, list) or not checks or not all(
             isinstance(check, dict) and _plain(check.get("section"))
