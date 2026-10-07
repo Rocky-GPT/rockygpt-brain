@@ -32,6 +32,7 @@ from rockygpt_brain.contract import (
     MAX_MESSAGES,
     ChatRequest,
 )
+from rockygpt_brain.fact_packet import PacketInvalid, build_packet
 from rockygpt_brain.provider import Completion, GatewayError, TurnBudget
 from rockygpt_brain.retrieval import (
     DatasetChanged,
@@ -263,6 +264,7 @@ ERRORS: dict[str, tuple[int, str, bool]] = {
     "provider_refused": (503, "RockyGPT couldn't answer that request.", False),
     "data_unavailable": (503, "RockyGPT can't read the campus data right now.", True),
     "dataset_changed": (503, "The campus data changed while answering. Please try again.", True),
+    "invalid_fact_packet": (503, "RockyGPT couldn't prepare a valid fact packet.", False),
 }
 
 
@@ -412,8 +414,12 @@ class ChatEngine:
         """In JSON output the written answer is dropped and the facts go out as they are."""
         if self.output != "json":
             return result
-        facts = {"asOf": turn.campus_now.isoformat(), "parts": parts}
-        return replace(result, body={**result.body, "answer": "", "facts": facts})
+        try:
+            packet = build_packet(turn.campus_now.isoformat(), parts)
+        except PacketInvalid as error:
+            LOG.error("brain_invalid_fact_packet reason=%s", error)
+            raise GatewayError("invalid_fact_packet") from error
+        return replace(result, body={**result.body, "answer": "", "facts": packet})
 
     async def readiness(self) -> bool:
         try:
@@ -667,9 +673,16 @@ class ChatEngine:
         with measure("Compose safety response"):
             citations = {c["id"]: c for r in help_ for c in r.citations}
             text = "\n\n".join(self._emergency_chunks([kind], help_))
-            parts = [{"kind": "safety", "situation": kind, "campusContacts": help_parts}]
-            result = self._json(answered(turn, text, "partial", list(citations.values())),
-                                parts, turn)
+            base = answered(turn, text, "partial", list(citations.values()))
+            try:
+                result = self._json(
+                    base, [{"kind": "safety", "situation": kind, "campusContacts": help_parts,
+                          "approved_text": safety_text(kind)}],
+                    turn)
+            except GatewayError:  # An emergency reply never fails: send the kind without numbers.
+                result = self._json(
+                    base, [{"kind": "safety", "situation": kind, "campusContacts": [],
+                          "approved_text": safety_text(kind)}], turn)
             return replace(result, trace=trace)
 
     async def _finish(self, turn: Turn, context: Context, finish: Finish,
@@ -722,16 +735,21 @@ class ChatEngine:
                 if part.kind == "safety":
                     situations.append(part.situation or "other")
                 elif part.kind == "account_limit":
-                    parts.append({"kind": "account_limit", "afterLookup": shown})
+                    parts.append({"kind": "account_limit", "afterLookup": shown,
+                                  "approved_text": (CAPABILITY_AFTER_LOOKUP_MESSAGE if shown
+                                                    else CAPABILITY_MESSAGE)})
                     chunks.append(CAPABILITY_AFTER_LOOKUP_MESSAGE if shown else CAPABILITY_MESSAGE)
                     limited = True
                 elif part.kind == "unsupported":
-                    parts.append({"kind": "unsupported", "afterLookup": shown})
+                    parts.append({"kind": "unsupported", "afterLookup": shown,
+                                  "approved_text": (UNSUPPORTED_AFTER_LOOKUP_MESSAGE if shown
+                                                    else UNSUPPORTED_MESSAGE)})
                     chunks.append(UNSUPPORTED_AFTER_LOOKUP_MESSAGE if shown
                                   else UNSUPPORTED_MESSAGE)
                     limited = True
                 elif part.kind == "clarification":
-                    parts.append({"kind": "clarification", "afterLookup": lookup_clarified})
+                    parts.append({"kind": "clarification", "afterLookup": lookup_clarified,
+                                  "approved_text": CLARIFICATION_MESSAGE})
                     if not lookup_clarified:  # A lookup already asked which office.
                         chunks.append(CLARIFICATION_MESSAGE)
                     limited = clarify = True
@@ -741,7 +759,7 @@ class ChatEngine:
                         when=turn.campus_now.strftime(CLOCK_FORMAT)))
                     supported = True
                 elif part.kind in FIXED_REPLIES:
-                    parts.append({"kind": part.kind})
+                    parts.append({"kind": part.kind, "approved_text": FIXED_REPLIES[part.kind]})
                     chunks.append(FIXED_REPLIES[part.kind])
                     supported = True
                 else:
@@ -757,7 +775,8 @@ class ChatEngine:
             if earlier is None:
                 return self._json(
                     answered(turn, CLARIFICATION_MESSAGE, "clarification", None, version),
-                    [{"kind": "clarification", "afterLookup": False}], turn)
+                    [{"kind": "clarification", "afterLookup": False,
+                      "approved_text": CLARIFICATION_MESSAGE}], turn)
             situations.append(earlier)
         # Safety text comes first; everything else the student asked for still follows it.
         emergency: list[str] = []
@@ -765,7 +784,8 @@ class ChatEngine:
             help_, help_parts = await self._campus_help(situations, trace, version, identity_hash,
                                                         turn.campus_now)
             parts.insert(0, {"kind": "safety", "situation": emergency_kind(situations),
-                             "campusContacts": help_parts})
+                             "campusContacts": help_parts,
+                             "approved_text": safety_text(emergency_kind(situations))})
             emergency = self._emergency_chunks(situations, help_)
             trace["situation"] = emergency_kind(situations)
             citations.update({c["id"]: c for r in help_ for c in r.citations})
@@ -792,7 +812,10 @@ class ChatEngine:
                 result = answered(turn, text, "partial", list(citations.values()), version)
                 result.body["limitation"] = {"code": code}
                 parts = [*(r.part for r in found if r.part is not None),
-                         {"kind": "incomplete", "code": code},
-                         {"kind": "safety", "situation": "other", "campusContacts": []}]
-                return self._json(result, parts, turn)
+                         {"kind": "incomplete", "code": code, "approved_text": INCOMPLETE_TEXT},
+                         {"kind": "emergency_reminder", "approved_text": SAFETY_MESSAGE}]
+                try:
+                    return self._json(result, parts, turn)
+                except GatewayError as error:
+                    return failed(turn, error.code)
         return failed(turn, code)
