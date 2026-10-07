@@ -68,7 +68,7 @@ def test_structured_phones_and_rooms_are_readable_and_cited() -> None:
 
 def test_unknown_field_preserves_useful_supported_part() -> None:
     rendered = render_facts(facts({"email": None}, fields=["email", "offices"]))
-    assert "Email: not published" in rendered.text
+    assert "Email: I have no published information about this" in rendered.text
     assert "D-224" in rendered.text
     assert rendered.supported is True
     assert rendered.complete is False

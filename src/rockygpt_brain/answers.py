@@ -195,7 +195,7 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
     for prop in facts["properties"]:
         label = literal(prop["label"])
         if prop["status"] == "unknown":
-            lines.append(f"{label}: not published in the available evidence.")
+            lines.append(f"{label}: I have no published information about this.")
             complete = False
             continue
         if prop["status"] == "not_published":
@@ -203,12 +203,13 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
             absence = prop["absence"]
             checked_sources = [sources[sid] for sid in absence["source_ids"] if sid in sources]
             if not checked_sources or len(checked_sources) != len(absence["source_ids"]):
-                raise EvidenceUnavailable("A confirmed absence has invalid original evidence links.")
+                raise EvidenceUnavailable("A confirmed absence has bad evidence links.")
             urls = list(dict.fromkeys(
                 url for check in absence["checks"] if (url := citation_url(check["url"]))))
             if not urls:
                 complete = False
-                lines.append(f"{label}: I can't verify a current value from fresh, citable evidence.")
+                lines.append(f"{label}: I can't verify a current value from fresh, "
+                             "citable evidence.")
                 continue
             first = checked_sources[0]
             cited = f"{first['id']}:{prop['key']}:not_published"
@@ -220,8 +221,10 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
                 "record_title": str(entity["name"]),
             }
             links = " ".join(f"[{literal(first['source_key'])}]({url})" for url in urls)
-            line = f"{label}: not published on Ramapo's pages (checked {literal(absence['checked_at'][:10])}) {links}"
-            if any(_current(source) for source in checked_sources):
+            checked = literal(absence["checked_at"][:10])
+            line = f"{label}: not published on Ramapo's pages (checked {checked}) {links}"
+            fresh = any(_current(source) for source in checked_sources)
+            if absence.get("current") is True and fresh:
                 supported = True
             else:
                 complete = False

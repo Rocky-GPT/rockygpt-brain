@@ -36,6 +36,7 @@ with a reply cut short; only a real `safety` notice makes the status `emergency`
 """
 
 import json
+from datetime import datetime
 from typing import Any
 
 from rockygpt_brain.answers import _current as source_is_current
@@ -108,7 +109,9 @@ class _Builder:
                     raise PacketInvalid("A confirmed absence names a source the reader lacks.")
                 entry = {"subject": entity, "predicate": prop["key"],
                          "checked_at": absence["checked_at"], "checks": list(absence["checks"]),
-                         "current": any(local[sid]["current"] for sid in ids), "source_ids": ids}
+                         "current": (absence.get("current") is True
+                                     and any(local[sid]["current"] for sid in ids)),
+                         "source_ids": ids}
                 if purpose:
                     entry["purpose"] = purpose
                 self.not_published.append(entry)
@@ -214,6 +217,48 @@ def build_packet(as_of: str, parts: list[dict[str, Any]]) -> dict[str, Any]:
     return packet
 
 
+ABSENCE_PREDICATES = frozenset({"email", "phones", "offices", "hours"})
+
+
+def _plain(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip()) and not any(ord(c) < 32 for c in value)
+
+
+def _instant_text(value: Any) -> bool:
+    try:
+        datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def _validate_absence(entry: Any, source_ids: set[str], held: set[tuple[Any, Any]]) -> None:
+    """A confirmed absence is a claim a student will be told: every part of it must hold up."""
+    if not isinstance(entry, dict) or not ABSENCE_KEYS <= set(entry):
+        raise PacketInvalid("A not-published entry is incomplete.")
+    subject = entry["subject"]
+    if not isinstance(subject, dict) or not all(
+            _plain(subject.get(key)) for key in ("id", "name", "kind")):
+        raise PacketInvalid("A not-published entry needs its subject.")
+    if entry["predicate"] not in ABSENCE_PREDICATES:
+        raise PacketInvalid("A not-published entry names a field that cannot be absent.")
+    if not _instant_text(entry["checked_at"]) or not isinstance(entry["current"], bool):
+        raise PacketInvalid("A not-published entry needs its check date and whether it is current.")
+    checks = entry["checks"]
+    if not isinstance(checks, list) or not checks or not all(
+            isinstance(check, dict) and _plain(check.get("section"))
+            and isinstance(check.get("url"), str) and check["url"].startswith("https://")
+            and _plain(check["url"]) and _instant_text(check.get("checked_at"))
+            for check in checks):
+        raise PacketInvalid("A not-published entry needs the pages it checked.")
+    ids = entry["source_ids"]
+    if (not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids)
+            or not set(ids) <= source_ids):
+        raise PacketInvalid("A not-published entry needs listed sources.")
+    if (subject["id"], entry["predicate"]) in held:
+        raise PacketInvalid("A field cannot be both answered and confirmed not published.")
+
+
 _LISTS = ("facts", "derived_facts", "missing", "not_published", "ambiguities", "unresolved",
           "notices", "sources")
 
@@ -255,13 +300,12 @@ def validate_packet(packet: dict[str, Any]) -> None:
     for entry in packet["missing"]:
         if not {"subject", "predicate", "reason"} <= set(entry):
             raise PacketInvalid("A missing entry is incomplete.")
+    held = {(fact["subject"].get("id"), fact["predicate"]) for fact in packet["facts"]
+            if isinstance(fact.get("subject"), dict)}
+    held |= {(entry["subject"].get("id"), entry["predicate"]) for entry in packet["missing"]
+             if isinstance(entry.get("subject"), dict)}
     for entry in packet["not_published"]:
-        if not ABSENCE_KEYS <= set(entry):
-            raise PacketInvalid("A not-published entry is incomplete.")
-        if (not isinstance(entry["checks"], list) or not entry["checks"]
-                or not entry["source_ids"] or not set(entry["source_ids"]) <= set(source_ids)
-                or not isinstance(entry["current"], bool)):
-            raise PacketInvalid("A not-published entry needs the pages checked and listed sources.")
+        _validate_absence(entry, set(source_ids), held)
     try:
         json.dumps(packet, allow_nan=False)
     except (TypeError, ValueError) as error:
