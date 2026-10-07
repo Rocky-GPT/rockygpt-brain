@@ -47,10 +47,34 @@ def _room(value: str) -> str:
     return f"{match[1]}-{match[2]}{match[3] or ''}" if match else value
 
 
+# The only address the Brain will call an office's website: a plain https page of ramapo.edu.
+_OWN_SITE = re.compile(r"https://(?:www\.)?ramapo\.edu/[A-Za-z0-9._~/-]*")
+
+
+def _website(row: dict[str, Any]) -> tuple[Any, Any]:
+    """The office's own ramapo.edu page and the reviewed claim it came from.
+
+    The publisher records it in the row's evidence only when a reviewer named the page and the run's
+    capture loaded it. It is read again here, so nothing but a plain ramapo.edu https page can be
+    stated as a website, whatever the row holds.
+    """
+    metadata = row.get("normalization_metadata")
+    evidence = metadata.get("evidence") if isinstance(metadata, dict) else None
+    claim = evidence.get("website") if isinstance(evidence, dict) else None
+    if not isinstance(claim, dict):
+        return None, None
+    url = claim.get("url")
+    return (url if isinstance(url, str) and _OWN_SITE.fullmatch(url) else None), claim
+
+
 def project_contact(row: dict[str, Any], field: str) -> tuple[Any, Any, list[str]]:
     """Return canonical value, untouched published observation, and caveats."""
     raw = row.get(field)
     caveats: list[str] = []
+    if field == "website":
+        # A provenance URL is not an assertion of the office's website; a reviewed claim is.
+        url, claim = _website(row)
+        return url, claim, caveats
     if field == "phones":
         raw = {"phones": row.get("phones"), "phone": row.get("phone")}
         phones = clean(row.get("phones"))
@@ -97,5 +121,4 @@ def project_contact(row: dict[str, Any], field: str) -> tuple[Any, Any, list[str
     if field == "prefers_email" and raw is False:
         caveats.append("Historical false means no observed contact preference.")
         return None, raw, caveats
-    # A provenance URL is not an assertion of the office's website.
     return clean(raw), raw, caveats

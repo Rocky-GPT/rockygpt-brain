@@ -108,6 +108,13 @@ conflicts and unknowns, and does not promote stale values or prior conversation
 claims into current facts. A provenance URL alone does not establish an office's
 own website.
 
+An office's website is a reviewed claim, not a source URL. A reviewer names the office's own
+ramapo.edu page in `src/reference/directory-contacts.json` (`website`); at publication it is kept
+in `normalization_metadata.evidence.website` only when it is a plain https page of `ramapo.edu` or
+`www.ramapo.edu` and the run's capture loaded it. The reader checks it again and states nothing
+else as a website: another host, a subdomain, `http`, a port, a query or a fragment is unknown.
+An office with no page of its own on ramapo.edu (Athletics) has none.
+
 ## Hours
 
 The graph already links an office to its schedule records: the `campus_hours` collection,

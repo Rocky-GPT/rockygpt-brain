@@ -267,6 +267,38 @@ def test_source_boundaries_and_verified_page_urls_are_retained() -> None:
     assert source["normalization_metadata"]["evidence"]["withheld"]
 
 
+def site_row(url: Any, **extra: Any) -> dict[str, Any]:
+    claim = {"url": url, "checked_at": "2026-10-07T00:00:00+00:00", **extra}
+    return contact(normalization_metadata={"evidence": {
+        "source_urls": ["https://example.edu/registrar"], "website": claim}})
+
+
+def test_a_reviewed_ramapo_page_is_the_offices_website_and_a_provenance_url_is_not() -> None:
+    known = prop(reader([site_row("https://www.ramapo.edu/registrar/")]).get_office_facts(
+        "registrar", ["website"], "test-release"), "website")
+    assert known["status"] == "known"
+    assert [v["value"] for v in known["values"]] == ["https://www.ramapo.edu/registrar/"]
+    # What the publisher published is shown beside the value, not rewritten.
+    assert known["assertions"][0]["raw_value"]["url"] == "https://www.ramapo.edu/registrar/"
+    bare = prop(reader([contact()]).get_office_facts("registrar", ["website"], "test-release"),
+                "website")
+    assert bare["status"] == "unknown"  # The page a fact was copied from is not the website.
+
+
+@pytest.mark.parametrize("url", [
+    "https://ramapoathletics.com/", "https://www.ramapo.edu.evil.example/x/",
+    "http://www.ramapo.edu/x/", "https://web.ramapo.edu/x/", "https://user@www.ramapo.edu/x/",
+    "https://www.ramapo.edu:8443/x/", "https://www.ramapo.edu/x/?q=1",
+    "https://www.ramapo.edu/x/#top", "javascript:alert(1)", "ramapo.edu",
+    " https://www.ramapo.edu/x/", "https://www.ramapo.edu/x y/", None, 7,
+    ["https://www.ramapo.edu/x/"],
+])
+def test_only_a_plain_ramapo_page_can_be_stated_as_a_website(url: Any) -> None:
+    result = reader([site_row(url)]).get_office_facts("registrar", ["website"], "test-release")
+    assert prop(result, "website")["status"] == "unknown"
+    assert prop(result, "website")["values"] == []
+
+
 def test_phone_and_office_aliases_normalize_without_inventing_values() -> None:
     result = reader(
         [
