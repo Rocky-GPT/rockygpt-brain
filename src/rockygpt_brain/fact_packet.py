@@ -13,7 +13,11 @@ Version 1.0:
                    | no_facts_needed
     facts          [{id, subject {id, name, kind}, predicate, value, status, current, source_ids}]
     derived_facts  [] (reserved: values the Brain computes, such as "open at 8 pm")
-    missing        [{subject, predicate, reason}]   a requested fact the evidence does not hold
+    missing        [{subject, predicate, reason}]   a requested fact we hold no information about
+                   (reason "unknown": nobody checked, or the page could not be read)
+    not_published  [{subject, predicate, checked_at, current, checks, source_ids}]
+                   a requested fact the office's own pages were read for and do not publish: an
+                   answer, not a gap (the pages and date are recorded)
     ambiguities    [{query, candidates [{id, name, match}], truncated}]
     unresolved     [{query, reason}]                a name that matched no office
     notices        [{type, ...}]                    replies with no facts (greeting, safety...)
@@ -44,6 +48,7 @@ CONTACT_FIELDS = frozenset({"name", "department", "email", "phones", "offices", 
                             "preferred_contact", "contact_note", "website"})
 # Replies that cannot carry facts: the question is outside what the Brain can look up.
 CANNOT_ANSWER = frozenset({"unsupported", "account_limit", "clarification"})
+ABSENCE_KEYS = frozenset({"subject", "predicate", "checked_at", "checks", "current", "source_ids"})
 FACT_KEYS = frozenset({"id", "subject", "predicate", "value", "status", "current", "source_ids"})
 
 
@@ -71,6 +76,7 @@ class _Builder:
     def __init__(self) -> None:
         self.facts: list[dict[str, Any]] = []
         self.missing: list[dict[str, Any]] = []
+        self.not_published: list[dict[str, Any]] = []
         self.ambiguities: list[dict[str, Any]] = []
         self.unresolved: list[dict[str, Any]] = []
         self.notices: list[dict[str, Any]] = []
@@ -95,9 +101,21 @@ class _Builder:
                 raise PacketInvalid("Two different sources share one id.")
             local[source["id"]] = source
         for prop in reader["properties"]:
+            if prop["status"] == "not_published":
+                absence = prop["absence"]
+                ids = list(absence["source_ids"])
+                if not ids or any(sid not in local for sid in ids) or not absence["checks"]:
+                    raise PacketInvalid("A confirmed absence names a source the reader lacks.")
+                entry = {"subject": entity, "predicate": prop["key"],
+                         "checked_at": absence["checked_at"], "checks": list(absence["checks"]),
+                         "current": any(local[sid]["current"] for sid in ids), "source_ids": ids}
+                if purpose:
+                    entry["purpose"] = purpose
+                self.not_published.append(entry)
+                continue
             if prop["status"] == "unknown" or not prop["values"]:
                 self.missing.append({"subject": entity, "predicate": prop["key"],
-                                     "reason": "not_published"})
+                                     "reason": "unknown"})
                 continue
             for value in prop["values"]:
                 ids = list(value["source_ids"])
@@ -154,16 +172,19 @@ def _intent(builder: _Builder) -> str:
 def _status(builder: _Builder) -> str:
     kinds = {notice["type"] for notice in builder.notices}
     asked = [fact for fact in builder.facts if fact.get("purpose") is None]
+    absent = [entry for entry in builder.not_published if entry.get("purpose") is None]
+    answered = asked or absent  # A confirmed "not published" is an answer too.
     if "safety" in kinds:
         return "emergency"
-    if not asked and (builder.ambiguities or "clarification" in kinds):
+    if not answered and (builder.ambiguities or "clarification" in kinds):
         return "ambiguous"  # The Brain needs a follow-up question answered before it can look up.
-    if not asked and builder.unresolved:
+    if not answered and builder.unresolved:
         return "not_found"
-    if asked:
+    if answered:
         degraded = (builder.missing or builder.ambiguities or builder.unresolved
                     or kinds & ({"evidence_incomplete", "incomplete"} | CANNOT_ANSWER)
-                    or any(not f["current"] or f["status"] != "known" for f in asked))
+                    or any(not f["current"] or f["status"] != "known" for f in asked)
+                    or any(not entry["current"] for entry in absent))
         return "partial" if degraded else "complete"
     if builder.missing or kinds & CANNOT_ANSWER:
         return "insufficient"
@@ -183,6 +204,7 @@ def build_packet(as_of: str, parts: list[dict[str, Any]]) -> dict[str, Any]:
         "facts": builder.facts,
         "derived_facts": [],
         "missing": builder.missing,
+        "not_published": builder.not_published,
         "ambiguities": builder.ambiguities,
         "unresolved": builder.unresolved,
         "notices": builder.notices,
@@ -192,7 +214,8 @@ def build_packet(as_of: str, parts: list[dict[str, Any]]) -> dict[str, Any]:
     return packet
 
 
-_LISTS = ("facts", "derived_facts", "missing", "ambiguities", "unresolved", "notices", "sources")
+_LISTS = ("facts", "derived_facts", "missing", "not_published", "ambiguities", "unresolved",
+          "notices", "sources")
 
 
 def validate_packet(packet: dict[str, Any]) -> None:
@@ -232,6 +255,13 @@ def validate_packet(packet: dict[str, Any]) -> None:
     for entry in packet["missing"]:
         if not {"subject", "predicate", "reason"} <= set(entry):
             raise PacketInvalid("A missing entry is incomplete.")
+    for entry in packet["not_published"]:
+        if not ABSENCE_KEYS <= set(entry):
+            raise PacketInvalid("A not-published entry is incomplete.")
+        if (not isinstance(entry["checks"], list) or not entry["checks"]
+                or not entry["source_ids"] or not set(entry["source_ids"]) <= set(source_ids)
+                or not isinstance(entry["current"], bool)):
+            raise PacketInvalid("A not-published entry needs the pages checked and listed sources.")
     try:
         json.dumps(packet, allow_nan=False)
     except (TypeError, ValueError) as error:

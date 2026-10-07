@@ -152,7 +152,8 @@ Packet version `"1.0"` (`src/rockygpt_brain/fact_packet.py`):
 | `status` | `complete`, `partial` (something missing, stale, conflicting or unanswerable), `insufficient`, `ambiguous` (the Brain needs a follow-up answered: an office name matched several offices, or the message named no office), `not_found`, `emergency`, `no_facts_needed` |
 | `facts` | `[{id, subject {id, name, kind}, predicate, value, status, current, source_ids}]`. `value` is exactly what the shared reader returned; `status` is `known`, `conflicting` or `multiple` (conflicts are listed side by side, none is chosen); `current` is false when no source is fresh and inside its published validity. Campus numbers sent for an emergency carry `purpose: "emergency_contact"` |
 | `derived_facts` | reserved for values the Brain computes (for example "open at 8 pm"); empty for now |
-| `missing` | `[{subject, predicate, reason}]`: a requested fact the evidence does not hold |
+| `missing` | `[{subject, predicate, reason}]`: a requested fact we hold no information about (reason `unknown`: nobody confirmed whether the office publishes it) |
+| `not_published` | `[{subject, predicate, checked_at, current, checks [{url, section, checked_at}], source_ids}]`: a requested fact the office's own pages were read for and do not state. It is an answer with its proof, so it does not make the packet `partial` unless the check is no longer current |
 | `ambiguities` | `[{query, candidates [{id, name, match}], truncated}]` |
 | `unresolved` | `[{query, reason}]`: a name that matched no office |
 | `notices` | replies that carry no facts, each with a `type`: `greeting`, `thanks`, `okay`, `about`, `unsupported`, `account_limit`, `clarification`, `clock` (`campusNow`), `recall` (the quoted message), `safety` (`situation`, `contacts`), `incomplete` (`code`: a provider failure cut the turn short; the facts found are kept), `emergency_reminder` (the standing reminder on a cut-short reply; not an emergency) |

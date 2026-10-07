@@ -32,6 +32,8 @@ WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", 
 MAX_EVIDENCE_BYTES = 128_000
 CONTACT_OBSERVATION_ARTIFACT = "development-office-contact-evidence"
 OBSERVED_FIELDS = frozenset({"email", "phones", "offices"})
+# The office fields a reviewed "not published" claim can cover, and the publisher's name for each.
+ABSENCE_FIELDS = {"email": "email", "phones": "phone", "offices": "office", "hours": "hours"}
 MAX_OBSERVATION_PAGES = 16
 CAMPUS_TIMEZONE = ZoneInfo("America/New_York")
 _DISCOVERY_FILLER = frozenset({"a", "an", "the", "of", "for", "and", "office", "offices"})
@@ -341,6 +343,47 @@ def _observation_sources(row: dict[str, Any], original: dict[str, Any],
     return derived
 
 
+def confirmed_absence(rows: Sequence[dict[str, Any]], key: str) -> dict[str, Any] | None:
+    """The publisher's confirmation that the office's own pages do not publish this field.
+
+    A reviewed claim reaches a row only after the run's capture of the cited page sections was
+    read and none stated a value (`normalization_metadata.evidence.not_published`). It says
+    which sections were read and when. A malformed claim confirms nothing, so the field stays
+    unknown. This is read only when no value is published: a value always wins.
+    """
+    wanted = ABSENCE_FIELDS.get(key)
+    if wanted is None:
+        return None
+    source_ids: list[str] = []
+    checks: list[dict[str, str]] = []
+    for row in rows:
+        metadata = row.get("normalization_metadata")
+        evidence = metadata.get("evidence") if isinstance(metadata, dict) else None
+        claims = evidence.get("not_published") if isinstance(evidence, dict) else None
+        if not isinstance(claims, list):
+            continue
+        for claim in claims:
+            if not isinstance(claim, dict) or claim.get("field") != wanted:
+                continue
+            raw = claim.get("checks")
+            valid = [
+                {name: item[name] for name in ("url", "section", "checked_at")}
+                for item in (raw if isinstance(raw, list) else [])
+                if isinstance(item, dict)
+                and all(isinstance(item.get(name), str) and item[name]
+                        for name in ("url", "section", "checked_at"))
+                and _instant(item["checked_at"]) is not None
+            ]
+            whole = isinstance(raw, list) and len(valid) == len(raw)
+            if valid and whole and row["id"] not in source_ids:
+                source_ids.append(row["id"])
+                checks.extend(valid)
+    if not checks:
+        return None
+    oldest = min(checks, key=lambda check: str(_instant(check["checked_at"])))
+    return {"source_ids": source_ids, "checks": checks, "checked_at": oldest["checked_at"]}
+
+
 def canonical_properties(
     rows: Sequence[dict[str, Any]],
     fields: Sequence[str],
@@ -405,6 +448,9 @@ def canonical_properties(
                     group["source_ids"].append(source_id)
         values = list(groups.values())
         status = "unknown" if not values else "known"
+        absence = confirmed_absence(rows, field) if not values else None
+        if absence:
+            status = "not_published"
         if len(values) > 1:
             distinct_pairs = (
                 (left, right) for i, left in enumerate(values) for right in values[i + 1 :]
@@ -424,6 +470,7 @@ def canonical_properties(
                 "status": status,
                 "values": values,
                 "assertions": assertions,
+                **({"absence": absence} if absence else {}),
             }
         )
     return properties
@@ -839,6 +886,8 @@ class EntityFacts:
             )
             if "hours" in selected:
                 hours, schedule_sources = schedule_property(schedule_rows, now)
+                if hours["status"] == "unknown" and (absent := confirmed_absence(rows, "hours")):
+                    hours = {**hours, "status": "not_published", "absence": absent}
                 sources.extend(schedule_sources)
                 properties = sorted(
                     [*properties, hours], key=lambda prop: list(selected).index(prop["key"]))
@@ -874,8 +923,8 @@ class EntityFacts:
             if not rows:
                 caveats.append("No original contact evidence is published for this office.")
             return {
-                "schema_version": 3,
-                "mapping_version": "entity-facts-3",
+                "schema_version": 4,
+                "mapping_version": "entity-facts-4",
                 "dataset_version": snapshot.dataset_version,
                 "identity_hash": snapshot.identity_hash,
                 "entity": {key: entity[key] for key in ("id", "kind", "name")},

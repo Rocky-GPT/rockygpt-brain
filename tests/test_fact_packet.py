@@ -79,8 +79,7 @@ def test_a_requested_fact_the_evidence_does_not_hold_is_missing_not_blank() -> N
     both = part_for(registrar(), "registrar", "Registrar", ["email", "hours"])
     packet = build_packet(AS_OF, [both])
     assert packet["request"]["intent"] == "contact_and_hours"
-    assert [(m["predicate"], m["reason"]) for m in packet["missing"]] == [
-        ("hours", "not_published")]
+    assert [(m["predicate"], m["reason"]) for m in packet["missing"]] == [("hours", "unknown")]
     assert packet["missing"][0]["subject"]["id"] == "registrar"
     assert not any(f["predicate"] == "hours" for f in packet["facts"])
     assert packet["status"] == "partial"

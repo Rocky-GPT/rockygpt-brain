@@ -128,8 +128,23 @@ def aliases() -> MemoryEntityFacts:
                             "sources": [{"basis": "department"}]}])
 
 
+def absences() -> MemoryEntityFacts:
+    check = {"url": "https://example.edu/nursing/", "section": "Contact Us",
+             "checked_at": "2026-10-05T08:00:00+00:00"}
+    claims = [{"field": "email", "checks": [check]}, {"field": "hours", "checks": [check]},
+              {"field": "office", "checks": [check, {**check, "section": "Location"}]}]
+    return source(
+        [office("nursing", "Nursing"), office("library", "Library", schedules=["Regular"])],
+        [contact("n1", "nursing", email=None, office=None,
+                 normalization_metadata={"evidence": {"source_urls": [check["url"]],
+                                                      "not_published": claims}}),
+         contact("l1", "library")],
+        schedules=week("Regular", "a", "8am-5pm"))
+
+
 SCENARIOS: dict[str, Callable[[], MemoryEntityFacts]] = {
-    "basic": basic, "conflicts": conflicts, "hours": hours, "aliases": aliases}
+    "basic": basic, "conflicts": conflicts, "hours": hours, "aliases": aliases,
+    "absences": absences}
 QUERIES = ("Registrar", "student services", "library hours", "no such office anywhere")
 
 
