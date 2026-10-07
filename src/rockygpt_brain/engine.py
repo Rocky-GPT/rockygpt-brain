@@ -181,6 +181,7 @@ class OfficeResult:
     error_code: str | None = None
     clarification: bool = False
     detail: dict[str, Any] = field(default_factory=dict)  # Which office, or which candidates.
+    part: dict[str, Any] | None = None  # The same result as typed JSON, for output="json".
 
 
 def answered(turn: Turn, answer: str, status: str, citations: list[dict[str, Any]] | None = None,
@@ -400,9 +401,19 @@ def _lookup_status(result: OfficeResult) -> str:
 
 class ChatEngine:
     def __init__(self, gateway: ModelGateway, facts: EntityFacts, *,
-                 turn_seconds: float = TURN_SECONDS, max_turn_nusd: int = 25_000_000) -> None:
+                 turn_seconds: float = TURN_SECONDS, max_turn_nusd: int = 25_000_000,
+                 output: Literal["text", "json"] = "text") -> None:
         self.gateway, self.facts = gateway, facts
         self.turn_seconds, self.max_turn_nusd = turn_seconds, max_turn_nusd
+        # "json": the response carries the facts as typed JSON parts and no written answer.
+        self.output = output
+
+    def _json(self, result: ChatResult, parts: list[dict[str, Any]], turn: Turn) -> ChatResult:
+        """In JSON output the written answer is dropped and the facts go out as they are."""
+        if self.output != "json":
+            return result
+        facts = {"asOf": turn.campus_now.isoformat(), "parts": parts}
+        return replace(result, body={**result.body, "answer": "", "facts": facts})
 
     async def readiness(self) -> bool:
         try:
@@ -422,6 +433,7 @@ class ChatEngine:
             "model": prices["model"] if prices else None,
             "prices": prices,
             "nusdPerDollar": NUSD_PER_DOLLAR,
+            "output": self.output,
             "factsBackend": getattr(self.facts, "serving", self.facts.backend),
             "factsGraph": self.facts.stats() if hasattr(self.facts, "stats") else None,
             "limits": {
@@ -461,14 +473,23 @@ class ChatEngine:
                     text += AMBIGUOUS_MORE_TEXT
                 detail.update(candidates=[candidate["name"] for candidate in candidates[:5]],
                               truncated=opened["truncated"])
-                return OfficeResult(Rendered(text, complete=False), clarification=True, detail=detail)
-            return OfficeResult(Rendered(NOT_FOUND_TEXT, complete=False), detail=detail)
+                part = {"kind": "ambiguous", "query": request.query,
+                        "truncated": opened["truncated"],
+                        "candidates": [{"id": c["entity_id"], "name": c["name"],
+                                        "match": c["match"]} for c in candidates[:5]]}
+                return OfficeResult(Rendered(text, complete=False), clarification=True,
+                                    detail=detail, part=part)
+            return OfficeResult(Rendered(NOT_FOUND_TEXT, complete=False), detail=detail,
+                                part={"kind": "not_found", "query": request.query})
         detail["office"] = opened["label"]
         with measure("Render verified evidence"):
             rendered = render_facts(opened["facts"])
         detail["answer"] = {"text": rendered.text, "citations": rendered.citations,
                             "complete": rendered.complete}
-        return OfficeResult(rendered, detail=detail)
+        part = {"kind": "office_facts", "query": request.query, "fields": list(request.fields),
+                "office": {"id": opened["entity_id"], "name": opened["label"]},
+                "facts": opened["facts"]}
+        return OfficeResult(rendered, detail=detail, part=part)
 
     async def answer(self, turn: Turn, request: ChatRequest) -> ChatResult:
         trace: dict[str, Any] = {"decidedBy": "model", "modelCalls": 0, "committedNusd": 0,
@@ -578,8 +599,9 @@ class ChatEngine:
 
     async def _campus_help(self, situations: list[str], trace: dict[str, Any],
                             version: str | None, identity_hash: str | None,
-                            as_of: datetime) -> list[Rendered]:
-        """The campus phone numbers for these emergencies, or nothing when they can't be read."""
+                            as_of: datetime) -> tuple[list[Rendered], list[dict[str, Any]]]:
+        """The campus phone numbers for these emergencies (as text and as JSON parts), or nothing
+        when they can't be read."""
         kinds = [k for k in SITUATIONS if k in situations]
         # An office the model already looked up is not repeated, but only if its phones were shown.
         shown = {e.get("office") for e in trace["lookups"] if e.get("status") == "ok"
@@ -591,9 +613,9 @@ class ChatEngine:
         first_lookup = len(trace["lookups"]) + 1
         trace["lookups"].extend(entries)
 
-        def read() -> list[tuple[dict[str, Any], Rendered | None]]:
+        def read() -> list[tuple[dict[str, Any], OfficeResult | None]]:
             # Works on its own results: a read that outlives the timeout must not touch the trace.
-            read_results: list[tuple[dict[str, Any], Rendered | None]] = []
+            read_results: list[tuple[dict[str, Any], OfficeResult | None]] = []
             for lookup_number, name in enumerate(names, start=first_lookup):
                 try:
                     with measure(f"Lookup {lookup_number}"):
@@ -611,11 +633,11 @@ class ChatEngine:
                     read_results.append(({"status": "not_found"}, None))
                     continue
                 read_results.append(({"status": _lookup_status(result), **result.detail},
-                                     result.rendered if result.rendered.citations else None))
+                                     result if result.rendered.citations else None))
             return read_results
 
         if not names:
-            return []
+            return [], []
         try:
             async with asyncio.timeout(HELP_SECONDS):
                 with measure("Read emergency contact evidence"):
@@ -624,10 +646,12 @@ class ChatEngine:
             LOG.warning("brain_campus_help_timeout")
             for entry in entries:
                 entry["status"] = "timeout"
-            return []
+            return [], []
         for entry, (update, _) in zip(entries, read_results, strict=True):
             entry.update(update)
-        return [rendered for _, rendered in read_results if rendered is not None]
+        helped = [result for _, result in read_results if result is not None]
+        return ([result.rendered for result in helped],
+                [result.part for result in helped if result.part is not None])
 
     def _emergency_chunks(self, situations: list[str], help_: list[Rendered]) -> list[str]:
         return [safety_text(emergency_kind(situations)),
@@ -639,11 +663,14 @@ class ChatEngine:
         trace: dict[str, Any] = {"decidedBy": "phrase_floor", "modelCalls": 0, "committedNusd": 0,
                                  "situation": kind, "lookups": []}
         with measure("Look up emergency contacts"):
-            help_ = await self._campus_help([kind], trace, None, None, turn.campus_now)
+            help_, help_parts = await self._campus_help([kind], trace, None, None, turn.campus_now)
         with measure("Compose safety response"):
             citations = {c["id"]: c for r in help_ for c in r.citations}
             text = "\n\n".join(self._emergency_chunks([kind], help_))
-            return replace(answered(turn, text, "partial", list(citations.values())), trace=trace)
+            parts = [{"kind": "safety", "situation": kind, "campusContacts": help_parts}]
+            result = self._json(answered(turn, text, "partial", list(citations.values())),
+                                parts, turn)
+            return replace(result, trace=trace)
 
     async def _finish(self, turn: Turn, context: Context, finish: Finish,
                       results: dict[str, OfficeResult], version: str | None,
@@ -657,8 +684,11 @@ class ChatEngine:
         errors: list[str] = []
         # Every lookup is a requested answer part. A later model decision cannot
         # discard its public facts, missing evidence, conflict, or outage.
+        parts: list[dict[str, Any]] = []  # The same reply as typed JSON, for output="json".
         for result in results.values():
             chunks.append(result.rendered.text)
+            if result.part is not None:
+                parts.append(result.part)
             supported |= result.rendered.supported
             limited |= not result.rendered.complete
             clarify |= result.clarification
@@ -677,6 +707,10 @@ class ChatEngine:
                 if len(message.content) > 4_000:
                     quote += RECALL_SHORTENED_TEXT
                 speaker = "you" if message.role == "user" else "RockyGPT"
+                parts.append({"kind": "recall", "messageIndex": part.message_index,
+                              "speaker": message.role, "text": message.content[:4_000],
+                              "shortened": len(message.content) > 4_000,
+                              "earlierMessagesOmitted": bool(context.omitted_messages)})
                 chunks.append(RECALL_TEXT.format(
                     speaker=speaker, quote="\n".join(f"> {line}" for line in quote.splitlines())))
                 if context.omitted_messages:
@@ -688,21 +722,26 @@ class ChatEngine:
                 if part.kind == "safety":
                     situations.append(part.situation or "other")
                 elif part.kind == "account_limit":
+                    parts.append({"kind": "account_limit", "afterLookup": shown})
                     chunks.append(CAPABILITY_AFTER_LOOKUP_MESSAGE if shown else CAPABILITY_MESSAGE)
                     limited = True
                 elif part.kind == "unsupported":
+                    parts.append({"kind": "unsupported", "afterLookup": shown})
                     chunks.append(UNSUPPORTED_AFTER_LOOKUP_MESSAGE if shown
                                   else UNSUPPORTED_MESSAGE)
                     limited = True
                 elif part.kind == "clarification":
+                    parts.append({"kind": "clarification", "afterLookup": lookup_clarified})
                     if not lookup_clarified:  # A lookup already asked which office.
                         chunks.append(CLARIFICATION_MESSAGE)
                     limited = clarify = True
                 elif part.kind == "clock":
+                    parts.append({"kind": "clock", "campusNow": turn.campus_now.isoformat()})
                     chunks.append(CLOCK_TEXT.format(
                         when=turn.campus_now.strftime(CLOCK_FORMAT)))
                     supported = True
                 elif part.kind in FIXED_REPLIES:
+                    parts.append({"kind": part.kind})
                     chunks.append(FIXED_REPLIES[part.kind])
                     supported = True
                 else:
@@ -716,13 +755,17 @@ class ChatEngine:
             last = context.recent_messages[-1] if context.recent_messages else None
             earlier = situation_of(last.content) if last and last.role == "assistant" else None
             if earlier is None:
-                return answered(turn, CLARIFICATION_MESSAGE, "clarification", None, version)
+                return self._json(
+                    answered(turn, CLARIFICATION_MESSAGE, "clarification", None, version),
+                    [{"kind": "clarification", "afterLookup": False}], turn)
             situations.append(earlier)
         # Safety text comes first; everything else the student asked for still follows it.
         emergency: list[str] = []
         if situations:
-            help_ = await self._campus_help(situations, trace, version, identity_hash,
-                                            turn.campus_now)
+            help_, help_parts = await self._campus_help(situations, trace, version, identity_hash,
+                                                        turn.campus_now)
+            parts.insert(0, {"kind": "safety", "situation": emergency_kind(situations),
+                             "campusContacts": help_parts})
             emergency = self._emergency_chunks(situations, help_)
             trace["situation"] = emergency_kind(situations)
             citations.update({c["id"]: c for r in help_ for c in r.citations})
@@ -731,14 +774,15 @@ class ChatEngine:
             raise GatewayError("provider_invalid_response")
         status = "partial" if situations or supported and limited else (
             "answered" if supported else ("clarification" if clarify else "unavailable"))
-        return answered(turn, text, status, list(citations.values()), version)
+        return self._json(answered(turn, text, status, list(citations.values()), version),
+                          parts, turn)
 
     @measure("Compose partial or failed response")
     def _fallback(self, turn: Turn, results: dict[str, OfficeResult], version: str | None,
                   code: str) -> ChatResult:
         # Keep independently retrieved requested facts even if a later provider call fails.
-        usable = [r.rendered for r in results.values()
-                  if r.rendered.supported or r.rendered.citations]
+        found = [r for r in results.values() if r.rendered.supported or r.rendered.citations]
+        usable = [r.rendered for r in found]
         if usable and code != "dataset_changed":
             text = "\n\n".join(r.text for r in usable)
             text += "\n\n" + INCOMPLETE_TEXT
@@ -747,5 +791,8 @@ class ChatEngine:
                 citations = {c["id"]: c for r in usable for c in r.citations}
                 result = answered(turn, text, "partial", list(citations.values()), version)
                 result.body["limitation"] = {"code": code}
-                return result
+                parts = [*(r.part for r in found if r.part is not None),
+                         {"kind": "incomplete", "code": code},
+                         {"kind": "safety", "situation": "other", "campusContacts": []}]
+                return self._json(result, parts, turn)
         return failed(turn, code)

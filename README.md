@@ -130,6 +130,30 @@ On Render's free tier the disk is erased on every sleep, so a graph-only Brain t
 published directory delivered to it (nothing does that yet); the self-building copy simply
 rebuilds after each wake.
 
+## JSON output (optional, off by default)
+
+With `BRAIN_OUTPUT=json` a turn returns the facts as typed JSON and writes no answer text: the
+AI still picks the lookup, the code returns what it found and stops, with no template and no model
+writing step. `answer` is `""`, `status`, `citations`, `datasetVersion` and `requestId` are the same
+as in text mode, and the body gains `facts: { asOf, parts: [...] }`. Errors are unchanged. Each part
+has a `kind`:
+
+| kind | what it holds |
+|---|---|
+| `office_facts` | `query`, `fields`, `office {id, name}` and `facts`: exactly what the shared reader returned (each property's status, values, assertions, sources, freshness and caveats; nothing merged or chosen) |
+| `ambiguous` | `query`, `candidates [{id, name, match}]`, `truncated` |
+| `not_found` | `query` |
+| `safety` | `situation`, and `campusContacts`: the `office_facts` parts of the campus numbers, empty when they cannot be read in time |
+| `recall` | `messageIndex`, `speaker`, `text`, `shortened`, `earlierMessagesOmitted` |
+| `clock` | `campusNow` |
+| `greeting`, `thanks`, `okay`, `about` | nothing else |
+| `unsupported`, `account_limit`, `clarification` | `afterLookup` |
+| `incomplete` | `code`: a provider failure cut the turn short; the facts found so far are kept |
+
+A turn cut short also carries a `safety` part (`situation: "other"`), as the text reply carries the
+emergency numbers. `GET /v1/dev/runtime` reports `output`. Text mode stays the default, so the
+student UI is unaffected.
+
 ## Root-first traversal
 
 Each chat turn receives the Ramapo navigation root. One `graph_lookup` request
