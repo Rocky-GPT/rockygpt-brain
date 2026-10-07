@@ -32,8 +32,10 @@ change first. It adds no synonyms and does not change how `search_offices` match
 
 Adapters supply the same snapshot to the one shared reader: Postgres (the source of truth), an
 in-memory fixture for tests, and an optional derived graph file of one release
-(`retrieval/graph_store.py`). The graph only stores and returns what the source adapter returned;
-it never chooses, merges or normalizes a value.
+(`retrieval/graph_store.py`, built in the background from `release_inputs()` and checked against
+`active_release()` and `evidence_fingerprint()`). The graph only stores and returns what the
+source adapter returned; it never chooses, merges or normalizes a value, and it is never an
+authority: any doubt about it sends the question to the source.
 
 The reader exposes schema version `3`, mapping version `entity-facts-3`. Those
 identifiers describe the response envelope, not support for every entity type.
