@@ -11,7 +11,7 @@ import pytest
 
 from rockygpt_brain.boundary import SAFETY_MESSAGE
 from rockygpt_brain.contract import ChatRequest
-from rockygpt_brain.engine import ChatEngine, ChatResult
+from rockygpt_brain.engine import MODEL_INPUT_KEYS, ChatEngine, ChatResult
 from rockygpt_brain.provider import Completion, GatewayError, ToolCall, TurnBudget, Usage
 from rockygpt_brain.retrieval import EvidenceUnavailable, MemoryEntityFacts, UnknownEntity
 from rockygpt_brain.turn import intake
@@ -53,7 +53,7 @@ def finish(kind: str | None = None, **changes: Any) -> Completion:
     )
 
 
-LOOKUP = completion("office_facts", {"requests": [{"query": "Registrar", "fields": ["email"]}]})
+LOOKUP = completion("graph_lookup", {"requests": [{"query": "Registrar", "fields": ["email"]}]})
 
 
 class ScriptedGateway:
@@ -145,9 +145,9 @@ def answer(
             text="Registrar's email is invented@example.edu.",
         ),
         completion("update_student_account", {"password": "new-password"}),
-        completion("office_facts", {"requests": [{"query": "Registrar", "fields": ["password"]}]}),
+        completion("graph_lookup", {"requests": [{"query": "Registrar", "fields": ["password"]}]}),
         completion(
-            "office_facts",
+            "graph_lookup",
             {
                 "requests": [
                     {"query": "Registrar", "fields": ["email"], "value": "invented@example.edu"}
@@ -254,7 +254,7 @@ def test_account_limitation_cannot_discard_public_part_already_retrieved() -> No
 
 def test_model_cannot_omit_missing_evidence_to_report_full_success() -> None:
     lookup = completion(
-        "office_facts",
+        "graph_lookup",
         {
             "requests": [
                 {"query": "Registrar", "fields": ["email"]},
@@ -321,7 +321,7 @@ def two_student_offices() -> MemoryEntityFacts:
 
 
 def student_lookup(query: str) -> Completion:
-    return completion("office_facts", {"requests": [{"query": query, "fields": ["email"]}]})
+    return completion("graph_lookup", {"requests": [{"query": query, "fields": ["email"]}]})
 
 
 def test_safety_keeps_the_question_about_which_office_was_meant() -> None:
@@ -388,7 +388,7 @@ def test_a_lookup_that_already_asks_which_office_is_not_asked_twice() -> None:
         entities=[{"id": f"office-{n}", "name": name, "kind": "office", "aliases": [], "links": []}
                   for n, name in enumerate(("Student Accounts", "Student Conduct"))],
         contacts=[], now=lambda: NOW)
-    lookup = completion("office_facts", {"requests": [{"query": "student", "fields": ["email"]}]})
+    lookup = completion("graph_lookup", {"requests": [{"query": "student", "fields": ["email"]}]})
     result = answer(ScriptedGateway(lookup, finish("clarification")), service=both)
     text = result.body["answer"]
     assert "Which office do you mean: Student Accounts, Student Conduct?" in text
@@ -396,7 +396,7 @@ def test_a_lookup_that_already_asks_which_office_is_not_asked_twice() -> None:
     assert result.body["status"] == "clarification"
 
 
-def test_the_model_is_given_the_published_office_names_and_aliases() -> None:
+def test_the_model_is_given_only_the_ramapo_root_not_the_office_list() -> None:
     service = MemoryEntityFacts(
         dataset_version="release-1", identity_hash="identities-1",
         entities=[
@@ -409,10 +409,11 @@ def test_the_model_is_given_the_published_office_names_and_aliases() -> None:
     gateway = ScriptedGateway(finish("greeting"))
     answer(gateway, service=service)
     state = json.loads(gateway.inputs[0][1]["content"])
-    assert state["published_offices"] == [
-        {"name": "ID Card Room", "aliases": ["Husky Card"]},
-        {"name": "Registrar", "aliases": []},
-    ]
+    assert tuple(state) == MODEL_INPUT_KEYS
+    root = state["graph_root"]
+    assert root["id"] == "ramapo" and [child["id"] for child in root["children"]] == ["offices"]
+    # No office name or alias reaches the model until a lookup walks the graph for it.
+    assert "ID Card Room" not in json.dumps(state) and "Husky Card" not in json.dumps(state)
 
 
 def test_office_listing_is_sorted_deduplicated_bounded_and_pinned() -> None:
@@ -442,19 +443,33 @@ def test_office_listing_is_sorted_deduplicated_bounded_and_pinned() -> None:
 
 
 @pytest.mark.parametrize("changed_pin", ["dataset_version", "identity_hash"])
-def test_a_lookup_must_match_the_publication_the_office_list_came_from(changed_pin: str) -> None:
+def test_a_second_lookup_must_match_the_publication_the_first_one_read(changed_pin: str) -> None:
     service = facts()
 
     def changed_release() -> Completion:
         setattr(service, changed_pin, "changed-release")
         return LOOKUP
 
-    result = answer(ScriptedGateway(changed_release, finish()), service=service)
+    result = answer(ScriptedGateway(LOOKUP, changed_release, finish()), service=service)
     assert result.status_code == 503 and result.body["error"]["code"] == "dataset_changed"
-    assert "published@example.edu" not in json.dumps(result.body)
+    assert "published@example.edu" not in json.dumps(result.body)  # No half-old, half-new answer.
 
 
-def test_if_the_office_list_cannot_be_read_the_turn_says_data_is_unavailable() -> None:
+@pytest.mark.parametrize("changed_pin", ["dataset_version", "identity_hash"])
+def test_the_first_lookup_defines_the_publication_a_turn_answers_from(changed_pin: str) -> None:
+    service = facts()
+
+    def changed_before_any_lookup() -> Completion:
+        setattr(service, changed_pin, "changed-release")
+        return LOOKUP
+
+    result = answer(ScriptedGateway(changed_before_any_lookup, finish()), service=service)
+    assert result.status_code == 200 and "published@example.edu" in result.body["answer"]
+    if changed_pin == "dataset_version":
+        assert result.body["datasetVersion"] == "changed-release"
+
+
+def test_a_data_outage_fails_a_lookup_but_not_a_turn_that_needs_no_data() -> None:
     class Broken(MemoryEntityFacts):
         def list_offices(self, **_: Any) -> dict[str, Any]:
             raise EvidenceUnavailable("down")
@@ -462,21 +477,25 @@ def test_if_the_office_list_cannot_be_read_the_turn_says_data_is_unavailable() -
     service = facts()
     broken = Broken(dataset_version="release-1", identity_hash="identities-1",
                     entities=service.entities, contacts=service.contacts, now=lambda: NOW)
-    gateway = ScriptedGateway(finish("unsupported"))
-    result = answer(gateway, service=broken)
+    result = answer(ScriptedGateway(LOOKUP, finish()), service=broken)
     assert result.status_code == 503 and result.body["error"]["code"] == "data_unavailable"
     assert result.body["error"]["retryable"] is True
-    assert gateway.inputs == []  # No paid call is made without the evidence store.
+    # The directory is first read by a lookup, so a greeting does not need it.
+    greeting = answer(ScriptedGateway(finish("greeting")), service=broken)
+    assert greeting.status_code == 200 and greeting.body["status"] == "answered"
 
 
 def test_the_trace_records_each_lookup_the_model_asked_for_and_how_it_ended() -> None:
     result = answer(ScriptedGateway(LOOKUP, finish("unsupported")))
     assert result.trace is not None and "trace" not in result.body  # The API decides who sees it.
-    assert result.trace["decidedBy"] == "model" and result.trace["officesListed"] == 1
+    assert result.trace["decidedBy"] == "model" and result.trace["root"]["id"] == "ramapo"
     assert result.trace["finish"] == ["unsupported"]
-    assert result.trace["lookups"] == [{
-        "tool": "office_facts", "arguments": {"query": "Registrar", "fields": ["email"]},
-        "status": "ok", "result_count": 1, "office": "Registrar"}]
+    (lookup,) = result.trace["lookups"]
+    assert (lookup["tool"], lookup["traversedBy"]) == ("graph_lookup", "code")
+    assert lookup["arguments"] == {"query": "Registrar", "fields": ["email"]}
+    assert (lookup["status"], lookup["result_count"], lookup["office"]) == ("ok", 1, "Registrar")
+    assert [node["id"] for node in lookup["path"]] == ["ramapo", "offices", "office:registrar"]
+    assert (lookup["dataset_version"], lookup["identity_hash"]) == ("release-1", "identities-1")
 
 
 def test_the_trace_says_when_a_lookup_was_ambiguous_missing_or_down() -> None:
@@ -551,8 +570,9 @@ def test_a_turn_ended_by_an_error_says_so_and_keeps_the_lookups_it_made() -> Non
     service = facts()
     broken = Broken(dataset_version="release-1", identity_hash="identities-1",
                     entities=service.entities, contacts=service.contacts, now=lambda: NOW)
-    outage = answer(ScriptedGateway(finish()), service=broken)
+    outage = answer(ScriptedGateway(LOOKUP, finish()), service=broken)
     assert outage.trace is not None and outage.trace["errorCode"] == "data_unavailable"
+    assert [c["status"] for c in outage.trace["lookups"]] == ["data_unavailable"]
 
 
 @pytest.mark.parametrize("changed_pin", ["dataset_version", "identity_hash"])
@@ -564,9 +584,9 @@ def test_a_lookup_that_hits_a_changed_publication_still_shows_in_the_trace(
         setattr(service, changed_pin, "changed-release")
         return LOOKUP
 
-    result = answer(ScriptedGateway(changed_release, finish()), service=service)
+    result = answer(ScriptedGateway(LOOKUP, changed_release, finish()), service=service)
     assert result.trace is not None and result.trace["errorCode"] == "dataset_changed"
-    assert [c["status"] for c in result.trace["lookups"]] == ["dataset_changed"]
+    assert [c["status"] for c in result.trace["lookups"]] == ["ok", "dataset_changed"]
 
 
 def test_a_lookup_the_data_rejects_shows_in_the_trace() -> None:
@@ -616,7 +636,7 @@ def test_a_named_office_is_looked_up_even_when_the_rest_cannot_be_answered() -> 
 
 
 def test_a_name_the_student_asked_for_keeps_its_conflicts_and_unknowns() -> None:
-    asked = completion("office_facts", {"requests": [
+    asked = completion("graph_lookup", {"requests": [
         {"query": "Registrar", "fields": ["name", "email"]}]})
     text = answer(ScriptedGateway(asked, finish())).body["answer"]
     assert "published@example.edu" in text and "Name" in text
@@ -719,7 +739,7 @@ def test_a_self_harm_reply_also_points_to_the_counseling_center() -> None:
 
 
 def test_the_rest_of_the_request_follows_the_emergency_text_and_numbers() -> None:
-    lookup = completion("office_facts", {"requests": [{"query": "Registrar", "fields": ["email"]}]})
+    lookup = completion("graph_lookup", {"requests": [{"query": "Registrar", "fields": ["email"]}]})
     result = answer(ScriptedGateway(lookup, finish("safety", situation="medical")),
                     service=campus_help_facts(),
                     messages=[{"role": "user", "content": "she fainted, also registrar email"}])
@@ -728,14 +748,14 @@ def test_the_rest_of_the_request_follows_the_emergency_text_and_numbers() -> Non
 
 
 def test_an_office_the_model_already_looked_up_is_not_looked_up_twice() -> None:
-    lookup = completion("office_facts", {"requests": [
+    lookup = completion("graph_lookup", {"requests": [
         {"query": "Public Safety (Emergency)", "fields": ["email", "phones"]}]})
     result = answer(ScriptedGateway(lookup, finish("safety", situation="danger")),
                     service=campus_help_facts(),
                     messages=[{"role": "user", "content": "someone is following me"}])
     assert result.body["answer"].count("+12015556666") == 1
     assert result.trace is not None
-    assert [e["tool"] for e in result.trace["lookups"]] == ["office_facts"]
+    assert [e["tool"] for e in result.trace["lookups"]] == ["graph_lookup"]
 
 
 def test_emergency_text_still_comes_when_the_campus_numbers_cannot_be_read() -> None:
@@ -876,7 +896,7 @@ def hours_facts() -> MemoryEntityFacts:
 
 
 def test_the_model_can_ask_for_hours_and_the_code_writes_them_with_their_source() -> None:
-    asked = completion("office_facts", {"requests": [
+    asked = completion("graph_lookup", {"requests": [
         {"query": "Registrar", "fields": ["email", "phones", "offices", "hours"]}]})
     result = answer(ScriptedGateway(asked, finish()), service=hours_facts(),
                     messages=[{"role": "user", "content": "is the registrar open fridays"}])
@@ -889,7 +909,7 @@ def test_the_model_can_ask_for_hours_and_the_code_writes_them_with_their_source(
 
 
 def test_hours_for_an_office_without_a_schedule_say_not_published() -> None:
-    asked = completion("office_facts", {"requests": [
+    asked = completion("graph_lookup", {"requests": [
         {"query": "Registrar", "fields": ["email", "hours"]}]})
     result = answer(ScriptedGateway(asked, finish("unsupported")),
                     messages=[{"role": "user", "content": "registrar hours"}])
@@ -954,13 +974,13 @@ def test_only_the_exact_published_office_name_is_used_for_emergency_numbers() ->
 def test_campus_numbers_still_come_when_the_models_own_lookup_left_out_the_phones() -> None:
     from rockygpt_brain.engine import HELP_TEXT
 
-    email_only = completion("office_facts", {"requests": [
+    email_only = completion("graph_lookup", {"requests": [
         {"query": "Public Safety (Emergency)", "fields": ["email"]}]})
     result = answer(ScriptedGateway(email_only, finish("safety", situation="danger")),
                     service=campus_help_facts(),
                     messages=[{"role": "user", "content": "someone is following me"}])
     assert HELP_TEXT in result.body["answer"] and "+12015556666" in result.body["answer"]
-    phones = completion("office_facts", {"requests": [
+    phones = completion("graph_lookup", {"requests": [
         {"query": "Public Safety (Emergency)", "fields": ["email", "phones"]}]})
     again = answer(ScriptedGateway(phones, finish("safety", situation="danger")),
                    service=campus_help_facts(),

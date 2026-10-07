@@ -288,7 +288,7 @@
       ],
       "provider_steps": [
         {
-          "tool": "office_facts",
+          "tool": "graph_lookup",
           "arguments": {
             "requests": [
               {
@@ -307,7 +307,7 @@
           }
         },
         {
-          "tool": "office_facts",
+          "tool": "graph_lookup",
           "arguments": {
             "requests": [
               {
@@ -355,7 +355,7 @@
       ],
       "provider_steps": [
         {
-          "tool": "office_facts",
+          "tool": "graph_lookup",
           "arguments": {
             "requests": [
               {
@@ -373,7 +373,8 @@
             "parts": [
               {
                 "kind": "account_limit",
-                "message_index": null
+                "message_index": null,
+                "situation": null
               }
             ]
           }
@@ -405,7 +406,7 @@
       ],
       "provider_steps": [
         {
-          "tool": "office_facts",
+          "tool": "graph_lookup",
           "arguments": {
             "requests": [
               {
@@ -452,7 +453,7 @@
       ],
       "provider_steps": [
         {
-          "tool": "office_facts",
+          "tool": "graph_lookup",
           "arguments": {
             "requests": [
               {
@@ -497,7 +498,7 @@
       ],
       "provider_steps": [
         {
-          "tool": "office_facts",
+          "tool": "graph_lookup",
           "arguments": {
             "requests": [
               {
@@ -544,7 +545,7 @@
       ],
       "provider_steps": [
         {
-          "tool": "office_facts",
+          "tool": "graph_lookup",
           "arguments": {
             "requests": [
               {
@@ -584,7 +585,8 @@
               {
                 "kind": "unsupported",
                 "result_id": "invented",
-                "message_index": null
+                "message_index": null,
+                "situation": null
               }
             ]
           }
@@ -650,7 +652,8 @@
             "parts": [
               {
                 "kind": "account_limit",
-                "message_index": null
+                "message_index": null,
+                "situation": null
               }
             ]
           }
@@ -677,7 +680,8 @@
             "parts": [
               {
                 "kind": "clarification",
-                "message_index": null
+                "message_index": null,
+                "situation": null
               }
             ]
           }
@@ -726,7 +730,7 @@
       ],
       "provider_steps": [
         {
-          "tool": "office_facts",
+          "tool": "graph_lookup",
           "arguments": {
             "requests": [
               {
@@ -765,7 +769,8 @@
             "parts": [
               {
                 "kind": "unsupported",
-                "message_index": null
+                "message_index": null,
+                "situation": null
               }
             ]
           },
@@ -796,7 +801,7 @@
       ],
       "provider_steps": [
         {
-          "tool": "office_facts",
+          "tool": "graph_lookup",
           "arguments": {
             "requests": [
               {
