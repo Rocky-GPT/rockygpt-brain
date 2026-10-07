@@ -1,0 +1,939 @@
+[
+ {
+  "id": "bare-01",
+  "history": [],
+  "question": "hours?",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-02",
+  "history": [
+   {
+    "role": "user",
+    "content": "Registrar email?"
+   },
+   {
+    "role": "assistant",
+    "content": "Registrar: email registrar@ramapo.edu"
+   }
+  ],
+  "question": "and the phone?",
+  "expected": "answer",
+  "office": "Registrar"
+ },
+ {
+  "id": "bare-03",
+  "history": [],
+  "question": "what's their phone number?",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-04",
+  "history": [],
+  "question": "darkroom hours?",
+  "expected": "answer",
+  "office": "Photography Lab"
+ },
+ {
+  "id": "bare-05",
+  "history": [],
+  "question": "where's the center?",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-06",
+  "history": [
+   {
+    "role": "user",
+    "content": "How do I contact the nursing office?"
+   },
+   {
+    "role": "assistant",
+    "content": "Nursing Programs Office: email nursing@ramapo.edu"
+   }
+  ],
+  "question": "hours?",
+  "expected": "answer",
+  "office": "Nursing Programs Office"
+ },
+ {
+  "id": "bare-07",
+  "history": [
+   {
+    "role": "user",
+    "content": "I need contact info for Housing and for Health Services."
+   },
+   {
+    "role": "assistant",
+    "content": "Housing & Residence Life: email housing@ramapo.edu. Health Services: email health@ramapo.edu."
+   }
+  ],
+  "question": "what's the phone for that one?",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-08",
+  "history": [],
+  "question": "bursar email?",
+  "expected": "answer",
+  "office": "Student Accounts"
+ },
+ {
+  "id": "bare-09",
+  "history": [],
+  "question": "need the email for the lab",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-10",
+  "history": [
+   {
+    "role": "user",
+    "content": "Who do I contact about FAFSA versus paying my bill?"
+   },
+   {
+    "role": "assistant",
+    "content": "Financial Aid: email finaid@ramapo.edu. Student Accounts: email studentaccounts@ramapo.edu."
+   }
+  ],
+  "question": "which building is that one in?",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-11",
+  "history": [],
+  "question": "lost my id card, where do I go?",
+  "expected": "answer",
+  "office": "ID Card Room"
+ },
+ {
+  "id": "bare-12",
+  "history": [],
+  "question": "public safety phone number",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-13",
+  "history": [
+   {
+    "role": "user",
+    "content": "Registrar email?"
+   },
+   {
+    "role": "assistant",
+    "content": "Registrar: email registrar@ramapo.edu"
+   }
+  ],
+  "question": "Financial Aid phone?",
+  "expected": "answer",
+  "office": "Financial Aid"
+ },
+ {
+  "id": "bare-14",
+  "history": [
+   {
+    "role": "user",
+    "content": "When is the library open?"
+   },
+   {
+    "role": "assistant",
+    "content": "Library: hours Monday to Thursday 8am to 11pm"
+   }
+  ],
+  "question": "and the hours for the other office?",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-15",
+  "history": [
+   {
+    "role": "user",
+    "content": "Housing & Residence Life email?"
+   },
+   {
+    "role": "assistant",
+    "content": "Housing & Residence Life: email housing@ramapo.edu"
+   },
+   {
+    "role": "user",
+    "content": "and health services email?"
+   },
+   {
+    "role": "assistant",
+    "content": "Health Services: email health@ramapo.edu"
+   }
+  ],
+  "question": "wait go back to the first one, phone?",
+  "expected": "answer",
+  "office": "Housing & Residence Life"
+ },
+ {
+  "id": "bare-16",
+  "history": [
+   {
+    "role": "user",
+    "content": "hi"
+   },
+   {
+    "role": "assistant",
+    "content": "Hi! I can help with Ramapo office emails, phone numbers, locations and hours."
+   }
+  ],
+  "question": "ok and the phone?",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-17",
+  "history": [],
+  "question": "handshake contact?",
+  "expected": "answer",
+  "office": "Cahill Career Development Center"
+ },
+ {
+  "id": "bare-18",
+  "history": [],
+  "question": "who do I email about my schedule?",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-19",
+  "history": [
+   {
+    "role": "user",
+    "content": "When is the library open?"
+   },
+   {
+    "role": "assistant",
+    "content": "Library: hours Monday to Thursday 8am to 11pm"
+   }
+  ],
+  "question": "where is it?",
+  "expected": "answer",
+  "office": "Library"
+ },
+ {
+  "id": "bare-20",
+  "history": [],
+  "question": "ITS hours",
+  "expected": "answer",
+  "office": "IT Help Desk"
+ },
+ {
+  "id": "bare-21",
+  "history": [],
+  "question": "admissions email",
+  "expected": "soft"
+ },
+ {
+  "id": "bare-22",
+  "history": [
+   {
+    "role": "user",
+    "content": "Athletics email?"
+   },
+   {
+    "role": "assistant",
+    "content": "Athletics: email athletics@ramapo.edu"
+   },
+   {
+    "role": "user",
+    "content": "and the box office phone?"
+   },
+   {
+    "role": "assistant",
+    "content": "Berrie Center Box Office: phone 201-684-7844"
+   }
+  ],
+  "question": "hours?",
+  "expected": "soft",
+  "disputed": {
+   "writer": "soft",
+   "labelers": [
+    "ask",
+    "ask"
+   ]
+  }
+ },
+ {
+  "id": "bare-23",
+  "history": [],
+  "question": "where's testing?",
+  "expected": "soft",
+  "disputed": {
+   "writer": "soft",
+   "labelers": [
+    "answer",
+    "soft"
+   ]
+  }
+ },
+ {
+  "id": "bare-24",
+  "history": [],
+  "question": "mental health office hours",
+  "expected": "soft",
+  "disputed": {
+   "writer": "soft",
+   "labelers": [
+    "answer",
+    "answer"
+   ]
+  }
+ },
+ {
+  "id": "followups-01",
+  "history": [
+   {
+    "role": "user",
+    "content": "whats the email for the registrar?"
+   },
+   {
+    "role": "assistant",
+    "content": "Registrar: email registrar@ramapo.edu"
+   }
+  ],
+  "question": "and their phone number?",
+  "expected": "answer",
+  "office": "Registrar"
+ },
+ {
+  "id": "followups-02",
+  "history": [
+   {
+    "role": "user",
+    "content": "when is the testing center open?"
+   },
+   {
+    "role": "assistant",
+    "content": "Testing Center: open Monday to Friday, 9am to 4pm"
+   }
+  ],
+  "question": "do u have the email for disability services?",
+  "expected": "answer",
+  "office": "Office of Specialized Services"
+ },
+ {
+  "id": "followups-03",
+  "history": [
+   {
+    "role": "user",
+    "content": "what's the number for housing?"
+   },
+   {
+    "role": "assistant",
+    "content": "Housing & Residence Life: phone (201) 555-0140"
+   }
+  ],
+  "question": "and the hours?",
+  "expected": "answer",
+  "office": "Housing & Residence Life"
+ },
+ {
+  "id": "followups-04",
+  "history": [
+   {
+    "role": "user",
+    "content": "when is counseling open?"
+   },
+   {
+    "role": "assistant",
+    "content": "Counseling Center: open weekdays, 9am to 5pm"
+   }
+  ],
+  "question": "where's the health center?",
+  "expected": "answer",
+  "office": "Health Services"
+ },
+ {
+  "id": "followups-05",
+  "history": [
+   {
+    "role": "user",
+    "content": "phone number for IT?"
+   },
+   {
+    "role": "assistant",
+    "content": "IT Help Desk: phone (201) 555-0111"
+   }
+  ],
+  "question": "ok and where do i go to get a new id card",
+  "expected": "answer",
+  "office": "ID Card Room"
+ },
+ {
+  "id": "followups-06",
+  "history": [
+   {
+    "role": "user",
+    "content": "who do i call about a parking ticket?"
+   },
+   {
+    "role": "assistant",
+    "content": "Public Safety (Non-Emergency): phone (201) 555-0120"
+   }
+  ],
+  "question": "and what's the number if it's an actual emergency",
+  "expected": "answer",
+  "office": "Public Safety (Emergency)"
+ },
+ {
+  "id": "followups-07",
+  "history": [
+   {
+    "role": "user",
+    "content": "email for the library?"
+   },
+   {
+    "role": "assistant",
+    "content": "Library: email library@ramapo.edu"
+   }
+  ],
+  "question": "when is the darkroom open?",
+  "expected": "answer",
+  "office": "Photography Lab"
+ },
+ {
+  "id": "followups-08",
+  "history": [
+   {
+    "role": "user",
+    "content": "where is the library?"
+   },
+   {
+    "role": "assistant",
+    "content": "Library: Potter Library, main building"
+   }
+  ],
+  "question": "how do i contact handshake support?",
+  "expected": "answer",
+  "office": "Cahill Career Development Center"
+ },
+ {
+  "id": "followups-09",
+  "history": [
+   {
+    "role": "user",
+    "content": "financial aid phone number"
+   },
+   {
+    "role": "assistant",
+    "content": "Financial Aid: phone (201) 555-0150"
+   }
+  ],
+  "question": "what about the bursar's office hours?",
+  "expected": "answer",
+  "office": "Student Accounts"
+ },
+ {
+  "id": "followups-10",
+  "history": [
+   {
+    "role": "user",
+    "content": "whats the email for the ombuds office?"
+   },
+   {
+    "role": "assistant",
+    "content": "Ombuds Office: email ombuds@ramapo.edu"
+   },
+   {
+    "role": "user",
+    "content": "and the phone?"
+   },
+   {
+    "role": "assistant",
+    "content": "Ombuds Office: phone (201) 555-0170"
+   }
+  ],
+  "question": "where are they located?",
+  "expected": "answer",
+  "office": "Ombuds Office"
+ },
+ {
+  "id": "followups-11",
+  "history": [
+   {
+    "role": "user",
+    "content": "email for financial aid?"
+   },
+   {
+    "role": "assistant",
+    "content": "Financial Aid: email finaid@ramapo.edu"
+   },
+   {
+    "role": "user",
+    "content": "and the registrar?"
+   },
+   {
+    "role": "assistant",
+    "content": "Registrar: email registrar@ramapo.edu"
+   }
+  ],
+  "question": "whats their phone number",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-12",
+  "history": [
+   {
+    "role": "user",
+    "content": "when is student accounts open?"
+   },
+   {
+    "role": "assistant",
+    "content": "Student Accounts: open weekdays, 9am to 4:30pm"
+   },
+   {
+    "role": "user",
+    "content": "and housing's email?"
+   },
+   {
+    "role": "assistant",
+    "content": "Housing & Residence Life: email housing@ramapo.edu"
+   }
+  ],
+  "question": "where are they again?",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-13",
+  "history": [
+   {
+    "role": "user",
+    "content": "email for dean of students?"
+   },
+   {
+    "role": "assistant",
+    "content": "Dean of Students: email dos@ramapo.edu"
+   },
+   {
+    "role": "user",
+    "content": "what about student conduct?"
+   },
+   {
+    "role": "assistant",
+    "content": "Office of Student Conduct: email conduct@ramapo.edu"
+   }
+  ],
+  "question": "when are they open?",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-14",
+  "history": [
+   {
+    "role": "user",
+    "content": "what time does the library close?"
+   },
+   {
+    "role": "assistant",
+    "content": "Library: open until 11pm on weekdays"
+   }
+  ],
+  "question": "whats campus security's phone number",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-15",
+  "history": [
+   {
+    "role": "user",
+    "content": "email for counseling?"
+   },
+   {
+    "role": "assistant",
+    "content": "Counseling Center: email counseling@ramapo.edu"
+   }
+  ],
+  "question": "what about the other one?",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-16",
+  "history": [
+   {
+    "role": "user",
+    "content": "hey"
+   },
+   {
+    "role": "assistant",
+    "content": "Hi! I can help with email, phone, location and hours for Ramapo offices."
+   }
+  ],
+  "question": "what's their email",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-17",
+  "history": [
+   {
+    "role": "user",
+    "content": "email for title ix?"
+   },
+   {
+    "role": "assistant",
+    "content": "Title IX: email titleix@ramapo.edu"
+   }
+  ],
+  "question": "what number do i call to talk to someone about a complaint",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-18",
+  "history": [
+   {
+    "role": "user",
+    "content": "registrar email?"
+   },
+   {
+    "role": "assistant",
+    "content": "Registrar: email registrar@ramapo.edu"
+   },
+   {
+    "role": "user",
+    "content": "testing center hours?"
+   },
+   {
+    "role": "assistant",
+    "content": "Testing Center: open Monday to Friday, 9am to 4pm"
+   },
+   {
+    "role": "user",
+    "content": "where's the library?"
+   },
+   {
+    "role": "assistant",
+    "content": "Library: Potter Library, main building"
+   }
+  ],
+  "question": "what time do they open",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-19",
+  "history": [
+   {
+    "role": "user",
+    "content": "email for roadrunner central?"
+   },
+   {
+    "role": "assistant",
+    "content": "Roadrunner Central: email roadrunnercentral@ramapo.edu"
+   }
+  ],
+  "question": "whats the safety office number",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-20",
+  "history": [
+   {
+    "role": "user",
+    "content": "when is csi open?"
+   },
+   {
+    "role": "assistant",
+    "content": "Center for Student Involvement: open weekdays, 9am to 5pm"
+   }
+  ],
+  "question": "who do i email about a problem with my professor",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-21",
+  "history": [
+   {
+    "role": "user",
+    "content": "registrar email?"
+   },
+   {
+    "role": "assistant",
+    "content": "Registrar: email registrar@ramapo.edu"
+   }
+  ],
+  "question": "whats the phone number for the testing office?",
+  "expected": "soft",
+  "disputed": {
+   "writer": "soft",
+   "labelers": [
+    "answer",
+    "answer"
+   ]
+  }
+ },
+ {
+  "id": "followups-22",
+  "history": [
+   {
+    "role": "user",
+    "content": "admissions email?"
+   },
+   {
+    "role": "assistant",
+    "content": "Admissions: email admissions@ramapo.edu"
+   }
+  ],
+  "question": "and the grad school?",
+  "expected": "soft",
+  "disputed": {
+   "writer": "soft",
+   "labelers": [
+    "answer",
+    "answer"
+   ]
+  }
+ },
+ {
+  "id": "followups-23",
+  "history": [
+   {
+    "role": "user",
+    "content": "housing phone number?"
+   },
+   {
+    "role": "assistant",
+    "content": "Housing & Residence Life: phone (201) 555-0140"
+   }
+  ],
+  "question": "who do i talk to about my bill",
+  "expected": "soft",
+  "disputed": {
+   "writer": "soft",
+   "labelers": [
+    "answer",
+    "answer"
+   ]
+  }
+ },
+ {
+  "id": "followups-24",
+  "history": [
+   {
+    "role": "user",
+    "content": "health services phone?"
+   },
+   {
+    "role": "assistant",
+    "content": "Health Services: phone (201) 555-0130"
+   }
+  ],
+  "question": "what about mental health stuff?",
+  "expected": "soft",
+  "disputed": {
+   "writer": "soft",
+   "labelers": [
+    "answer",
+    "soft"
+   ]
+  }
+ },
+ {
+  "id": "wording-01",
+  "history": [],
+  "question": "whats the phone number for campus police",
+  "expected": "ask"
+ },
+ {
+  "id": "wording-02",
+  "history": [],
+  "question": "whats their number",
+  "expected": "ask"
+ },
+ {
+  "id": "wording-03",
+  "history": [],
+  "question": "i have a hold on my account and cant register, who do i email to get it removed",
+  "expected": "ask"
+ },
+ {
+  "id": "wording-04",
+  "history": [],
+  "question": "im thinking about leaving school and dont know what to do, who can i talk to",
+  "expected": "ask"
+ },
+ {
+  "id": "wording-05",
+  "history": [],
+  "question": "my professor said something really inappropriate to me in office hours, who do i report that to",
+  "expected": "soft",
+  "disputed": {
+   "writer": "ask",
+   "labelers": [
+    "soft",
+    "ask"
+   ]
+  }
+ },
+ {
+  "id": "wording-06",
+  "history": [],
+  "question": "where is the tutoring office and when is it open",
+  "expected": "soft",
+  "disputed": {
+   "writer": "ask",
+   "labelers": [
+    "ask",
+    "soft"
+   ]
+  }
+ },
+ {
+  "id": "wording-07",
+  "history": [],
+  "question": "who do i call about my housing bill",
+  "expected": "ask"
+ },
+ {
+  "id": "wording-08",
+  "history": [],
+  "question": "where do i take my exam if i have extra time accommodations",
+  "expected": "soft",
+  "disputed": {
+   "writer": "ask",
+   "labelers": [
+    "answer",
+    "answer"
+   ]
+  }
+ },
+ {
+  "id": "wording-09",
+  "history": [],
+  "question": "who do i talk to about transferring my credits from community college",
+  "expected": "ask"
+ },
+ {
+  "id": "wording-10",
+  "history": [],
+  "question": "i broke my leg and need help getting around campus and for my classes, who should i email",
+  "expected": "soft",
+  "disputed": {
+   "writer": "ask",
+   "labelers": [
+    "answer",
+    "answer"
+   ]
+  }
+ },
+ {
+  "id": "wording-11",
+  "history": [],
+  "question": "wheres the trading lab",
+  "expected": "answer",
+  "office": "Anisfield School of Business"
+ },
+ {
+  "id": "wording-12",
+  "history": [],
+  "question": "wat time does the darkroom open",
+  "expected": "answer",
+  "office": "Photography Lab"
+ },
+ {
+  "id": "wording-13",
+  "history": [],
+  "question": "do u have the bursars phone number",
+  "expected": "answer",
+  "office": "Student Accounts"
+ },
+ {
+  "id": "wording-14",
+  "history": [],
+  "question": "i forgot my password and cant get into my ramapo email, who do i contact",
+  "expected": "answer",
+  "office": "IT Help Desk"
+ },
+ {
+  "id": "wording-15",
+  "history": [],
+  "question": "need the number for the fire marshal",
+  "expected": "answer",
+  "office": "Environmental Health and Safety"
+ },
+ {
+  "id": "wording-16",
+  "history": [],
+  "question": "how do i get an official transcript sent to another school, whats the registrars email",
+  "expected": "answer",
+  "office": "Registrar"
+ },
+ {
+  "id": "wording-17",
+  "history": [],
+  "question": "what time does the box office open for saturdays show",
+  "expected": "answer",
+  "office": "Berrie Center Box Office"
+ },
+ {
+  "id": "wording-18",
+  "history": [],
+  "question": "do you have the ombudsmans email",
+  "expected": "answer",
+  "office": "Ombuds Office"
+ },
+ {
+  "id": "wording-19",
+  "history": [],
+  "question": "i lost my wallet somewhere on campus, where do i go to see if someone turned it in",
+  "expected": "answer",
+  "office": "Public Safety (Non-Emergency)"
+ },
+ {
+  "id": "wording-20",
+  "history": [],
+  "question": "where do i get my immunization records, who do i call",
+  "expected": "answer",
+  "office": "Health Services"
+ },
+ {
+  "id": "wording-21",
+  "history": [],
+  "question": "whats the email for admissions",
+  "expected": "soft",
+  "disputed": {
+   "writer": "soft",
+   "labelers": [
+    "answer",
+    "soft"
+   ]
+  }
+ },
+ {
+  "id": "wording-22",
+  "history": [],
+  "question": "who do i talk to about problems with my roommate",
+  "expected": "soft",
+  "disputed": {
+   "writer": "soft",
+   "labelers": [
+    "soft",
+    "answer"
+   ]
+  }
+ },
+ {
+  "id": "wording-23",
+  "history": [],
+  "question": "how do i apply to the MBA program, who do i contact",
+  "expected": "soft",
+  "disputed": {
+   "writer": "soft",
+   "labelers": [
+    "answer",
+    "answer"
+   ]
+  }
+ },
+ {
+  "id": "wording-24",
+  "history": [],
+  "question": "im pregnant and want to know what support the school has, who do i email",
+  "expected": "soft",
+  "disputed": {
+   "writer": "soft",
+   "labelers": [
+    "answer",
+    "answer"
+   ]
+  }
+ }
+]
