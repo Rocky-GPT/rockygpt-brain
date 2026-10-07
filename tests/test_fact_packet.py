@@ -8,7 +8,7 @@ import pytest
 
 from rockygpt_brain.fact_packet import PACKET_VERSION, PacketInvalid, build_packet, validate_packet
 from rockygpt_brain.retrieval import MemoryEntityFacts
-from test_graph_store import IDENTITY, NOW, VERSION, contact, office, source
+from test_graph_store import IDENTITY, NOW, VERSION, contact, office, source, week
 
 AS_OF = NOW.isoformat()
 
@@ -221,3 +221,62 @@ def test_the_clock_used_for_freshness_is_the_one_the_reader_was_given() -> None:
             "office": {"id": "registrar", "name": "Registrar"}, "facts": reader}
     packet = build_packet(later.astimezone(UTC).isoformat(), [part])
     assert packet["facts"][0]["current"] is False  # 24 h limit, three days on.
+
+
+def hours_service() -> MemoryEntityFacts:
+    return source([office("registrar", "Registrar", schedules=["Regular"])], [contact("r1")],
+                  schedules=week("Regular", "w1", "8am-5pm"))
+
+
+def hours_part(day: str, on: str) -> dict[str, Any]:
+    return {**part_for(hours_service(), "registrar", "Registrar", ["hours"]),
+            "when": {"day": day, "date": on}}
+
+
+def test_the_hours_of_the_asked_day_are_worked_out_and_trace_to_the_full_week() -> None:
+    packet = build_packet(AS_OF, [hours_part("friday", "2026-10-09")])
+    (week_fact,) = [f for f in packet["facts"] if f["predicate"] == "hours"]
+    (derived,) = packet["derived_facts"]
+    assert derived["predicate"] == "hours_on" and derived["day"] == "Friday"
+    assert derived["date"] == "2026-10-09" and derived["value"]["hours"] == "8am-5pm"
+    assert derived["from"] == [week_fact["id"]] and derived["source_ids"] == week_fact["source_ids"]
+    assert derived["applies"] is True and derived["current"] is True
+    assert derived["subject"]["id"] == "registrar" and packet["status"] == "complete"
+    # The same day asked twice is one derived fact.
+    twice = build_packet(AS_OF, [hours_part("friday", "2026-10-09"),
+                                 hours_part("friday", "2026-10-09")])
+    (once,) = twice["derived_facts"]
+    assert len(twice["facts"]) == 2 and sorted(once["from"]) == ["f1", "f2"]
+    validate_packet(twice)
+    from rockygpt_brain.writer_view import writer_view
+    assert "facts" not in writer_view(twice)  # Neither copy of the full week reaches a writer.
+
+
+def test_no_day_asked_means_nothing_is_worked_out() -> None:
+    plain = part_for(hours_service(), "registrar", "Registrar", ["hours"])
+    assert build_packet(AS_OF, [plain])["derived_facts"] == []
+
+
+def test_a_date_outside_the_schedule_makes_the_answer_partial() -> None:
+    packet = build_packet(AS_OF, [hours_part("saturday", "2027-01-09")])
+    (derived,) = packet["derived_facts"]
+    assert derived["applies"] is False and derived["current"] is False
+    assert derived["value"]["hours"] is None and packet["status"] == "partial"
+
+
+def test_a_derived_fact_that_does_not_trace_or_add_up_is_refused() -> None:
+    good = build_packet(AS_OF, [hours_part("friday", "2026-10-09")])
+    validate_packet(good)
+    for change in (
+        {"from": ["f99"]}, {"from": []}, {"source_ids": ["nope"]}, {"day": "Saturday"},
+        {"date": "yesterday"}, {"predicate": "closes_at"}, {"applies": "yes"}, {"value": {}},
+        {"subject": {"id": "registrar"}},
+    ):
+        broken = deepcopy(good)
+        broken["derived_facts"][0].update(change)
+        with pytest.raises(PacketInvalid):
+            validate_packet(broken)
+    incomplete = deepcopy(good)
+    del incomplete["derived_facts"][0]["from"]
+    with pytest.raises(PacketInvalid):
+        validate_packet(incomplete)

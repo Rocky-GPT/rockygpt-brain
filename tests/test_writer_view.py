@@ -44,6 +44,12 @@ def every_shape() -> dict[str, dict[str, Any]]:
         "contact": contact_packet(),
         "hours with a validity window and a note": packet_of(
             part_for(registrar_with(hours=True), "registrar", "Registrar", ["hours"])),
+        "a day asked": packet_of({**part_for(
+            registrar_with(hours=True), "registrar", "Registrar", ["hours"]),
+            "when": {"day": "saturday", "date": "2026-10-10"}}),
+        "a day asked, outside the schedule's window": packet_of({**part_for(
+            registrar_with(hours=True), "registrar", "Registrar", ["hours"]),
+            "when": {"day": "tomorrow", "date": "2027-01-05"}}),
         "a stale capture": packet_of(part_for(
             registrar_with(collected_at=NOW - timedelta(days=30)), "registrar", "Registrar",
             ["email"])),
@@ -187,7 +193,7 @@ def test_no_id_reaches_the_writer() -> None:
 
 # Dropped on purpose (see the module): ids and the Brain's own bookkeeping.
 DROPPED = {"id", "source_ids", "kind", "collection", "match", "original_record_id", "contacts",
-           "identityHash", "version", "dataset"}
+           "identityHash", "version", "dataset", "from"}
 # Dropped on purpose when they hold the usual value.
 USUAL = {("status", "known"), ("freshness", "fresh"), ("validity", "unspecified"),
          ("truncated", False), ("reason", "unknown"), ("reason", "no_matching_office"),
@@ -211,7 +217,9 @@ def without_uncited(packet: dict[str, Any]) -> dict[str, Any]:
     """The packet minus the sources nothing cites: those are dropped on purpose."""
     cited = {sid for kind in ("facts", "not_published", "derived_facts") for entry in packet[kind]
              for sid in entry["source_ids"]}
-    return {**packet, "sources": [s for s in packet["sources"] if s["id"] in cited]}
+    replaced = {fid for d in packet["derived_facts"] for fid in d["from"]}
+    return {**packet, "facts": [f for f in packet["facts"] if f["id"] not in replaced],
+            "sources": [s for s in packet["sources"] if s["id"] in cited]}
 
 
 def test_every_value_in_the_packet_is_in_the_view_or_dropped_on_purpose() -> None:
@@ -284,3 +292,39 @@ def test_a_field_the_packet_gains_never_overwrites_a_key_the_view_sets() -> None
     packet["sources"][0]["n"] = 99
     view = writer_view(packet)
     assert view["facts"][0]["sources"] == [1] and view["sources"][0]["n"] == 1
+
+
+def test_a_day_that_was_asked_hands_the_writer_that_day_and_not_the_week() -> None:
+    packet = every_shape()["a day asked"]
+    assert len(next(f for f in packet["facts"] if f["predicate"] == "hours")["value"]["days"]) == 7
+    view = writer_view(packet)
+    (day,) = view["derived_facts"]
+    assert (day["predicate"], day["day"], day["date"]) == ("hours_on", "Saturday", "2026-10-10")
+    # What the schedule publishes for that day, as published; the note travels with it.
+    assert day["value"] == {"schedule": "Regular", "hours": "Hours unavailable",
+                            "notes": ["Regular note"]}
+    assert "applies" not in day and "current" not in day
+    assert "facts" not in view  # The full week is the record, not what a writer is told.
+    assert "Monday" not in json.dumps(view) and "8am-5pm" not in json.dumps(view)
+    assert [s["n"] for s in view["sources"]] == day["sources"]
+    # The full packet keeps the week and says where the day came from.
+    assert packet["derived_facts"][0]["from"] == [
+        next(f["id"] for f in packet["facts"] if f["predicate"] == "hours")]
+
+
+def test_a_date_the_schedule_does_not_cover_gets_the_window_and_no_hours() -> None:
+    view = writer_view(every_shape()["a day asked, outside the schedule's window"])
+    (day,) = view["derived_facts"]
+    assert day["applies"] is False and "current" not in day
+    assert day["value"]["hours"] is None
+    assert day["value"]["window"] == {"from": "2026-08-26", "until": "2026-12-16"}
+    assert view["status"] == "partial"
+
+
+def test_the_other_fields_of_the_same_office_are_still_facts_beside_the_day() -> None:
+    both = packet_of({**part_for(registrar_with(hours=True), "registrar", "Registrar",
+                                 ["email", "hours"]),
+                      "when": {"day": "friday", "date": "2026-10-09"}})
+    view = writer_view(both)
+    assert [f["predicate"] for f in view["facts"]] == ["email"]
+    assert view["derived_facts"][0]["value"]["hours"] == "8am-5pm"

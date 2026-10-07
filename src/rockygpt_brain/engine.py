@@ -33,6 +33,7 @@ from rockygpt_brain.contract import (
     ChatRequest,
 )
 from rockygpt_brain.fact_packet import PacketInvalid, build_packet
+from rockygpt_brain.hours_on import DAY_CHOICES, target_date
 from rockygpt_brain.provider import Completion, GatewayError, TurnBudget
 from rockygpt_brain.retrieval import (
     DatasetChanged,
@@ -72,8 +73,9 @@ than choosing arbitrarily.
 A missing match is a limit of available evidence, not proof that the office does not exist.
 Every query, including follow-ups, is traversed from the root. Only offices are available.
 Request only the fields the student asked for: email (an address), phones (a number to call),
-offices (where it is), hours (opening hours, weekends, closing times). When the student wants to
-contact or reach an office and names no detail, read email, phones and offices. Other available
+offices (where it is), hours (opening hours, weekends, closing times); for hours on one particular
+day also set day to today, tomorrow or that weekday, otherwise leave day null. When the student
+wants to contact or reach an office and names no detail, read email, phones and offices. Other available
 fields: name, department, prefers_email, preferred_contact, contact_note, website; read one only
 when asked. Appointments, walk-in rules and deadlines are not supported; read the named office's
 contact records and add unsupported for those parts.
@@ -131,6 +133,8 @@ OfficeField = Literal[
 class OfficeRequest(StrictModel):
     query: str = Field(min_length=1, max_length=160)
     fields: list[OfficeField] = Field(min_length=1, max_length=10)
+    # The one day the student asked the hours of. Code turns it into a date and reads that day.
+    day: Literal[DAY_CHOICES] | None = None  # type: ignore[valid-type]
 
 
 class GraphRequests(StrictModel):
@@ -150,9 +154,23 @@ class Finish(StrictModel):
     parts: list[AnswerPart] = Field(max_length=8)
 
 
+def _all_required(node: Any) -> Any:
+    """Strict tool schemas list every property as required (an optional one is nullable)."""
+    if isinstance(node, dict):
+        # A default is for validation here; the provider's strict schemas do not take one.
+        out = {key: _all_required(value) for key, value in node.items()
+               if not (key == "default" and value is None)}
+        if isinstance(out.get("properties"), dict):
+            out["required"] = list(out["properties"])
+        return out
+    if isinstance(node, list):
+        return [_all_required(item) for item in node]
+    return node
+
+
 def _tool(name: str, description: str, model: type[BaseModel]) -> dict[str, Any]:
     return {"type": "function", "name": name, "description": description,
-            "strict": True, "parameters": model.model_json_schema()}
+            "strict": True, "parameters": _all_required(model.model_json_schema())}
 
 
 TOOLS = [
@@ -514,6 +532,11 @@ class ChatEngine:
         part = {"kind": "office_facts", "query": request.query, "fields": list(request.fields),
                 "office": {"id": opened["entity_id"], "name": opened["label"]},
                 "facts": opened["facts"]}
+        if request.day and "hours" in request.fields:
+            # Worked out here, on the campus clock, so a writer never has to.
+            part["when"] = {"day": request.day,
+                            "date": target_date(request.day, as_of.date()).isoformat()}
+            detail["day"] = part["when"]
         return OfficeResult(rendered, detail=detail, part=part)
 
     async def answer(self, turn: Turn, request: ChatRequest) -> ChatResult:
