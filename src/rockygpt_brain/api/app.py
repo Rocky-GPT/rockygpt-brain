@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import FastAPI, Header, Query, Request
 from fastapi.exception_handlers import http_exception_handler
@@ -145,6 +145,9 @@ class Admission:
 
 def _configured_engine() -> ChatEngine:
     settings = ProviderSettings.from_env()
+    # BRAIN_OUTPUT=json: answers carry the facts as typed JSON parts and no written text.
+    output: Literal["text", "json"] = (
+        "json" if os.getenv("BRAIN_OUTPUT", "").strip().lower() == "json" else "text")
     facts: EntityFacts
     only_directory = os.getenv("BRAIN_GRAPH_ONLY_DIR", "").strip()
     if only_directory:
@@ -156,7 +159,8 @@ def _configured_engine() -> ChatEngine:
             LOG.error("brain_graph_store_not_installed")
             raise ConfigurationError("BRAIN_GRAPH_ONLY_DIR is set but LadybugDB is missing") \
                 from error
-        return ChatEngine(Gateway(settings), facts, max_turn_nusd=settings.max_turn_nusd)
+        return ChatEngine(Gateway(settings), facts, max_turn_nusd=settings.max_turn_nusd,
+                      output=output)
     database_url = os.getenv("DATABASE_URL", "").strip()
     if not database_url:
         raise ConfigurationError("Missing DATABASE_URL")
@@ -169,7 +173,8 @@ def _configured_engine() -> ChatEngine:
             facts = ReleaseGraphFacts(facts, Path(graph_directory))
         except GraphUnavailable:
             LOG.error("brain_graph_store_not_installed")
-    return ChatEngine(Gateway(settings), facts, max_turn_nusd=settings.max_turn_nusd)
+    return ChatEngine(Gateway(settings), facts, max_turn_nusd=settings.max_turn_nusd,
+                      output=output)
 
 
 def create_app(engine: ChatEngine | None = None, *, service_token: str | None = None,

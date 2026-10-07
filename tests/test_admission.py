@@ -24,6 +24,7 @@ class BoundaryEngine(ChatEngine):
         # The boundary only needs answer/readiness, never a real provider or database.
         self.gateway = object()  # type: ignore[assignment]
         self.turn_seconds = 1.0
+        self.output = "text"
         self.error, self.block = error, block
         self.started, self.cancelled = asyncio.Event(), asyncio.Event()
         self.calls = 0
