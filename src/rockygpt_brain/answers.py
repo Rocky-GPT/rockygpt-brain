@@ -269,6 +269,7 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
             complete = False
             lines.append(f"{label}: I can't verify a current value from fresh, citable evidence.")
         elif not current_supported:
+            # Every value shown is already marked "dated observation; current value unverified"
+            # with its date, so a second line saying the same thing would only repeat it.
             complete = False
-            lines.append(f"{label}: I can't verify a current value from fresh, citable evidence.")
     return Rendered("\n\n".join(lines), list(citations.values()), supported, complete)

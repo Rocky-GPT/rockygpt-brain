@@ -132,9 +132,25 @@ def test_old_or_unverified_observations_are_never_presented_as_current(
     rendered = render_facts(facts(observation))
     assert phrase in rendered.text
     assert "current value unverified" in rendered.text
-    assert "can't verify a current value" in rendered.text
     assert rendered.supported is False
     assert rendered.complete is False
+
+
+def test_a_dated_value_is_one_line_that_says_so_not_two() -> None:
+    rendered = render_facts(facts({"collected_at": "2026-08-01T12:00:00Z"}))
+    email_lines = [line for line in rendered.text.split("\n\n") if line.startswith("Email")]
+    assert len(email_lines) == 1
+    assert "dated observation; current value unverified" in email_lines[0]
+    assert "stale capture" in email_lines[0]
+    assert "can't verify a current value" not in rendered.text  # Said once, in the line above.
+    assert rendered.complete is False and rendered.supported is False
+
+
+def test_a_value_that_cannot_be_shown_still_says_it_cannot_be_verified() -> None:
+    rendered = render_facts(facts({"canonical_url": "http://example.edu/contact"}))
+    assert "registrar@example.edu" not in rendered.text  # No secure citation: nothing is shown,
+    assert "Email: I can't verify a current value from fresh, citable evidence." in rendered.text
+    assert rendered.complete is False and rendered.supported is False
 
 
 def test_missing_secure_citation_withholds_value() -> None:
