@@ -110,7 +110,8 @@ account-limit note points to them without claiming the office handles the refuse
 office above handles it, its contact details are the best way to ask"); with no office shown, the unsupported note says what can be looked up and asks which
 office. A recalled reply is quoted as plain words, without RockyGPT's own bold marks and links.
 
-The model can ask for `hours` with the usual contact fields. They are the office's linked schedule
+The model asks for the fields the student asked for (all three contact fields when the student wants to
+reach an office and names no detail). `hours` are the office's linked schedule
 records (see [entity-facts.md](entity-facts.md)), rendered by the code as runs of weekdays with the
 published sentence, validity window and source. An office with no schedule record answers
 "Hours: I have no published information about this." (or, when the office's own pages were read and state
