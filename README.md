@@ -83,15 +83,30 @@ answering path.
 
 Postgres stays the source of truth. With `BRAIN_GRAPH_DIR` set to a writable directory and the
 `graph` extra installed (`pip install -e '.[graph]'`, which adds LadybugDB), the Brain keeps a
-read-only graph-database copy of the active release (`retrieval/graph_store.py`). It builds the
-file on first use, reuses it until the active release changes, and deletes the old file. The
-graph hands the shared reader the same entities and the same linked evidence rows the source
-returned, joined by edges; the reader still resolves every value, conflict, unknown and date
-boundary. If the graph cannot be built or opened, reads fall back to the source for 60 seconds
-at a time, so a graph problem never takes campus answers down. The directory belongs to one
-Brain process. On Render's free tier the disk is erased on every sleep, so the file is rebuilt
-after each wake (about 0.6 seconds for the development release). The developer runtime page
-shows which store is serving (`factsBackend`).
+read-only graph-database copy of the active release (`retrieval/graph_store.py`). The graph hands
+the shared reader the same entities and the same linked evidence rows the source returned, joined
+by edges; the reader still resolves every value, conflict, unknown and date boundary.
+
+- **Built in the background.** The first question after a new release (or a wake-up) is answered
+  straight from Postgres while one background thread builds the graph, so no student waits for
+  it. The build reads the whole release in one transaction with its own 60-second limit, writes
+  one file, and renames it into place. Older releases' files are deleted.
+- **Never costs an answer.** If the graph cannot be built, opened or read, questions are answered
+  from Postgres, and the graph is put aside for 60 seconds before the next try. A missing
+  LadybugDB install is logged at startup and the Brain keeps using Postgres.
+- **Follows the data.** Each question first asks Postgres which release is active (a cheap
+  probe). Every 30 seconds the graph is also checked against a digest of the release's evidence
+  rows, so an in-place edit of the active release shows up within about 30 seconds.
+- **Small.** The engine runs with a 64 MB buffer pool, one thread and a 1 GB file limit. In a test
+  against the development release the graph file was about 6 MB, built in about half a second,
+  and the whole process peaked near 160 MB.
+- **Visible.** `GET /v1/dev/runtime` reports `factsBackend` (what is serving now) and
+  `factsGraph` (questions served by the graph and by Postgres, builds, last build time, last
+  error, seconds until the next retry).
+
+On Render's free tier the disk is erased on every sleep, so the file is rebuilt after each wake.
+Several processes may share one directory: each build writes its own temporary file, and an
+unfinished build file is only deleted once it is an hour old.
 
 ## Root-first traversal
 

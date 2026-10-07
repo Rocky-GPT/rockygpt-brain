@@ -150,13 +150,13 @@ def _configured_engine() -> ChatEngine:
         raise ConfigurationError("Missing DATABASE_URL")
     facts: EntityFacts = PostgresEntityFacts(database_url)
     # Off unless set: the graph is a derived copy of the active release that Postgres still owns.
+    # Without LadybugDB installed the Brain keeps answering from Postgres, not going down for it.
     graph_directory = os.getenv("BRAIN_GRAPH_DIR", "").strip()
     if graph_directory:
         try:
             facts = ReleaseGraphFacts(facts, Path(graph_directory))
-        except GraphUnavailable as error:
+        except GraphUnavailable:
             LOG.error("brain_graph_store_not_installed")
-            raise ConfigurationError("BRAIN_GRAPH_DIR is set but LadybugDB is missing") from error
     return ChatEngine(Gateway(settings), facts, max_turn_nusd=settings.max_turn_nusd)
 
 

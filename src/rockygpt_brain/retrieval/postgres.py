@@ -2,7 +2,7 @@
 
 import json
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
 
@@ -14,9 +14,14 @@ from rockygpt_brain.retrieval.entity_facts import (
     MAX_SCHEDULE_ROWS,
     EntityFacts,
     EvidenceUnavailable,
+    ReleaseInputs,
     Snapshot,
     validate_entities,
 )
+
+# A derived copy is built from one read with its own, longer limits; questions keep short ones.
+BUILD_SECONDS = 60.0
+BUILD_STATEMENT_MS = 10_000
 
 _RELEASE = """
 SELECT v.id::text AS dataset_id, v.version AS dataset_version,
@@ -42,6 +47,30 @@ LEFT JOIN rockygpt_v2.release_artifacts coverage ON coverage.dataset_version_id 
   AND coverage.artifact_key = 'campus-identity-coverage'
 WHERE v.status = 'active' AND pg_column_size(a.payload) <= 16000000
   AND (coverage.payload IS NULL OR pg_column_size(coverage.payload) <= 16000000)
+LIMIT 2
+"""
+
+# A digest of the evidence rows the readers return (whole contact and schedule rows of the release,
+# and the source columns the readers use), so a copy can tell when rows were edited in place.
+# One statement serves both a given release (inside a snapshot) and the active one.
+_FINGERPRINT = """
+SELECT md5(concat_ws('|',
+  coalesce((SELECT md5(string_agg(to_jsonb(c)::text, ',' ORDER BY c.id))
+            FROM rockygpt_v2.campus_contacts c WHERE c.dataset_version_id = v.id), ''),
+  coalesce((SELECT md5(string_agg(to_jsonb(h)::text, ',' ORDER BY h.id))
+            FROM rockygpt_v2.campus_hours h WHERE h.dataset_version_id = v.id), ''),
+  coalesce((SELECT md5(string_agg(
+              concat_ws(',', s.source_key, s.canonical_url, s.freshness_sla_hours), ';'
+              ORDER BY s.source_key))
+            FROM rockygpt_v2.sources s), ''),
+  coalesce(coverage.content_hash, ''), coalesce(capture.content_hash, ''))) AS fingerprint
+FROM rockygpt_v2.dataset_versions v
+LEFT JOIN rockygpt_v2.release_artifacts coverage ON coverage.dataset_version_id = v.id
+  AND coverage.artifact_key = 'campus-identity-coverage'
+LEFT JOIN rockygpt_v2.release_artifacts capture ON capture.dataset_version_id = v.id
+  AND capture.artifact_key = 'development-office-contact-evidence'
+WHERE (%(dataset_id)s::uuid IS NOT NULL AND v.id = %(dataset_id)s::uuid)
+   OR (%(dataset_id)s::uuid IS NULL AND v.status = 'active')
 LIMIT 2
 """
 
@@ -117,17 +146,18 @@ class PostgresEntityFacts(EntityFacts):
         self._statement_timeout = statement_timeout_ms
         self._operation_timeout = operation_timeout_seconds
 
-    def _connect(self) -> psycopg.Connection[dict[str, Any]]:
+    def _connect(self, operation_seconds: float,
+                 statement_ms: int) -> psycopg.Connection[dict[str, Any]]:
         return psycopg.connect(
             self._database_url,
             connect_timeout=self._connect_timeout,
             row_factory=dict_row,
-            tcp_user_timeout=int(self._operation_timeout * 1_000),
+            tcp_user_timeout=int(operation_seconds * 1_000),
             keepalives_idle=3,
             keepalives_interval=1,
             keepalives_count=2,
             options=(
-                f"-c statement_timeout={self._statement_timeout} "
+                f"-c statement_timeout={statement_ms} "
                 "-c default_transaction_read_only=on "
                 "-c idle_in_transaction_session_timeout=5000"
             ),
@@ -135,7 +165,7 @@ class PostgresEntityFacts(EntityFacts):
 
     def active_release(self) -> tuple[str, str]:
         try:
-            with self._connect() as connection:
+            with self._connect(self._operation_timeout, self._statement_timeout) as connection:
                 connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
                 rows = connection.execute(_ACTIVE_RELEASE).fetchall()
         except psycopg.Error as exc:
@@ -146,18 +176,47 @@ class PostgresEntityFacts(EntityFacts):
             raise EvidenceUnavailable("No unique active identity publication is available.")
         return str(rows[0]["dataset_version"]), str(rows[0]["identity_hash"])
 
+    def evidence_fingerprint(self) -> str:
+        try:
+            with self._connect(self._operation_timeout, self._statement_timeout) as connection:
+                connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                rows = connection.execute(_FINGERPRINT, {"dataset_id": None}).fetchall()
+        except psycopg.Error as exc:
+            raise EvidenceUnavailable(
+                "Published campus evidence is temporarily unavailable."
+            ) from exc
+        if len(rows) != 1:
+            raise EvidenceUnavailable("No unique active identity publication is available.")
+        return str(rows[0]["fingerprint"])
+
+    def release_inputs(self, kinds: Sequence[str]) -> ReleaseInputs:
+        """One transaction with its own limits: the whole release for a derived copy."""
+        with self._snapshot(BUILD_SECONDS, BUILD_STATEMENT_MS) as snapshot:
+            evidence = {
+                entity["id"]: (snapshot.contact_reader(entity), snapshot.schedule_reader(entity))
+                for entity in snapshot.entities if entity["kind"] in kinds
+            }
+            return ReleaseInputs(
+                snapshot.dataset_version, snapshot.identity_hash, list(snapshot.entities),
+                list(snapshot.alias_sources), evidence, snapshot.fingerprint_reader())
+
     @contextmanager
     def snapshot(self) -> Iterator[Snapshot]:
-        deadline = time.monotonic() + self._operation_timeout
+        with self._snapshot(self._operation_timeout, self._statement_timeout) as snapshot:
+            yield snapshot
+
+    @contextmanager
+    def _snapshot(self, operation_seconds: float, statement_ms: int) -> Iterator[Snapshot]:
+        deadline = time.monotonic() + operation_seconds
 
         def remaining_ms() -> int:
             remaining = int((deadline - time.monotonic()) * 1_000)
             if remaining <= 0:
                 raise EvidenceUnavailable("Published campus evidence exceeded its read deadline.")
-            return min(self._statement_timeout, remaining)
+            return min(statement_ms, remaining)
 
         try:
-            with self._connect() as connection:
+            with self._connect(operation_seconds, statement_ms) as connection:
                 connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
 
                 def read(query: str, params: Any = None) -> list[dict[str, Any]]:
@@ -206,6 +265,12 @@ class PostgresEntityFacts(EntityFacts):
                             "Office schedule evidence exceeds the bounded read.")
                     return result
 
+                def fingerprint() -> str:
+                    result = read(_FINGERPRINT, {"dataset_id": release["dataset_id"]})
+                    if len(result) != 1:
+                        raise EvidenceUnavailable("No unique active identity publication.")
+                    return str(result[0]["fingerprint"])
+
                 yield Snapshot(
                     release["dataset_version"],
                     release["identity_hash"],
@@ -213,6 +278,7 @@ class PostgresEntityFacts(EntityFacts):
                     contacts,
                     release["alias_sources"] or [],
                     schedules,
+                    fingerprint,
                 )
         except psycopg.Error as exc:
             # Database URLs, passwords, row contents, and provider diagnostics are private.

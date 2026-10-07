@@ -68,6 +68,22 @@ class Snapshot:
     alias_sources: list[dict[str, Any]]
     # Linked schedule records (one per weekday). An adapter with none reads nothing.
     schedule_reader: Callable[[dict[str, Any]], list[dict[str, Any]]] = lambda entity: []
+    # A digest of the evidence rows the readers return, read in the same transaction, so a derived
+    # copy can tell when rows were edited in place. An adapter that cannot say returns "".
+    fingerprint_reader: Callable[[], str] = lambda: ""
+
+
+@dataclass(frozen=True)
+class ReleaseInputs:
+    """Everything a derived copy of one release needs, read as one consistent snapshot."""
+
+    dataset_version: str
+    identity_hash: str
+    entities: list[dict[str, Any]]
+    alias_sources: list[dict[str, Any]]
+    # entity id -> (contact rows, schedule rows), only for the entity kinds that were asked for.
+    evidence: dict[str, tuple[list[dict[str, Any]], list[dict[str, Any]]]]
+    fingerprint: str
 
 
 def _text(value: Any) -> str:
@@ -621,6 +637,22 @@ class EntityFacts:
         """
         with self.snapshot() as snapshot:
             return snapshot.dataset_version, snapshot.identity_hash
+
+    def evidence_fingerprint(self) -> str:
+        """A digest of the active release's evidence rows; "" when the adapter cannot say."""
+        with self.snapshot() as snapshot:
+            return snapshot.fingerprint_reader()
+
+    def release_inputs(self, kinds: Sequence[str]) -> ReleaseInputs:
+        """The active release and the evidence of every entity of the given kinds."""
+        with self.snapshot() as snapshot:
+            evidence = {
+                entity["id"]: (snapshot.contact_reader(entity), snapshot.schedule_reader(entity))
+                for entity in snapshot.entities if entity["kind"] in kinds
+            }
+            return ReleaseInputs(
+                snapshot.dataset_version, snapshot.identity_hash, list(snapshot.entities),
+                list(snapshot.alias_sources), evidence, snapshot.fingerprint_reader())
 
     @staticmethod
     def _pin(snapshot: Snapshot, version: str | None, identity_hash: str | None) -> None:
