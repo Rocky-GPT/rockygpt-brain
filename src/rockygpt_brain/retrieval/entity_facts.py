@@ -33,7 +33,9 @@ MAX_EVIDENCE_BYTES = 128_000
 CONTACT_OBSERVATION_ARTIFACT = "development-office-contact-evidence"
 OBSERVED_FIELDS = frozenset({"email", "phones", "offices"})
 # The office fields a reviewed "not published" claim can cover, and the publisher's name for each.
-ABSENCE_FIELDS = {"email": "email", "phones": "phone", "offices": "office", "hours": "hours"}
+ABSENCE_FIELDS = {"email": "email", "phones": "phone", "offices": "office", "hours": "hours",
+                  "prefers_email": "prefers_email", "preferred_contact": "preferred_contact",
+                  "contact_note": "contact_note", "department": "department"}
 MAX_OBSERVATION_PAGES = 16
 CAMPUS_TIMEZONE = ZoneInfo("America/New_York")
 _DISCOVERY_FILLER = frozenset({"a", "an", "the", "of", "for", "and", "office", "offices"})
@@ -345,7 +347,9 @@ def _observation_sources(row: dict[str, Any], original: dict[str, Any],
 
 # The raw contact columns that hold a published value for each field a claim can cover.
 _ABSENCE_COLUMNS = {"email": ("email",), "phones": ("phone", "phones"),
-                    "offices": ("office", "offices"), "hours": ()}
+                    "offices": ("office", "offices"), "hours": (),
+                    "prefers_email": ("prefers_email",), "preferred_contact": ("preferred_contact",),
+                    "contact_note": ("contact_note",), "department": ("department",)}
 MAX_ABSENCE_CHECKS = 16
 MAX_ABSENCE_TEXT = 300
 
@@ -361,7 +365,10 @@ def _check(item: Any) -> dict[str, str] | None:
             return None
     if _instant(item["checked_at"]) is None:
         return None
-    return {name: item[name] for name in ("url", "section", "checked_at")}
+    if "text_sha256" in item and not _observation_hash(item["text_sha256"]):
+        return None
+    return {name: item[name] for name in ("url", "section", "checked_at", "text_sha256")
+            if name in item}
 
 
 def confirmed_absence(rows: Sequence[dict[str, Any]], key: str, now: datetime | None = None,
@@ -382,6 +389,8 @@ def confirmed_absence(rows: Sequence[dict[str, Any]], key: str, now: datetime | 
     source_ids: list[str] = []
     checks: list[dict[str, str]] = []
     current = True
+    scopes: list[str] = []
+    reasons: list[str] = []
     for row in rows:
         if any(_present(row.get(column)) for column in _ABSENCE_COLUMNS.get(key, ())):
             continue
@@ -417,12 +426,47 @@ def confirmed_absence(rows: Sequence[dict[str, Any]], key: str, now: datetime | 
             if row["id"] not in source_ids:
                 source_ids.append(row["id"])
             checks.extend(check for check in valid if check not in checks)
+            for name, output in (("scope", scopes), ("reason", reasons)):
+                value = claim.get(name)
+                if isinstance(value, str) and value.strip() and value not in output:
+                    output.append(value)
     if not checks:
         return None
     latest = datetime.max.replace(tzinfo=UTC)
     oldest = min(checks, key=lambda check: _instant(check["checked_at"]) or latest)
     return {"source_ids": source_ids, "checks": checks, "checked_at": oldest["checked_at"],
-            "current": current}
+            "current": current, **({"scope": " ".join(scopes)} if scopes else {}),
+            **({"reason": " ".join(reasons)} if reasons else {})}
+
+
+def _contact_projections(row: dict[str, Any], field: str) -> list[tuple[Any, Any, list[str]]]:
+    """Keep separately reviewed same-purpose claims in the original published record."""
+    projections = [project_contact(row, field)]
+    metadata = row.get("normalization_metadata")
+    evidence = metadata.get("evidence") if isinstance(metadata, dict) else None
+    claims = evidence.get("contact_conflicts", []) if isinstance(evidence, dict) else []
+    if not isinstance(claims, list) or len(claims) > 32:
+        raise EvidenceUnavailable("Invalid reviewed contact conflicts.")
+    for claim in claims:
+        if not isinstance(claim, dict):
+            raise EvidenceUnavailable("Invalid reviewed contact conflict.")
+        raw_field = claim.get("field")
+        if not isinstance(raw_field, str):
+            raise EvidenceUnavailable("Invalid reviewed contact conflict field.")
+        target = FIELD_ALIASES.get(raw_field, raw_field)
+        if target != field:
+            continue
+        if (not all(isinstance(claim.get(key), str) and claim[key].strip()
+                    for key in ("value", "label", "url", "section", "checked_at"))
+                or _url(claim["url"]) is None or _instant(claim["checked_at"]) is None):
+            raise EvidenceUnavailable("A conflicting contact needs its reviewed value and source.")
+        column = {"phones": "phone", "offices": "office", "email": "email"}.get(field)
+        if column is None:
+            raise EvidenceUnavailable("Unsupported reviewed contact conflict field.")
+        value, _, caveats = project_contact({column: claim["value"]}, field)
+        projections.append((value, deepcopy(claim), [*caveats,
+            f"Different same-purpose contact published in {claim['section']} of {claim['url']}."]))
+    return projections
 
 
 def canonical_properties(
@@ -459,35 +503,20 @@ def canonical_properties(
         assertions: list[dict[str, Any]] = []
         groups: dict[str, dict[str, Any]] = {}
         for row in rows:
-            value, raw, caveats = project_contact(row, field)
-            if field == "name" and canonical_name_published and value in reviewed_aliases:
-                caveats.append(f"Published name is a reviewed alias of {registry_name}.")
-                value = registry_name
-            assertion_id = f"{row['id']}:{field}"
-            source_id = field_sources.get((row["id"], field), row["id"])
-            assertion = {
-                "id": assertion_id,
-                "source_id": source_id,
-                "field": field,
-                "raw_value": _json_safe(raw),
-                "value": _json_safe(value),
-                "caveats": caveats,
-            }
-            assertions.append(assertion)
-            if _present(value):
-                # JSON keeps true, 1 and "1" distinct, unlike Python equality.
-                key = json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False)
-                group = groups.setdefault(
-                    key,
-                    {
-                        "value": _json_safe(value),
-                        "assertion_ids": [],
-                        "source_ids": [],
-                    },
-                )
-                group["assertion_ids"].append(assertion_id)
-                if source_id not in group["source_ids"]:
-                    group["source_ids"].append(source_id)
+            for index, (value, raw, caveats) in enumerate(_contact_projections(row, field)):
+                if field == "name" and canonical_name_published and value in reviewed_aliases:
+                    caveats.append(f"Published name is a reviewed alias of {registry_name}.")
+                    value = registry_name
+                assertion_id = f"{row['id']}:{field}" + (f":conflict:{index}" if index else "")
+                source_id = row["id"] if index else field_sources.get((row["id"], field), row["id"])
+                assertions.append({"id": assertion_id, "source_id": source_id, "field": field,
+                                   "raw_value": _json_safe(raw), "value": _json_safe(value), "caveats": caveats})
+                if _present(value):
+                    key = json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False)
+                    group = groups.setdefault(key, {"value": _json_safe(value), "assertion_ids": [], "source_ids": []})
+                    group["assertion_ids"].append(assertion_id)
+                    if source_id not in group["source_ids"]:
+                        group["source_ids"].append(source_id)
         values = list(groups.values())
         status = "unknown" if not values else "known"
         absence = confirmed_absence(rows, field, now) if not values else None
@@ -618,7 +647,7 @@ def _schedule_claim(row: dict[str, Any]) -> dict[str, Any]:
     if claim is None:
         return {}
     if (not isinstance(claim, dict)
-            or not set(claim) <= {"status", "reason", "source_statements", "season"}
+            or not set(claim) <= {"status", "reason", "source_statements", "season", "not_published"}
             or ("season" in claim and not _bounded_observation_text(claim["season"], 300))
             or ("status" in claim and (not isinstance(claim["status"], str)
                                        or claim["status"] not in {"unknown", "conflicting"}))
@@ -632,6 +661,73 @@ def _schedule_claim(row: dict[str, Any]) -> dict[str, Any]:
                        for item in statements)):
         raise EvidenceUnavailable("Invalid schedule source statements.")
     return deepcopy(claim)
+
+
+def _schedule_absences(row: dict[str, Any], now: datetime) -> list[dict[str, Any]]:
+    """Read only the publisher's explicit omissions bound to this schedule's captured page.
+
+    The publisher proves the reviewed section against its archived HTML. This reader checks
+    that proof's shape, source and capture binding; null text alone never proves an absence.
+    """
+    claims = _schedule_claim(row).get("not_published", [])
+    if not isinstance(claims, list) or len(claims) > 3:
+        raise EvidenceUnavailable("Invalid reviewed schedule omissions.")
+    result = []
+    held: set[str] = set()
+    for claim in claims:
+        if not isinstance(claim, dict) or not isinstance(claim.get("field"), str):
+            raise EvidenceUnavailable("Invalid reviewed schedule omission.")
+        field = claim["field"]
+        keys = {"field", "scope", "reason", "checks"} | ({"days"} if field == "weekday_hours" else set())
+        if (field not in {"weekday_hours", "valid_from", "valid_until"} or field in held
+                or set(claim) != keys
+                or not _bounded_observation_text(claim.get("scope"), 1_000)
+                or not _bounded_observation_text(claim.get("reason"), 2_000)):
+            raise EvidenceUnavailable("Invalid reviewed schedule omission scope.")
+        held.add(field)
+        if field == "weekday_hours":
+            days = claim["days"]
+            if (not isinstance(days, list) or not days or len(days) > 7
+                    or not all(isinstance(day, str) and day in WEEKDAYS for day in days)
+                    or len(set(days)) != len(days)):
+                raise EvidenceUnavailable("Invalid reviewed schedule weekdays.")
+            if clean(row.get("day")) in days and _schedule_hours(row.get("schedule")) is not None:
+                raise EvidenceUnavailable("A published weekday cannot also be confirmed absent.")
+        elif row.get(field) is not None:
+            raise EvidenceUnavailable("A published date cannot also be confirmed absent.")
+        checks = claim["checks"]
+        if not isinstance(checks, list) or not checks or len(checks) > MAX_ABSENCE_CHECKS:
+            raise EvidenceUnavailable("A schedule omission needs reviewed source sections.")
+        times = []
+        for check in checks:
+            if (not isinstance(check, dict)
+                    or set(check) != {"url", "section", "checked_at", "html_sha256"}
+                    or _check(check) is None or not _observation_hash(check["html_sha256"])):
+                raise EvidenceUnavailable("Invalid schedule omission page proof.")
+            times.append(_observation_time(check["checked_at"], now))
+        captured = _instant(row.get("collected_at"))
+        if not any(check["url"] == row.get("source_url") and stamp == captured
+                   for check, stamp in zip(checks, times, strict=True)):
+            raise EvidenceUnavailable("Schedule omission proof does not match its source capture.")
+        sla = row.get("freshness_sla_hours")
+        current = (isinstance(sla, int) and not isinstance(sla, bool) and sla > 0
+                   and all(now - stamp <= timedelta(hours=sla) for stamp in times))
+        oldest = min(range(len(times)), key=times.__getitem__)
+        result.append({**deepcopy(claim), "status": "not_published", "current": current,
+                       "checked_at": checks[oldest]["checked_at"]})
+    return result
+
+
+def _merge_schedule_absence(proofs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Preserve each supporting page and scope when identical schedule readings meet."""
+    checks = [check for proof in proofs for check in proof["checks"]]
+    checks = [check for index, check in enumerate(checks) if check not in checks[:index]]
+    oldest = min(checks, key=lambda check: _instant(check["checked_at"]))
+    return {"status": "not_published", "checks": checks, "checked_at": oldest["checked_at"],
+            "current": all(proof["current"] for proof in proofs),
+            "source_ids": list(dict.fromkeys(sid for proof in proofs for sid in proof["source_ids"])),
+            **{key: " ".join(dict.fromkeys(proof[key] for proof in proofs))
+               for key in ("scope", "reason")}}
 
 
 def _schedule_hours(value: Any) -> str | None:
@@ -662,6 +758,7 @@ def schedule_property(
             raise EvidenceUnavailable("A schedule record needs a name and a day.")
         _schedule_hours(row.get("schedule"))
         claim = _schedule_claim(row)
+        _schedule_absences(row, now)
         since, until = _date(row.get("valid_from")), _date(row.get("valid_until"))
         if (any(row.get(key) is not None and parsed is None
                 for key, parsed in (("valid_from", since), ("valid_until", until)))
@@ -696,6 +793,8 @@ def schedule_property(
             }
             if season:
                 value["season"] = season
+            # Proof timestamps and page hashes do not make equal opening times disagree.
+            value_key = json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False)
             by_claim = {}
             for row in picked:
                 claim = _schedule_claim(row)
@@ -725,6 +824,24 @@ def schedule_property(
                 ).hexdigest(),
             )
             sources.append(source)
+            row_absences = [[{**proof, "source_ids": [source["id"]]}
+                             for proof in _schedule_absences(row, now)] for row in picked]
+            if has_hours:
+                for entry, proofs in zip(value["days"], row_absences, strict=True):
+                    applicable = [proof for proof in proofs if proof["field"] == "weekday_hours"
+                                  and entry["day"] in proof["days"]]
+                    if entry["hours"] is None and applicable:
+                        entry.update(status="not_published", absence=_merge_schedule_absence(applicable))
+            validity_absence = {}
+            for bound in ("valid_from", "valid_until"):
+                matching = [[proof for proof in proofs if proof["field"] == bound]
+                            for proofs in row_absences]
+                if all(matching):
+                    validity_absence[bound] = _merge_schedule_absence(
+                        [proof for proofs in matching for proof in proofs])
+            if validity_absence:
+                value["validity_absence"] = validity_absence
+                source["validity_absence"] = deepcopy(validity_absence)
             if season:
                 source["season"] = season
                 if not source["valid_from"] or not source["valid_until"]:
@@ -738,11 +855,13 @@ def schedule_property(
                                            "notes": r.get("notes"),
                                            "evidence": _schedule_claim(r)} for r in picked]),
                 "value": _json_safe(value) if has_hours else None,
-                "caveats": (["Unavailable weekdays remain unknown, not closed."]
+                "caveats": (["Missing weekday hours never mean closed; reviewed absences retain their scope."]
                             if unavailable else []),
             })
             problems = [claim for claim in claims if claim.get("status")]
-            if unavailable or problems:
+            unknown_days = [entry["day"] for entry in value["days"]
+                            if entry["hours"] is None and entry.get("status") != "not_published"]
+            if unknown_days or problems:
                 reasons = list(dict.fromkeys(claim["reason"] for claim in problems))
                 if not reasons:
                     reasons = (value["notes"] if not has_hours and value["notes"] else
@@ -751,17 +870,25 @@ def schedule_property(
                     "schedule": name, **({"season": season} if season else {}),
                     "status": ("conflicting" if any(c.get("status") == "conflicting"
                                                     for c in problems) else "unknown"),
-                    "reason": " ".join(reasons), "days": unavailable,
+                    "reason": " ".join(reasons), "days": unknown_days,
                     "source_statements": list(dict.fromkeys(
                         statement for claim in problems
                         for statement in claim.get("source_statements", []))),
                     "source_ids": [source["id"]],
+                    **({"validity_absence": deepcopy(validity_absence)} if validity_absence else {}),
                 })
             if not has_hours:
                 continue
-            key = json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False)
-            group = groups.setdefault(key, {"value": _json_safe(value), "assertion_ids": [],
-                                            "source_ids": []})
+            group = groups.setdefault(value_key, {"value": _json_safe(value), "assertion_ids": [],
+                                                  "source_ids": []})
+            for entry, existing in zip(value["days"], group["value"]["days"], strict=True):
+                if entry.get("absence"):
+                    proofs = [entry["absence"]] + ([existing["absence"]] if existing.get("absence") else [])
+                    existing.update(status="not_published", absence=_merge_schedule_absence(proofs))
+            for bound, proof in validity_absence.items():
+                existing = group["value"].setdefault("validity_absence", {}).get(bound)
+                group["value"]["validity_absence"][bound] = _merge_schedule_absence(
+                    [proof, existing] if existing else [proof])
             group["assertion_ids"].append(assertion_id)
             group["source_ids"].append(source["id"])
     values = list(groups.values())
@@ -1057,7 +1184,7 @@ class EntityFacts:
                 caveats.append("No original contact evidence is published for this office.")
             return {
                 "schema_version": 4,
-                "mapping_version": "entity-facts-5",
+                "mapping_version": "entity-facts-6",
                 "dataset_version": snapshot.dataset_version,
                 "identity_hash": snapshot.identity_hash,
                 "entity": {key: entity[key] for key in ("id", "kind", "name")},
