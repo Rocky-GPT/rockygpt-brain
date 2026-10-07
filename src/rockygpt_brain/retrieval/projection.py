@@ -2,6 +2,7 @@
 
 import html
 import re
+from datetime import datetime
 from typing import Any
 
 OFFICE_FIELDS = (
@@ -47,24 +48,44 @@ def _room(value: str) -> str:
     return f"{match[1]}-{match[2]}{match[3] or ''}" if match else value
 
 
-# The only address the Brain will call an office's website: a plain https page of ramapo.edu.
+# Ordinary office websites stay on the college's own host. Athletics has one reviewed exception.
 _OWN_SITE = re.compile(r"https://(?:www\.)?ramapo\.edu/[A-Za-z0-9._~/-]*")
+_ATHLETICS_SITE = re.compile(r"https://(?:www\.)?ramapoathletics\.com/")
+_ATHLETICS_DIRECTORY = "https://catalog.ramapo.edu/quicklinks/studentservices"
+
+
+def _checked_at(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None and parsed.utcoffset() is not None
 
 
 def _website(row: dict[str, Any]) -> tuple[Any, Any]:
-    """The office's own ramapo.edu page and the reviewed claim it came from.
-
-    The publisher records it in the row's evidence only when a reviewer named the page and the run's
-    capture loaded it. It is read again here, so nothing but a plain ramapo.edu https page can be
-    stated as a website, whatever the row holds.
-    """
+    """A reviewed office website, with one narrowly supported external Athletics site."""
     metadata = row.get("normalization_metadata")
     evidence = metadata.get("evidence") if isinstance(metadata, dict) else None
     claim = evidence.get("website") if isinstance(evidence, dict) else None
     if not isinstance(claim, dict):
         return None, None
     url = claim.get("url")
-    return (url if isinstance(url, str) and _OWN_SITE.fullmatch(url) else None), claim
+    if isinstance(url, str) and _OWN_SITE.fullmatch(url):
+        return url, claim
+    official = claim.get("official_link")
+    if (row.get("source_record_key") == "office:athletics"
+            and isinstance(url, str) and _ATHLETICS_SITE.fullmatch(url)
+            and _checked_at(claim.get("checked_at")) and isinstance(official, dict)
+            and isinstance(official.get("url"), str)
+            and official.get("url") in {_ATHLETICS_DIRECTORY, _ATHLETICS_DIRECTORY + "/"}
+            and _checked_at(official.get("checked_at"))
+            and isinstance(official.get("section"), str) and official["section"].strip()
+            and len(official["section"]) <= 300
+            and not any(ord(char) < 32 for char in official["section"])):
+        return url, claim
+    return None, claim
 
 
 def project_contact(row: dict[str, Any], field: str) -> tuple[Any, Any, list[str]]:
@@ -108,6 +129,11 @@ def project_contact(row: dict[str, Any], field: str) -> tuple[Any, Any, list[str
         result: list[Any] = []
         for value in values:
             if not value:
+                continue
+            if (isinstance(value, dict) and set(value) <= {"location", "label"}
+                    and isinstance(value.get("location"), str)):
+                # A service or person label is part of the observation, not a second office.
+                result.append({**value, "location": _room(value["location"])})
                 continue
             if not isinstance(value, str):
                 result.append(value)

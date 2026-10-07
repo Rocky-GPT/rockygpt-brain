@@ -40,7 +40,7 @@ _DERIVED = frozenset({"id", "subject", "predicate", "day", "date", "value", "app
                       "from", "source_ids"})
 _ABSENCE = frozenset({"subject", "predicate", "checked_at", "checks", "current", "source_ids",
                       "purpose"})
-_MISSING = frozenset({"subject", "predicate", "reason"})
+_MISSING = frozenset({"subject", "predicate", "reason", "source_ids"})
 _AMBIGUITY = frozenset({"query", "candidates", "truncated"})
 _UNRESOLVED = frozenset({"query", "reason"})
 _NOTICE_DROPPED = frozenset({"type", "subject", "contacts"})
@@ -54,7 +54,8 @@ def _rest(item: dict[str, Any], handled: frozenset[str]) -> dict[str, Any]:
 
 def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
     """The part of a validated packet a writer needs, as plain JSON."""
-    cited = {sid for kind in ("facts", "not_published", "derived_facts") for entry in packet[kind]
+    cited = {sid for kind in ("facts", "not_published", "derived_facts", "missing")
+             for entry in packet[kind]
              for sid in entry.get("source_ids", [])}
     kept = [source for source in packet["sources"] if source["id"] in cited]
     number = {source["id"]: n for n, source in enumerate(kept, start=1)}
@@ -103,6 +104,8 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
         row = {"subject": entry["subject"]["name"], "predicate": entry["predicate"]}
         if entry["reason"] != "unknown":
             row["reason"] = entry["reason"]
+        if entry.get("source_ids"):
+            row["sources"] = [number[sid] for sid in entry["source_ids"]]
         missing.append({**_rest(entry, _MISSING), **row})
     if missing:
         view["missing"] = missing
