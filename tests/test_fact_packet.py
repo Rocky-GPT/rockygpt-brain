@@ -55,6 +55,20 @@ def test_a_source_carries_its_dates_freshness_and_secure_links() -> None:
     insecure = build_packet(AS_OF, [part_for(registrar(canonical_url="http://example.edu/x"),
                                              "registrar", "Registrar", ["email"])])
     assert insecure["sources"][0]["urls"] == []  # Listed, but with no link a writer could use.
+    # A value nothing can cite is withheld, not stated: the text answer never gave it either.
+    assert insecure["facts"] == []
+    assert insecure["missing"] == [{"subject": {"id": "registrar", "name": "Registrar",
+                                                "kind": "office"},
+                                    "predicate": "email", "reason": "no_citable_source"}]
+    assert insecure["status"] == "insufficient"
+    # Beside a value that can be cited, only the uncitable one is withheld, and only once.
+    both = source([office("registrar", "Registrar")],
+                  [contact("r1", canonical_url="http://example.edu/x"),
+                   contact("r2", email="other@example.edu")])
+    mixed = build_packet(AS_OF, [part_for(both, "registrar", "Registrar", ["email"])])
+    assert [f["value"] for f in mixed["facts"]] == ["other@example.edu"]
+    assert [m["reason"] for m in mixed["missing"]] == ["no_citable_source"]
+    assert mixed["status"] == "partial"
 
 
 def test_an_old_capture_is_a_fact_that_is_not_current_and_the_packet_is_partial() -> None:

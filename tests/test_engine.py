@@ -613,7 +613,8 @@ def test_the_trace_shows_five_candidates_and_how_many_matched() -> None:
     entry = result.trace["lookups"][0]
     assert entry["status"] == "ambiguous" and entry["result_count"] == 7
     assert entry["candidates"] == [f"Student Office {n}" for n in range(5)]
-    assert entry["truncated"] is False
+    # Seven matched and five are shown, so the list is cut off and says so.
+    assert entry["truncated"] is True
 
 
 def test_an_all_clear_is_not_answered_as_a_thank_you() -> None:

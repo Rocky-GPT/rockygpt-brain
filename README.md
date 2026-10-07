@@ -144,6 +144,17 @@ writing model yet). `answer` is `""`; `status`, `citations`, `datasetVersion` an
 as in text mode, and the body gains `facts` (the packet). Errors are unchanged, and text mode stays
 the default, so the student UI is unaffected. `GET /v1/dev/runtime` reports `output`.
 
+A writer is never handed the full packet. The packet is the Brain's record (ids, hashes, the pages
+that were read); a template or a model with no other context only needs what it can say.
+`writer_view(packet)` (`src/rockygpt_brain/writer_view.py`) derives that: values, which are not
+current or conflict, what is unknown and what is confirmed not published, what to ask, the fixed
+wording to repeat, and numbered sources to cite. It drops the ids, the dataset and its hash, and
+leaves out whatever holds the usual value (`status` "known", `current` true, `freshness` "fresh",
+empty lists), so a missing key means the usual. It adds and infers nothing, and a packet field it
+does not know is carried through. In JSON output the body carries it as `writerInput` beside `facts`
+(about 60-70% smaller). A test fails if a packet value is neither in the view nor on the list of
+what is dropped on purpose.
+
 Packet version `"1.0"` (`src/rockygpt_brain/fact_packet.py`):
 
 | key | what it holds |

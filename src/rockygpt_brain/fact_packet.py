@@ -13,13 +13,14 @@ Version 1.0:
                    | no_facts_needed
     facts          [{id, subject {id, name, kind}, predicate, value, status, current, source_ids}]
     derived_facts  [] (reserved: values the Brain computes, such as "open at 8 pm")
-    missing        [{subject, predicate, reason}]   a requested fact we hold no information about
-                   (reason "unknown": nobody checked, or the page could not be read)
+    missing        [{subject, predicate, reason}]   a requested fact we cannot state: reason
+                   "unknown" (nobody checked, or the page could not be read) or "no_citable_source"
+                   (a value exists but nothing it comes from has a usable secure link: withheld)
     not_published  [{subject, predicate, checked_at, current, checks, source_ids}]
                    a requested fact the office's own pages were read for and do not publish: an
                    answer, not a gap (the pages and date are recorded)
     ambiguities    [{query, candidates [{id, name, match}], truncated}]
-    unresolved     [{query, reason}]                a name that matched no office
+    unresolved     [{query, reason, approved_text?}] a name that matched no office
     notices        [{type, ...}]                    replies with no facts (greeting, safety...)
     sources        [{id, title, collection, urls, captured_at, freshness, validity, valid_from,
                      valid_until, current, limitations}]
@@ -124,6 +125,13 @@ class _Builder:
                 ids = list(value["source_ids"])
                 if not ids or any(sid not in local for sid in ids):
                     raise PacketInvalid("A fact names a source the reader did not return.")
+                if not any(local[sid]["urls"] for sid in ids):
+                    # Nothing to cite it by: a student is told it cannot be stated, not the value.
+                    withheld = {"subject": entity, "predicate": prop["key"],
+                                "reason": "no_citable_source"}
+                    if withheld not in self.missing:
+                        self.missing.append(withheld)
+                    continue
                 fact = {"id": f"f{len(self.facts) + 1}", "subject": entity,
                         "predicate": prop["key"], "value": value["value"],
                         "status": prop["status"],
@@ -143,7 +151,10 @@ class _Builder:
             self.ambiguities.append({"query": part["query"], "truncated": part["truncated"],
                                      "candidates": part["candidates"]})
         elif kind == "not_found":
-            self.unresolved.append({"query": part["query"], "reason": "no_matching_office"})
+            entry = {"query": part["query"], "reason": "no_matching_office"}
+            if part.get("approved_text"):
+                entry["approved_text"] = part["approved_text"]
+            self.unresolved.append(entry)
         elif kind == "safety":
             for contact in part["campusContacts"]:
                 self.office(contact, purpose="emergency_contact")
