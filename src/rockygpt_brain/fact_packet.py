@@ -156,8 +156,8 @@ def _status(builder: _Builder) -> str:
     asked = [fact for fact in builder.facts if fact.get("purpose") is None]
     if "safety" in kinds:
         return "emergency"
-    if not asked and builder.ambiguities:
-        return "ambiguous"
+    if not asked and (builder.ambiguities or "clarification" in kinds):
+        return "ambiguous"  # The Brain needs a follow-up question answered before it can look up.
     if not asked and builder.unresolved:
         return "not_found"
     if asked:

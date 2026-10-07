@@ -114,6 +114,16 @@ def test_what_the_code_used_to_write_is_a_notice_with_the_approved_wording() -> 
     assert clock["type"] == "clock" and datetime.fromisoformat(clock["campusNow"]) == NOW
 
 
+def test_a_message_naming_no_office_is_a_question_to_ask_with_no_lookup() -> None:
+    gateway = ScriptedGateway(finish("clarification"))
+    result = run(gateway)
+    found = packet(result)
+    assert found["status"] == "ambiguous" and found["request"]["intent"] == "clarification"
+    assert found["facts"] == [] and found["request"]["entities"] == [] and found["unresolved"] == []
+    assert notices(result) == [{"type": "clarification", "afterLookup": False,
+                                "approved_text": engine_module.CLARIFICATION_MESSAGE}]
+
+
 def test_a_recall_carries_the_quoted_message_not_a_sentence_about_it() -> None:
     messages = [{"role": "user", "content": "hello there"}, {"role": "assistant", "content": "Hi!"},
                 {"role": "user", "content": "what did I say first?"}]
