@@ -610,6 +610,40 @@ def _day_order(day: str) -> tuple[int, str]:
     return (WEEKDAYS.index(day), day) if day in WEEKDAYS else (len(WEEKDAYS), day)
 
 
+def _schedule_claim(row: dict[str, Any]) -> dict[str, Any]:
+    """Bounded publisher observations; their source statements are evidence, never instructions."""
+    metadata = row.get("normalization_metadata")
+    evidence = metadata.get("evidence") if isinstance(metadata, dict) else None
+    claim = evidence.get("schedule") if isinstance(evidence, dict) else None
+    if claim is None:
+        return {}
+    if (not isinstance(claim, dict)
+            or not set(claim) <= {"status", "reason", "source_statements", "season"}
+            or ("season" in claim and not _bounded_observation_text(claim["season"], 300))
+            or ("status" in claim and (not isinstance(claim["status"], str)
+                                       or claim["status"] not in {"unknown", "conflicting"}))
+            or ("status" in claim and not _bounded_observation_text(claim.get("reason"), 2_000))
+            or ("reason" in claim and not _bounded_observation_text(claim["reason"], 2_000))):
+        raise EvidenceUnavailable("Invalid schedule evidence metadata.")
+    statements = claim.get("source_statements", [])
+    if (not isinstance(statements, list) or len(statements) > 16
+            or not all(isinstance(item, str) and item.strip() and len(item) <= 2_000
+                       and not any(ord(char) < 32 and char not in "\r\n\t" for char in item)
+                       for item in statements)):
+        raise EvidenceUnavailable("Invalid schedule source statements.")
+    return deepcopy(claim)
+
+
+def _schedule_hours(value: Any) -> str | None:
+    """The collector's explicit missing marker is absence, never an opening time or closure."""
+    value = clean(value)
+    if value is None or value == "" or value == "Hours unavailable":
+        return None
+    if not isinstance(value, str):
+        raise EvidenceUnavailable("Invalid schedule hours text.")
+    return value
+
+
 def schedule_property(
     rows: Sequence[dict[str, Any]], now: datetime
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -621,36 +655,55 @@ def schedule_property(
     they have the same name, overlapping validity, and different content. Different names (a
     library's circulation desk and its research desk) are separate answers.
     """
-    buckets: dict[tuple[str, str | None, str | None], list[dict[str, Any]]] = {}
+    buckets: dict[tuple[str, str | None, str | None, str | None], list[dict[str, Any]]] = {}
     for row in rows:
-        name, day, text = clean(row.get("name")), clean(row.get("day")), clean(row.get("schedule"))
-        if not all(isinstance(part, str) and part for part in (name, day, text)):
-            raise EvidenceUnavailable("A schedule record needs a name, a day and its hours.")
+        name, day = clean(row.get("name")), clean(row.get("day"))
+        if not all(isinstance(part, str) and part for part in (name, day)):
+            raise EvidenceUnavailable("A schedule record needs a name and a day.")
+        _schedule_hours(row.get("schedule"))
+        claim = _schedule_claim(row)
         since, until = _date(row.get("valid_from")), _date(row.get("valid_until"))
-        buckets.setdefault((name, since.isoformat() if since else None,
+        if (any(row.get(key) is not None and parsed is None
+                for key, parsed in (("valid_from", since), ("valid_until", until)))
+                or (since and until and since > until)):
+            raise EvidenceUnavailable("Invalid published schedule validity interval.")
+        buckets.setdefault((name, claim.get("season"), since.isoformat() if since else None,
                             until.isoformat() if until else None), []).append(row)
     sources: list[dict[str, Any]] = []
     assertions: list[dict[str, Any]] = []
+    issues: list[dict[str, Any]] = []
     groups: dict[str, dict[str, Any]] = {}
     ordered = sorted(
-        buckets.items(), key=lambda item: (item[0][0], item[0][1] or "", item[0][2] or ""))
-    for (name, _, _), bucket in ordered:
+        buckets.items(), key=lambda item: tuple(part or "" for part in item[0]))
+    for (name, season, _, _), bucket in ordered:
         by_day: dict[str, list[dict[str, Any]]] = {}
         for row in sorted(bucket, key=lambda r: (_day_order(clean(r["day"])), str(r.get("id")))):
             by_day.setdefault(clean(row["day"]), []).append(row)
         # Two different texts for one day are a disagreement, so each reading gets its own value.
-        readings: dict[str, list[dict[str, Any]]] = {}
+        readings: dict[tuple[str, ...], list[dict[str, Any]]] = {}
         for index in range(max(len(rows_for_day) for rows_for_day in by_day.values())):
             picked = [days[min(index, len(days) - 1)] for days in by_day.values()]
-            key = json.dumps([[clean(r["day"]), clean(r["schedule"])] for r in picked])
+            # Identical readings still keep distinct supporting records and capture boundaries.
+            key = tuple(str(row["id"]) for row in picked)
             readings.setdefault(key, picked)
         for picked in readings.values():
             value: dict[str, Any] = {
                 "schedule": name,
-                "days": [{"day": clean(r["day"]), "hours": clean(r["schedule"])} for r in picked],
+                "days": [{"day": clean(r["day"]), "hours": _schedule_hours(r.get("schedule"))}
+                         for r in picked],
                 "notes": list(dict.fromkeys(
                     clean(r["notes"]) for r in picked if _present(r.get("notes")))),
             }
+            if season:
+                value["season"] = season
+            by_claim = {}
+            for row in picked:
+                claim = _schedule_claim(row)
+                if claim:
+                    by_claim.setdefault(json.dumps(claim, sort_keys=True), claim)
+            claims = list(by_claim.values())
+            unavailable = [entry["day"] for entry in value["days"] if entry["hours"] is None]
+            has_hours = len(unavailable) < len(value["days"])
             captured = [t for r in picked if (t := _instant(r.get("collected_at")))]
             urls = list(dict.fromkeys(u for r in picked if (u := _url(r.get("source_url")))))
             # One id per reading: two readings of one day can both start from the same first row.
@@ -660,7 +713,8 @@ def schedule_property(
                 **picked[0], "id": f"{picked[0]['id']}:schedule:{reading}",
                 "collected_at": min(captured) if len(captured) == len(picked) else None,
                 "canonical_url": urls[0] if urls else picked[0].get("canonical_url"),
-                "normalization_metadata": {"evidence": {"source_urls": urls}},
+                "normalization_metadata": {"evidence": {"source_urls": urls,
+                                                         "schedule_observations": claims}},
             }, now)
             source.update(
                 collection="campus_hours",
@@ -671,13 +725,40 @@ def schedule_property(
                 ).hexdigest(),
             )
             sources.append(source)
+            if season:
+                source["season"] = season
+                if not source["valid_from"] or not source["valid_until"]:
+                    source["caveats"].append(
+                        "This seasonal schedule has no complete published date range; "
+                        "its applicability to a particular date is unverified.")
             assertion_id = f"{source['id']}:hours"
             assertions.append({
                 "id": assertion_id, "source_id": source["id"], "field": "hours",
-                "raw_value": _json_safe([{"day": r["day"], "schedule": r["schedule"],
-                                           "notes": r.get("notes")} for r in picked]),
-                "value": _json_safe(value), "caveats": [],
+                "raw_value": _json_safe([{"day": r["day"], "schedule": r.get("schedule"),
+                                           "notes": r.get("notes"),
+                                           "evidence": _schedule_claim(r)} for r in picked]),
+                "value": _json_safe(value) if has_hours else None,
+                "caveats": (["Unavailable weekdays remain unknown, not closed."]
+                            if unavailable else []),
             })
+            problems = [claim for claim in claims if claim.get("status")]
+            if unavailable or problems:
+                reasons = list(dict.fromkeys(claim["reason"] for claim in problems))
+                if not reasons:
+                    reasons = (value["notes"] if not has_hours and value["notes"] else
+                               ["No verified hours are published for the listed weekdays."])
+                issues.append({
+                    "schedule": name, **({"season": season} if season else {}),
+                    "status": ("conflicting" if any(c.get("status") == "conflicting"
+                                                    for c in problems) else "unknown"),
+                    "reason": " ".join(reasons), "days": unavailable,
+                    "source_statements": list(dict.fromkeys(
+                        statement for claim in problems
+                        for statement in claim.get("source_statements", []))),
+                    "source_ids": [source["id"]],
+                })
+            if not has_hours:
+                continue
             key = json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False)
             group = groups.setdefault(key, {"value": _json_safe(value), "assertion_ids": [],
                                             "source_ids": []})
@@ -685,9 +766,10 @@ def schedule_property(
             group["source_ids"].append(source["id"])
     values = list(groups.values())
     status = "known" if values else "unknown"
-    by_schedule: dict[str, list[dict[str, Any]]] = {}
+    by_schedule: dict[tuple[str, str | None], list[dict[str, Any]]] = {}
     for found in values:
-        by_schedule.setdefault(found["value"]["schedule"], []).append(found)
+        by_schedule.setdefault((found["value"]["schedule"], found["value"].get("season")),
+                               []).append(found)
     source_map = {source["id"]: source for source in sources}
     for same_name in by_schedule.values():
         if len(same_name) < 2:
@@ -701,8 +783,12 @@ def schedule_property(
             status = "conflicting"
         elif status != "conflicting":
             status = "multiple"
+    if any(issue["status"] == "conflicting"
+           and (issue["schedule"], issue.get("season")) in by_schedule for issue in issues):
+        status = "conflicting"
     return ({"key": "hours", "label": "Hours", "category": "schedule", "status": status,
-             "values": values, "assertions": assertions}, sources)
+             "values": values, "assertions": assertions, **({"issues": issues} if issues else {})},
+            sources)
 
 
 class EntityFacts:
@@ -971,7 +1057,7 @@ class EntityFacts:
                 caveats.append("No original contact evidence is published for this office.")
             return {
                 "schema_version": 4,
-                "mapping_version": "entity-facts-4",
+                "mapping_version": "entity-facts-5",
                 "dataset_version": snapshot.dataset_version,
                 "identity_hash": snapshot.identity_hash,
                 "entity": {key: entity[key] for key in ("id", "kind", "name")},

@@ -15,11 +15,15 @@ Version 1.0:
     derived_facts  [{id, subject, predicate "hours_on", day, date, value, applies, current, from,
                      source_ids}]   what the Brain worked out so a writer never has to: the hours
                    of the one weekday the student asked about (see hours_on.py). `from` names the
-                   full-week fact it was read from; `applies` is false when the date falls outside
-                   the schedule's published validity window (then `value` has the window, no hours)
+                     full-week fact it was read from; `applies` is false outside its published
+                     window, or with `applicability: unverified` when a seasonal schedule has no
+                     complete interval. Both withhold day-specific hours. Optional `status`
+                     preserves conflicting or multiple schedule readings.
     missing        [{subject, predicate, reason}]   a requested fact we cannot state: reason
                    "unknown" (nobody checked, or the page could not be read) or "no_citable_source"
-                   (a value exists but nothing it comes from has a usable secure link: withheld)
+                   (a value exists but nothing it comes from has a usable secure link: withheld).
+                   Schedule issues also preserve schedule, status, details, days, source statements,
+                   and source_ids, with unverified_schedule or partially_unknown_schedule reason.
     not_published  [{subject, predicate, checked_at, current, checks, source_ids}]
                    a requested fact the office's own pages were read for and do not publish: an
                    answer, not a gap (the pages and date are recorded)
@@ -73,7 +77,7 @@ def _source(raw: dict[str, Any]) -> dict[str, Any]:
         "valid_until": raw.get("valid_until"), "current": source_is_current(raw),
         "limitations": list(raw.get("caveats", [])),
     }
-    for key in ("original_record_id", "observation_field", "original_collected_at"):
+    for key in ("original_record_id", "observation_field", "original_collected_at", "season"):
         if key in raw:
             source[key] = raw[key]
     return source
@@ -110,6 +114,26 @@ class _Builder:
                 raise PacketInvalid("Two different sources share one id.")
             local[source["id"]] = source
         for prop in reader["properties"]:
+            for issue in prop.get("issues", []):
+                ids = list(issue["source_ids"])
+                if not ids or any(sid not in local for sid in ids):
+                    raise PacketInvalid("A schedule issue names a source the reader lacks.")
+                if not any(local[sid]["urls"] for sid in ids):
+                    self.missing.append({"subject": entity, "predicate": prop["key"],
+                                         "reason": "no_citable_source"})
+                    continue
+                entry = {"subject": entity, "predicate": prop["key"],
+                         "reason": ("unverified_schedule" if not prop["values"] else
+                                    "partially_unknown_schedule"),
+                         "schedule": issue["schedule"], "status": issue["status"],
+                         "details": issue["reason"], "days": list(issue["days"]),
+                         "source_statements": list(issue["source_statements"]),
+                         "source_ids": ids}
+                if issue.get("season"):
+                    entry["season"] = issue["season"]
+                if purpose:
+                    entry["purpose"] = purpose
+                self.missing.append(entry)
             if prop["status"] == "not_published":
                 absence = prop["absence"]
                 ids = list(absence["source_ids"])
@@ -125,8 +149,9 @@ class _Builder:
                 self.not_published.append(entry)
                 continue
             if prop["status"] == "unknown" or not prop["values"]:
-                self.missing.append({"subject": entity, "predicate": prop["key"],
-                                     "reason": "unknown"})
+                if not prop.get("issues"):
+                    self.missing.append({"subject": entity, "predicate": prop["key"],
+                                         "reason": "unknown"})
                 continue
             for value in prop["values"]:
                 ids = list(value["source_ids"])
@@ -168,8 +193,12 @@ class _Builder:
                     "id": f"d{len(self.derived) + 1}", "subject": entity,
                     "predicate": "hours_on", "day": picked["day"], "date": picked["date"],
                     "value": picked["value"], "applies": picked["applies"],
-                    "current": fact["current"] and picked["applies"],
-                    "from": [fact["id"]], "source_ids": list(fact["source_ids"])})
+                    "current": (fact["current"] and picked["applies"]
+                                and picked["value"].get("hours") is not None),
+                    "from": [fact["id"]], "source_ids": list(fact["source_ids"]),
+                    **({"status": fact["status"]} if fact["status"] != "known" else {}),
+                    **{key: picked[key] for key in ("applicability", "applicability_reason")
+                       if key in picked}})
         if not reader.get("complete", True):
             self.notices.append({"type": "evidence_incomplete", "subject": entity,
                                  "caveats": list(reader.get("caveats", []))})
@@ -320,6 +349,12 @@ def _validate_derived(entry: Any, source_ids: set[str], fact_ids: set[str]) -> N
         raise PacketInvalid("A derived fact's weekday is not its date's weekday.")
     if not isinstance(entry["applies"], bool) or not isinstance(entry["current"], bool):
         raise PacketInvalid("A derived fact has the wrong types.")
+    if "applicability" in entry and (
+            entry["applicability"] != "unverified" or entry["applies"] or entry["current"]
+            or not _plain(entry.get("applicability_reason"))):
+        raise PacketInvalid("An unverified seasonal date must remain explicitly unverified.")
+    if "status" in entry and entry["status"] not in {"known", "conflicting", "multiple"}:
+        raise PacketInvalid("A derived fact has an unknown status.")
     if not isinstance(entry["value"], dict) or "hours" not in entry["value"]:
         raise PacketInvalid("A derived fact needs its value.")
     if (not isinstance(entry["from"], list) or not entry["from"]
@@ -377,6 +412,11 @@ def validate_packet(packet: dict[str, Any]) -> None:
     for entry in packet["missing"]:
         if not {"subject", "predicate", "reason"} <= set(entry):
             raise PacketInvalid("A missing entry is incomplete.")
+        if "source_ids" in entry and (not isinstance(entry["source_ids"], list)
+                or not entry["source_ids"]
+                or not all(isinstance(sid, str) for sid in entry["source_ids"])
+                or not set(entry["source_ids"]) <= set(source_ids)):
+            raise PacketInvalid("A missing field explanation needs its listed sources.")
     held = {(fact["subject"].get("id"), fact["predicate"]) for fact in packet["facts"]
             if isinstance(fact.get("subject"), dict)}
     held |= {(entry["subject"].get("id"), entry["predicate"]) for entry in packet["missing"]

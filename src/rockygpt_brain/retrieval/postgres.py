@@ -107,6 +107,7 @@ WITH links AS (
 )
 SELECT h.id::text AS id, h.source_record_key, h.name, h.day, h.schedule,
        to_jsonb(h) ->> 'notes' AS notes, to_jsonb(h) ->> 'source_url' AS source_url,
+       to_jsonb(h) -> 'normalization_metadata' AS normalization_metadata,
        h.collected_at, (to_jsonb(h) ->> 'valid_from')::date AS valid_from,
        (to_jsonb(h) ->> 'valid_until')::date AS valid_until, h.content_hash,
        s.source_key, s.canonical_url, s.freshness_sla_hours

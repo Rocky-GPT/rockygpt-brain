@@ -67,6 +67,7 @@ def _value_text(key: str, value: Any) -> str:
                 "number",
                 "extension",
                 "type",
+                "label",
                 "text",
             }:
                 phones.append(literal(phone))
@@ -76,10 +77,17 @@ def _value_text(key: str, value: Any) -> str:
                 text += ("; " if text else "") + "extension " + literal(phone["extension"])
             if phone.get("type"):
                 text += " (" + literal(phone["type"]) + ")"
+            if phone.get("label"):
+                text += " (" + literal(phone["label"]) + ")"
             phones.append(text)
         return "; ".join(phones)
     if key == "offices" and isinstance(value, list):
-        return "; ".join(literal(item) for item in value)
+        return "; ".join(
+            (literal(item["location"]) +
+             (" (" + literal(item["label"]) + ")" if item.get("label") else ""))
+            if isinstance(item, dict) and set(item) <= {"location", "label"}
+            and isinstance(item.get("location"), str) else literal(item)
+            for item in value)
     if isinstance(value, bool):
         return "Yes" if value else "No"
     return literal(value)
@@ -114,17 +122,22 @@ def _hours_text(value: dict[str, Any], *, name_it: bool) -> str:
             runs.append({"first": day, "last": day, "hours": entry["hours"], "index": index,
                          "count": 1})
     text = "; ".join(
-        f"{literal(_day_span(r['first'], r['last'], r['count']))}: {literal(r['hours'])}"
+        f"{literal(_day_span(r['first'], r['last'], r['count']))}: "
+        f"{literal(r['hours']) if r['hours'] is not None else 'Hours unavailable'}"
         for r in runs
     )
     if name_it and value.get("schedule"):
         text = f"{literal(value['schedule'])}. {text}"
+    if value.get("season") and value["season"] not in str(value.get("schedule", "")):
+        text = f"{literal(value['season'])}. {text}"
     notes = " ".join(literal(note) for note in value.get("notes", []))
     return f"{text}. Published note: {notes}" if notes else text
 
 
 def _current(source: dict[str, Any]) -> bool:
-    return source["freshness"] == "fresh" and source["validity"] in {"current", "unspecified"}
+    return (source["freshness"] == "fresh" and source["validity"] in {"current", "unspecified"}
+            and not (source.get("season") and
+                     (not source.get("valid_from") or not source.get("valid_until"))))
 
 
 def _boundaries(source: dict[str, Any], *, show_dates: bool) -> str:
@@ -138,6 +151,8 @@ def _boundaries(source: dict[str, Any], *, show_dates: bool) -> str:
         notes.append(f"published validity through {literal(end)}; no start date")
     elif show_dates:
         notes.append("no published validity range")
+    if source.get("season") and (not start or not end):
+        notes.append("seasonal applicability unverified; complete dates are not published")
     if source["validity"] == "expired":
         notes.append("expired record")
     elif source["validity"] == "future":
@@ -194,8 +209,36 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
         lines.append("Some linked evidence is unavailable; these details may be incomplete.")
     for prop in facts["properties"]:
         label = literal(prop["label"])
+        for issue in prop.get("issues", []):
+            issue_sources = [sources[sid] for sid in issue["source_ids"] if sid in sources]
+            if not issue_sources or len(issue_sources) != len(issue["source_ids"]):
+                raise EvidenceUnavailable("An unavailable schedule has invalid evidence links.")
+            references = []
+            for source in issue_sources:
+                urls = list(dict.fromkeys(url for candidate in source["citation_urls"]
+                                         if (url := citation_url(candidate))))
+                if not urls:
+                    continue
+                sid = source["id"]
+                citations[sid] = {
+                    "id": sid, "title": str(source["source_key"]), "url": urls[0], "urls": urls,
+                    "collection": source["collection"], "collected_at": source["collected_at"],
+                    "freshness": source["freshness"], "valid_from": source["valid_from"],
+                    "valid_until": source["valid_until"], "limitations": source["caveats"],
+                    "record_title": str(entity["name"]),
+                }
+                links = " ".join(f"[{literal(source['source_key'])}]({url})" for url in urls)
+                boundary = _boundaries(source, show_dates=not _current(source))
+                references.append(links + (f" ({boundary})" if boundary else ""))
+            if references:
+                lines.append(f"{literal(issue['schedule'])}: {literal(issue['reason'])} "
+                             f"{' '.join(references)}")
+            else:
+                lines.append(f"{label}: I can't verify a current value from citable evidence.")
+            complete = False
         if prop["status"] == "unknown":
-            lines.append(f"{label}: I have no published information about this.")
+            if not prop.get("issues"):
+                lines.append(f"{label}: I have no published information about this.")
             complete = False
             continue
         if prop["status"] == "not_published":

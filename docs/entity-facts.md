@@ -38,7 +38,7 @@ connects to Postgres. A graph only stores and returns what the source adapter re
 chooses, merges or normalizes a value, and it is never an authority: the self-building copy sends
 any doubt to the source, and the graph-only adapter reports it as an error.
 
-The reader exposes schema version `4`, mapping version `entity-facts-4`. Those
+The reader exposes schema version `4`, mapping version `entity-facts-5`. Those
 identifiers describe the response envelope, not support for every entity type.
 The [previous broader contract](historical/entity-facts-pre-office-slice.md) is a
 historical record of an earlier implementation and must not be used as a current
@@ -108,12 +108,16 @@ conflicts and unknowns, and does not promote stale values or prior conversation
 claims into current facts. A provenance URL alone does not establish an office's
 own website.
 
-An office's website is a reviewed claim, not a source URL. A reviewer names the office's own
-ramapo.edu page in `src/reference/directory-contacts.json` (`website`); at publication it is kept
-in `normalization_metadata.evidence.website` only when it is a plain https page of `ramapo.edu` or
-`www.ramapo.edu` and the run's capture loaded it. The reader checks it again and states nothing
-else as a website: another host, a subdomain, `http`, a port, a query or a fragment is unknown.
-An office with no page of its own on ramapo.edu (Athletics) has none.
+An office's website is a reviewed claim, not a source URL. A reviewer names the page in
+`src/reference/directory-contacts.json` (`website`); the publisher checks the run's page capture
+before keeping `normalization_metadata.evidence.website`. The reader ordinarily accepts only
+a plain HTTPS page of `ramapo.edu` or `www.ramapo.edu`, without ports, queries or fragments.
+There is one external exception, for `office:athletics`: the root of `ramapoathletics.com`
+(optionally `www`). Its claim must include a timezone-aware `checked_at` and an `official_link`
+with `url`, nonempty bounded `section`, and timezone-aware `checked_at`; the link must be the
+college's `https://catalog.ramapo.edu/quicklinks/studentservices` page (optional trailing slash).
+The publisher must verify the captured college page actually links to the captured destination.
+This exception grants no other office or external host website authority.
 
 ## Hours
 
@@ -125,13 +129,13 @@ validity window. The identity registry links them by exact `source_key` and
 bounded to 128 records, and a record that is not linked to the office fails the read.
 
 The `hours` property has category `schedule`. One **value** is one named schedule for one
-validity window: `{schedule, days: [{day, hours}], notes: [...]}`. The weekdays are published
+validity window: `{schedule, days: [{day, hours}], notes: [...], season?}`. The weekdays are published
 text, never parsed, expanded or merged by the reader, and they are not values of their own
 (Monday and Tuesday do not disagree). One **source** backs one value: its `record_ids` are the
 weekday records, its validity window is theirs, its capture time is the oldest of them, and its
 citation is the record's own `source_url`, else the source's page.
 
-Statuses follow the contact rules, but are decided per schedule name. Schedules with different
+Statuses follow the contact rules, but are decided per schedule name and published season. Schedules with different
 names (a library's circulation desk and its research desk) are separate answers and never
 conflict. The same name with overlapping validity and different content is `conflicting`. The
 same name with fully specified, disjoint windows is `multiple`. Two different texts for one
@@ -145,11 +149,28 @@ a dated observation, shows runs of weekdays with identical text as one span ("Mo
 Friday"), and shows the official sentence as a published note. The reader never decides that an
 office is open now, and it adds no summer, holiday or walk-in rule that the records do not hold.
 
-The collector writes the text "Hours unavailable" for a weekday the page does not list, and a
-withheld schedule (one the collector could not verify) is written as seven such days with its
-reason in the note. The reader passes both through as published, so a withheld schedule counts as
-a known value and is shown with its note. It is a placeholder that should be an empty value with a
-reason, and that belongs in the collector, not the reader.
+The legacy collector marker `Hours unavailable`, an empty string, or null becomes canonical
+`hours: null`. Its raw text remains in the assertion. A partially observed week retains these
+unknown days; they never mean closed. An entirely unavailable schedule contributes no canonical
+value and cannot make `hours` known. The assertion, source records, notes, and explanation remain
+visible. `issues` carries each unavailable or withheld schedule's `schedule`, optional `season`,
+`status` (`unknown` or `conflicting`), `reason`, `days`, `source_statements`, and `source_ids`.
+
+The optional schedule-row `normalization_metadata.evidence.schedule` has only `season`, `status`,
+`reason`, and `source_statements`. A status must be `unknown` or `conflicting` and have a reason.
+Season is the source's actual seasonal heading, not an inferred semester; it is bounded to 300
+characters, reasons/statements to 2,000 characters each, and statements to 16. Malformed supplied
+metadata fails the read. Source statements may retain line breaks and tabs from their page section;
+other control characters are rejected. The metadata and all raw assertions remain in the response. Missing
+validity dates remain missing. A seasonal schedule without both published interval boundaries is
+a dated observation whose current applicability is unverified, even with a fresh capture.
+
+The Fact Packet retains schedule issues as cited `missing` entries, so the writer receives their
+reasons and original source statements instead of a fabricated opening time. A date-specific
+lookup of a seasonal schedule without complete dates returns `applies: false`, `current: false`,
+`applicability: unverified`, and an `applicability_reason`; this differs from a known out-of-window
+date. The derived value contains null hours. Derived facts retain conflict/multiple status from
+their full schedule. Unknown weekday hours likewise never become a current derived opening time.
 
 Runs of weekdays are drawn only over days that follow each other in the week and have the same
 text. A weekday with no record is never inside a span. A schedule's own name is shown when there
@@ -224,7 +245,10 @@ The shared backend applies only the following source-format rules:
   other unparsed text remains visible without guessed digits.
 - `office` and `offices` map to a list of rooms. Explicit room-code variants such
   as `ASB312` and `ASB-312` normalize alike. Slash-separated text is split only
-  when every component is an explicit room code.
+  when every component is an explicit room code. A scoped location may be
+  `{location, label}`; only its location spelling is normalized, and the label
+  remains part of the value and answer. Structured phone `type`/`label` scopes
+  likewise remain visible, so different services or staff contacts are not merged.
 - Historical `prefers_email: false` means no observed preference and becomes
   canonical unknown. Its original flag and caveat remain. No preference is
   inferred from an email address or ordinary contact-note text.

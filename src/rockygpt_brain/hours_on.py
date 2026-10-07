@@ -10,8 +10,10 @@ Rules, all in code:
     occurrence counting today (asked on a Saturday, "Saturday" is today).
   - A schedule says nothing about a date outside the validity window it was published for, so such a
     date gets no hours, only the window.
-  - A weekday the schedule does not list has no hours here; the published text is passed on as it is
-    ("Hours unavailable" is what the source says, not "closed").
+  - A weekday the schedule does not list has no hours here. The shared reader represents an
+    unavailable weekday as null, never as "closed".
+  - A seasonal schedule without a complete published interval cannot establish which dates it
+    applies to. Keep that uncertainty separate from a known date outside its interval.
 """
 
 from datetime import date, timedelta
@@ -74,7 +76,18 @@ def hours_on(value: dict[str, Any], sources: list[dict[str, Any]], day: date) ->
     """
     name = WEEKDAYS[day.weekday()]
     out: dict[str, Any] = {"schedule": value.get("schedule")}
+    if value.get("season"):
+        out["season"] = value["season"]
     applies = covers(sources, day)
+    unverified = bool(value.get("season")) and not any(
+        _day(source.get("valid_from")) is not None
+        and _day(source.get("valid_until")) is not None
+        and covers([source], day) for source in sources)
+    # Explicit bounds can already rule a date out. With no such exclusion, incomplete seasonal
+    # dates mean "unverified", not that the requested date is outside a known semester.
+    unverified = unverified and applies
+    if unverified:
+        applies = False
     if applies:
         listed = (e for e in value.get("days", []) if isinstance(e, dict))
         entry = next((e for e in listed if e.get("day") == name), None)
@@ -84,5 +97,7 @@ def hours_on(value: dict[str, Any], sources: list[dict[str, Any]], day: date) ->
         out["window"] = window(sources)
     if value.get("notes"):
         out["notes"] = list(value["notes"])
-    return {"day": name, "date": day.isoformat(), "applies": applies, "value": out}
-
+    return {"day": name, "date": day.isoformat(), "applies": applies, "value": out,
+            **({"applicability": "unverified", "applicability_reason":
+                "The seasonal schedule has no complete published date range; "
+                "its applicability to this date is unverified."} if unverified else {})}
