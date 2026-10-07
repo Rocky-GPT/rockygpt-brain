@@ -81,32 +81,54 @@ answering path.
 
 ## Release graph (optional, off by default)
 
-Postgres stays the source of truth. With `BRAIN_GRAPH_DIR` set to a writable directory and the
-`graph` extra installed (`pip install -e '.[graph]'`, which adds LadybugDB), the Brain keeps a
-read-only graph-database copy of the active release (`retrieval/graph_store.py`). The graph hands
-the shared reader the same entities and the same linked evidence rows the source returned, joined
-by edges; the reader still resolves every value, conflict, unknown and date boundary.
+Postgres is where the campus data is published. A release can also be published as a read-only
+graph-database file (LadybugDB, `retrieval/graph_store.py`), joined by edges, which the shared
+reader reads exactly as it reads Postgres: the graph hands over the same entities and the same
+linked evidence rows, and the reader still resolves every value, conflict, unknown and date
+boundary. Install the extra first: `pip install -e '.[graph]'`. There are two ways to use it.
+
+### Graph only: the Brain never connects to the campus database
+
+1. **Publish** (the one step that reads the campus database; run it wherever it can be reached,
+   after every data release): `python scripts/build_graph.py --out DIR [--dbname NAME]`. It builds
+   the active release into one file, then writes `DIR/active.json` (last, renamed into place), and
+   keeps the newest three releases.
+2. **Serve**: start the Brain with `BRAIN_GRAPH_ONLY_DIR=DIR`. It needs no `DATABASE_URL`, never
+   opens a Postgres connection for campus data, and serves whatever release `active.json` names. A
+   newly published release is served from the next question on. (The AI spending ledger is a
+   separate database and is still used.)
+3. **No fallback**: no published release, a damaged file, a pointer that disagrees with its file,
+   or a failed read is an error for the question, `/readiness` fails, and the log says why. A
+   graph that failed a read is opened afresh for the next question.
+
+### Self-building copy: the Brain follows Postgres
+
+With `BRAIN_GRAPH_DIR=DIR` the Brain keeps a copy of the active release itself, reading Postgres to
+learn the release and to build it.
 
 - **Built in the background.** The first question after a new release (or a wake-up) is answered
   straight from Postgres while one background thread builds the graph, so no student waits for
-  it. The build reads the whole release in one transaction with its own 60-second limit, writes
-  one file, and renames it into place. Older releases' files are deleted.
+  it. The build reads the whole release in one transaction with its own 60-second limit.
 - **Never costs an answer.** If the graph cannot be built, opened or read, questions are answered
-  from Postgres, and the graph is put aside for 60 seconds before the next try. A missing
-  LadybugDB install is logged at startup and the Brain keeps using Postgres.
+  from Postgres and the graph is put aside for 60 seconds. A missing LadybugDB install is logged
+  at startup and the Brain keeps using Postgres.
 - **Follows the data.** Each question first asks Postgres which release is active (a cheap
-  probe). Every 30 seconds the graph is also checked against a digest of the release's evidence
-  rows, so an in-place edit of the active release shows up within about 30 seconds.
+  probe); every 30 seconds the graph is also checked against a digest of the release's evidence
+  rows, so an in-place edit shows up within about 30 seconds.
+
+### Both modes
+
 - **Small.** The engine runs with a 64 MB buffer pool, one thread and a 1 GB file limit. In a test
   against the development release the graph file was about 6 MB, built in about half a second,
   and the whole process peaked near 160 MB.
 - **Visible.** `GET /v1/dev/runtime` reports `factsBackend` (what is serving now) and
-  `factsGraph` (questions served by the graph and by Postgres, builds, last build time, last
-  error, seconds until the next retry).
+  `factsGraph` (counters, the release served, the last error).
+- **Safe to share.** Each build writes its own temporary file and removes every side-file the
+  engine leaves; an unfinished build file is only deleted once it is an hour old.
 
-On Render's free tier the disk is erased on every sleep, so the file is rebuilt after each wake.
-Several processes may share one directory: each build writes its own temporary file, and an
-unfinished build file is only deleted once it is an hour old.
+On Render's free tier the disk is erased on every sleep, so a graph-only Brain there needs the
+published directory delivered to it (nothing does that yet); the self-building copy simply
+rebuilds after each wake.
 
 ## Root-first traversal
 

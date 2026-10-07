@@ -46,6 +46,9 @@ CONTACTS = "contacts"
 SCHEDULES = "campus_hours"
 RETRY_SECONDS = 60.0  # After a failed build or read, answer from the source for this long.
 STALE_BUILD_SECONDS = 3600.0  # An unfinished build file this old belongs to a process that died.
+STRICT_WAIT_SECONDS = 20.0  # In strict mode a question waits this long for a build, then errors.
+POINTER = "active.json"  # Names the release file a graph-only Brain serves (written last).
+KEEP_RELEASES = 3  # Published release files kept in a directory, newest first.
 FINGERPRINT_SECONDS = 30.0  # How often the copy is checked against in-place edits of the rows.
 # The service has 512 MB: keep the engine's buffer pool, threads and file size small.
 BUFFER_POOL_BYTES = 64 * 1024 * 1024
@@ -332,7 +335,10 @@ class ReleaseGraphFacts(EntityFacts):
     The source stays the authority. Each read first asks the source which release is active.
     If that release's graph is ready it answers the question; otherwise the question is answered
     straight from the source while one background thread builds the graph, so no student waits
-    for a build. A failed build or read puts the graph aside for RETRY_SECONDS. The rows are
+    for a build. A failed build or read puts the graph aside for RETRY_SECONDS. With fallback=False
+    (strict mode) the source never answers a question: the graph serves it, or the question fails
+    with "The release graph is unavailable." (the source is still read to learn the active release
+    and to build the graph). The rows are
     re-checked against the source every FINGERPRINT_SECONDS, so an in-place edit of the active
     release shows up within that time. The directory belongs to one Brain process.
     """
@@ -342,6 +348,7 @@ class ReleaseGraphFacts(EntityFacts):
     def __init__(
         self, source: EntityFacts, directory: Path | str, *,
         kinds: tuple[str, ...] = BUILT_KINDS, fallback: bool = True,
+        wait_seconds: float = STRICT_WAIT_SECONDS,
         clock: Callable[[], float] = time.monotonic,
         now: Callable[[], datetime] | None = None,
     ) -> None:
@@ -350,7 +357,8 @@ class ReleaseGraphFacts(EntityFacts):
         self.source = source
         self.directory = Path(directory)
         self.kinds = kinds
-        self.fallback = fallback
+        self.fallback = fallback  # False is strict mode: the graph answers or the question errors.
+        self.wait_seconds = wait_seconds
         self._clock = clock
         self._lock = threading.Lock()
         self._current: tuple[tuple[str, str], GraphEntityFacts] | None = None
@@ -379,6 +387,7 @@ class ReleaseGraphFacts(EntityFacts):
                 "servedFromGraph": self._served_graph, "servedFromSource": self._served_source,
                 "builds": self._builds, "lastBuildMs": self._last_build_ms,
                 "lastError": self._last_error, "building": building,
+                "strict": not self.fallback,
                 "retryInSeconds": int(wait) if wait > 0 else 0,
                 "release": self._current[0][0] if self._current else None,
             }
@@ -496,10 +505,10 @@ class ReleaseGraphFacts(EntityFacts):
         graph = self._ready(release)
         if graph is None:
             thread = self._begin_build(release)
-            if not self.fallback:
+            if not self.fallback:  # Strict: wait a bounded time, never answer from the source.
                 thread = thread or self._building
                 if thread is not None:
-                    thread.join()
+                    thread.join(self.wait_seconds)
                 graph = self._ready(release)
                 if graph is None:
                     raise EvidenceUnavailable("The release graph is unavailable.")
@@ -520,4 +529,120 @@ class ReleaseGraphFacts(EntityFacts):
             self._last_served = "source"
             self._served_source += 1
         with stack:
+            yield snapshot
+
+
+def publish_release_graph(
+    source: EntityFacts, directory: Path | str, *, kinds: tuple[str, ...] = BUILT_KINDS,
+) -> Path:
+    """Build the source's active release and make it the one a graph-only Brain serves.
+
+    This is the publisher's job and the only step that reads the campus database. The pointer
+    file is written after the graph is complete and renamed into place, so a Brain sees either
+    the old release or the whole new one. The newest KEEP_RELEASES files are kept.
+    """
+    folder = Path(directory)
+    built = build_release_graph(source, folder, kinds=kinds)
+    graph = GraphEntityFacts(built)
+    pointer = {
+        "file": built.name, "dataset_version": graph.dataset_version,
+        "identity_hash": graph.identity_hash, "fingerprint": graph.fingerprint,
+        "kinds": list(graph.kinds), "published_at": datetime.now(UTC).isoformat(),
+    }
+    temp = folder / f"{POINTER}.{os.getpid()}-{secrets.token_hex(4)}.tmp"
+    try:
+        temp.write_text(json.dumps(pointer, indent=2) + "\n")
+        os.replace(temp, folder / POINTER)
+        files = sorted((f for f in folder.glob("release-*.lbug") if f.name != built.name),
+                       key=lambda f: f.stat().st_mtime, reverse=True)
+        for old in files[KEEP_RELEASES - 1:]:
+            _remove(old)
+    except OSError as exc:
+        _remove(temp)
+        raise GraphUnavailable("The release pointer could not be written.") from exc
+    return built
+
+
+class GraphOnlyFacts(EntityFacts):
+    """Serve the release a publisher put in a directory, from the graph file alone.
+
+    This adapter never connects to Postgres. Which release is active comes from the pointer file
+    (POINTER), and every fact comes from the graph file it names. There is no fallback: a missing
+    pointer, a missing or damaged file, or a failed read is an error for the question. The pointer
+    is checked on every read, so a newly published release is served from the next question on.
+    """
+
+    backend = "graph (only)"
+
+    def __init__(self, directory: Path | str, *, now: Callable[[], datetime] | None = None) -> None:
+        super().__init__(now=now)
+        ladybug_module()  # Fail at startup, not on the first question, if it is not installed.
+        self.directory = Path(directory)
+        self._lock = threading.Lock()
+        self._loaded: tuple[tuple[int, int], GraphEntityFacts] | None = None
+        self._served = 0
+        self._loads = 0
+        self._last_error: str | None = None
+
+    @property
+    def serving(self) -> str:
+        return "graph (only)"
+
+    def stats(self) -> dict[str, Any]:
+        loaded = self._loaded
+        return {
+            "mode": "graph-only", "servedFromGraph": self._served, "loads": self._loads,
+            "lastError": self._last_error, "directory": str(self.directory.name),
+            "release": loaded[1].dataset_version if loaded else None,
+            "file": loaded[1].path.name if loaded else None,
+        }
+
+    def _fail(self, error: BaseException) -> EvidenceUnavailable:
+        self._loaded = None
+        self._last_error = type(error.__cause__ or error).__name__
+        LOG.warning("brain_graph_only_unavailable exception_type=%s", self._last_error)
+        return EvidenceUnavailable("The release graph is unavailable.")
+
+    def _graph(self) -> GraphEntityFacts:
+        pointer_path = self.directory / POINTER
+        try:
+            status = pointer_path.stat()
+        except OSError as exc:
+            raise self._fail(exc) from exc
+        key = (status.st_mtime_ns, status.st_size)
+        loaded = self._loaded
+        if loaded is not None and loaded[0] == key and not loaded[1].broken:
+            return loaded[1]
+        with self._lock:
+            loaded = self._loaded
+            if loaded is not None and loaded[0] == key and not loaded[1].broken:
+                return loaded[1]
+            try:
+                pointer = json.loads(pointer_path.read_text())
+                name = pointer["file"]
+                if not isinstance(name, str) or Path(name).name != name:
+                    raise GraphUnavailable("The release pointer names a path, not a file.")
+                graph = GraphEntityFacts(self.directory / name)
+                if (graph.dataset_version, graph.identity_hash) != (
+                        pointer["dataset_version"], pointer["identity_hash"]):
+                    raise GraphUnavailable("The release pointer and its file disagree.")
+            except (OSError, ValueError, KeyError, TypeError, GraphUnavailable) as exc:
+                raise self._fail(exc) from exc
+            self._loaded = (key, graph)
+            self._loads += 1
+            self._last_error = None
+            return graph
+
+    def active_release(self) -> tuple[str, str]:
+        graph = self._graph()
+        return graph.dataset_version, graph.identity_hash
+
+    def evidence_fingerprint(self) -> str:
+        return self._graph().fingerprint
+
+    @contextmanager
+    def snapshot(self) -> Iterator[Snapshot]:
+        graph = self._graph()
+        with graph.snapshot() as snapshot:
+            self._served += 1
             yield snapshot
