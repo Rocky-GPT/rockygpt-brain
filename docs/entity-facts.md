@@ -38,7 +38,7 @@ connects to Postgres. A graph only stores and returns what the source adapter re
 chooses, merges or normalizes a value, and it is never an authority: the self-building copy sends
 any doubt to the source, and the graph-only adapter reports it as an error.
 
-The reader exposes schema version `3`, mapping version `entity-facts-3`. Those
+The reader exposes schema version `4`, mapping version `entity-facts-4`. Those
 identifiers describe the response envelope, not support for every entity type.
 The [previous broader contract](historical/entity-facts-pre-office-slice.md) is a
 historical record of an earlier implementation and must not be used as a current
@@ -87,7 +87,8 @@ validity dates, freshness, normalization metadata, and caveats.
 Statuses describe observations, not official authority or confidence:
 
 - `known`: one distinct nonempty value, possibly alongside empty observations.
-- `unknown`: no nonempty value is published.
+- `unknown`: no nonempty value is published, and nobody confirmed whether the office publishes one.
+- `not_published`: no value is published, and the publisher confirmed that the office's own pages were read and state none. The property carries `absence` (`source_ids`, the `checks` of page section and capture time, and the oldest `checked_at`). It is read only when there is no value, only for `email`, `phones`, `offices` and `hours`, and a malformed confirmation confirms nothing (the field stays `unknown`). It is an answer, not a gap.
 - `conflicting`: different values have overlapping or unspecified validity.
 - `multiple`: different values have fully specified, disjoint validity intervals.
 

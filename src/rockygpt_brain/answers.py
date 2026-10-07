@@ -198,6 +198,36 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
             lines.append(f"{label}: not published in the available evidence.")
             complete = False
             continue
+        if prop["status"] == "not_published":
+            # The pages were read and state no value: that is an answer, not a gap.
+            absence = prop["absence"]
+            checked_sources = [sources[sid] for sid in absence["source_ids"] if sid in sources]
+            if not checked_sources or len(checked_sources) != len(absence["source_ids"]):
+                raise EvidenceUnavailable("A confirmed absence has invalid original evidence links.")
+            urls = list(dict.fromkeys(
+                url for check in absence["checks"] if (url := citation_url(check["url"]))))
+            if not urls:
+                complete = False
+                lines.append(f"{label}: I can't verify a current value from fresh, citable evidence.")
+                continue
+            first = checked_sources[0]
+            cited = f"{first['id']}:{prop['key']}:not_published"
+            citations[cited] = {
+                "id": cited, "title": str(first["source_key"]), "url": urls[0], "urls": urls,
+                "collection": first["collection"], "collected_at": absence["checked_at"],
+                "freshness": first["freshness"], "valid_from": first["valid_from"],
+                "valid_until": first["valid_until"], "limitations": first["caveats"],
+                "record_title": str(entity["name"]),
+            }
+            links = " ".join(f"[{literal(first['source_key'])}]({url})" for url in urls)
+            line = f"{label}: not published on Ramapo's pages (checked {literal(absence['checked_at'][:10])}) {links}"
+            if any(_current(source) for source in checked_sources):
+                supported = True
+            else:
+                complete = False
+                line += " (dated observation; current status unverified)"
+            lines.append(line)
+            continue
         if prop["status"] == "conflicting":
             lines.append(f"{label}: conflicting published records; I can't choose a current value.")
             complete = False

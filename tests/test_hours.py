@@ -112,7 +112,7 @@ def test_the_hours_read_keeps_the_order_the_caller_asked_for() -> None:
     result = service.get_office_facts(
         "registrar", ["hours", "email"], "release-1", identity_hash="identities-1")
     assert [p["key"] for p in result["properties"]] == ["hours", "email"]
-    assert result["mapping_version"] == "entity-facts-3"
+    assert result["mapping_version"] == "entity-facts-4"
 
 
 def test_hours_are_not_read_unless_asked_for() -> None:
