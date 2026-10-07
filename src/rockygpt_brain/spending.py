@@ -15,6 +15,9 @@ from psycopg_pool import AsyncConnectionPool
 from rockygpt_brain.settings import Environment
 
 CAMPUS_TZ = ZoneInfo("America/New_York")
+# The database closes connections that sit idle (Neon after a few minutes), and a closed one handed
+# out by the pool fails the request that gets it. Idle connections are dropped well before that.
+POOL_MAX_IDLE_SECONDS = 120.0
 
 
 class SpendingError(Exception):
@@ -54,8 +57,12 @@ class PostgresLedger:
     def __init__(self, database_url: str, environment: Environment) -> None:
         self.environment = environment
         self._role = f"brain_{environment}"
+        # `check` tests a connection as it is taken from the pool and swaps a closed one for a new
+        # one, so the first request after a quiet spell is not refused. If the database really is
+        # down the swap fails within `timeout` and the request is refused as before: never admitted.
         self._pool = AsyncConnectionPool(
             database_url, open=False, min_size=0, max_size=4, timeout=3,
+            check=AsyncConnectionPool.check_connection, max_idle=POOL_MAX_IDLE_SECONDS,
             kwargs={"autocommit": True, "connect_timeout": 3},
         )
 
