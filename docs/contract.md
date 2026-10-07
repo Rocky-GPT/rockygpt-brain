@@ -111,7 +111,9 @@ office above handles it, its contact details are the best way to ask"); with no 
 office. A recalled reply is quoted as plain words, without RockyGPT's own bold marks and links.
 
 The model asks for the fields the student asked for (all three contact fields when the student wants to
-reach an office and names no detail). `hours` are the office's linked schedule
+reach an office and names no detail). For hours on one particular day it also sets `day` (`today`,
+`tomorrow` or a weekday); code turns that into a campus date and reads that weekday, so the Fact Packet
+carries the day and no writer picks it out of the week. `hours` are the office's linked schedule
 records (see [entity-facts.md](entity-facts.md)), rendered by the code as runs of weekdays with the
 published sentence, validity window and source. An office with no schedule record answers
 "Hours: I have no published information about this." (or, when the office's own pages were read and state

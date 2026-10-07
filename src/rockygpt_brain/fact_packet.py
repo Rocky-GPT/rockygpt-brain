@@ -12,7 +12,11 @@ Version 1.0:
     status         complete | partial | insufficient | ambiguous | not_found | emergency
                    | no_facts_needed
     facts          [{id, subject {id, name, kind}, predicate, value, status, current, source_ids}]
-    derived_facts  [] (reserved: values the Brain computes, such as "open at 8 pm")
+    derived_facts  [{id, subject, predicate "hours_on", day, date, value, applies, current, from,
+                     source_ids}]   what the Brain worked out so a writer never has to: the hours
+                   of the one weekday the student asked about (see hours_on.py). `from` names the
+                   full-week fact it was read from; `applies` is false when the date falls outside
+                   the schedule's published validity window (then `value` has the window, no hours)
     missing        [{subject, predicate, reason}]   a requested fact we cannot state: reason
                    "unknown" (nobody checked, or the page could not be read) or "no_citable_source"
                    (a value exists but nothing it comes from has a usable secure link: withheld)
@@ -37,11 +41,12 @@ with a reply cut short; only a real `safety` notice makes the status `emergency`
 """
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from rockygpt_brain.answers import _current as source_is_current
 from rockygpt_brain.answers import citation_url
+from rockygpt_brain.hours_on import WEEKDAYS, hours_on
 
 PACKET_VERSION = "1.0"
 STATUSES = frozenset({"complete", "partial", "insufficient", "ambiguous", "not_found",
@@ -77,6 +82,7 @@ def _source(raw: dict[str, Any]) -> dict[str, Any]:
 class _Builder:
     def __init__(self) -> None:
         self.facts: list[dict[str, Any]] = []
+        self.derived: list[dict[str, Any]] = []
         self.missing: list[dict[str, Any]] = []
         self.not_published: list[dict[str, Any]] = []
         self.ambiguities: list[dict[str, Any]] = []
@@ -96,6 +102,7 @@ class _Builder:
             self.fields.extend(f for f in part["fields"] if f not in self.fields)
         self.dataset = self.dataset or {"version": reader.get("dataset_version"),
                                         "identityHash": reader.get("identity_hash")}
+        first_new = len(self.facts)
         local: dict[str, dict[str, Any]] = {}
         for raw in reader["sources"]:
             source = _source(raw)
@@ -139,6 +146,30 @@ class _Builder:
                 if purpose:
                     fact["purpose"] = purpose
                 self.facts.append(fact)
+        when = part.get("when")
+        if when and purpose is None:
+            asked_on = date.fromisoformat(when["date"])
+            for fact in self.facts[first_new:]:
+                if fact["predicate"] != "hours" or not isinstance(fact["value"], dict):
+                    continue
+                picked = hours_on(fact["value"], [local[sid] for sid in fact["source_ids"]],
+                                  asked_on)
+                same = next((d for d in self.derived if d["subject"]["id"] == entity["id"]
+                             and d["date"] == picked["date"] and d["value"] == picked["value"]),
+                            None)
+                if same is not None:
+                    # The office was looked up twice: the day is worked out once, from both.
+                    if fact["id"] not in same["from"]:
+                        same["from"].append(fact["id"])
+                    same["source_ids"] = list(dict.fromkeys([*same["source_ids"],
+                                                             *fact["source_ids"]]))
+                    continue
+                self.derived.append({
+                    "id": f"d{len(self.derived) + 1}", "subject": entity,
+                    "predicate": "hours_on", "day": picked["day"], "date": picked["date"],
+                    "value": picked["value"], "applies": picked["applies"],
+                    "current": fact["current"] and picked["applies"],
+                    "from": [fact["id"]], "source_ids": list(fact["source_ids"])})
         if not reader.get("complete", True):
             self.notices.append({"type": "evidence_incomplete", "subject": entity,
                                  "caveats": list(reader.get("caveats", []))})
@@ -198,6 +229,7 @@ def _status(builder: _Builder) -> str:
         degraded = (builder.missing or builder.ambiguities or builder.unresolved
                     or kinds & ({"evidence_incomplete", "incomplete"} | CANNOT_ANSWER)
                     or any(not f["current"] or f["status"] != "known" for f in asked)
+                    or any(not d["current"] for d in builder.derived)
                     or any(not entry["current"] for entry in absent))
         return "partial" if degraded else "complete"
     if builder.missing or kinds & CANNOT_ANSWER:
@@ -216,7 +248,7 @@ def build_packet(as_of: str, parts: list[dict[str, Any]]) -> dict[str, Any]:
                     "fields": builder.fields, "asOf": as_of, "dataset": builder.dataset},
         "status": _status(builder),
         "facts": builder.facts,
-        "derived_facts": [],
+        "derived_facts": builder.derived,
         "missing": builder.missing,
         "not_published": builder.not_published,
         "ambiguities": builder.ambiguities,
@@ -270,6 +302,38 @@ def _validate_absence(entry: Any, source_ids: set[str], held: set[tuple[Any, Any
         raise PacketInvalid("A field cannot be both answered and confirmed not published.")
 
 
+DERIVED_KEYS = frozenset({"id", "subject", "predicate", "day", "date", "value", "applies",
+                          "current", "from", "source_ids"})
+
+
+def _validate_derived(entry: Any, source_ids: set[str], fact_ids: set[str]) -> None:
+    """A worked-out value is a claim a student will be told: it must trace to what it came from."""
+    if not isinstance(entry, dict) or not DERIVED_KEYS <= set(entry):
+        raise PacketInvalid("A derived fact is incomplete.")
+    if entry["predicate"] != "hours_on" or entry["day"] not in WEEKDAYS:
+        raise PacketInvalid("A derived fact is not a kind the Brain works out.")
+    try:
+        worked = date.fromisoformat(entry["date"])
+    except (TypeError, ValueError) as error:
+        raise PacketInvalid("A derived fact needs its date.") from error
+    if WEEKDAYS[worked.weekday()] != entry["day"]:
+        raise PacketInvalid("A derived fact's weekday is not its date's weekday.")
+    if not isinstance(entry["applies"], bool) or not isinstance(entry["current"], bool):
+        raise PacketInvalid("A derived fact has the wrong types.")
+    if not isinstance(entry["value"], dict) or "hours" not in entry["value"]:
+        raise PacketInvalid("A derived fact needs its value.")
+    if (not isinstance(entry["from"], list) or not entry["from"]
+            or not set(entry["from"]) <= fact_ids):
+        raise PacketInvalid("A derived fact must name the facts it was read from.")
+    ids = entry["source_ids"]
+    if not isinstance(ids, list) or not ids or not set(ids) <= source_ids:
+        raise PacketInvalid("A derived fact needs listed sources.")
+    subject = entry["subject"]
+    if not isinstance(subject, dict) or not all(
+            _plain(subject.get(key)) for key in ("id", "name", "kind")):
+        raise PacketInvalid("A derived fact needs its subject.")
+
+
 _LISTS = ("facts", "derived_facts", "missing", "not_published", "ambiguities", "unresolved",
           "notices", "sources")
 
@@ -303,6 +367,8 @@ def validate_packet(packet: dict[str, Any]) -> None:
             raise PacketInvalid("A fact has an unknown status.")
         if not isinstance(fact["current"], bool) or not isinstance(fact["predicate"], str):
             raise PacketInvalid("A fact has the wrong types.")
+    for derived in packet["derived_facts"]:
+        _validate_derived(derived, set(source_ids), fact_ids)
     for notice in packet["notices"]:
         text = notice.get("approved_text")
         if not isinstance(notice.get("type"), str) or (

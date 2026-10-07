@@ -9,8 +9,10 @@ packet. It adds, computes and infers nothing, and it never drops a value a stude
 
   dropped      ids (entities, facts, sources, candidates), the dataset and its hash, `kind`, `match`
                (how a choice was ranked), `collection`, a source's own `current` (each fact says),
-               the section of a page that was read, a check time repeated per page, and any source
-               that no fact or confirmed absence cites (it backs nothing a writer is told)
+               the section of a page that was read, a check time repeated per page, any source that
+               no fact, derived fact or confirmed absence cites (it backs nothing a writer is told),
+               and a full-week schedule when the Brain worked out the one day that was asked: the
+               derived fact replaces it, so a writer is handed that day and picks nothing
   omitted when they hold the usual value: `status` "known", `current` true, `freshness`
                "fresh", `validity` "unspecified" and its stock limitation, `truncated` false, a
                reason that is the only one there is, and a list of rows with no rows (`facts`,
@@ -34,6 +36,8 @@ NO_VALIDITY_NOTE = "The source publishes no validity interval."
 
 _FACT = frozenset({"id", "subject", "predicate", "value", "status", "current", "source_ids",
                    "purpose"})
+_DERIVED = frozenset({"id", "subject", "predicate", "day", "date", "value", "applies", "current",
+                      "from", "source_ids"})
 _ABSENCE = frozenset({"subject", "predicate", "checked_at", "checks", "current", "source_ids",
                       "purpose"})
 _MISSING = frozenset({"subject", "predicate", "reason"})
@@ -62,10 +66,27 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
         "status": packet["status"],
     }
 
+    derived, replaced = [], set()
+    for entry in packet["derived_facts"]:
+        row: dict[str, Any] = {"subject": entry["subject"]["name"],
+                               "predicate": entry["predicate"], "day": entry["day"],
+                               "date": entry["date"], "value": entry["value"]}
+        if not entry["applies"]:
+            row["applies"] = False  # Then it is not current either: the date is outside it.
+        elif not entry["current"]:
+            row["current"] = False
+        row["sources"] = [number[sid] for sid in entry["source_ids"]]
+        derived.append({**_rest(entry, _DERIVED), **row})
+        replaced.update(entry["from"])
+    if derived:
+        view["derived_facts"] = derived
+
     facts = []
     for fact in packet["facts"]:
-        row: dict[str, Any] = {"subject": fact["subject"]["name"], "predicate": fact["predicate"],
-                               "value": fact["value"]}
+        if fact["id"] in replaced:
+            continue
+        row = {"subject": fact["subject"]["name"], "predicate": fact["predicate"],
+               "value": fact["value"]}
         if fact["status"] != "known":
             row["status"] = fact["status"]
         if not fact["current"]:
@@ -76,8 +97,6 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
         facts.append({**_rest(fact, _FACT), **row})
     if facts:
         view["facts"] = facts
-    if packet["derived_facts"]:
-        view["derived_facts"] = packet["derived_facts"]
 
     missing = []
     for entry in packet["missing"]:
