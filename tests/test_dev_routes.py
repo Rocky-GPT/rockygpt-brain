@@ -87,8 +87,9 @@ def test_the_routes_stay_out_of_the_published_schema() -> None:
 def test_runtime_describes_the_prompt_tools_parts_and_fixed_texts_the_engine_really_uses() -> None:
     with client() as http:
         body = http.get("/v1/dev/runtime", headers=ASKED).json()
-    assert body["prompt"] == SYSTEM_PROMPT and "published_offices" in body["prompt"]
-    assert [tool["name"] for tool in body["tools"]] == ["office_facts", "finish"]
+    assert body["prompt"] == SYSTEM_PROMPT
+    assert "graph_root" in body["prompt"] and "published_offices" not in body["prompt"]
+    assert [tool["name"] for tool in body["tools"]] == ["graph_lookup", "finish"]
     assert body["tools"][0]["parameters"]["properties"]["requests"]["maxItems"] == 4
     kinds = AnswerPart.model_fields["kind"].annotation.__args__  # type: ignore[union-attr]
     assert [part["kind"] for part in body["parts"]] == list(kinds)
@@ -107,7 +108,8 @@ def test_runtime_describes_the_prompt_tools_parts_and_fixed_texts_the_engine_rea
 
 def test_runtime_names_the_keys_the_model_is_really_given() -> None:
     request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "hi"}]})
-    state = model_input(intake(request, now=NOW), build_context(request), [])[1]["content"]
+    root = {"id": "ramapo", "label": "Ramapo", "kind": "root"}
+    state = model_input(intake(request, now=NOW), build_context(request), root)[1]["content"]
     assert tuple(json.loads(state)) == MODEL_INPUT_KEYS
 
 

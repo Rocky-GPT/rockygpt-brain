@@ -1,6 +1,7 @@
 """Admission and cancellation across the HTTP boundary, without paid calls."""
 
 import asyncio
+from typing import Any, cast
 
 import httpx
 import pytest
@@ -152,7 +153,15 @@ class TracedEngine(BoundaryEngine):
     async def answer(self, turn: Turn, request: ChatRequest) -> ChatResult:
         result = await super().answer(turn, request)
         return ChatResult(result.status_code, result.body, trace={
-            "decidedBy": "model", "modelCalls": 2, "lookups": [{"tool": "office_facts"}]})
+            "decidedBy": "model", "modelCalls": 2, "lookups": [{"tool": "graph_lookup"}]})
+
+
+def without_timing(metrics: dict[str, Any]) -> dict[str, Any]:
+    """Development diagnostics add the request's timing report to the turn's own metrics."""
+    timing = metrics["timing"]
+    assert timing["accounting"] == "exclusive_wall_time" and timing["unit"] == "microseconds"
+    assert timing["steps"]
+    return {key: value for key, value in metrics.items() if key != "timing"}
 
 
 def _ask(environment: str, headers: dict[str, str]) -> dict[str, object]:
@@ -167,8 +176,9 @@ def _ask(environment: str, headers: dict[str, str]) -> dict[str, object]:
 
 def test_the_trace_reaches_only_a_development_request_that_asks_for_it() -> None:
     shown = _ask("development", {"x-rockygpt-diagnostics": "1"})
-    assert shown["trace"] == [{"tool": "office_facts"}]
-    assert shown["metrics"] == {"decidedBy": "model", "modelCalls": 2}
+    assert shown["trace"] == [{"tool": "graph_lookup"}]
+    assert without_timing(cast(dict[str, Any], shown["metrics"])) == {
+        "decidedBy": "model", "modelCalls": 2}
     for body in (_ask("development", {}), _ask("development", {"x-rockygpt-diagnostics": "yes"}),
                  _ask("production", {"x-rockygpt-diagnostics": "1"})):
         assert "trace" not in body and "metrics" not in body
@@ -182,8 +192,8 @@ def test_the_phrase_floor_reports_that_it_decided() -> None:
             json={"messages": [{"role": "user",
                                 "content": "my roommate just collapsed and isnt breathing"}]},
         ).json()
-    assert body["metrics"] == {"decidedBy": "phrase_floor", "modelCalls": 0, "committedNusd": 0,
-                               "situation": "medical"}
+    assert without_timing(body["metrics"]) == {
+        "decidedBy": "phrase_floor", "modelCalls": 0, "committedNusd": 0, "situation": "medical"}
     # This engine has no campus data, so the one lookup for the campus numbers says it failed.
     assert [(e["tool"], e["status"]) for e in body["trace"]] == [("emergency_contacts", "failed")]
     assert body["answer"] == SAFETY_TEXTS["medical"] and engine.calls == 0
@@ -195,4 +205,4 @@ def test_a_crash_outside_the_trace_sends_no_trace_rather_than_an_empty_one() -> 
         response = client.post("/v1/chat", json=QUESTION, headers={"x-rockygpt-diagnostics": "1"})
     body = response.json()
     assert response.status_code == 503 and body["reason"] == "internal_error"
-    assert "trace" not in body and body["metrics"] == {"decidedBy": "error"}
+    assert "trace" not in body and without_timing(body["metrics"]) == {"decidedBy": "error"}
