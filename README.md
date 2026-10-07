@@ -149,7 +149,7 @@ Packet version `"1.0"` (`src/rockygpt_brain/fact_packet.py`):
 | key | what it holds |
 |---|---|
 | `request` | `intent` (`contact`, `hours`, `contact_and_hours`, `office_facts`, `office_lookup`, `safety`, `recall`, `clock`...), `entities [{id, name, kind, query}]`, `fields`, `asOf` (the campus time every freshness check used), `dataset {version, identityHash}` |
-| `status` | `complete`, `partial` (something missing, stale, conflicting or unanswerable), `insufficient`, `ambiguous`, `not_found`, `emergency`, `no_facts_needed` |
+| `status` | `complete`, `partial` (something missing, stale, conflicting or unanswerable), `insufficient`, `ambiguous` (the Brain needs a follow-up answered: an office name matched several offices, or the message named no office), `not_found`, `emergency`, `no_facts_needed` |
 | `facts` | `[{id, subject {id, name, kind}, predicate, value, status, current, source_ids}]`. `value` is exactly what the shared reader returned; `status` is `known`, `conflicting` or `multiple` (conflicts are listed side by side, none is chosen); `current` is false when no source is fresh and inside its published validity. Campus numbers sent for an emergency carry `purpose: "emergency_contact"` |
 | `derived_facts` | reserved for values the Brain computes (for example "open at 8 pm"); empty for now |
 | `missing` | `[{subject, predicate, reason}]`: a requested fact the evidence does not hold |

@@ -109,6 +109,18 @@ def test_the_packet_names_what_could_not_be_resolved() -> None:
     assert missing["unresolved"] == [{"query": "Cafeteria", "reason": "no_matching_office"}]
 
 
+def test_a_question_the_brain_must_ask_is_ambiguous_with_no_facts_and_partial_with_some() -> None:
+    asking = build_packet(AS_OF, [{"kind": "clarification", "afterLookup": False,
+                                   "approved_text": "Which office?"}])
+    assert asking["status"] == "ambiguous" and asking["request"]["intent"] == "clarification"
+    assert asking["notices"][0]["approved_text"] == "Which office?" and asking["facts"] == []
+    # With facts already found, the question is only one more thing left unanswered.
+    both = build_packet(AS_OF, [part_for(registrar(), "registrar", "Registrar", ["email"]),
+                                {"kind": "clarification", "afterLookup": False,
+                                 "approved_text": "?"}])
+    assert both["status"] == "partial"
+
+
 def test_replies_with_no_facts_are_notices_and_say_whether_anything_was_answerable() -> None:
     assert build_packet(AS_OF, [{"kind": "greeting"}])["status"] == "no_facts_needed"
     clock = build_packet(AS_OF, [{"kind": "clock", "campusNow": AS_OF}])
