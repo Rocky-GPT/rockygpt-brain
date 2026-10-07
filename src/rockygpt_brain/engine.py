@@ -348,7 +348,7 @@ def safety_when(situation: str) -> str:
 def fixed_texts() -> list[dict[str, Any]]:
     """The reply texts the code writes, with when each is used and who picks it.
 
-    Not listed: how facts are worded ("not published in the available evidence" and similar, in
+    Not listed: how facts are worded ("I have no published information about this" and similar, in
     answers.py) and the error messages. <angle brackets> are filled in.
     """
     def entry(name: str, picked_by: list[str], when: str, text: str) -> dict[str, Any]:

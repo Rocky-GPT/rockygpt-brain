@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+from typing import Any
 
 EVAL = Path(__file__).resolve().parents[1] / "evals" / "ambiguity"
 spec = importlib.util.spec_from_file_location("ambiguity_run", EVAL / "run.py")
@@ -12,7 +13,7 @@ run = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(run)
 
 
-def packet(**parts: object) -> dict:
+def packet(**parts: object) -> dict[str, Any]:
     base = {"facts": [], "ambiguities": [], "notices": [], "missing": [], "unresolved": [],
             "status": "x"}
     return {"facts": {**base, **parts}}
@@ -47,6 +48,11 @@ def test_what_the_brain_did_is_read_from_its_packet() -> None:
     assert seen == {"observed": "answered", "detail": "Registrar", "offices": ["Registrar"]}
     missing = packet(status="not_found", unresolved=[{"query": "q"}])
     assert run.observe(missing)["observed"] == "other"
+    absent = packet(not_published=[{"subject": {"name": "Nursing"}, "predicate": "email"}])
+    assert run.observe(absent) == {
+        "observed": "answered", "detail": "Nursing", "offices": ["Nursing"]}
+    emergency_only = packet(not_published=[{"subject": {"name": "Public Safety"}, "purpose": "x"}])
+    assert run.observe(emergency_only)["observed"] == "other"
     assert run.observe({"error": {"code": "provider_unavailable"}})["observed"] == "other"
     # A packet that holds facts and also asks is a question: the Brain did not just answer.
     both = packet(facts=[FACT], notices=[{"type": "clarification"}])

@@ -184,6 +184,16 @@ def test_the_graph_gives_the_reader_the_same_answers_as_its_source(
     assert operations(opened(memory, folder)) == expected
 
 
+def test_a_confirmed_absence_survives_the_graph_with_its_proof() -> None:
+    memory = absences()
+    expected = memory.get_office_facts("nursing", ["email", "hours", "offices"], VERSION,
+                                       identity_hash=IDENTITY, as_of=NOW)
+    statuses = {p["key"]: p["status"] for p in expected["properties"]}
+    assert statuses == dict.fromkeys(("email", "hours", "offices"), "not_published")
+    absence = next(p for p in expected["properties"] if p["key"] == "offices")["absence"]
+    assert [c["section"] for c in absence["checks"]] == ["Contact Us", "Location"]
+
+
 def test_evidence_keeps_the_types_the_reader_was_given(folder: Path) -> None:
     memory = conflicts()
     with memory.snapshot() as expected, opened(memory, folder).snapshot() as actual:

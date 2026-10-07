@@ -6,6 +6,7 @@ malformed confirms nothing and the field stays `unknown`.
 """
 
 import asyncio
+from collections.abc import Callable
 from datetime import timedelta
 from typing import Any
 
@@ -34,6 +35,7 @@ def meta(*claims: Any) -> dict[str, Any]:
 
 
 def registrar(*claims: Any, schedules: Any = None, **changes: Any) -> MemoryEntityFacts:
+    changes = {"freshness_sla_hours": 168, **changes}
     row = contact("r1", email=None, normalization_metadata=meta(*claims), **changes)
     return source([office("registrar", "Registrar", schedules=["Regular"] if schedules else [])],
                   [row], schedules=schedules)
@@ -54,7 +56,7 @@ def test_a_field_with_no_value_and_a_confirmed_absence_is_not_published_with_its
     assert email["status"] == "not_published" and email["values"] == []
     assert all(a["value"] is None for a in email["assertions"])
     assert email["absence"] == {"source_ids": ["r1"], "checks": [CHECK],
-                                "checked_at": CHECK["checked_at"]}
+                                "checked_at": CHECK["checked_at"], "current": True}
     # Nothing was claimed about the phone, so the neighbouring field is unaffected.
     other = read(registrar(claim("email")), "email", "phones")
     assert prop(other, "phones")["status"] == "known" and "absence" not in prop(other, "phones")
@@ -119,7 +121,7 @@ def test_the_text_answer_says_the_pages_were_read_and_a_missing_one_is_still_unk
     assert any(c["id"] == "r1:email:not_published" and c["urls"] == [CHECK["url"]]
                for c in rendered.citations)
     unknown = render_facts(read(registrar(), "email"))
-    assert "Email: not published in the available evidence." in unknown.text
+    assert "Email: I have no published information about this." in unknown.text
     assert not unknown.complete
 
 
@@ -171,7 +173,9 @@ def test_a_packet_whose_absence_names_no_listed_source_is_refused() -> None:
 def test_a_chat_turn_answers_with_the_recorded_absence() -> None:
     request = ChatRequest.model_validate(
         {"messages": [{"role": "user", "content": "What is the Registrar email?"}]})
-    service = registrar(claim("email"), collected_at=NOW)  # Fresh at the engine tests' clock.
+    before_the_turn = {**CHECK, "checked_at": "2026-09-30T08:00:00+00:00"}
+    # Fresh at the engine tests' clock.
+    service = registrar(claim("email", before_the_turn), collected_at=NOW)
     engine = ChatEngine(ScriptedGateway(LOOKUP, finish()), service, output="json")
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     packet = result.body["facts"]
@@ -180,7 +184,7 @@ def test_a_chat_turn_answers_with_the_recorded_absence() -> None:
     assert packet["facts"] == [] and packet["missing"] == []
     text = ChatEngine(ScriptedGateway(LOOKUP, finish()), service, output="text")
     answer = asyncio.run(text.answer(intake(request, now=NOW), request)).body
-    assert "not published on Ramapo's pages (checked 2026-10-05)" in answer["answer"]
+    assert "not published on Ramapo's pages (checked 2026-09-30)" in answer["answer"]
     assert answer["status"] == "answered"  # An absence is an answer.
 
 
@@ -225,3 +229,153 @@ def test_the_text_answer_refuses_an_absence_whose_sources_are_not_all_listed() -
     prop(facts, "email")["absence"]["source_ids"] = ["r1", "ghost"]
     with pytest.raises(EvidenceUnavailable):
         render_facts(facts)
+
+
+@pytest.mark.parametrize("name,bad", [
+    ("an insecure page", {**CHECK, "url": "http://example.edu/registrar/"}),
+    ("a script link", {**CHECK, "url": "javascript:alert(1)"}),
+    ("a blank section", {**CHECK, "section": "   "}),
+    ("a control character", {**CHECK, "section": "Contact\u0007 Us"}),
+    ("a section that is far too long", {**CHECK, "section": "x" * 301}),
+    ("a check dated after the clock", {**CHECK, "checked_at": "2026-10-07T08:00:00+00:00"}),
+])
+def test_a_check_that_is_malformed_insecure_or_from_the_future_confirms_nothing(
+        name: str, bad: dict[str, Any]) -> None:
+    assert prop(read(registrar(claim("email", bad)), "email"), "email")["status"] == "unknown", name
+    # One bad check spoils the whole claim, even beside a good one.
+    spoiled = read(registrar(claim("email", CHECK, bad)), "email")
+    assert prop(spoiled, "email")["status"] == "unknown"
+
+
+def test_a_claim_with_more_than_sixteen_checks_confirms_nothing() -> None:
+    many = [{**CHECK, "section": f"Part {i}"} for i in range(17)]
+    assert prop(read(registrar(claim("email", *many)), "email"), "email")["status"] == "unknown"
+    sixteen = read(registrar(claim("email", *many[:16])), "email")
+    assert prop(sixteen, "email")["status"] == "not_published"
+
+
+def test_the_publishers_own_doubt_about_a_field_cancels_its_confirmation() -> None:
+    issue = {"kind": "contradicted", "reason": "x"}
+    doubt = {"evidence": {"not_published": [claim("email")],
+                          "absence_issues": [{"field": "email", **issue}]}}
+    row = contact("r1", email=None, freshness_sla_hours=168, normalization_metadata=doubt)
+    assert prop(read(source([office("registrar", "Registrar")], [row]), "email"), "email")[
+        "status"] == "unknown"
+    other = {"evidence": {"not_published": [claim("email")],
+                          "absence_issues": [{"field": "hours", **issue}]}}
+    row = contact("r1", email=None, freshness_sla_hours=168, normalization_metadata=other)
+    assert prop(read(source([office("registrar", "Registrar")], [row]), "email"), "email")[
+        "status"] == "not_published"
+    dropped = {"field": "phone", "value": "(201) 555-0100", "reason": "x"}
+    withheld = {"evidence": {"not_published": [claim("phone")], "withheld": [dropped]}}
+    row = contact("r1", phone=None, phones=None, freshness_sla_hours=168,
+                  normalization_metadata=withheld)
+    assert prop(read(source([office("registrar", "Registrar")], [row]), "phones"), "phones")[
+        "status"] == "unknown"
+
+
+def test_a_row_that_holds_any_raw_value_for_the_field_is_never_called_not_published() -> None:
+    held = (("phones", "phones", "(201) 555-0100"), ("office", "offices", "D-224"),
+            ("offices", "offices", ["D-224"]))
+    for column, key, value in held:
+        field = "phone" if key == "phones" else "office"
+        columns: dict[str, Any] = {
+            "email": None, "phone": None, "phones": None, "office": None, column: value}
+        row = contact("r1", freshness_sla_hours=168, normalization_metadata=meta(claim(field)),
+                      **columns)
+        service = source([office("registrar", "Registrar")], [row])
+        assert prop(read(service, key), key)["status"] != "not_published", column
+
+
+def test_a_linked_schedule_that_could_not_be_read_is_a_gap_not_an_absence() -> None:
+    row = contact("r1", freshness_sla_hours=168, normalization_metadata=meta(claim("hours")))
+    linked = source([office("registrar", "Registrar", schedules=["Regular"])], [row])
+    assert prop(read(linked, "hours"), "hours")["status"] == "unknown"
+    unlinked = source([office("registrar", "Registrar")], [row])
+    assert prop(read(unlinked, "hours"), "hours")["status"] == "not_published"
+
+
+def test_a_check_older_than_the_rows_allowance_is_not_current_and_oldest_is_by_instant() -> None:
+    stale = {**CHECK, "checked_at": "2026-09-20T08:00:00+00:00"}  # 16 days before the clock.
+    result = read(registrar(claim("email", stale)), "email")
+    assert prop(result, "email")["absence"]["current"] is False
+    rendered = render_facts(result)
+    assert "dated observation; current status unverified" in rendered.text
+    assert not rendered.supported
+    packet = build_packet(GRAPH_NOW.isoformat(), [{"kind": "office_facts", "query": "Registrar",
+        "fields": ["email"], "office": {"id": "registrar", "name": "Registrar"}, "facts": result}])
+    assert packet["not_published"][0]["current"] is False and packet["status"] == "partial"
+    # 03:00-05:00 is 08:00Z; 06:00Z is the true oldest, though its text sorts after.
+    mixed = [{**CHECK, "section": "A", "checked_at": "2026-10-05T03:00:00-05:00"},
+             {**CHECK, "section": "B", "checked_at": "2026-10-05T06:00:00+00:00"}]
+    oldest = prop(read(registrar(claim("email", *mixed)), "email"), "email")["absence"]
+    assert oldest["checked_at"] == "2026-10-05T06:00:00+00:00"
+
+
+def test_confirmations_from_two_rows_are_gathered_and_a_stale_source_is_not_current() -> None:
+    rows = [contact("r1", email=None, freshness_sla_hours=168,
+                    normalization_metadata=meta(claim("email", {**CHECK, "section": "One"}))),
+            contact("r2", email=None, freshness_sla_hours=168,
+                    normalization_metadata=meta(claim("email", {**CHECK, "section": "Two"})))]
+    result = read(source([office("registrar", "Registrar")], rows), "email")
+    absence = prop(result, "email")["absence"]
+    assert absence["source_ids"] == ["r1", "r2"]
+    assert [c["section"] for c in absence["checks"]] == ["One", "Two"]
+    assert absence["current"] is True
+    two = meta(claim("email", {**CHECK, "section": "Two"}))
+    old = GRAPH_NOW - timedelta(days=3)
+    stale = [rows[0], contact("r2", email=None, freshness_sla_hours=1, collected_at=old,
+                              normalization_metadata=two)]
+    assert prop(read(source([office("registrar", "Registrar")], stale), "email"), "email")[
+        "absence"]["current"] is False
+
+
+def test_the_packet_validator_refuses_a_confirmed_absence_that_does_not_hold_up() -> None:
+    from copy import deepcopy
+
+    from rockygpt_brain.fact_packet import validate_packet
+    packet = absent_packet()
+    entry = packet["not_published"][0]
+    changes: dict[str, Callable[[dict[str, Any]], Any]] = {
+        "a check that is not an object": lambda e: e.update(checks=[None]),
+        "an empty check": lambda e: e.update(checks=[{}]),
+        "an insecure url": lambda e: e["checks"][0].update(url="http://example.edu/"),
+        "a check date that is not a date": lambda e: e["checks"][0].update(checked_at="tomorrow"),
+        "an entry date that is not a date": lambda e: e.update(checked_at="soon"),
+        "an empty entry date": lambda e: e.update(checked_at=""),
+        "a field that cannot be absent": lambda e: e.update(predicate="name"),
+        "a predicate that is not text": lambda e: e.update(predicate=5),
+        "no subject": lambda e: e.update(subject=None),
+        "a subject without a name": lambda e: e["subject"].update(name=""),
+        "source ids that are not text": lambda e: e.update(source_ids=[[1]]),
+    }
+    for name, change in changes.items():
+        broken = deepcopy(packet)
+        change(broken["not_published"][0])
+        with pytest.raises(PacketInvalid):
+            validate_packet(broken)
+        assert entry == packet["not_published"][0], name
+    # An answered field cannot also be confirmed not published (or unknown).
+    both = deepcopy(packet)
+    both["facts"] = [{"id": "f1", "subject": dict(entry["subject"]),
+                      "predicate": entry["predicate"], "value": "x@example.edu",
+                      "status": "known", "current": True, "source_ids": entry["source_ids"]}]
+    with pytest.raises(PacketInvalid):
+        validate_packet(both)
+    unknown_too = deepcopy(packet)
+    unknown_too["missing"] = [{"subject": dict(entry["subject"]), "predicate": entry["predicate"],
+                               "reason": "unknown"}]
+    with pytest.raises(PacketInvalid):
+        validate_packet(unknown_too)
+
+
+def test_a_confirmed_absence_for_an_emergency_number_never_changes_the_question_asked() -> None:
+    from rockygpt_brain.fact_packet import build_packet as build
+    numbers = read(registrar(claim("phone"), phone=None, phones=None), "phones")
+    contact_part = {"kind": "office_facts", "query": "Public Safety", "fields": ["phones"],
+                    "office": {"id": "registrar", "name": "Registrar"}, "facts": numbers}
+    part = {"kind": "safety", "situation": "medical", "approved_text": "Call 911.",
+            "campusContacts": [contact_part]}
+    packet = build(GRAPH_NOW.isoformat(), [part])
+    assert packet["status"] == "emergency" and packet["request"]["entities"] == []
+    assert [entry.get("purpose") for entry in packet["not_published"]] == ["emergency_contact"]

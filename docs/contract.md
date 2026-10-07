@@ -113,7 +113,8 @@ office. A recalled reply is quoted as plain words, without RockyGPT's own bold m
 The model can ask for `hours` with the usual contact fields. They are the office's linked schedule
 records (see [entity-facts.md](entity-facts.md)), rendered by the code as runs of weekdays with the
 published sentence, validity window and source. An office with no schedule record answers
-"Hours: not published in the available evidence."
+"Hours: I have no published information about this." (or, when the office's own pages were read and state
+no hours, "Hours: not published on Ramapo's pages (checked <date>)")
 
 Office facts come only from the shared canonical fact reader. Their values and
 citations are rendered by code. Every office lookup result is included automatically;

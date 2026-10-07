@@ -5,7 +5,8 @@
 The Brain must run with BRAIN_OUTPUT=json. Each case is sent once. What the Brain did is read
 from its Fact Packet:
   asked     the packet names ambiguities, or carries a clarification notice
-  answered  the packet holds facts for at least one office (those offices are listed)
+  answered  the packet holds facts, or a confirmed "not published", for at least one office (those
+            offices are listed): a correct "the office publishes no email" is an answer
   other     anything else (not found, unsupported, an error)
 A case expecting "ask" passes when the Brain asked; one expecting "answer" passes when it answered
 and the expected office is among the offices; "soft" cases are run and reported, never scored.
@@ -35,7 +36,8 @@ def observe(body: dict) -> dict:
     packet = body.get("facts")
     if not isinstance(packet, dict):
         return {"observed": "other", "detail": json.dumps(body.get("error"))[:120], "offices": []}
-    offices = sorted({f["subject"]["name"] for f in packet["facts"] if not f.get("purpose")})
+    answers = [*packet["facts"], *packet.get("not_published", [])]
+    offices = sorted({f["subject"]["name"] for f in answers if not f.get("purpose")})
     kinds = [n["type"] for n in packet["notices"]]
     if packet["ambiguities"] or "clarification" in kinds:
         choices = [c["name"] for a in packet["ambiguities"] for c in a["candidates"]]

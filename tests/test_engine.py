@@ -269,7 +269,7 @@ def test_model_cannot_omit_missing_evidence_to_report_full_success() -> None:
     assert result.status_code == 200
     assert result.body["status"] == "partial"
     assert "published@example.edu" in result.body["answer"]
-    assert "Offices: not published in the available evidence" in result.body["answer"]
+    assert "Offices: I have no published information about this" in result.body["answer"]
 
 
 @pytest.mark.parametrize(("kind", "phrase"), [
@@ -905,7 +905,7 @@ def test_the_model_can_ask_for_hours_and_the_code_writes_them_with_their_source(
     assert "published validity 2026-08-26 through 2026-12-16" in text
     assert {c["collection"] for c in result.body["citations"]} == {"contacts", "campus_hours"}
     # The fixture publishes no phone or room, so the reply is partial for that reason only.
-    assert "Phones: not published" in text and result.body["status"] == "partial"
+    assert "Phones: I have no published information about this" in text and result.body["status"] == "partial"
 
 
 def test_hours_for_an_office_without_a_schedule_say_not_published() -> None:
@@ -913,7 +913,7 @@ def test_hours_for_an_office_without_a_schedule_say_not_published() -> None:
         {"query": "Registrar", "fields": ["email", "hours"]}]})
     result = answer(ScriptedGateway(asked, finish("unsupported")),
                     messages=[{"role": "user", "content": "registrar hours"}])
-    assert "Hours: not published in the available evidence." in result.body["answer"]
+    assert "Hours: I have no published information about this." in result.body["answer"]
     assert "published@example.edu" in result.body["answer"]
 
 

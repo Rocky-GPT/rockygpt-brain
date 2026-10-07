@@ -343,45 +343,86 @@ def _observation_sources(row: dict[str, Any], original: dict[str, Any],
     return derived
 
 
-def confirmed_absence(rows: Sequence[dict[str, Any]], key: str) -> dict[str, Any] | None:
+# The raw contact columns that hold a published value for each field a claim can cover.
+_ABSENCE_COLUMNS = {"email": ("email",), "phones": ("phone", "phones"),
+                    "offices": ("office", "offices"), "hours": ()}
+MAX_ABSENCE_CHECKS = 16
+MAX_ABSENCE_TEXT = 300
+
+
+def _check(item: Any) -> dict[str, str] | None:
+    """One section the publisher read: a secure page, a heading and an instant, all plain text."""
+    if not isinstance(item, dict) or _url(item.get("url")) is None:
+        return None
+    for name in ("section", "checked_at"):
+        text = item.get(name)
+        if (not isinstance(text, str) or not text.strip() or len(text) > MAX_ABSENCE_TEXT
+                or any(ord(character) < 32 for character in text)):
+            return None
+    if _instant(item["checked_at"]) is None:
+        return None
+    return {name: item[name] for name in ("url", "section", "checked_at")}
+
+
+def confirmed_absence(rows: Sequence[dict[str, Any]], key: str, now: datetime | None = None,
+                      ) -> dict[str, Any] | None:
     """The publisher's confirmation that the office's own pages do not publish this field.
 
     A reviewed claim reaches a row only after the run's capture of the cited page sections was
     read and none stated a value (`normalization_metadata.evidence.not_published`). It says
-    which sections were read and when. A malformed claim confirms nothing, so the field stays
-    unknown. This is read only when no value is published: a value always wins.
+    which sections were read and when. This is read only when no value is published (a value
+    always wins), and a confirmation is refused, leaving the field unknown, when: any check is
+    malformed, insecure or dated after the clock; the row holds any value for the field in a raw
+    column; or the same row's publisher record doubts it (`absence_issues` or `withheld`).
+    `current` says whether every check is still inside the row's own freshness allowance.
     """
     wanted = ABSENCE_FIELDS.get(key)
     if wanted is None:
         return None
     source_ids: list[str] = []
     checks: list[dict[str, str]] = []
+    current = True
     for row in rows:
+        if any(_present(row.get(column)) for column in _ABSENCE_COLUMNS.get(key, ())):
+            continue
         metadata = row.get("normalization_metadata")
         evidence = metadata.get("evidence") if isinstance(metadata, dict) else None
         claims = evidence.get("not_published") if isinstance(evidence, dict) else None
         if not isinstance(claims, list):
             continue
+        doubted = {entry.get("field") for name in ("absence_issues", "withheld")
+                   for entry in (evidence[name] if isinstance(evidence, dict)
+                                 and isinstance(evidence.get(name), list) else [])
+                   if isinstance(entry, dict)}
+        if wanted in doubted:
+            continue
         for claim in claims:
             if not isinstance(claim, dict) or claim.get("field") != wanted:
                 continue
             raw = claim.get("checks")
-            valid = [
-                {name: item[name] for name in ("url", "section", "checked_at")}
-                for item in (raw if isinstance(raw, list) else [])
-                if isinstance(item, dict)
-                and all(isinstance(item.get(name), str) and item[name]
-                        for name in ("url", "section", "checked_at"))
-                and _instant(item["checked_at"]) is not None
-            ]
-            whole = isinstance(raw, list) and len(valid) == len(raw)
-            if valid and whole and row["id"] not in source_ids:
+            valid = [check for item in (raw if isinstance(raw, list) else [])
+                     if (check := _check(item)) is not None]
+            if (not valid or not isinstance(raw, list) or len(valid) != len(raw)
+                    or len(valid) > MAX_ABSENCE_CHECKS):
+                continue
+            instants = [_instant(check["checked_at"]) for check in valid]
+            if now is not None and any(instant is None or instant > now for instant in instants):
+                continue
+            sla = row.get("freshness_sla_hours")
+            allowance = (timedelta(hours=sla) if isinstance(sla, int)
+                         and not isinstance(sla, bool) and sla > 0 else None)
+            if now is None or allowance is None or any(
+                    instant is None or now - instant > allowance for instant in instants):
+                current = False
+            if row["id"] not in source_ids:
                 source_ids.append(row["id"])
-                checks.extend(valid)
+            checks.extend(check for check in valid if check not in checks)
     if not checks:
         return None
-    oldest = min(checks, key=lambda check: str(_instant(check["checked_at"])))
-    return {"source_ids": source_ids, "checks": checks, "checked_at": oldest["checked_at"]}
+    latest = datetime.max.replace(tzinfo=UTC)
+    oldest = min(checks, key=lambda check: _instant(check["checked_at"]) or latest)
+    return {"source_ids": source_ids, "checks": checks, "checked_at": oldest["checked_at"],
+            "current": current}
 
 
 def canonical_properties(
@@ -391,6 +432,7 @@ def canonical_properties(
     *,
     registry_name: str = "",
     reviewed_aliases: Sequence[str] = (),
+    now: datetime | None = None,
 ) -> list[dict[str, Any]]:
     """Resolve observations without voting, preferring a record, or inventing support."""
     if not all(isinstance(item.get("id"), str) and item["id"] for item in [*rows, *sources]):
@@ -448,7 +490,7 @@ def canonical_properties(
                     group["source_ids"].append(source_id)
         values = list(groups.values())
         status = "unknown" if not values else "known"
-        absence = confirmed_absence(rows, field) if not values else None
+        absence = confirmed_absence(rows, field, now) if not values else None
         if absence:
             status = "not_published"
         if len(values) > 1:
@@ -883,10 +925,15 @@ class EntityFacts:
                 sources,
                 registry_name=entity["name"],
                 reviewed_aliases=reviewed,
+                now=now,
             )
             if "hours" in selected:
                 hours, schedule_sources = schedule_property(schedule_rows, now)
-                if hours["status"] == "unknown" and (absent := confirmed_absence(rows, "hours")):
+                # A link to a schedule says hours exist: unread rows are a gap, not an absence.
+                linked_hours = any(
+                    link.get("collection") == "campus_hours" for link in entity["links"])
+                if (hours["status"] == "unknown" and not linked_hours
+                        and (absent := confirmed_absence(rows, "hours", now))):
                     hours = {**hours, "status": "not_published", "absence": absent}
                 sources.extend(schedule_sources)
                 properties = sorted(
