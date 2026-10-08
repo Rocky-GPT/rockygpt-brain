@@ -72,7 +72,7 @@ def property_for(facts: dict[str, Any], field: str) -> dict[str, Any]:
 def test_fresh_phone_preserves_stale_name_original_source_and_record_count() -> None:
     row = observed_row("phones")
     result = get_facts([row], ["name", "phones"])
-    assert result["mapping_version"] == "entity-facts-4"
+    assert result["mapping_version"] == "entity-facts-6"
     assert result["evidence_count"] == 1
     assert len(result["sources"]) == 2
     original, field_source = result["sources"]

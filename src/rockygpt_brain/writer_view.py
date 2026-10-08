@@ -20,6 +20,13 @@ packet. It adds, computes and infers nothing, and it never drops a value a stude
   renamed      a subject is its name; a source is its number `n` (numbered once the uncited ones
                are left out), and `sources` on a fact or an absence lists those numbers;
                `candidates` are `choices` (names only)
+  proofs       inside a schedule, the proof that a weekday or a validity date is not published
+               (`absence`, `validity_absence`) is cut to when it was checked and which pages were
+               read; the scope, the reason sentence, the section and the page hash stay in the
+               packet. `validity_absence` is said as `dates_not_published`. A source's own copy of
+               it, and its `season` (each fact says its own), are dropped. An unverified seasonal
+               date keeps `applicability` and its reason but not `applies`, and an empty `window`
+               is left out
   first        when the packet holds an emergency, its fixed wording comes before everything else
 
 A field a row in one of those lists gains later and this function does not know is carried through
@@ -45,7 +52,42 @@ _AMBIGUITY = frozenset({"query", "candidates", "truncated"})
 _UNRESOLVED = frozenset({"query", "reason"})
 _NOTICE_DROPPED = frozenset({"type", "subject", "contacts"})
 _SOURCE = frozenset({"id", "title", "collection", "urls", "captured_at", "freshness", "validity",
-                     "valid_from", "valid_until", "current", "limitations", "original_record_id"})
+                     "valid_from", "valid_until", "current", "limitations", "original_record_id",
+                     "season", "validity_absence"})
+# Which end of a validity range a writer is told is not published.
+_BOUND = {"valid_from": "start", "valid_until": "end"}
+
+
+def _checked(proof: dict[str, Any]) -> dict[str, Any]:
+    """What a writer needs of a proof that something is not published: when, and where it looked."""
+    row: dict[str, Any] = {"checked_at": proof["checked_at"],
+                           "pages": list(dict.fromkeys(check["url"] for check in proof["checks"]))}
+    if proof.get("current") is False:
+        row["current"] = False
+    return row
+
+
+def _said(node: Any) -> Any:
+    """A fact value with its audit proofs cut down to `_checked` and empty windows left out."""
+    if isinstance(node, list):
+        return [_said(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+    out: dict[str, Any] = {}
+    for key, item in node.items():
+        if key == "validity_absence" and isinstance(item, dict):
+            proofs = {bound: _checked(proof) for bound, proof in item.items()}
+            checks = list(proofs.values())
+            out["dates_not_published"] = {
+                **checks[0], "which": [_BOUND.get(bound, bound) for bound in proofs],
+                **({"current": False} if any(c.get("current") is False for c in checks) else {})}
+        elif key == "absence" and isinstance(item, dict) and "checks" in item:
+            out[key] = _checked(item)
+        elif key == "window" and item == {}:
+            continue
+        else:
+            out[key] = _said(item)
+    return out
 
 
 def _rest(item: dict[str, Any], handled: frozenset[str]) -> dict[str, Any]:
@@ -71,8 +113,8 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
     for entry in packet["derived_facts"]:
         row: dict[str, Any] = {"subject": entry["subject"]["name"],
                                "predicate": entry["predicate"], "day": entry["day"],
-                               "date": entry["date"], "value": entry["value"]}
-        if not entry["applies"]:
+                               "date": entry["date"], "value": _said(entry["value"])}
+        if not entry["applies"] and "applicability" not in entry:
             row["applies"] = False  # Then it is not current either: the date is outside it.
         elif not entry["current"]:
             row["current"] = False
@@ -87,7 +129,7 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
         if fact["id"] in replaced:
             continue
         row = {"subject": fact["subject"]["name"], "predicate": fact["predicate"],
-               "value": fact["value"]}
+               "value": _said(fact["value"])}
         if fact["status"] != "known":
             row["status"] = fact["status"]
         if not fact["current"]:

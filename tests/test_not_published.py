@@ -115,7 +115,8 @@ def test_the_earliest_check_dates_the_confirmation_and_every_section_is_kept() -
 
 def test_the_text_answer_says_the_pages_were_read_and_a_missing_one_is_still_unknown() -> None:
     rendered = render_facts(read(registrar(claim("email")), "email", "phones"))
-    assert "Email: not published on Ramapo's pages (checked 2026-10-05)" in rendered.text
+    assert ("Email: not published on the reviewed official pages (checked 2026-10-05)"
+            in rendered.text)
     assert "[directory](" in rendered.text
     assert rendered.supported and rendered.complete
     assert any(c["id"] == "r1:email:not_published" and c["urls"] == [CHECK["url"]]
@@ -184,7 +185,7 @@ def test_a_chat_turn_answers_with_the_recorded_absence() -> None:
     assert packet["facts"] == [] and packet["missing"] == []
     text = ChatEngine(ScriptedGateway(LOOKUP, finish()), service, output="text")
     answer = asyncio.run(text.answer(intake(request, now=NOW), request)).body
-    assert "not published on Ramapo's pages (checked 2026-09-30)" in answer["answer"]
+    assert "not published on the reviewed official pages (checked 2026-09-30)" in answer["answer"]
     assert answer["status"] == "answered"  # An absence is an answer.
 
 
