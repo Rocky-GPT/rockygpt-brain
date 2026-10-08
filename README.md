@@ -150,9 +150,12 @@ that were read); a template or a model with no other context only needs what it 
 current or conflict, what is unknown and what is confirmed not published, what to ask, the fixed
 wording to repeat, and numbered sources to cite. It drops the ids, the dataset and its hash, and
 leaves out whatever holds the usual value (`status` "known", `current` true, `freshness` "fresh",
-empty lists), so a missing key means the usual. It adds and infers nothing, and a packet field it
-does not know is carried through. In JSON output the body carries it as `writerInput` beside `facts`
-(about 60-70% smaller). A test fails if a packet value is neither in the view nor on the list of
+empty lists), so a missing key means the usual. Inside a schedule, the proof that a weekday or a
+validity date is not published (`absence`, `validity_absence`) is cut to when it was checked and which
+pages were read; the scope, reason sentence, section and page hash stay in the packet. It adds and
+infers nothing, and a packet field it does not know is carried through. In JSON output the body
+carries it as `writerInput` beside `facts` (60-90% smaller; a seasonal office such as the Testing
+Center goes from about 7 KB to under 2 KB). A test fails if a packet value is neither in the view nor on the list of
 what is dropped on purpose.
 
 Packet version `"1.0"` (`src/rockygpt_brain/fact_packet.py`):
@@ -162,7 +165,7 @@ Packet version `"1.0"` (`src/rockygpt_brain/fact_packet.py`):
 | `request` | `intent` (`contact`, `hours`, `contact_and_hours`, `office_facts`, `office_lookup`, `safety`, `recall`, `clock`...), `entities [{id, name, kind, query}]`, `fields`, `asOf` (the campus time every freshness check used), `dataset {version, identityHash}` |
 | `status` | `complete`, `partial` (something missing, stale, conflicting or unanswerable), `insufficient`, `ambiguous` (the Brain needs a follow-up answered: an office name matched several offices, or the message named no office), `not_found`, `emergency`, `no_facts_needed` |
 | `facts` | `[{id, subject {id, name, kind}, predicate, value, status, current, source_ids}]`. `value` is exactly what the shared reader returned; `status` is `known`, `conflicting` or `multiple` (conflicts are listed side by side, none is chosen); `current` is false when no source is fresh and inside its published validity. Campus numbers sent for an emergency carry `purpose: "emergency_contact"` |
-| `derived_facts` | what the Brain works out so a writer never computes: the hours of the one weekday the student asked about (`hours_on`: `day`, `date`, `value`, `applies`, `current`, `from`, `source_ids`). The model sets `day` (today, tomorrow or a weekday) on an hours lookup; code turns it into a campus date, reads that weekday from each schedule valid on it (`src/rockygpt_brain/hours_on.py`), and `applies` is false when the date falls outside the schedule's published window. The writer input carries the day and leaves out the full-week fact it came from. Time of day ("open at 8 pm", "open now") is not worked out yet. |
+| `derived_facts` | what the Brain works out so a writer never computes: the hours of the one weekday the student asked about (`hours_on`: `day`, `date`, `value`, `applies`, `current`, `from`, `source_ids`). The model sets `day` (today, tomorrow or a weekday) on an hours lookup; code turns it into a campus date, reads that weekday from each schedule valid on it (`src/rockygpt_brain/hours_on.py`), and `applies` is false when the date falls outside the schedule's published window. A seasonal schedule whose page publishes no complete date range gets `applicability: "unverified"` and `applicability_reason` instead, with `hours: null`: the Brain does not guess which dates a season covers. The writer input carries the day and leaves out the full-week fact it came from. Time of day ("open at 8 pm", "open now") is not worked out yet. |
 | `missing` | `[{subject, predicate, reason}]`: a requested fact we hold no information about (reason `unknown`: nobody confirmed whether the office publishes it) |
 | `not_published` | `[{subject, predicate, checked_at, current, checks [{url, section, checked_at}], source_ids}]`: a requested fact the office's own pages were read for and do not state. It is an answer with its proof, so it does not make the packet `partial` unless the check is no longer current |
 | `ambiguities` | `[{query, candidates [{id, name, match}], truncated}]` |

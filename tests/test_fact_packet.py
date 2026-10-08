@@ -241,7 +241,11 @@ def test_the_hours_of_the_asked_day_are_worked_out_and_trace_to_the_full_week() 
     assert derived["date"] == "2026-10-09" and derived["value"]["hours"] == "8am-5pm"
     assert derived["from"] == [week_fact["id"]] and derived["source_ids"] == week_fact["source_ids"]
     assert derived["applies"] is True and derived["current"] is True
-    assert derived["subject"]["id"] == "registrar" and packet["status"] == "complete"
+    assert derived["subject"]["id"] == "registrar"
+    # Friday is fully answered, but the weekend is a reported gap, so the packet is partial.
+    assert packet["status"] == "partial"
+    assert [(m["reason"], m["days"]) for m in packet["missing"]] == [
+        ("partially_unknown_schedule", ["Saturday", "Sunday"])]
     # The same day asked twice is one derived fact.
     twice = build_packet(AS_OF, [hours_part("friday", "2026-10-09"),
                                  hours_part("friday", "2026-10-09")])
@@ -267,11 +271,12 @@ def test_a_date_outside_the_schedule_makes_the_answer_partial() -> None:
 def test_a_derived_fact_that_does_not_trace_or_add_up_is_refused() -> None:
     good = build_packet(AS_OF, [hours_part("friday", "2026-10-09")])
     validate_packet(good)
-    for change in (
+    changes: tuple[dict[str, Any], ...] = (
         {"from": ["f99"]}, {"from": []}, {"source_ids": ["nope"]}, {"day": "Saturday"},
         {"date": "yesterday"}, {"predicate": "closes_at"}, {"applies": "yes"}, {"value": {}},
         {"subject": {"id": "registrar"}},
-    ):
+    )
+    for change in changes:
         broken = deepcopy(good)
         broken["derived_facts"][0].update(change)
         with pytest.raises(PacketInvalid):

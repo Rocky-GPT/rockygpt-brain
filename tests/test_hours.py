@@ -97,7 +97,8 @@ def test_a_weeks_rows_become_one_value_with_its_window_note_and_source() -> None
     assert value["schedule"] == "Registrar" and value["notes"] == [NOTE]
     assert [d["day"] for d in value["days"]] == list(DAYS)
     assert value["days"][0] == {"day": "Monday", "hours": "8:30am-4:30pm"}
-    assert value["days"][5] == {"day": "Saturday", "hours": "Hours unavailable"}
+    # The source row says "Hours unavailable": the reader states that as no hours, never as closed.
+    assert value["days"][5] == {"day": "Saturday", "hours": None}
     source = next(s for s in result["sources"] if s["id"] == prop["values"][0]["source_ids"][0])
     assert source["collection"] == "campus_hours"
     assert (source["valid_from"], source["valid_until"]) == ("2026-08-26", "2026-12-16")
@@ -105,6 +106,9 @@ def test_a_weeks_rows_become_one_value_with_its_window_note_and_source() -> None
     assert source["validity"] == "current" and source["freshness"] == "fresh"
     assert len(source["record_ids"]) == 7 and result["evidence_count"] == 1 + 7
     assert result["complete"] is True
+    # No page proves the weekend is unpublished, so the gap is reported, not hidden.
+    (issue,) = prop["issues"]
+    assert issue["status"] == "unknown" and issue["days"] == ["Saturday", "Sunday"]
 
 
 def test_the_hours_read_keeps_the_order_the_caller_asked_for() -> None:
@@ -112,7 +116,7 @@ def test_the_hours_read_keeps_the_order_the_caller_asked_for() -> None:
     result = service.get_office_facts(
         "registrar", ["hours", "email"], "release-1", identity_hash="identities-1")
     assert [p["key"] for p in result["properties"]] == ["hours", "email"]
-    assert result["mapping_version"] == "entity-facts-4"
+    assert result["mapping_version"] == "entity-facts-6"
 
 
 def test_hours_are_not_read_unless_asked_for() -> None:
@@ -214,8 +218,9 @@ def test_a_conflict_on_a_later_weekday_keeps_every_reading_with_its_own_source()
 def test_identical_records_for_one_day_are_one_reading() -> None:
     rows = schedule_rows(tag="a") + schedule_rows(tag="b")
     prop = hours_property(hours(reader(rows)))
-    assert prop["status"] == "known" and len(prop["values"]) == 1
-    assert len(prop["values"][0]["assertion_ids"]) == 1  # One reading, however many copies.
+    assert prop["status"] == "known" and len(prop["values"]) == 1  # One reading of the week...
+    # ...with both copies kept as support, each under its own record.
+    assert len(prop["values"][0]["assertion_ids"]) == 2
 
 
 def test_a_window_that_has_ended_or_not_begun_is_marked_and_not_current() -> None:
@@ -256,7 +261,9 @@ def test_rendering_groups_days_with_the_same_hours_and_keeps_the_published_note(
             "Published note: Fall/Spring Hours: 8:30 A.M. - 4:30 P.M. Monday - Friday"
             ) in rendered.text
     assert "published validity 2026-08-26 through 2026-12-16" in rendered.text
-    assert rendered.supported is True and rendered.complete is True
+    # The weekend has no hours and no page proving it unpublished: the gap is said, not guessed.
+    assert "No verified hours are published for the listed weekdays." in rendered.text
+    assert rendered.supported is True and rendered.complete is False
     assert [c["url"] for c in rendered.citations] == ["https://example.edu/registrar/"]
     assert rendered.citations[0]["collection"] == "campus_hours"
 
@@ -302,13 +309,20 @@ def test_text_is_quoted_not_executed() -> None:
     assert "\\[x\\]\\(http://evil.example\\)" in text and "\\*now\\*" in text
 
 
-@pytest.mark.parametrize("bad", [{"schedule": ""}, {"day": ""}, {"name": ""}, {"id": ""}])
+@pytest.mark.parametrize("bad", [{"day": ""}, {"name": ""}, {"id": ""}])
 def test_a_schedule_row_missing_its_name_day_hours_or_id_fails_the_read(
         bad: dict[str, Any]) -> None:
     rows = schedule_rows()
     rows[0].update(bad)
     with pytest.raises(EvidenceUnavailable):
         hours(reader(rows))
+
+
+def test_an_empty_hours_cell_is_no_hours_for_that_day_not_a_failed_read() -> None:
+    rows = schedule_rows()
+    rows[0]["schedule"] = ""
+    value = hours_property(hours(reader(rows)))["values"][0]["value"]
+    assert value["days"][0] == {"day": "Monday", "hours": None}
 
 
 def test_duplicate_schedule_row_ids_fail_the_read() -> None:

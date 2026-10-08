@@ -239,8 +239,12 @@ def test_every_value_in_the_packet_is_in_the_view_or_dropped_on_purpose() -> Non
 
 def test_a_current_flag_that_is_false_is_never_lost() -> None:
     for name, packet in every_shape().items():
-        stale = sum(1 for kind in ("facts", "not_published") for x in packet[kind]
-                    if x["current"] is False)
+        replaced = {fid for d in packet["derived_facts"] for fid in d["from"]}
+        stale = sum(1 for kind in ("facts", "not_published", "derived_facts")
+                    for x in packet[kind]
+                    if x["current"] is False and x.get("id") not in replaced
+                    # A date outside the schedule's window is said by `applies`, not by `current`.
+                    and (kind != "derived_facts" or x["applies"] or "applicability" in x))
         assert json.dumps(writer_view(packet)).count('"current": false') == stale, name
 
 
@@ -301,9 +305,9 @@ def test_a_day_that_was_asked_hands_the_writer_that_day_and_not_the_week() -> No
     (day,) = view["derived_facts"]
     assert (day["predicate"], day["day"], day["date"]) == ("hours_on", "Saturday", "2026-10-10")
     # What the schedule publishes for that day, as published; the note travels with it.
-    assert day["value"] == {"schedule": "Regular", "hours": "Hours unavailable",
-                            "notes": ["Regular note"]}
-    assert "applies" not in day and "current" not in day
+    assert day["value"] == {"schedule": "Regular", "hours": None, "notes": ["Regular note"]}
+    # The schedule publishes nothing for Saturday and no page proves it: not a current answer.
+    assert "applies" not in day and day["current"] is False
     assert "facts" not in view  # The full week is the record, not what a writer is told.
     assert "Monday" not in json.dumps(view) and "8am-5pm" not in json.dumps(view)
     assert [s["n"] for s in view["sources"]] == day["sources"]
@@ -328,3 +332,55 @@ def test_the_other_fields_of_the_same_office_are_still_facts_beside_the_day() ->
     view = writer_view(both)
     assert [f["predicate"] for f in view["facts"]] == ["email"]
     assert view["derived_facts"][0]["value"]["hours"] == "8am-5pm"
+
+
+def proof(section: str, *, current: bool = True, source_id: str = "s") -> dict[str, Any]:
+    check = {"url": "https://example.edu/hours/", "section": section,
+             "checked_at": "2026-10-07T18:44:05.521Z", "html_sha256": "ab" * 32}
+    return {"status": "not_published", "checks": [check, dict(check)],
+            "checked_at": check["checked_at"], "current": current, "source_ids": [source_id],
+            "scope": "Regular source timetable",
+            "reason": "The reviewed section does not publish the listed weekday opening hours."}
+
+
+def test_a_proof_that_something_is_not_published_reaches_the_writer_as_when_and_where() -> None:
+    packet = deepcopy(every_shape()["hours with a validity window and a note"])
+    (fact,) = [f for f in packet["facts"] if f["predicate"] == "hours"]
+    sid = fact["source_ids"][0]
+    fact["value"]["season"] = "Fall"
+    fact["value"]["validity_absence"] = {"valid_from": proof("Fall", source_id=sid),
+                                         "valid_until": proof("Fall", current=False, source_id=sid)}
+    saturday = next(d for d in fact["value"]["days"] if d["day"] == "Saturday")
+    saturday.update(hours=None, status="not_published", absence=proof("Fall", source_id=sid))
+    packet["sources"][0].update(season="Fall",
+                                validity_absence=deepcopy(fact["value"]["validity_absence"]))
+    view = writer_view(packet)
+    text = json.dumps(view)
+    # Only when it was checked and which page was read: no hash, section, scope or reason sentence.
+    for audit in ("html_sha256", "ab" * 8, "Regular source timetable", "does not publish", sid,
+                  "validity_absence", "section"):
+        assert audit not in text, audit
+    (said,) = [f for f in view["facts"] if f["predicate"] == "hours"]
+    assert said["value"]["season"] == "Fall"
+    assert said["value"]["dates_not_published"] == {
+        "checked_at": "2026-10-07T18:44:05.521Z", "pages": ["https://example.edu/hours/"],
+        "which": ["start", "end"], "current": False}
+    day = next(d for d in said["value"]["days"] if d["day"] == "Saturday")
+    assert day == {"day": "Saturday", "hours": None, "status": "not_published", "absence": {
+        "checked_at": "2026-10-07T18:44:05.521Z", "pages": ["https://example.edu/hours/"]}}
+    # A source repeats neither the season nor the proof: the fact says both.
+    assert "season" not in view["sources"][0] and "validity_absence" not in view["sources"][0]
+    # The packet, the Brain's record, still has all of it.
+    assert fact["value"]["validity_absence"]["valid_from"]["checks"][0]["html_sha256"]
+
+
+def test_an_unverified_seasonal_date_says_so_once_and_has_no_empty_window() -> None:
+    packet = deepcopy(every_shape()["a day asked"])
+    (derived,) = packet["derived_facts"]
+    derived.update(applies=False, current=False, applicability="unverified",
+                   applicability_reason="Its applicability to this date is unverified.")
+    derived["value"]["window"] = {}
+    (said,) = writer_view(packet)["derived_facts"]
+    assert said["applicability"] == "unverified" and said["current"] is False
+    assert "applies" not in said and "window" not in said["value"]
+    assert said["applicability_reason"] == "Its applicability to this date is unverified."

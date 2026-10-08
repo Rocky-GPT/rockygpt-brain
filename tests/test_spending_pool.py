@@ -12,7 +12,13 @@ from psycopg.conninfo import conninfo_to_dict, make_conninfo
 from psycopg_pool import AsyncConnectionPool
 
 from rockygpt_brain import spending
-from rockygpt_brain.spending import POOL_MAX_IDLE_SECONDS, PostgresLedger, SpendingError
+from rockygpt_brain.spending import (
+    CONNECT_SECONDS,
+    POOL_MAX_IDLE_SECONDS,
+    POOL_WAIT_SECONDS,
+    PostgresLedger,
+    SpendingError,
+)
 
 NOW = datetime(2026, 10, 7, 16, tzinfo=UTC)
 
@@ -34,11 +40,16 @@ def test_the_pool_checks_a_connection_when_it_is_taken_and_drops_idle_ones_early
     assert seen["check"] is check
     # Shorter than a database's idle timeout (Neon closes idle connections after a few minutes).
     assert seen["max_idle"] == POOL_MAX_IDLE_SECONDS <= 180
-    # What made the ledger fail closed is unchanged: a short wait, no unbounded retry.
-    assert seen["timeout"] == 3 and seen["max_size"] == 4 and seen["min_size"] == 0
+    # A database waking from sleep gets time to answer, but the wait is bounded and nothing is
+    # admitted meanwhile: the connect limit is inside the pool's wait, which is inside a chat turn.
+    assert seen["timeout"] == POOL_WAIT_SECONDS == 10 and seen["max_size"] == 4
+    assert seen["kwargs"]["connect_timeout"] == CONNECT_SECONDS < POOL_WAIT_SECONDS
+    assert seen["min_size"] == 0
 
 
-def test_a_database_that_cannot_be_reached_still_refuses_and_never_admits() -> None:
+def test_a_database_that_cannot_be_reached_still_refuses_and_never_admits(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(spending, "POOL_WAIT_SECONDS", 1.0)  # The real wait is for a sleeping one.
     ledger = PostgresLedger(
         "host=127.0.0.1 port=1 dbname=x user=x connect_timeout=1", "development")
 
