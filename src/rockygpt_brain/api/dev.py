@@ -70,10 +70,13 @@ def add_dev_routes(application: FastAPI) -> None:
         if engine is None:
             return failure(503, "data_unavailable", "Campus data is unavailable.", new_id())
         if (dataset_version is None) != (identity_hash is None):
-            return failure(422, "invalid_request", "Supply both publication pins or neither.", new_id())
+            return failure(422, "invalid_request", "Supply both publication pins or neither.",
+                           new_id())
         if as_of is not None and as_of.utcoffset() is None:
-            return failure(422, "invalid_request", "The inspection time needs a timezone.", new_id())
-        graph = CampusGraph(engine.facts, dataset_version=dataset_version, identity_hash=identity_hash)
+            return failure(422, "invalid_request", "The inspection time needs a timezone.",
+                           new_id())
+        graph = CampusGraph(engine.facts, dataset_version=dataset_version,
+                            identity_hash=identity_hash)
         try:
             async with asyncio.timeout(5):
                 node = await asyncio.to_thread(graph.inspect, node_id, as_of or datetime.now(UTC),
@@ -83,9 +86,11 @@ def add_dev_routes(application: FastAPI) -> None:
                            "This trace's publication is no longer active. Its saved path remains "
                            "in the trace; open the current root to inspect newer data.", new_id())
         except (InvalidFactRequest, UnknownEntity):
-            return failure(422, "invalid_request", "The node or requested fields are unavailable.", new_id())
+            return failure(422, "invalid_request", "The node or requested fields are unavailable.",
+                           new_id())
         except (EvidenceUnavailable, TimeoutError):
-            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(), retryable=True)
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
+                           retryable=True)
         return JSONResponse(node, headers=NO_STORE)
 
     @router.get("/offices/search")

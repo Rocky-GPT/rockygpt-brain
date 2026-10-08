@@ -63,11 +63,12 @@ class Timeline:
         boundaries = sorted({0, total, *(min(span.start, total) for span in spans), *ends})
         parents = {span.parent for span in spans if span.parent is not None}
         rows: list[dict[str, Any]] = []
-        for start, end in zip(boundaries, boundaries[1:]):
+        for start, end in zip(boundaries, boundaries[1:], strict=False):
             if start == end:
                 continue
             active = [i for i, span in enumerate(spans) if span.start <= start and ends[i] >= end]
-            selected = max(active, key=lambda i: (spans[i].depth, spans[i].start, i)) if active else None
+            selected = (max(active, key=lambda i: (spans[i].depth, spans[i].start, i))
+                        if active else None)
             label, status = "Brain request handling", "ok"
             if selected is not None:
                 span = spans[selected]

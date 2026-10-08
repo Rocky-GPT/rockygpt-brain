@@ -906,7 +906,8 @@ def test_the_model_can_ask_for_hours_and_the_code_writes_them_with_their_source(
     assert "published validity 2026-08-26 through 2026-12-16" in text
     assert {c["collection"] for c in result.body["citations"]} == {"contacts", "campus_hours"}
     # The fixture publishes no phone or room, so the reply is partial for that reason only.
-    assert "Phones: I have no published information about this" in text and result.body["status"] == "partial"
+    assert "Phones: I have no published information about this" in text
+    assert result.body["status"] == "partial"
 
 
 def test_hours_for_an_office_without_a_schedule_say_not_published() -> None:

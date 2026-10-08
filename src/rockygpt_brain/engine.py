@@ -76,7 +76,8 @@ Request only the fields the student asked for: email (an address), phones (phone
 any published call, text or SMS labels),
 offices (where it is), hours (opening hours, weekends, closing times); for hours on one particular
 day also set day to today, tomorrow or that weekday, otherwise leave day null. When the student
-wants to contact or reach an office and names no detail, read email, phones and offices. Other available
+wants to contact or reach an office and names no detail, read email, phones and offices.
+Other available
 fields: name, department, prefers_email, preferred_contact, contact_note, website; read one only
 when asked. For contact details tied to a staff role or a particular service, or text/SMS contact,
 also read contact_note alongside the requested email or phones; additional contacts there retain
@@ -107,7 +108,8 @@ or what you can do. Use clarification, with no lookup, when
 the message names no office or service at all (only a requested detail, or a reference the
 conversation does not clearly resolve) instead of guessing. Wording that names or describes an
 office or service, even vaguely, is looked up as written: ambiguous office results already
-include specific office choices, so add no clarification then. Never ask the student to clarify a provider/database outage. Use
+include specific office choices, so add no clarification then.
+Never ask the student to clarify a provider/database outage. Use
 recall with an earlier message_index only when asked what was said in this chat; this quotes
 conversation and does not assert the quoted facts are true today. Use clock only when the student
 asks for the current campus date or time.
@@ -586,7 +588,8 @@ class ChatEngine:
                             raise GatewayError("provider_invalid_response")
                         requests = GraphRequests.model_validate(call.arguments).requests
                         attempts += len(requests)
-                        if attempts > MAX_TOOL_ATTEMPTS or len(results) + len(requests) > MAX_RESULTS:
+                        if (attempts > MAX_TOOL_ATTEMPTS
+                                or len(results) + len(requests) > MAX_RESULTS):
                             raise GatewayError("turn_budget_exhausted")
                     output: list[dict[str, Any]] = []
                     for item in requests:
@@ -673,7 +676,8 @@ class ChatEngine:
                     with measure(f"Lookup {lookup_number}"):
                         result = self._lookup(
                             OfficeRequest(query=name, fields=HELP_FIELDS),
-                            CampusGraph(self.facts, dataset_version=version, identity_hash=identity_hash),
+                            CampusGraph(self.facts, dataset_version=version,
+                                        identity_hash=identity_hash),
                             as_of, exact_name_only=True)
                 except Exception as error:  # Best effort: the emergency text never depends on it.
                     LOG.warning("brain_campus_help_unreadable office=%s exception_type=%s",
