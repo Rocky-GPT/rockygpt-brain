@@ -217,7 +217,7 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
             issue_sources = [sources[sid] for sid in issue["source_ids"] if sid in sources]
             if not issue_sources or len(issue_sources) != len(issue["source_ids"]):
                 raise EvidenceUnavailable("An unavailable schedule has invalid evidence links.")
-            references = []
+            issue_references: list[str] = []
             for source in issue_sources:
                 urls = list(dict.fromkeys(url for candidate in source["citation_urls"]
                                          if (url := citation_url(candidate))))
@@ -233,10 +233,10 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
                 }
                 links = " ".join(f"[{literal(source['source_key'])}]({url})" for url in urls)
                 boundary = _boundaries(source, show_dates=not _current(source))
-                references.append(links + (f" ({boundary})" if boundary else ""))
-            if references:
+                issue_references.append(links + (f" ({boundary})" if boundary else ""))
+            if issue_references:
                 lines.append(f"{literal(issue['schedule'])}: {literal(issue['reason'])} "
-                             f"{' '.join(references)}")
+                             f"{' '.join(issue_references)}")
             else:
                 lines.append(f"{label}: I can't verify a current value from citable evidence.")
             complete = False
@@ -269,7 +269,8 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
             }
             links = " ".join(f"[{literal(first['source_key'])}]({url})" for url in urls)
             checked = literal(absence["checked_at"][:10])
-            line = f"{label}: not published on the reviewed official pages (checked {checked}) {links}"
+            line = (f"{label}: not published on the reviewed official pages "
+                    f"(checked {checked}) {links}")
             if absence.get("scope"):
                 line += f". Scope: {literal(absence['scope'])}"
             if absence.get("reason"):

@@ -14,9 +14,10 @@ import pytest
 
 import rockygpt_brain.api.app as app_module
 import rockygpt_brain.engine as engine_module
+from rockygpt_brain.boundary import SAFETY_MESSAGE
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine, ChatResult
-from rockygpt_brain.fact_packet import PacketInvalid, validate_packet
+from rockygpt_brain.fact_packet import PacketInvalid, build_packet, validate_packet
 from rockygpt_brain.provider import Completion, GatewayError
 from rockygpt_brain.retrieval import MemoryEntityFacts, PostgresEntityFacts
 from rockygpt_brain.turn import intake
@@ -181,7 +182,7 @@ def test_an_emergency_carries_the_kind_the_approved_guidance_and_the_campus_numb
 
 def test_an_emergency_reply_never_fails_even_when_its_numbers_break_the_contract(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    real = engine_module.build_packet
+    real = build_packet
 
     def refuse_numbers(as_of: str, parts: list[dict[str, Any]]) -> dict[str, Any]:
         if any(p.get("campusContacts") for p in parts):
@@ -222,7 +223,7 @@ def test_a_turn_cut_short_keeps_its_facts_and_says_why_without_calling_it_an_eme
     assert [n["type"] for n in found["notices"]] == ["incomplete", "emergency_reminder"]
     assert found["notices"][0]["code"] == "provider_unavailable"
     assert found["notices"][0]["approved_text"] == engine_module.INCOMPLETE_TEXT
-    assert found["notices"][1]["approved_text"] == engine_module.SAFETY_MESSAGE
+    assert found["notices"][1]["approved_text"] == SAFETY_MESSAGE
 
 
 def test_a_packet_that_breaks_the_contract_is_an_error_never_sent_to_a_writer(

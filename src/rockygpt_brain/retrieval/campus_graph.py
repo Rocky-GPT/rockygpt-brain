@@ -69,7 +69,9 @@ class CampusGraph:
         with measure("Open matched office · read published records · shared entity facts"):
             return {**result, **self.open(f"office:{chosen[0]['entity_id']}", fields, as_of)}
 
-    def inspect(self, node_id: str, as_of: datetime, fields: list[str] | None = None) -> dict[str, Any]:
+    def inspect(
+        self, node_id: str, as_of: datetime, fields: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Reconstruct a developer deep link through the same published root path."""
         root = self.open("ramapo", [], as_of)
         listing = self.open("offices", [], as_of)  # Validate the publication even at the root.
