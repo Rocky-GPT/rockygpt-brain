@@ -39,6 +39,11 @@ A fact's `value` is exactly what the shared reader returned for that property; `
 reader's (known, conflicting or multiple) and `current` says whether any of its sources is fresh
 and inside its published validity. Conflicts are listed side by side; nothing is chosen.
 
+A fact or absence with a `purpose` was shown beside the answer, not asked for. It is never a
+requested field and never changes `status`. `emergency_contact` is a campus number sent with a
+safety reply. `also_published` is the office's own contact note, read because a requested email
+or phone is not published: that note is where an office lists its role and service contacts.
+
 The packet is all a writer sees, so it must stand alone. A notice that stands for words the Brain
 used to write itself (the emergency guidance, "I can't see your student record", the greeting)
 carries those words as `approved_text`: the writer states them, it never composes them. A
@@ -218,6 +223,11 @@ class _Builder:
         kind = part["kind"]
         if kind == "office_facts":
             self.office(part)
+            if part.get("also"):
+                # What the office published beside a contact value it does not publish. It is
+                # shown, but it was not asked for, so it is not a requested field or a gap.
+                self.office({**part, "facts": part["also"], "fields": []},
+                            purpose="also_published")
         elif kind == "ambiguous":
             self.ambiguities.append({"query": part["query"], "truncated": part["truncated"],
                                      "candidates": part["candidates"]})

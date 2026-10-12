@@ -81,9 +81,8 @@ Other fields, each read only when asked for: name (the office's published name),
 unit it belongs to), website (its own page), prefers_email (whether it says it prefers email),
 preferred_contact (the way it says it prefers to be reached), contact_note (what its page says
 about how, when or through whom to reach it: advice, instructions, staff and service contacts).
-For contact details tied to a staff role or a particular service, or text/SMS contact,
-also read contact_note alongside the requested email or phones; additional contacts there retain
-their published role or service. Preserve contact labels when answering.
+The server reads an office's contact_note itself when a requested email or phone is not
+published, so do not add it for that. Preserve contact labels when answering.
 Appointments, walk-in rules and deadlines are not supported; read the named office's
 contact records and add unsupported for those parts.
 Use conversation to understand follow-ups, but retrieve their evidence through the root again.
@@ -533,13 +532,22 @@ class ChatEngine:
                                 part={"kind": "not_found", "query": request.query,
                                       "approved_text": NOT_FOUND_TEXT})
         detail["office"] = opened["label"]
+        also = opened.get("also")
+        shown = opened["facts"]
+        if also is not None:
+            detail["also"] = ["contact_note"]
+            sources = {source["id"]: source for source in [*shown["sources"], *also["sources"]]}
+            shown = {**shown, "properties": [*shown["properties"], *also["properties"]],
+                     "sources": list(sources.values())}
         with measure("Render verified evidence"):
-            rendered = render_facts(opened["facts"])
+            rendered = render_facts(shown)
         detail["answer"] = {"text": rendered.text, "citations": rendered.citations,
                             "complete": rendered.complete}
         part = {"kind": "office_facts", "query": request.query, "fields": list(request.fields),
                 "office": {"id": opened["entity_id"], "name": opened["label"]},
                 "facts": opened["facts"]}
+        if also is not None:
+            part["also"] = also
         if request.day and "hours" in request.fields:
             # Worked out here, on the campus clock, so a writer never has to.
             part["when"] = {"day": request.day,

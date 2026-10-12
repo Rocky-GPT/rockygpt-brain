@@ -101,6 +101,30 @@ def test_a_requested_fact_the_evidence_does_not_hold_is_missing_not_blank() -> N
     assert only_hours["request"]["intent"] == "hours" and only_hours["status"] == "insufficient"
 
 
+def test_a_note_read_beside_an_unpublished_contact_is_shown_but_not_asked_for() -> None:
+    service = registrar(email=None, contact_note="Director: director@example.edu")
+    part = part_for(service, "registrar", "Registrar", ["email"])
+    note = part_for(service, "registrar", "Registrar", ["contact_note"])["facts"]
+    packet = build_packet(AS_OF, [{**part, "also": note}])
+    # The student asked for an email; the office's note is beside it, marked as not asked.
+    assert packet["request"]["fields"] == ["email"]
+    assert packet["request"]["intent"] == "contact"
+    (shown,) = packet["facts"]
+    assert shown["predicate"] == "contact_note" and shown["purpose"] == "also_published"
+    assert shown["value"] == "Director: director@example.edu"
+    # The unpublished email is still the gap the status reports; the note does not hide or add one.
+    assert [m["predicate"] for m in packet["missing"]] == ["email"]
+    assert packet["status"] == "insufficient"
+    # A note with nothing missing beside it changes nothing about the answer's status.
+    complete = registrar(contact_note="Director: director@example.edu")
+    asked = part_for(complete, "registrar", "Registrar", ["email"])
+    extra = part_for(complete, "registrar", "Registrar", ["contact_note"])["facts"]
+    plain = build_packet(AS_OF, [asked])
+    both = build_packet(AS_OF, [{**asked, "also": extra}])
+    assert both["status"] == plain["status"] == "complete"
+    assert both["request"]["fields"] == ["email"]
+
+
 def test_two_offices_share_one_source_list_without_repeats() -> None:
     service = source([office("registrar", "Registrar"), office("bursar", "Bursar")],
                      [contact("r1"), contact("b1", "bursar")])
