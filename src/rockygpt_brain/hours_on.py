@@ -13,7 +13,10 @@ Rules, all in code:
   - A weekday the schedule does not list has no hours here. The shared reader represents an
     unavailable weekday as null, never as "closed".
   - A seasonal schedule without a complete published interval cannot establish which dates it
-    applies to. Keep that uncertainty separate from a known date outside its interval.
+    applies to. Keep that uncertainty separate from a known date outside its interval: the result
+    has no hours for the date (`hours` is null), and carries `listed_hours`, what the schedule
+    itself lists for that weekday, so the student can be told what is listed and why it is not
+    confirmed for the date.
 """
 
 from datetime import date, timedelta
@@ -90,16 +93,24 @@ def hours_on(value: dict[str, Any], sources: list[dict[str, Any]], day: date) ->
     unverified = unverified and applies
     if unverified:
         applies = False
+    listed = (e for e in value.get("days", []) if isinstance(e, dict))
+    entry = next((e for e in listed if e.get("day") == name), None)
     if applies:
-        listed = (e for e in value.get("days", []) if isinstance(e, dict))
-        entry = next((e for e in listed if e.get("day") == name), None)
         out["hours"] = entry.get("hours") if entry else None
-        if entry and entry.get("status") == "not_published" and entry.get("absence"):
-            out["status"] = "not_published"
-            out["absence"] = entry["absence"]
+    elif unverified:
+        # Nothing says this schedule covers the date, so there are no hours for it. What the
+        # schedule itself lists for that weekday is still a fact about the schedule: a writer may
+        # tell a student what is listed and that its dates are not published, never that the office
+        # is open then. A reviewed omission of that weekday holds whatever the dates are.
+        out["hours"] = None
+        out["listed_hours"] = entry.get("hours") if entry else None
     else:
         out["hours"] = None
         out["window"] = window(sources)
+    if (applies or unverified) and entry and entry.get("status") == "not_published" \
+            and entry.get("absence"):
+        out["status"] = "not_published"
+        out["absence"] = entry["absence"]
     if value.get("notes"):
         out["notes"] = list(value["notes"])
     return {"day": name, "date": day.isoformat(), "applies": applies, "value": out,
