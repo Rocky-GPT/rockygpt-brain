@@ -435,3 +435,29 @@ def test_postgres_reads_schedules_by_exact_link_only_when_hours_are_asked(
     calls.clear()
     service.get_office_facts("registrar", ["email"], "release-1")
     assert not [call for call in calls if "campus_hours h" in call[0]]
+
+
+def test_two_conflicting_statements_of_one_schedule_stay_each_their_own_week() -> None:
+    """Row ids are random, so pairing a weekday's rows by id mixed two statements' days."""
+    weekdays = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+    first = {**{d: "8:00am-5:00pm" for d in weekdays},
+             "Saturday": "Hours unavailable", "Sunday": "Hours unavailable"}
+    second = {**{d: "9:00am-6:00pm" for d in weekdays},
+              "Saturday": "Hours unavailable", "Sunday": "Hours unavailable"}
+    one = schedule_rows(week=first, tag="x", note="Academic Year: Monday-Friday, 8-5",
+                        url="https://example.edu/registrar/")
+    two = schedule_rows(week=second, tag="y", note="Academic Year: Monday-Friday, 9-6",
+                        url="https://example.edu/registrar/contacts/")
+    # Ids that sort one statement first on one weekday and the other first on the next: pairing
+    # by id builds a reading from Monday of one statement and Tuesday of the other.
+    for number, row in enumerate(one):
+        row["id"] = f"{'b' if number % 2 == 0 else 'a'}-one-{number}"
+    for number, row in enumerate(two):
+        row["id"] = f"{'a' if number % 2 == 0 else 'b'}-two-{number}"
+    prop = hours_property(hours(reader([*one, *two])))
+    assert prop["status"] == "conflicting" and len(prop["values"]) == 2
+    for item in prop["values"]:
+        published = {d["hours"] for d in item["value"]["days"] if d["hours"] is not None}
+        assert len(published) == 1, published  # One statement's week, never a mix of both.
+    assert {next(d["hours"] for d in item["value"]["days"] if d["hours"])
+            for item in prop["values"]} == {"8:00am-5:00pm", "9:00am-6:00pm"}

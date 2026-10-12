@@ -217,6 +217,10 @@ with its `value.absence`; a fresh omission is a current answer about missing pub
 opening time. Ordinary unknown nulls retain their unknown wording. Verified missing validity
 boundaries and their scope remain in the derived value even when applicability is unverified.
 
+Two statements of one schedule (same name and season, different hours) are two readings. Each
+reading is one captured statement's own week: its weekday rows are matched by the page, capture
+time, sentence and metadata they share, never by their unrelated row ids.
+
 Runs of weekdays are drawn only over days that follow each other in the week and have the same
 text. A weekday with no record is never inside a span. A schedule's own name is shown when there
 are several schedules or when the name says more than the office's name (a trailing abbreviation
