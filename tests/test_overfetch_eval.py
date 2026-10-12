@@ -42,6 +42,25 @@ def test_the_cases_are_well_formed() -> None:
     assert sum(c["generic"] and c["scored"] for c in cases) == 9
 
 
+HOLDOUT = Path(__file__).resolve().parents[1] / "evals" / "overfetch-holdout-20261012"
+
+
+def test_the_holdout_cases_are_frozen_and_well_formed() -> None:
+    raw = (HOLDOUT / "cases.json").read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == (HOLDOUT / "cases.sha256").read_text().strip()
+    cases = json.loads(raw)
+    assert len({c["id"] for c in cases}) == len(cases) == 72
+    for item in cases:
+        assert item["question"].strip() and item["needs"] and set(item["needs"]) <= FIELDS
+        assert all(m["role"] in {"user", "assistant"} and m["content"] for m in item["history"])
+        assert ("disputed" in item) == (not item["scored"])
+        assert "&amp;" not in item["office"]
+        # A general contact request needs exactly the email and the phones.
+        assert not item["generic"] or item["needs"] == ["email", "phones"]
+    assert sum(c["scored"] for c in cases) == 71
+    assert sum(c["generic"] and c["scored"] for c in cases) == 9
+
+
 def test_what_the_brain_fetched_is_read_from_its_packet() -> None:
     assert run.observe(packet(["phones", "email", "email"]))["fields"] == ["email", "phones"]
     assert run.observe(packet(["email"], entities=0))["looked_up"] is False
@@ -88,3 +107,10 @@ def test_the_summary_and_the_pass_bar() -> None:
     baseline = {**summary, "under": 0, "NO LOOKUP": 0}
     assert run.bar({**summary, "under": 1}, baseline) != []
     assert run.bar({**summary, "NO LOOKUP": 1}, baseline) != []
+
+
+def test_without_a_baseline_more_than_five_percent_of_no_lookups_fails_the_bar() -> None:
+    base = {"scored": 71, "ok": 70, "OVER": 0, "UNDER": 0, "BOTH": 0, "NO LOOKUP": 1,
+            "under": 0, "extra_fields": 0}
+    assert run.bar(base, None) == []
+    assert run.bar({**base, "ok": 67, "NO LOOKUP": 4}, None) != []
