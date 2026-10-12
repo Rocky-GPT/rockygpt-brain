@@ -77,9 +77,11 @@ any published call, text or SMS labels),
 offices (where it is), hours (opening hours, weekends, closing times); for hours on one particular
 day also set day to today, tomorrow or that weekday, otherwise leave day null. When the student
 wants to contact or reach an office and names no detail, read email, phones and offices.
-Other available
-fields: name, department, prefers_email, preferred_contact, contact_note, website; read one only
-when asked. For contact details tied to a staff role or a particular service, or text/SMS contact,
+Other fields, each read only when asked for: name (the office's published name), department (the
+unit it belongs to), website (its own page), prefers_email (whether it says it prefers email),
+preferred_contact (the way it says it prefers to be reached), contact_note (what its page says
+about how, when or through whom to reach it: advice, instructions, staff and service contacts).
+For contact details tied to a staff role or a particular service, or text/SMS contact,
 also read contact_note alongside the requested email or phones; additional contacts there retain
 their published role or service. Preserve contact labels when answering.
 Appointments, walk-in rules and deadlines are not supported; read the named office's
