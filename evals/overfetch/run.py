@@ -1,6 +1,8 @@
 """Score a running Brain on the frozen field-selection cases.
 
-    python3 evals/overfetch/run.py [port] [out.json] [baseline.json]
+    python3 evals/overfetch/run.py [port] [out.json] [baseline.json] [cases.json]
+
+`cases.json` defaults to the frozen set beside this file; another frozen set can be named.
 
 The Brain must run with BRAIN_OUTPUT=json. Each case is sent once. What the Brain asked for is read
 from its Fact Packet's `request.fields`: the fields it fetched for the office, whatever the facts
@@ -83,12 +85,15 @@ def bar(summary: dict, baseline: dict | None) -> list[str]:
     if baseline and summary["NO LOOKUP"] > baseline["NO LOOKUP"]:
         failed.append(
             f"{summary['NO LOOKUP']} cases looked nothing up, up from {baseline['NO LOOKUP']}")
+    elif not baseline and summary["NO LOOKUP"] > 0.05 * summary["scored"]:
+        failed.append(f"{summary['NO LOOKUP']} cases looked nothing up, more than 5%")
     return failed
 
 
-def main(port: str, out_path: str | None, baseline_path: str | None) -> None:
+def main(port: str, out_path: str | None, baseline_path: str | None,
+         cases_path: str | None = None) -> None:
     rows = []
-    for case in json.loads(CASES.read_text()):
+    for case in json.loads(Path(cases_path or CASES).read_text()):
         body = ask(port, [*case["history"], {"role": "user", "content": case["question"]}])
         seen = observe(body)
         row = {**case, **seen, "verdict": judge(case, seen)}
@@ -109,4 +114,5 @@ def main(port: str, out_path: str | None, baseline_path: str | None) -> None:
 
 if __name__ == "__main__":
     main(sys.argv[1] if len(sys.argv) > 1 else "8000",
-         sys.argv[2] if len(sys.argv) > 2 else None, sys.argv[3] if len(sys.argv) > 3 else None)
+         sys.argv[2] if len(sys.argv) > 2 else None, sys.argv[3] if len(sys.argv) > 3 else None,
+         sys.argv[4] if len(sys.argv) > 4 else None)
