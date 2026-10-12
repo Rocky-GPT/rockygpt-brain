@@ -1040,8 +1040,13 @@ class EntityFacts:
                     " ".join(name.casefold().split())
                     for name in [entity["name"], *entity["aliases"]]
                 ]
-                exact = needle in names
                 name_tokens = [_discovery_tokens(name) for name in names]
+                # Exact means the published name or alias, read by its words: the same words in
+                # any order, ignoring case, punctuation, possessives and filler such as "office".
+                # "public safety non-emergency" is exactly "Public Safety (Non-Emergency)" and only
+                # partly "Public Safety (Emergency)", whose words are a subset of the query's.
+                exact = needle in names or any(
+                    bool(tokens) and tokens == query_tokens for tokens in name_tokens)
                 partial = bool(query_tokens) and any(
                     needle in name
                     or (bool(tokens) and (query_tokens <= tokens or tokens <= query_tokens))
