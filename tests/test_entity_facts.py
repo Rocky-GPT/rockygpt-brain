@@ -16,6 +16,7 @@ from rockygpt_brain.retrieval import (
     PostgresEntityFacts,
     UnknownEntity,
 )
+from rockygpt_brain.retrieval.campus_graph import lookup_choice
 from rockygpt_brain.retrieval.entity_facts import canonical_properties
 
 NOW = datetime(2026, 10, 1, 12, tzinfo=UTC)
@@ -157,6 +158,69 @@ def test_a_query_with_one_offices_words_is_that_office_and_a_shared_alias_stays_
     both = service.search_offices("Public Safety")["candidates"]
     assert {c["entity_id"] for c in both} == {"emergency", "general"}
     assert all(c["match"] == "exact" for c in both)
+
+
+def resolved(service: MemoryEntityFacts, query: str) -> list[str]:
+    """The office ids a lookup would answer for, or [] when it would ask or find none."""
+    found = service.search_offices(query)
+    outcome, chosen = lookup_choice(found["candidates"], found["truncated"])
+    return [c["entity_id"] for c in chosen] if outcome == "answers" else []
+
+
+def public_safety() -> MemoryEntityFacts:
+    entities = [office("emergency", "Public Safety (Emergency)"),
+                office("general", "Public Safety (Non-Emergency)")]
+    for entity in entities:
+        entity["aliases"] = ["Public Safety", "Campus Police"]
+    return reader(entities=entities)
+
+
+@pytest.mark.parametrize("query,expected", [
+    ("public safety non-emergency number", ["general"]),
+    ("what's the phone number for Public Safety's non-emergency line", ["general"]),
+    ("public safety emergency number", ["emergency"]),
+    ("Public Safety (Non-Emergency) hours", ["general"]),
+    # The student named neither office, or only the alias both share: still a question.
+    ("public safety number", []),
+    ("campus police phone", []),
+])
+def test_a_question_with_one_offices_whole_name_and_more_words_is_that_office(
+    query: str, expected: list[str],
+) -> None:
+    assert resolved(public_safety(), query) == expected
+
+
+def test_an_offices_own_name_outranks_another_offices_alias() -> None:
+    # The directory lists one desk under a department, so the department's name became that
+    # desk's alias. A student who says the department's name means the department.
+    entities = [office("csi", "Center for Student Involvement"),
+                office("desk", "Roadrunner Central")]
+    entities[1]["aliases"] = ["Center for Student Involvement", "Shortline Bus Tickets"]
+    service = reader(entities=entities)
+    assert resolved(service, "Center for Student Involvement") == ["csi"]
+    assert resolved(service, "Center for Student Involvement hours") == ["csi"]
+    assert resolved(service, "Roadrunner Central hours") == ["desk"]
+    assert resolved(service, "shortline bus tickets") == ["desk"]
+    # Both offices named in one question: the alias must not hide the second office.
+    assert resolved(service, "Center for Student Involvement and Roadrunner Central") == []
+
+
+def test_an_alias_two_offices_share_stays_a_question_even_when_one_is_named_by_it() -> None:
+    entities = [office("a", "First Office"), office("b", "Second Office")]
+    for entity in entities:
+        entity["aliases"] = ["Student Services"]
+    service = reader(entities=entities)
+    assert resolved(service, "Student Services") == []
+    assert resolved(service, "Student Services hours") == []
+
+
+def test_a_name_inside_a_longer_question_waits_when_another_office_has_all_the_words() -> None:
+    service = reader(entities=[office("aid", "Financial Aid"),
+                               office("forms", "Financial Aid Forms and Deadlines")])
+    # "financial aid forms" is part of the longer office's name; the shorter name is only some
+    # of what the student said, so the Brain asks instead of choosing.
+    assert resolved(service, "financial aid forms") == []
+    assert resolved(service, "financial aid hours") == ["aid"]
 
 
 def test_discovery_does_not_invent_synonyms_or_match_generic_words_alone() -> None:
