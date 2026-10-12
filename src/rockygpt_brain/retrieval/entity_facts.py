@@ -781,7 +781,18 @@ def schedule_property(
         buckets.items(), key=lambda item: tuple(part or "" for part in item[0]))
     for (name, season, _, _), bucket in ordered:
         by_day: dict[str, list[dict[str, Any]]] = {}
-        for row in sorted(bucket, key=lambda r: (_day_order(clean(r["day"])), str(r.get("id")))):
+
+        def record_key(row: dict[str, Any]) -> tuple[str, str, str, str]:
+            # The seven weekday rows of one captured statement share page, capture time, sentence
+            # and metadata, while row ids are unrelated random values. Ordering each weekday's rows
+            # by this puts record N in position N on every weekday, so reading N is that
+            # statement's own week and never a mix of two statements' days.
+            return (str(row.get("source_url")), str(row.get("collected_at")),
+                    str(row.get("notes")),
+                    json.dumps(row.get("normalization_metadata"), sort_keys=True, default=str))
+
+        for row in sorted(bucket, key=lambda r: (_day_order(clean(r["day"])), record_key(r),
+                                                 str(r.get("id")))):
             by_day.setdefault(clean(row["day"]), []).append(row)
         # Two different texts for one day are a disagreement, so each reading gets its own value.
         readings: dict[tuple[str, ...], list[dict[str, Any]]] = {}
