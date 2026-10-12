@@ -115,7 +115,8 @@ def test_discovery_matches_name_words_despite_order_punctuation_and_office_fille
 ) -> None:
     result = reader(entities=[office("target", published)]).search_offices(query)
     assert [candidate["entity_id"] for candidate in result["candidates"]] == ["target"]
-    assert result["candidates"][0]["match"] == "partial"
+    # The same words are the published name, however they are ordered or punctuated.
+    assert result["candidates"][0]["match"] == "exact"
 
 
 def test_discovery_keeps_exact_priority_and_all_token_collisions() -> None:
@@ -131,10 +132,31 @@ def test_discovery_keeps_exact_priority_and_all_token_collisions() -> None:
     assert exact[0]["match"] == "exact"
     assert {candidate["entity_id"] for candidate in exact} == {"main", "graduate", "other"}
     unordered = service.search_offices("Aid Financial office")["candidates"]
+    # Every office that shares the words stays a candidate; only the one with exactly the query's
+    # words is exact, and the others (a longer name containing them) stay partial.
     assert {candidate["entity_id"] for candidate in unordered} == {"main", "graduate", "other"}
-    assert all(candidate["match"] == "partial" for candidate in unordered)
+    assert [(c["entity_id"], c["match"]) for c in unordered] == [
+        ("main", "exact"), ("graduate", "partial"), ("other", "partial")]
     limited = service.search_offices("Aid Financial office", limit=1)
     assert limited["truncated"] is True
+
+
+def test_a_query_with_one_offices_words_is_that_office_and_a_shared_alias_stays_ambiguous() -> None:
+    entities = [office("emergency", "Public Safety (Emergency)"),
+                office("general", "Public Safety (Non-Emergency)")]
+    for entity in entities:
+        entity["aliases"] = ["Public Safety"]
+    service = reader(entities=entities)
+    result = service.search_offices("public safety non-emergency")["candidates"]
+    assert [(c["entity_id"], c["match"]) for c in result] == [
+        ("general", "exact"), ("emergency", "partial")]
+    # The emergency office's words are a subset of the query's: still only a partial match.
+    emergency = service.search_offices("public safety emergency")["candidates"]
+    assert [c["match"] for c in emergency] == ["exact", "partial"]
+    # The student named neither: both published aliases are exact, so the Brain still asks.
+    both = service.search_offices("Public Safety")["candidates"]
+    assert {c["entity_id"] for c in both} == {"emergency", "general"}
+    assert all(c["match"] == "exact" for c in both)
 
 
 def test_discovery_does_not_invent_synonyms_or_match_generic_words_alone() -> None:

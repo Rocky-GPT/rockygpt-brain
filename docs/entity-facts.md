@@ -51,6 +51,15 @@ canonical names and aliases. Discovery text cannot establish a phone number,
 room, or other attribute. An ambiguous search remains ambiguous; no search match
 is treated as proof that a campus entity does or does not exist.
 
+A candidate is `exact` when the query has the same words as one of its published
+names or aliases: the same words in any order, ignoring case, punctuation,
+possessives and the filler words (a, an, the, of, for, and, office, offices). It is
+`partial` when the query's words contain, or are contained in, a name's words. A
+lookup answers when exactly one candidate is exact, so "public safety non-emergency"
+is "Public Safety (Non-Emergency)" while "Public Safety (Emergency)", whose words
+are a subset of the query's, stays partial. Offices that share an exact alias, such
+as "Public Safety", are all exact and the Brain asks which one is meant.
+
 `EntityFacts.get_office_facts` selects original contact records through exact
 published identity links: source key, source-record key, and optional original-row
 ID pins. It never joins records by a convenient matching name or email. Duplicate
