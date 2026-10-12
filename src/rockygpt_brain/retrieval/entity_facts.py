@@ -1056,23 +1056,53 @@ class EntityFacts:
                 # any order, ignoring case, punctuation, possessives and filler such as "office".
                 # "public safety non-emergency" is exactly "Public Safety (Non-Emergency)" and only
                 # partly "Public Safety (Emergency)", whose words are a subset of the query's.
-                exact = needle in names or any(
-                    bool(tokens) and tokens == query_tokens for tokens in name_tokens)
+                # names[0] is the office's own name; the rest are aliases.
+                same = [text == needle or (bool(tokens) and tokens == query_tokens)
+                        for text, tokens in zip(names, name_tokens, strict=True)]
+                exact = any(same)
+                # The question includes a whole published name and more words ("... number").
+                inside = [tokens for tokens in name_tokens
+                          if bool(tokens) and tokens < query_tokens]
                 partial = bool(query_tokens) and any(
-                    needle in name
-                    or (bool(tokens) and (query_tokens <= tokens or tokens <= query_tokens))
+                    needle in name or (bool(tokens) and query_tokens <= tokens)
                     for name, tokens in zip(names, name_tokens, strict=True)
+                ) or bool(inside)
+                if not (exact or partial):
+                    continue
+                covers: list[str] = []
+                if same[0]:
+                    basis = "name"
+                elif exact:
+                    basis = "alias"
+                elif inside:
+                    # The office's own name when it is in the question, so an alias that is
+                    # another office's name cannot hide that this office was named too; else
+                    # its longest alias in the question.
+                    own = bool(name_tokens[0]) and name_tokens[0] < query_tokens
+                    index = 0 if own else max(
+                        (len(tokens), -position)
+                        for position, tokens in enumerate(name_tokens)
+                        if bool(tokens) and tokens < query_tokens)[1] * -1
+                    covers = sorted(name_tokens[index])
+                    basis = "contains_name" if own else "contains_alias"
+                else:
+                    basis = "part"
+                found.append(
+                    {
+                        "entity_id": entity["id"],
+                        "name": entity["name"],
+                        "aliases": list(entity["aliases"]),
+                        "match": "exact" if exact else "partial",
+                        # How it matched, for choosing between candidates: "name" and "alias"
+                        # are the question's own words; "contains_*" is a whole published name
+                        # inside a longer question (`covers` are its words); "part" is some of
+                        # the words.
+                        "basis": basis,
+                        "covers": covers,
+                    }
                 )
-                if exact or partial:
-                    found.append(
-                        {
-                            "entity_id": entity["id"],
-                            "name": entity["name"],
-                            "aliases": list(entity["aliases"]),
-                            "match": "exact" if exact else "partial",
-                        }
-                    )
-            found.sort(key=lambda item: (item["match"] != "exact", item["name"], item["entity_id"]))
+            found.sort(key=lambda item: (
+                item["match"] != "exact", -len(item["covers"]), item["name"], item["entity_id"]))
             return {
                 "dataset_version": snapshot.dataset_version,
                 "identity_hash": snapshot.identity_hash,

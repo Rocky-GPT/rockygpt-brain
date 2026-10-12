@@ -14,14 +14,46 @@ from rockygpt_brain.retrieval.projection import OFFICE_FIELDS
 from rockygpt_brain.timing import measure
 
 
+def _inside(candidates: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The one office whose whole published name is in the question, when no other candidate's
+    name is a larger part of what the student said. Two offices named in one question stay two."""
+    if not candidates or any(
+            not str(c.get("basis", "")).startswith("contains") for c in candidates):
+        return None
+    covers = [frozenset(c["covers"]) for c in candidates]
+    # A name whose words are all inside a longer name's words was only part of that longer name.
+    widest = [c for c, words in zip(candidates, covers, strict=True)
+              if not any(words < other for other in covers)]
+    if len({frozenset(c["covers"]) for c in widest}) != 1:
+        return None
+    named = [c for c in widest if c["basis"] == "contains_name"]
+    pool = named if len(named) == 1 else widest
+    return pool[0] if len(pool) == 1 else None
+
+
 def lookup_choice(
     candidates: list[dict[str, Any]], truncated: bool,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Resolve only a unique untruncated match; otherwise preserve the alternatives."""
-    exact = [candidate for candidate in candidates if candidate["match"] == "exact"]
-    chosen = exact if len(exact) == 1 and not truncated else candidates
-    if len(chosen) == 1 and not truncated:
-        return "answers", chosen
+    """Resolve only a unique untruncated match; otherwise preserve the alternatives.
+
+    One office is the answer when it is the only candidate, or the only one whose words are the
+    student's; when several offices list the student's words, the one that has them as its own
+    name (an alias of another office is a lesser claim); or, with no such match, the one whose
+    whole name is in the question and is not a part of another candidate's longer name. A query
+    "public safety non-emergency number" names "Public Safety (Non-Emergency)", whose words
+    include all of "Public Safety (Emergency)". Anything else is a list to choose from."""
+    if not truncated:
+        exact = [candidate for candidate in candidates if candidate["match"] == "exact"]
+        if len(candidates) == 1:
+            return "answers", candidates
+        if len(exact) == 1:
+            return "answers", exact
+        if len(exact) > 1:
+            named = [c for c in exact if c.get("basis") == "name"]
+            if len(named) == 1:
+                return "answers", named
+        elif (inside := _inside(candidates)) is not None:
+            return "answers", [inside]
     return ("asks" if candidates else "not_found"), candidates
 
 

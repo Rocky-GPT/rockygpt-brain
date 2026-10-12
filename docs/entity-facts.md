@@ -54,11 +54,26 @@ is treated as proof that a campus entity does or does not exist.
 A candidate is `exact` when the query has the same words as one of its published
 names or aliases: the same words in any order, ignoring case, punctuation,
 possessives and the filler words (a, an, the, of, for, and, office, offices). It is
-`partial` when the query's words contain, or are contained in, a name's words. A
-lookup answers when exactly one candidate is exact, so "public safety non-emergency"
-is "Public Safety (Non-Emergency)" while "Public Safety (Emergency)", whose words
-are a subset of the query's, stays partial. Offices that share an exact alias, such
-as "Public Safety", are all exact and the Brain asks which one is meant.
+`partial` when the query's words contain, or are contained in, a name's words. Each
+candidate also says `basis` (`name`, `alias`, `contains_name`, `contains_alias` or
+`part`) and, for the `contains_*` bases, the `covers` words of the name found inside
+the question. A lookup answers one office in these cases, and only these:
+
+- It is the only candidate.
+- It is the only exact candidate, so "public safety non-emergency" is "Public Safety
+  (Non-Emergency)" while "Public Safety (Emergency)", whose words are a subset of the
+  query's, stays partial.
+- Several offices are exact and only one has the words as its own name. An office's
+  name outranks another office's alias, so "Center for Student Involvement" is the
+  Center and not the desk that lists the Center as its department.
+- None is exact, every candidate has a whole name inside the question, and one name's
+  words include all of the others' ("public safety non-emergency number" is "Public
+  Safety (Non-Emergency)"). Two offices that are not parts of each other stay two:
+  "registrar and financial aid" asks. An office's own name is the one compared, not an
+  alias it shares with another office's name.
+
+Offices that share an exact alias, such as "Public Safety", are all exact and the
+Brain asks which one is meant.
 
 `EntityFacts.get_office_facts` selects original contact records through exact
 published identity links: source key, source-record key, and optional original-row
