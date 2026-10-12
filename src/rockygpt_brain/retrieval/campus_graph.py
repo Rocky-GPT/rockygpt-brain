@@ -99,7 +99,29 @@ class CampusGraph:
         if outcome != "answers":
             return result
         with measure("Open matched office · read published records · shared entity facts"):
-            return {**result, **self.open(f"office:{chosen[0]['entity_id']}", fields, as_of)}
+            opened = {**result, **self.open(f"office:{chosen[0]['entity_id']}", fields, as_of)}
+        if not exact_name_only and (note := self._note_for_unpublished(opened, fields, as_of)):
+            opened["also"] = note
+        return opened
+
+    def _note_for_unpublished(
+        self, opened: dict[str, Any], fields: list[str], as_of: datetime,
+    ) -> dict[str, Any] | None:
+        """The office's contact note, when a requested email or phone is not published.
+
+        The note is where an office lists its role and service contacts, so it is the one place
+        an alternative to the missing value can be. It is read as supplementary: the model did not
+        ask for it, so it is neither a requested field nor a reason for an answer to be partial.
+        """
+        if "contact_note" in fields:
+            return None
+        asked = [p for p in opened["facts"]["properties"] if p["key"] in ("email", "phones")]
+        if not any(p["status"] in ("unknown", "not_published") for p in asked):
+            return None
+        with measure("Read contact note · requested contact not published"):
+            extra = self.open(opened["id"], ["contact_note"], as_of)["facts"]
+        note = next((p for p in extra["properties"] if p["key"] == "contact_note"), None)
+        return extra if note is not None and note["status"] == "known" else None
 
     def inspect(
         self, node_id: str, as_of: datetime, fields: list[str] | None = None,

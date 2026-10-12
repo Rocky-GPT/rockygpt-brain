@@ -73,6 +73,28 @@ def test_a_lookup_returns_the_readers_facts_in_a_packet_and_no_written_answer() 
     assert {s["id"] for s in found["sources"]} == set(fact["source_ids"])
 
 
+def unpublished_email_with_a_note() -> MemoryEntityFacts:
+    return source([office("registrar", "Registrar")],
+                  [contact("r1", email=None, contact_note="Director: director@example.edu")])
+
+
+def test_an_unpublished_contact_comes_with_the_offices_own_note_marked_as_not_asked() -> None:
+    result = run(ScriptedGateway(LOOKUP, finish()), unpublished_email_with_a_note())
+    found = packet(result)
+    assert found["request"]["fields"] == ["email"]
+    (note,) = found["facts"]
+    assert note["predicate"] == "contact_note" and note["purpose"] == "also_published"
+    assert note["value"] == "Director: director@example.edu"
+    assert [m["predicate"] for m in found["missing"]] == ["email"]
+    # The writer's view keeps the marker, so the note is never mistaken for the answer.
+    (shown,) = result.body["writerInput"]["facts"]
+    assert shown["predicate"] == "contact_note" and shown["purpose"] == "also_published"
+    # Text mode shows the same note beside the missing email.
+    text = run(ScriptedGateway(LOOKUP, finish()), unpublished_email_with_a_note(),
+               output="text").body["answer"]
+    assert "director@example.edu" in text
+
+
 def test_json_output_also_carries_the_cut_down_view_a_writer_would_receive() -> None:
     result = run(ScriptedGateway(LOOKUP, finish()))
     view = result.body["writerInput"]

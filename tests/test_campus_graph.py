@@ -15,7 +15,7 @@ from rockygpt_brain.turn import intake
 NOW = datetime(2026, 10, 6, 12, tzinfo=UTC)
 
 
-def facts() -> MemoryEntityFacts:
+def facts(**contact: Any) -> MemoryEntityFacts:
     return MemoryEntityFacts(
         dataset_version="release-1",
         identity_hash="identities-1",
@@ -44,6 +44,7 @@ def facts() -> MemoryEntityFacts:
                 "canonical_url": "https://example.edu/registrar",
                 "collected_at": NOW,
                 "freshness_sla_hours": 24,
+                **contact,
             }
         ],
         now=lambda: NOW,
@@ -85,6 +86,33 @@ def test_inspecting_an_office_shows_its_records_without_choosing_fields() -> Non
     assert [step["id"] for step in node["path"]] == ["ramapo", "offices", "office:registrar"]
     assert node["children"] == []
     assert email_status(node["facts"]) == "known"
+
+
+def test_the_contact_note_is_read_beside_a_requested_contact_that_is_not_published() -> None:
+    note = "Testing: tests@example.edu"
+    graph = CampusGraph(facts(email=None, contact_note=note))
+    found = graph.lookup("registrar", ["email"], NOW)
+    # The requested field and the supplementary one are kept apart.
+    assert [p["key"] for p in found["facts"]["properties"]] == ["email"]
+    assert email_status(found["facts"]) == "unknown"
+    (supplement,) = found["also"]["properties"]
+    assert supplement["key"] == "contact_note" and supplement["status"] == "known"
+    assert supplement["values"][0]["value"] == note
+
+
+@pytest.mark.parametrize("contact,fields,exact_name_only", [
+    ({"contact_note": "Testing: tests@example.edu"}, ["email"], False),  # the email is published
+    ({"email": None, "contact_note": "n"}, ["email", "contact_note"], False),  # already asked for
+    ({"email": None}, ["email"], False),  # no note to read
+    ({"email": None, "contact_note": "n"}, ["offices"], False),  # no contact value was asked for
+    ({"email": None, "contact_note": "n"}, ["email"], True),  # an emergency route reads its own
+])
+def test_the_contact_note_is_not_read_when_it_would_add_nothing(
+    contact: dict[str, Any], fields: list[str], exact_name_only: bool,
+) -> None:
+    graph = CampusGraph(facts(**contact))
+    found = graph.lookup("registrar", fields, NOW, exact_name_only=exact_name_only)
+    assert "also" not in found
 
 
 def test_a_retired_records_node_is_not_in_the_graph() -> None:
