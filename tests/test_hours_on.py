@@ -82,3 +82,43 @@ def test_notes_are_passed_on_only_when_the_schedule_has_them() -> None:
     plain = {"schedule": "Lab", "days": [{"day": "Friday", "hours": "9-5"}]}
     assert "notes" not in hours_on(plain, FALL, date(2026, 10, 9))["value"]
     assert hours_on(WEEK, FALL, date(2026, 10, 9))["value"]["notes"] == WEEK["notes"]
+
+
+SEASONAL = {"schedule": "Testing Center", "season": "Fall and Spring",
+            "days": [{"day": d, "hours": "8:30am-4:30pm"} for d in
+                     ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")]
+            + [{"day": "Saturday", "hours": None, "status": "not_published",
+                "absence": {"checks": [], "current": True}},
+               {"day": "Sunday", "hours": None}]}
+NO_DATES = [{"valid_from": None, "valid_until": None}]
+
+
+def test_a_seasonal_schedule_with_no_dates_lists_its_weekday_with_no_hours_for_the_date() -> None:
+    friday = hours_on(SEASONAL, NO_DATES, date(2026, 10, 9))
+    assert friday["applies"] is False and friday["applicability"] == "unverified"
+    # Nothing says the season covers this date, so there are no hours for it...
+    assert friday["value"]["hours"] is None
+    # ...but the student can be told what the schedule lists for that weekday.
+    assert friday["value"]["listed_hours"] == "8:30am-4:30pm"
+    assert friday["value"]["season"] == "Fall and Spring" and "window" not in friday["value"]
+
+
+def test_a_weekday_a_seasonal_schedule_does_not_list_is_said_so_whatever_the_dates() -> None:
+    saturday = hours_on(SEASONAL, NO_DATES, date(2026, 10, 10))
+    assert saturday["value"]["hours"] is None and saturday["value"]["listed_hours"] is None
+    # A reviewed omission is a statement about the schedule, not about a date.
+    assert saturday["value"]["status"] == "not_published"
+    assert saturday["value"]["absence"] == {"checks": [], "current": True}
+    sunday = hours_on(SEASONAL, NO_DATES, date(2026, 10, 11))
+    assert sunday["value"]["listed_hours"] is None and "status" not in sunday["value"]
+
+
+def test_a_date_known_to_be_outside_the_window_never_lists_hours() -> None:
+    fall = {**SEASONAL, "days": [{"day": "Friday", "hours": "8:30am-4:30pm"}]}
+    out = hours_on(fall, FALL, date(2027, 1, 8))
+    assert out["applies"] is False and "applicability" not in out
+    assert "listed_hours" not in out["value"] and out["value"]["window"]
+    # With both dates published and the date inside them, the hours are the answer.
+    inside = hours_on(fall, FALL, date(2026, 10, 9))
+    assert inside["applies"] is True and inside["value"]["hours"] == "8:30am-4:30pm"
+    assert "listed_hours" not in inside["value"]

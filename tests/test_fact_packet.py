@@ -256,6 +256,36 @@ def test_the_hours_of_the_asked_day_are_worked_out_and_trace_to_the_full_week() 
     assert "facts" not in writer_view(twice)  # Neither copy of the full week reaches a writer.
 
 
+def seasonal_part(day: str, on: str) -> dict[str, Any]:
+    rows = week("Regular", "w1", "8am-5pm", since=None, until=None)
+    for row in rows:  # The page names a season but prints no dates for it.
+        row["normalization_metadata"] = {"evidence": {"schedule": {"season": "Fall and Spring"}}}
+    service = source([office("registrar", "Registrar", schedules=["Regular"])], [contact("r1")],
+                     schedules=rows)
+    return {**part_for(service, "registrar", "Registrar", ["hours"]),
+            "when": {"day": day, "date": on}}
+
+
+def test_a_seasonal_schedule_without_dates_lists_its_weekday_hours_but_is_not_current() -> None:
+    packet = build_packet(AS_OF, [seasonal_part("friday", "2026-10-09")])
+    (derived,) = packet["derived_facts"]
+    assert derived["applicability"] == "unverified"
+    assert derived["applies"] is False and derived["current"] is False
+    assert derived["value"]["hours"] is None
+    assert derived["value"]["listed_hours"] == "8am-5pm"
+    validate_packet(packet)
+    # Listed hours may never ride with real hours or on a date that is simply outside a window.
+    for change in ({"hours": "8am-5pm"},):
+        broken = deepcopy(packet)
+        broken["derived_facts"][0]["value"].update(change)
+        with pytest.raises(PacketInvalid):
+            validate_packet(broken)
+    plain = build_packet(AS_OF, [hours_part("friday", "2026-10-09")])
+    plain["derived_facts"][0]["value"]["listed_hours"] = "8am-5pm"
+    with pytest.raises(PacketInvalid):
+        validate_packet(plain)
+
+
 def test_no_day_asked_means_nothing_is_worked_out() -> None:
     plain = part_for(hours_service(), "registrar", "Registrar", ["hours"])
     assert build_packet(AS_OF, [plain])["derived_facts"] == []

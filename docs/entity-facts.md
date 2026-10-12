@@ -196,7 +196,12 @@ The Fact Packet retains schedule issues as cited `missing` entries, so the write
 reasons and original source statements instead of a fabricated opening time. A date-specific
 lookup of a seasonal schedule without complete dates returns `applies: false`, `current: false`,
 `applicability: unverified`, and an `applicability_reason`; this differs from a known out-of-window
-date. The derived value contains null hours. Derived facts retain conflict/multiple status from
+date. The derived value contains null hours and `listed_hours`: what that schedule itself lists for
+the asked weekday (null when it lists none). It is a statement about the schedule, to be said as
+listed and unconfirmed for the date, never as the office's opening time; a known out-of-window date
+carries the window and no `listed_hours`. A reviewed omission of the weekday (`status: not_published`
+with its `absence`) is kept on an unverified date too, because it describes the schedule and not the
+date. Derived facts retain conflict/multiple status from
 their full schedule. Unknown weekday hours likewise never become a current derived opening time.
 When the schedule applies, a reviewed weekday omission propagates as `value.status: not_published`
 with its `value.absence`; a fresh omission is a current answer about missing publication, never an

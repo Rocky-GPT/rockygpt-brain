@@ -17,8 +17,10 @@ Version 1.0:
                    of the one weekday the student asked about (see hours_on.py). `from` names the
                      full-week fact it was read from; `applies` is false outside its published
                      window, or with `applicability: unverified` when a seasonal schedule has no
-                     complete interval. Both withhold day-specific hours. Optional `status`
-                     preserves conflicting or multiple schedule readings.
+                     complete interval. Both have `hours: null`; the unverified one also carries
+                     `listed_hours`, what the schedule lists for that weekday, to be said as
+                     listed and unconfirmed for the date. Optional `status` preserves conflicting
+                     or multiple schedule readings.
     missing        [{subject, predicate, reason}]   a requested fact we cannot state: reason
                    "unknown" (nobody checked, or the page could not be read) or "no_citable_source"
                    (a value exists but nothing it comes from has a usable secure link: withheld).
@@ -365,6 +367,13 @@ def _validate_derived(entry: Any, source_ids: set[str], fact_ids: set[str]) -> N
             entry["applicability"] != "unverified" or entry["applies"] or entry["current"]
             or not _plain(entry.get("applicability_reason"))):
         raise PacketInvalid("An unverified seasonal date must remain explicitly unverified.")
+    if isinstance(entry.get("value"), dict) and "listed_hours" in entry["value"]:
+        # What a schedule lists for a weekday is never an opening time for an unverified date.
+        listed = entry["value"]["listed_hours"]
+        if entry.get("applicability") != "unverified" or entry["value"].get("hours") is not None:
+            raise PacketInvalid("Listed hours belong only to an unverified date, beside null hours")
+        if listed is not None and not _plain(listed):
+            raise PacketInvalid("Listed hours must be the schedule's own text.")
     if "status" in entry and entry["status"] not in {"known", "conflicting", "multiple"}:
         raise PacketInvalid("A derived fact has an unknown status.")
     if not isinstance(entry["value"], dict) or "hours" not in entry["value"]:
