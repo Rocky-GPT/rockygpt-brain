@@ -72,3 +72,19 @@ def test_each_case_is_judged_by_its_own_label_and_soft_cases_are_never_scored() 
             {"expected": "answer", "verdict": "ok"}, {"expected": "soft", "verdict": "soft"}]
     assert run.summarize(rows) == {"scored": 3, "ok": 2, "ask": {"scored": 2, "ok": 1},
                                    "answer": {"scored": 1, "ok": 1}}
+
+
+def test_the_fresh_ambiguity_holdout_is_frozen_and_well_formed() -> None:
+    folder = EVAL.parent / "ambiguity-holdout-20261013"
+    raw = (folder / "cases.json").read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == (folder / "cases.sha256").read_text().strip()
+    cases = json.loads(raw)
+    assert len({c["id"] for c in cases}) == len(cases) == 72
+    for case in cases:
+        assert case["expected"] in {"ask", "answer", "soft"} and case["question"].strip()
+        assert all(m["role"] in {"user", "assistant"} and m["content"] for m in case["history"])
+        assert ("office" in case) == (case["expected"] == "answer")
+        assert ("disputed" in case) == (case["expected"] == "soft")
+        assert "&amp;" not in json.dumps(case)
+    scored = [c for c in cases if c["expected"] != "soft"]
+    assert (len(scored), sum(c["expected"] == "ask" for c in scored)) == (66, 30)

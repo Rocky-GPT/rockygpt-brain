@@ -1,6 +1,6 @@
 """Score a running Brain on the frozen ambiguity cases.
 
-    python3 evals/ambiguity/run.py [port] [out.json]
+    python3 evals/ambiguity/run.py [port] [out.json] [cases.json]
 
 The Brain must run with BRAIN_OUTPUT=json. Each case is sent once. What the Brain did is read
 from its Fact Packet:
@@ -67,9 +67,9 @@ def summarize(rows: list[dict]) -> dict:
     return out
 
 
-def main(port: str, out_path: str | None) -> None:
+def main(port: str, out_path: str | None, cases_path: str | None = None) -> None:
     rows = []
-    for case in json.loads(CASES.read_text()):
+    for case in json.loads(Path(cases_path or CASES).read_text()):
         body = ask(port, [*case["history"], {"role": "user", "content": case["question"]}])
         seen = observe(body)
         calls = (body.get("metrics") or {}).get("modelCalls")
@@ -87,4 +87,5 @@ def main(port: str, out_path: str | None) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "8000", sys.argv[2] if len(sys.argv) > 2 else None)
+    main(sys.argv[1] if len(sys.argv) > 1 else "8000", sys.argv[2] if len(sys.argv) > 2 else None,
+         sys.argv[3] if len(sys.argv) > 3 else None)

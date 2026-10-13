@@ -48,9 +48,11 @@ HOLDOUT = Path(__file__).resolve().parents[1] / "evals" / "overfetch-holdout-202
 
 
 HOLDOUT_3 = Path(__file__).resolve().parents[1] / "evals" / "overfetch-holdout-20261013"
+HOLDOUT_4 = Path(__file__).resolve().parents[1] / "evals" / "overfetch-holdout-20261013b"
 
 
-@pytest.mark.parametrize("folder,scored,generic", [(HOLDOUT, 71, 9), (HOLDOUT_3, 69, 8)])
+@pytest.mark.parametrize(
+    "folder,scored,generic", [(HOLDOUT, 71, 9), (HOLDOUT_3, 69, 8), (HOLDOUT_4, 70, 9)])
 def test_the_holdout_cases_are_frozen_and_well_formed(
     folder: Path, scored: int, generic: int,
 ) -> None:
