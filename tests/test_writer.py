@@ -126,3 +126,16 @@ def test_the_writers_own_prompt_holds_no_real_number_it_could_copy() -> None:
     # An example number in the prompt was once copied into an answer as if it were the office's.
     assert not re.search(r"\d{3}\D{0,3}\d{3}\D{0,3}\d{4}", WRITER_PROMPT)
     assert "@" not in WRITER_PROMPT and "http" not in WRITER_PROMPT
+
+
+def test_written_output_never_returns_an_empty_answer_on_the_code_only_paths() -> None:
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "my friend is not breathing"}]})
+    engine = ChatEngine(ScriptedGateway(), facts(), output="written")
+    # The phrase floor's reply (no model call at all) carries the emergency words as the answer.
+    floor = asyncio.run(engine.safety_reply(intake(request, now=NOW), "medical"))
+    assert floor.body["answer"].strip()
+    assert floor.body["facts"]["status"] == "emergency"
+    # A finish with nothing in it is the generic question, in words.
+    body, trace = turn(finish(), output="written")
+    assert body["answer"].strip() and "writer" not in trace
