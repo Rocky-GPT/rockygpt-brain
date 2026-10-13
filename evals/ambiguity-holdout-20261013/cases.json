@@ -1,0 +1,937 @@
+[
+ {
+  "id": "bare-01",
+  "history": [],
+  "question": "how do i reset my password",
+  "expected": "answer",
+  "office": "IT Help Desk"
+ },
+ {
+  "id": "bare-02",
+  "history": [],
+  "question": "is the box office open tonight",
+  "expected": "answer",
+  "office": "Berrie Center Box Office"
+ },
+ {
+  "id": "bare-03",
+  "history": [],
+  "question": "need an official transcript",
+  "expected": "answer",
+  "office": "Registrar"
+ },
+ {
+  "id": "bare-04",
+  "history": [],
+  "question": "i got a parking ticket",
+  "expected": "answer",
+  "office": "Public Safety (Non-Emergency)"
+ },
+ {
+  "id": "bare-05",
+  "history": [],
+  "question": "tuition payment plan?",
+  "expected": "answer",
+  "office": "Student Accounts"
+ },
+ {
+  "id": "bare-06",
+  "history": [],
+  "question": "do you do campus tours on weekends",
+  "expected": "answer",
+  "office": "Admissions"
+ },
+ {
+  "id": "bare-07",
+  "history": [],
+  "question": "how do i get an emotional support animal approved",
+  "expected": "answer",
+  "office": "Office of Specialized Services"
+ },
+ {
+  "id": "bare-08",
+  "history": [],
+  "question": "grad school app deadline",
+  "expected": "answer",
+  "office": "Graduate Admissions"
+ },
+ {
+  "id": "bare-09",
+  "history": [
+   {
+    "role": "user",
+    "content": "who deals with FAFSA stuff"
+   },
+   {
+    "role": "assistant",
+    "content": "That's Financial Aid. They help with the FAFSA and the Garden State Guarantee."
+   }
+  ],
+  "question": "what's their email",
+  "expected": "answer",
+  "office": "Financial Aid"
+ },
+ {
+  "id": "bare-10",
+  "history": [
+   {
+    "role": "user",
+    "content": "does the school have counseling"
+   },
+   {
+    "role": "assistant",
+    "content": "Yes, the Counseling Center offers counseling services, including drop-in and emergency counseling."
+   }
+  ],
+  "question": "do i need an appointment",
+  "expected": "answer",
+  "office": "Counseling Center"
+ },
+ {
+  "id": "bare-11",
+  "history": [
+   {
+    "role": "user",
+    "content": "when does the library close tonight"
+   },
+   {
+    "role": "assistant",
+    "content": "The Library stays open into the evening most weeknights during the semester."
+   }
+  ],
+  "question": "what about study rooms",
+  "expected": "answer",
+  "office": "Library"
+ },
+ {
+  "id": "bare-12",
+  "history": [
+   {
+    "role": "user",
+    "content": "who do i talk to about my aid package"
+   },
+   {
+    "role": "assistant",
+    "content": "Financial Aid can go over your aid package with you."
+   }
+  ],
+  "question": "ok and when is tuition due",
+  "expected": "answer",
+  "office": "Student Accounts"
+ },
+ {
+  "id": "bare-13",
+  "history": [],
+  "question": "what's the number for public safety",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-14",
+  "history": [],
+  "question": "hours for the center for student involvement",
+  "expected": "soft",
+  "disputed": {
+   "writer": {
+    "expected": "ask",
+    "office": ""
+   },
+   "labelers": [
+    {
+     "id": "bare-14",
+     "expected": "answer",
+     "office": "Center for Student Involvement"
+    },
+    {
+     "id": "bare-14",
+     "expected": "answer",
+     "office": "Center for Student Involvement"
+    }
+   ]
+  }
+ },
+ {
+  "id": "bare-15",
+  "history": [],
+  "question": "how do i withdraw",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-16",
+  "history": [],
+  "question": "i have a hold on my account",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-17",
+  "history": [],
+  "question": "someone keeps messaging me and it's making me really uncomfortable",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-18",
+  "history": [],
+  "question": "need a doctor's note for my professor",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-19",
+  "history": [],
+  "question": "left my backpack in the library",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-20",
+  "history": [],
+  "question": "i want a job on campus",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-21",
+  "history": [],
+  "question": "having problems with my roommate",
+  "expected": "soft",
+  "disputed": {
+   "writer": {
+    "expected": "ask",
+    "office": ""
+   },
+   "labelers": [
+    {
+     "id": "bare-21",
+     "expected": "answer",
+     "office": "Housing & Residence Life"
+    },
+    {
+     "id": "bare-21",
+     "expected": "answer",
+     "office": "Housing & Residence Life"
+    }
+   ]
+  }
+ },
+ {
+  "id": "bare-22",
+  "history": [
+   {
+    "role": "user",
+    "content": "where can i get my vaccine records and also talk to someone about stress"
+   },
+   {
+    "role": "assistant",
+    "content": "Health Services handles immunizations and vaccine records, and the Counseling Center offers counseling for stress and other concerns."
+   }
+  ],
+  "question": "what's their number",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-23",
+  "history": [
+   {
+    "role": "user",
+    "content": "i want to drop a class but i think i owe money"
+   },
+   {
+    "role": "assistant",
+    "content": "The Registrar handles dropping a course, and Student Accounts handles balances and payments."
+   }
+  ],
+  "question": "where are they located",
+  "expected": "ask"
+ },
+ {
+  "id": "bare-24",
+  "history": [
+   {
+    "role": "user",
+    "content": "what's the difference between admissions and graduate admissions"
+   },
+   {
+    "role": "assistant",
+    "content": "Admissions works with undergraduate applicants, and Graduate Admissions works with people applying to graduate programs."
+   }
+  ],
+  "question": "can i email them",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-01",
+  "history": [
+   {
+    "role": "user",
+    "content": "how do i get an official transcript sent to rutgers?"
+   },
+   {
+    "role": "assistant",
+    "content": "The Registrar handles official transcripts. You can order one through their page and have it sent to Rutgers electronically or by mail."
+   }
+  ],
+  "question": "do they charge for that",
+  "expected": "answer",
+  "office": "Registrar"
+ },
+ {
+  "id": "followups-02",
+  "history": [
+   {
+    "role": "user",
+    "content": "i want to drop a class but im worried it'll mess up my gpa"
+   },
+   {
+    "role": "assistant",
+    "content": "The Registrar handles dropping a course. For help weighing how it affects your GPA and your plan, the Center for Student Success (Academic Advising) can sit down with you."
+   }
+  ],
+  "question": "whats their phone number",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-03",
+  "history": [
+   {
+    "role": "user",
+    "content": "my laptop wont connect to the campus wifi at all"
+   },
+   {
+    "role": "assistant",
+    "content": "The IT Help Desk can help troubleshoot wifi and connection problems."
+   },
+   {
+    "role": "user",
+    "content": "its my first week so idk if my account is even set up"
+   },
+   {
+    "role": "assistant",
+    "content": "The IT Help Desk also handles email activation and account setup, so they can check that too."
+   }
+  ],
+  "question": "do they do remote help or do i have to go in",
+  "expected": "answer",
+  "office": "IT Help Desk"
+ },
+ {
+  "id": "followups-04",
+  "history": [
+   {
+    "role": "user",
+    "content": "i lost my id and i think theres a replacement fee"
+   },
+   {
+    "role": "assistant",
+    "content": "The ID Card Room issues replacement ID cards, and Student Accounts handles charges and payments on your account."
+   }
+  ],
+  "question": "where are they located",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-05",
+  "history": [
+   {
+    "role": "user",
+    "content": "who can i talk to if ive been feeling really anxious lately"
+   },
+   {
+    "role": "assistant",
+    "content": "There are two good places to start: the Counseling Center for counseling, and Health Services for medical care."
+   }
+  ],
+  "question": "whats the number for the second one",
+  "expected": "answer",
+  "office": "Health Services"
+ },
+ {
+  "id": "followups-06",
+  "history": [
+   {
+    "role": "user",
+    "content": "i need to sort out fafsa, my bill, and my class schedule, who do i go to"
+   },
+   {
+    "role": "assistant",
+    "content": "Financial Aid handles FAFSA, Student Accounts handles your bill, and the Registrar handles your schedule and enrollment."
+   },
+   {
+    "role": "user",
+    "content": "what are the hours for financial aid"
+   },
+   {
+    "role": "assistant",
+    "content": "Financial Aid is open Monday to Friday, 9 a.m. to 5 p.m."
+   }
+  ],
+  "question": "ok and the other one?",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-07",
+  "history": [
+   {
+    "role": "user",
+    "content": "is it financial aid or student accounts that does payment plans"
+   },
+   {
+    "role": "assistant",
+    "content": "Student Accounts handles tuition payment plans. Financial Aid handles FAFSA, grants and loans."
+   },
+   {
+    "role": "user",
+    "content": "ok when is student accounts open"
+   },
+   {
+    "role": "assistant",
+    "content": "Student Accounts is open Monday to Friday, 9 a.m. to 5 p.m."
+   }
+  ],
+  "question": "ok and what about the other one, are they open the same days",
+  "expected": "answer",
+  "office": "Financial Aid"
+ },
+ {
+  "id": "followups-08",
+  "history": [
+   {
+    "role": "user",
+    "content": "i need to switch rooms, my roommate situation is bad"
+   },
+   {
+    "role": "assistant",
+    "content": "Housing & Residence Life handles room change requests."
+   },
+   {
+    "role": "user",
+    "content": "also how do i replace my ID, mine got wrecked in the wash"
+   },
+   {
+    "role": "assistant",
+    "content": "The ID Card Room can print you a new ID card."
+   },
+   {
+    "role": "user",
+    "content": "and where do i go to pay for a parking ticket"
+   },
+   {
+    "role": "assistant",
+    "content": "Parking citations are handled by Public Safety (Non-Emergency)."
+   }
+  ],
+  "question": "wait going back to the room switch, can i email them or do i have to go in",
+  "expected": "answer",
+  "office": "Housing & Residence Life"
+ },
+ {
+  "id": "followups-09",
+  "history": [
+   {
+    "role": "user",
+    "content": "my roommate took my laptop and i want to report it"
+   },
+   {
+    "role": "assistant",
+    "content": "That would go to Public Safety (Non-Emergency) for a theft report."
+   },
+   {
+    "role": "user",
+    "content": "and i want him to get in trouble too lol"
+   },
+   {
+    "role": "assistant",
+    "content": "The Office of Student Conduct handles the disciplinary process when another student is involved."
+   }
+  ],
+  "question": "is there an email i can send it to",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-10",
+  "history": [
+   {
+    "role": "user",
+    "content": "what is cooperative education, my advisor mentioned it"
+   },
+   {
+    "role": "assistant",
+    "content": "Cooperative Education is run through the Cahill Career Development Center. It's a way to earn credit while working in a field related to your major."
+   }
+  ],
+  "question": "do i have to make an appointment to talk to them about it",
+  "expected": "answer",
+  "office": "Cahill Career Development Center"
+ },
+ {
+  "id": "followups-11",
+  "history": [
+   {
+    "role": "user",
+    "content": "i want to save the campus police number in my phone"
+   },
+   {
+    "role": "assistant",
+    "content": "Campus Police is part of Public Safety, which covers both emergencies and non-emergency matters."
+   }
+  ],
+  "question": "ok whats the number then",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-12",
+  "history": [
+   {
+    "role": "user",
+    "content": "im behind in all my classes and idk what to do"
+   },
+   {
+    "role": "assistant",
+    "content": "You could talk with the Center for Student Success (Academic Advising) about your options, or the Center for Reading and Writing if your papers are the main problem. Which would help more?"
+   }
+  ],
+  "question": "advising i guess, how do i set up a meeting",
+  "expected": "answer",
+  "office": "Center for Student Success (Academic Advising)"
+ },
+ {
+  "id": "followups-13",
+  "history": [
+   {
+    "role": "user",
+    "content": "do you have info on how to apply"
+   },
+   {
+    "role": "assistant",
+    "content": "Ramapo has Admissions for undergraduate applicants and Graduate Admissions for graduate programs."
+   }
+  ],
+  "question": "ok whats the deadline for them",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-14",
+  "history": [
+   {
+    "role": "user",
+    "content": "can i take the clep exam here"
+   },
+   {
+    "role": "assistant",
+    "content": "Yes, the Testing Center administers CLEP exams on campus."
+   }
+  ],
+  "question": "how much is it and how do i sign up",
+  "expected": "answer",
+  "office": "Testing Center"
+ },
+ {
+  "id": "followups-15",
+  "history": [
+   {
+    "role": "user",
+    "content": "i cant afford to pay my whole fall balance at once"
+   },
+   {
+    "role": "assistant",
+    "content": "Student Accounts can set you up with a tuition payment plan, and Financial Aid can look at whether you qualify for more aid."
+   }
+  ],
+  "question": "do i need to bring anything with me",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-16",
+  "history": [
+   {
+    "role": "user",
+    "content": "who handles my refund and who handles my aid package"
+   },
+   {
+    "role": "assistant",
+    "content": "Student Accounts handles refunds, including direct deposit of your refunds. Financial Aid handles your aid package, FAFSA and satisfactory academic progress."
+   }
+  ],
+  "question": "whats the hours for the refund one",
+  "expected": "answer",
+  "office": "Student Accounts"
+ },
+ {
+  "id": "followups-17",
+  "history": [
+   {
+    "role": "user",
+    "content": "i want to bring my emotional support dog to my dorm"
+   },
+   {
+    "role": "assistant",
+    "content": "The Office of Specialized Services reviews emotional support animal requests."
+   },
+   {
+    "role": "user",
+    "content": "does that cover the housing part too"
+   },
+   {
+    "role": "assistant",
+    "content": "Housing & Residence Life handles the housing side, so you'll end up working with both offices."
+   }
+  ],
+  "question": "ok what forms do i need from them",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-18",
+  "history": [
+   {
+    "role": "user",
+    "content": "where can i study in a group quietly"
+   },
+   {
+    "role": "assistant",
+    "content": "The Library has study rooms you can reserve for groups."
+   },
+   {
+    "role": "user",
+    "content": "nice, do they have whiteboards in them"
+   },
+   {
+    "role": "assistant",
+    "content": "I don't have details on what's in each room, but the Library staff can tell you."
+   }
+  ],
+  "question": "ok can i book one for tomorrow night",
+  "expected": "answer",
+  "office": "Library"
+ },
+ {
+  "id": "followups-19",
+  "history": [
+   {
+    "role": "user",
+    "content": "i need help with my research paper, like finding sources and also structuring it"
+   },
+   {
+    "role": "assistant",
+    "content": "The Library can help you find sources, and the Center for Reading and Writing can help with structure and drafting."
+   }
+  ],
+  "question": "are they open late tonight",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-20",
+  "history": [
+   {
+    "role": "user",
+    "content": "i have adhd and my doctor said i need extra time on tests"
+   },
+   {
+    "role": "assistant",
+    "content": "The Office of Specialized Services handles academic accommodations like extended time and alternative testing."
+   }
+  ],
+  "question": "what do i need to bring to the first meeting",
+  "expected": "answer",
+  "office": "Office of Specialized Services"
+ },
+ {
+  "id": "followups-21",
+  "history": [
+   {
+    "role": "user",
+    "content": "a guy in my dorm keeps harassing me and i dont know where to report it"
+   },
+   {
+    "role": "assistant",
+    "content": "You can go to Title IX, or to the Office of Student Conduct if you want it handled through the conduct process."
+   }
+  ],
+  "question": "is it confidential there",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-22",
+  "history": [
+   {
+    "role": "user",
+    "content": "can i get a campus tour this weekend"
+   },
+   {
+    "role": "assistant",
+    "content": "Admissions runs campus tours. You can sign up for one through their page."
+   },
+   {
+    "role": "user",
+    "content": "also is there a fafsa deadline"
+   },
+   {
+    "role": "assistant",
+    "content": "Financial Aid handles FAFSA and can tell you the priority deadlines."
+   },
+   {
+    "role": "user",
+    "content": "and where do i apply for housing"
+   },
+   {
+    "role": "assistant",
+    "content": "Housing & Residence Life handles housing applications."
+   }
+  ],
+  "question": "sorry back to the tour, can i bring my parents with me",
+  "expected": "answer",
+  "office": "Admissions"
+ },
+ {
+  "id": "followups-23",
+  "history": [
+   {
+    "role": "user",
+    "content": "im stressed out, i need to withdraw from housing, and i also have to drop a class"
+   },
+   {
+    "role": "assistant",
+    "content": "Housing & Residence Life handles housing withdrawals, the Registrar handles dropping a course, and the Counseling Center can talk with you about the stress."
+   }
+  ],
+  "question": "do they take walk-ins",
+  "expected": "ask"
+ },
+ {
+  "id": "followups-24",
+  "history": [
+   {
+    "role": "user",
+    "content": "my professor and i got into a huge argument and now i dont know what to do"
+   },
+   {
+    "role": "assistant",
+    "content": "The Ombuds Office can help mediate, the Dean of Students can talk through your options, and the Center for Student Success (Academic Advising) can help if you need to switch sections."
+   }
+  ],
+  "question": "are they open on saturdays",
+  "expected": "ask"
+ },
+ {
+  "id": "wording-01",
+  "history": [],
+  "question": "how do i get an official transcript sent to another school",
+  "expected": "answer",
+  "office": "Registrar"
+ },
+ {
+  "id": "wording-02",
+  "history": [],
+  "question": "whats the phone number for public safety",
+  "expected": "ask"
+ },
+ {
+  "id": "wording-03",
+  "history": [],
+  "question": "i lost my student id, where do i get a new one",
+  "expected": "answer",
+  "office": "ID Card Room"
+ },
+ {
+  "id": "wording-04",
+  "history": [],
+  "question": "need help with my cover letter, who do i go to",
+  "expected": "soft",
+  "disputed": {
+   "writer": {
+    "expected": "ask",
+    "office": ""
+   },
+   "labelers": [
+    {
+     "id": "wording-04",
+     "expected": "answer",
+     "office": "Cahill Career Development Center"
+    },
+    {
+     "id": "wording-04",
+     "expected": "answer",
+     "office": "Cahill Career Development Center"
+    }
+   ]
+  }
+ },
+ {
+  "id": "wording-05",
+  "history": [],
+  "question": "i forgot my password and cant get into my email",
+  "expected": "answer",
+  "office": "IT Help Desk"
+ },
+ {
+  "id": "wording-06",
+  "history": [],
+  "question": "i cant afford my tuition bill this month, what can i do",
+  "expected": "ask"
+ },
+ {
+  "id": "wording-07",
+  "history": [],
+  "question": "where do i buy a shortline bus ticket to the city",
+  "expected": "answer",
+  "office": "Roadrunner Central"
+ },
+ {
+  "id": "wording-08",
+  "history": [],
+  "question": "i want to drop a class, how do i do it and will i get my money back",
+  "expected": "ask"
+ },
+ {
+  "id": "wording-09",
+  "history": [],
+  "question": "how do i sign up to take the CLEP exam",
+  "expected": "answer",
+  "office": "Testing Center"
+ },
+ {
+  "id": "wording-10",
+  "history": [],
+  "question": "i have a medical condition and need a single room next semester, who do i talk to",
+  "expected": "ask"
+ },
+ {
+  "id": "wording-11",
+  "history": [],
+  "question": "when is the deadline to file the FAFSA",
+  "expected": "answer",
+  "office": "Financial Aid"
+ },
+ {
+  "id": "wording-12",
+  "history": [],
+  "question": "i fell on the stairs outside my dorm and think i sprained my ankle, who do i call",
+  "expected": "ask"
+ },
+ {
+  "id": "wording-13",
+  "history": [],
+  "question": "how do i register for disability accommodations? i have adhd",
+  "expected": "answer",
+  "office": "Office of Specialized Services"
+ },
+ {
+  "id": "wording-14",
+  "history": [],
+  "question": "theres a hold on my account and i cant register for classes",
+  "expected": "ask"
+ },
+ {
+  "id": "wording-15",
+  "history": [],
+  "question": "how do i make an appointment with a counselor",
+  "expected": "answer",
+  "office": "Counseling Center"
+ },
+ {
+  "id": "wording-16",
+  "history": [],
+  "question": "my professor gave me a grade i think is wrong and wont talk to me about it, who can help",
+  "expected": "ask"
+ },
+ {
+  "id": "wording-17",
+  "history": [],
+  "question": "i got a parking ticket, how do i pay it or appeal it",
+  "expected": "answer",
+  "office": "Public Safety (Non-Emergency)"
+ },
+ {
+  "id": "wording-18",
+  "history": [],
+  "question": "my roommate is making my life miserable, who can i talk to",
+  "expected": "soft",
+  "disputed": {
+   "writer": {
+    "expected": "ask",
+    "office": ""
+   },
+   "labelers": [
+    {
+     "id": "wording-18",
+     "expected": "answer",
+     "office": "Housing & Residence Life"
+    },
+    {
+     "id": "wording-18",
+     "expected": "answer",
+     "office": "Housing & Residence Life"
+    }
+   ]
+  }
+ },
+ {
+  "id": "wording-19",
+  "history": [],
+  "question": "can i reserve a study room for me and my group",
+  "expected": "answer",
+  "office": "Library"
+ },
+ {
+  "id": "wording-20",
+  "history": [],
+  "question": "can i take my midterm in a quiet room by myself, i get really anxious in big rooms",
+  "expected": "soft",
+  "disputed": {
+   "writer": {
+    "expected": "ask",
+    "office": ""
+   },
+   "labelers": [
+    {
+     "id": "wording-20",
+     "expected": "answer",
+     "office": "Office of Specialized Services"
+    },
+    {
+     "id": "wording-20",
+     "expected": "answer",
+     "office": "Office of Specialized Services"
+    }
+   ]
+  }
+ },
+ {
+  "id": "wording-21",
+  "history": [],
+  "question": "where do i turn in my immunization records",
+  "expected": "answer",
+  "office": "Health Services"
+ },
+ {
+  "id": "wording-22",
+  "history": [],
+  "question": "i changed my name legally and need it updated, where do i go",
+  "expected": "soft",
+  "disputed": {
+   "writer": {
+    "expected": "ask",
+    "office": ""
+   },
+   "labelers": [
+    {
+     "id": "wording-22",
+     "expected": "answer",
+     "office": "Registrar"
+    },
+    {
+     "id": "wording-22",
+     "expected": "answer",
+     "office": "Registrar"
+    }
+   ]
+  }
+ },
+ {
+  "id": "wording-23",
+  "history": [],
+  "question": "how can i set up a tuition payment plan",
+  "expected": "answer",
+  "office": "Student Accounts"
+ },
+ {
+  "id": "wording-24",
+  "history": [],
+  "question": "i saw a student threatening people in the student center, who do i report that to",
+  "expected": "ask"
+ }
+]
