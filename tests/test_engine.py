@@ -1086,3 +1086,33 @@ def test_a_recalled_quote_keeps_published_text_that_looks_like_markup() -> None:
     earlier = f"**Registrar**\n\nNote: {literal(published)} [source](https://example.edu/x)"
     plain = readable_quote(earlier, "assistant")
     assert plain == f"Registrar\n\nNote: {published} source"
+
+
+def test_a_not_911_message_is_answered_beside_the_emergency_text() -> None:
+    from rockygpt_brain.boundary import check
+
+    def floor(text: str) -> Any:
+        request = ChatRequest.model_validate({"messages": [{"role": "user", "content": text}]})
+        return check(intake(request, now=NOW))
+
+    # Only a mention of 911 that says it is not one: the emergency text stays, the answer follows.
+    for text in ("whats the number for that, not 911 obviously lol",
+                 "its not a 911 thing, just a parking question", "non 911 but who do i call"):
+        result = floor(text)
+        assert result.kind == "safety" and result.also_answer is True
+    # Anything specific, or 911 said another way, is the floor's reply alone.
+    for text in ("its not 911 but my friend isnt breathing", "should i call 911",
+                 "i cant call 911 he is outside", "i need 911"):
+        result = floor(text)
+        assert result.kind == "safety" and result.also_answer is False
+
+
+def test_a_floor_situation_puts_the_emergency_text_first_and_still_answers() -> None:
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "registrar email, not 911 obviously lol"}]})
+    engine = ChatEngine(ScriptedGateway(LOOKUP, finish()), facts())  # type: ignore[arg-type]
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request, floor_situation="other"))
+    text = result.body["answer"]
+    assert text.startswith(SAFETY_MESSAGE)
+    assert "published@example.edu" in text
+    assert result.body["status"] == "partial"

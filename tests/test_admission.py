@@ -32,7 +32,8 @@ class BoundaryEngine(ChatEngine):
     async def readiness(self) -> bool:
         return True
 
-    async def answer(self, turn: Turn, request: ChatRequest) -> ChatResult:
+    async def answer(self, turn: Turn, request: ChatRequest, *,
+                     floor_situation: str | None = None) -> ChatResult:
         self.calls += 1
         self.started.set()
         if self.error:
@@ -151,8 +152,9 @@ def test_whole_turn_deadline_stops_work() -> None:
 
 
 class TracedEngine(BoundaryEngine):
-    async def answer(self, turn: Turn, request: ChatRequest) -> ChatResult:
-        result = await super().answer(turn, request)
+    async def answer(self, turn: Turn, request: ChatRequest, *,
+                     floor_situation: str | None = None) -> ChatResult:
+        result = await super().answer(turn, request, floor_situation=floor_situation)
         return ChatResult(result.status_code, result.body, trace={
             "decidedBy": "model", "modelCalls": 2, "lookups": [{"tool": "graph_lookup"}]})
 
