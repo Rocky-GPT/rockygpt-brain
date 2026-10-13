@@ -1,0 +1,1086 @@
+[
+ {
+  "id": "short-01",
+  "history": [],
+  "question": "reg phone #",
+  "office": "Registrar",
+  "needs": [
+   "phones"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-02",
+  "history": [],
+  "question": "fin aid email?",
+  "office": "Financial Aid",
+  "needs": [
+   "email"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-03",
+  "history": [],
+  "question": "librery close time fri",
+  "office": "Library",
+  "needs": [
+   "hours"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-04",
+  "history": [],
+  "question": "wheres the tesing center",
+  "office": "Testing Center",
+  "needs": [
+   "offices"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-05",
+  "history": [],
+  "question": "counseling hrs",
+  "office": "Counseling Center",
+  "needs": [
+   "hours"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-06",
+  "history": [],
+  "question": "lost id card where do i go",
+  "office": "ID Card Room",
+  "needs": [
+   "offices"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-07",
+  "history": [],
+  "question": "its help desk number",
+  "office": "IT Help Desk",
+  "needs": [
+   "phones"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-08",
+  "history": [],
+  "question": "health center website",
+  "office": "Health Services",
+  "needs": [
+   "website"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-09",
+  "history": [],
+  "question": "does bursar prefer email",
+  "office": "Student Accounts",
+  "needs": [
+   "prefers_email"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-10",
+  "history": [],
+  "question": "ehs email",
+  "office": "Environmental Health and Safety",
+  "needs": [
+   "email"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-11",
+  "history": [],
+  "question": "oss room number",
+  "office": "Office of Specialized Services",
+  "needs": [
+   "offices"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-12",
+  "history": [],
+  "question": "title ix contact",
+  "office": "Title IX",
+  "needs": [
+   "email",
+   "phones"
+  ],
+  "generic": true,
+  "scored": true
+ },
+ {
+  "id": "short-13",
+  "history": [],
+  "question": "dual enrollment who do i talk to",
+  "office": "Admissions",
+  "needs": [
+   "contact_note"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-14",
+  "history": [],
+  "question": "lost & found where",
+  "office": "Public Safety (Non-Emergency)",
+  "needs": [
+   "offices"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-15",
+  "history": [],
+  "question": "eof hours",
+  "office": "Educational Opportunity Fund (EOF) Program",
+  "needs": [
+   "hours"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-16",
+  "history": [],
+  "question": "crw hrs",
+  "office": "Center for Reading and Writing",
+  "needs": [
+   "hours"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-17",
+  "history": [],
+  "question": "nursing programs office email",
+  "office": "Nursing Programs Office",
+  "needs": [
+   "email"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-18",
+  "history": [],
+  "question": "photo lab open weekends",
+  "office": "Photography Lab",
+  "needs": [
+   "hours"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-19",
+  "history": [],
+  "question": "payroll fax number",
+  "office": "Payroll",
+  "needs": [
+   "phones"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-20",
+  "history": [],
+  "question": "dean of students best way to contact",
+  "office": "Dean of Students",
+  "needs": [
+   "preferred_contact"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-21",
+  "history": [],
+  "question": "grad admissions site",
+  "office": "Graduate Admissions",
+  "needs": [
+   "website"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-22",
+  "history": [],
+  "question": "ombuds contact",
+  "office": "Ombuds Office",
+  "needs": [
+   "email",
+   "phones"
+  ],
+  "generic": true,
+  "scored": true
+ },
+ {
+  "id": "short-23",
+  "history": [],
+  "question": "what dept is res life in",
+  "office": "Housing & Residence Life",
+  "needs": [
+   "department"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "short-24",
+  "history": [],
+  "question": "cahill location",
+  "office": "Cahill Career Development Center",
+  "needs": [
+   "offices"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-01",
+  "history": [],
+  "question": "My daughter is a junior in high school in Wyckoff and she's been talking about Ramapo ever since we went to a college fair. We have a few questions about the application and about visiting campus before she decides. How can we get in touch with the admissions office?",
+  "office": "Admissions",
+  "needs": [
+   "email",
+   "phones"
+  ],
+  "generic": true,
+  "scored": true
+ },
+ {
+  "id": "natural-02",
+  "history": [],
+  "question": "I finished my undergrad at Rutgers a few years ago and I've been working full time as a paralegal ever since. I'm thinking about going back for a master's degree at night. Where is the Graduate Admissions office, and what's the email address for it?",
+  "office": "Graduate Admissions",
+  "needs": [
+   "email",
+   "offices"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-03",
+  "history": [],
+  "question": "I'm a junior and I've honestly never set foot in career services because I always felt like I wasn't ready. There's an internship fair next month and I want someone to look over my resume before then. Does the Career Center prefer that students email first to set something up, and what are their hours?",
+  "office": "Cahill Career Development Center",
+  "needs": [
+   "hours",
+   "prefers_email"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-04",
+  "history": [],
+  "question": "Midterms have been rough and I've been having trouble sleeping and keep getting overwhelmed in the middle of class. A friend told me I should talk to someone at school, but I have no idea where to start. How do I get in touch with the Counseling Center?",
+  "office": "Counseling Center",
+  "needs": [
+   "email",
+   "phones"
+  ],
+  "generic": true,
+  "scored": true
+ },
+ {
+  "id": "natural-05",
+  "history": [],
+  "question": "I'm a transfer student and my FAFSA got selected for verification, so apparently I have to send in tax documents. I've been getting conflicting advice about whether to call, email, or just come in. How does Financial Aid prefer to be contacted?",
+  "office": "Financial Aid",
+  "needs": [
+   "preferred_contact"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-06",
+  "history": [],
+  "question": "I started working as a student assistant in the library three weeks ago and I still haven't gotten a paycheck. I'm worried I filled out a form wrong when I was hired. What's the phone number for Payroll, and what hours are they open?",
+  "office": "Payroll",
+  "needs": [
+   "hours",
+   "phones"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-07",
+  "history": [],
+  "question": "My parents are covering my tuition and they asked me to find out about setting up a payment plan so they don't have to pay it in one lump sum. I told them I'd ask where to go. Where is the Student Accounts office, and what time does it close on weekdays?",
+  "office": "Student Accounts",
+  "needs": [
+   "hours",
+   "offices"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-08",
+  "history": [],
+  "question": "I got a new phone last week and now I can't get past the two-factor authentication to log into Canvas. I've been locked out since this morning and I have a paper due tonight. Where is the IT Help Desk, and what hours is it open?",
+  "office": "IT Help Desk",
+  "needs": [
+   "hours",
+   "offices"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-09",
+  "history": [],
+  "question": "I commute from Paterson and my evening class doesn't end until 8:30, so I usually end up with a long gap before my bus. I'd like to study at the library afterwards, but I don't know how late it stays open on weeknights. What are the Library's hours?",
+  "office": "Library",
+  "needs": [
+   "hours"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-10",
+  "history": [],
+  "question": "I'm pretty sure I have strep throat because my throat is killing me and my roommate just had it. I've never used the health center on campus and I don't know how appointments work. How should I go about getting seen, and what number do I call?",
+  "office": "Health Services",
+  "needs": [
+   "contact_note",
+   "phones"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-11",
+  "history": [],
+  "question": "I'm a first-year and my roommate and I are not getting along at all. I talked to my RA and nothing has changed, so I'd like to switch rooms. Who in Res Life should I go to about a room change, and what's their email?",
+  "office": "Housing & Residence Life",
+  "needs": [
+   "contact_note",
+   "email"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-12",
+  "history": [],
+  "question": "I was diagnosed with ADHD in high school and had extended time on tests there. I'm transferring in January and I want my accommodations ready before classes start. Where is the Office of Specialized Services, and what's the best way to reach them?",
+  "office": "Office of Specialized Services",
+  "needs": [
+   "offices",
+   "preferred_contact"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-13",
+  "history": [],
+  "question": "My night class gets out at 9:45 and the lot where I park is far from the building and pretty dark. A classmate told me campus safety will walk you to your car if you ask. What number do I call to request an escort?",
+  "office": "Public Safety (Emergency)",
+  "needs": [
+   "phones"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-14",
+  "history": [],
+  "question": "I got a parking ticket in one of the commuter lots even though I had my permit hanging from the mirror. I'd like to dispute it but I've never dealt with this before. What's the best way to contact Public Safety about a citation, and when are they open?",
+  "office": "Public Safety (Non-Emergency)",
+  "needs": [
+   "hours",
+   "preferred_contact"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-15",
+  "history": [],
+  "question": "A close friend told me something happened to her at an off-campus party and she isn't sure she wants to report it. I want to help her but I don't know how the Title IX office works. How would she go about reaching out to them, and what's their email?",
+  "office": "Title IX",
+  "needs": [
+   "contact_note",
+   "email"
+  ],
+  "generic": false,
+  "scored": false,
+  "disputed": {
+   "writer": [
+    "contact_note",
+    "email"
+   ],
+   "labelers": [
+    [
+     "email",
+     "phones"
+    ],
+    [
+     "email",
+     "phones"
+    ]
+   ]
+  }
+ },
+ {
+  "id": "natural-16",
+  "history": [],
+  "question": "I'm a transfer student and my advisor said I have to take the ACCUPLACER placement test before I can register for a math class. I work mornings, so I'm hoping to find a time in the afternoon. What hours is the Testing Center open, and where is it?",
+  "office": "Testing Center",
+  "needs": [
+   "hours",
+   "offices"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-17",
+  "history": [],
+  "question": "I lost my wallet over the weekend and my student ID was in it. I need it to get into my dorm and to swipe into the dining hall. Where do I go to get a new one, and are they open on Saturdays?",
+  "office": "ID Card Room",
+  "needs": [
+   "hours",
+   "offices"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-18",
+  "history": [],
+  "question": "My mom was in the hospital for two weeks and I missed a lot of classes. My professors aren't sure how to handle it, and a friend said the Dean of Students can help but I'm not sure how to approach them. How should I go about contacting them, and do they have a web page?",
+  "office": "Dean of Students",
+  "needs": [
+   "contact_note",
+   "website"
+  ],
+  "generic": false,
+  "scored": false,
+  "disputed": {
+   "writer": [
+    "contact_note",
+    "website"
+   ],
+   "labelers": [
+    [
+     "email",
+     "phones",
+     "website"
+    ],
+    [
+     "email",
+     "phones",
+     "website"
+    ]
+   ]
+  }
+ },
+ {
+  "id": "natural-19",
+  "history": [],
+  "question": "A few friends and I started an anime club and we want it officially recognized so we can reserve rooms and apply for funding. We're kind of lost on the process. Does the Center for Student Involvement have an email and a web page that explains how to register a club?",
+  "office": "Center for Student Involvement",
+  "needs": [
+   "email",
+   "website"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-20",
+  "history": [],
+  "question": "My son is a senior in high school in Newark and his guidance counselor mentioned the EOF program at Ramapo. We're a low-income family and I don't know much about it. How do I get in touch with the EOF office?",
+  "office": "Educational Opportunity Fund (EOF) Program",
+  "needs": [
+   "email",
+   "phones"
+  ],
+  "generic": true,
+  "scored": true
+ },
+ {
+  "id": "natural-21",
+  "history": [],
+  "question": "I got an email saying I have to attend a conduct hearing next week about an incident in my residence hall. I'm nervous and I'm not sure what to expect. Where is the Office of Student Conduct, and what number can I call with questions?",
+  "office": "Office of Student Conduct",
+  "needs": [
+   "offices",
+   "phones"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-22",
+  "history": [],
+  "question": "I'm a grad student and things with my thesis advisor have gotten really tense. I don't want to file a formal complaint, I just want to talk through my options in confidence. How do I get in touch with the Ombuds Office?",
+  "office": "Ombuds Office",
+  "needs": [
+   "email",
+   "phones"
+  ],
+  "generic": true,
+  "scored": true
+ },
+ {
+  "id": "natural-23",
+  "history": [],
+  "question": "My grandmother's birthday is coming up and I want to surprise her with tickets to a show at the Berrie Center. I'm not sure how the box office works. What's the box office phone number, and what time does it open on weekdays?",
+  "office": "Berrie Center Box Office",
+  "needs": [
+   "hours",
+   "phones"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "natural-24",
+  "history": [],
+  "question": "I'm a retired police detective in Ohio and I read that Ramapo runs a genetic genealogy certificate program. I'd like to learn more before I commit to anything. Is there a web page about the program, and which part of the college is it run out of?",
+  "office": "Investigative Genetic Genealogy Center",
+  "needs": [
+   "department",
+   "website"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-01",
+  "history": [
+   {
+    "role": "user",
+    "content": "how do i get my official transcript sent to rutgers? transferring out in the spring"
+   },
+   {
+    "role": "assistant",
+    "content": "The Registrar sends official transcripts. You place the request with them and they send it to the school you name."
+   }
+  ],
+  "question": "ok cool where do i actually go to do that",
+  "office": "Registrar",
+  "needs": [
+   "offices"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-02",
+  "history": [
+   {
+    "role": "user",
+    "content": "fafsa says im missing a document and idk which one"
+   },
+   {
+    "role": "assistant",
+    "content": "Financial Aid can see what is still outstanding on your FAFSA file and tell you what they need from you."
+   }
+  ],
+  "question": "can i just text them or is it calls only",
+  "office": "Financial Aid",
+  "needs": [
+   "phones"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-03",
+  "history": [
+   {
+    "role": "user",
+    "content": "finals got me spiraling ngl"
+   },
+   {
+    "role": "assistant",
+    "content": "That sounds heavy. The Counseling Center offers counseling to Ramapo students and can help with stress and anxiety."
+   }
+  ],
+  "question": "til what time are they in tho, i have class till 5",
+  "office": "Counseling Center",
+  "needs": [
+   "hours"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-04",
+  "history": [
+   {
+    "role": "user",
+    "content": "my girlfriend wants to catch a show at the berrie center this weekend"
+   },
+   {
+    "role": "assistant",
+    "content": "The Berrie Center Box Office handles tickets for the shows there."
+   }
+  ],
+  "question": "do they got a site where i can just buy them",
+  "office": "Berrie Center Box Office",
+  "needs": [
+   "website"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-05",
+  "history": [
+   {
+    "role": "user",
+    "content": "my ramapo email keeps asking for a code and i never set that up"
+   },
+   {
+    "role": "assistant",
+    "content": "That sounds like two-factor authentication. The IT Help Desk can help you get that sorted out."
+   }
+  ],
+  "question": "bet. how do i get ahold of them",
+  "office": "IT Help Desk",
+  "needs": [
+   "email",
+   "phones"
+  ],
+  "generic": true,
+  "scored": true
+ },
+ {
+  "id": "multiturn-06",
+  "history": [
+   {
+    "role": "user",
+    "content": "dorm form says i need my shots updated before move in"
+   },
+   {
+    "role": "assistant",
+    "content": "Health Services handles immunization records and can confirm which vaccines you need to have on file."
+   }
+  ],
+  "question": "are they open on weekends or nah",
+  "office": "Health Services",
+  "needs": [
+   "hours"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-07",
+  "history": [
+   {
+    "role": "user",
+    "content": "freshman here, roommate situation is a mess and i wanna switch rooms"
+   },
+   {
+    "role": "assistant",
+    "content": "Housing & Residence Life handles room changes, so that is the office to start with."
+   }
+  ],
+  "question": "who do i email about it",
+  "office": "Housing & Residence Life",
+  "needs": [
+   "email"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-08",
+  "history": [
+   {
+    "role": "user",
+    "content": "lost my card at the pub and now my dorm door wont open"
+   },
+   {
+    "role": "assistant",
+    "content": "The ID Card Room can issue you a replacement ID card."
+   }
+  ],
+  "question": "wheres that at and whats their number",
+  "office": "ID Card Room",
+  "needs": [
+   "offices",
+   "phones"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-09",
+  "history": [
+   {
+    "role": "user",
+    "content": "someone dinged my car in the lot and just left, im a commuter"
+   },
+   {
+    "role": "assistant",
+    "content": "Public Safety's non-emergency side handles reports like that, along with parking issues."
+   }
+  ],
+  "question": "whats the best way to reach them, call or just walk in",
+  "office": "Public Safety (Non-Emergency)",
+  "needs": [
+   "preferred_contact"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-10",
+  "history": [
+   {
+    "role": "user",
+    "content": "need an internship lined up for summer, im a junior and panicking"
+   },
+   {
+    "role": "assistant",
+    "content": "The Cahill Career Development Center helps with internships and has postings on Handshake."
+   }
+  ],
+  "question": "do i gotta book a time or can i just pop in",
+  "office": "Cahill Career Development Center",
+  "needs": [
+   "contact_note"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-11",
+  "history": [
+   {
+    "role": "user",
+    "content": "grad student here, my tuition bill is wild. can i pay it in chunks"
+   },
+   {
+    "role": "assistant",
+    "content": "Student Accounts offers tuition payment plans that let you spread the cost out."
+   }
+  ],
+  "question": "whats the email for that",
+  "office": "Student Accounts",
+  "needs": [
+   "email"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-12",
+  "history": [
+   {
+    "role": "user",
+    "content": "i have adhd and need extra time on exams"
+   },
+   {
+    "role": "assistant",
+    "content": "The Office of Specialized Services handles accommodations, including alternative testing."
+   }
+  ],
+  "question": "they got a link i can read thru first",
+  "office": "Office of Specialized Services",
+  "needs": [
+   "website"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-13",
+  "history": [
+   {
+    "role": "user",
+    "content": "im a transfer, do i have to take some placement test before i register"
+   },
+   {
+    "role": "assistant",
+    "content": "The Testing Center runs placement testing such as ACCUPLACER for students who need it."
+   }
+  ],
+  "question": "k what building is that in, im a commuter and always lost",
+  "office": "Testing Center",
+  "needs": [
+   "offices"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-14",
+  "history": [
+   {
+    "role": "user",
+    "content": "a guy in my class keeps messaging me stuff that makes me uncomfortable"
+   },
+   {
+    "role": "assistant",
+    "content": "I'm sorry that's happening. The Title IX office handles sexual harassment and can go over your options and resources."
+   }
+  ],
+  "question": "ok whats the number i call",
+  "office": "Title IX",
+  "needs": [
+   "phones"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-15",
+  "history": [
+   {
+    "role": "user",
+    "content": "my daughter is a junior and wants to see ramapo before she applies"
+   },
+   {
+    "role": "assistant",
+    "content": "Admissions runs campus tours, so they can help you set up a visit."
+   }
+  ],
+  "question": "thanks, are they open saturdays? we both work weekdays",
+  "office": "Admissions",
+  "needs": [
+   "hours"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-16",
+  "history": [
+   {
+    "role": "user",
+    "content": "just got my eof acceptance, do i have to come early or something"
+   },
+   {
+    "role": "assistant",
+    "content": "The EOF program runs a Summer Studies Institute for incoming students before the fall semester."
+   }
+  ],
+  "question": "ok do they prefer email or what, i never pick up unknown numbers",
+  "office": "Educational Opportunity Fund (EOF) Program",
+  "needs": [
+   "prefers_email"
+  ],
+  "generic": false,
+  "scored": false,
+  "disputed": {
+   "writer": [
+    "prefers_email"
+   ],
+   "labelers": [
+    [
+     "preferred_contact",
+     "prefers_email"
+    ],
+    [
+     "preferred_contact",
+     "prefers_email"
+    ]
+   ]
+  }
+ },
+ {
+  "id": "multiturn-17",
+  "history": [
+   {
+    "role": "user",
+    "content": "heard u can rent a locker on campus, is that real"
+   },
+   {
+    "role": "assistant",
+    "content": "Yes, the Center for Student Involvement handles locker rentals."
+   }
+  ],
+  "question": "is there a link to sign up",
+  "office": "Center for Student Involvement",
+  "needs": [
+   "website"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-18",
+  "history": [
+   {
+    "role": "user",
+    "content": "got a 10 pager due friday and my thesis is trash"
+   },
+   {
+    "role": "assistant",
+    "content": "The Center for Reading and Writing helps students with papers at any stage, including brainstorming and revising."
+   }
+  ],
+  "question": "whats their email, wanna send the draft ahead of time",
+  "office": "Center for Reading and Writing",
+  "needs": [
+   "email"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-19",
+  "history": [
+   {
+    "role": "user",
+    "content": "i work in the chem stockroom and need the safety data sheet for some solvent"
+   },
+   {
+    "role": "assistant",
+    "content": "Environmental Health and Safety keeps the Safety Data Sheets and can point you to the right one."
+   }
+  ],
+  "question": "ok and where do they sit",
+  "office": "Environmental Health and Safety",
+  "needs": [
+   "offices"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-20",
+  "history": [
+   {
+    "role": "user",
+    "content": "need to withdraw for a semester, family stuff came up"
+   },
+   {
+    "role": "assistant",
+    "content": "The Dean of Students office can walk you through your options and the support available when something like that comes up."
+   }
+  ],
+  "question": "can i call them right now",
+  "office": "Dean of Students",
+  "needs": [
+   "hours",
+   "phones"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-21",
+  "history": [
+   {
+    "role": "user",
+    "content": "me and my prof are not getting along and idk who im supposed to go to"
+   },
+   {
+    "role": "assistant",
+    "content": "There is an office for exactly that, and it offers confidential, informal help with conflicts, including mediation."
+   }
+  ],
+  "question": "wait whats it called, i wanna write it down",
+  "office": "Ombuds Office",
+  "needs": [
+   "name"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-22",
+  "history": [
+   {
+    "role": "user",
+    "content": "nursing major here, where do i find the student handbook"
+   },
+   {
+    "role": "assistant",
+    "content": "The Nursing Programs Office is the place that has the Nursing Student Handbook."
+   }
+  ],
+  "question": "what department is that part of anyway",
+  "office": "Nursing Programs Office",
+  "needs": [
+   "department"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-23",
+  "history": [
+   {
+    "role": "user",
+    "content": "can i use the darkroom if im not a photo major"
+   },
+   {
+    "role": "assistant",
+    "content": "The Photography Lab runs the darkroom and the lighting studio, and access is something you would sort out with them."
+   }
+  ],
+  "question": "k and who actually runs it, is there someone im supposed to ask",
+  "office": "Photography Lab",
+  "needs": [
+   "contact_note"
+  ],
+  "generic": false,
+  "scored": true
+ },
+ {
+  "id": "multiturn-24",
+  "history": [
+   {
+    "role": "user",
+    "content": "i played soccer in hs and wanna walk on, is that even a thing here"
+   },
+   {
+    "role": "assistant",
+    "content": "Athletics is who you would ask about joining a team or trying out."
+   }
+  ],
+  "question": "so how would i even contact them about it",
+  "office": "Athletics",
+  "needs": [
+   "email",
+   "phones"
+  ],
+  "generic": true,
+  "scored": true
+ }
+]
