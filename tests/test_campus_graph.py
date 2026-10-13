@@ -9,7 +9,7 @@ from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.provider import Completion, ToolCall, TurnBudget, Usage
 from rockygpt_brain.retrieval import InvalidFactRequest, MemoryEntityFacts
-from rockygpt_brain.retrieval.campus_graph import CampusGraph
+from rockygpt_brain.retrieval.campus_graph import CampusGraph, named_by_conversation
 from rockygpt_brain.turn import intake
 
 NOW = datetime(2026, 10, 6, 12, tzinfo=UTC)
@@ -115,6 +115,74 @@ def test_the_contact_note_is_not_read_when_it_would_add_nothing(
     assert "also" not in found
 
 
+def public_safety_candidates() -> list[dict[str, Any]]:
+    shared = ["Public Safety", "Campus Police"]
+    return [
+        {"entity_id": "emergency", "name": "Public Safety (Emergency)",
+         "aliases": [*shared, "Emergency Callboxes", "Campus Safety Escorts"], "match": "exact"},
+        {"entity_id": "general", "name": "Public Safety (Non-Emergency)",
+         "aliases": [*shared, "Parking Citations", "Lost & Found"], "match": "exact"},
+    ]
+
+
+@pytest.mark.parametrize("conversation,expected", [
+    # A service only one of the tied offices lists breaks the tie.
+    ("got a parking ticket\nParking citations go through Public Safety.\nwhats the number",
+     "general"),
+    ("where do i report a lost and found item\nwhat number", "general"),
+    ("the emergency callboxes near the library\nwhat is their number", "emergency"),
+    # Nothing in the conversation says which.
+    ("whats the public safety number", None),
+    ("campus police phone", None),
+    # Both offices' services are named: still a question.
+    ("lost and found or emergency callboxes, public safety number", None),
+    # An office's own name never breaks a tie: "not an emergency" has the word "emergency".
+    ("it is not really an emergency, what is the public safety number", None),
+    ("it is a non-emergency, what is the public safety number", None),
+])
+def test_a_service_only_one_tied_office_lists_breaks_the_tie(
+    conversation: str, expected: str | None,
+) -> None:
+    named = named_by_conversation(public_safety_candidates(), conversation)
+    assert (named["entity_id"] if named else None) == expected
+
+
+def public_safety_facts() -> MemoryEntityFacts:
+    def entity(entity_id: str, name: str, aliases: list[str]) -> dict[str, Any]:
+        return {"id": entity_id, "name": name, "kind": "office",
+                "aliases": ["Public Safety", *aliases],
+                "links": [{"collection": "contacts", "source_key": "directory",
+                           "source_record_keys": [entity_id]}]}
+
+    def record(entity_id: str, phone: str) -> dict[str, Any]:
+        return {"id": f"source-{entity_id}", "source_key": "directory",
+                "source_record_key": entity_id, "name": entity_id, "phone": phone,
+                "canonical_url": "https://example.edu/safety", "collected_at": NOW,
+                "freshness_sla_hours": 24}
+
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[entity("emergency", "Public Safety (Emergency)", ["Emergency Callboxes"]),
+                  entity("general", "Public Safety (Non-Emergency)", ["Parking Citations"])],
+        contacts=[record("emergency", "(201) 555-0911"), record("general", "(201) 555-0432")],
+        now=lambda: NOW)
+
+
+def test_a_lookup_that_ties_is_broken_by_the_conversation_only_when_it_is_given() -> None:
+    graph = CampusGraph(public_safety_facts())
+    asked = graph.lookup("Public Safety", ["phones"], NOW)
+    assert "facts" not in asked and len(asked["candidates"]) == 2
+    resolved = CampusGraph(public_safety_facts()).lookup(
+        "Public Safety", ["phones"], NOW, conversation="Parking citations are handled here.")
+    assert resolved["label"] == "Public Safety (Non-Emergency)"
+    assert resolved["by_conversation"] is True
+    # An emergency route reads its own name and is never moved by the conversation.
+    exact = CampusGraph(public_safety_facts()).lookup(
+        "Public Safety (Emergency)", ["phones"], NOW, exact_name_only=True,
+        conversation="parking citations")
+    assert exact["label"] == "Public Safety (Emergency)" and "by_conversation" not in exact
+
+
 def test_a_retired_records_node_is_not_in_the_graph() -> None:
     with pytest.raises(InvalidFactRequest):
         CampusGraph(facts()).inspect("records:registrar", NOW)
@@ -155,3 +223,26 @@ def test_a_graph_lookup_turn_answers_from_the_office_and_records_its_path() -> N
     assert lookup["status"] == "ok"
     assert lookup["office"] == "Registrar"
     assert [node["id"] for node in lookup["path"]] == ["ramapo", "offices", "office:registrar"]
+
+
+def test_a_follow_up_about_a_parking_ticket_reaches_the_office_that_lists_it() -> None:
+    def turn(messages: list[dict[str, str]]) -> dict[str, Any]:
+        request = ChatRequest.model_validate({"messages": messages, "omittedMessages": 0})
+        gateway = Script(
+            call("graph_lookup", {"requests": [{"query": "Public Safety", "fields": ["phones"]}]}),
+            call("finish", {"parts": []}))
+        result = asyncio.run(
+            ChatEngine(gateway, public_safety_facts()).answer(intake(request, now=NOW), request))
+        assert result.trace is not None
+        lookup: dict[str, Any] = result.trace["lookups"][0]
+        return lookup
+
+    ticket = turn([
+        {"role": "user", "content": "got a parking ticket today and i think it was a mistake"},
+        {"role": "assistant", "content": "Parking citations go through Public Safety."},
+        {"role": "user", "content": "whats the number tho"}])
+    assert ticket["status"] == "ok" and ticket["office"] == "Public Safety (Non-Emergency)"
+    assert ticket["resolvedBy"] == "conversation"
+    # With nothing in the conversation to say which, the student is still asked.
+    plain = turn([{"role": "user", "content": "whats the public safety number"}])
+    assert plain["status"] == "ambiguous" and "resolvedBy" not in plain

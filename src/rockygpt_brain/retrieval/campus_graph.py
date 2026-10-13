@@ -9,7 +9,7 @@ follow-up turns.
 from datetime import datetime
 from typing import Any
 
-from rockygpt_brain.retrieval.entity_facts import EntityFacts, InvalidFactRequest
+from rockygpt_brain.retrieval.entity_facts import EntityFacts, InvalidFactRequest, discovery_tokens
 from rockygpt_brain.retrieval.projection import OFFICE_FIELDS
 from rockygpt_brain.timing import measure
 
@@ -57,6 +57,29 @@ def lookup_choice(
     return ("asks" if candidates else "not_found"), candidates
 
 
+def named_by_conversation(
+    candidates: list[dict[str, Any]], conversation: str,
+) -> dict[str, Any] | None:
+    """The one tied candidate that lists, as an alias of its own, a name the conversation used.
+
+    Two offices that share a name ("Public Safety") are a tie the student has not broken. A
+    conversation about a parking ticket has, when only one of them lists "Parking Citations".
+    Only an alias no other candidate also lists counts. The offices' own names do not: their
+    words overlap, and "not an emergency" contains the word "emergency".
+    """
+    words = discovery_tokens(conversation)
+    listed = [{" ".join(alias.casefold().split()) for alias in c["aliases"]} for c in candidates]
+    named = []
+    for index, candidate in enumerate(candidates):
+        others = set().union(*(names for at, names in enumerate(listed) if at != index))
+        for alias in candidate["aliases"]:
+            tokens = discovery_tokens(alias)
+            if " ".join(alias.casefold().split()) not in others and tokens and tokens <= words:
+                named.append(candidate)
+                break
+    return named[0] if len(named) == 1 else None
+
+
 class CampusGraph:
     def __init__(self, facts: EntityFacts, *, dataset_version: str | None = None,
                  identity_hash: str | None = None) -> None:
@@ -79,7 +102,7 @@ class CampusGraph:
         return [dict(self.nodes[key]) for key in self.paths.get(node_id, [])]
 
     def lookup(self, query: str, fields: list[str], as_of: datetime, *,
-               exact_name_only: bool = False) -> dict[str, Any]:
+               exact_name_only: bool = False, conversation: str = "") -> dict[str, Any]:
         """Run one complete root-first traversal, without intermediate model decisions."""
         with measure("Open root · Ramapo"):
             self.open("ramapo", [], as_of)
@@ -96,6 +119,11 @@ class CampusGraph:
         outcome, chosen = lookup_choice(candidates, truncated)
         result = {"candidates": candidates, "truncated": truncated,
                   "dataset_version": self.version, "identity_hash": self.identity_hash}
+        if outcome == "asks" and conversation and not truncated and not exact_name_only:
+            named = named_by_conversation(candidates, conversation)
+            if named is not None:
+                outcome, chosen = "answers", [named]
+                result["by_conversation"] = True
         if outcome != "answers":
             return result
         with measure("Open matched office · read published records · shared entity facts"):
