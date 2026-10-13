@@ -64,16 +64,17 @@ needed. In ONE request, code walks Ramapo -> Offices -> matching office and read
 records. Do not request individual hops or provide node IDs. Root and category links organize
 navigation, not evidence; only linked records supply facts. Batch independent office queries
 together in one tool call.
-published_offices lists every office with the other names it is known by. Send as the query the
-listed name the student's words point to, exactly as listed: a short form, a typo or a nickname
-still points to one. A name that more than one office is known by is a tie: send it as listed
-so the student is asked, unless their words or the conversation point to one office. Keep every
-word that tells offices apart (non-emergency, graduate, summer). If nothing listed fits, or the
-list is null, send the student's own words. Never invent an office name. Take an office from
-the conversation only when the message clearly points back to it (a pronoun, or a missing
-subject such as "and the hours?"); a message that names or describes an office is a new
-question about that wording, even when it resembles an earlier one. An ambiguous match returns
-office choices: ask the student rather than choosing arbitrarily.
+published_offices lists every office with the other names it is known by. When the student's
+words point to one listed office (a short form, a typo or a nickname still does), send that
+name as the query, exactly as listed. A name that more than one office is known by is a tie:
+send it as listed so the student is asked, unless their words or the conversation point to one
+office. Keep every word that tells offices apart (non-emergency, graduate, summer). Never
+invent an office name. If the student names an office that is not listed, or the list is null,
+send their own words. Take an office from the conversation only when the message clearly points
+back to it (a pronoun, or a missing subject such as "and the hours?"); a message that names or
+describes an office is a new question about that wording, even when it resembles an earlier
+one. An ambiguous match returns office choices: ask the student rather than choosing
+arbitrarily.
 A missing match is a limit of available evidence, not proof that the office does not exist.
 Every query, including follow-ups, is traversed from the root. Only offices are available.
 Fields: email (an address), phones (phone numbers with any published call, text or SMS
@@ -113,11 +114,14 @@ public part because another part needs account access or is unsupported.
 Use greeting for a plain hello, thanks for a thank-you or goodbye, okay when the student says an
 earlier emergency, scare or worry is over, was a false alarm, or needs no help now (okay, not
 thanks, even if the student also says thanks), and about when the student asks who or what you are
-or what you can do. Use clarification, with no lookup, when
-the message names no office or service at all (only a requested detail, or a reference the
-conversation does not clearly resolve) instead of guessing. Wording that names or describes an
-office or service, even vaguely, is looked up as written: ambiguous office results already
-include specific office choices, so add no clarification then.
+or what you can do. Use clarification, with no lookup, instead of guessing when the student
+needs something and more than one listed office could handle it (a bill, a hold, a problem with
+a professor), or when a follow-up could mean more than one of the offices the conversation named
+and does not say which. Set its offices to those listed names, exactly as listed, at most four.
+Use clarification with offices empty when the message names no office or service at all (only
+a requested detail, or a reference the conversation does not clearly resolve). Never send a
+description of what the student needs as an office query; that finds nothing. When one listed
+office handles what they need, look that office up.
 Never ask the student to clarify a provider/database outage. Use
 recall with an earlier message_index only when asked what was said in this chat; this quotes
 conversation and does not assert the quoted facts are true today. Use clock only when the student
@@ -163,6 +167,9 @@ class AnswerPart(StrictModel):
     ]
     message_index: int | None = Field(ge=0, le=79)
     situation: Literal["self_harm", "medical", "danger", "fire", "other"] | None
+    # For clarification only: the listed offices the question could mean. Code keeps only names
+    # the published list has; the model never writes the question.
+    offices: list[str] = Field(default_factory=list, max_length=4)
 
 
 class Finish(StrictModel):
@@ -339,6 +346,29 @@ def published_offices(listing: dict[str, Any]) -> list[dict[str, Any]] | None:
         if len(json.dumps(menu, ensure_ascii=False).encode()) <= MAX_OFFICE_LIST_BYTES:
             return menu
     return None
+
+
+def _normal(text: str) -> str:
+    return " ".join(text.casefold().split())
+
+
+def known_office_names(listing: dict[str, Any] | None) -> dict[str, str]:
+    """Each published name, and each alias only one office has, mapped to the office's name."""
+    owners: dict[str, set[str]] = {}
+    for office in (listing or {}).get("offices", []):
+        for text in (office["name"], *office["aliases"]):
+            owners.setdefault(_normal(text), set()).add(office["name"])
+    return {text: next(iter(names)) for text, names in owners.items() if len(names) == 1}
+
+
+def named_options(asked: list[str], known: dict[str, str]) -> list[str]:
+    """The offices the model offered, as published: unknown names are dropped, repeats merged."""
+    found: list[str] = []
+    for name in asked:
+        official = known.get(_normal(name))
+        if official and official not in found:
+            found.append(official)
+    return found
 
 
 def model_input(turn: Turn, context: Context, root: dict[str, Any],
@@ -605,6 +635,7 @@ class ChatEngine:
             identity_hash: str | None = None
             graph = CampusGraph(self.facts)
             trace["root"] = graph.root()
+        listing: dict[str, Any] | None = None
         try:
             async with asyncio.timeout(OFFICE_LIST_SECONDS):
                 listing = await asyncio.to_thread(self.facts.list_offices, limit=500)
@@ -612,6 +643,7 @@ class ChatEngine:
         except (TimeoutError, EvidenceUnavailable):
             # The lookups read the same data and report a failure themselves.
             offices = None
+        known = known_office_names(listing) if offices is not None else {}
         with measure("Prepare model input"):
             inputs = model_input(turn, context, graph.root(), offices)
             # What a tie between offices that share a name may be broken by: the latest message
@@ -692,7 +724,7 @@ class ChatEngine:
             # the turn deadline must never turn an emergency reply into a timeout.
             with measure("Compose final response"):
                 return await self._finish(turn, context, finish, results, version, identity_hash,
-                                          trace)
+                                          trace, known)
         except TimeoutError:
             return self._fallback(turn, results, version, "model_timeout")
         except ValidationError:
@@ -789,7 +821,8 @@ class ChatEngine:
 
     async def _finish(self, turn: Turn, context: Context, finish: Finish,
                       results: dict[str, OfficeResult], version: str | None,
-                      identity_hash: str | None, trace: dict[str, Any]) -> ChatResult:
+                      identity_hash: str | None, trace: dict[str, Any],
+                      known: dict[str, str] | None = None) -> ChatResult:
         chunks: list[str] = []
         citations: dict[str, dict[str, Any]] = {}
         supported = False
@@ -858,9 +891,16 @@ class ChatEngine:
                     limited = True
                 elif part.kind == "clarification":
                     if not lookup_clarified:  # A lookup already asked which office.
-                        parts.append({"kind": "clarification", "afterLookup": False,
-                                      "approved_text": CLARIFICATION_MESSAGE})
-                        chunks.append(CLARIFICATION_MESSAGE)
+                        options = named_options(part.offices, known or {})
+                        text = (AMBIGUOUS_TEXT.format(
+                            names=", ".join(literal(name) for name in options))
+                            if len(options) >= 2 else CLARIFICATION_MESSAGE)
+                        asked_part: dict[str, Any] = {"kind": "clarification",
+                                                      "afterLookup": False, "approved_text": text}
+                        if len(options) >= 2:
+                            asked_part["offices"] = options
+                        parts.append(asked_part)
+                        chunks.append(text)
                     limited = clarify = True
                 elif part.kind == "clock":
                     said = CLOCK_TEXT.format(when=turn.campus_now.strftime(CLOCK_FORMAT))

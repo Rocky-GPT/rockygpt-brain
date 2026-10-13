@@ -420,6 +420,34 @@ def test_the_model_is_shown_the_published_offices_and_the_names_each_goes_by() -
         {"name": "ID Card Room", "also_called": ["Husky Card"]}, {"name": "Registrar"}]
 
 
+def test_a_clarification_names_only_published_offices_and_the_code_writes_the_question() -> None:
+    service = two_offices_and_a_person()
+    result = answer(ScriptedGateway(finish(
+        "clarification", offices=["registrar", "Husky Card", "ID Card Room", "Made Up Office"])),
+        service=service)
+    # An alias one office has resolves to that office, a repeat merges, an unknown name is dropped.
+    assert result.body["answer"] == "Which office do you mean: Registrar, ID Card Room?"
+    assert result.body["status"] == "clarification"
+
+
+def test_a_clarification_with_fewer_than_two_published_offices_is_the_generic_question() -> None:
+    from rockygpt_brain.engine import CLARIFICATION_MESSAGE
+    for offered in ([], ["Registrar"], ["Registrar", "Made Up Office"]):
+        result = answer(ScriptedGateway(finish("clarification", offices=offered)),
+                        service=two_offices_and_a_person())
+        assert result.body["answer"] == CLARIFICATION_MESSAGE
+
+
+def test_known_names_leave_out_an_alias_that_two_offices_share() -> None:
+    from rockygpt_brain.engine import known_office_names, named_options
+    listing = {"offices": [{"name": "A Office", "aliases": ["Shared", "Only A"]},
+                           {"name": "B Office", "aliases": ["Shared"]}]}
+    known = known_office_names(listing)
+    assert known == {"a office": "A Office", "only a": "A Office", "b office": "B Office"}
+    assert named_options(["SHARED", "only  a", "b office"], known) == ["A Office", "B Office"]
+    assert known_office_names(None) == {}
+
+
 def test_a_cut_off_or_oversized_office_list_is_not_shown_as_the_whole_list() -> None:
     from rockygpt_brain.engine import MAX_OFFICE_LIST_BYTES, published_offices
 
