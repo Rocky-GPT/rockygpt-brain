@@ -279,8 +279,11 @@ def test_model_cannot_omit_missing_evidence_to_report_full_success() -> None:
     ("about", "I can't see your personal student records"),
 ])
 def test_small_talk_gets_a_fixed_server_written_reply_not_an_error(kind: str, phrase: str) -> None:
+    # "okay" answers an earlier emergency, so the conversation holds the Brain's own safety reply.
+    earlier = ([{"role": "user", "content": "my friend is not breathing"},
+                {"role": "assistant", "content": SAFETY_MESSAGE}] if kind == "okay" else [])
     result = answer(ScriptedGateway(finish(kind)),
-                    messages=[{"role": "user", "content": "hey"}])
+                    messages=[*earlier, {"role": "user", "content": "hey"}])
     assert result.status_code == 200
     assert result.body["status"] == "answered"
     assert phrase in result.body["answer"]
@@ -418,6 +421,22 @@ def test_the_model_is_shown_the_published_offices_and_the_names_each_goes_by() -
     # Offices only, sorted, each with its other names: no person, no id, no record.
     assert state["published_offices"] == [
         {"name": "ID Card Room", "also_called": ["Husky Card"]}, {"name": "Registrar"}]
+
+
+def test_okay_is_kept_only_when_an_emergency_reply_is_in_the_conversation() -> None:
+    def run(history: list[dict[str, str]]) -> str:
+        messages = [*history, {"role": "user", "content": "its fine now, false alarm"}]
+        result = answer(ScriptedGateway(finish("okay")), messages=messages)
+        text: str = result.body["answer"]
+        return text
+
+    after = run([{"role": "user", "content": "my friend is not breathing"},
+                 {"role": "assistant", "content": SAFETY_MESSAGE}])
+    assert "thanks for letting me know" in after
+    # With no emergency in the conversation it is a misfire, and the student is asked instead.
+    stray = run([{"role": "user", "content": "is there a trading lab"},
+                 {"role": "assistant", "content": "The Trading Lab is in the business school."}])
+    assert "thanks for letting me know" not in stray
 
 
 def test_a_clarification_names_only_published_offices_and_the_code_writes_the_question() -> None:
