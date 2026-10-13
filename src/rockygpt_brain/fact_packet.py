@@ -53,6 +53,7 @@ with a reply cut short; only a real `safety` notice makes the status `emergency`
 """
 
 import json
+import re
 from datetime import date, datetime
 from typing import Any
 
@@ -92,8 +93,49 @@ def _source(raw: dict[str, Any]) -> dict[str, Any]:
     return source
 
 
+_WINDOW = re.compile(
+    r"(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?\s*(?:-|\u2013|\u2014|to|until)\s*"
+    r"(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?")
+
+
+def _minutes(hour: str, minute: str | None, half: str) -> int:
+    return (int(hour) % 12 + (12 if half == "p" else 0)) * 60 + int(minute or 0)
+
+
+def open_now(hours: Any, at: datetime) -> dict[str, str] | None:
+    """Whether a day's listed hours are open at `at`, when they are plain enough to say so.
+
+    Only a plain time range ("8:30am-4:30pm", several joined by commas), "24 hours" or "closed" is
+    read. Anything else, a range that runs past midnight, or words beside the times is left alone:
+    a wrong "open" or "closed" is worse than none. `now` is written the way a person would say the
+    time, so the writer can say it as it is.
+    """
+    if not isinstance(hours, str):
+        return None
+    text = " ".join(hours.casefold().split())
+    clock = at.hour * 60 + at.minute
+    shown = f"{at.hour % 12 or 12}:{at.minute:02d}{'pm' if at.hour >= 12 else 'am'}"
+    if text == "closed":
+        return {"state": "closed", "now": shown}
+    if text in {"24 hours", "open 24 hours"}:
+        return {"state": "open", "now": shown}
+    windows: list[tuple[int, int]] = []
+    for found in _WINDOW.finditer(text):
+        start = _minutes(found[1], found[2], found[3])
+        end = _minutes(found[4], found[5], found[6]) or 24 * 60  # 12:00am closes at midnight
+        if end <= start:
+            return None
+        windows.append((start, end))
+    leftover = re.sub(r"[\s,;&]|\band\b", "", _WINDOW.sub("", text))
+    if not windows or leftover:
+        return None
+    return {"state": "open" if any(a <= clock < b for a, b in windows) else "closed",
+            "now": shown}
+
+
 class _Builder:
     def __init__(self) -> None:
+        self.as_of: datetime | None = None
         self.facts: list[dict[str, Any]] = []
         self.derived: list[dict[str, Any]] = []
         self.missing: list[dict[str, Any]] = []
@@ -105,6 +147,14 @@ class _Builder:
         self.entities: dict[str, dict[str, Any]] = {}
         self.fields: list[str] = []
         self.dataset: dict[str, Any] | None = None
+
+    def _open_now(self, picked: dict[str, Any], asked_on: date) -> dict[str, Any]:
+        """Open or closed at this moment, for today's hours that apply and are a plain range."""
+        if (self.as_of is None or asked_on != self.as_of.date() or not picked["applies"]
+                or "status" in picked or picked.get("applicability")):
+            return {}
+        state = open_now(picked["value"].get("hours"), self.as_of)
+        return {"open_now": state} if state else {}
 
     def office(self, part: dict[str, Any], *, purpose: str | None = None) -> None:
         reader = part["facts"]
@@ -214,6 +264,7 @@ class _Builder:
                                      or picked["value"].get("absence", {}).get("current") is True)),
                     "from": [fact["id"]], "source_ids": list(fact["source_ids"]),
                     **({"status": fact["status"]} if fact["status"] != "known" else {}),
+                    **self._open_now(picked, asked_on),
                     **{key: picked[key] for key in ("applicability", "applicability_reason")
                        if key in picked}})
         if not reader.get("complete", True):
@@ -291,6 +342,10 @@ def _status(builder: _Builder) -> str:
 def build_packet(as_of: str, parts: list[dict[str, Any]]) -> dict[str, Any]:
     """The Fact Packet for a turn's findings; raises PacketInvalid when they break the contract."""
     builder = _Builder()
+    try:
+        builder.as_of = datetime.fromisoformat(as_of)
+    except ValueError:
+        builder.as_of = None
     for part in parts:
         builder.add(part)
     packet: dict[str, Any] = {
