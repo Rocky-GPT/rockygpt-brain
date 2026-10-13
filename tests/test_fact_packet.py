@@ -125,6 +125,20 @@ def test_a_note_read_beside_an_unpublished_contact_is_shown_but_not_asked_for() 
     assert both["request"]["fields"] == ["email"]
 
 
+def test_the_room_read_beside_hours_is_shown_but_not_asked_for() -> None:
+    service = registrar(office="D224")
+    part = part_for(service, "registrar", "Registrar", ["hours"])
+    room = part_for(service, "registrar", "Registrar", ["offices"])["facts"]
+    packet = build_packet(AS_OF, [{**part, "also": room}])
+    assert packet["request"]["fields"] == ["hours"]
+    shown = [f for f in packet["facts"] if f["predicate"] == "offices"]
+    assert [f.get("purpose") for f in shown] == ["also_published"]
+    assert shown[0]["value"] == ["D-224"]
+    # It is not what the status is about: the hours the student asked for are still unknown.
+    assert [m["predicate"] for m in packet["missing"]] == ["hours"]
+    assert packet["status"] == "insufficient"
+
+
 def test_two_offices_share_one_source_list_without_repeats() -> None:
     service = source([office("registrar", "Registrar"), office("bursar", "Bursar")],
                      [contact("r1"), contact("b1", "bursar")])
