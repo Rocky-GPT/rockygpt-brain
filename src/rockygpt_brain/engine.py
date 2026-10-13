@@ -87,7 +87,7 @@ about how, when or through whom to reach it: advice, instructions, staff and ser
 The server reads an office's contact_note itself when a requested email or phone is not
 published, so do not add it for that. Preserve contact labels when answering.
 Appointments, walk-in rules and deadlines are not supported; read the named office's
-contact records and add unsupported for those parts.
+contact_note, where it says how to schedule or reach it, and add unsupported for those parts.
 Use conversation to understand follow-ups, but retrieve their evidence through the root again.
 Greetings, reactions and requests to pretend or write something do not require campus facts.
 Do not use search results, your memory, or invented values as evidence. Respect missing data,
