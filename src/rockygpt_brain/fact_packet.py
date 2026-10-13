@@ -20,7 +20,10 @@ Version 1.0:
                      complete interval. Both have `hours: null`; the unverified one also carries
                      `listed_hours`, what the schedule lists for that weekday, to be said as
                      listed and unconfirmed for the date. Optional `status` preserves conflicting
-                     or multiple schedule readings.
+                     or multiple schedule readings. For today's hours that apply, are not
+                     unverified and are a plain time range (or 24 hours, or closed), `open_now`
+                     {state "open" or "closed", now} says which it is at the turn's campus time,
+                     so a writer never compares hours with a clock itself.
     missing        [{subject, predicate, reason}]   a requested fact we cannot state: reason
                    "unknown" (nobody checked, or the page could not be read) or "no_citable_source"
                    (a value exists but nothing it comes from has a usable secure link: withheld).
