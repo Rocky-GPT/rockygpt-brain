@@ -146,8 +146,10 @@ class Admission:
 def _configured_engine() -> ChatEngine:
     settings = ProviderSettings.from_env()
     # BRAIN_OUTPUT=json: answers carry the facts as typed JSON parts and no written text.
-    output: Literal["text", "json"] = (
-        "json" if os.getenv("BRAIN_OUTPUT", "").strip().lower() == "json" else "text")
+    # BRAIN_OUTPUT=written: the same, and a writer with only the writer view says them.
+    mode = os.getenv("BRAIN_OUTPUT", "").strip().lower()
+    output: Literal["text", "json", "written"] = (
+        "written" if mode == "written" else "json" if mode == "json" else "text")
     facts: EntityFacts
     only_directory = os.getenv("BRAIN_GRAPH_ONLY_DIR", "").strip()
     if only_directory:
