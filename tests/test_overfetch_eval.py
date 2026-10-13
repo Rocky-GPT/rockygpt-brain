@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 EVAL = Path(__file__).resolve().parents[1] / "evals" / "overfetch"
 spec = importlib.util.spec_from_file_location("overfetch_run", EVAL / "run.py")
 assert spec and spec.loader
@@ -45,20 +47,26 @@ def test_the_cases_are_well_formed() -> None:
 HOLDOUT = Path(__file__).resolve().parents[1] / "evals" / "overfetch-holdout-20261012"
 
 
-def test_the_holdout_cases_are_frozen_and_well_formed() -> None:
-    raw = (HOLDOUT / "cases.json").read_bytes()
-    assert hashlib.sha256(raw).hexdigest() == (HOLDOUT / "cases.sha256").read_text().strip()
+HOLDOUT_3 = Path(__file__).resolve().parents[1] / "evals" / "overfetch-holdout-20261013"
+
+
+@pytest.mark.parametrize("folder,scored,generic", [(HOLDOUT, 71, 9), (HOLDOUT_3, 69, 8)])
+def test_the_holdout_cases_are_frozen_and_well_formed(
+    folder: Path, scored: int, generic: int,
+) -> None:
+    raw = (folder / "cases.json").read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == (folder / "cases.sha256").read_text().strip()
     cases = json.loads(raw)
     assert len({c["id"] for c in cases}) == len(cases) == 72
     for item in cases:
         assert item["question"].strip() and item["needs"] and set(item["needs"]) <= FIELDS
         assert all(m["role"] in {"user", "assistant"} and m["content"] for m in item["history"])
         assert ("disputed" in item) == (not item["scored"])
-        assert "&amp;" not in item["office"]
+        assert "&amp;" not in item["office"] and "&amp;" not in item["question"]
         # A general contact request needs exactly the email and the phones.
         assert not item["generic"] or item["needs"] == ["email", "phones"]
-    assert sum(c["scored"] for c in cases) == 71
-    assert sum(c["generic"] and c["scored"] for c in cases) == 9
+    assert sum(c["scored"] for c in cases) == scored
+    assert sum(c["generic"] and c["scored"] for c in cases) == generic
 
 
 def test_what_the_brain_fetched_is_read_from_its_packet() -> None:
