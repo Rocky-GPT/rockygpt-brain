@@ -172,6 +172,12 @@ def plain(text: str) -> str:
     return re.sub(r"[\W_]+", " ", text).strip()
 
 
+def names_a_danger(message: str) -> bool:
+    """Whether a message, on its own, is one the phrase floor would answer with emergency text."""
+    text = plain(message)
+    return any(p.search(text) for patterns in _DANGER.values() for p in patterns)
+
+
 def check(turn: Turn) -> BoundaryResult:
     """Read the Turn's message. Only the latest message counts, not earlier ones."""
     text = plain(turn.message)

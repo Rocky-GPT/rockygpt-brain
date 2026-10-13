@@ -8,6 +8,7 @@ output capability: checking a citation ID alone would not prove its claims.
 import asyncio
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field, replace
 from datetime import datetime
@@ -22,6 +23,7 @@ from rockygpt_brain.boundary import (
     SAFETY_MESSAGE,
     SAFETY_TEXTS,
     SITUATIONS,
+    names_a_danger,
     safety_text,
     situation_of,
 )
@@ -103,8 +105,8 @@ Greetings, reactions and requests to pretend or write something do not require c
 Do not use search results, your memory, or invented values as evidence. Respect missing data,
 conflicts, source dates and ambiguity. Do not infer office hours, policies, or account records
 from contact details. This first slice cannot answer other campus facts or general essays: for
-dining, shuttles, events, policies, advice and explanations with no office named, use
-unsupported and make no lookup.
+dining, shuttles, events, policies, advice, explanations and the offices of any other college,
+with no Ramapo office named, use unsupported and make no lookup.
 
 Always finish with the finish tool; never write an answer as free text. All graph record
 results are automatically included by the server, including their limitations. The finish
@@ -118,26 +120,33 @@ public part because another part needs account access or is unsupported.
 Use greeting for a plain hello, thanks for a thank-you or goodbye, okay when the student says an
 earlier emergency, scare or worry is over, was a false alarm, or needs no help now (okay, not
 thanks, even if the student also says thanks), and about when the student asks who or what you are
-or what you can do. Use clarification, with no lookup, instead of guessing when the student
-needs something and more than one listed office could handle it (a bill, a hold, a problem with
-a professor), or when a follow-up could mean more than one of the offices the conversation named
-and does not say which. Set its offices to those listed names, exactly as listed, at most four.
-Use clarification with offices empty when the message names no office or service at all (only
-a requested detail, or a reference the conversation does not clearly resolve). Never send a
-description of what the student needs as an office query; that finds nothing. When one listed
-office handles what they need, look that office up.
+or what you can do. Use clarification, with no lookup, instead of guessing when a wrong office
+would give a wrong detail: a follow-up like "their phone" after the conversation named two
+offices, or a name that two offices share. Set its offices to those listed names, exactly as
+listed, at most four. Use clarification with offices empty when the message names no office or
+service at all (only a requested detail, or a reference the conversation does not clearly
+resolve). A bare word or phrase that is a listed name, or part of one, names that office or
+service.
+When the student describes something that happened to them, asks where to report it or where
+to get help (harassment, discrimination, assault, hunger, health, money trouble), or needs
+something that a few listed offices could handle (a bill, a hold, a problem with a professor),
+do not ask: look up each of the up to three listed offices that could, so every contact is
+shown. Never send a description of what the student needs as an office query; that finds
+nothing. When one listed office handles what they need, look that office up.
 Never ask the student to clarify a provider/database outage. Use
 recall with an earlier message_index only when asked what was said in this chat; this quotes
 conversation and does not assert the quoted facts are true today. Use clock only when the student
 asks for the current campus date or time.
 Use safety when the latest message, read with the conversation, shows someone is in immediate
-danger or at risk of self-harm right now, even if the phrase floor missed it. Set its situation to
-self_harm (the student may hurt themselves, or fears someone else will), medical (someone is
-hurt, ill, unconscious or not breathing), danger (a threat from another person: a weapon, an
-attack, a break-in, being followed), fire (fire, smoke or gas), or other (none of these fits,
-several do, or someone took too much of something). Every other part has a null situation. Do not
-use safety only because an earlier message was an emergency: if the student says it is over or
-asks an ordinary question, answer that question. When safety applies, still look up any office
+danger or at risk of self-harm right now, even if the phrase floor missed it, or asks for a
+crisis line or someone to talk to right now, or says they are having a panic attack. Set its
+situation to self_harm (the student may hurt themselves, or fears someone else will), medical
+(someone is hurt, ill, unconscious or not breathing), danger (a threat from another person: a
+weapon, an attack, a break-in, being followed), fire (fire, smoke or gas), or other (none of
+these fits, several do, or someone took too much of something). Every other part has a null
+situation. Do not use safety only because an earlier message was an emergency: if the student
+says it is over or asks an ordinary question, answer that question. When safety applies, still
+look up any office
 contact the student asked for; the server shows the safety text first. The server writes all
 safety, limitation, clarification, greeting and factual text.
 """
@@ -178,6 +187,9 @@ class AnswerPart(StrictModel):
 
 class Finish(StrictModel):
     parts: list[AnswerPart] = Field(max_length=8)
+    # The language the student wrote in, when it is not English; null otherwise. Code keeps it
+    # only if it is a plain word, and it tells the writer what language to reply in.
+    language: str | None = None
 
 
 def _all_required(node: Any) -> Any:
@@ -209,7 +221,8 @@ TOOLS = [
           "additional limitation, greeting, thanks, okay, about, recall, clock or safety parts; "
           "otherwise use an empty list. "
           "message_index is only for recall, and situation only for safety; each is otherwise "
-          "null.", Finish),
+          "null. language is the language the student wrote in when it is not English, as "
+          "one word (Spanish); otherwise null.", Finish),
 ]
 
 
@@ -352,14 +365,23 @@ def published_offices(listing: dict[str, Any]) -> list[dict[str, Any]] | None:
     return None
 
 
+def _plain_language(finish: Finish) -> str | None:
+    """The language the model named, only when it is a single plain word (never free text)."""
+    language = (finish.language or "").strip()
+    if language.casefold() in {"english", "en"}:
+        return None
+    return language if re.fullmatch(r"[A-Za-z]{3,20}", language) else None
+
+
 def earlier_emergency(context: Context) -> bool:
     """Whether the conversation holds an emergency reply the student could be saying is over.
 
     The Brain's own safety reply is how an emergency enters a conversation, so it is looked for
     in the replies. When earlier messages were left out it cannot be ruled out."""
     return bool(context.omitted_messages) or any(
-        situation_of(message.content) for message in context.recent_messages
-        if message.role == "assistant")
+        situation_of(message.content) if message.role == "assistant"
+        else names_a_danger(message.content)
+        for message in context.recent_messages)
 
 
 def _normal(text: str) -> str:
@@ -918,6 +940,10 @@ class ChatEngine:
                 elif part.kind == "clarification":
                     if not lookup_clarified:  # A lookup already asked which office.
                         options = named_options(part.offices, known or {})
+                        answered_offices = {r.part["office"]["name"] for r in results.values()
+                                            if r.part and r.part.get("kind") == "office_facts"}
+                        if options and set(options) <= answered_offices:
+                            continue  # Every office it would ask about is already answered above.
                         text = (AMBIGUOUS_TEXT.format(
                             names=", ".join(literal(name) for name in options))
                             if len(options) >= 2 else CLARIFICATION_MESSAGE)
@@ -975,11 +1001,11 @@ class ChatEngine:
         reply = self._json(answered(turn, text, status, list(citations.values()), version),
                            parts, turn)
         if self.output == "written" and budget is not None:
-            reply = await self._written(reply, text, budget, trace)
+            reply = await self._written(reply, text, budget, trace, _plain_language(finish))
         return reply
 
     async def _written(self, result: ChatResult, code_text: str, budget: TurnBudget,
-                       trace: dict[str, Any]) -> ChatResult:
+                       trace: dict[str, Any], language: str | None = None) -> ChatResult:
         """Let a writer with only the writer view say the facts; keep the code's text if it slips.
 
         An emergency, a question back and fixed wording stay the code's own words. The writer's
@@ -999,7 +1025,7 @@ class ChatEngine:
         with measure("Write the answer from the facts"):
             try:
                 completion = await self.gateway.complete(
-                    input=writer_messages(view), tools=[WRITE_TOOL], budget=budget)
+                    input=writer_messages(view, language), tools=[WRITE_TOOL], budget=budget)
                 call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
                 said = call.arguments.get("text") if call and call.name == "write_answer" else None
             except (GatewayError, TimeoutError):
