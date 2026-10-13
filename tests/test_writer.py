@@ -23,6 +23,7 @@ VIEW: dict[str, Any] = {
     ],
     "derived_facts": [{"subject": "Library", "predicate": "hours_on", "day": "Saturday",
                        "date": "2026-10-17", "value": {"hours": "10:00am-6:00pm"}, "sources": [2]}],
+    "not_published": [{"subject": "Library", "predicate": "fax", "checked_at": "2026-10-07"}],
     "sources": [{"n": 1, "title": "campus-directory", "urls": ["https://www.ramapo.edu/library/"]},
                 {"n": 2, "title": "campus-hours",
                  "urls": ["https://www.ramapo.edu/library/library-hours/"]}],
@@ -35,6 +36,7 @@ VIEW: dict[str, Any] = {
     "Their number is +12016847000 and 201.684.7000 works the same way.",
     "More at https://www.ramapo.edu/library/library-hours/.",
     "It opens at 10 and closes at 6.",
+    "The page was checked on October 7, 2026 (the facts hold 2026-10-07).",
 ])
 def test_what_the_view_holds_passes_in_any_punctuation(text: str) -> None:
     assert unsupported_by(text, VIEW) == []
@@ -115,3 +117,12 @@ def test_the_writer_is_not_asked_when_the_turn_is_not_a_written_one() -> None:
     assert "writer" not in trace and body["answer"] == ""
     text_body, text_trace = turn(LOOKUP, finish(), output="text")
     assert "writer" not in text_trace and "published@example.edu" in text_body["answer"]
+
+
+def test_the_writers_own_prompt_holds_no_real_number_it_could_copy() -> None:
+    import re
+
+    from rockygpt_brain.writer import WRITER_PROMPT
+    # An example number in the prompt was once copied into an answer as if it were the office's.
+    assert not re.search(r"\d{3}\D{0,3}\d{3}\D{0,3}\d{4}", WRITER_PROMPT)
+    assert "@" not in WRITER_PROMPT and "http" not in WRITER_PROMPT
