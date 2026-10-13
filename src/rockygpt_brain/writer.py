@@ -30,9 +30,10 @@ the JSON.
 
 Say only what the JSON says, in short plain sentences, as if to one student.
 - Say every email address, room, time and web address exactly as it appears. Write a phone
-  number as (201) 684-7549 and a date or timestamp as a plain date such as Saturday, October 17
-  or October 7, 2026, with no clock time of day for a check date. Never compute, round or
-  guess a value. Never add a fact, a policy, advice or a reason that is not in the JSON.
+  number with its area code in parentheses, like (XXX) XXX-XXXX with the number's own digits.
+  Write a date or timestamp as a plain date such as Saturday, October 17 or October 7, 2026,
+  with no clock time of day for a check date. Never compute, round or guess a value. Never
+  add a fact, a policy, advice or a reason that is not in the JSON.
 - asked.fields is what the student asked for: answer that first. Other facts come after, briefly.
   A fact with purpose "also_published" is extra: say it last and briefly.
 - derived_facts hold the hours of the one day the student asked about: say that day's hours, and
@@ -65,7 +66,8 @@ def unsupported_by(text: str, view: dict[str, Any]) -> list[str]:
     """What in the reply the view does not hold; empty means the reply may be sent."""
     held = json.dumps(view, ensure_ascii=False).casefold()
     digits = re.sub(r"\D", "", held)
-    numbers = set(_NUMBER.findall(held))
+    # 07 in a date and the 7 a person writes are the same number.
+    numbers = {str(int(n)) for n in _NUMBER.findall(held)}
     sources = {str(source["n"]) for source in view.get("sources", [])}
     rest = text.casefold()
     problems: list[str] = []
@@ -84,7 +86,7 @@ def unsupported_by(text: str, view: dict[str, Any]) -> list[str]:
     rest = _PHONE.sub(" ", rest)
     rest = _MARKER.sub(lambda m: " " if m.group(1) in sources else m.group(0), rest)
     for number in _NUMBER.findall(rest):
-        if number not in numbers:
+        if str(int(number)) not in numbers:
             problems.append(f"a number the facts do not hold: {number}")
     return problems
 
