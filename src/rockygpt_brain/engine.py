@@ -45,6 +45,7 @@ from rockygpt_brain.retrieval import (
 from rockygpt_brain.retrieval.campus_graph import CampusGraph
 from rockygpt_brain.timing import measure
 from rockygpt_brain.turn import Turn
+from rockygpt_brain.writer import WRITE_TOOL, says_something, unsupported_by, writer_messages
 from rockygpt_brain.writer_view import writer_view
 
 LOG = logging.getLogger(__name__)
@@ -495,16 +496,18 @@ def _lookup_status(result: OfficeResult) -> str:
 class ChatEngine:
     def __init__(self, gateway: ModelGateway, facts: EntityFacts, *,
                  turn_seconds: float = TURN_SECONDS, max_turn_nusd: int = 25_000_000,
-                 output: Literal["text", "json"] = "text") -> None:
+                 output: Literal["text", "json", "written"] = "text") -> None:
         self.gateway, self.facts = gateway, facts
         self.turn_seconds, self.max_turn_nusd = turn_seconds, max_turn_nusd
         # "json": the response carries the facts as typed JSON parts and no written answer.
+        # "written": the same, and a writer with only the writer view says them; a reply the
+        # verifier cannot hold to the view is replaced by the code-written text.
         self.output = output
 
     def _json(self, result: ChatResult, parts: list[dict[str, Any]], turn: Turn) -> ChatResult:
         """In JSON output the written answer is dropped and the facts go out as they are: the full
         packet (the Brain's record) and the cut-down view a writer would receive."""
-        if self.output != "json":
+        if self.output not in ("json", "written"):
             return result
         try:
             packet = build_packet(turn.campus_now.isoformat(), parts)
@@ -725,7 +728,7 @@ class ChatEngine:
             # the turn deadline must never turn an emergency reply into a timeout.
             with measure("Compose final response"):
                 return await self._finish(turn, context, finish, results, version, identity_hash,
-                                          trace, known)
+                                          trace, known, budget)
         except TimeoutError:
             return self._fallback(turn, results, version, "model_timeout")
         except ValidationError:
@@ -823,7 +826,8 @@ class ChatEngine:
     async def _finish(self, turn: Turn, context: Context, finish: Finish,
                       results: dict[str, OfficeResult], version: str | None,
                       identity_hash: str | None, trace: dict[str, Any],
-                      known: dict[str, str] | None = None) -> ChatResult:
+                      known: dict[str, str] | None = None,
+                      budget: TurnBudget | None = None) -> ChatResult:
         chunks: list[str] = []
         citations: dict[str, dict[str, Any]] = {}
         supported = False
@@ -945,8 +949,50 @@ class ChatEngine:
             raise GatewayError("provider_invalid_response")
         status = "partial" if situations or supported and limited else (
             "answered" if supported else ("clarification" if clarify else "unavailable"))
-        return self._json(answered(turn, text, status, list(citations.values()), version),
-                          parts, turn)
+        reply = self._json(answered(turn, text, status, list(citations.values()), version),
+                           parts, turn)
+        if self.output == "written" and budget is not None:
+            reply = await self._written(reply, text, budget, trace)
+        return reply
+
+    async def _written(self, result: ChatResult, code_text: str, budget: TurnBudget,
+                       trace: dict[str, Any]) -> ChatResult:
+        """Let a writer with only the writer view say the facts; keep the code's text if it slips.
+
+        An emergency, a question back and fixed wording stay the code's own words. The writer's
+        reply is used only when the verifier finds nothing in it that the view does not hold."""
+        view = result.body.get("writerInput")
+        packet = result.body.get("facts")
+
+        def keep(why: str, problems: list[str] | None = None) -> ChatResult:
+            trace["writer"] = {"used": False, "why": why, **({"problems": problems} if problems
+                                                              else {})}
+            return replace(result, body={**result.body, "answer": code_text})
+
+        if not isinstance(view, dict) or not isinstance(packet, dict):
+            return keep("no_view")
+        if packet.get("status") == "emergency" or not says_something(view):
+            return keep("nothing_to_write")
+        with measure("Write the answer from the facts"):
+            try:
+                completion = await self.gateway.complete(
+                    input=writer_messages(view), tools=[WRITE_TOOL], budget=budget)
+                call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
+                said = call.arguments.get("text") if call and call.name == "write_answer" else None
+            except (GatewayError, TimeoutError):
+                return keep("writer_unavailable")
+        if not isinstance(said, str) or not said.strip():
+            return keep("no_text")
+        problems = unsupported_by(said, view)
+        if problems:
+            return keep("not_in_the_facts", problems)
+        fixed = [n["approved_text"] for n in view.get("notices", [])
+                 if isinstance(n.get("approved_text"), str)]
+        sources = [f"[{s['n']}]({s['urls'][0]})" for s in view.get("sources", []) if s.get("urls")]
+        text = "\n\n".join([said.strip(), *fixed,
+                            *([("Sources: " + " ".join(sources))] if sources else [])])
+        trace["writer"] = {"used": True}
+        return replace(result, body={**result.body, "answer": text})
 
     @measure("Compose partial or failed response")
     def _fallback(self, turn: Turn, results: dict[str, OfficeResult], version: str | None,
