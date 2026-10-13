@@ -1110,7 +1110,7 @@ def test_a_not_911_message_is_answered_beside_the_emergency_text() -> None:
 def test_a_floor_situation_puts_the_emergency_text_first_and_still_answers() -> None:
     request = ChatRequest.model_validate(
         {"messages": [{"role": "user", "content": "registrar email, not 911 obviously lol"}]})
-    engine = ChatEngine(ScriptedGateway(LOOKUP, finish()), facts())  # type: ignore[arg-type]
+    engine = ChatEngine(ScriptedGateway(LOOKUP, finish()), facts())
     result = asyncio.run(engine.answer(intake(request, now=NOW), request, floor_situation="other"))
     text = result.body["answer"]
     assert text.startswith(SAFETY_MESSAGE)
