@@ -144,6 +144,16 @@ writing model yet). `answer` is `""`; `status`, `citations`, `datasetVersion` an
 as in text mode, and the body gains `facts` (the packet). Errors are unchanged, and text mode stays
 the default, so the student UI is unaffected. `GET /v1/dev/runtime` reports `output`.
 
+With `BRAIN_OUTPUT=written` the same packet is said by a writer (`src/rockygpt_brain/writer.py`):
+one model call that is handed only `writerInput` (no tools, no conversation, not even the
+question) and returns text. A verifier then holds the text to the view: every email and web
+address must be in it, every phone number must be one it holds (in any punctuation), and every
+other number must be a number it holds. A reply that fails, a writer that errors and a packet
+with nothing to say (a question back, an emergency, fixed wording) leave the code-written text as
+the answer; `metrics.writer` says `used` or why not. The verifier is the floor, not the whole:
+what a number check cannot see (a wrong day, a reversed meaning) is audited by reading the
+answers against their views (a 71-answer audit on 2026-10-13 found no invented fact).
+
 A writer is never handed the full packet. The packet is the Brain's record (ids, hashes, the pages
 that were read); a template or a model with no other context only needs what it can say.
 `writer_view(packet)` (`src/rockygpt_brain/writer_view.py`) derives that: values, which are not
