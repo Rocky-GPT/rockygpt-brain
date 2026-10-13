@@ -532,7 +532,11 @@ class ChatEngine:
             # A packet the view cannot be cut from is one nothing may be written from.
             LOG.error("brain_invalid_writer_view exception_type=%s", type(error).__name__)
             raise GatewayError("invalid_fact_packet") from error
-        return replace(result, body={**result.body, "answer": "", "facts": packet,
+        # JSON output blanks the answer: the facts are the reply. Written output keeps the code's
+        # own text, so every path that is not written (an emergency, a question back, an empty
+        # finish) still answers in words; the writer replaces it only when it passes its check.
+        answer = result.body["answer"] if self.output == "written" else ""
+        return replace(result, body={**result.body, "answer": answer, "facts": packet,
                                      "writerInput": writer_input})
 
     async def readiness(self) -> bool:
