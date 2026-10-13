@@ -47,6 +47,10 @@ def _discovery_tokens(value: str) -> frozenset[str]:
     return frozenset(re.findall(r"[^\W_]+", possessive_free)) - _DISCOVERY_FILLER
 
 
+# The one way published names are read by their words, for callers outside this module.
+discovery_tokens = _discovery_tokens
+
+
 class EvidenceUnavailable(RuntimeError):
     """Published evidence cannot be read completely and safely."""
 

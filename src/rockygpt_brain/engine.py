@@ -506,9 +506,9 @@ class ChatEngine:
         }
 
     def _lookup(self, request: OfficeRequest, graph: CampusGraph, as_of: datetime, *,
-                exact_name_only: bool = False) -> OfficeResult:
+                exact_name_only: bool = False, conversation: str = "") -> OfficeResult:
         opened = graph.lookup(request.query, list(request.fields), as_of,
-                              exact_name_only=exact_name_only)
+                              exact_name_only=exact_name_only, conversation=conversation)
         detail: dict[str, Any] = {
             "path": graph.path(graph.current_node), "result_count": len(opened["candidates"]),
             "dataset_version": graph.version, "identity_hash": graph.identity_hash,
@@ -535,6 +535,8 @@ class ChatEngine:
                                 part={"kind": "not_found", "query": request.query,
                                       "approved_text": NOT_FOUND_TEXT})
         detail["office"] = opened["label"]
+        if opened.get("by_conversation"):
+            detail["resolvedBy"] = "conversation"
         also = opened.get("also")
         shown = opened["facts"]
         if also is not None:
@@ -580,6 +582,10 @@ class ChatEngine:
             graph = CampusGraph(self.facts)
             trace["root"] = graph.root()
             inputs = model_input(turn, context, graph.root())
+            # What a tie between offices that share a name may be broken by: the latest message
+            # and the exchange it follows.
+            conversation = "\n".join(
+                [context.latest_message, *(m.content for m in context.recent_messages[-2:])])
         attempts = 0
         finish: Finish | None = None
         try:
@@ -618,7 +624,8 @@ class ChatEngine:
                         try:
                             with measure(f"Lookup {len(trace['lookups'])}"):
                                 result = await asyncio.to_thread(
-                                    self._lookup, item, traversal, turn.campus_now)
+                                    self._lookup, item, traversal, turn.campus_now,
+                                    conversation=conversation)
                         except DatasetChanged:
                             entry["status"] = "dataset_changed"
                             raise GatewayError("dataset_changed") from None

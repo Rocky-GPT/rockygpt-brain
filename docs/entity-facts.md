@@ -73,7 +73,14 @@ the question. A lookup answers one office in these cases, and only these:
   alias it shares with another office's name.
 
 Offices that share an exact alias, such as "Public Safety", are all exact and the
-Brain asks which one is meant.
+Brain asks which one is meant, unless the conversation breaks the tie. The chat
+engine passes the latest message and the two messages before it to the lookup;
+when exactly one of the tied offices lists a name (an alias no other tied office
+lists) that those messages use, that office is the answer and the trace says
+`resolvedBy: conversation`. "Parking citations go through Public Safety" is
+the Non-Emergency office. Office names never break a tie this way, because
+"not an emergency" contains the word "emergency". An emergency route, which reads
+an exact name, is never moved by the conversation.
 
 `EntityFacts.get_office_facts` selects original contact records through exact
 published identity links: source key, source-record key, and optional original-row
