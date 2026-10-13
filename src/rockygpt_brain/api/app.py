@@ -265,6 +265,18 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
                     "decidedBy": "phrase_floor", "modelCalls": 0, "situation": boundary.situation})
             else:  # The emergency text, then the campus numbers if they can be read in time.
                 result = await floor.safety_reply(turn, boundary.situation)
+                if boundary.also_answer and not application.state.capacity.locked():
+                    # Only a "not 911" tripped the floor: answer the question beside the same
+                    # emergency text. Any failure leaves the floor's own reply, which is complete.
+                    try:
+                        async with application.state.capacity:
+                            fuller = await _connected_answer(
+                                floor, turn, request, transport,
+                                floor_situation=boundary.situation)
+                        if fuller.status_code == 200:
+                            result = fuller
+                    except Exception:  # noqa: BLE001 - the floor's reply stands
+                        LOG.warning("brain_floor_answer_failed")
         elif application.state.engine is None or application.state.startup_error:
             result = failed(turn, application.state.startup_error or "model_not_configured")
         else:
@@ -317,13 +329,14 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
 
 
 async def _connected_answer(engine: ChatEngine, turn: Turn, request: ChatRequest,
-                            transport: Request) -> ChatResult:
+                            transport: Request, *,
+                            floor_situation: str | None = None) -> ChatResult:
     async def disconnected() -> None:
         while True:
             if (await transport.receive())["type"] == "http.disconnect":
                 return
 
-    work = asyncio.create_task(engine.answer(turn, request))
+    work = asyncio.create_task(engine.answer(turn, request, floor_situation=floor_situation))
     gone = asyncio.create_task(disconnected())
     try:
         async with asyncio.timeout(engine.turn_seconds + HELP_SECONDS + 2):

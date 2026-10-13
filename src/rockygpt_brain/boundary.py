@@ -72,6 +72,9 @@ class BoundaryResult:
     kind: Literal["continue", "safety"]
     message: str = ""
     situation: str | None = None
+    # The floor fired only on the number 911 in a message that says it is not one ("not 911
+    # obviously lol"). The emergency text still comes first, but the question gets its answer too.
+    also_answer: bool = False
 
 
 CONTINUE = BoundaryResult("continue")
@@ -155,6 +158,12 @@ _GENERIC = [re.compile(p) for p in (
 )]
 
 
+# A mention of 911 that says the matter is not one. Only used to let the question be answered
+# beside the emergency text, never to take the emergency text away.
+_NEGATED_911 = re.compile(
+    r"\b(?:not|non|isnt|arent|wasnt|no need for|dont need)(?: an?| the)? 911\b")
+
+
 def plain(text: str) -> str:
     """Lower case, no accents, apostrophes or invisible characters, punctuation as spaces."""
     text = re.sub(r"['`´ʹʻʼˈ’‘′‛＇]", "", text)
@@ -169,6 +178,9 @@ def check(turn: Turn) -> BoundaryResult:
     kinds = {name for name, patterns in _DANGER.items() if any(p.search(text) for p in patterns)}
     if not kinds and any(p.search(text) for p in _GENERIC):
         kinds = {"other"}
+        stripped = _NEGATED_911.sub(" ", text)
+        if not any(p.search(stripped) for p in _GENERIC):
+            return BoundaryResult("safety", safety_text("other"), "other", also_answer=True)
     if not kinds:
         return CONTINUE
     situation = kinds.pop() if len(kinds) == 1 else "other"

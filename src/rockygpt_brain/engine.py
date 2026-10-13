@@ -630,10 +630,13 @@ class ChatEngine:
             detail["day"] = part["when"]
         return OfficeResult(rendered, detail=detail, part=part)
 
-    async def answer(self, turn: Turn, request: ChatRequest) -> ChatResult:
+    async def answer(self, turn: Turn, request: ChatRequest, *,
+                     floor_situation: str | None = None) -> ChatResult:
+        """`floor_situation` is an emergency the phrase floor named but that the student's own
+        question should still be answered beside: its text comes first, as for a model's own."""
         trace: dict[str, Any] = {"decidedBy": "model", "modelCalls": 0, "committedNusd": 0,
                                  "lookups": []}
-        result = await self._answer(turn, request, trace)
+        result = await self._answer(turn, request, trace, floor_situation)
         # A failure, or a reply cut short by one, was decided by the error, not the model.
         code = result.body.get("reason") or result.body.get("limitation", {}).get("code")
         if code:
@@ -641,7 +644,7 @@ class ChatEngine:
         return replace(result, trace=trace)
 
     async def _answer(self, turn: Turn, request: ChatRequest,
-                      trace: dict[str, Any]) -> ChatResult:
+                      trace: dict[str, Any], floor_situation: str | None = None) -> ChatResult:
         with measure("Prepare conversation and root"):
             context = build_context(request)
             budget = TurnBudget(turn.request_id, time.monotonic() + self.turn_seconds,
@@ -740,7 +743,7 @@ class ChatEngine:
             # the turn deadline must never turn an emergency reply into a timeout.
             with measure("Compose final response"):
                 return await self._finish(turn, context, finish, results, version, identity_hash,
-                                          trace, known, budget)
+                                          trace, known, budget, floor_situation)
         except TimeoutError:
             return self._fallback(turn, results, version, "model_timeout")
         except ValidationError:
@@ -839,13 +842,15 @@ class ChatEngine:
                       results: dict[str, OfficeResult], version: str | None,
                       identity_hash: str | None, trace: dict[str, Any],
                       known: dict[str, str] | None = None,
-                      budget: TurnBudget | None = None) -> ChatResult:
+                      budget: TurnBudget | None = None,
+                      floor_situation: str | None = None) -> ChatResult:
         chunks: list[str] = []
         citations: dict[str, dict[str, Any]] = {}
         supported = False
         limited = False
         clarify = False
-        situations: list[str] = []  # The kind of each emergency the model named.
+        # The kind of each emergency the model named, after one the phrase floor named.
+        situations: list[str] = [floor_situation] if floor_situation else []
         errors: list[str] = []
         # Every lookup is a requested answer part. A later model decision cannot
         # discard its public facts, missing evidence, conflict, or outage.
