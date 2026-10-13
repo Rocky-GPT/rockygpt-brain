@@ -57,6 +57,10 @@ Say only what the JSON says, in short plain sentences, as if to one student.
 - ambiguities.choices: ask which of those offices they mean, naming each.
 - Do not repeat notices: the server shows their fixed wording itself.
 - When a statement comes from a source, put its number after it like [1].
+- Lead with what the student can use (a phone number, a room, the hours). Say that something is
+  not published after that, briefly, and only for what they asked.
+- When reply_language is present, write the whole reply in that language, keeping every email
+  address, phone number, room, time and web address exactly as given.
 - At most six sentences. No greeting, no sign-off, no headings."""
 
 _EMAIL = re.compile(r"[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+")
@@ -66,10 +70,11 @@ _NUMBER = re.compile(r"\d+")
 _MARKER = re.compile(r"\[(\d+)\]")
 
 
-def writer_messages(view: dict[str, Any]) -> list[dict[str, Any]]:
-    """The whole of what the writer is given."""
+def writer_messages(view: dict[str, Any], language: str | None = None) -> list[dict[str, Any]]:
+    """The whole of what the writer is given: the view, and the one word naming a language."""
+    given = {**view, "reply_language": language} if language else view
     return [{"role": "system", "content": WRITER_PROMPT},
-            {"role": "user", "content": json.dumps(view, ensure_ascii=False)}]
+            {"role": "user", "content": json.dumps(given, ensure_ascii=False)}]
 
 
 def unsupported_by(text: str, view: dict[str, Any]) -> list[str]:
