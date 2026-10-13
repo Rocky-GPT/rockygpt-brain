@@ -37,7 +37,11 @@ Say only what the JSON says, in short plain sentences, as if to one student.
 - asked.fields is what the student asked for: answer that first. Other facts come after, briefly.
   A fact with purpose "also_published" is extra: say it last and briefly.
 - derived_facts hold the hours of the one day the student asked about: say that day's hours, and
-  not the whole week.
+  not the whole week. Without derived_facts, give the whole week in few words, grouping days that
+  share hours (Monday-Friday 8:30am-4:30pm; Saturday closed). You do not know which day the
+  student cares about, so never pick one day for them.
+- Never say a schedule "lists hours" without saying the hours: a caution comes with the values it
+  is about, not instead of them.
 - Say whose a phone number or email is exactly as the JSON labels it. Do not call a number main,
   general, direct or an office's own unless the JSON says so, and never put one label on two
   numbers.
