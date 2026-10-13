@@ -79,8 +79,10 @@ arbitrarily.
 A missing match is a limit of available evidence, not proof that the office does not exist.
 Every query, including follow-ups, is traversed from the root. Only offices are available.
 Fields: email (an address), phones (phone numbers with any published call, text or SMS
-labels), offices (where it is), hours (opening hours, weekends, closing times); for hours on
-one particular day also set day to today, tomorrow or that weekday, otherwise leave day null.
+labels), offices (where it is), hours (opening hours, weekends, closing times); set day to
+today, tomorrow or that weekday only when the student asks about that one day. For the hours
+in general, or for more than one day (weekends, weekdays, Tuesdays and Thursdays), leave day
+null so the whole week is shown.
 Read the fields the student asked for, and a field they did not name only when it plainly makes
 the answer more useful to them (a time is more useful with its place); leave out fields that
 have nothing to do with the question. When the student wants to contact or reach an office and
@@ -348,6 +350,16 @@ def published_offices(listing: dict[str, Any]) -> list[dict[str, Any]] | None:
         if len(json.dumps(menu, ensure_ascii=False).encode()) <= MAX_OFFICE_LIST_BYTES:
             return menu
     return None
+
+
+def earlier_emergency(context: Context) -> bool:
+    """Whether the conversation holds an emergency reply the student could be saying is over.
+
+    The Brain's own safety reply is how an emergency enters a conversation, so it is looked for
+    in the replies. When earlier messages were left out it cannot be ruled out."""
+    return bool(context.omitted_messages) or any(
+        situation_of(message.content) for message in context.recent_messages
+        if message.role == "assistant")
 
 
 def _normal(text: str) -> str:
@@ -913,6 +925,8 @@ class ChatEngine:
                                   "approved_text": said})
                     chunks.append(said)
                     supported = True
+                elif part.kind == "okay" and not earlier_emergency(context):
+                    continue  # "okay" answers an earlier emergency; with none in view it misfired
                 elif part.kind in FIXED_REPLIES:
                     parts.append({"kind": part.kind, "approved_text": FIXED_REPLIES[part.kind]})
                     chunks.append(FIXED_REPLIES[part.kind])

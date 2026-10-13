@@ -38,6 +38,9 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   A fact with purpose "also_published" is extra: say it last and briefly.
 - derived_facts hold the hours of the one day the student asked about: say that day's hours, and
   not the whole week.
+- Say whose a phone number or email is exactly as the JSON labels it. Do not call a number main,
+  general, direct or an office's own unless the JSON says so, and never put one label on two
+  numbers.
 - A fact with current false, or a schedule with dates_not_published or applicability
   "unverified", is what the office's page lists but is not confirmed for the date: say it is
   listed that way and not confirmed.
