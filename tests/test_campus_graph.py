@@ -115,22 +115,6 @@ def test_the_contact_note_is_not_read_when_it_would_add_nothing(
     assert "also" not in found
 
 
-@pytest.mark.parametrize("contact,fields,expected", [
-    ({"office": "D224"}, ["hours"], ["offices"]),  # when is better with where
-    ({"office": "D224"}, ["hours", "offices"], None),  # the room was asked for already
-    ({}, ["hours"], None),  # the office publishes no room
-    ({"office": "D224"}, ["email"], None),  # hours were not asked
-])
-def test_the_room_is_read_beside_hours_when_the_office_publishes_one(
-    contact: dict[str, Any], fields: list[str], expected: list[str] | None,
-) -> None:
-    found = CampusGraph(facts(**contact)).lookup("registrar", fields, NOW)
-    beside = [p["key"] for p in found["also"]["properties"]] if "also" in found else None
-    assert beside == expected
-    # What was asked for is read as asked; the room beside it is never one of them.
-    assert [p["key"] for p in found["facts"]["properties"]] == fields
-
-
 def public_safety_candidates() -> list[dict[str, Any]]:
     shared = ["Public Safety", "Campus Police"]
     return [

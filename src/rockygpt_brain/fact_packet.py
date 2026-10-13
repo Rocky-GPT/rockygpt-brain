@@ -41,10 +41,9 @@ and inside its published validity. Conflicts are listed side by side; nothing is
 
 A fact or absence with a `purpose` was shown beside the answer, not asked for. It is never a
 requested field and never changes `status`. `emergency_contact` is a campus number sent with a
-safety reply. `also_published` is what the office published beside what was asked, read by
-the code because it makes the answer more useful: its own contact note when a requested email or
-phone is not published (that note is where an office lists its role and service contacts), and
-where the office is when its hours were asked (when is better with where).
+safety reply. `also_published` is the office's own contact note, read by the code because a
+requested email or phone is not published: that note is where an office lists its role and
+service contacts.
 
 The packet is all a writer sees, so it must stand alone. A notice that stands for words the Brain
 used to write itself (the emergency guidance, "I can't see your student record", the greeting)

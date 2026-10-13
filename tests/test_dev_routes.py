@@ -88,7 +88,7 @@ def test_runtime_describes_the_prompt_tools_parts_and_fixed_texts_the_engine_rea
     with client() as http:
         body = http.get("/v1/dev/runtime", headers=ASKED).json()
     assert body["prompt"] == SYSTEM_PROMPT
-    assert "graph_root" in body["prompt"] and "published_offices" not in body["prompt"]
+    assert "graph_root" in body["prompt"] and "published_offices" in body["prompt"]
     assert [tool["name"] for tool in body["tools"]] == ["graph_lookup", "finish"]
     assert body["tools"][0]["parameters"]["properties"]["requests"]["maxItems"] == 4
     kinds = AnswerPart.model_fields["kind"].annotation.__args__  # type: ignore[union-attr]
