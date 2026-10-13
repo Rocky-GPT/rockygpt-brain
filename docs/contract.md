@@ -207,7 +207,11 @@ how many make a dollar.
   and `outcome` and `chosen`: what a lookup does with that result, decided by the engine's own
   function. `outcome` is `answers` (one office, named in `chosen`, a list of office names),
   `asks` (several fit, or the result was truncated: the Brain asks which, naming up to five) or
-  `not_found`. In a chat the model picks the query from the published list.
+  `not_found`. In a chat the model picks the query from the published list: each turn's model
+  input carries `published_offices`, every office's name with the other names it is known by
+  (about 4 KB for 34 offices; names only when the list passes 12 KB, `null` when it still
+  does, when it was cut off, or when it cannot be read), and the reader still matches only
+  published names, so a name the model gets wrong is a `not_found`, never a guess.
 
 ## Failure envelope
 

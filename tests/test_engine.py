@@ -396,8 +396,8 @@ def test_a_lookup_that_already_asks_which_office_is_not_asked_twice() -> None:
     assert result.body["status"] == "clarification"
 
 
-def test_the_model_is_given_only_the_ramapo_root_not_the_office_list() -> None:
-    service = MemoryEntityFacts(
+def two_offices_and_a_person() -> MemoryEntityFacts:
+    return MemoryEntityFacts(
         dataset_version="release-1", identity_hash="identities-1",
         entities=[
             {"id": "b", "name": "ID Card Room", "kind": "office", "aliases": ["Husky Card"],
@@ -406,14 +406,49 @@ def test_the_model_is_given_only_the_ramapo_root_not_the_office_list() -> None:
             {"id": "p", "name": "A Person", "kind": "person", "aliases": [], "links": []},
         ],
         contacts=[], now=lambda: NOW)
+
+
+def test_the_model_is_shown_the_published_offices_and_the_names_each_goes_by() -> None:
     gateway = ScriptedGateway(finish("greeting"))
-    answer(gateway, service=service)
+    answer(gateway, service=two_offices_and_a_person())
     state = json.loads(gateway.inputs[0][1]["content"])
     assert tuple(state) == MODEL_INPUT_KEYS
     root = state["graph_root"]
     assert root["id"] == "ramapo" and [child["id"] for child in root["children"]] == ["offices"]
-    # No office name or alias reaches the model until a lookup walks the graph for it.
-    assert "ID Card Room" not in json.dumps(state) and "Husky Card" not in json.dumps(state)
+    # Offices only, sorted, each with its other names: no person, no id, no record.
+    assert state["published_offices"] == [
+        {"name": "ID Card Room", "also_called": ["Husky Card"]}, {"name": "Registrar"}]
+
+
+def test_a_cut_off_or_oversized_office_list_is_not_shown_as_the_whole_list() -> None:
+    from rockygpt_brain.engine import MAX_OFFICE_LIST_BYTES, published_offices
+
+    def listing(offices: list[dict[str, Any]], truncated: bool = False) -> dict[str, Any]:
+        return {"offices": offices, "truncated": truncated}
+
+    short = [{"name": "Registrar", "aliases": ["Records"]}]
+    assert published_offices(listing(short, truncated=True)) is None
+    assert published_offices(listing(short)) == [{"name": "Registrar", "also_called": ["Records"]}]
+    # Too long with the other names: names only. Too long even so: not sent.
+    names = [{"name": f"Office {n:03d}", "aliases": ["a long nickname " * 8]} for n in range(120)]
+    cut = published_offices(listing(names))
+    assert cut is not None and all(list(o) == ["name"] for o in cut)
+    huge = [{"name": "Office " + "x" * 200 + str(n), "aliases": []}
+            for n in range(MAX_OFFICE_LIST_BYTES // 100)]
+    assert published_offices(listing(huge)) is None
+
+
+def test_a_turn_goes_on_without_the_list_when_it_cannot_be_read() -> None:
+    service = two_offices_and_a_person()
+
+    def unreadable(**_: Any) -> dict[str, Any]:
+        raise EvidenceUnavailable("the list cannot be read")
+
+    service.list_offices = unreadable  # type: ignore[method-assign]
+    gateway = ScriptedGateway(finish("greeting"))
+    result = answer(gateway, service=service)
+    assert result.status_code == 200
+    assert json.loads(gateway.inputs[0][1]["content"])["published_offices"] is None
 
 
 def test_office_listing_is_sorted_deduplicated_bounded_and_pinned() -> None:
