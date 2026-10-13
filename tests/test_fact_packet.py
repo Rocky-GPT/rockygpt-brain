@@ -339,3 +339,43 @@ def test_a_derived_fact_that_does_not_trace_or_add_up_is_refused() -> None:
     del incomplete["derived_facts"][0]["from"]
     with pytest.raises(PacketInvalid):
         validate_packet(incomplete)
+
+
+def test_open_now_is_read_only_from_plain_hours_and_never_guessed() -> None:
+    from datetime import datetime
+
+    from rockygpt_brain.fact_packet import open_now
+
+    at = datetime.fromisoformat("2026-10-13T18:57:00-04:00")
+    assert open_now("10:00am-6:00pm", at) == {"state": "closed", "now": "6:57pm"}
+    assert open_now("10:00am-7:00pm", at) == {"state": "open", "now": "6:57pm"}
+    assert open_now("8:00am-12:00am", at) == {"state": "open", "now": "6:57pm"}  # to midnight
+    assert open_now("9:00am-12:00pm, 6:00pm-8:00pm", at) == {"state": "open", "now": "6:57pm"}
+    assert open_now("24 hours", at) == {"state": "open", "now": "6:57pm"}
+    assert open_now("CLOSED", at) == {"state": "closed", "now": "6:57pm"}
+    assert open_now("12:00pm-6:57pm", at) == {"state": "closed", "now": "6:57pm"}  # end excluded
+    for unclear in ("6:00pm-2:00am", "10:00am-6:00pm by appointment", "Hours unavailable",
+                    "1 hour prior to performances", "", None):
+        assert open_now(unclear, at) is None, unclear
+
+
+def test_todays_hours_carry_open_now_and_another_days_do_not() -> None:
+    from datetime import datetime, timedelta
+
+    from rockygpt_brain.fact_packet import build_packet
+
+    today = datetime.fromisoformat(AS_OF)
+    day = today.strftime("%A").lower()
+    morning = today.replace(hour=10, minute=30).isoformat()
+    evening = today.replace(hour=18, minute=5).isoformat()
+    part = hours_part(day, today.date().isoformat())
+    (open_,) = build_packet(morning, [part])["derived_facts"]
+    (closed,) = build_packet(evening, [part])["derived_facts"]
+    assert open_["open_now"] == {"state": "open", "now": "10:30am"}
+    assert closed["open_now"] == {"state": "closed", "now": "6:05pm"}
+    # Tomorrow's hours are not an answer about this moment.
+    tomorrow = today + timedelta(days=1)
+    other = hours_part(tomorrow.strftime("%A").lower(), tomorrow.date().isoformat())
+    (derived,) = build_packet(morning, [other])["derived_facts"]
+    assert "open_now" not in derived
+
