@@ -78,7 +78,8 @@ Request only the fields the student asked for: email (an address), phones (phone
 any published call, text or SMS labels),
 offices (where it is), hours (opening hours, weekends, closing times); for hours on one particular
 day also set day to today, tomorrow or that weekday, otherwise leave day null. When the student
-wants to contact or reach an office and names no detail, read email, phones and offices.
+wants to contact or reach an office and asks for nothing more specific (no particular detail, and
+not which way or what time is best), read email, phones and offices.
 Other fields, each read only when asked for: name (the office's published name), department (the
 unit it belongs to), website (its own page), prefers_email (whether it says it prefers email),
 preferred_contact (the way it says it prefers to be reached), contact_note (what its page says
