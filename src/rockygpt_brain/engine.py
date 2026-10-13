@@ -83,10 +83,11 @@ one particular day also set day to today, tomorrow or that weekday, otherwise le
 Read the fields the student asked for, and a field they did not name only when it plainly makes
 the answer more useful to them (a time is more useful with its place); leave out fields that
 have nothing to do with the question. When the student wants to contact or reach an office and
-asks for nothing more specific (no particular detail, and not which way or what time is best),
-read email, phones and offices.
+asks for nothing more specific (no particular detail, and not which way, what time or who to
+ask), read email, phones and offices.
 Other fields, read when they answer the question or plainly help it: name (the office's
-published name), department (the unit it belongs to), website (its own page), prefers_email
+published name, which every answer already shows, so only when asked what it is called),
+department (the unit it belongs to), website (its own page), prefers_email
 (whether it says it prefers email), preferred_contact (the way it says it prefers to be
 reached), contact_note (what its page says about how, when or through whom to reach it: advice,
 instructions, staff and service contacts).
