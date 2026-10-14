@@ -96,6 +96,12 @@ _DANGER: dict[str, list[re.Pattern[str]]] = {
             r"\b(want|wanna|going|plan|planning) to die\b",
             r"\b(dont|do not) (want to|wanna) (live|be alive|exist|be here|go on|keep going)",
             r"\b(end it all|better off dead|not worth living|no reason to live)\b",
+            # "to just not wake up" is a wish, where "she wont wake up" is an unconscious person
+            # (the medical pattern below): both matching gives the general text with 911 and 988.
+            r"\b(to|just|wish|hope|rather|wanna) (just )?(not|never) (wake|waking) up\b",
+            r"\bhow many (pills|tablets|advil|tylenol|ibuprofen|aspirin|acetaminophen|benadryl|"
+            r"xanax|melatonin|sleeping pills|meds|painkillers|percocet) "
+            r"(would|will|does|do|to) (it )?(take|kill)\b",
             r"\bjump(ing)? (off|from) (the |a |my )?"
             r"(roof|bridge|building|garage|parking garage|balcony)\b",
         ),

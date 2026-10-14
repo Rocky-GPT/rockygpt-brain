@@ -224,3 +224,31 @@ def test_unconfigured_service_reports_configuration_failure(client: TestClient) 
 def test_normal_medication_mention_is_not_an_overdose() -> None:
     assert read("I took my medication this morning; where is the bookstore?") == CONTINUE
     assert is_safety("I took too many pills")
+
+
+@pytest.mark.parametrize("message", [
+    "how many advil would it take to just not wake up",
+    "i just want to not wake up tomorrow",
+    "i wish i could just never wake up",
+    "how many tylenol would it take to kill someone",
+])
+def test_a_wish_not_to_wake_or_a_pill_count_gets_the_general_text_with_988(message: str) -> None:
+    result = read(message)
+    assert result.kind == "safety"
+    # Where "not wake up" alone reads as an unconscious person, the wish makes the text the
+    # general one, which names both 911 and 988.
+    assert result.situation in {"self_harm", "other"}
+    assert "988" in result.message
+
+
+@pytest.mark.parametrize("message", [
+    "my roommate wont wake up",
+    "how many credits would it take to graduate early",
+    "how many advil can i take for a headache",
+    "what time do i have to wake up for the 8am shuttle",
+])
+def test_the_new_self_harm_patterns_leave_ordinary_messages_alone(message: str) -> None:
+    result = read(message)
+    assert result.situation != "self_harm"
+    if result.kind == "safety":
+        assert message == "my roommate wont wake up" and result.situation == "medical"
