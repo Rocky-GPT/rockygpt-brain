@@ -345,23 +345,25 @@ MODEL_INPUT_KEYS = ("campus_now", "client_omitted_messages", "server_omitted_mes
 # sent, rather than crowd out the conversation and the records.
 MAX_OFFICE_LIST_BYTES = 12_000
 UNSUPPORTED_MESSAGE = ("I don't have verified information about that. I can look up published "
-                       "contact details for Ramapo offices, like email, phone and room, if you "
-                       "tell me which office.")
+                       "contact details and hours for Ramapo offices, the posted shuttle "
+                       "timetable, and dining hours and menus.")
 UNSUPPORTED_AFTER_LOOKUP_MESSAGE = ("I don't have verified information about that part. If the "
                                     "office above handles it, its contact details are the best "
                                     "way to ask.")
 CLARIFICATION_MESSAGE = "Which office or service, and which details, do you mean?"
 FIXED_REPLIES = {
-    "greeting": ("Hi! I'm RockyGPT. I can look up published contact details for Ramapo offices, "
-                 "like email, phone and room. Which office do you need?"),
-    "thanks": ("You're welcome! Ask me for any office's published contact details whenever "
-               "you need them."),
+    "greeting": ("Hi! I'm RockyGPT. I can look up published contact details and hours for Ramapo "
+                 "offices, the posted shuttle timetable, and dining hours and menus. What do "
+                 "you need?"),
+    "thanks": ("You're welcome! Ask me for an office's contact details, a shuttle time or "
+               "dining hours whenever you need them."),
     "okay": ("Okay, thanks for letting me know. If anything changes, call 911, or call or text "
              "988 to talk with someone. I can look up office contact details whenever you need "
              "them."),
     "about": ("I'm RockyGPT, an AI assistant for Ramapo College students. Right now I can look "
-              "up published office contact details such as email, phone and room, with sources. "
-              "I can't see your personal student records."),
+              "up published office contact details such as email, phone, room and hours, the "
+              "posted shuttle timetable, and dining hours and menus, with sources. I can't see "
+              "your personal student records."),
 }
 
 
