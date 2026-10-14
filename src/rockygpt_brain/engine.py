@@ -132,7 +132,8 @@ department (the unit it belongs to), website (its own page), prefers_email
 reached), contact_note (what its page says about how, when or through whom to reach it: advice,
 instructions, staff and service contacts).
 The server reads an office's contact_note itself when a requested email or phone is not
-published, so do not add it for that. Preserve contact labels when answering.
+published, so do not add it for that. Preserve contact labels when answering. For a fax number
+read phones with phone_kind fax.
 Appointments, walk-in rules and deadlines are not supported; read the named office's
 contact_note, where it says how to schedule or reach it, and add unsupported for those parts.
 Use conversation to understand follow-ups, but retrieve their evidence through the root again.
@@ -209,6 +210,9 @@ class OfficeRequest(StrictModel):
     fields: list[OfficeField] = Field(min_length=1, max_length=10)
     # The one day the student asked the hours of. Code turns it into a date and reads that day.
     day: Literal[DAY_CHOICES] | None = None  # type: ignore[valid-type]
+    # For phones only: fax when the student asks for the fax number. Code keeps only the lines
+    # published as a fax; null reads every phone line.
+    phone_kind: Literal["fax"] | None = None
     # For a menu only: the one meal asked for, null for every meal of that day.
     meal: Literal["breakfast", "brunch", "lunch", "dinner", "late night"] | None = None
     # For a menu only. Code keeps just the items that match; each is null or empty otherwise.
@@ -802,6 +806,8 @@ class ChatEngine:
                 "facts": opened["facts"]}
         if also is not None:
             part["also"] = also
+        if request.phone_kind and "phones" in request.fields:
+            part["phone_kind"] = request.phone_kind
         if request.day and "hours" in request.fields:
             # Worked out here, on the campus clock, so a writer never has to.
             when: dict[str, str] = {

@@ -172,6 +172,18 @@ def fresh_for_date(fact: dict[str, Any], sources: dict[str, dict[str, Any]]) -> 
     return fresh
 
 
+_FAX = re.compile(r"\bfax\b", re.IGNORECASE)
+
+
+def _fax_lines(phones: Any) -> list[dict[str, Any]]:
+    """The phone lines an office publishes as a fax (by their own type or label)."""
+    if not isinstance(phones, list):
+        return []
+    return [line for line in phones if isinstance(line, dict) and any(
+        isinstance(line.get(key), str) and _FAX.search(line[key])
+        for key in ("type", "label", "text"))]
+
+
 class _Builder:
     def __init__(self) -> None:
         self.as_of: datetime | None = None
@@ -257,7 +269,15 @@ class _Builder:
                         entry["dates_published"] = list(prop["dates_published"])
                     self.missing.append(entry)
                 continue
-            for value in prop["values"]:
+            values = prop["values"]
+            if prop["key"] == "phones" and purpose is None and part.get("phone_kind") == "fax":
+                # The student asked for the fax: only the lines published as one are facts here.
+                values = [{**v, "value": fax} for v in values if (fax := _fax_lines(v["value"]))]
+                if not values:
+                    self.missing.append({"subject": entity, "predicate": "phones",
+                                         "reason": "unknown"})
+                    continue
+            for value in values:
                 ids = list(value["source_ids"])
                 if not ids or any(sid not in local for sid in ids):
                     raise PacketInvalid("A fact names a source the reader did not return.")

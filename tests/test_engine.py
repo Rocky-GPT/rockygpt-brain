@@ -577,8 +577,8 @@ def test_the_trace_records_each_lookup_the_model_asked_for_and_how_it_ended() ->
     (lookup,) = result.trace["lookups"]
     assert (lookup["tool"], lookup["traversedBy"]) == ("graph_lookup", "code")
     assert lookup["arguments"] == {
-        "query": "Registrar", "fields": ["email"], "day": None, "meal": None, "diet": None,
-        "items": [], "with_allergens": [], "without_allergens": []}
+        "query": "Registrar", "fields": ["email"], "day": None, "phone_kind": None,
+        "meal": None, "diet": None, "items": [], "with_allergens": [], "without_allergens": []}
     assert (lookup["status"], lookup["result_count"], lookup["office"]) == ("ok", 1, "Registrar")
     assert [node["id"] for node in lookup["path"]] == ["ramapo", "offices", "office:registrar"]
     assert (lookup["dataset_version"], lookup["identity_hash"]) == ("release-1", "identities-1")
