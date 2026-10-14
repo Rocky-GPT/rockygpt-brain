@@ -354,3 +354,22 @@ def test_where_a_venue_closes_between_its_periods_is_given_not_worked_out() -> N
         {"after": "Dinner", "closed_from": "8:00pm", "reopens_at": "9:00pm",
          "before": "Late Night"},
     ]
+
+
+def test_a_time_the_student_gave_narrows_the_trips_by_code() -> None:
+    after = completion("shuttle_lookup", {"requests": [{
+        "stop": "Garden State Plaza", "day": None, "which": "next", "after": "1pm", "by": None}]})
+    result = ask("a shuttle to the mall after 1pm", after, finish())
+    value = derived(result, "departures")["value"]
+    assert value["after"] == "1:00 PM"
+    assert [t["leaves_campus"] for t in value["trips"]] == ["9:40 PM"]
+    by = completion("shuttle_lookup", {"requests": [{
+        "stop": "Ramsey Rt 17 Train", "day": "tomorrow", "which": "next", "after": None,
+        "by": "12:30 PM"}]})
+    reached = ask("which shuttle gets me to the train by 12:30", by, finish())
+    got = derived(reached, "departures")["value"]
+    assert got["by"] == "12:30 PM" and [t["reached_at"] for t in got["trips"]] == ["12:10 PM"]
+    junk = completion("shuttle_lookup", {"requests": [{
+        "stop": None, "day": None, "which": "next", "after": "evening", "by": None}]})
+    unread = ask("evening shuttle", junk, finish())
+    assert derived(unread, "departures")["value"]["time_unreadable"] == "evening"
