@@ -1,0 +1,148 @@
+"""The shuttle answer is code: next/first/last by the campus clock, against the real timetable."""
+
+import json
+from datetime import date
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from rockygpt_brain.shuttle import (
+    clock,
+    departures,
+    minutes,
+    service_day,
+    stop_key,
+    stops_served,
+    trips_of,
+)
+
+FIXTURE = Path(__file__).parent / "fixtures" / "shuttle-timetable-20260929.json"
+ROWS = json.loads(FIXTURE.read_text())["rows"]
+
+
+def routes() -> list[dict[str, Any]]:
+    by_name: dict[str, dict[str, Any]] = {}
+    for row in ROWS:
+        route = by_name.setdefault(row["route_name"], {
+            "route": row["route_name"], "service_day": row["service_day"], "trips": []})
+        route["trips"].append({"sequence": row["sequence"], "departure": row["departure"],
+                               "arrival": row["arrival"], "stops": row["stops"]})
+    return list(by_name.values())
+
+
+TUESDAY, SATURDAY, SUNDAY = date(2026, 10, 13), date(2026, 10, 17), date(2026, 10, 18)
+
+
+def test_a_date_is_a_class_of_service_day() -> None:
+    assert [service_day(date(2026, 10, d)) for d in range(12, 19)] == [
+        "weekday"] * 5 + ["saturday", "sunday"]
+
+
+def test_clock_text_reads_and_writes_the_way_the_timetable_does() -> None:
+    assert minutes("7:00 AM") == 420 and minutes("12:00 AM") == 0 and minutes("12:30 PM") == 750
+    assert minutes("11:00 PM") == 1380 and minutes("N/A") is None and minutes("25:00") is None
+    assert clock(420) == "7:00 AM" and clock(0) == "12:00 AM" and clock(750) == "12:30 PM"
+
+
+def test_stop_names_fold_prefix_case_and_spacing() -> None:
+    assert stop_key("Arrive Ramsey Rt 17 Train") == stop_key("Depart Ramsey Rt 17 Train")
+    assert stop_key("CITY MD Ramsey") == stop_key("City MD Ramsey")
+    assert stop_key("Barnes & Noble/ Fashion Center") == stop_key("Barnes & Noble/Fashion Center")
+
+
+def test_the_published_stops_are_the_seven_places() -> None:
+    names = {stop_key(n) for n in stops_served(routes())}
+    assert names == {stop_key(n) for n in (
+        "Ramsey Rt 17 Train", "Interstate Plaza", "Garden State Plaza", "Ramsey Square",
+        "City MD Ramsey", "Barnes & Noble/Fashion Center", "Ramsey Farmers Market")}
+
+
+def test_every_published_trip_is_readable() -> None:
+    total = sum(len(trips_of(routes(), s)) for s in ("weekday", "saturday", "sunday"))
+    assert total == len(ROWS) == 51
+
+
+@pytest.mark.parametrize("day,stop", [
+    (TUESDAY, None), (TUESDAY, "Ramsey Rt 17 Train"), (TUESDAY, "Garden State Plaza"),
+    (SATURDAY, None), (SATURDAY, "Interstate Plaza"), (SUNDAY, "Ramsey Rt 17 Train"),
+])
+def test_next_matches_a_plain_reference_at_every_minute_of_the_day(
+        day: date, stop: str | None) -> None:
+    """The reference is the obvious loop: the earliest departure strictly after the minute."""
+    table = routes()
+    key = stop_key(stop) if stop else None
+    service = service_day(day)
+    reference = sorted(
+        (minutes(row["departure"]), row["route_name"]) for row in ROWS
+        if row["service_day"] == service and (
+            key is None or any(stop_key(s["location"]) == key for s in row["stops"])))
+    for now in range(0, 24 * 60):
+        got = departures(table, day, now, "next", stop)
+        later = [item for item in reference if item[0] > now]
+        shown = [(minutes(t["leaves_campus"]), t["route"]) for t in got.get("trips", [])]
+        assert shown == later[:2], (day, stop, now)
+        assert got.get("none_left", False) is (not later)
+
+
+def test_at_the_minute_a_shuttle_leaves_it_has_left() -> None:
+    got = departures(routes(), TUESDAY, minutes("7:00 AM"), "next", None)
+    assert [t["leaves_campus"] for t in got["trips"]][0] != "7:00 AM"
+    before = departures(routes(), TUESDAY, minutes("7:00 AM") - 1, "next", None)
+    assert before["trips"][0]["leaves_campus"] == "7:00 AM"
+
+
+def test_after_the_last_trip_the_next_service_day_is_named_with_its_date() -> None:
+    got = departures(routes(), TUESDAY, minutes("11:30 PM"), "next", None)
+    assert got["none_left"] is True and "trips" in got and got["trips"] == []
+    assert got["last_left_at"] == "9:40 PM"
+    assert got["next_service"]["date"] == "2026-10-14"
+    assert got["next_service"]["trips"][0]["leaves_campus"] == "7:00 AM"
+    # Saturday night rolls to Sunday, whose timetable is the Sunday one.
+    sat = departures(routes(), SATURDAY, minutes("11:59 PM"), "next", None)
+    assert sat["next_service"]["date"] == "2026-10-18"
+    assert sat["next_service"]["trips"][0]["leaves_campus"] == "10:00 AM"
+
+
+def test_first_and_last_of_the_day_say_whether_they_have_left() -> None:
+    first = departures(routes(), TUESDAY, minutes("6:00 AM"), "first", None)
+    assert [t["leaves_campus"] for t in first["trips"]] == ["7:00 AM", "7:00 AM"]
+    assert {t["route"] for t in first["trips"]} == {"Ramsey Route 17", "Weekday Roadrunner Express"}
+    assert first["already_left"] is False
+    gone = departures(routes(), TUESDAY, minutes("1:00 PM"), "first", None)
+    assert gone["already_left"] is True
+    last = departures(routes(), TUESDAY, minutes("1:00 PM"), "last", None)
+    assert [t["leaves_campus"] for t in last["trips"]] == ["9:40 PM"]
+    assert last["already_left"] is False
+
+
+def test_another_date_has_nothing_that_already_left() -> None:
+    other = departures(routes(), SATURDAY, None, "first", None)
+    assert "already_left" not in other and other["trips"][0]["leaves_campus"] == "9:00 AM"
+
+
+def test_a_stop_a_day_does_not_serve_is_no_service_for_it_not_an_empty_list() -> None:
+    # Sunday's trips never call at Barnes & Noble; only Sunday's call at the Farmers Market.
+    got = departures(routes(), SUNDAY, minutes("8:00 AM"), "next", "Barnes & Noble/Fashion Center")
+    assert got["service"] == "none" and got["trips_that_day"] == 0 and "trips" not in got
+    market = departures(routes(), TUESDAY, minutes("8:00 AM"), "next", "Ramsey Farmers Market")
+    assert market["service"] == "none"
+    sunday = departures(routes(), SUNDAY, minutes("8:00 AM"), "next", "Ramsey Farmers Market")
+    assert sunday["trips"]
+
+
+def test_a_trip_shows_where_it_is_reached_and_where_it_is_left_going_back() -> None:
+    got = departures(routes(), TUESDAY, minutes("6:00 AM"), "first", "Ramsey Rt 17 Train")
+    express = next(t for t in got["trips"] if t["route"] == "Ramsey Route 17")
+    assert express["leaves_campus"] == "7:00 AM" and express["reached_at"] == "7:10 AM"
+    assert express["stop"] == "Ramsey Rt 17 Train" and express["back_on_campus"] == "7:20 AM"
+
+
+def test_a_time_that_runs_backwards_is_not_read() -> None:
+    bad = [{"route": "R", "service_day": "weekday", "trips": [
+        {"departure": "9:00 AM", "arrival": "9:30 AM",
+         "stops": [{"location": "A", "time": "9:20 AM"}, {"location": "B", "time": "9:10 AM"}]},
+        {"departure": "10:00 AM", "arrival": "10:30 AM",
+         "stops": [{"location": "A", "time": "10:10 AM"}]},
+    ]}]
+    assert [t["leaves"] for t in trips_of(bad, "weekday")] == [600]

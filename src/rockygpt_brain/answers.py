@@ -88,9 +88,30 @@ def _value_text(key: str, value: Any) -> str:
             if isinstance(item, dict) and set(item) <= {"location", "label"}
             and isinstance(item.get("location"), str) else literal(item)
             for item in value)
+    if key == "menu" and isinstance(value, dict) and isinstance(value.get("meals"), list):
+        return _menu_text(value)
     if isinstance(value, bool):
         return "Yes" if value else "No"
     return literal(value)
+
+
+def _menu_item(item: dict[str, Any]) -> str:
+    text = literal(item.get("name", ""))
+    notes = [f"{item['calories']} cal"] if isinstance(item.get("calories"), int) else []
+    notes += [label for label in ("vegan", "vegetarian") if item.get(label) is True]
+    return f"{text} ({', '.join(notes)})" if notes else text
+
+
+def _menu_text(value: dict[str, Any]) -> str:
+    """A date's menu as published: each meal, its stations, their items, in service order."""
+    meals = []
+    for meal in value["meals"]:
+        stations = "; ".join(
+            f"{literal(station['station'])}: "
+            + ", ".join(_menu_item(item) for item in station["items"])
+            for station in meal["stations"])
+        meals.append(f"{literal(meal['meal'])}. {stations}")
+    return f"{literal(value.get('date', ''))}. " + " ".join(meals)
 
 
 _WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")

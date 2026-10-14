@@ -32,6 +32,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from rockygpt_brain.retrieval.entity_facts import (
+    RECORD_COLLECTIONS,
     EntityFacts,
     EvidenceUnavailable,
     Snapshot,
@@ -41,7 +42,7 @@ from rockygpt_brain.retrieval.entity_facts import (
 LOG = logging.getLogger(__name__)
 
 GRAPH_FORMAT = "2"
-BUILT_KINDS = ("office",)
+BUILT_KINDS = ("office", "venue", "route")
 CONTACTS = "contacts"
 SCHEDULES = "campus_hours"
 RETRY_SECONDS = 60.0  # After a failed build or read, answer from the source for this long.
@@ -183,7 +184,9 @@ def build_release_graph(
     records: dict[str, tuple[str, str, str]] = {}  # id -> (collection, canonical text, stored text)
     edges: list[dict[str, Any]] = []
     for entity_id, (contacts, schedules) in inputs.evidence.items():
-        for collection, rows in ((CONTACTS, contacts), (SCHEDULES, schedules)):
+        held = {CONTACTS: contacts, SCHEDULES: schedules,
+                **inputs.records.get(entity_id, {})}
+        for collection, rows in held.items():
             for position, row in enumerate(rows):
                 record_id = _record_id(collection, row)
                 canonical = _canonical(row)
@@ -318,6 +321,9 @@ class GraphEntityFacts(EntityFacts):
                 _loads(self._alias_sources),
                 lambda entity: self._evidence(connection, entity, SCHEDULES),
                 lambda: self.fingerprint,
+                lambda entity, collection: (
+                    self._evidence(connection, entity, collection)
+                    if collection in RECORD_COLLECTIONS else []),
             )
         finally:
             connection.close()

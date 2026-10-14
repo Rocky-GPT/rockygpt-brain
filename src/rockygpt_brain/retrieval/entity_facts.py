@@ -4,6 +4,7 @@ Discovery is deliberately separate from fact authority. Names locate canonical
 identities; only exact published identity links select the evidence records.
 """
 
+import dataclasses
 import hashlib
 import json
 import math
@@ -28,6 +29,17 @@ from rockygpt_brain.retrieval.projection import (
 MAX_ENTITIES = 5_000
 MAX_CONTACTS = 128
 MAX_SCHEDULE_ROWS = 128
+MAX_DINING_ROWS = 128
+MAX_MENU_ROWS = 1_500
+MAX_TRIP_ROWS = 128
+# The record collections a derived copy of a release carries beside contacts and campus hours,
+# with the most rows one entity may link to.
+RECORD_COLLECTIONS = {
+    "dining_hours": MAX_DINING_ROWS, "menu": MAX_MENU_ROWS, "shuttle_trips": MAX_TRIP_ROWS,
+}
+# Entities a student can ask about by name: offices and dining venues. A route is not named by
+# students; it is read through the shuttle timetable.
+NAMED_KINDS = ("office", "venue")
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 MAX_EVIDENCE_BYTES = 128_000
 CONTACT_OBSERVATION_ARTIFACT = "development-office-contact-evidence"
@@ -79,6 +91,10 @@ class Snapshot:
     # A digest of the evidence rows the readers return, read in the same transaction, so a derived
     # copy can tell when rows were edited in place. An adapter that cannot say returns "".
     fingerprint_reader: Callable[[], str] = lambda: ""
+    # Linked rows of one of RECORD_COLLECTIONS (dining hours, a menu, a route's trips). An adapter
+    # with none reads nothing.
+    record_reader: Callable[[dict[str, Any], str], list[dict[str, Any]]] = (
+        lambda entity, collection: [])
 
 
 @dataclass(frozen=True)
@@ -92,6 +108,9 @@ class ReleaseInputs:
     # entity id -> (contact rows, schedule rows), only for the entity kinds that were asked for.
     evidence: dict[str, tuple[list[dict[str, Any]], list[dict[str, Any]]]]
     fingerprint: str
+    # entity id -> collection -> rows, for the kinds that were asked for and only where linked.
+    records: dict[str, dict[str, list[dict[str, Any]]]] = dataclasses.field(
+        default_factory=dict)
 
 
 def _text(value: Any) -> str:
@@ -586,6 +605,14 @@ def validate_entities(entities: Any) -> list[dict[str, Any]]:
                         or not _text(link.get("source_key"))):
                     raise EvidenceUnavailable("Invalid schedule identity link.")
                 continue
+            if link.get("collection") in RECORD_COLLECTIONS:
+                record_keys = link.get("source_record_keys")
+                if (not isinstance(record_keys, list)
+                        or not all(isinstance(k, str) for k in record_keys)
+                        or len(record_keys) > RECORD_COLLECTIONS[link["collection"]]
+                        or not _text(link.get("source_key"))):
+                    raise EvidenceUnavailable("Invalid record identity link.")
+                continue
             if link.get("collection") != "contacts":
                 continue
             keys, pinned = link.get("source_record_keys"), link.get("source_record_ids")
@@ -611,6 +638,37 @@ def validate_entities(entities: Any) -> list[dict[str, Any]]:
                     raise EvidenceUnavailable("Contact evidence has multiple canonical owners.")
                 ownership.append(pin_set)
     return entities
+
+
+def linked_records(
+    snapshot: Snapshot, entities: Sequence[dict[str, Any]],
+) -> dict[str, dict[str, list[dict[str, Any]]]]:
+    """The rows of every extra record collection each entity links, for a derived copy."""
+    found: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for entity in entities:
+        held = {
+            collection: rows for collection in RECORD_COLLECTIONS
+            if any(link.get("collection") == collection for link in entity["links"])
+            and (rows := snapshot.record_reader(entity, collection))
+        }
+        if held:
+            found[entity["id"]] = held
+    return found
+
+
+def linked_rows(
+    entity: dict[str, Any], rows: Sequence[dict[str, Any]], collection: str,
+) -> list[dict[str, Any]]:
+    """Rows that an entity's links of one collection name by exact source and record key."""
+    links = [link for link in entity["links"] if link.get("collection") == collection]
+    return [
+        row for row in rows
+        if any(
+            row.get("source_key") == link["source_key"]
+            and row.get("source_record_key") in link["source_record_keys"]
+            for link in links
+        )
+    ]
 
 
 def linked_contacts(entity: dict[str, Any], rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -943,6 +1001,156 @@ def schedule_property(
             sources)
 
 
+def dining_property(
+    rows: Sequence[dict[str, Any]], now: datetime
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """A dining venue's `hours` property: its weekly schedule and its dated exceptions.
+
+    The venue's rows are read exactly as an office's schedules are. The one difference is the
+    venue's own rule: a row with a validity window is an exception to its weekly row for those
+    dates, not a second schedule that disagrees with it. Readings of different windows are
+    therefore `multiple`; two different readings of the same window are still a conflict."""
+    # An exception whose dates ended before today is no part of what a student can ask about.
+    today = now.astimezone(CAMPUS_TIMEZONE).date()
+    rows = [row for row in rows
+            if not ((until := _date(row.get("valid_until"))) is not None and until < today)]
+    prop, sources = schedule_property(rows, now)
+    if len(prop["values"]) > 1 and prop["status"] in {"conflicting", "multiple"}:
+        windows: dict[tuple[Any, Any], set[str]] = {}
+        by_id = {source["id"]: source for source in sources}
+        for value in prop["values"]:
+            source = by_id[value["source_ids"][0]]
+            windows.setdefault((source["valid_from"], source["valid_until"]), set()).add(
+                json.dumps(value["value"], sort_keys=True))
+        same_window_conflict = any(len(readings) > 1 for readings in windows.values())
+        issue_conflict = any(issue.get("status") == "conflicting"
+                             for issue in prop.get("issues", []))
+        prop["status"] = "conflicting" if same_window_conflict or issue_conflict else "multiple"
+    return prop, sources
+
+
+_MEAL_ORDER = ("Breakfast", "Continental", "Brunch", "Lunch", "Lite Lunch", "Dinner", "Late Night")
+
+
+def _meal_rank(meal: str) -> tuple[int, str]:
+    return (_MEAL_ORDER.index(meal), meal) if meal in _MEAL_ORDER else (len(_MEAL_ORDER), meal)
+
+
+def menu_property(
+    rows: Sequence[dict[str, Any]], now: datetime, on: date | None, meal: str | None = None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """A venue's menu for one date: its meals in service order, then stations, then items.
+
+    A date with no rows is `unknown`: the venue published nothing for it, which is not the same
+    as being closed (a closed day and a missing capture look alike here). Dietary labels are
+    kept only as the source published them: a flag is given when its coverage says published."""
+    empty = {"key": "menu", "label": "Menu", "category": "menu", "status": "unknown",
+             "values": [], "assertions": []}
+    dates = sorted({d for row in rows if (d := _date(row.get("valid_from")))})
+    if on is None or on not in dates:
+        return {**empty, "dates_published": [d.isoformat() for d in dates]}, []
+    picked = [row for row in rows if _date(row.get("valid_from")) == on]
+    if meal:
+        # Only the meal asked for; "late night" and "Late Night" are the same meal.
+        asked = " ".join(meal.casefold().split())
+        picked = [row for row in picked
+                  if " ".join(str(clean(row.get("meal")) or "").casefold().split()) == asked]
+        if not picked:
+            return {**empty, "dates_published": [d.isoformat() for d in dates]}, []
+    meals: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for row in sorted(picked, key=lambda r: (_meal_rank(clean(r.get("meal")) or ""),
+                                             clean(r.get("station")) or "", str(r.get("id")))):
+        meal = clean(row.get("meal"))
+        station = clean(row.get("station"))
+        name = clean(row.get("name"))
+        if not (isinstance(meal, str) and meal and isinstance(station, str) and station
+                and isinstance(name, str) and name):
+            raise EvidenceUnavailable("A menu record needs a meal, a station and a name.")
+        raw_coverage = row.get("label_coverage")
+        coverage: dict[str, Any] = raw_coverage if isinstance(raw_coverage, dict) else {}
+        item: dict[str, Any] = {"name": name}
+        if isinstance(row.get("calories"), int) and not isinstance(row.get("calories"), bool):
+            item["calories"] = row["calories"]
+        if _present(row.get("portion_size")):
+            item["portion"] = clean(row["portion_size"])
+        for flag in ("vegan", "vegetarian"):
+            if isinstance(row.get(flag), bool) and coverage.get(flag, "published") == "published":
+                item[flag] = row[flag]
+        allergens = row.get("allergens")
+        if (isinstance(allergens, list) and allergens
+                and all(isinstance(a, str) for a in allergens)):
+            item["allergens"] = list(allergens)
+        meals.setdefault(meal, {}).setdefault(station, []).append(item)
+    value = {"date": on.isoformat(), "meals": [
+        {"meal": meal, "stations": [{"station": station, "items": items}
+                                    for station, items in stations.items()]}
+        for meal, stations in meals.items()]}
+    captured = [t for r in picked if (t := _instant(r.get("collected_at")))]
+    first = picked[0]
+    reading = hashlib.sha256("|".join(sorted(str(r["id"]) for r in picked)).encode()).hexdigest()
+    source = _source({
+        **first, "id": f"{first['id']}:menu:{reading[:16]}",
+        "collected_at": min(captured) if len(captured) == len(picked) else None,
+        "valid_from": on, "valid_until": on,
+    }, now)
+    source.update(
+        collection="menu", source_record_keys=[r["source_record_key"] for r in picked],
+        record_ids=[r["id"] for r in picked],
+        content_hash=hashlib.sha256(
+            "|".join(sorted(str(r.get("content_hash")) for r in picked)).encode()).hexdigest())
+    assertion = {"id": f"{source['id']}:menu", "source_id": source["id"], "field": "menu",
+                 "raw_value": {"rows": len(picked)}, "value": _json_safe(value), "caveats": []}
+    return ({"key": "menu", "label": "Menu", "category": "menu", "status": "known",
+             "values": [{"value": _json_safe(value), "assertion_ids": [assertion["id"]],
+                         "source_ids": [source["id"]]}],
+             "assertions": [assertion], "dates_published": [d.isoformat() for d in dates]},
+            [source])
+
+
+def trips_property(
+    rows: Sequence[dict[str, Any]], now: datetime
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """A shuttle route's published trips as one value: its timetable, exactly as listed."""
+    empty = {"key": "trips", "label": "Shuttle trips", "category": "schedule",
+             "status": "unknown", "values": [], "assertions": []}
+    if not rows:
+        return empty, []
+    names = {clean(row.get("route_name")) for row in rows}
+    days = {clean(row.get("service_day")) for row in rows}
+    if len(names) != 1 or len(days) != 1 or not all(isinstance(n, str) and n for n in names | days):
+        raise EvidenceUnavailable("A route's trips must name one route and one service day.")
+    ordered = sorted(rows, key=lambda r: (r.get("sequence") if isinstance(r.get("sequence"), int)
+                                          else 10**6, str(r.get("id"))))
+    trips = []
+    for row in ordered:
+        raw_stops = row.get("stops")
+        stops: list[Any] = raw_stops if isinstance(raw_stops, list) else []
+        trips.append({
+            "sequence": row.get("sequence"), "departure": clean(row.get("departure")),
+            "arrival": clean(row.get("arrival")),
+            "stops": [{"location": clean(stop.get("location")), "time": clean(stop.get("time"))}
+                      for stop in stops if isinstance(stop, dict)],
+        })
+    value = {"route": next(iter(names)), "service_day": next(iter(days)), "trips": trips}
+    captured = [t for r in ordered if (t := _instant(r.get("collected_at")))]
+    first = ordered[0]
+    reading = hashlib.sha256("|".join(sorted(str(r["id"]) for r in ordered)).encode()).hexdigest()
+    source = _source({
+        **first, "id": f"{first['id']}:trips:{reading[:16]}",
+        "collected_at": min(captured) if len(captured) == len(ordered) else None,
+    }, now)
+    source.update(
+        collection="shuttle_trips", source_record_keys=[r["source_record_key"] for r in ordered],
+        record_ids=[r["id"] for r in ordered],
+        content_hash=hashlib.sha256(
+            "|".join(sorted(str(r.get("content_hash")) for r in ordered)).encode()).hexdigest())
+    assertion = {"id": f"{source['id']}:trips", "source_id": source["id"], "field": "trips",
+                 "raw_value": {"rows": len(ordered)}, "value": _json_safe(value), "caveats": []}
+    return ({"key": "trips", "label": "Shuttle trips", "category": "schedule", "status": "known",
+             "values": [{"value": _json_safe(value), "assertion_ids": [assertion["id"]],
+                         "source_ids": [source["id"]]}], "assertions": [assertion]}, [source])
+
+
 class EntityFacts:
     """Shared office search and canonical fact reader; adapters supply one snapshot."""
 
@@ -973,13 +1181,15 @@ class EntityFacts:
     def release_inputs(self, kinds: Sequence[str]) -> ReleaseInputs:
         """The active release and the evidence of every entity of the given kinds."""
         with self.snapshot() as snapshot:
+            wanted = [entity for entity in snapshot.entities if entity["kind"] in kinds]
             evidence = {
                 entity["id"]: (snapshot.contact_reader(entity), snapshot.schedule_reader(entity))
-                for entity in snapshot.entities if entity["kind"] in kinds
+                for entity in wanted
             }
             return ReleaseInputs(
                 snapshot.dataset_version, snapshot.identity_hash, list(snapshot.entities),
-                list(snapshot.alias_sources), evidence, snapshot.fingerprint_reader())
+                list(snapshot.alias_sources), evidence, snapshot.fingerprint_reader(),
+                linked_records(snapshot, wanted))
 
     @staticmethod
     def _pin(snapshot: Snapshot, version: str | None, identity_hash: str | None) -> None:
@@ -1012,6 +1222,7 @@ class EntityFacts:
         identity_hash: str | None = None,
         limit: int = 200,
         with_ids: bool = False,
+        kinds: Sequence[str] = ("office",),
     ) -> dict[str, Any]:
         """Published office names and aliases, so callers choose real names, not guesses."""
         if not 1 <= limit <= 500:
@@ -1020,8 +1231,9 @@ class EntityFacts:
             self._pin(snapshot, dataset_version, identity_hash)
             offices = sorted(
                 ({"name": entity["name"], "aliases": sorted(set(entity["aliases"])),
-                  **({"entity_id": entity["id"]} if with_ids else {})}
-                 for entity in snapshot.entities if entity["kind"] == "office"),
+                  **({"entity_id": entity["id"]} if with_ids else {}),
+                  **({"kind": entity["kind"]} if len(kinds) > 1 else {})}
+                 for entity in snapshot.entities if entity["kind"] in kinds),
                 key=lambda office: office["name"],
             )
             return {
@@ -1038,6 +1250,7 @@ class EntityFacts:
         dataset_version: str | None = None,
         identity_hash: str | None = None,
         limit: int = 8,
+        kinds: Sequence[str] = ("office",),
     ) -> dict[str, Any]:
         if not isinstance(query, str) or not query.strip() or len(query) > 200:
             raise InvalidFactRequest("Office search needs 1–200 characters.")
@@ -1049,7 +1262,7 @@ class EntityFacts:
             self._pin(snapshot, dataset_version, identity_hash)
             found = []
             for entity in snapshot.entities:
-                if entity["kind"] != "office":
+                if entity["kind"] not in kinds:
                     continue
                 names = [
                     " ".join(name.casefold().split())
@@ -1096,6 +1309,7 @@ class EntityFacts:
                         "entity_id": entity["id"],
                         "name": entity["name"],
                         "aliases": list(entity["aliases"]),
+                        **({"kind": entity["kind"]} if len(kinds) > 1 else {}),
                         "match": "exact" if exact else "partial",
                         # How it matched, for choosing between candidates: "name" and "alias"
                         # are the question's own words; "contains_*" is a whole published name
@@ -1122,9 +1336,14 @@ class EntityFacts:
         *,
         identity_hash: str | None = None,
         as_of: datetime | None = None,
+        on: date | None = None,
+        meal: str | None = None,
     ) -> dict[str, Any]:
+        """The facts of one office or dining venue. `on` is the date a menu is asked for, and
+        `meal` the one meal of it."""
         if fields is None:
-            fields = OFFICE_FIELDS
+            # Every field an office or venue has on record; a menu is asked for by its date.
+            fields = tuple(field for field in OFFICE_FIELDS if field != "menu")
         if (
             not isinstance(entity_id, str)
             or not entity_id
@@ -1149,14 +1368,27 @@ class EntityFacts:
                 (
                     entity
                     for entity in snapshot.entities
-                    if entity["id"] == entity_id and entity["kind"] == "office"
+                    if entity["id"] == entity_id and entity["kind"] in NAMED_KINDS
                 ),
                 None,
             )
             if not entity:
                 raise UnknownEntity("No office has that canonical identity.")
+            venue = entity["kind"] == "venue"
             rows = snapshot.contact_reader(entity)
-            schedule_rows = snapshot.schedule_reader(entity) if "hours" in selected else []
+            # A venue's hours are its dining rows; an office's are its campus hours.
+            schedule_rows = (snapshot.schedule_reader(entity)
+                             if "hours" in selected and not venue else [])
+            dining_rows = (snapshot.record_reader(entity, "dining_hours")
+                           if "hours" in selected and venue else [])
+            menu_rows = (snapshot.record_reader(entity, "menu")
+                         if "menu" in selected and venue else [])
+            for collection, found in (("dining_hours", dining_rows), ("menu", menu_rows)):
+                if len(found) > RECORD_COLLECTIONS[collection]:
+                    raise EvidenceUnavailable("Venue evidence exceeds the bounded read.")
+                if len(linked_rows(entity, found, collection)) != len(found):
+                    raise EvidenceUnavailable(
+                        "A venue record has no exact canonical identity link.")
             if len(schedule_rows) > MAX_SCHEDULE_ROWS:
                 raise EvidenceUnavailable("Office schedule evidence exceeds the bounded read.")
             if len(linked_schedules(entity, schedule_rows)) != len(schedule_rows):
@@ -1166,7 +1398,7 @@ class EntityFacts:
                 raise EvidenceUnavailable("Duplicate or missing schedule evidence identifiers.")
             if len(rows) > MAX_CONTACTS:
                 raise EvidenceUnavailable("Office evidence exceeds the bounded read.")
-            if len(json.dumps(_json_safe([*rows, *schedule_rows]),
+            if len(json.dumps(_json_safe([*rows, *schedule_rows, *dining_rows]),
                               allow_nan=False).encode()) > MAX_EVIDENCE_BYTES:
                 raise EvidenceUnavailable("Office evidence exceeds the bounded response.")
             if len(linked_contacts(entity, rows)) != len(rows):
@@ -1200,7 +1432,22 @@ class EntityFacts:
                 reviewed_aliases=reviewed,
                 now=now,
             )
-            if "hours" in selected:
+            if "menu" in selected:
+                if venue:
+                    menu, menu_sources = menu_property(menu_rows, now, on, meal)
+                else:  # Only a dining venue has a menu.
+                    menu, menu_sources = menu_property([], now, None)
+                sources.extend(menu_sources)
+                properties = sorted(
+                    [*properties, menu], key=lambda prop: list(selected).index(prop["key"]))
+            if "hours" in selected and venue:
+                hours, dining_sources = dining_property(dining_rows, now)
+                if hours["status"] == "unknown" and not dining_rows:
+                    hours = {**hours, "status": "unknown"}
+                sources.extend(dining_sources)
+                properties = sorted(
+                    [*properties, hours], key=lambda prop: list(selected).index(prop["key"]))
+            elif "hours" in selected:
                 hours, schedule_sources = schedule_property(schedule_rows, now)
                 # A link to a schedule says hours exist: unread rows are a gap, not an absence.
                 linked_hours = any(
@@ -1240,7 +1487,7 @@ class EntityFacts:
                             caveats.append(
                                 f"Linked schedule evidence is missing: {link['source_key']}/{key}."
                             )
-            if not rows:
+            if not rows and not venue:
                 caveats.append("No original contact evidence is published for this office.")
             return {
                 "schema_version": 4,
@@ -1250,7 +1497,73 @@ class EntityFacts:
                 "entity": {key: entity[key] for key in ("id", "kind", "name")},
                 "properties": properties,
                 "sources": sources,
-                "evidence_count": len(rows) + len(schedule_rows),
+                "evidence_count": (len(rows) + len(schedule_rows) + len(dining_rows)
+                                   + len(menu_rows)),
+                "caveats": caveats,
+                "complete": not caveats,
+            }
+
+
+    def list_routes(
+        self, *, dataset_version: str | None = None, identity_hash: str | None = None,
+    ) -> dict[str, Any]:
+        """The published shuttle routes (one per timetable), by name."""
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            routes = sorted(
+                ({"name": entity["name"], "entity_id": entity["id"]}
+                 for entity in snapshot.entities if entity["kind"] == "route"),
+                key=lambda route: route["name"])
+            return {"dataset_version": snapshot.dataset_version,
+                    "identity_hash": snapshot.identity_hash, "routes": routes}
+
+    def get_route_facts(
+        self,
+        entity_id: str,
+        dataset_version: str,
+        *,
+        identity_hash: str | None = None,
+        as_of: datetime | None = None,
+    ) -> dict[str, Any]:
+        """One shuttle route's published trips, with their source and its freshness."""
+        if (not isinstance(entity_id, str) or not entity_id or len(entity_id) > 100
+                or not isinstance(dataset_version, str) or not dataset_version):
+            raise InvalidFactRequest("A canonical entity and dataset pin are required.")
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            entity = next((e for e in snapshot.entities
+                           if e["id"] == entity_id and e["kind"] == "route"), None)
+            if not entity:
+                raise UnknownEntity("No shuttle route has that canonical identity.")
+            rows = snapshot.record_reader(entity, "shuttle_trips")
+            if len(rows) > MAX_TRIP_ROWS:
+                raise EvidenceUnavailable("Shuttle evidence exceeds the bounded read.")
+            if len(linked_rows(entity, rows, "shuttle_trips")) != len(rows):
+                raise EvidenceUnavailable("A shuttle trip has no exact canonical identity link.")
+            ids = [_text(row.get("id")) for row in rows]
+            if not all(ids) or len(set(ids)) != len(ids):
+                raise EvidenceUnavailable("Duplicate or missing shuttle evidence identifiers.")
+            now = as_of if as_of is not None else self.now()
+            if now.tzinfo is None:
+                raise InvalidFactRequest("The fact clock must include its timezone.")
+            prop, sources = trips_property(rows, now)
+            caveats = []
+            for link in entity["links"]:
+                if link.get("collection") != "shuttle_trips":
+                    continue
+                held = {row.get("source_record_key") for row in rows}
+                missing = [key for key in link["source_record_keys"] if key not in held]
+                if missing:
+                    caveats.append(f"{len(missing)} linked shuttle trips are missing.")
+            return {
+                "schema_version": 4,
+                "mapping_version": "entity-facts-6",
+                "dataset_version": snapshot.dataset_version,
+                "identity_hash": snapshot.identity_hash,
+                "entity": {key: entity[key] for key in ("id", "kind", "name")},
+                "properties": [prop],
+                "sources": sources,
+                "evidence_count": len(rows),
                 "caveats": caveats,
                 "complete": not caveats,
             }
@@ -1270,6 +1583,7 @@ class MemoryEntityFacts(EntityFacts):
         contacts: list[dict[str, Any]],
         alias_sources: list[dict[str, Any]] | None = None,
         schedules: list[dict[str, Any]] | None = None,
+        records: dict[str, list[dict[str, Any]]] | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         super().__init__(now=now)
@@ -1279,11 +1593,14 @@ class MemoryEntityFacts(EntityFacts):
         self.contacts = deepcopy(contacts)
         self.alias_sources = deepcopy(alias_sources or [])
         self.schedules = deepcopy(schedules or [])
+        # collection -> rows, for the dining_hours, menu and shuttle_trips collections.
+        self.records = deepcopy(records or {})
 
     @contextmanager
     def snapshot(self) -> Iterator[Snapshot]:
         entities, contacts = deepcopy(self.entities), deepcopy(self.contacts)
         schedules = deepcopy(self.schedules)
+        records = deepcopy(self.records)
         yield Snapshot(
             self.dataset_version,
             self.identity_hash,
@@ -1291,4 +1608,6 @@ class MemoryEntityFacts(EntityFacts):
             lambda entity: linked_contacts(entity, contacts),
             deepcopy(self.alias_sources),
             lambda entity: linked_schedules(entity, schedules),
+            record_reader=lambda entity, collection: linked_rows(
+                entity, records.get(collection, []), collection),
         )

@@ -16,7 +16,13 @@ from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from rockygpt_brain.answers import Rendered, literal, readable_quote, render_facts
+from rockygpt_brain.answers import (
+    Rendered,
+    citation_url,
+    literal,
+    readable_quote,
+    render_facts,
+)
 from rockygpt_brain.boundary import (
     CAPABILITY_AFTER_LOOKUP_MESSAGE,
     CAPABILITY_MESSAGE,
@@ -46,6 +52,14 @@ from rockygpt_brain.retrieval import (
     UnknownEntity,
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph
+from rockygpt_brain.shuttle import (
+    SCOPE_TEXT,
+    departures,
+    describe,
+    stop_key,
+    stops_served,
+    table_of,
+)
 from rockygpt_brain.timing import measure
 from rockygpt_brain.turn import Turn
 from rockygpt_brain.writer import WRITE_TOOL, says_something, unsupported_by, writer_messages
@@ -80,12 +94,20 @@ describes an office is a new question about that wording, even when it resembles
 one. An ambiguous match returns office choices: ask the student rather than choosing
 arbitrarily.
 A missing match is a limit of available evidence, not proof that the office does not exist.
-Every query, including follow-ups, is traversed from the root. Only offices are available.
+Every query, including follow-ups, is traversed from the root. Offices and the dining venues in
+published_venues (listed with the other names they go by, and used like published_offices) are
+available.
 Fields: email (an address), phones (phone numbers with any published call, text or SMS
 labels), offices (where it is), hours (opening hours, weekends, closing times); set day to
 today, tomorrow or that weekday only when the student asks about that one day. For the hours
 in general, or for more than one day (weekends, weekdays, Tuesdays and Thursdays), leave day
-null so the whole week is shown.
+null so the whole week is shown. For a dining venue, hours gives its meal periods for that day
+and menu what it serves (set day, today when none is named, and meal when the student names
+one: "dinner tonight" is dinner, "what time is lunch" is lunch). A venue that publishes no menu
+has none to read.
+The shuttle has its own tool, shuttle_lookup: stop is a name from published_stops, or null for
+any stop; day is the one day (null is today); which is next, first, last or all (the whole day).
+Send the stop as listed. A place that is not in published_stops is not served.
 Read the fields the student asked for, and a field they did not name only when it plainly makes
 the answer more useful to them (a time is more useful with its place); leave out fields that
 have nothing to do with the question. When the student wants to contact or reach an office and
@@ -106,8 +128,8 @@ Greetings, reactions and requests to pretend or write something do not require c
 Do not use search results, your memory, or invented values as evidence. Respect missing data,
 conflicts, source dates and ambiguity. Do not infer office hours, policies, or account records
 from contact details. This first slice cannot answer other campus facts or general essays: for
-dining, shuttles, events, policies, advice, explanations and the offices of any other college,
-with no Ramapo office named, use unsupported and make no lookup.
+events, policies, advice, explanations and the offices of any other college, with no Ramapo
+office named, use unsupported and make no lookup.
 
 Always finish with the finish tool; never write an answer as free text. All graph record
 results are automatically included by the server, including their limitations. The finish
@@ -166,7 +188,7 @@ class StrictModel(BaseModel):
 
 OfficeField = Literal[
     "name", "department", "email", "phones", "offices", "prefers_email",
-    "preferred_contact", "contact_note", "website", "hours",
+    "preferred_contact", "contact_note", "website", "hours", "menu",
 ]
 
 
@@ -175,10 +197,24 @@ class OfficeRequest(StrictModel):
     fields: list[OfficeField] = Field(min_length=1, max_length=10)
     # The one day the student asked the hours of. Code turns it into a date and reads that day.
     day: Literal[DAY_CHOICES] | None = None  # type: ignore[valid-type]
+    # For a menu only: the one meal asked for, null for every meal of that day.
+    meal: Literal["breakfast", "brunch", "lunch", "dinner", "late night"] | None = None
 
 
 class GraphRequests(StrictModel):
     requests: list[OfficeRequest] = Field(min_length=1, max_length=4)
+
+
+class ShuttleRequest(StrictModel):
+    # A stop named as published_stops lists it; null is any stop.
+    stop: str | None = Field(max_length=120)
+    # The one day the student asked about; null is today.
+    day: Literal[DAY_CHOICES] | None = None  # type: ignore[valid-type]
+    which: Literal["next", "first", "last", "all"]
+
+
+class ShuttleRequests(StrictModel):
+    requests: list[ShuttleRequest] = Field(min_length=1, max_length=2)
 
 
 class AnswerPart(StrictModel):
@@ -228,6 +264,10 @@ TOOLS = [
           "requested fields. Batch independent queries together. Code records the entire path "
           "and renders evidence; ambiguous matches ask which office. Results enter the answer "
           "automatically.", GraphRequests),
+    _tool("shuttle_lookup", "Read the posted shuttle timetables by code. Give a stop (as "
+          "published_stops lists it, or null for any stop), the day and which departure from "
+          "campus: next, first, last or all. Code works out the dates and times; results enter "
+          "the answer automatically.", ShuttleRequests),
     _tool("finish", "Finish the answer. Office results are included automatically. List only "
           "additional limitation, greeting, thanks, okay, about, recall, clock or safety parts; "
           "otherwise use an empty list. "
@@ -299,7 +339,8 @@ HELP_SECONDS = 3.0  # Emergency text never waits longer than this for the campus
 OFFICE_LIST_SECONDS = 3.0  # The list of offices shown to the model; without it the turn goes on.
 NUSD_PER_DOLLAR = 1_000_000_000
 MODEL_INPUT_KEYS = ("campus_now", "client_omitted_messages", "server_omitted_messages",
-                    "graph_root", "published_offices", "earlier_messages", "latest_message")
+                    "graph_root", "published_offices", "published_venues", "published_stops",
+                    "earlier_messages", "latest_message")
 # The list of offices the model is shown stays this small; a longer one is cut to names, then not
 # sent, rather than crowd out the conversation and the records.
 MAX_OFFICE_LIST_BYTES = 12_000
@@ -463,13 +504,17 @@ def named_options(asked: list[str], known: dict[str, str]) -> list[str]:
 
 
 def model_input(turn: Turn, context: Context, root: dict[str, Any],
-                offices: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+                offices: list[dict[str, Any]] | None = None,
+                venues: list[dict[str, Any]] | None = None,
+                stops: list[str] | None = None) -> list[dict[str, Any]]:
     state = {
         "campus_now": turn.campus_now.isoformat(),
         "client_omitted_messages": context.client_omitted_messages,
         "server_omitted_messages": context.server_omitted_messages,
         "graph_root": root,
         "published_offices": offices,
+        "published_venues": venues,
+        "published_stops": stops,
         "earlier_messages": [
             {"message_index": i, "role": m.role, "content": m.content}
             for i, m in enumerate(context.recent_messages)
@@ -561,6 +606,8 @@ def fixed_texts() -> list[dict[str, Any]]:
         entry("ambiguous_more", lookup, "Added to the line above when the search had more matches.",
               AMBIGUOUS_MORE_TEXT.strip()),
         entry("not_found", lookup, "A lookup matched no office.", NOT_FOUND_TEXT),
+        entry("shuttle_scope", lookup,
+              "Added after shuttle departures: the timetable is scheduled, not live.", SCOPE_TEXT),
         entry("data_unavailable", lookup, "The campus data could not be read during a lookup.",
               DATA_UNAVAILABLE_TEXT),
         entry("incomplete", ["a provider failure"],
@@ -658,8 +705,12 @@ class ChatEngine:
 
     def _lookup(self, request: OfficeRequest, graph: CampusGraph, as_of: datetime, *,
                 exact_name_only: bool = False, conversation: str = "") -> OfficeResult:
+        # A menu is read for one date: the day asked, today when none is named.
+        on = (target_date(request.day or "today", as_of.date())
+              if "menu" in request.fields else None)
         opened = graph.lookup(request.query, list(request.fields), as_of,
-                              exact_name_only=exact_name_only, conversation=conversation)
+                              exact_name_only=exact_name_only, conversation=conversation, on=on,
+                              meal=request.meal if "menu" in request.fields else None)
         detail: dict[str, Any] = {
             "path": graph.path(graph.current_node), "result_count": len(opened["candidates"]),
             "dataset_version": graph.version, "identity_hash": graph.identity_hash,
@@ -706,9 +757,88 @@ class ChatEngine:
             part["also"] = also
         if request.day and "hours" in request.fields:
             # Worked out here, on the campus clock, so a writer never has to.
-            part["when"] = {"day": request.day,
-                            "date": target_date(request.day, as_of.date()).isoformat()}
-            detail["day"] = part["when"]
+            when: dict[str, str] = {
+                "day": request.day,
+                "date": target_date(request.day, as_of.date()).isoformat()}
+            if request.meal:
+                when["meal"] = request.meal  # A venue's one period, when one was named.
+            part["when"] = when
+            detail["day"] = when
+        return OfficeResult(rendered, detail=detail, part=part)
+
+    async def _service_lists(self) -> tuple[list[dict[str, Any]] | None, list[str] | None]:
+        """The dining venues and the shuttle stops the model is shown; None where unreadable."""
+        venues: list[dict[str, Any]] | None = None
+        stops: list[str] | None = None
+        try:
+            async with asyncio.timeout(OFFICE_LIST_SECONDS):
+                found = await asyncio.to_thread(
+                    self.facts.list_offices, limit=100, kinds=("venue",))
+            venues = published_offices(found) or None
+        except (TimeoutError, EvidenceUnavailable):
+            venues = None
+        try:
+            async with asyncio.timeout(OFFICE_LIST_SECONDS):
+                stops = await asyncio.to_thread(self._published_stops)
+        except (TimeoutError, EvidenceUnavailable):
+            stops = None
+        return venues, stops
+
+    def _published_stops(self) -> list[str] | None:
+        listing = self.facts.list_routes()
+        key = (listing["dataset_version"], listing["identity_hash"])
+        cached = getattr(self, "_stops_cache", None)
+        if cached is not None and cached[0] == key:
+            return cached[1]  # type: ignore[no-any-return]
+        envelopes = [self.facts.get_route_facts(route["entity_id"], key[0], identity_hash=key[1])
+                     for route in listing["routes"]]
+        stops = stops_served(table_of(envelopes)) or None
+        self._stops_cache = (key, stops)
+        return stops
+
+    def _shuttle(self, request: ShuttleRequest, as_of: datetime, version: str | None,
+                 identity_hash: str | None) -> OfficeResult:
+        """The departure the student asked for, worked out from the posted timetables by code."""
+        listing = self.facts.list_routes(dataset_version=version, identity_hash=identity_hash)
+        pins = (listing["dataset_version"], listing["identity_hash"])
+        envelopes = [self.facts.get_route_facts(route["entity_id"], pins[0],
+                                                identity_hash=pins[1], as_of=as_of)
+                     for route in listing["routes"]]
+        table = table_of(envelopes)
+        day = target_date(request.day or "today", as_of.date())
+        now_minute = as_of.hour * 60 + as_of.minute if day == as_of.date() else None
+        published = stops_served(table)
+        asked = " ".join(request.stop.split()) if request.stop else None
+        if asked and stop_key(asked) not in {stop_key(name) for name in published}:
+            answer: dict[str, Any] = {
+                "date": day.isoformat(), "which": request.which, "stop_unknown": True,
+                "asked": asked[:80], "published_stops": published}
+        else:
+            answer = departures(table, day, now_minute, request.which, asked)
+        listed = bool(table) and not answer.get("stop_unknown")
+        citations: dict[str, dict[str, Any]] = {}
+        for envelope in envelopes:
+            for source in envelope["sources"]:
+                urls = list(dict.fromkeys(url for candidate in source["citation_urls"]
+                                          if (url := citation_url(candidate))))
+                if urls:
+                    citations[source["id"]] = {
+                        "id": source["id"], "title": str(source["source_key"]), "url": urls[0],
+                        "urls": urls, "collection": source["collection"],
+                        "collected_at": source["collected_at"], "freshness": source["freshness"],
+                        "valid_from": source["valid_from"], "valid_until": source["valid_until"],
+                        "limitations": source["caveats"], "record_title": "Shuttle timetable"}
+        text = describe(answer) if table else ""
+        rendered = Rendered(text, list(citations.values()), supported=listed and bool(citations),
+                            complete=listed and all(e.get("complete", True) for e in envelopes))
+        detail = {"dataset_version": pins[0], "identity_hash": pins[1],
+                  "as_of": as_of.isoformat(), "office": "Shuttle timetable",
+                  "result_count": len(table),
+                  "day": {"day": request.day or "today", "date": day.isoformat()},
+                  "answer": {"text": rendered.text, "citations": rendered.citations,
+                             "complete": rendered.complete}}
+        part = {"kind": "shuttle_facts", "query": asked or "", "routes": envelopes,
+                "answer": answer}
         return OfficeResult(rendered, detail=detail, part=part)
 
     async def answer(self, turn: Turn, request: ChatRequest, *,
@@ -744,8 +874,9 @@ class ChatEngine:
             # The lookups read the same data and report a failure themselves.
             offices = None
         known = known_office_names(listing) if offices is not None else {}
+        venues, stops = await self._service_lists()
         with measure("Prepare model input"):
-            inputs = model_input(turn, context, graph.root(), offices)
+            inputs = model_input(turn, context, graph.root(), offices, venues, stops)
             # What a tie between offices that share a name may be broken by: the latest message
             # and the exchange it follows.
             conversation = "\n".join(
@@ -767,15 +898,51 @@ class ChatEngine:
                             finish = Finish.model_validate(call.arguments)
                             trace["finish"] = [part.kind for part in finish.parts]
                             continue
-                        if call.name != "graph_lookup":
+                        if call.name not in {"graph_lookup", "shuttle_lookup"}:
                             raise GatewayError("provider_invalid_response")
-                        requests = GraphRequests.model_validate(call.arguments).requests
+                        requests: list[OfficeRequest] | list[ShuttleRequest]
+                        if call.name == "shuttle_lookup":
+                            requests = ShuttleRequests.model_validate(call.arguments).requests
+                        else:
+                            requests = GraphRequests.model_validate(call.arguments).requests
                         attempts += len(requests)
                         if (attempts > MAX_TOOL_ATTEMPTS
                                 or len(results) + len(requests) > MAX_RESULTS):
                             raise GatewayError("turn_budget_exhausted")
                     output: list[dict[str, Any]] = []
                     for item in requests:
+                        if isinstance(item, ShuttleRequest):
+                            shuttle_entry: dict[str, Any] = {
+                                "tool": "shuttle_lookup", "traversedBy": "code",
+                                "status": "failed", "result_count": 0,
+                                "arguments": item.model_dump(),
+                                "as_of": turn.campus_now.isoformat()}
+                            trace["lookups"].append(shuttle_entry)
+                            try:
+                                with measure(f"Lookup {len(trace['lookups'])}"):
+                                    shuttle_result = await asyncio.to_thread(
+                                        self._shuttle, item, turn.campus_now, version,
+                                        identity_hash)
+                            except DatasetChanged:
+                                shuttle_entry["status"] = "dataset_changed"
+                                raise GatewayError("dataset_changed") from None
+                            except EvidenceUnavailable:
+                                shuttle_entry["status"] = "data_unavailable"
+                                raise GatewayError("data_unavailable") from None
+                            except (UnknownEntity, InvalidFactRequest):
+                                shuttle_entry["status"] = "rejected"
+                                raise GatewayError("provider_invalid_response") from None
+                            version = shuttle_result.detail["dataset_version"]
+                            identity_hash = shuttle_result.detail["identity_hash"]
+                            results[f"r{len(results) + 1}"] = shuttle_result
+                            shuttle_entry["status"] = "ok"
+                            shuttle_entry.update(shuttle_result.detail)
+                            output.append({"query": item.stop or "", "rendered":
+                                           shuttle_result.rendered.text,
+                                           "supported": shuttle_result.rendered.supported,
+                                           "complete": shuttle_result.rendered.complete,
+                                           "clarification": False, "error": None})
+                            continue
                         # A fresh traversal per query, pinned to the turn's first publication.
                         traversal = CampusGraph(self.facts, dataset_version=version,
                                                 identity_hash=identity_hash)
