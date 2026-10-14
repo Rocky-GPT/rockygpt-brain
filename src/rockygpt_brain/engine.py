@@ -119,7 +119,9 @@ Use unsupported for a part the available tools cannot answer. Do not discard a s
 public part because another part needs account access or is unsupported. A value a lookup
 returned is never unsupported, even when its limitations call it stale, conflicting or
 unconfirmed: the server shows those limitations itself. Add unsupported only for something the
-student asked, never for related things they did not ask (appointments, hours, policies).
+student asked that no lookup answers, and put the student's own words that ask for it in
+student_words; with no such words there is nothing unsupported. A contact_note that mentions
+appointments or policies is not a reason to add it.
 
 Use greeting for a plain hello, thanks for a thank-you or goodbye, okay when the student says an
 earlier emergency, scare or worry is over, was a false alarm, or needs no help now (okay, not
@@ -189,6 +191,9 @@ class AnswerPart(StrictModel):
     # For clarification only: the listed offices the question could mean. Code keeps only names
     # the published list has; the model never writes the question.
     offices: list[str] = Field(default_factory=list, max_length=4)
+    # For unsupported only: the student's own words that ask for what no tool can answer. Beside
+    # office facts, code keeps an unsupported part only when these words are in the message.
+    student_words: str | None = None
 
 
 class Finish(StrictModel):
@@ -226,7 +231,8 @@ TOOLS = [
     _tool("finish", "Finish the answer. Office results are included automatically. List only "
           "additional limitation, greeting, thanks, okay, about, recall, clock or safety parts; "
           "otherwise use an empty list. "
-          "message_index is only for recall, and situation only for safety; each is otherwise "
+          "message_index is only for recall, situation only for safety, and student_words "
+          "only for unsupported (the student's own words asking for it); each is otherwise "
           "null. language is the language the student wrote in when it is not English, as "
           "one word (Spanish); otherwise null.", Finish),
 ]
@@ -369,6 +375,39 @@ def published_offices(listing: dict[str, Any]) -> list[dict[str, Any]] | None:
         if len(json.dumps(menu, ensure_ascii=False).encode()) <= MAX_OFFICE_LIST_BYTES:
             return menu
     return None
+
+
+# Words for what the Brain can look up (the fields of an office record) and the words around them.
+# A quote made only of these, and the office's own name, asks for nothing the lookup left
+# unanswered.
+_ANSWERABLE_WORDS = frozenset(
+    "a an the of for to and or in on at about with from by is are was do does did can could will "
+    "would how what whats which who whom where when why i me my we you your their its it this that "
+    "these those there here please tell give need want get find know contact contacts info "
+    "information details detail email emails phone phones number numbers call text reach room "
+    "rooms office offices location located building website site link page hours hour open opens "
+    "close closes closed time times schedule name department".split())
+
+
+def _words(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+(?:'[a-z0-9]+)*", text.casefold().replace("\u2019", "'"))
+
+
+def _asked_words(student_words: str | None, message: str, offices: set[str]) -> str | None:
+    """The student's own words that an unsupported part is about, or None when there are none.
+
+    The model must give the words it cannot answer. Words that are not in the student's message, or
+    that only name an office or a field the lookup answers (contact info, phone, hours), do not
+    point at anything unsupported: it is the model reaching for a limit the question never set."""
+    if not isinstance(student_words, str):
+        return None
+    said = _words(student_words)
+    if not said or not set(said) <= set(_words(message)):
+        return None
+    named = {word for name in offices for word in _words(name)}
+    if all(word in _ANSWERABLE_WORDS or word in named for word in said):
+        return None
+    return " ".join(student_words.split())[:100]
 
 
 def _plain_language(finish: Finish) -> str | None:
@@ -936,7 +975,11 @@ class ChatEngine:
                     chunks.append(RECALL_OMITTED_TEXT)
                 supported = True
             else:
-                if part.message_index is not None:
+                # An index means "this message" for a recall only. An unsupported part names the
+                # student's words, which a model sometimes pairs with the message they are in.
+                if part.message_index is not None and part.kind != "unsupported":
+                    LOG.warning("brain_invalid_part request_id=%s kind=%s message_index=%s",
+                                turn.request_id, part.kind, part.message_index)
                     raise GatewayError("provider_invalid_response")
                 if part.kind == "safety":
                     situations.append(part.situation or "other")
@@ -947,11 +990,21 @@ class ChatEngine:
                     chunks.append(CAPABILITY_AFTER_LOOKUP_MESSAGE if shown else CAPABILITY_MESSAGE)
                     limited = True
                 elif part.kind == "unsupported":
+                    looked_up = {word for r in results.values() if r.part
+                                 and r.part.get("kind") == "office_facts"
+                                 for word in (r.part["office"]["name"], r.part.get("query") or "")}
+                    about = _asked_words(part.student_words, context.latest_message, looked_up)
+                    if shown and about is None:
+                        # Office facts are above and nothing the student asked is unsupported: a
+                        # contact note that mentions appointments is not a question about them.
+                        trace.setdefault("unsupported_dropped", []).append(part.student_words)
+                        continue
+                    if about:  # For the inspector: what the model said it could not answer.
+                        trace.setdefault("unsupported_about", []).append(about)
+                    said = UNSUPPORTED_AFTER_LOOKUP_MESSAGE if shown else UNSUPPORTED_MESSAGE
                     parts.append({"kind": "unsupported", "afterLookup": shown,
-                                  "approved_text": (UNSUPPORTED_AFTER_LOOKUP_MESSAGE if shown
-                                                    else UNSUPPORTED_MESSAGE)})
-                    chunks.append(UNSUPPORTED_AFTER_LOOKUP_MESSAGE if shown
-                                  else UNSUPPORTED_MESSAGE)
+                                  "approved_text": said})
+                    chunks.append(said)
                     limited = True
                 elif part.kind == "clarification":
                     if not lookup_clarified:  # A lookup already asked which office.
@@ -1052,8 +1105,12 @@ class ChatEngine:
         problems = unsupported_by(said, view)
         if problems:
             return keep("not_in_the_facts", problems)
-        fixed = [n["approved_text"] for n in view.get("notices", [])
-                 if isinstance(n.get("approved_text"), str)]
+        said_flat = " ".join(said.casefold().split())
+        # A fixed notice the writer already said is not shown a second time.
+        fixed = [text for text in dict.fromkeys(
+                     n["approved_text"] for n in view.get("notices", [])
+                     if isinstance(n.get("approved_text"), str))
+                 if " ".join(text.casefold().split()) not in said_flat]
         sources = [f"[{s['n']}]({s['urls'][0]})" for s in view.get("sources", []) if s.get("urls")]
         text = "\n\n".join([said.strip(), *fixed,
                             *([("Sources: " + " ".join(sources))] if sources else [])])

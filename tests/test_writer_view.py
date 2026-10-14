@@ -12,7 +12,12 @@ from typing import Any
 
 from rockygpt_brain.fact_packet import build_packet
 from rockygpt_brain.retrieval import MemoryEntityFacts
-from rockygpt_brain.writer_view import NO_VALIDITY_NOTE, _campus_instant, writer_view
+from rockygpt_brain.writer_view import (
+    DATES_NOT_PUBLISHED_NOTE,
+    NO_VALIDITY_NOTE,
+    _campus_instant,
+    writer_view,
+)
 from test_fact_packet import AS_OF, part_for
 from test_graph_store import NOW, contact, office, source, week
 from test_not_published import claim
@@ -385,7 +390,59 @@ def test_an_unverified_seasonal_date_says_so_once_and_has_no_empty_window() -> N
     (said,) = writer_view(packet)["derived_facts"]
     assert said["applicability"] == "unverified" and said["current"] is False
     assert "applies" not in said and "window" not in said["value"]
-    assert said["applicability_reason"] == "Its applicability to this date is unverified."
+    # The packet's technical reason becomes the plain fact a student is told.
+    assert said["applicability_reason"] == DATES_NOT_PUBLISHED_NOTE
+
+
+def _two_schedules(first: str, second: str) -> dict[str, Any]:
+    """A day asked of one office from two schedules with these season labels (October)."""
+    packet = deepcopy(every_shape()["a day asked"])
+    (one,) = packet["derived_facts"]
+    packet["request"]["asOf"] = "2026-10-14T10:00:00-04:00"
+    two = deepcopy(one)
+    for entry, season, n in ((one, first, 1), (two, second, 2)):
+        entry.update(id=f"d{n}", date="2026-10-15", day="Thursday", applies=False, current=False,
+                     applicability="unverified",
+                     applicability_reason="The seasonal schedule has no complete date range.")
+        entry["value"] = {"schedule": f"{season} hours", "season": season, "hours": None,
+                          "listed_hours": "8:30am-4:30pm"}
+    packet["derived_facts"] = [one, two]
+    return packet
+
+
+def test_a_schedule_of_another_season_is_left_out_beside_one_that_could_apply() -> None:
+    view = writer_view(_two_schedules("Academic Year", "Summer"))
+    assert [d["value"]["schedule"] for d in view["derived_facts"]] == ["Academic Year hours"]
+    # Each is the same kind of schedule: both stay, as the page lists them.
+    both = writer_view(_two_schedules("Fall/Spring", "Academic Year"))
+    assert len(both["derived_facts"]) == 2
+    # Nothing is left out when nothing else remains, and a season it cannot place is kept.
+    alone = writer_view(_two_schedules("Summer", "Summer"))
+    assert len(alone["derived_facts"]) == 2
+    unplaced = writer_view(_two_schedules("Early arrival period", "Summer"))
+    assert len(unplaced["derived_facts"]) == 1
+    # The packet itself keeps both.
+    packet = _two_schedules("Academic Year", "Summer")
+    writer_view(packet)
+    assert len(packet["derived_facts"]) == 2
+
+
+def test_a_day_a_schedule_lists_nothing_for_is_said_as_not_published_alone() -> None:
+    packet = _two_schedules("Academic Year", "Academic Year")
+    packet["derived_facts"] = packet["derived_facts"][:1]
+    (entry,) = packet["derived_facts"]
+    checks = {"checked_at": "2026-10-07T18:44:05.521Z", "checks": [{"url": "https://example.edu/h/"}]}
+    entry["value"] = {"schedule": "Academic Year hours", "season": "Academic Year", "hours": None,
+                      "listed_hours": None, "status": "not_published", "absence": dict(checks),
+                      "validity_absence": {"valid_from": dict(checks), "valid_until": dict(checks)}}
+    (said,) = writer_view(packet)["derived_facts"]
+    assert said["value"]["status"] == "not_published" and "absence" in said["value"]
+    for gone in ("applicability", "applicability_reason", "current", "applies"):
+        assert gone not in said, gone
+    assert "dates_not_published" not in said["value"] and "listed_hours" not in said["value"]
+    # A day it does list hours for keeps the note about its dates.
+    (listed,) = writer_view(_two_schedules("Academic Year", "Academic Year"))["derived_facts"][:1]
+    assert listed["applicability"] == "unverified" and listed["current"] is False
 
 
 def test_a_time_is_given_in_campus_time_so_its_date_is_the_students() -> None:
@@ -395,3 +452,20 @@ def test_a_time_is_given_in_campus_time_so_its_date_is_the_students() -> None:
     assert _campus_instant("2026-10-07") == "2026-10-07"
     assert _campus_instant("not a time") == "not a time"
     assert _campus_instant(None) is None
+
+
+def test_a_schedule_with_one_published_date_says_which_is_missing() -> None:
+    def note(missing: list[str]) -> str:
+        packet = _two_schedules("Fall 2026", "Fall 2026")
+        packet["derived_facts"] = packet["derived_facts"][:1]
+        proof = {"checked_at": "2026-10-07T18:44:05.521Z",
+                 "checks": [{"url": "https://example.edu/h/"}]}
+        bounds = {"start": "valid_from", "end": "valid_until"}
+        packet["derived_facts"][0]["value"]["validity_absence"] = {
+            bounds[bound]: dict(proof) for bound in missing}
+        (said,) = writer_view(packet)["derived_facts"]
+        return str(said["applicability_reason"])
+
+    assert note(["start", "end"]) == DATES_NOT_PUBLISHED_NOTE
+    assert note(["end"]) == "The page gives when this schedule starts but not when it ends."
+    assert note(["start"]) == "The page gives when this schedule ends but not when it starts."

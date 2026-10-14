@@ -142,10 +142,15 @@ def test_what_the_code_used_to_write_is_a_notice_with_the_approved_wording() -> 
     (limit,) = notices(run(ScriptedGateway(finish("account_limit"))))
     assert limit["type"] == "account_limit"
     assert "personal student information" in limit["approved_text"]
-    after = run(ScriptedGateway(LOOKUP, finish("unsupported")))
+    after = run(ScriptedGateway(LOOKUP, finish("unsupported", student_words="refund policy")),
+                messages=[{"role": "user",
+                           "content": "What is the Registrar email and the refund policy?"}])
     assert packet(after)["status"] == "partial" and len(packet(after)["facts"]) == 1
     assert notices(after)[0]["afterLookup"] is True
     assert notices(after)[0]["approved_text"] == engine_module.UNSUPPORTED_AFTER_LOOKUP_MESSAGE
+    # Beside facts, an unsupported part with no words of the student's own is dropped.
+    nothing_asked = run(ScriptedGateway(LOOKUP, finish("unsupported")))
+    assert packet(nothing_asked)["status"] == "complete" and notices(nothing_asked) == []
     (clock,) = notices(run(ScriptedGateway(finish("clock"))))
     assert clock["type"] == "clock" and datetime.fromisoformat(clock["campusNow"]) == NOW
     # The weekday and the zone's name are worked out by code; a writer is handed the sentence.

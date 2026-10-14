@@ -139,3 +139,25 @@ def test_written_output_never_returns_an_empty_answer_on_the_code_only_paths() -
     # A finish with nothing in it is the generic question, in words.
     body, trace = turn(finish(), output="written")
     assert body["answer"].strip() and "writer" not in trace
+
+
+def test_a_fixed_notice_the_writer_already_said_is_not_shown_twice() -> None:
+    from rockygpt_brain.engine import UNSUPPORTED_AFTER_LOOKUP_MESSAGE
+
+    def run(said: str) -> str:
+        request = ChatRequest.model_validate({"messages": [{
+            "role": "user",
+            "content": "What is the Registrar email and can I book an appointment?"}]})
+        engine = ChatEngine(
+            ScriptedGateway(LOOKUP, finish("unsupported", student_words="book an appointment"),
+                            writing(said)),
+            facts(), output="written")  # type: ignore[arg-type]
+        result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+        return str(result.body["answer"])
+
+    notice = UNSUPPORTED_AFTER_LOOKUP_MESSAGE
+    repeated = run(f"The Registrar's email is published@example.edu [1]. {notice}")
+    assert repeated.count("I don't have verified information") == 1
+    # A reply that leaves it out still carries it, once.
+    left_out = run("The Registrar's email is published@example.edu [1].")
+    assert left_out.count(notice) == 1

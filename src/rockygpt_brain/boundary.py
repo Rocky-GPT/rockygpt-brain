@@ -170,6 +170,21 @@ _NEGATED_911 = re.compile(
     r"\b(?:not|non|isnt|arent|wasnt|no need for|dont need)(?: an?| the)? 911\b")
 
 
+# A student who says they feel low AND that they have no one to talk to. Not an emergency, but the
+# prompt already sends "asks for someone to talk to" to the emergency text (988 and the campus
+# lines), and left to the model that choice came and went on this very message. Both halves are
+# needed, so "the portal is down, who can I talk to?" and "someone to talk to about tutoring" are
+# not caught.
+_LOW_STATE = re.compile(
+    r"\b(?:feel|feeling|felt|been|am|im|so|really|kinda|very)\s+(?:\w+\s+)?"
+    r"(?:down|empty|lonely|alone|isolated|depressed|hopeless|worthless|numb|sad|miserable)\b")
+_NO_ONE_TO_TALK_TO = re.compile(
+    r"\b(?:no ?one|nobody|anyone|anybody|someone|somebody)\s+(?:here\s+|on campus\s+|around\s+|"
+    r"left\s+)?to\s+(?:talk|reach out|vent|open up)\b"
+    r"|\b(?:talk|reach out|vent|open up)\s+to\s+"
+    r"(?:anyone|anybody|someone|somebody|no ?one|nobody)\b")
+
+
 def plain(text: str) -> str:
     """Lower case, no accents, apostrophes or invisible characters, punctuation as spaces."""
     text = re.sub(r"['`´ʹʻʼˈ’‘′‛＇]", "", text)
@@ -188,6 +203,8 @@ def check(turn: Turn) -> BoundaryResult:
     """Read the Turn's message. Only the latest message counts, not earlier ones."""
     text = plain(turn.message)
     kinds = {name for name, patterns in _DANGER.items() if any(p.search(text) for p in patterns)}
+    if not kinds and _LOW_STATE.search(text) and _NO_ONE_TO_TALK_TO.search(text):
+        return BoundaryResult("safety", safety_text("other"), "other", also_answer=True)
     if not kinds and any(p.search(text) for p in _GENERIC):
         kinds = {"other"}
         stripped = _NEGATED_911.sub(" ", text)
