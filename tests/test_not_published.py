@@ -218,10 +218,11 @@ def test_a_not_published_entry_that_breaks_the_contract_is_refused(name: str, ch
 
 
 def test_a_claim_with_no_field_or_for_a_field_that_cannot_be_absent_confirms_nothing() -> None:
-    row = contact("r1", normalization_metadata=meta({"checks": [CHECK]}, claim("website"),
-                                                     {"field": None, "checks": [CHECK]}))
+    # A name is never absent: a claim for it confirms nothing (a website can be, since 2026-10-14).
+    row = contact("r1", normalization_metadata=meta({"checks": [CHECK]}, claim("name"),
+                                                     {"field": None, "checks": [CHECK]}), name=None)
     service = source([office("registrar", "Registrar")], [row])
-    assert prop(read(service, "website"), "website")["status"] == "unknown"
+    assert prop(read(service, "name"), "name")["status"] != "not_published"
 
 
 def test_the_text_answer_refuses_an_absence_whose_sources_are_not_all_listed() -> None:
@@ -380,3 +381,9 @@ def test_a_confirmed_absence_for_an_emergency_number_never_changes_the_question_
     packet = build(GRAPH_NOW.isoformat(), [part])
     assert packet["status"] == "emergency" and packet["request"]["entities"] == []
     assert [entry.get("purpose") for entry in packet["not_published"]] == ["emergency_contact"]
+
+
+def test_a_reviewed_website_absence_is_not_published() -> None:
+    row = contact("r1", normalization_metadata=meta(claim("website")))
+    service = source([office("registrar", "Registrar")], [row])
+    assert prop(read(service, "website"), "website")["status"] == "not_published"
