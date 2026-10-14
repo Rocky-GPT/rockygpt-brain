@@ -274,7 +274,7 @@ def test_model_cannot_omit_missing_evidence_to_report_full_success() -> None:
 
 
 @pytest.mark.parametrize(("kind", "phrase"), [
-    ("greeting", "Which office do you need?"),
+    ("greeting", "shuttle timetable, and dining hours and menus"),
     ("thanks", "You're welcome"),
     ("okay", "call 911, or call or text 988"),
     ("about", "I can't see your personal student records"),
@@ -940,7 +940,7 @@ def test_a_refusal_points_at_the_office_shown_above_it_and_otherwise_asks_for_on
     with_words = answer(ScriptedGateway(finish("unsupported", student_words=quote)),
                         messages=messages)
     assert with_words.body["answer"] == UNSUPPORTED_MESSAGE
-    assert "tell me which office" in UNSUPPORTED_MESSAGE
+    assert "posted shuttle timetable" in UNSUPPORTED_MESSAGE
     own = answer(ScriptedGateway(LOOKUP, finish("account_limit")), messages=messages)
     assert own.body["answer"].endswith(CAPABILITY_AFTER_LOOKUP_MESSAGE)
     assert answer(ScriptedGateway(finish("account_limit")),
