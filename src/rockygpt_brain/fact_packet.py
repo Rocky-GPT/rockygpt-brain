@@ -257,6 +257,9 @@ class _Builder:
                                      and any(local[sid]["current"] for sid in ids)),
                          "source_ids": ids,
                          **{key: absence[key] for key in ("scope", "reason") if key in absence}}
+                if prop.get("documents_published"):
+                    # A venue with no daily menu may still post its menu as a file.
+                    entry["documents_published"] = list(prop["documents_published"])
                 if purpose:
                     entry["purpose"] = purpose
                 self.not_published.append(entry)

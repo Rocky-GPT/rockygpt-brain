@@ -219,8 +219,25 @@ ORDER BY p.name, p.id
 LIMIT %s
 """
 
+_MENU_LISTINGS = """
+WITH links AS (
+  SELECT * FROM jsonb_to_recordset(%s::jsonb) AS link(source_key text, source_record_keys jsonb)
+)
+SELECT m.id::text AS id, m.source_record_key, m.name, m.dated, m.menus, m.collected_at,
+       m.content_hash, s.source_key, s.canonical_url, s.freshness_sla_hours
+FROM rockygpt_v2.menu_listings m
+JOIN rockygpt_v2.sources s ON s.id = m.source_id
+WHERE m.dataset_version_id = %s::uuid AND EXISTS (
+  SELECT 1 FROM links l WHERE l.source_key = s.source_key
+    AND l.source_record_keys ? m.source_record_key
+)
+ORDER BY m.name, m.id
+LIMIT %s
+"""
+
 _RECORD_SQL = {"dining_hours": _DINING, "menu": _MENU, "shuttle_trips": _TRIPS,
-               "menu_documents": _MENU_DOCUMENTS, "shuttle_stops": _SHUTTLE_STOPS}
+               "menu_documents": _MENU_DOCUMENTS, "menu_listings": _MENU_LISTINGS,
+               "shuttle_stops": _SHUTTLE_STOPS}
 
 
 class PostgresEntityFacts(EntityFacts):
