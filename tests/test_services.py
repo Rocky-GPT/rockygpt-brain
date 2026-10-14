@@ -548,3 +548,20 @@ def test_inspecting_a_venue_reads_its_menu_for_the_campus_date_and_an_office_has
     picked = CampusGraph(facts()).inspect("office:birch", TUESDAY_10AM, on=other)
     menu = next(p for p in picked["facts"]["properties"] if p["key"] == "menu")
     assert menu["values"][0]["value"]["date"] == other.isoformat()
+
+
+def test_a_trip_keeps_the_nj_transit_trains_its_row_lists() -> None:
+    from rockygpt_brain.retrieval.entity_facts import trips_property
+    rows = [_row("trip", 9, source_record_key="R:0:6:10 PM", route_name="R", service_day="weekday",
+                 sequence=0, departure="6:10 PM", arrival="7:35 PM",
+                 stops=[{"location": "Ramsey Rt 17 Train", "time": "6:20 PM"}],
+                 trains={"arrives_from_nyc": ["6:44 PM", "7:07 PM"], "leaves_for_nyc": ["6:31 PM"]},
+                 valid_from=None, valid_until=None),
+            _row("trip", 10, source_record_key="R:1:8:25 AM", route_name="R", service_day="weekday",
+                 sequence=1, departure="8:25 AM", arrival="9:25 AM", stops=[], valid_from=None,
+                 valid_until=None)]
+    prop, _ = trips_property(rows, TUESDAY_10AM)
+    first, second = prop["values"][0]["value"]["trips"]
+    assert first["trains"] == {"arrives_from_nyc": ["6:44 PM", "7:07 PM"],
+                               "leaves_for_nyc": ["6:31 PM"]}
+    assert "trains" not in second
