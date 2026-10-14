@@ -104,6 +104,10 @@ def _menu_item(item: dict[str, Any]) -> str:
 
 def _menu_text(value: dict[str, Any]) -> str:
     """A date's menu as published: each meal, its stations, their items, in service order."""
+    if value.get("meal_not_listed"):
+        listed = ", ".join(literal(meal) for meal in value.get("meals_listed", []))
+        return (f"{literal(value.get('date', ''))}. The published menu lists no "
+                f"{literal(value['meal_not_listed'])}" + (f"; it lists {listed}" if listed else ""))
     meals = []
     for meal in value["meals"]:
         stations = "; ".join(

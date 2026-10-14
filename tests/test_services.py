@@ -13,6 +13,7 @@ from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine, ChatResult
 from rockygpt_brain.retrieval import MemoryEntityFacts
 from rockygpt_brain.turn import intake
+from rockygpt_brain.writer_view import writer_view
 from test_engine import ScriptedGateway, completion, finish
 
 EASTERN = ZoneInfo("America/New_York")
@@ -245,10 +246,13 @@ def test_a_menu_can_be_asked_for_one_meal_of_the_day() -> None:
     assert [m["meal"] for m in menu["value"]["meals"]] == ["Lunch"]
     names = [i["name"] for s in menu["value"]["meals"][0]["stations"] for i in s["items"]]
     assert names == ["Steamed Brown Rice", "Braised Pot Roast"]  # Stations in order: Grown, Savory.
-    # A meal the date has no menu for is not published, not empty.
+    # A meal the published menu of that date does not list is said not to be listed, with the
+    # meals it does list. It is not "no menu", and it is not an empty meal.
     none = ask("brunch menu", lookup_meal("Birch Tree Inn", ["menu"], "today", "brunch"), finish())
-    assert not [f for f in none.body["facts"]["facts"] if f["predicate"] == "menu"]
-    assert any(m["predicate"] == "menu" for m in none.body["facts"]["missing"])
+    (menu,) = [f for f in none.body["facts"]["facts"] if f["predicate"] == "menu"]
+    assert menu["value"] == {"date": "2026-10-13", "meals": [], "meal_not_listed": "brunch",
+                             "meals_listed": ["Lunch", "Dinner"]}
+    assert not none.body["facts"]["missing"] and none.body["facts"]["status"] == "complete"
 
 
 def test_an_hours_question_for_one_meal_is_answered_with_that_period() -> None:
@@ -281,3 +285,47 @@ def test_an_exception_whose_dates_have_passed_is_not_part_of_a_venues_hours() ->
     (hours,) = found["properties"]
     assert hours["status"] == "known" and len(hours["values"]) == 1
     assert "issues" not in hours and found["complete"] is True
+
+
+def test_tomorrows_menu_is_an_answer_not_an_unverified_one() -> None:
+    """A menu is valid for its own date: asked for that date it is current, though not today's."""
+    result = ask("menu tomorrow", lookup("Birch Tree Inn", ["menu"], "tomorrow"), finish())
+    assert result.body["status"] == "answered"
+    assert result.body["facts"]["status"] == "complete"
+    (menu,) = [f for f in result.body["facts"]["facts"] if f["predicate"] == "menu"]
+    assert menu["current"] is True
+
+
+def _atrium() -> MemoryEntityFacts:
+    week = {"Monday": "07:30 AM - 07:00 PM", "Tuesday": "07:30 AM - 07:00 PM",
+            "Wednesday": "07:30 AM - 07:00 PM", "Thursday": "07:30 AM - 07:00 PM",
+            "Friday": "07:30 AM - 07:00 PM", "Saturday": "Hours unavailable",
+            "Sunday": "Hours unavailable"}
+    rows = [_row("dining", i, source_record_key=f"The Atrium:{day}", name="The Atrium", day=day,
+                 schedule=text, valid_from=None, valid_until=None)
+            for i, (day, text) in enumerate(week.items())]
+    entities = [{"id": "atrium", "name": "The Atrium", "kind": "venue", "aliases": [], "links": [{
+        "collection": "dining_hours", "source_key": "dining",
+        "source_record_keys": [r["source_record_key"] for r in rows]}]}]
+    return MemoryEntityFacts(dataset_version="r", identity_hash="i", entities=entities,
+                             contacts=[], records={"dining_hours": rows}, now=lambda: TUESDAY_10AM)
+
+
+def _atrium_packet(day: str | None) -> dict[str, Any]:
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "atrium?"}]})
+    engine = ChatEngine(ScriptedGateway(lookup("The Atrium", ["hours"], day), finish()),
+                        _atrium(), output="json")  # type: ignore[arg-type]
+    result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+    packet: dict[str, Any] = result.body["facts"]
+    return packet
+
+
+def test_weekdays_a_schedule_does_not_know_are_not_said_for_another_day() -> None:
+    wednesday = _atrium_packet("tomorrow")
+    # The packet keeps the gap; the writer is not shown it beside a day that is answered.
+    assert [m["days"] for m in wednesday["missing"]] == [["Saturday", "Sunday"]]
+    assert "missing" not in writer_view(wednesday)
+    saturday = _atrium_packet("saturday")  # An unknown day is still said to be unknown.
+    assert [m["days"] for m in writer_view(saturday)["missing"]] == [["Saturday", "Sunday"]]
+    week = _atrium_packet(None)  # No date asked: the whole week, unknowns included.
+    assert [m["days"] for m in writer_view(week)["missing"]] == [["Saturday", "Sunday"]]
