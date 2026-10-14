@@ -635,3 +635,15 @@ def test_database_failure_is_sanitized_and_readiness_fails(
         service.search_offices("Registrar")
     assert "private" not in str(exc.value)
     assert service.readiness() == {"ready": False}
+
+
+def test_a_group_or_facility_with_a_reviewed_contact_is_read_like_an_office() -> None:
+    hall = {**office("pine", "Pine Hall", ["office:pine-hall"]), "kind": "organization"}
+    pool = {"id": "pool", "kind": "facility", "name": "Swimming Pool", "aliases": [], "links": []}
+    club = {"id": "chess", "kind": "club", "name": "Chess Club", "aliases": [], "links": []}
+    facts = reader(contacts=[contact(source_record_key="office:pine-hall", name="Pine Hall")],
+                   entities=[hall, pool, club])
+    listed = facts.list_offices(with_ids=True)["offices"]
+    assert [entry["name"] for entry in listed] == ["Pine Hall"]
+    read = facts.get_office_facts("pine", ["email"], "test-release", as_of=NOW)
+    assert read["entity"]["kind"] == "office" and prop(read, "email")["status"] == "known"
