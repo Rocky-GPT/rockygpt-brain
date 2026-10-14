@@ -6,7 +6,7 @@ They are left out of the OpenAPI schema, so the route count the dev UI shows sta
 """
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query
@@ -65,6 +65,7 @@ def add_dev_routes(application: FastAPI) -> None:
         identity_hash: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
         as_of: datetime | None = None,
         fields: Annotated[str | None, Query(min_length=1, max_length=200)] = None,
+        on: date | None = None,
     ) -> JSONResponse:
         engine = application.state.engine
         if engine is None:
@@ -80,7 +81,7 @@ def add_dev_routes(application: FastAPI) -> None:
         try:
             async with asyncio.timeout(5):
                 node = await asyncio.to_thread(graph.inspect, node_id, as_of or datetime.now(UTC),
-                                               fields.split(",") if fields else None)
+                                               fields.split(",") if fields else None, on)
         except DatasetChanged:
             return failure(409, "dataset_changed",
                            "This trace's publication is no longer active. Its saved path remains "

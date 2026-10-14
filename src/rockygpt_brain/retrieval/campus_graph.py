@@ -172,6 +172,7 @@ class CampusGraph:
 
     def inspect(
         self, node_id: str, as_of: datetime, fields: list[str] | None = None,
+        on: date | None = None,
     ) -> dict[str, Any]:
         """Reconstruct a developer deep link through the same published root path."""
         root = self.open("ramapo", [], as_of)
@@ -199,12 +200,18 @@ class CampusGraph:
             venue = self.nodes[node_id]["kind"] == "venue"
             chosen = fields if fields is not None else [
                 field for field in OFFICE_FIELDS if venue or field != "menu"]
-            opened = self.open(node_id, chosen, as_of,
-                               on=as_of.astimezone(CAMPUS_TIMEZONE).date() if venue else None)
+            day = on or as_of.astimezone(CAMPUS_TIMEZONE).date()
+            opened = self.open(node_id, chosen, as_of, on=day if venue else None)
+            if venue:
+                # Every date the venue published a menu for, so the inspector can open each one.
+                menu = next(p for p in self.open(node_id, ["menu"], as_of)["facts"]["properties"]
+                            if p["key"] == "menu")
+                opened["menu_dates"] = menu.get("dates_published", [])
         return {
             "node": self.nodes[node_id], "path": self.path(node_id),
             "children": opened.get("children", []), "truncated": listing["truncated"],
             "facts": opened.get("facts"), "scope": root["scope"],
+            **({"menu_dates": opened["menu_dates"]} if "menu_dates" in opened else {}),
             "dataset_version": self.version, "identity_hash": self.identity_hash,
             "as_of": as_of.isoformat(),
         }
