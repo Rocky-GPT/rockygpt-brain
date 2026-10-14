@@ -12,10 +12,12 @@ from psycopg.rows import dict_row
 from rockygpt_brain.retrieval.entity_facts import (
     MAX_CONTACTS,
     MAX_SCHEDULE_ROWS,
+    RECORD_COLLECTIONS,
     EntityFacts,
     EvidenceUnavailable,
     ReleaseInputs,
     Snapshot,
+    linked_records,
     validate_entities,
 )
 
@@ -59,6 +61,14 @@ SELECT md5(concat_ws('|',
             FROM rockygpt_v2.campus_contacts c WHERE c.dataset_version_id = v.id), ''),
   coalesce((SELECT md5(string_agg(to_jsonb(h)::text, ',' ORDER BY h.id))
             FROM rockygpt_v2.campus_hours h WHERE h.dataset_version_id = v.id), ''),
+  coalesce((SELECT md5(string_agg(to_jsonb(d)::text, ',' ORDER BY d.id))
+            FROM rockygpt_v2.dining_hours d WHERE d.dataset_version_id = v.id), ''),
+  coalesce((SELECT md5(string_agg(to_jsonb(m)::text, ',' ORDER BY m.id))
+            FROM rockygpt_v2.menu_items m WHERE m.dataset_version_id = v.id), ''),
+  coalesce((SELECT md5(string_agg(to_jsonb(t)::text, ',' ORDER BY t.id))
+            FROM rockygpt_v2.shuttle_trips t WHERE t.dataset_version_id = v.id), ''),
+  coalesce((SELECT md5(string_agg(to_jsonb(r)::text, ',' ORDER BY r.id))
+            FROM rockygpt_v2.shuttle_routes r WHERE r.dataset_version_id = v.id), ''),
   coalesce((SELECT md5(string_agg(
               concat_ws(',', s.source_key, s.canonical_url, s.freshness_sla_hours), ';'
               ORDER BY s.source_key))
@@ -120,6 +130,62 @@ WHERE h.dataset_version_id = %s::uuid AND EXISTS (
 ORDER BY h.name, h.day, h.id
 LIMIT %s
 """
+
+
+_DINING = """
+WITH links AS (
+  SELECT * FROM jsonb_to_recordset(%s::jsonb) AS link(source_key text, source_record_keys jsonb)
+)
+SELECT d.id::text AS id, d.source_record_key, d.name, d.day, d.schedule, d.collected_at,
+       d.valid_from, d.valid_until, d.content_hash,
+       s.source_key, s.canonical_url, s.freshness_sla_hours
+FROM rockygpt_v2.dining_hours d
+JOIN rockygpt_v2.sources s ON s.id = d.source_id
+WHERE d.dataset_version_id = %s::uuid AND EXISTS (
+  SELECT 1 FROM links l WHERE l.source_key = s.source_key
+    AND l.source_record_keys ? d.source_record_key
+)
+ORDER BY d.name, d.day, d.id
+LIMIT %s
+"""
+
+_MENU = """
+WITH links AS (
+  SELECT * FROM jsonb_to_recordset(%s::jsonb) AS link(source_key text, source_record_keys jsonb)
+)
+SELECT m.id::text AS id, m.source_record_key, m.meal, m.station, m.name, m.calories,
+       m.portion_size, m.vegan, m.vegetarian, m.label_coverage, m.allergens, m.collected_at,
+       m.valid_from, m.valid_until, m.content_hash,
+       s.source_key, s.canonical_url, s.freshness_sla_hours
+FROM rockygpt_v2.menu_items m
+JOIN rockygpt_v2.sources s ON s.id = m.source_id
+WHERE m.dataset_version_id = %s::uuid AND EXISTS (
+  SELECT 1 FROM links l WHERE l.source_key = s.source_key
+    AND l.source_record_keys ? m.source_record_key
+)
+ORDER BY m.valid_from, m.meal, m.station, m.name, m.id
+LIMIT %s
+"""
+
+_TRIPS = """
+WITH links AS (
+  SELECT * FROM jsonb_to_recordset(%s::jsonb) AS link(source_key text, source_record_keys jsonb)
+)
+SELECT t.id::text AS id, t.source_record_key, r.name AS route_name, r.service_day,
+       t.sequence, t.departure, t.arrival, t.stops, t.collected_at, t.valid_from,
+       t.valid_until, t.content_hash, s.source_key, s.canonical_url, s.freshness_sla_hours
+FROM rockygpt_v2.shuttle_trips t
+JOIN rockygpt_v2.shuttle_routes r ON r.id = t.route_id
+JOIN rockygpt_v2.sources s ON s.id = t.source_id
+WHERE t.dataset_version_id = %s::uuid AND EXISTS (
+  SELECT 1 FROM links l WHERE l.source_key = s.source_key
+    AND l.source_record_keys ? t.source_record_key
+)
+ORDER BY r.name, t.sequence, t.id
+LIMIT %s
+"""
+
+_RECORD_SQL = {"dining_hours": _DINING, "menu": _MENU, "shuttle_trips": _TRIPS}
 
 
 class PostgresEntityFacts(EntityFacts):
@@ -193,13 +259,15 @@ class PostgresEntityFacts(EntityFacts):
     def release_inputs(self, kinds: Sequence[str]) -> ReleaseInputs:
         """One transaction with its own limits: the whole release for a derived copy."""
         with self._snapshot(BUILD_SECONDS, BUILD_STATEMENT_MS) as snapshot:
+            wanted = [entity for entity in snapshot.entities if entity["kind"] in kinds]
             evidence = {
                 entity["id"]: (snapshot.contact_reader(entity), snapshot.schedule_reader(entity))
-                for entity in snapshot.entities if entity["kind"] in kinds
+                for entity in wanted
             }
             return ReleaseInputs(
                 snapshot.dataset_version, snapshot.identity_hash, list(snapshot.entities),
-                list(snapshot.alias_sources), evidence, snapshot.fingerprint_reader())
+                list(snapshot.alias_sources), evidence, snapshot.fingerprint_reader(),
+                linked_records(snapshot, wanted))
 
     @contextmanager
     def snapshot(self) -> Iterator[Snapshot]:
@@ -266,6 +334,19 @@ class PostgresEntityFacts(EntityFacts):
                             "Office schedule evidence exceeds the bounded read.")
                     return result
 
+                def records(entity: dict[str, Any], collection: str) -> list[dict[str, Any]]:
+                    query = _RECORD_SQL.get(collection)
+                    links = [link for link in entity["links"]
+                             if link.get("collection") == collection]
+                    if query is None or not links:
+                        return []
+                    limit = RECORD_COLLECTIONS[collection]
+                    result = read(query, (json.dumps(links), release["dataset_id"], limit + 1))
+                    if len(result) > limit:
+                        raise EvidenceUnavailable(
+                            "Campus record evidence exceeds the bounded read.")
+                    return result
+
                 def fingerprint() -> str:
                     result = read(_FINGERPRINT, {"dataset_id": release["dataset_id"]})
                     if len(result) != 1:
@@ -280,6 +361,7 @@ class PostgresEntityFacts(EntityFacts):
                     release["alias_sources"] or [],
                     schedules,
                     fingerprint,
+                    records,
                 )
         except psycopg.Error as exc:
             # Database URLs, passwords, row contents, and provider diagnostics are private.

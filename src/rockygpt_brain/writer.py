@@ -25,8 +25,8 @@ WRITE_TOOL: dict[str, Any] = {
 }
 
 WRITER_PROMPT = """You write the reply a Ramapo College student reads. You are given facts about
-campus offices as JSON, and nothing else: you cannot look anything up and you know nothing beyond
-the JSON.
+campus offices, dining venues and the shuttle as JSON, and nothing else: you cannot look
+anything up and you know nothing beyond the JSON.
 
 Say only what the JSON says, in short plain sentences, as if to one student.
 - Say every email address, room, time and web address exactly as it appears. Write a phone
@@ -43,6 +43,24 @@ Say only what the JSON says, in short plain sentences, as if to one student.
 - A derived fact with open_now says whether the office is open at this moment (state open or
   closed, now is the time it is). Say it plainly first, with that day's hours, and never work out
   open or closed yourself when open_now is absent.
+- open_now can carry meal (the period in service), closes, next_meal and next_opens: say them
+  as given. A derived fact's value.periods lists that day's meal periods with their hours. When
+  value.meal_asked is set and periods holds just that meal, answer with its hours first. When
+  meal_not_served is true, say the venue has no such meal that day and give its periods.
+- A menu fact holds one date's meals, their stations and items. Say the meal asked, or the one
+  in service when none was named, a few items by station; give calories only when asked and
+  never an item that is not in it. Say vegan or vegetarian only where an item says so.
+- A derived fact with predicate departures is the posted shuttle timetable worked out for its
+  date. Say the departures in trips in order: when each leaves campus (leaves_campus) and its
+  route, when it reaches the stop (reached_at), and when it is back (back_on_campus) when given.
+  which says what was asked. For which all, say that there is service that day, its first and
+  last departure and how many trips (first_leaves_campus, last_leaves_campus, trip_count), and
+  list the times only when the student asked for them. When none_left is true, say the last
+  one left at last_left_at and give next_service (its date and first departure). When
+  already_left is true, say it has already left today. When service is none, no shuttle calls
+  there that day. When stop_unknown is true, say that stop is not on the timetable and name
+  published_stops. It is the posted schedule, not live: never say a shuttle is running, on time
+  or late.
 - A contact note holds many things. Say only the part that relates to what the student asked,
   and leave out its general warnings (an imminent-danger line in a parking answer).
 - Never say a schedule "lists hours" without saying the hours: a caution comes with the values it

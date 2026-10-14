@@ -16,9 +16,11 @@ OFFICE_FIELDS = (
     "contact_note",
     "website",
     "hours",
+    "menu",
 )
-# Contact fields come from contact records. Hours come from linked schedule records instead.
-CONTACT_FIELDS = tuple(field for field in OFFICE_FIELDS if field != "hours")
+# Contact fields come from contact records. Hours come from linked schedule records instead, and
+# a menu from a dining venue's menu records.
+CONTACT_FIELDS = tuple(field for field in OFFICE_FIELDS if field not in {"hours", "menu"})
 FIELD_ALIASES = {"phone": "phones", "office": "offices"}
 _ROOM = re.compile(r"^([A-Z]{1,4})[ -]*(\d{3})(?:[ -]*([A-Z]))?$")
 _PHONE = re.compile(r"^(?:\+?1[ .-]*)?\(?(\d{3})\)?[ .-]*(\d{3})[ .-]*(\d{4})$")

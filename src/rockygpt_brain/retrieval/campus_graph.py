@@ -6,10 +6,15 @@ published records. Children must still be discovered before they can be opened, 
 follow-up turns.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
-from rockygpt_brain.retrieval.entity_facts import EntityFacts, InvalidFactRequest, discovery_tokens
+from rockygpt_brain.retrieval.entity_facts import (
+    NAMED_KINDS,
+    EntityFacts,
+    InvalidFactRequest,
+    discovery_tokens,
+)
 from rockygpt_brain.retrieval.projection import OFFICE_FIELDS
 from rockygpt_brain.timing import measure
 
@@ -102,7 +107,8 @@ class CampusGraph:
         return [dict(self.nodes[key]) for key in self.paths.get(node_id, [])]
 
     def lookup(self, query: str, fields: list[str], as_of: datetime, *,
-               exact_name_only: bool = False, conversation: str = "") -> dict[str, Any]:
+               exact_name_only: bool = False, conversation: str = "",
+               on: date | None = None, meal: str | None = None) -> dict[str, Any]:
         """Run one complete root-first traversal, without intermediate model decisions."""
         with measure("Open root · Ramapo"):
             self.open("ramapo", [], as_of)
@@ -110,7 +116,8 @@ class CampusGraph:
             listing = self.open("offices", [], as_of)
         with measure("Match office name or service"):
             found = self.facts.search_offices(query, dataset_version=self.version,
-                                             identity_hash=self.identity_hash)
+                                             identity_hash=self.identity_hash,
+                                             kinds=NAMED_KINDS)
         candidates = found["candidates"]
         truncated = found["truncated"] or listing["truncated"]
         if exact_name_only:
@@ -127,7 +134,8 @@ class CampusGraph:
         if outcome != "answers":
             return result
         with measure("Open matched office · read published records · shared entity facts"):
-            opened = {**result, **self.open(f"office:{chosen[0]['entity_id']}", fields, as_of)}
+            opened = {**result, **self.open(f"office:{chosen[0]['entity_id']}", fields, as_of,
+                                            on=on, meal=meal)}
         if not exact_name_only and (note := self._note_for_unpublished(opened, fields, as_of)):
             opened["also"] = note
         return opened
@@ -162,7 +170,7 @@ class CampusGraph:
         elif node_id == "offices":
             opened = listing
         else:
-            if node_id not in self.nodes or self.nodes[node_id]["kind"] != "office":
+            if node_id not in self.nodes or self.nodes[node_id]["kind"] not in NAMED_KINDS:
                 raise InvalidFactRequest("This node is not in the available office graph.")
             opened = self.open(
                 node_id, fields if fields is not None else list(OFFICE_FIELDS), as_of)
@@ -180,23 +188,24 @@ class CampusGraph:
         self.paths[key] = [*self.paths[parent], key]
         return node
 
-    def open(self, node_id: str, fields: list[str], as_of: datetime) -> dict[str, Any]:
+    def open(self, node_id: str, fields: list[str], as_of: datetime, *,
+             on: date | None = None, meal: str | None = None) -> dict[str, Any]:
         if node_id not in self.nodes:
             raise InvalidFactRequest("Open only a child returned by this turn's graph.")
         node = self.nodes[node_id]
-        if node["kind"] != "office" and fields:
-            raise InvalidFactRequest("Select fields only on an office node.")
+        if node["kind"] not in NAMED_KINDS and fields:
+            raise InvalidFactRequest("Select fields only on an office or venue node.")
         self.current_node = node_id
         if node_id == "ramapo":
             return self.root()
         if node_id == "offices":
             listing = self.facts.list_offices(dataset_version=self.version,
                                             identity_hash=self.identity_hash, with_ids=True,
-                                            limit=500)
+                                            limit=500, kinds=NAMED_KINDS)
             self.version, self.identity_hash = listing["dataset_version"], listing["identity_hash"]
             children = [self._child(node_id, {
                 "id": f"office:{office['entity_id']}", "label": office["name"],
-                "kind": "office", "entity_id": office["entity_id"],
+                "kind": office.get("kind", "office"), "entity_id": office["entity_id"],
                 "aliases": office["aliases"],
             }) for office in listing["offices"]]
             result = {**node, "children": children, "truncated": listing["truncated"]}
@@ -207,5 +216,5 @@ class CampusGraph:
                     raise InvalidFactRequest("Open Offices before reading an office's records.")
                 result["facts"] = self.facts.get_office_facts(
                     node["entity_id"], fields, self.version,
-                    identity_hash=self.identity_hash, as_of=as_of)
+                    identity_hash=self.identity_hash, as_of=as_of, on=on, meal=meal)
         return {**result, "dataset_version": self.version, "identity_hash": self.identity_hash}

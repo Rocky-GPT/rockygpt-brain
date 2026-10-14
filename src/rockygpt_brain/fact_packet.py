@@ -60,9 +60,11 @@ import re
 from datetime import date, datetime
 from typing import Any
 
+from rockygpt_brain import dining
 from rockygpt_brain.answers import _current as source_is_current
 from rockygpt_brain.answers import citation_url
 from rockygpt_brain.hours_on import WEEKDAYS, hours_on
+from rockygpt_brain.shuttle import SCOPE_TEXT
 
 PACKET_VERSION = "1.0"
 STATUSES = frozenset({"complete", "partial", "insufficient", "ambiguous", "not_found",
@@ -105,6 +107,29 @@ def _minutes(hour: str, minute: str | None, half: str) -> int:
     return (int(hour) % 12 + (12 if half == "p" else 0)) * 60 + int(minute or 0)
 
 
+def _open_now_periods(hours: Any, at: datetime) -> dict[str, str] | None:
+    """A dining venue's labelled periods: open or closed now, which meal, and what is next."""
+    periods = dining.parse(hours)
+    if not periods:
+        return None
+    clock = at.hour * 60 + at.minute
+    shown = f"{at.hour % 12 or 12}:{at.minute:02d}{'pm' if at.hour >= 12 else 'am'}"
+    current = dining.at(periods, clock)
+    if current is not None:
+        found: dict[str, str] = {"state": "open", "now": shown,
+                                 "closes": dining.clock_text(current.end)}
+        if current.label:
+            found["meal"] = current.label
+        return found
+    found = {"state": "closed", "now": shown}
+    coming = dining.after(periods, clock)
+    if coming is not None:
+        found["next_opens"] = dining.clock_text(coming.start)
+        if coming.label:
+            found["next_meal"] = coming.label
+    return found
+
+
 def open_now(hours: Any, at: datetime) -> dict[str, str] | None:
     """Whether a day's listed hours are open at `at`, when they are plain enough to say so.
 
@@ -131,9 +156,20 @@ def open_now(hours: Any, at: datetime) -> dict[str, str] | None:
         windows.append((start, end))
     leftover = re.sub(r"[\s,;&]|\band\b", "", _WINDOW.sub("", text))
     if not windows or leftover:
-        return None
+        # Labelled meal periods ("Lunch: 11:00 AM - 02:00 PM; Dinner: ...") read period by period.
+        return _open_now_periods(hours, at)
     return {"state": "open" if any(a <= clock < b for a, b in windows) else "closed",
             "now": shown}
+
+
+def fresh_for_date(fact: dict[str, Any], sources: dict[str, dict[str, Any]]) -> bool:
+    """Whether a schedule fact's evidence is fresh and its reviewed absences are current. Whether
+    it covers a particular date is the derived fact's `applies`, not this."""
+    fresh = any(sources[sid]["freshness"] == "fresh" for sid in fact["source_ids"])
+    if fact["predicate"] == "hours" and isinstance(fact["value"], dict):
+        fresh = fresh and all(day["absence"]["current"] for day in fact["value"]["days"]
+                              if day.get("status") == "not_published")
+    return fresh
 
 
 class _Builder:
@@ -229,9 +265,12 @@ class _Builder:
                     if withheld not in self.missing:
                         self.missing.append(withheld)
                     continue
+                # A venue's weekly row and its dated exceptions are one schedule, not a dispute.
+                status = ("known" if prop["status"] == "multiple" and prop["key"] == "hours"
+                          and entity["kind"] == "venue" else prop["status"])
                 fact = {"id": f"f{len(self.facts) + 1}", "subject": entity,
                         "predicate": prop["key"], "value": value["value"],
-                        "status": prop["status"],
+                        "status": status,
                         "current": any(local[sid]["current"] for sid in ids), "source_ids": ids}
                 if prop["key"] == "hours":
                     fact["current"] = fact["current"] and all(
@@ -243,11 +282,47 @@ class _Builder:
         when = part.get("when")
         if when and purpose is None:
             asked_on = date.fromisoformat(when["date"])
+            venue = entity["kind"] == "venue"
+            superseded: list[str] = []
+            picks: list[tuple[dict[str, Any], dict[str, Any]]] = []
             for fact in self.facts[first_new:]:
                 if fact["predicate"] != "hours" or not isinstance(fact["value"], dict):
                     continue
                 picked = hours_on(fact["value"], [local[sid] for sid in fact["source_ids"]],
                                   asked_on)
+                picks.append((fact, picked))
+            if venue:
+                # A venue's dated row is an exception to its weekly row for those dates: when one
+                # covers the date, the weekly row is not also an answer for it.
+                def dated(fact: dict[str, Any]) -> bool:
+                    return any(local[sid]["valid_from"] or local[sid]["valid_until"]
+                               for sid in fact["source_ids"])
+                if any(picked["applies"] and dated(fact) for fact, picked in picks):
+                    kept = [(fact, picked) for fact, picked in picks if dated(fact)]
+                elif any(picked["applies"] for _, picked in picks):
+                    # An exception for other dates says nothing about this one.
+                    kept = [(fact, picked) for fact, picked in picks if picked["applies"]]
+                else:
+                    kept = picks
+                kept_ids = {fact["id"] for fact, _ in kept}
+                superseded = [fact["id"] for fact, _ in picks if fact["id"] not in kept_ids]
+                picks = kept
+            for fact, picked in picks:
+                if venue and isinstance(picked["value"].get("hours"), str):
+                    periods = dining.parse(picked["value"]["hours"])
+                    if periods:
+                        shown = dining.named(periods)
+                        asked_meal = " ".join(str(when.get("meal") or "").casefold().split())
+                        if asked_meal:
+                            # The one period named, when the venue serves it that day.
+                            only = [p for p in shown if " ".join(
+                                p.get("label", "").casefold().split()) == asked_meal]
+                            picked["value"]["meal_asked"] = when["meal"]
+                            if only:
+                                shown = only
+                            else:
+                                picked["value"]["meal_not_served"] = True
+                        picked["value"]["periods"] = shown
                 same = next((d for d in self.derived if d["subject"]["id"] == entity["id"]
                              and d["date"] == picked["date"] and d["value"] == picked["value"]),
                             None)
@@ -262,21 +337,81 @@ class _Builder:
                     "id": f"d{len(self.derived) + 1}", "subject": entity,
                     "predicate": "hours_on", "day": picked["day"], "date": picked["date"],
                     "value": picked["value"], "applies": picked["applies"],
-                    "current": (fact["current"] and picked["applies"]
+                    # Current on the date asked: fresh evidence whose window covers that date,
+                    # which a row that starts tomorrow is for tomorrow though not for today.
+                    "current": (fresh_for_date(fact, local) and picked["applies"]
                                 and (picked["value"].get("hours") is not None
                                      or picked["value"].get("absence", {}).get("current") is True)),
                     "from": [fact["id"]], "source_ids": list(fact["source_ids"]),
-                    **({"status": fact["status"]} if fact["status"] != "known" else {}),
+                    **({"status": fact["status"]}
+                       if fact["status"] != "known" and not (
+                           venue and fact["status"] == "multiple") else {}),
                     **self._open_now(picked, asked_on),
                     **{key: picked[key] for key in ("applicability", "applicability_reason")
                        if key in picked}})
+            if venue and superseded:
+                # Read, and set aside for this date: not repeated beside the day's answer.
+                made = [d for d in self.derived if d["subject"]["id"] == entity["id"]
+                        and d["date"] == asked_on.isoformat()]
+                if made:
+                    made[0]["from"] = list(dict.fromkeys([*made[0]["from"], *superseded]))
         if not reader.get("complete", True):
             self.notices.append({"type": "evidence_incomplete", "subject": entity,
                                  "caveats": list(reader.get("caveats", []))})
 
+    def shuttle(self, part: dict[str, Any]) -> None:
+        """The timetables read for a shuttle question, and the departures worked out from them."""
+        subject = {"id": "shuttle", "name": "Shuttle", "kind": "route"}
+        self.entities.setdefault("shuttle", {**subject, "query": part.get("query", "")})
+        fact_ids: list[str] = []
+        source_ids: list[str] = []
+        current = True
+        for reader in part["routes"]:
+            self.dataset = self.dataset or {"version": reader.get("dataset_version"),
+                                            "identityHash": reader.get("identity_hash")}
+            local: dict[str, dict[str, Any]] = {}
+            for raw in reader["sources"]:
+                source = _source(raw)
+                if self.sources.setdefault(source["id"], source) != source:
+                    raise PacketInvalid("Two different sources share one id.")
+                local[source["id"]] = source
+            for prop in reader["properties"]:
+                for value in prop["values"]:
+                    ids = list(value["source_ids"])
+                    if not ids or any(sid not in local for sid in ids):
+                        raise PacketInvalid("A fact names a source the reader did not return.")
+                    fresh = any(local[sid]["current"] for sid in ids)
+                    current = current and fresh
+                    fact = {"id": f"f{len(self.facts) + 1}",
+                            "subject": {"id": reader["entity"]["id"],
+                                        "name": reader["entity"]["name"], "kind": "route"},
+                            "predicate": prop["key"], "value": value["value"],
+                            "status": prop["status"], "current": fresh, "source_ids": ids}
+                    self.facts.append(fact)
+                    fact_ids.append(fact["id"])
+                    source_ids.extend(ids)
+            if not reader.get("complete", True):
+                self.notices.append({"type": "evidence_incomplete", "subject": subject,
+                                     "caveats": list(reader.get("caveats", []))})
+        if not fact_ids:
+            self.missing.append({"subject": subject, "predicate": "departures",
+                                 "reason": "unknown"})
+            return
+        answer = part["answer"]
+        if answer.get("trips") or answer.get("none_left") or answer.get("service") == "none":
+            # Said the same way every time: the timetable is the schedule, not where a shuttle is.
+            self.notices.append({"type": "shuttle_scope", "approved_text": SCOPE_TEXT})
+        self.derived.append({
+            "id": f"d{len(self.derived) + 1}", "subject": subject, "predicate": "departures",
+            "day": WEEKDAYS[date.fromisoformat(answer["date"]).weekday()],
+            "date": answer["date"], "value": answer, "applies": True, "current": current,
+            "from": fact_ids, "source_ids": list(dict.fromkeys(source_ids))})
+
     def add(self, part: dict[str, Any]) -> None:
         kind = part["kind"]
-        if kind == "office_facts":
+        if kind == "shuttle_facts":
+            self.shuttle(part)
+        elif kind == "office_facts":
             self.office(part)
             if part.get("also"):
                 # What the office published beside a contact value it does not publish. It is
@@ -306,8 +441,13 @@ def _intent(builder: _Builder) -> str:
     kinds = [notice["type"] for notice in builder.notices]
     if "safety" in kinds:
         return "safety"
+    shuttle = any(fact["predicate"] == "trips" for fact in builder.facts)
+    if shuttle and not builder.fields:
+        return "shuttle"
     if builder.fields:
         wanted = set(builder.fields)
+        if "menu" in wanted:
+            return "menu"
         if wanted == {"hours"}:
             return "hours"
         if "hours" in wanted:
@@ -321,9 +461,13 @@ def _intent(builder: _Builder) -> str:
 
 def _status(builder: _Builder) -> str:
     kinds = {notice["type"] for notice in builder.notices}
-    asked = [fact for fact in builder.facts if fact.get("purpose") is None]
+    # A fact the Brain worked a date out from is judged by that derived fact, not on its own.
+    replaced = {fid for derived in builder.derived for fid in derived["from"]}
+    asked = [fact for fact in builder.facts
+             if fact.get("purpose") is None and fact["id"] not in replaced]
     absent = [entry for entry in builder.not_published if entry.get("purpose") is None]
-    answered = asked or absent  # A confirmed "not published" is an answer too.
+    # A confirmed "not published" is an answer too, and so is a day worked out from a schedule.
+    answered = asked or absent or builder.derived
     if "safety" in kinds:
         return "emergency"
     if not answered and (builder.ambiguities or "clarification" in kinds):
@@ -422,7 +566,7 @@ def _validate_derived(entry: Any, source_ids: set[str], fact_ids: set[str]) -> N
     """A worked-out value is a claim a student will be told: it must trace to what it came from."""
     if not isinstance(entry, dict) or not DERIVED_KEYS <= set(entry):
         raise PacketInvalid("A derived fact is incomplete.")
-    if entry["predicate"] != "hours_on" or entry["day"] not in WEEKDAYS:
+    if entry["predicate"] not in {"hours_on", "departures"} or entry["day"] not in WEEKDAYS:
         raise PacketInvalid("A derived fact is not a kind the Brain works out.")
     try:
         worked = date.fromisoformat(entry["date"])
@@ -445,7 +589,8 @@ def _validate_derived(entry: Any, source_ids: set[str], fact_ids: set[str]) -> N
             raise PacketInvalid("Listed hours must be the schedule's own text.")
     if "status" in entry and entry["status"] not in {"known", "conflicting", "multiple"}:
         raise PacketInvalid("A derived fact has an unknown status.")
-    if not isinstance(entry["value"], dict) or "hours" not in entry["value"]:
+    if not isinstance(entry["value"], dict) or (
+            entry["predicate"] == "hours_on" and "hours" not in entry["value"]):
         raise PacketInvalid("A derived fact needs its value.")
     if (not isinstance(entry["from"], list) or not entry["from"]
             or not set(entry["from"]) <= fact_ids):

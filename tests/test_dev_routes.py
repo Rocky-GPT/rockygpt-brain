@@ -89,7 +89,8 @@ def test_runtime_describes_the_prompt_tools_parts_and_fixed_texts_the_engine_rea
         body = http.get("/v1/dev/runtime", headers=ASKED).json()
     assert body["prompt"] == SYSTEM_PROMPT
     assert "graph_root" in body["prompt"] and "published_offices" in body["prompt"]
-    assert [tool["name"] for tool in body["tools"]] == ["graph_lookup", "finish"]
+    assert [tool["name"] for tool in body["tools"]] == [
+            "graph_lookup", "shuttle_lookup", "finish"]
     assert body["tools"][0]["parameters"]["properties"]["requests"]["maxItems"] == 4
     kinds = AnswerPart.model_fields["kind"].annotation.__args__  # type: ignore[union-attr]
     assert [part["kind"] for part in body["parts"]] == list(kinds)
@@ -190,6 +191,7 @@ def test_every_fixed_text_says_who_picks_it_and_matches_the_template_the_engine_
         "thanks": ["the model"], "okay": ["the model"], "about": ["the model"],
         "ambiguous": ["the lookup result"], "ambiguous_more": ["the lookup result"],
         "not_found": ["the lookup result"], "data_unavailable": ["the lookup result"],
+        "shuttle_scope": ["the lookup result"],
         "incomplete": ["a provider failure"], "clock": ["the model"], "recall": ["the model"],
         "recall_omitted": ["the model"]}
     assert body["nusdPerDollar"] == 1_000_000_000
