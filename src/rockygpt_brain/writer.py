@@ -59,7 +59,9 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   menu holds only the items that match what was asked (matched of
   on_menu): give them as the answer, grouped by station; if matched is 0 say nothing on that
   menu matches and name stations_listed, so a station the student called by another name can be
-  found. A menu asked about an allergen lists allergens_published, the allergens its labels
+  found. A missing menu with dates_published means the venue has published menus only for
+  those dates: say that, as a range when they are consecutive. A menu asked about an allergen
+  lists allergens_published, the allergens its labels
   name: say an allergen the labels do not name is not one of them, and that the labels are as
   the dining service published them.
 - A derived fact with predicate departures is the posted shuttle timetable worked out for its
