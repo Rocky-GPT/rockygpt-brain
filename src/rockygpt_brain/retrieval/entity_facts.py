@@ -36,7 +36,7 @@ MAX_TRIP_ROWS = 128
 # with the most rows one entity may link to.
 RECORD_COLLECTIONS = {
     "dining_hours": MAX_DINING_ROWS, "menu": MAX_MENU_ROWS, "shuttle_trips": MAX_TRIP_ROWS,
-    "menu_documents": 10, "shuttle_stops": 40,
+    "menu_documents": 10, "menu_listings": 2, "shuttle_stops": 40,
 }
 # Entities a student can ask about by name: offices and dining venues. A route is not named by
 # students; it is read through the shuttle timetable.
@@ -1204,6 +1204,44 @@ def menu_property(
             [source])
 
 
+def menu_listing_absence(
+    rows: Sequence[dict[str, Any]], now: datetime,
+) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+    """The venue's own dining listing names no menu page: it publishes no dated menu.
+
+    Each row is what the venue's listing on the dining site named as its menus when captured
+    (`dated` is true when one is a menu page). Every row must say not dated; a listing that
+    names a menu page leaves a missing date unknown, never not published."""
+    if not rows or any(row.get("dated") is not False for row in rows):
+        return None
+    sources, checks = [], []
+    current = True
+    for row in rows:
+        source = _source(row, now)
+        source.update(collection="menu_listings",
+                      source_record_keys=[row["source_record_key"]], record_ids=[row["id"]])
+        captured = _instant(row.get("collected_at"))
+        url = _url(row.get("canonical_url"))
+        if captured is None or url is None or captured > now:
+            return None
+        current = current and source["freshness"] == "fresh"
+        check = {"url": url, "section": f"{clean(row.get('name'))}: menus listed",
+                 "checked_at": captured.isoformat()}
+        if _observation_hash(row.get("content_hash")):
+            check["text_sha256"] = row["content_hash"]
+        sources.append(source)
+        checks.append(check)
+    files = [str(menu.get("name") or "a menu file") for row in rows
+             for menu in (row.get("menus") if isinstance(row.get("menus"), list) else [])
+             if isinstance(menu, dict) and menu.get("kind") == "file"]
+    reason = ("The venue's listing on the dining site names no daily menu"
+              + (": it links only a menu file." if files else ", and no menu file."))
+    oldest = min(checks, key=lambda check: check["checked_at"])
+    return ({"source_ids": [source["id"] for source in sources], "checks": checks,
+             "checked_at": oldest["checked_at"], "current": current,
+             "scope": "Dated daily menu", "reason": reason}, sources)
+
+
 def stops_property(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
     """The route's stops as its stop-descriptions page explains them: the stop name the timetables
     use, what the place is, and where the shuttle picks up and drops off there."""
@@ -1505,7 +1543,11 @@ class EntityFacts:
             # A menu the venue posts as a file (a PDF menu board) rather than as dated menus.
             menu_files = (snapshot.record_reader(entity, "menu_documents")
                           if "menu" in selected and venue else [])
-            for collection, found in (("dining_hours", dining_rows), ("menu", menu_rows)):
+            # What the venue's listing names as its menus: no menu page means no dated menu.
+            menu_listings = (snapshot.record_reader(entity, "menu_listings")
+                             if "menu" in selected and venue else [])
+            for collection, found in (("dining_hours", dining_rows), ("menu", menu_rows),
+                                      ("menu_listings", menu_listings)):
                 if len(found) > RECORD_COLLECTIONS[collection]:
                     raise EvidenceUnavailable("Venue evidence exceeds the bounded read.")
                 if len(linked_rows(entity, found, collection)) != len(found):
@@ -1561,6 +1603,11 @@ class EntityFacts:
                         menu = {**menu, "documents_published": [
                             {"title": clean(row.get("title")), "url": clean(row.get("url"))}
                             for row in menu_files]}
+                    if (menu["status"] == "unknown" and not menu_rows
+                            and (listed := menu_listing_absence(menu_listings, now))):
+                        absence, listing_sources = listed
+                        menu = {**menu, "status": "not_published", "absence": absence}
+                        menu_sources = [*menu_sources, *listing_sources]
                 else:  # Only a dining venue has a menu.
                     menu, menu_sources = menu_property([], now, None)
                 sources.extend(menu_sources)

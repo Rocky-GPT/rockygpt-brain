@@ -618,6 +618,36 @@ def test_a_venue_that_posts_its_menu_as_a_file_says_so_without_items() -> None:
 
 
 
+def test_a_venue_whose_listing_names_no_menu_page_publishes_no_daily_menu() -> None:
+    def venue(dated: bool, menus: list[dict[str, str]]) -> MemoryEntityFacts:
+        key = "The Atrium:menu-listing"
+        entities = [{"id": "atrium", "name": "The Atrium", "kind": "venue", "aliases": [],
+                     "links": [{"collection": "menu_listings", "source_key": "dining",
+                                "source_record_keys": [key]}]}]
+        listing = _row("listing", 1, source_record_key=key, name="The Atrium", dated=dated,
+                       menus=menus, content_hash="a" * 64)
+        return MemoryEntityFacts(dataset_version="r", identity_hash="i", entities=entities,
+                                 contacts=[], records={"menu_listings": [listing]},
+                                 now=lambda: TUESDAY_10AM)
+
+    file = [{"name": "The Atrium Menu", "kind": "file", "uri": "/web/en-us/media/A.pdf"}]
+    read = venue(False, file).get_office_facts("atrium", ["menu"], "r", as_of=TUESDAY_10AM,
+                                               on=TUESDAY_10AM.date())
+    menu = read["properties"][0]
+    assert menu["status"] == "not_published" and menu["values"] == []
+    assert menu["absence"]["checks"] == [{
+        "url": "https://example.edu/source", "section": "The Atrium: menus listed",
+        "checked_at": menu["absence"]["checked_at"], "text_sha256": "a" * 64}]
+    assert menu["absence"]["reason"].endswith("it links only a menu file.")
+    assert menu["absence"]["source_ids"] == ["listing-1"]
+    assert any(source["id"] == "listing-1" for source in read["sources"])
+    # A listing naming a menu page leaves a date with no menu unknown, never not published.
+    page = [{"name": "Birch Tree Inn Menu", "kind": "page", "uri": "/en-us/locations/birch"}]
+    read = venue(True, page).get_office_facts("atrium", ["menu"], "r", as_of=TUESDAY_10AM,
+                                              on=TUESDAY_10AM.date())
+    assert read["properties"][0]["status"] == "unknown"
+
+
 def test_a_shuttle_answer_about_a_stop_says_where_to_wait_there() -> None:
     base = facts()
     stop = _row("stop", 1, source_record_key="stop:Garden State Plaza", name="Garden State Plaza",
