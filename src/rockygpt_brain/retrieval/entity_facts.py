@@ -36,6 +36,7 @@ MAX_TRIP_ROWS = 128
 # with the most rows one entity may link to.
 RECORD_COLLECTIONS = {
     "dining_hours": MAX_DINING_ROWS, "menu": MAX_MENU_ROWS, "shuttle_trips": MAX_TRIP_ROWS,
+    "menu_documents": 10,
 }
 # Entities a student can ask about by name: offices and dining venues. A route is not named by
 # students; it is read through the shuttle timetable.
@@ -1488,6 +1489,9 @@ class EntityFacts:
                            if "hours" in selected and venue else [])
             menu_rows = (snapshot.record_reader(entity, "menu")
                          if "menu" in selected and venue else [])
+            # A menu the venue posts as a file (a PDF menu board) rather than as dated menus.
+            menu_files = (snapshot.record_reader(entity, "menu_documents")
+                          if "menu" in selected and venue else [])
             for collection, found in (("dining_hours", dining_rows), ("menu", menu_rows)):
                 if len(found) > RECORD_COLLECTIONS[collection]:
                     raise EvidenceUnavailable("Venue evidence exceeds the bounded read.")
@@ -1540,6 +1544,10 @@ class EntityFacts:
             if "menu" in selected:
                 if venue:
                     menu, menu_sources = menu_property(menu_rows, now, on, meal, menu_query)
+                    if menu["status"] == "unknown" and menu_files:
+                        menu = {**menu, "documents_published": [
+                            {"title": clean(row.get("title")), "url": clean(row.get("url"))}
+                            for row in menu_files]}
                 else:  # Only a dining venue has a menu.
                     menu, menu_sources = menu_property([], now, None)
                 sources.extend(menu_sources)

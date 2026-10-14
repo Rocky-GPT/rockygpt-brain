@@ -267,6 +267,9 @@ class _Builder:
                     if prop.get("dates_published"):
                         # A menu for a date the venue has not published: which dates it has.
                         entry["dates_published"] = list(prop["dates_published"])
+                    if prop.get("documents_published"):
+                        # The venue posts its menu as a file (a PDF menu board) instead.
+                        entry["documents_published"] = list(prop["documents_published"])
                     self.missing.append(entry)
                 continue
             values = prop["values"]
