@@ -242,6 +242,9 @@ def _next_service(routes: list[dict[str, Any]], day: date, key: str | None) -> d
 
 SCOPE_TEXT = ("These are the scheduled times on the posted timetable. They are not live: "
               "weather, holidays and delays are not in them.")
+# A special-day timetable (a holiday) the page names without a year: offered, never applied.
+SPECIAL_TEXT = ("Ramapo also posts a special shuttle schedule for {days}. On that day the special "
+                "schedule applies, not the regular one.")
 
 
 def table_of(envelopes: list[dict[str, Any]]) -> list[dict[str, Any]]:

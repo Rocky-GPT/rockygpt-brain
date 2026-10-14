@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine, ChatResult
 from rockygpt_brain.retrieval import MemoryEntityFacts
+from rockygpt_brain.shuttle import SPECIAL_TEXT
 from rockygpt_brain.turn import intake
 from rockygpt_brain.writer_view import writer_view
 from test_engine import ScriptedGateway, completion, finish
@@ -565,3 +566,31 @@ def test_a_trip_keeps_the_nj_transit_trains_its_row_lists() -> None:
     assert first["trains"] == {"arrives_from_nyc": ["6:44 PM", "7:07 PM"],
                                "leaves_for_nyc": ["6:31 PM"]}
     assert "trains" not in second
+
+
+def test_a_special_day_timetable_is_offered_by_name_and_never_answers_a_regular_day() -> None:
+    base = facts()
+    special_rows = [_row("trip", 50, source_record_key="Special Shuttle Schedule: Sept 7:0:9:00 AM",
+                         route_name="Special Shuttle Schedule: September 7th (Labor Day)",
+                         service_day="special", sequence=0, departure="9:00 AM", arrival="9:40 AM",
+                         stops=[{"location": "Garden State Plaza", "time": "9:20 AM"}],
+                         valid_from=None, valid_until=None)]
+    entities = [*base.entities, {
+        "id": "route-special", "name": "Special Shuttle Schedule: September 7th (Labor Day)",
+        "kind": "route", "aliases": [], "links": [{
+            "collection": "shuttle_trips", "source_key": special_rows[0]["source_key"],
+            "source_record_keys": [special_rows[0]["source_record_key"]]}]}]
+    records = {**base.records, "shuttle_trips": [*base.records["shuttle_trips"], *special_rows]}
+    message = {"role": "user", "content": "next shuttle"}
+    request = ChatRequest.model_validate({"messages": [message]})
+    memory = MemoryEntityFacts(dataset_version="release-1", identity_hash="identities-1",
+                               entities=entities, contacts=[], records=records,
+                               now=lambda: TUESDAY_10AM)
+    engine = ChatEngine(ScriptedGateway(shuttle("Garden State Plaza", None, "next"), finish()),
+                        memory, output="json")  # type: ignore[arg-type]
+    result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+    packet = result.body["facts"]
+    said = [n["approved_text"] for n in packet["notices"] if n["type"] == "shuttle_special"]
+    assert said == [SPECIAL_TEXT.format(days="September 7th (Labor Day)")]
+    assert all("Special" not in f["subject"]["name"] for f in packet["facts"])
+    assert derived(result, "departures")["value"]["trips"][0]["route"] != entities[-1]["name"]

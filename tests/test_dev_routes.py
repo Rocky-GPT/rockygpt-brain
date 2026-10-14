@@ -193,6 +193,7 @@ def test_every_fixed_text_says_who_picks_it_and_matches_the_template_the_engine_
         "ambiguous": ["the lookup result"], "ambiguous_more": ["the lookup result"],
         "not_found": ["the lookup result"], "data_unavailable": ["the lookup result"],
         "shuttle_scope": ["the lookup result"],
+        "shuttle_special": ["the lookup result"],
         "incomplete": ["a provider failure"], "clock": ["the model"], "recall": ["the model"],
         "recall_omitted": ["the model"]}
     assert body["nusdPerDollar"] == 1_000_000_000
