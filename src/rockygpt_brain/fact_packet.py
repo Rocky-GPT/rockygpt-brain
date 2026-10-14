@@ -64,7 +64,7 @@ from rockygpt_brain import dining
 from rockygpt_brain.answers import _current as source_is_current
 from rockygpt_brain.answers import citation_url
 from rockygpt_brain.hours_on import WEEKDAYS, hours_on
-from rockygpt_brain.shuttle import SCOPE_TEXT
+from rockygpt_brain.shuttle import SCOPE_TEXT, SPECIAL_TEXT
 
 PACKET_VERSION = "1.0"
 STATUSES = frozenset({"complete", "partial", "insufficient", "ambiguous", "not_found",
@@ -396,7 +396,14 @@ class _Builder:
         fact_ids: list[str] = []
         source_ids: list[str] = []
         current = True
+        special: list[str] = []
         for reader in part["routes"]:
+            # A special-day timetable (a holiday) is offered by name, never as a day's facts.
+            if any(value.get("value", {}).get("service_day") == "special"
+                   for prop in reader["properties"] for value in prop["values"]):
+                special.append(str(reader["entity"]["name"]).removeprefix(
+                    "Special Shuttle Schedule: "))
+                continue
             self.dataset = self.dataset or {"version": reader.get("dataset_version"),
                                             "identityHash": reader.get("identity_hash")}
             local: dict[str, dict[str, Any]] = {}
@@ -428,6 +435,9 @@ class _Builder:
                                  "reason": "unknown"})
             return
         answer = part["answer"]
+        if special:
+            self.notices.append({"type": "shuttle_special",
+                                 "approved_text": SPECIAL_TEXT.format(days="; ".join(special))})
         if answer.get("trips") or answer.get("none_left") or answer.get("service") == "none":
             # Said the same way every time: the timetable is the schedule, not where a shuttle is.
             self.notices.append({"type": "shuttle_scope", "approved_text": SCOPE_TEXT})

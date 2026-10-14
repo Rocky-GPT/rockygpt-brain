@@ -54,6 +54,7 @@ from rockygpt_brain.retrieval import (
 from rockygpt_brain.retrieval.campus_graph import CampusGraph
 from rockygpt_brain.shuttle import (
     SCOPE_TEXT,
+    SPECIAL_TEXT,
     departures,
     describe,
     said_minutes,
@@ -649,6 +650,9 @@ def fixed_texts() -> list[dict[str, Any]]:
         entry("not_found", lookup, "A lookup matched no office.", NOT_FOUND_TEXT),
         entry("shuttle_scope", lookup,
               "Added after shuttle departures: the timetable is scheduled, not live.", SCOPE_TEXT),
+        entry("shuttle_special", lookup,
+              "Added after shuttle departures when a special-day timetable is posted.",
+              SPECIAL_TEXT.format(days="<the special timetable's heading>")),
         entry("data_unavailable", lookup, "The campus data could not be read during a lookup.",
               DATA_UNAVAILABLE_TEXT),
         entry("incomplete", ["a provider failure"],
