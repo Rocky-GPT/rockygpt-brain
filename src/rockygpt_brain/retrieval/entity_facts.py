@@ -1079,17 +1079,18 @@ def _menu_kept(row: dict[str, Any], query: dict[str, Any]) -> bool:
             return False
     listed = row.get("allergens") if isinstance(row.get("allergens"), list) else None
     published = coverage.get("allergens", "published") == "published" and listed is not None
-    if query.get("with_allergen"):
-        terms = _allergen_terms(query["with_allergen"])
-        if not (published and any(_squash(a) in terms or any(t in _squash(a) for t in terms)
-                                  for a in listed or [])):
-            return False
-    if query.get("without_allergen"):
-        terms = _allergen_terms(query["without_allergen"])
-        if not published or any(_squash(a) in terms or any(t in _squash(a) for t in terms)
-                                for a in listed or []):
-            return False
-    return True
+
+    def names(asked: str) -> bool:
+        terms = _allergen_terms(asked)
+        return any(_squash(a) in terms or any(t in _squash(a) for t in terms)
+                   for a in listed or [])
+
+    # With: the item lists any of them. Without: coverage is published and it lists none.
+    if query.get("with_allergens") and not (
+            published and any(names(a) for a in query["with_allergens"])):
+        return False
+    return not (query.get("without_allergens") and (
+        not published or any(names(a) for a in query["without_allergens"])))
 
 
 def menu_property(
@@ -1157,11 +1158,11 @@ def menu_property(
                  "meals_listed": list(meals)}
     if query:
         value["filter"] = {key: query[key] for key in
-                           ("diet", "contains", "with_allergen", "without_allergen")
+                           ("diet", "contains", "with_allergens", "without_allergens")
                            if query.get(key)}
         value["matched"] = len(picked)
         value["on_menu"] = on_menu
-        if query.get("with_allergen") or query.get("without_allergen"):
+        if query.get("with_allergens") or query.get("without_allergens"):
             value["allergens_published"] = vocabulary
         if not picked:
             # Nothing passes: say what the menu does have, so "none" is never a dead end.

@@ -51,13 +51,14 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   hours and never say a meal is or is not served. closed_gaps lists when the venue is closed
   between its periods (empty: open straight through); use it for "does it close between".
 - A menu fact holds one date's meals, their stations and items. Say the meal asked, or the one
-  in service when none was named, a few items by station; give calories only when asked and
-  never an item that is not in it. Say vegan or vegetarian only where an item says so. When
+  in service when none was named; name every station with a few of its items, and never an
+  item that is not in it. Say vegan or vegetarian only where an item says so. When
   meal_not_listed is set, that date's menu has no such meal: say so and name meals_listed.
   When filter.contains is set the student asked about those foods: give each item's calories
   and portion, and whether it is vegan or vegetarian, as the item says. When filter is set the
   menu holds only the items that match what was asked (matched of
-  on_menu): give them as the answer, grouped by station; if matched is 0 say nothing on that
+  on_menu): give them as the answer, grouped by station; matched is how many there are, so use
+  it to count or to compare two menus; if matched is 0 say nothing on that
   menu matches and name stations_listed, so a station the student called by another name can be
   found. A missing menu with dates_published means the venue has published menus only for
   those dates: say that, as a range when they are consecutive. A menu asked about an allergen

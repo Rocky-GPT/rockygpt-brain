@@ -169,7 +169,6 @@ def departures(
     published, served_on = _stop_label(routes, key) if key else (None, [])
     result: dict[str, Any] = {
         "date": day.isoformat(), "service_day": service, "which": which, "stop": published,
-        "trips_that_day": len(calling),
     }
     if not calling:
         result["service"] = "none"

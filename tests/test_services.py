@@ -412,7 +412,7 @@ def _lunch_menu() -> MemoryEntityFacts:
 def _menu_value(**filters: Any) -> dict[str, Any]:
     request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "menu?"}]})
     arguments = {"query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "lunch",
-                 "diet": None, "items": [], "with_allergen": None, "without_allergen": None,
+                 "diet": None, "items": [], "with_allergens": [], "without_allergens": [],
                  **filters}
     engine = ChatEngine(ScriptedGateway(completion("graph_lookup", {"requests": [arguments]}),
                                         finish()), _lunch_menu(),
@@ -457,14 +457,19 @@ def test_a_food_the_menu_does_not_have_says_what_it_does_have() -> None:
 
 
 def test_allergens_are_matched_only_as_the_labels_publish_them() -> None:
-    dairy = _menu_value(with_allergen="dairy")
+    dairy = _menu_value(with_allergens=["dairy"])
     assert _names(dairy) == ["Cheese Pizza", "New England Clam Chowder"]
     assert dairy["allergens_published"] == ["Milk", "Shellfish", "Soy", "Wheat"]
-    free = _menu_value(without_allergen="dairy")
+    free = _menu_value(without_allergens=["dairy"])
     # The hummus has no published allergen labels, so it is not called dairy-free.
     assert _names(free) == ["Steamed Brown Rice", "Tofu Stir Fry", "Braised Pot Roast",
                             "Black Bean Burger", "Three Mushroom Barley Soup"]
-    nuts = _menu_value(with_allergen="tree nuts")
+    # Free of several is free of all of them; with several is any of them.
+    both = _menu_value(without_allergens=["dairy", "wheat"])
+    assert _names(both) == ["Steamed Brown Rice", "Tofu Stir Fry", "Braised Pot Roast"]
+    either = _menu_value(with_allergens=["shellfish", "soy"])
+    assert _names(either) == ["Tofu Stir Fry", "Black Bean Burger", "New England Clam Chowder"]
+    nuts = _menu_value(with_allergens=["tree nuts"])
     assert nuts["meals"] == [] and nuts["matched"] == 0
     assert "Tree Nuts" not in nuts["allergens_published"]
 
