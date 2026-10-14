@@ -251,8 +251,11 @@ class _Builder:
                 continue
             if prop["status"] == "unknown" or not prop["values"]:
                 if not prop.get("issues"):
-                    self.missing.append({"subject": entity, "predicate": prop["key"],
-                                         "reason": "unknown"})
+                    entry = {"subject": entity, "predicate": prop["key"], "reason": "unknown"}
+                    if prop.get("dates_published"):
+                        # A menu for a date the venue has not published: which dates it has.
+                        entry["dates_published"] = list(prop["dates_published"])
+                    self.missing.append(entry)
                 continue
             for value in prop["values"]:
                 ids = list(value["source_ids"])

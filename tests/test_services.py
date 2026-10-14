@@ -232,7 +232,8 @@ def test_a_date_with_no_published_menu_is_not_called_closed() -> None:
     result = ask("menu friday", lookup("Birch Tree Inn", ["menu"], "friday"), finish())
     packet = result.body["facts"]
     assert not [f for f in packet["facts"] if f["predicate"] == "menu"]
-    assert any(m["predicate"] == "menu" for m in packet["missing"])
+    (gap,) = [m for m in packet["missing"] if m["predicate"] == "menu"]
+    assert gap["dates_published"] == ["2026-10-13", "2026-10-14"]  # What it does have.
     assert packet["status"] == "insufficient"
 
 
