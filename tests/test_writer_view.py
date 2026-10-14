@@ -12,7 +12,7 @@ from typing import Any
 
 from rockygpt_brain.fact_packet import build_packet
 from rockygpt_brain.retrieval import MemoryEntityFacts
-from rockygpt_brain.writer_view import NO_VALIDITY_NOTE, writer_view
+from rockygpt_brain.writer_view import NO_VALIDITY_NOTE, _campus_instant, writer_view
 from test_fact_packet import AS_OF, part_for
 from test_graph_store import NOW, contact, office, source, week
 from test_not_published import claim
@@ -90,7 +90,7 @@ def test_a_contact_packet_becomes_the_values_to_say_and_the_pages_to_cite() -> N
              "sources": [1]},
         ],
         "sources": [{"n": 1, "title": "directory", "urls": ["https://example.edu/directory"],
-                     "captured_at": contact_packet()["sources"][0]["captured_at"]}],
+                     "captured_at": "2026-10-06T08:00:00-04:00"}],  # 12:00 UTC, in campus time
     }
 
 
@@ -234,6 +234,8 @@ def test_every_value_in_the_packet_is_in_the_view_or_dropped_on_purpose() -> Non
                 continue
             if path[0] == "sources" and key == "current":
                 continue
+            if key in {"captured_at", "checked_at"}:
+                value = _campus_instant(value)  # a time reaches the writer in campus time
             assert json.dumps(value) in said, (name, path, value)
 
 
@@ -363,11 +365,11 @@ def test_a_proof_that_something_is_not_published_reaches_the_writer_as_when_and_
     (said,) = [f for f in view["facts"] if f["predicate"] == "hours"]
     assert said["value"]["season"] == "Fall"
     assert said["value"]["dates_not_published"] == {
-        "checked_at": "2026-10-07T18:44:05.521Z", "pages": ["https://example.edu/hours/"],
+        "checked_at": "2026-10-07T14:44:05.521000-04:00", "pages": ["https://example.edu/hours/"],
         "which": ["start", "end"], "current": False}
     day = next(d for d in said["value"]["days"] if d["day"] == "Saturday")
     assert day == {"day": "Saturday", "hours": None, "status": "not_published", "absence": {
-        "checked_at": "2026-10-07T18:44:05.521Z", "pages": ["https://example.edu/hours/"]}}
+        "checked_at": "2026-10-07T14:44:05.521000-04:00", "pages": ["https://example.edu/hours/"]}}
     # A source repeats neither the season nor the proof: the fact says both.
     assert "season" not in view["sources"][0] and "validity_absence" not in view["sources"][0]
     # The packet, the Brain's record, still has all of it.
@@ -384,3 +386,12 @@ def test_an_unverified_seasonal_date_says_so_once_and_has_no_empty_window() -> N
     assert said["applicability"] == "unverified" and said["current"] is False
     assert "applies" not in said and "window" not in said["value"]
     assert said["applicability_reason"] == "Its applicability to this date is unverified."
+
+
+def test_a_time_is_given_in_campus_time_so_its_date_is_the_students() -> None:
+    # 9:14 PM on Tuesday October 13 in New Jersey is already October 14 in UTC.
+    assert _campus_instant("2026-10-14T01:14:09.363Z").startswith("2026-10-13T21:14:09")
+    assert _campus_instant("2026-07-01T03:30:00+00:00").startswith("2026-06-30T23:30:00")
+    assert _campus_instant("2026-10-07") == "2026-10-07"
+    assert _campus_instant("not a time") == "not a time"
+    assert _campus_instant(None) is None

@@ -35,7 +35,25 @@ level, the request, a subject) is not carried; the test that compares every pack
 view fails until it is handled.
 """
 
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
+
+CAMPUS_TZ = ZoneInfo("America/New_York")
+
+
+def _campus_instant(value: Any) -> Any:
+    """A timestamp in campus time, so its date is the one a student on campus has (a check made at
+    9 PM Tuesday is Tuesday, not the next UTC day). Anything that is not a timestamp is returned as
+    it came."""
+    if not isinstance(value, str):
+        return value
+    try:
+        moment = datetime.fromisoformat(value)
+    except ValueError:
+        return value
+    return moment.astimezone(CAMPUS_TZ).isoformat() if moment.tzinfo else value
+
 
 # The limitation the reader adds to every source with no validity interval. It says nothing a writer
 # can use once `validity` is "unspecified", which is what it comes from.
@@ -60,7 +78,7 @@ _BOUND = {"valid_from": "start", "valid_until": "end"}
 
 def _checked(proof: dict[str, Any]) -> dict[str, Any]:
     """What a writer needs of a proof that something is not published: when, and where it looked."""
-    row: dict[str, Any] = {"checked_at": proof["checked_at"],
+    row: dict[str, Any] = {"checked_at": _campus_instant(proof["checked_at"]),
                            "pages": list(dict.fromkeys(check["url"] for check in proof["checks"]))}
     if proof.get("current") is False:
         row["current"] = False
@@ -155,7 +173,7 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
     absent = []
     for entry in packet["not_published"]:
         row = {"subject": entry["subject"]["name"], "predicate": entry["predicate"],
-               "checked_at": entry["checked_at"],
+               "checked_at": _campus_instant(entry["checked_at"]),
                "pages": list(dict.fromkeys(check["url"] for check in entry["checks"]))}
         if not entry["current"]:
             row["current"] = False
@@ -204,7 +222,7 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
         if source["urls"]:
             row["urls"] = list(source["urls"])
         if source["captured_at"]:
-            row["captured_at"] = source["captured_at"]
+            row["captured_at"] = _campus_instant(source["captured_at"])
         if source["freshness"] != "fresh":
             row["freshness"] = source["freshness"]
         if source["validity"] != "unspecified":
