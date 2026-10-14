@@ -104,8 +104,12 @@ today, tomorrow or that weekday only when the student asks about that one day. F
 in general, or for more than one day (weekends, weekdays, Tuesdays and Thursdays), leave day
 null so the whole week is shown. For a dining venue, hours gives its meal periods for that day
 and menu what it serves (set day, today when none is named, and meal when the student names
-one: "dinner tonight" is dinner, "what time is lunch" is lunch). A venue that publishes no menu
-has none to read.
+one: "dinner tonight" is dinner, "what time is lunch" is lunch). A venue whose publishes (in
+published_venues) has no menu has none to read. For a menu, diet is vegan or vegetarian when
+the student asks for those, items the foods or stations they name (pasta, chicken, soup, the
+grill), with_allergen when they ask what contains an allergen and without_allergen for what is
+free of it, in their own word
+(dairy, tree nuts); code keeps only the items that match.
 The shuttle has its own tool, shuttle_lookup: stop is a name from published_stops, or null for
 any stop; day is the one day (null is today); which is next, first, last or all (the whole day).
 Send the stop as listed. A place that is not in published_stops is not served. after is a clock
@@ -202,6 +206,14 @@ class OfficeRequest(StrictModel):
     day: Literal[DAY_CHOICES] | None = None  # type: ignore[valid-type]
     # For a menu only: the one meal asked for, null for every meal of that day.
     meal: Literal["breakfast", "brunch", "lunch", "dinner", "late night"] | None = None
+    # For a menu only. Code keeps just the items that match; each is null or empty otherwise.
+    diet: Literal["vegan", "vegetarian"] | None = None
+    # Foods or stations the student names (pasta, chicken, soup); an item matches by its name or
+    # station. At most three.
+    items: list[str] = Field(default_factory=list, max_length=3)
+    # An allergen the student asks which items contain, or which items are free of, in their word.
+    with_allergen: str | None = Field(default=None, max_length=40)
+    without_allergen: str | None = Field(default=None, max_length=40)
 
 
 class GraphRequests(StrictModel):
@@ -420,7 +432,8 @@ def published_offices(listing: dict[str, Any]) -> list[dict[str, Any]] | None:
     A list that was cut off would read as the whole list, so a truncated one is not sent."""
     if listing["truncated"]:
         return None
-    with_names = [{"name": o["name"], **({"also_called": o["aliases"]} if o["aliases"] else {})}
+    with_names = [{"name": o["name"], **({"also_called": o["aliases"]} if o["aliases"] else {}),
+                   **({"publishes": o["publishes"]} if "publishes" in o else {})}
                   for o in listing["offices"]]
     for menu in (with_names, [{"name": o["name"]} for o in listing["offices"]]):
         if len(json.dumps(menu, ensure_ascii=False).encode()) <= MAX_OFFICE_LIST_BYTES:
@@ -718,9 +731,16 @@ class ChatEngine:
         # A menu is read for one date: the day asked, today when none is named.
         on = (target_date(request.day or "today", as_of.date())
               if "menu" in request.fields else None)
+        menu = "menu" in request.fields
+        words = [w.strip()[:40] for w in request.items if w.strip()]
+        query = {key: value for key, value in (
+            ("diet", request.diet), ("contains", words),
+            ("with_allergen", (request.with_allergen or "").strip()),
+            ("without_allergen", (request.without_allergen or "").strip())) if value}
         opened = graph.lookup(request.query, list(request.fields), as_of,
                               exact_name_only=exact_name_only, conversation=conversation, on=on,
-                              meal=request.meal if "menu" in request.fields else None)
+                              meal=request.meal if menu else None,
+                              menu_query=query if menu and query else None)
         detail: dict[str, Any] = {
             "path": graph.path(graph.current_node), "result_count": len(opened["candidates"]),
             "dataset_version": graph.version, "identity_hash": graph.identity_hash,

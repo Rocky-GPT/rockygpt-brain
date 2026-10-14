@@ -54,6 +54,12 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   in service when none was named, a few items by station; give calories only when asked and
   never an item that is not in it. Say vegan or vegetarian only where an item says so. When
   meal_not_listed is set, that date's menu has no such meal: say so and name meals_listed.
+  When filter is set the menu holds only the items that match what was asked (matched of
+  on_menu): give them as the answer, grouped by station; if matched is 0 say nothing on that
+  menu matches and name stations_listed, so a station the student called by another name can be
+  found. A menu asked about an allergen lists allergens_published, the allergens its labels
+  name: say an allergen the labels do not name is not one of them, and that the labels are as
+  the dining service published them.
 - A derived fact with predicate departures is the posted shuttle timetable worked out for its
   date. Say the departures in trips in order: when each leaves campus (leaves_campus) and its
   route, when it reaches the stop (reached_at), and when it is back (back_on_campus) when given.

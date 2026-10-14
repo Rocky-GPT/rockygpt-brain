@@ -1031,6 +1031,13 @@ def dining_property(
     return prop, sources
 
 
+def _publishes(entity: dict[str, Any]) -> list[str]:
+    """What a venue publishes, from the records linked to it: hours, a menu."""
+    named = {"dining_hours": "hours", "menu": "menu"}
+    return sorted({named[link["collection"]] for link in entity.get("links", [])
+                   if link.get("collection") in named})
+
+
 _MEAL_ORDER = ("Breakfast", "Continental", "Brunch", "Lunch", "Lite Lunch", "Dinner", "Late Night")
 
 
@@ -1038,8 +1045,56 @@ def _meal_rank(meal: str) -> tuple[int, str]:
     return (_MEAL_ORDER.index(meal), meal) if meal in _MEAL_ORDER else (len(_MEAL_ORDER), meal)
 
 
+_ALLERGEN_WORDS = {  # What a student says -> the words the published labels use.
+    "dairy": ("milk",), "lactose": ("milk",), "nut": ("tree nut", "peanut"),
+    "nuts": ("tree nut", "peanut"), "treenut": ("tree nut",), "treenuts": ("tree nut",),
+}
+MAX_MENU_WORDS = 3
+
+
+def _squash(text: Any) -> str:
+    """A word for comparison: one case, no spaces or hyphens, no plural s."""
+    folded = "".join(ch for ch in str(text).casefold() if ch.isalnum())
+    return folded[:-1] if len(folded) > 3 and folded.endswith("s") else folded
+
+
+def _allergen_terms(asked: str) -> set[str]:
+    one = _squash(asked)
+    return {_squash(term) for term in _ALLERGEN_WORDS.get(one, (asked,))} | {one}
+
+
+def _menu_kept(row: dict[str, Any], query: dict[str, Any]) -> bool:
+    """Whether one menu row passes every filter the student's question set."""
+    raw = row.get("label_coverage")
+    coverage: dict[str, Any] = raw if isinstance(raw, dict) else {}
+    if query.get("diet"):
+        flag = query["diet"]
+        if not (row.get(flag) is True and coverage.get(flag, "published") == "published"):
+            return False
+    words = query.get("contains") or []
+    if words:
+        text = f"{clean(row.get('name'))} {clean(row.get('station'))}".casefold()
+        if not any(_squash(w) and _squash(w) in "".join(ch for ch in text if ch.isalnum())
+                   or w.casefold() in text for w in words):
+            return False
+    listed = row.get("allergens") if isinstance(row.get("allergens"), list) else None
+    published = coverage.get("allergens", "published") == "published" and listed is not None
+    if query.get("with_allergen"):
+        terms = _allergen_terms(query["with_allergen"])
+        if not (published and any(_squash(a) in terms or any(t in _squash(a) for t in terms)
+                                  for a in listed or [])):
+            return False
+    if query.get("without_allergen"):
+        terms = _allergen_terms(query["without_allergen"])
+        if not published or any(_squash(a) in terms or any(t in _squash(a) for t in terms)
+                                for a in listed or []):
+            return False
+    return True
+
+
 def menu_property(
     rows: Sequence[dict[str, Any]], now: datetime, on: date | None, meal: str | None = None,
+    query: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """A venue's menu for one date: its meals in service order, then stations, then items.
 
@@ -1063,6 +1118,12 @@ def menu_property(
         else:
             # The date's menu is published and has no such meal: say so, with what it does list.
             not_listed = " ".join(meal.split())
+    on_menu = len(picked)
+    vocabulary = sorted({str(a) for r in picked if isinstance(r.get("allergens"), list)
+                         for a in r["allergens"] if isinstance(a, str)})
+    day_rows = picked
+    if query:
+        picked = [row for row in picked if _menu_kept(row, query)]
     meals: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for row in sorted(picked, key=lambda r: (_meal_rank(clean(r.get("meal")) or ""),
                                              clean(r.get("station")) or "", str(r.get("id")))):
@@ -1094,21 +1155,36 @@ def menu_property(
     if not_listed is not None:
         value = {"date": on.isoformat(), "meals": [], "meal_not_listed": not_listed,
                  "meals_listed": list(meals)}
-    captured = [t for r in picked if (t := _instant(r.get("collected_at")))]
-    first = picked[0]
-    reading = hashlib.sha256("|".join(sorted(str(r["id"]) for r in picked)).encode()).hexdigest()
+    if query:
+        value["filter"] = {key: query[key] for key in
+                           ("diet", "contains", "with_allergen", "without_allergen")
+                           if query.get(key)}
+        value["matched"] = len(picked)
+        value["on_menu"] = on_menu
+        if query.get("with_allergen") or query.get("without_allergen"):
+            value["allergens_published"] = vocabulary
+        if not picked:
+            # Nothing passes: say what the menu does have, so "none" is never a dead end.
+            value["meals_listed"] = list(dict.fromkeys(
+                str(clean(r.get("meal"))) for r in sorted(
+                    day_rows, key=lambda r: _meal_rank(clean(r.get("meal")) or ""))))
+            value["stations_listed"] = sorted({str(clean(r.get("station"))) for r in day_rows})
+    cited = picked or day_rows  # Nothing matching is still read from that date's records.
+    captured = [t for r in cited if (t := _instant(r.get("collected_at")))]
+    first = cited[0]
+    reading = hashlib.sha256("|".join(sorted(str(r["id"]) for r in cited)).encode()).hexdigest()
     source = _source({
         **first, "id": f"{first['id']}:menu:{reading[:16]}",
-        "collected_at": min(captured) if len(captured) == len(picked) else None,
+        "collected_at": min(captured) if len(captured) == len(cited) else None,
         "valid_from": on, "valid_until": on,
     }, now, on)
     source.update(
-        collection="menu", source_record_keys=[r["source_record_key"] for r in picked],
-        record_ids=[r["id"] for r in picked],
+        collection="menu", source_record_keys=[r["source_record_key"] for r in cited],
+        record_ids=[r["id"] for r in cited],
         content_hash=hashlib.sha256(
-            "|".join(sorted(str(r.get("content_hash")) for r in picked)).encode()).hexdigest())
+            "|".join(sorted(str(r.get("content_hash")) for r in cited)).encode()).hexdigest())
     assertion = {"id": f"{source['id']}:menu", "source_id": source["id"], "field": "menu",
-                 "raw_value": {"rows": len(picked)}, "value": _json_safe(value), "caveats": []}
+                 "raw_value": {"rows": len(cited)}, "value": _json_safe(value), "caveats": []}
     return ({"key": "menu", "label": "Menu", "category": "menu", "status": "known",
              "values": [{"value": _json_safe(value), "assertion_ids": [assertion["id"]],
                          "source_ids": [source["id"]]}],
@@ -1241,7 +1317,8 @@ class EntityFacts:
             offices = sorted(
                 ({"name": entity["name"], "aliases": sorted(set(entity["aliases"])),
                   **({"entity_id": entity["id"]} if with_ids else {}),
-                  **({"kind": entity["kind"]} if len(kinds) > 1 else {})}
+                  **({"kind": entity["kind"]} if len(kinds) > 1 else {}),
+                  **({"publishes": _publishes(entity)} if entity["kind"] == "venue" else {})}
                  for entity in snapshot.entities if entity["kind"] in kinds),
                 key=lambda office: office["name"],
             )
@@ -1347,9 +1424,11 @@ class EntityFacts:
         as_of: datetime | None = None,
         on: date | None = None,
         meal: str | None = None,
+        menu_query: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """The facts of one office or dining venue. `on` is the date a menu is asked for, and
-        `meal` the one meal of it."""
+        """The facts of one office or dining venue. `on` is the date a menu is asked for,
+        `meal` the one meal of it, and `menu_query` the filters (diet, words, allergen) the
+        student's question puts on it."""
         if fields is None:
             # Every field an office or venue has on record; a menu is asked for by its date.
             fields = tuple(field for field in OFFICE_FIELDS if field != "menu")
@@ -1443,7 +1522,7 @@ class EntityFacts:
             )
             if "menu" in selected:
                 if venue:
-                    menu, menu_sources = menu_property(menu_rows, now, on, meal)
+                    menu, menu_sources = menu_property(menu_rows, now, on, meal, menu_query)
                 else:  # Only a dining venue has a menu.
                     menu, menu_sources = menu_property([], now, None)
                 sources.extend(menu_sources)
