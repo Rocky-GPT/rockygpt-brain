@@ -274,4 +274,5 @@ reader. It accepts `node_id`, paired `dataset_version` and `identity_hash` pins,
 an optional timezone-aware `as_of`, and optional comma-separated fact `fields`.
 It returns the node, its path and children, and shared-reader facts for a records
 node. An inactive publication returns 409. The route requires the diagnostics
-header, performs no paid calls or writes, and exposes only the current office branch.
+header, performs no paid calls or writes, and exposes the Offices, Dining (venues)
+and Shuttle (routes) branches.

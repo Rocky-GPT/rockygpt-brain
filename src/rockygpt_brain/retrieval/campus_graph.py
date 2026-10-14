@@ -1,9 +1,9 @@
-"""Turn-local root-first navigation over the shared office evidence reader.
+"""Turn-local root-first navigation over the shared entity evidence reader.
 
 Root/category edges organize navigation; only the shared reader supplies facts.
-One lookup walks the root, directory and office in code; the office node carries its
-published records. Children must still be discovered before they can be opened, even on
-follow-up turns.
+Ramapo has three branches: Offices, Dining (venues) and Shuttle (routes). One lookup walks the
+root, directory and office or venue in code; that node carries its published records. Children
+must still be discovered before they can be opened, even on follow-up turns.
 """
 
 from datetime import date, datetime
@@ -85,6 +85,10 @@ def named_by_conversation(
     return named[0] if len(named) == 1 else None
 
 
+# The category each named kind is listed under. Offices and venues come from one listing.
+BRANCH = {"office": "offices", "venue": "dining"}
+
+
 class CampusGraph:
     def __init__(self, facts: EntityFacts, *, dataset_version: str | None = None,
                  identity_hash: str | None = None) -> None:
@@ -94,14 +98,19 @@ class CampusGraph:
         self.nodes: dict[str, dict[str, Any]] = {
             "ramapo": {"id": "ramapo", "label": "Ramapo", "kind": "root"},
             "offices": {"id": "offices", "label": "Offices", "kind": "category"},
+            "dining": {"id": "dining", "label": "Dining", "kind": "category"},
+            "shuttle": {"id": "shuttle", "label": "Shuttle", "kind": "category"},
         }
-        self.paths = {"ramapo": ["ramapo"], "offices": ["ramapo", "offices"]}
+        self.paths = {"ramapo": ["ramapo"], "offices": ["ramapo", "offices"],
+                      "dining": ["ramapo", "dining"], "shuttle": ["ramapo", "shuttle"]}
         self.current_node = "ramapo"
 
     def root(self) -> dict[str, Any]:
-        return {**self.nodes["ramapo"], "children": [self.nodes["offices"]],
-                "scope": "Only the office branch is available. Category links are navigation, "
-                         "not evidence. Other campus domains are not exposed by this reader."}
+        return {**self.nodes["ramapo"],
+                "children": [self.nodes[key] for key in ("offices", "dining", "shuttle")],
+                "scope": "Offices, dining venues and shuttle routes are available. Category links "
+                         "are navigation, not evidence. Other campus domains are not exposed by "
+                         "this reader."}
 
     def path(self, node_id: str) -> list[dict[str, Any]]:
         return [dict(self.nodes[key]) for key in self.paths.get(node_id, [])]
@@ -170,9 +179,21 @@ class CampusGraph:
             opened = root
         elif node_id == "offices":
             opened = listing
+        elif node_id == "dining":
+            opened = self.open("dining", [], as_of)
+        elif node_id == "shuttle" or node_id.startswith("route:"):
+            routes = self.open("shuttle", [], as_of)
+            if node_id == "shuttle":
+                opened = routes
+            elif node_id not in self.nodes:
+                raise InvalidFactRequest("This node is not in the available campus graph.")
+            else:
+                opened = {**self.nodes[node_id], "facts": self.facts.get_route_facts(
+                    self.nodes[node_id]["entity_id"], self.version,  # type: ignore[arg-type]
+                    identity_hash=self.identity_hash, as_of=as_of)}
         else:
             if node_id not in self.nodes or self.nodes[node_id]["kind"] not in NAMED_KINDS:
-                raise InvalidFactRequest("This node is not in the available office graph.")
+                raise InvalidFactRequest("This node is not in the available campus graph.")
             opened = self.open(
                 node_id, fields if fields is not None else list(OFFICE_FIELDS), as_of)
         return {
@@ -200,17 +221,29 @@ class CampusGraph:
         self.current_node = node_id
         if node_id == "ramapo":
             return self.root()
-        if node_id == "offices":
+        if node_id in ("offices", "dining"):
             listing = self.facts.list_offices(dataset_version=self.version,
                                             identity_hash=self.identity_hash, with_ids=True,
                                             limit=500, kinds=NAMED_KINDS)
             self.version, self.identity_hash = listing["dataset_version"], listing["identity_hash"]
-            children = [self._child(node_id, {
+            # Both branches are registered, so a lookup can open an office or a venue after
+            # opening either; the node ID keeps its office: prefix for saved traces.
+            children = [self._child(BRANCH[office.get("kind", "office")], {
                 "id": f"office:{office['entity_id']}", "label": office["name"],
                 "kind": office.get("kind", "office"), "entity_id": office["entity_id"],
                 "aliases": office["aliases"],
             }) for office in listing["offices"]]
-            result = {**node, "children": children, "truncated": listing["truncated"]}
+            result = {**node, "children": [c for c in children if BRANCH[c["kind"]] == node_id],
+                      "truncated": listing["truncated"]}
+        elif node_id == "shuttle":
+            listing = self.facts.list_routes(dataset_version=self.version,
+                                             identity_hash=self.identity_hash)
+            self.version, self.identity_hash = listing["dataset_version"], listing["identity_hash"]
+            children = [self._child(node_id, {
+                "id": f"route:{route['entity_id']}", "label": route["name"], "kind": "route",
+                "entity_id": route["entity_id"],
+            }) for route in listing["routes"]]
+            result = {**node, "children": children, "truncated": False}
         else:
             result = dict(node)
             if fields:

@@ -7,10 +7,11 @@ must not reconcile raw rows or infer its own fact values.
 
 ## Current implementation: offices
 
-The current rebuild reads **office contact facts and office schedules**. It does not
-yet implement fact projections for people, venues, programs, clubs, events, buildings,
-schools, subjects, courses, or menus. The development graph-node inspector exposes
-this same office branch. It does not yet implement broad developer graph projections,
+The current rebuild reads **office contact facts and office schedules**, dining venues'
+hours and menus, and shuttle routes' trips. It does not yet implement fact projections
+for people, programs, clubs, events, buildings, schools, subjects, or courses. The
+development graph-node inspector exposes the Offices, Dining (venues) and Shuttle
+(routes) branches. It does not yet implement broad developer graph projections,
 profiles, paginated context groups, or versioned cursors.
 
 The active consumers are:

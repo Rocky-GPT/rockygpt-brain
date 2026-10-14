@@ -418,7 +418,8 @@ def test_the_model_is_shown_the_published_offices_and_the_names_each_goes_by() -
     state = json.loads(gateway.inputs[0][1]["content"])
     assert tuple(state) == MODEL_INPUT_KEYS
     root = state["graph_root"]
-    assert root["id"] == "ramapo" and [child["id"] for child in root["children"]] == ["offices"]
+    assert root["id"] == "ramapo" and [child["id"] for child in root["children"]] == [
+        "offices", "dining", "shuttle"]
     # Offices only, sorted, each with its other names: no person, no id, no record.
     assert state["published_offices"] == [
         {"name": "ID Card Room", "also_called": ["Husky Card"]}, {"name": "Registrar"}]
