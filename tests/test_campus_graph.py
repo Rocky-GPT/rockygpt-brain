@@ -86,6 +86,7 @@ def test_inspecting_an_office_shows_its_records_without_choosing_fields() -> Non
     assert [step["id"] for step in node["path"]] == ["ramapo", "offices", "office:registrar"]
     assert node["children"] == []
     assert email_status(node["facts"]) == "known"
+    assert "menu" not in {p["key"] for p in node["facts"]["properties"]}
 
 
 def test_the_contact_note_is_read_beside_a_requested_contact_that_is_not_published() -> None:

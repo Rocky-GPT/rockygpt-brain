@@ -10,6 +10,7 @@ from datetime import date, datetime
 from typing import Any
 
 from rockygpt_brain.retrieval.entity_facts import (
+    CAMPUS_TIMEZONE,
     NAMED_KINDS,
     EntityFacts,
     InvalidFactRequest,
@@ -194,8 +195,12 @@ class CampusGraph:
         else:
             if node_id not in self.nodes or self.nodes[node_id]["kind"] not in NAMED_KINDS:
                 raise InvalidFactRequest("This node is not in the available campus graph.")
-            opened = self.open(
-                node_id, fields if fields is not None else list(OFFICE_FIELDS), as_of)
+            # A venue's menu is read for the inspection's campus date; an office has no menu.
+            venue = self.nodes[node_id]["kind"] == "venue"
+            chosen = fields if fields is not None else [
+                field for field in OFFICE_FIELDS if venue or field != "menu"]
+            opened = self.open(node_id, chosen, as_of,
+                               on=as_of.astimezone(CAMPUS_TIMEZONE).date() if venue else None)
         return {
             "node": self.nodes[node_id], "path": self.path(node_id),
             "children": opened.get("children", []), "truncated": listing["truncated"],

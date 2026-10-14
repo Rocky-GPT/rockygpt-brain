@@ -534,3 +534,11 @@ def test_a_venue_lookup_walks_through_dining() -> None:
     assert found["label"] == "Birch Tree Inn"
     assert [s["id"] for s in graph.path(graph.current_node)] == [
         "ramapo", "dining", "office:birch"]
+
+
+def test_inspecting_a_venue_reads_its_menu_for_the_campus_date_and_an_office_has_no_menu() -> None:
+    from rockygpt_brain.retrieval.campus_graph import CampusGraph
+    venue = CampusGraph(facts()).inspect("office:birch", TUESDAY_10AM)
+    menu = next(p for p in venue["facts"]["properties"] if p["key"] == "menu")
+    assert menu["status"] == "known"
+    assert menu["values"][0]["value"]["date"] == TUESDAY_10AM.date().isoformat()
