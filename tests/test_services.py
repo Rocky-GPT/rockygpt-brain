@@ -594,3 +594,23 @@ def test_a_special_day_timetable_is_offered_by_name_and_never_answers_a_regular_
     assert said == [SPECIAL_TEXT.format(days="September 7th (Labor Day)")]
     assert all("Special" not in f["subject"]["name"] for f in packet["facts"])
     assert derived(result, "departures")["value"]["trips"][0]["route"] != entities[-1]["name"]
+
+
+def test_a_venue_that_posts_its_menu_as_a_file_says_so_without_items() -> None:
+    entities = [{"id": "atrium", "name": "The Atrium", "kind": "venue", "aliases": [], "links": [
+        {"collection": "menu_documents", "source_key": "dining",
+         "source_record_keys": ["The Atrium:menu-document:Atrium Menu Boards 2026"]}]}]
+    files = [_row("document", 1, source_record_key="The Atrium:menu-document:Atrium Menu Boards 2026",
+                  name="The Atrium", title="Atrium Menu Boards 2026",
+                  url="https://media.example/web/en-us/media/Atrium.pdf",
+                  mime_type="application/pdf")]
+    memory = MemoryEntityFacts(dataset_version="r", identity_hash="i", entities=entities,
+                               contacts=[], records={"menu_documents": files},
+                               now=lambda: TUESDAY_10AM)
+    read = memory.get_office_facts("atrium", ["menu"], "r", as_of=TUESDAY_10AM,
+                                   on=TUESDAY_10AM.date())
+    menu = read["properties"][0]
+    assert menu["status"] == "unknown" and menu["values"] == []
+    assert menu["documents_published"] == [
+        {"title": "Atrium Menu Boards 2026",
+         "url": "https://media.example/web/en-us/media/Atrium.pdf"}]
