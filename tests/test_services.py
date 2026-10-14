@@ -505,3 +505,32 @@ def test_all_gives_the_trips_only_when_the_times_were_asked_for() -> None:
     assert (summary["first_leaves_campus"], summary["last_leaves_campus"]) == ("12:00 PM",
                                                                                "9:40 PM")
     assert [t["leaves_campus"] for t in listed["trips"]] == ["12:00 PM", "9:40 PM"]
+
+
+def test_the_graph_lists_offices_dining_and_shuttle_each_under_its_own_branch() -> None:
+    from rockygpt_brain.retrieval.campus_graph import CampusGraph
+    root = CampusGraph(facts()).inspect("ramapo", TUESDAY_10AM)
+    assert [c["id"] for c in root["children"]] == ["offices", "dining", "shuttle"]
+    assert "Only the office branch" not in root["scope"]
+    assert CampusGraph(facts()).inspect("offices", TUESDAY_10AM)["children"] == []
+    dining = CampusGraph(facts()).inspect("dining", TUESDAY_10AM)
+    assert [(c["label"], c["kind"]) for c in dining["children"]] == [("Birch Tree Inn", "venue")]
+    venue = CampusGraph(facts()).inspect("office:birch", TUESDAY_10AM)
+    assert [s["id"] for s in venue["path"]] == ["ramapo", "dining", "office:birch"]
+    assert venue["facts"]["entity"]["name"] == "Birch Tree Inn"
+    shuttle = CampusGraph(facts()).inspect("shuttle", TUESDAY_10AM)
+    assert [c["label"] for c in shuttle["children"]] == [
+        "Saturday Roadrunner Express", "Weekday Roadrunner Express"]
+    route = CampusGraph(facts()).inspect("route:route-weekday", TUESDAY_10AM)
+    assert [s["id"] for s in route["path"]] == ["ramapo", "shuttle", "route:route-weekday"]
+    assert route["facts"]["entity"]["name"] == "Weekday Roadrunner Express"
+    assert route["facts"]["evidence_count"] == 3
+
+
+def test_a_venue_lookup_walks_through_dining() -> None:
+    from rockygpt_brain.retrieval.campus_graph import CampusGraph
+    graph = CampusGraph(facts())
+    found = graph.lookup("Birch Tree Inn", ["hours"], TUESDAY_10AM)
+    assert found["label"] == "Birch Tree Inn"
+    assert [s["id"] for s in graph.path(graph.current_node)] == [
+        "ramapo", "dining", "office:birch"]
