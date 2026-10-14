@@ -107,18 +107,19 @@ and menu what it serves (set day, today when none is named, and meal when the st
 one: "dinner tonight" is dinner, "what time is lunch" is lunch). A venue whose publishes (in
 published_venues) has no menu has none to read. For a menu, diet is vegan or vegetarian when
 the student asks for those, items the foods or stations they name (pasta, chicken, soup, the
-grill), with_allergen when they ask what contains an allergen and without_allergen for what is
-free of it, in their own word
-(dairy, tree nuts); code keeps only the items that match. A menu item has its calories,
-portion, vegan and vegetarian labels and allergens, so those are never unsupported. A student
-who wants the whole menu and also one kind of item needs two requests, one without a filter. Set
-meal only when the student asks about that meal alone; leave it null to compare or relate meals.
+grill), with_allergens when they ask what contains an allergen and without_allergens for what is
+free of them, in their own words (dairy, tree nuts); code keeps only the items that match. A
+menu item has its calories, portion, vegan and vegetarian labels and allergens, so those are
+never unsupported. A student who wants the whole menu and also one kind of item needs two
+requests, one without a filter. Set meal only when the student asks about that meal alone; leave
+it null to compare or relate meals.
 The shuttle has its own tool, shuttle_lookup: stop is a name from published_stops, or null for
 any stop; day is the one day (null is today); which is next, first, last or all (the whole day),
 or stops for where the shuttle goes. Send the stop as listed. A place that is not in
 published_stops is not served. after is a clock time the student gives ("after my 6pm class":
 6:00 PM; tonight is 5:00 PM) and by one they must be at the stop by (a 6:50 train: 6:50 AM);
-otherwise null. times is true with all when the student wants the times themselves.
+otherwise null. times is true with all when the student asks for the times or which one to take,
+false when they only ask whether it runs. The first and the last of a day are two requests.
 Read the fields the student asked for, and a field they did not name only when it plainly makes
 the answer more useful to them (a time is more useful with its place); leave out fields that
 have nothing to do with the question. When the student wants to contact or reach an office and
@@ -215,9 +216,10 @@ class OfficeRequest(StrictModel):
     # Foods or stations the student names (pasta, chicken, soup); an item matches by its name or
     # station. At most three.
     items: list[str] = Field(default_factory=list, max_length=3)
-    # An allergen the student asks which items contain, or which items are free of, in their word.
-    with_allergen: str | None = Field(default=None, max_length=40)
-    without_allergen: str | None = Field(default=None, max_length=40)
+    # Allergens the student asks which items contain (any of them), or which items are free of
+    # (all of them), in their own words. At most three each.
+    with_allergens: list[str] = Field(default_factory=list, max_length=3)
+    without_allergens: list[str] = Field(default_factory=list, max_length=3)
 
 
 class GraphRequests(StrictModel):
@@ -744,11 +746,13 @@ class ChatEngine:
         on = (target_date(request.day or "today", as_of.date())
               if "menu" in request.fields else None)
         menu = "menu" in request.fields
-        words = [w.strip()[:40] for w in request.items if w.strip()]
+        def said(texts: list[str]) -> list[str]:
+            return [t.strip()[:40] for t in texts if t.strip()]
+
         query = {key: value for key, value in (
-            ("diet", request.diet), ("contains", words),
-            ("with_allergen", (request.with_allergen or "").strip()),
-            ("without_allergen", (request.without_allergen or "").strip())) if value}
+            ("diet", request.diet), ("contains", said(request.items)),
+            ("with_allergens", said(request.with_allergens)),
+            ("without_allergens", said(request.without_allergens))) if value}
         opened = graph.lookup(request.query, list(request.fields), as_of,
                               exact_name_only=exact_name_only, conversation=conversation, on=on,
                               meal=request.meal if menu else None,

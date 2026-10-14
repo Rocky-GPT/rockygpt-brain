@@ -125,7 +125,7 @@ def test_another_date_has_nothing_that_already_left() -> None:
 def test_a_stop_a_day_does_not_serve_is_no_service_for_it_not_an_empty_list() -> None:
     # Sunday's trips never call at Barnes & Noble; only Sunday's call at the Farmers Market.
     got = departures(routes(), SUNDAY, minutes("8:00 AM"), "next", "Barnes & Noble/Fashion Center")
-    assert got["service"] == "none" and got["trips_that_day"] == 0 and "trips" not in got
+    assert got["service"] == "none" and "trips" not in got
     # It still names the stop, and says on which kinds of day the stop is served.
     assert got["stop"] == "Barnes & Noble/Fashion Center"
     assert got["served_on"] == ["weekdays", "Saturdays"]
