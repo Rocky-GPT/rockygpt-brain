@@ -40,6 +40,9 @@ RECORD_COLLECTIONS = {
 # Entities a student can ask about by name: offices and dining venues. A route is not named by
 # students; it is read through the shuttle timetable.
 NAMED_KINDS = ("office", "venue")
+# An Archway group (a residence hall desk, a center) or a campus facility that a reviewed
+# directory contact belongs to is read like an office: it has the same contact and hours records.
+DESK_KINDS = ("club", "organization", "facility")
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 MAX_EVIDENCE_BYTES = 128_000
 CONTACT_OBSERVATION_ARTIFACT = "development-office-contact-evidence"
@@ -639,6 +642,11 @@ def validate_entities(entities: Any) -> list[dict[str, Any]]:
                 ):
                     raise EvidenceUnavailable("Contact evidence has multiple canonical owners.")
                 ownership.append(pin_set)
+    for entity in entities:
+        if entity["kind"] in DESK_KINDS and any(
+                link.get("collection") == "contacts" and link.get("source_record_keys")
+                for link in entity["links"]):
+            entity["desk_kind"], entity["kind"] = entity["kind"], "office"
     return entities
 
 
