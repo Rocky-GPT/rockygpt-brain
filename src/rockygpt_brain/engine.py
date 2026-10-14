@@ -24,6 +24,7 @@ from rockygpt_brain.boundary import (
     SAFETY_TEXTS,
     SITUATIONS,
     names_a_danger,
+    plain,
     safety_text,
     situation_of,
 )
@@ -371,6 +372,16 @@ def _plain_language(finish: Finish) -> str | None:
     if language.casefold() in {"english", "en"}:
         return None
     return language if re.fullmatch(r"[A-Za-z]{3,20}", language) else None
+
+
+_IT_IS_OVER = re.compile(
+    r"\b(ok|okay|fine|alright|all good|safe|nvm|never ?mind|false alarm|venting|just kidding|"
+    r"forget (it|that|i said)|its over|over now|no longer|calm now|better now|resolved)\b")
+
+
+def says_it_is_over(message: str) -> bool:
+    """Whether the message itself takes a worry back, so "okay" has something to answer."""
+    return bool(_IT_IS_OVER.search(plain(message)))
 
 
 def earlier_emergency(context: Context) -> bool:
@@ -960,8 +971,9 @@ class ChatEngine:
                                   "approved_text": said})
                     chunks.append(said)
                     supported = True
-                elif part.kind == "okay" and not earlier_emergency(context):
-                    continue  # "okay" answers an earlier emergency; with none in view it misfired
+                elif part.kind == "okay" and not (
+                        earlier_emergency(context) or says_it_is_over(context.latest_message)):
+                    continue  # "okay" answers a worry that is over; with none in view it misfired
                 elif part.kind in FIXED_REPLIES:
                     parts.append({"kind": part.kind, "approved_text": FIXED_REPLIES[part.kind]})
                     chunks.append(FIXED_REPLIES[part.kind])

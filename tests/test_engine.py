@@ -425,8 +425,8 @@ def test_the_model_is_shown_the_published_offices_and_the_names_each_goes_by() -
 
 
 def test_okay_is_kept_only_when_an_emergency_reply_is_in_the_conversation() -> None:
-    def run(history: list[dict[str, str]]) -> str:
-        messages = [*history, {"role": "user", "content": "its fine now, false alarm"}]
+    def run(history: list[dict[str, str]], latest: str = "its fine now, false alarm") -> str:
+        messages = [*history, {"role": "user", "content": latest}]
         result = answer(ScriptedGateway(finish("okay")), messages=messages)
         text: str = result.body["answer"]
         return text
@@ -436,7 +436,8 @@ def test_okay_is_kept_only_when_an_emergency_reply_is_in_the_conversation() -> N
     assert "thanks for letting me know" in after
     # With no emergency in the conversation it is a misfire, and the student is asked instead.
     stray = run([{"role": "user", "content": "is there a trading lab"},
-                 {"role": "assistant", "content": "The Trading Lab is in the business school."}])
+                 {"role": "assistant", "content": "The Trading Lab is in the business school."}],
+                "can u just give me their contact info")
     assert "thanks for letting me know" not in stray
 
 
@@ -1155,3 +1156,14 @@ def test_the_language_the_model_names_reaches_the_writer_only_as_one_plain_word(
     given = json.loads(writer_messages({"asked": {}}, "Spanish")[1]["content"])
     assert given["reply_language"] == "Spanish"
     assert "reply_language" not in json.loads(writer_messages({"asked": {}})[1]["content"])
+
+
+def test_okay_is_also_kept_when_the_message_itself_takes_a_worry_back() -> None:
+    from rockygpt_brain.engine import says_it_is_over
+
+    for kept in ("im ok. was just venting. forget i said anything", "ok shes fine now nvm",
+                 "false alarm, all good", "its over now, thanks"):
+        assert says_it_is_over(kept), kept
+    for dropped in ("can u just give me their contact info", "whats the registrar email",
+                    "i need the counseling center hours"):
+        assert not says_it_is_over(dropped), dropped
