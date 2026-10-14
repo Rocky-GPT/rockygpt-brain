@@ -600,8 +600,9 @@ def test_a_venue_that_posts_its_menu_as_a_file_says_so_without_items() -> None:
     entities = [{"id": "atrium", "name": "The Atrium", "kind": "venue", "aliases": [], "links": [
         {"collection": "menu_documents", "source_key": "dining",
          "source_record_keys": ["The Atrium:menu-document:Atrium Menu Boards 2026"]}]}]
-    files = [_row("document", 1, source_record_key="The Atrium:menu-document:Atrium Menu Boards 2026",
-                  name="The Atrium", title="Atrium Menu Boards 2026",
+    key = "The Atrium:menu-document:Atrium Menu Boards 2026"
+    files = [_row("document", 1, source_record_key=key, name="The Atrium",
+                  title="Atrium Menu Boards 2026",
                   url="https://media.example/web/en-us/media/Atrium.pdf",
                   mime_type="application/pdf")]
     memory = MemoryEntityFacts(dataset_version="r", identity_hash="i", entities=entities,
