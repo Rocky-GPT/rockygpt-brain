@@ -24,7 +24,7 @@ from datetime import date, timedelta
 from typing import Any
 
 SERVICE_DAYS = ("weekday", "saturday", "sunday")
-WHICH = ("next", "first", "last", "all", "stops")
+WHICH = ("next", "first", "last", "all")
 MAX_LISTED = 2  # How many upcoming departures "next" shows: the one asked for and the one after.
 _CLOCK = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*([AaPp])\.?[Mm]\.?\s*$")
 _PREFIX = re.compile(r"^(?:arrive|depart)\s+", re.IGNORECASE)
@@ -198,13 +198,12 @@ def departures(
         result.update(trips=[], none_left=True, last_left_at=clock(day_calling[-1]["leaves"]))
         result.update(_next_service(routes, day, key))
         return result
-    if which == "stops":
-        # Where the shuttle goes that day: the stops its trips call at, in first-seen order.
-        names = dict.fromkeys(s["name"] for t in day_calling for s in t["stops"])
-        result.update(stops_served=list(names), trip_count=len(day_calling), trips=[])
-        return result
     if which == "all":
         picked = calling
+        if key is None:
+            # Where the shuttle goes that day: the stops its trips call at, in first-seen order.
+            result["stops_served"] = list(dict.fromkeys(
+                s["name"] for t in calling for s in t["stops"]))
         result["first_leaves_campus"] = clock(calling[0]["leaves"])
         result["last_leaves_campus"] = clock(calling[-1]["leaves"])
         result["trip_count"] = len(calling)
@@ -280,8 +279,6 @@ def describe(answer: dict[str, Any]) -> str:
             text += f" {stop} is served on {' and '.join(answer['served_on'])}."
         return text
     which = answer["which"]
-    if which == "stops":
-        return f"On {when} the shuttle calls at {', '.join(answer.get('stops_served', []))}."
 
     def one(trip: dict[str, Any]) -> str:
         text = f"{trip['leaves_campus']} ({trip['route']})"
@@ -311,6 +308,8 @@ def describe(answer: dict[str, Any]) -> str:
         return text
     label = {"next": "Next", "first": "First", "last": "Last", "all": "All"}[which]
     if which == "all":
+        if answer.get("stops_served") and not trips:
+            return f"On {when} the shuttle calls at {', '.join(answer['stops_served'])}."
         return f"Shuttles{to} on {when}: " + "; ".join(one(t) for t in trips) + "."
     since = f" after {answer['after']}" if answer.get("after") else ""
     lead = f"{label} shuttle{to}{since} on {when}: " + "; ".join(one(t) for t in trips) + "."

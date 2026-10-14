@@ -114,8 +114,8 @@ never unsupported. A student who wants the whole menu and also one kind of item 
 requests, one without a filter. Set meal only when the student asks about that meal alone; leave
 it null to compare or relate meals.
 The shuttle has its own tool, shuttle_lookup: stop is a name from published_stops, or null for
-any stop; day is the one day (null is today); which is next, first, last or all (the whole day),
-or stops for where the shuttle goes. Send the stop as listed. A place that is not in
+any stop; day is the one day (null is today); which is next, first, last or all (the whole day;
+all with no stop also says where the shuttle goes). Send the stop as listed. A place that is not in
 published_stops is not served. after is a clock time the student gives ("after my 6pm class":
 6:00 PM; tonight is 5:00 PM) and by one they must be at the stop by (a 6:50 train: 6:50 AM);
 otherwise null. times is true with all when the student asks for the times or which one to take,
@@ -231,7 +231,7 @@ class ShuttleRequest(StrictModel):
     stop: str | None = Field(max_length=120)
     # The one day the student asked about; null is today.
     day: Literal[DAY_CHOICES] | None = None  # type: ignore[valid-type]
-    which: Literal["next", "first", "last", "all", "stops"]
+    which: Literal["next", "first", "last", "all"]
     # A clock time the student gave ("6:00 PM"): only trips leaving campus after it.
     after: str | None = Field(default=None, max_length=20)
     # A clock time to be at the stop by ("6:50 AM", a train): the latest trips that reach it.

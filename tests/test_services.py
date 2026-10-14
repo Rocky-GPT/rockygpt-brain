@@ -484,10 +484,10 @@ def test_a_part_no_tool_answers_beside_a_shuttle_answer_has_no_office_to_point_a
     assert said == [UNSUPPORTED_PART_MESSAGE] and UNSUPPORTED_AFTER_LOOKUP_MESSAGE not in said
 
 
-def test_which_stops_the_shuttle_makes_is_the_list_of_its_stops() -> None:
-    stops = completion("shuttle_lookup", {"requests": [{
-        "stop": None, "day": None, "which": "stops", "after": None, "by": None, "times": False}]})
-    value = derived(ask("where does the shuttle go", stops, finish()), "departures")["value"]
+def test_all_with_no_stop_says_where_the_shuttle_goes() -> None:
+    every = completion("shuttle_lookup", {"requests": [{
+        "stop": None, "day": None, "which": "all", "after": None, "by": None, "times": False}]})
+    value = derived(ask("where does the shuttle go", every, finish()), "departures")["value"]
     assert value["stops_served"] == ["Garden State Plaza", "Ramsey Rt 17 Train"]
     assert value["trips"] == [] and value["trip_count"] == 3
 

@@ -68,8 +68,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
 - A derived fact with predicate departures is the posted shuttle timetable worked out for its
   date. Say the departures in trips in order: when each leaves campus (leaves_campus) and its
   route, when it reaches the stop (reached_at), and when it is back (back_on_campus) when given.
-  which says what was asked. For which stops, say the stops in stops_served: where the shuttle
-  goes that day. For which all, say that there is service that day, its first and
+  which says what was asked. For which all, say where the shuttle goes that day when stops_served
+  is given, that there is service that day, its first and
   last departure and how many trips (first_leaves_campus, last_leaves_campus, trip_count), and
   give each trip's time when trips lists them. When none_left is true, say the last
   one left at last_left_at and give next_service (its date and first departure). When
