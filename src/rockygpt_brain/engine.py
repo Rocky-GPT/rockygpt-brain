@@ -56,6 +56,7 @@ from rockygpt_brain.shuttle import (
     SCOPE_TEXT,
     departures,
     describe,
+    said_minutes,
     stop_key,
     stops_served,
     table_of,
@@ -107,7 +108,9 @@ one: "dinner tonight" is dinner, "what time is lunch" is lunch). A venue that pu
 has none to read.
 The shuttle has its own tool, shuttle_lookup: stop is a name from published_stops, or null for
 any stop; day is the one day (null is today); which is next, first, last or all (the whole day).
-Send the stop as listed. A place that is not in published_stops is not served.
+Send the stop as listed. A place that is not in published_stops is not served. after is a clock
+time the student gives ("after my 6pm class": 6:00 PM; tonight is 5:00 PM) and by one they must
+be at the stop by (a 6:50 train: 6:50 AM); otherwise null.
 Read the fields the student asked for, and a field they did not name only when it plainly makes
 the answer more useful to them (a time is more useful with its place); leave out fields that
 have nothing to do with the question. When the student wants to contact or reach an office and
@@ -211,6 +214,10 @@ class ShuttleRequest(StrictModel):
     # The one day the student asked about; null is today.
     day: Literal[DAY_CHOICES] | None = None  # type: ignore[valid-type]
     which: Literal["next", "first", "last", "all"]
+    # A clock time the student gave ("6:00 PM"): only trips leaving campus after it.
+    after: str | None = Field(default=None, max_length=20)
+    # A clock time to be at the stop by ("6:50 AM", a train): the latest trips that reach it.
+    by: str | None = Field(default=None, max_length=20)
 
 
 class ShuttleRequests(StrictModel):
@@ -265,8 +272,9 @@ TOOLS = [
           "and renders evidence; ambiguous matches ask which office. Results enter the answer "
           "automatically.", GraphRequests),
     _tool("shuttle_lookup", "Read the posted shuttle timetables by code. Give a stop (as "
-          "published_stops lists it, or null for any stop), the day and which departure from "
-          "campus: next, first, last or all. Code works out the dates and times; results enter "
+          "published_stops lists it, or null for any stop), the day, which departure from "
+          "campus (next, first, last or all) and, when the student gave one, a time to leave "
+          "after or to be at the stop by. Code works out the dates and times; results enter "
           "the answer automatically.", ShuttleRequests),
     _tool("finish", "Finish the answer. Office results are included automatically. List only "
           "additional limitation, greeting, thanks, okay, about, recall, clock or safety parts; "
@@ -811,12 +819,17 @@ class ChatEngine:
         now_minute = as_of.hour * 60 + as_of.minute if day == as_of.date() else None
         published = stops_served(table)
         asked = " ".join(request.stop.split()) if request.stop else None
+        after, by = said_minutes(request.after), said_minutes(request.by)
         if asked and stop_key(asked) not in {stop_key(name) for name in published}:
             answer: dict[str, Any] = {
                 "date": day.isoformat(), "which": request.which, "stop_unknown": True,
                 "asked": asked[:80], "published_stops": published}
         else:
-            answer = departures(table, day, now_minute, request.which, asked)
+            answer = departures(table, day, now_minute, request.which, asked, after, by)
+            unread = [text for text, found in ((request.after, after), (request.by, by))
+                      if text and found is None]
+            if unread:
+                answer["time_unreadable"] = unread[0][:20]  # Said, never silently dropped.
         listed = bool(table) and not answer.get("stop_unknown")
         citations: dict[str, dict[str, Any]] = {}
         for envelope in envelopes:

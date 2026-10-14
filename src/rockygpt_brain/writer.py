@@ -62,7 +62,11 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   list the times only when the student asked for them. When none_left is true, say the last
   one left at last_left_at and give next_service (its date and first departure). When
   already_left is true, say it has already left today. When service is none, no shuttle calls
-  at that stop (stop) that day; served_on says on which days it does. When stop_unknown is
+  at that stop (stop) that day; served_on says on which days it does. after (a time) means
+  trips is only what leaves campus after it; by means trips is what reaches the stop by that
+  time, the last of them being the one to take (none_by: nothing does, and
+  earliest_reaches_stop is the earliest). time_unreadable is a time that could not be read; say
+  that. When stop_unknown is
   true, say that stop is not on the timetable and name published_stops. It is the posted
   schedule, not live: never say a shuttle is running, on time or late.
 - A contact note holds many things. Say only the part that relates to what the student asked,

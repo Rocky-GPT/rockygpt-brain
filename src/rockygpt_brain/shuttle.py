@@ -44,6 +44,24 @@ def minutes(text: Any) -> int | None:
     return (int(match[1]) % 12 + (12 if match[3].casefold() == "p" else 0)) * 60 + int(match[2])
 
 
+_SAID = re.compile(r"^\s*(\d{1,2})(?::(\d{2}))?\s*([AaPp])\.?[Mm]\.?\s*$")
+_SAID_24 = re.compile(r"^\s*([01]?\d|2[0-3]):([0-5]\d)\s*$")
+
+
+def said_minutes(text: Any) -> int | None:
+    """A time as a student or the model writes it ("6pm", "6:30 PM", "18:30") in minutes after
+    midnight, or None when it is not a clock time. The timetable's own `minutes` stays strict."""
+    if not isinstance(text, str):
+        return None
+    twelve, full = _SAID.match(text), _SAID_24.match(text)
+    if twelve and 1 <= int(twelve[1]) <= 12 and int(twelve[2] or 0) <= 59:
+        return ((int(twelve[1]) % 12 + (12 if twelve[3].casefold() == "p" else 0)) * 60
+                + int(twelve[2] or 0))
+    if full:
+        return int(full[1]) * 60 + int(full[2])
+    return None
+
+
 def clock(total: int) -> str:
     """The way the timetable writes a time: 7:00 AM."""
     hour, minute = divmod(total % 1440, 60)
@@ -132,13 +150,15 @@ def _shown(trip: dict[str, Any], key: str | None) -> dict[str, Any]:
 
 def departures(
     routes: list[dict[str, Any]], day: date, now_minute: int | None, which: str,
-    stop: str | None,
+    stop: str | None, after: int | None = None, by: int | None = None,
 ) -> dict[str, Any]:
     """The answer to "the {next, first, last} shuttle (to {stop}) on this date".
 
     `now_minute` is the campus time of day when `day` is today, and None for any other date (so
-    nothing on another date has "already left"). The result is the facts of the answer, not
-    prose: `trips` are the departures to say, `none_left` that every trip today has left."""
+    nothing on another date has "already left"). `after` keeps only trips that leave campus after
+    that minute ("after my 6pm class"); `by` keeps only trips that reach the stop by that minute
+    ("a 6:50 train") and answers with the latest of them. The result is the facts of the answer,
+    not prose: `trips` are the departures to say, `none_left` that every trip today has left."""
     key = stop_key(stop) if stop else None
     service = service_day(day)
     todays = trips_of(routes, service)
@@ -154,7 +174,29 @@ def departures(
         if key:
             result["served_on"] = served_on  # The days that do call there, when this one does not.
         return result
+    day_calling = calling
+    if after is not None:
+        result["after"] = clock(after)
+        calling = [t for t in calling if t["leaves"] > after]
     upcoming = [t for t in calling if now_minute is None or t["leaves"] > now_minute]
+    if by is not None and key is None:
+        result["by_needs_a_stop"] = True  # "Get there by" means nothing without a place.
+        by = None
+    if by is not None:
+        result["by"] = clock(by)
+        reaching = [t for t in upcoming
+                    if next(s for s in t["stops"] if s["key"] == key)["at"] <= by]
+        result["trips"] = [_shown(t, key) for t in reaching[-MAX_LISTED:]]
+        result["none_by"] = not reaching
+        if not reaching and upcoming:
+            result["earliest_reaches_stop"] = clock(
+                next(s for s in upcoming[0]["stops"] if s["key"] == key)["at"])
+        return result
+    if not calling:
+        # Nothing leaves after that time on this date: the day's last trip is the edge of it.
+        result.update(trips=[], none_left=True, last_left_at=clock(day_calling[-1]["leaves"]))
+        result.update(_next_service(routes, day, key))
+        return result
     if which == "all":
         picked = calling
         result["first_leaves_campus"] = clock(calling[0]["leaves"])
@@ -172,18 +214,23 @@ def departures(
     if which == "next":
         result["none_left"] = not upcoming
         if not upcoming:
-            result["last_left_at"] = clock(calling[-1]["leaves"])
-            # The next service day that has a trip to the stop, so "none left" is never a dead end.
-            for ahead in range(1, 8):
-                later = day + timedelta(days=ahead)
-                coming = [t for t in trips_of(routes, service_day(later))
-                          if key is None or any(s["key"] == key for s in t["stops"])]
-                if coming:
-                    first = [t for t in coming if t["leaves"] == coming[0]["leaves"]]
-                    result["next_service"] = {"date": later.isoformat(),
-                                              "trips": [_shown(t, key) for t in first]}
-                    break
+            result["last_left_at"] = clock(day_calling[-1]["leaves"])
+            result.update(_next_service(routes, day, key))
     return result
+
+
+def _next_service(routes: list[dict[str, Any]], day: date, key: str | None) -> dict[str, Any]:
+    """The first trip on the next day that has one to the stop, so "none left" is never a dead
+    end. Empty when no day in the coming week has one."""
+    for ahead in range(1, 8):
+        later = day + timedelta(days=ahead)
+        coming = [t for t in trips_of(routes, service_day(later))
+                  if key is None or any(s["key"] == key for s in t["stops"])]
+        if coming:
+            first = [t for t in coming if t["leaves"] == coming[0]["leaves"]]
+            return {"next_service": {"date": later.isoformat(),
+                                     "trips": [_shown(t, key) for t in first]}}
+    return {}
 
 
 SCOPE_TEXT = ("These are the scheduled times on the posted timetable. They are not live: "
@@ -235,8 +282,17 @@ def describe(answer: dict[str, Any]) -> str:
         return text
 
     trips = answer.get("trips", [])
-    if which == "next" and answer.get("none_left"):
-        text = (f"No more shuttles{to} are listed on {when}; the last one left at "
+    if answer.get("by"):
+        if answer.get("none_by"):
+            text = f"No shuttle{to} is listed that reaches the stop by {answer['by']} on {when}."
+            if answer.get("earliest_reaches_stop"):
+                text += f" The earliest reaches it at {answer['earliest_reaches_stop']}."
+            return text
+        return (f"Shuttles{to} that reach the stop by {answer['by']} on {when}: "
+                + "; ".join(one(t) for t in trips) + ".")
+    if answer.get("none_left"):
+        since = f" after {answer['after']}" if answer.get("after") else ""
+        text = (f"No more shuttles{to} are listed{since} on {when}; the last one left at "
                 f"{answer['last_left_at']}.")
         later = answer.get("next_service")
         if later:
@@ -246,7 +302,8 @@ def describe(answer: dict[str, Any]) -> str:
     label = {"next": "Next", "first": "First", "last": "Last", "all": "All"}[which]
     if which == "all":
         return f"Shuttles{to} on {when}: " + "; ".join(one(t) for t in trips) + "."
-    lead = f"{label} shuttle{to} on {when}: " + "; ".join(one(t) for t in trips) + "."
+    since = f" after {answer['after']}" if answer.get("after") else ""
+    lead = f"{label} shuttle{to}{since} on {when}: " + "; ".join(one(t) for t in trips) + "."
     if answer.get("already_left"):
         lead += " It has already left today."
     return lead

@@ -11,6 +11,7 @@ from rockygpt_brain.shuttle import (
     clock,
     departures,
     minutes,
+    said_minutes,
     service_day,
     stop_key,
     stops_served,
@@ -149,3 +150,55 @@ def test_a_time_that_runs_backwards_is_not_read() -> None:
          "stops": [{"location": "A", "time": "10:10 AM"}]},
     ]}]
     assert [t["leaves"] for t in trips_of(bad, "weekday")] == [600]
+
+
+def test_a_time_as_a_student_says_it_is_read() -> None:
+    assert said_minutes("6pm") == 1080 and said_minutes("6:30 PM") == 1110
+    assert said_minutes("12am") == 0 and said_minutes("12:15 p.m.") == 735
+    assert said_minutes("18:30") == 1110 and said_minutes("6:50 AM") == 410
+    assert said_minutes("evening") is None and said_minutes("13pm") is None
+    assert said_minutes(None) is None
+
+
+def test_after_keeps_only_trips_that_leave_campus_after_the_time() -> None:
+    table = routes()
+    for stop in (None, "Interstate Plaza", "Garden State Plaza"):
+        key = stop_key(stop) if stop else None
+        for now, after in ((minutes("4:00 AM"), minutes("6:00 PM")),
+                           (minutes("7:00 PM"), minutes("6:00 PM")),
+                           (minutes("10:00 AM"), minutes("5:00 PM"))):
+            reference = sorted(
+                (minutes(row["departure"]), row["route_name"]) for row in ROWS
+                if row["service_day"] == "weekday" and (
+                    key is None or any(stop_key(s["location"]) == key for s in row["stops"]))
+                and minutes(row["departure"]) > max(now, after))
+            got = departures(table, TUESDAY, now, "next", stop, after=after)
+            shown = [(minutes(t["leaves_campus"]), t["route"]) for t in got["trips"]]
+            assert shown == reference[:2], (stop, now, after)
+            assert got["after"] == clock(after)
+
+
+def test_nothing_after_the_time_names_the_days_last_and_the_next_days_first() -> None:
+    got = departures(routes(), TUESDAY, minutes("4:00 AM"), "next", None, after=minutes("11:00 PM"))
+    assert got["none_left"] is True and got["trips"] == []
+    assert got["last_left_at"] == "9:40 PM" and got["next_service"]["date"] == "2026-10-14"
+
+
+def test_by_answers_with_the_latest_trips_that_reach_the_stop_in_time() -> None:
+    table = routes()
+    got = departures(table, TUESDAY, minutes("4:00 AM"), "next", "Ramsey Rt 17 Train",
+                     by=minutes("7:36 AM"))
+    # The 7:00 trip reaches the train at 7:10 and the 7:25 at 7:35; the 7:50 is too late.
+    assert [t["reached_at"] for t in got["trips"]] == ["7:10 AM", "7:35 AM"]
+    assert got["by"] == "7:36 AM" and got["none_by"] is False
+    early = departures(table, TUESDAY, minutes("4:00 AM"), "next", "Ramsey Rt 17 Train",
+                       by=minutes("6:50 AM"))
+    assert early["none_by"] is True and early["trips"] == []
+    assert early["earliest_reaches_stop"] == "7:10 AM"
+    # A trip that has already left today cannot be taken.
+    late = departures(table, TUESDAY, minutes("7:05 AM"), "next", "Ramsey Rt 17 Train",
+                      by=minutes("7:36 AM"))
+    assert [t["reached_at"] for t in late["trips"]] == ["7:35 AM"]
+    # Without a stop there is nothing to arrive at.
+    nostop = departures(table, TUESDAY, minutes("4:00 AM"), "next", None, by=minutes("8:00 AM"))
+    assert nostop["by_needs_a_stop"] is True and "by" not in nostop
