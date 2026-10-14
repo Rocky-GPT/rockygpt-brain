@@ -187,6 +187,7 @@ def test_every_fixed_text_says_who_picks_it_and_matches_the_template_the_engine_
         "campus_help": ["the code"],
         "capability": ["the model"], "capability_after_lookup": ["the model"],
         "unsupported": ["the model"], "unsupported_after_lookup": ["the model"],
+        "unsupported_part": ["the model"],
         "clarification": ["the model", "the code"], "greeting": ["the model"],
         "thanks": ["the model"], "okay": ["the model"], "about": ["the model"],
         "ambiguous": ["the lookup result"], "ambiguous_more": ["the lookup result"],

@@ -109,12 +109,16 @@ published_venues) has no menu has none to read. For a menu, diet is vegan or veg
 the student asks for those, items the foods or stations they name (pasta, chicken, soup, the
 grill), with_allergen when they ask what contains an allergen and without_allergen for what is
 free of it, in their own word
-(dairy, tree nuts); code keeps only the items that match.
+(dairy, tree nuts); code keeps only the items that match. A menu item has its calories,
+portion, vegan and vegetarian labels and allergens, so those are never unsupported. A student
+who wants the whole menu and also one kind of item needs two requests, one without a filter. Set
+meal only when the student asks about that meal alone; leave it null to compare or relate meals.
 The shuttle has its own tool, shuttle_lookup: stop is a name from published_stops, or null for
-any stop; day is the one day (null is today); which is next, first, last or all (the whole day).
-Send the stop as listed. A place that is not in published_stops is not served. after is a clock
-time the student gives ("after my 6pm class": 6:00 PM; tonight is 5:00 PM) and by one they must
-be at the stop by (a 6:50 train: 6:50 AM); otherwise null.
+any stop; day is the one day (null is today); which is next, first, last or all (the whole day),
+or stops for where the shuttle goes. Send the stop as listed. A place that is not in
+published_stops is not served. after is a clock time the student gives ("after my 6pm class":
+6:00 PM; tonight is 5:00 PM) and by one they must be at the stop by (a 6:50 train: 6:50 AM);
+otherwise null. times is true with all when the student wants the times themselves.
 Read the fields the student asked for, and a field they did not name only when it plainly makes
 the answer more useful to them (a time is more useful with its place); leave out fields that
 have nothing to do with the question. When the student wants to contact or reach an office and
@@ -225,11 +229,14 @@ class ShuttleRequest(StrictModel):
     stop: str | None = Field(max_length=120)
     # The one day the student asked about; null is today.
     day: Literal[DAY_CHOICES] | None = None  # type: ignore[valid-type]
-    which: Literal["next", "first", "last", "all"]
+    which: Literal["next", "first", "last", "all", "stops"]
     # A clock time the student gave ("6:00 PM"): only trips leaving campus after it.
     after: str | None = Field(default=None, max_length=20)
     # A clock time to be at the stop by ("6:50 AM", a train): the latest trips that reach it.
     by: str | None = Field(default=None, max_length=20)
+    # For all only: true when the student wants the times themselves, false for "is there service
+    # and from when to when".
+    times: bool = False
 
 
 class ShuttleRequests(StrictModel):
@@ -370,6 +377,8 @@ UNSUPPORTED_MESSAGE = ("I don't have verified information about that. I can look
 UNSUPPORTED_AFTER_LOOKUP_MESSAGE = ("I don't have verified information about that part. If the "
                                     "office above handles it, its contact details are the best "
                                     "way to ask.")
+# After a shuttle or dining answer there is no office above to ask.
+UNSUPPORTED_PART_MESSAGE = "I don't have verified information about that part."
 CLARIFICATION_MESSAGE = "Which office or service, and which details, do you mean?"
 FIXED_REPLIES = {
     "greeting": ("Hi! I'm RockyGPT. I can look up published contact details and hours for Ramapo "
@@ -616,6 +625,9 @@ def fixed_texts() -> list[dict[str, Any]]:
         entry("unsupported_after_lookup", model,
               "A finish part unsupported, when office facts are shown above it.",
               UNSUPPORTED_AFTER_LOOKUP_MESSAGE),
+        entry("unsupported_part", model,
+              "A finish part unsupported, when only shuttle or dining facts are shown above it.",
+              UNSUPPORTED_PART_MESSAGE),
         entry("clarification", model + ["the code"],
               "A finish part clarification (not added when a lookup already asked which office), "
               "or a finish with nothing in it, no lookup result and no safety reply just before.",
@@ -781,7 +793,8 @@ class ChatEngine:
         detail["answer"] = {"text": rendered.text, "citations": rendered.citations,
                             "complete": rendered.complete}
         part = {"kind": "office_facts", "query": request.query, "fields": list(request.fields),
-                "office": {"id": opened["entity_id"], "name": opened["label"]},
+                "office": {"id": opened["entity_id"], "name": opened["label"],
+                           "kind": opened.get("kind", "office")},
                 "facts": opened["facts"]}
         if also is not None:
             part["also"] = also
@@ -845,7 +858,8 @@ class ChatEngine:
                 "date": day.isoformat(), "which": request.which, "stop_unknown": True,
                 "asked": asked[:80], "published_stops": published}
         else:
-            answer = departures(table, day, now_minute, request.which, asked, after, by)
+            answer = departures(table, day, now_minute, request.which, asked, after, by,
+                                request.times)
             unread = [text for text, found in ((request.after, after), (request.by, by))
                       if text and found is None]
             if unread:
@@ -1150,6 +1164,11 @@ class ChatEngine:
                 errors.append(result.error_code)
         lookup_clarified = clarify
         shown = any(r.rendered.supported for r in results.values())  # Office facts are above.
+        # An office's contact details are what a refusal can point at; a shuttle time or a
+        # venue's hours have no office to ask.
+        shown_office = any(
+            r.rendered.supported and r.part and r.part.get("kind") == "office_facts"
+            and r.part["office"].get("kind", "office") == "office" for r in results.values())
         for part in finish.parts:
             if part.kind == "recall":
                 if (part.message_index is None
@@ -1186,10 +1205,11 @@ class ChatEngine:
                 if part.kind == "safety":
                     situations.append(part.situation or "other")
                 elif part.kind == "account_limit":
+                    limit_text = (CAPABILITY_AFTER_LOOKUP_MESSAGE if shown_office
+                                  else CAPABILITY_MESSAGE)
                     parts.append({"kind": "account_limit", "afterLookup": shown,
-                                  "approved_text": (CAPABILITY_AFTER_LOOKUP_MESSAGE if shown
-                                                    else CAPABILITY_MESSAGE)})
-                    chunks.append(CAPABILITY_AFTER_LOOKUP_MESSAGE if shown else CAPABILITY_MESSAGE)
+                                  "approved_text": limit_text})
+                    chunks.append(limit_text)
                     limited = True
                 elif part.kind == "unsupported":
                     looked_up = {word for r in results.values() if r.part
@@ -1203,7 +1223,8 @@ class ChatEngine:
                         continue
                     if about:  # For the inspector: what the model said it could not answer.
                         trace.setdefault("unsupported_about", []).append(about)
-                    said = UNSUPPORTED_AFTER_LOOKUP_MESSAGE if shown else UNSUPPORTED_MESSAGE
+                    said = (UNSUPPORTED_AFTER_LOOKUP_MESSAGE if shown_office
+                            else UNSUPPORTED_PART_MESSAGE if shown else UNSUPPORTED_MESSAGE)
                     parts.append({"kind": "unsupported", "afterLookup": shown,
                                   "approved_text": said})
                     chunks.append(said)
