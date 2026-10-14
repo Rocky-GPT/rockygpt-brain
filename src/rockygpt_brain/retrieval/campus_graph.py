@@ -108,7 +108,8 @@ class CampusGraph:
 
     def lookup(self, query: str, fields: list[str], as_of: datetime, *,
                exact_name_only: bool = False, conversation: str = "",
-               on: date | None = None, meal: str | None = None) -> dict[str, Any]:
+               on: date | None = None, meal: str | None = None,
+               menu_query: dict[str, Any] | None = None) -> dict[str, Any]:
         """Run one complete root-first traversal, without intermediate model decisions."""
         with measure("Open root · Ramapo"):
             self.open("ramapo", [], as_of)
@@ -135,7 +136,7 @@ class CampusGraph:
             return result
         with measure("Open matched office · read published records · shared entity facts"):
             opened = {**result, **self.open(f"office:{chosen[0]['entity_id']}", fields, as_of,
-                                            on=on, meal=meal)}
+                                            on=on, meal=meal, menu_query=menu_query)}
         if not exact_name_only and (note := self._note_for_unpublished(opened, fields, as_of)):
             opened["also"] = note
         return opened
@@ -189,7 +190,8 @@ class CampusGraph:
         return node
 
     def open(self, node_id: str, fields: list[str], as_of: datetime, *,
-             on: date | None = None, meal: str | None = None) -> dict[str, Any]:
+             on: date | None = None, meal: str | None = None,
+             menu_query: dict[str, Any] | None = None) -> dict[str, Any]:
         if node_id not in self.nodes:
             raise InvalidFactRequest("Open only a child returned by this turn's graph.")
         node = self.nodes[node_id]
@@ -216,5 +218,6 @@ class CampusGraph:
                     raise InvalidFactRequest("Open Offices before reading an office's records.")
                 result["facts"] = self.facts.get_office_facts(
                     node["entity_id"], fields, self.version,
-                    identity_hash=self.identity_hash, as_of=as_of, on=on, meal=meal)
+                    identity_hash=self.identity_hash, as_of=as_of, on=on, meal=meal,
+                    menu_query=menu_query)
         return {**result, "dataset_version": self.version, "identity_hash": self.identity_hash}

@@ -179,7 +179,8 @@ def test_the_models_stop_and_stop_list_come_from_the_published_timetable() -> No
     asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
     state = json.loads(gateway.inputs[0][1]["content"])
     assert state["published_stops"] == ["Garden State Plaza", "Ramsey Rt 17 Train"]
-    assert state["published_venues"] == [{"name": "Birch Tree Inn", "also_called": ["Dining Hall"]}]
+    assert state["published_venues"] == [{"name": "Birch Tree Inn", "also_called": ["Dining Hall"],
+                                          "publishes": ["hours", "menu"]}]
 
 
 def test_a_venue_says_which_meal_is_on_and_what_comes_next() -> None:
@@ -373,3 +374,95 @@ def test_a_time_the_student_gave_narrows_the_trips_by_code() -> None:
         "stop": None, "day": None, "which": "next", "after": "evening", "by": None}]})
     unread = ask("evening shuttle", junk, finish())
     assert derived(unread, "departures")["value"]["time_unreadable"] == "evening"
+
+
+def _lunch_menu() -> MemoryEntityFacts:
+    items = [  # (meal, station, name, calories, portion, vegan, vegetarian, allergens, coverage)
+        ("Lunch", "Grown", "Steamed Brown Rice", 218, "1 CUP", True, True, [], "published"),
+        ("Lunch", "Grown", "Tofu Stir Fry", 370, "ENTREE", False, True, ["Soy"], "published"),
+        ("Lunch", "Savory", "Braised Pot Roast", 443, "ENTREE", False, False, [], "published"),
+        ("Lunch", "Sizzle", "Black Bean Burger", 360, "SANDWICH", True, True,
+         ["Soy", "Wheat"], "published"),
+        ("Lunch", "Slices", "Cheese Pizza", 244, "SLC=1/8", False, True,
+         ["Milk", "Wheat"], "published"),
+        ("Lunch", "Spoonful", "Three Mushroom Barley Soup", 90, "8 OZ", True, True,
+         ["Wheat"], "published"),
+        ("Lunch", "Spoonful", "New England Clam Chowder", 210, "8 OZ", False, False,
+         ["Milk", "Shellfish"], "published"),
+        ("Lunch", "Stacked", "Hummus Plate", 150, "1 EA", True, True, None, "not_published"),
+        ("Dinner", "Slices", "Pepperoni Pizza", 260, "SLC=1/8", False, False,
+         ["Milk", "Wheat"], "published"),
+    ]
+    rows = [_row("menu", i, source_record_key=f"2026-10-13:{meal}:{station}:{name}", meal=meal,
+                 station=station, name=name, calories=cal, portion_size=portion, vegan=vegan,
+                 vegetarian=veg, allergens=allergens,
+                 label_coverage={"vegan": "published", "vegetarian": "published",
+                                 "allergens": coverage},
+                 valid_from="2026-10-13", valid_until="2026-10-13")
+            for i, (meal, station, name, cal, portion, vegan, veg, allergens,
+                    coverage) in enumerate(items)]
+    entities = [{"id": "birch", "name": "Birch Tree Inn", "kind": "venue", "aliases": [],
+                 "links": [{"collection": "menu", "source_key": "dining",
+                            "source_record_keys": [r["source_record_key"] for r in rows]}]}]
+    return MemoryEntityFacts(dataset_version="r", identity_hash="i", entities=entities,
+                             contacts=[], records={"menu": rows}, now=lambda: TUESDAY_10AM)
+
+
+def _menu_value(**filters: Any) -> dict[str, Any]:
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "menu?"}]})
+    arguments = {"query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "lunch",
+                 "diet": None, "items": [], "with_allergen": None, "without_allergen": None,
+                 **filters}
+    engine = ChatEngine(ScriptedGateway(completion("graph_lookup", {"requests": [arguments]}),
+                                        finish()), _lunch_menu(),
+                        output="json")  # type: ignore[arg-type]
+    result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+    (menu,) = [f for f in result.body["facts"]["facts"] if f["predicate"] == "menu"]
+    value: dict[str, Any] = menu["value"]
+    return value
+
+
+def _names(value: dict[str, Any]) -> list[str]:
+    return [i["name"] for m in value["meals"] for s in m["stations"] for i in s["items"]]
+
+
+def test_a_menu_keeps_only_the_items_the_student_asked_for() -> None:
+    veg = _menu_value(diet="vegetarian")
+    assert _names(veg) == ["Steamed Brown Rice", "Tofu Stir Fry", "Black Bean Burger",
+                           "Cheese Pizza", "Three Mushroom Barley Soup", "Hummus Plate"]
+    assert veg["matched"] == 6 and veg["on_menu"] == 8 and veg["filter"] == {
+        "diet": "vegetarian"}
+    vegan = _menu_value(diet="vegan")
+    assert _names(vegan) == ["Steamed Brown Rice", "Black Bean Burger",
+                             "Three Mushroom Barley Soup", "Hummus Plate"]
+    soup = _menu_value(items=["soup", "chowder"])
+    assert _names(soup) == ["Three Mushroom Barley Soup", "New England Clam Chowder"]
+    # A name or a station both count; plurals do not matter.
+    assert _names(_menu_value(items=["Sizzle"])) == ["Black Bean Burger"]
+    assert _names(_menu_value(items=["burgers"])) == ["Black Bean Burger"]
+    # Calories and portion come with the item as published.
+    burger = _menu_value(items=["black bean burger"])["meals"][0]["stations"][0]["items"][0]
+    assert burger["calories"] == 360 and burger["portion"] == "SANDWICH"
+
+
+def test_a_food_the_menu_does_not_have_says_what_it_does_have() -> None:
+    value = _menu_value(items=["grill"])
+    assert value["meals"] == [] and value["matched"] == 0 and value["on_menu"] == 8
+    assert value["meals_listed"] == ["Lunch"]
+    assert value["stations_listed"] == ["Grown", "Savory", "Sizzle", "Slices", "Spoonful",
+                                        "Stacked"]
+    both = _menu_value(diet="vegan", items=["pizza"])
+    assert both["meals"] == [] and both["filter"] == {"diet": "vegan", "contains": ["pizza"]}
+
+
+def test_allergens_are_matched_only_as_the_labels_publish_them() -> None:
+    dairy = _menu_value(with_allergen="dairy")
+    assert _names(dairy) == ["Cheese Pizza", "New England Clam Chowder"]
+    assert dairy["allergens_published"] == ["Milk", "Shellfish", "Soy", "Wheat"]
+    free = _menu_value(without_allergen="dairy")
+    # The hummus has no published allergen labels, so it is not called dairy-free.
+    assert _names(free) == ["Steamed Brown Rice", "Tofu Stir Fry", "Braised Pot Roast",
+                            "Black Bean Burger", "Three Mushroom Barley Soup"]
+    nuts = _menu_value(with_allergen="tree nuts")
+    assert nuts["meals"] == [] and nuts["matched"] == 0
+    assert "Tree Nuts" not in nuts["allergens_published"]
