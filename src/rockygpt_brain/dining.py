@@ -83,3 +83,19 @@ def at(periods: list[Period], minute: int) -> Period | None:
 def after(periods: list[Period], minute: int) -> Period | None:
     """The first period that opens after this minute today, or None."""
     return min((p for p in periods if p.start > minute), key=lambda p: p.start, default=None)
+
+
+def gaps(periods: list[Period]) -> list[dict[str, str]]:
+    """The stretches between one period's close and the next one's opening, in day order.
+
+    Periods that meet (lunch to 2:00pm, the next from 2:00pm) leave no gap. An empty list is a
+    day that is open straight through from its first opening to its last closing."""
+    ordered = sorted(periods, key=lambda p: p.start)
+    found = []
+    for earlier, later in zip(ordered, ordered[1:], strict=False):
+        if later.start > earlier.end:
+            found.append({**({"after": earlier.label} if earlier.label else {}),
+                          "closed_from": clock_text(earlier.end),
+                          "reopens_at": clock_text(later.start),
+                          **({"before": later.label} if later.label else {})})
+    return found

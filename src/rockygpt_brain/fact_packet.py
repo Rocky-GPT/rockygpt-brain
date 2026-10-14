@@ -313,12 +313,19 @@ class _Builder:
                     if periods:
                         shown = dining.named(periods)
                         asked_meal = " ".join(str(when.get("meal") or "").casefold().split())
+                        if len(periods) > 1:
+                            # Where the day's service stops and starts again: said as it is, so
+                            # "does it close between lunch and dinner" is never worked out.
+                            picked["value"]["closed_gaps"] = dining.gaps(periods)
                         if asked_meal:
                             # The one period named, when the venue serves it that day.
+                            picked["value"]["meal_asked"] = when["meal"]
                             only = [p for p in shown if " ".join(
                                 p.get("label", "").casefold().split()) == asked_meal]
-                            picked["value"]["meal_asked"] = when["meal"]
-                            if only:
+                            if not any(p.get("label") for p in shown):
+                                # One set of hours with no meal names: no meal is served or not.
+                                picked["value"]["meals_not_labelled"] = True
+                            elif only:
                                 shown = only
                             else:
                                 picked["value"]["meal_not_served"] = True
