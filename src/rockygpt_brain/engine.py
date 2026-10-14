@@ -116,7 +116,10 @@ results cover the request. Include account_limit ONLY for accessing private reco
 an action; explaining a public procedure or mentioning personal information is not access.
 There are no tools for private student records, account changes, sending messages, or browsing.
 Use unsupported for a part the available tools cannot answer. Do not discard a supported
-public part because another part needs account access or is unsupported.
+public part because another part needs account access or is unsupported. A value a lookup
+returned is never unsupported, even when its limitations call it stale, conflicting or
+unconfirmed: the server shows those limitations itself. Add unsupported only for something the
+student asked, never for related things they did not ask (appointments, hours, policies).
 
 Use greeting for a plain hello, thanks for a thank-you or goodbye, okay when the student says an
 earlier emergency, scare or worry is over, was a false alarm, or needs no help now (okay, not
