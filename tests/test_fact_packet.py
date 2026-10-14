@@ -379,3 +379,27 @@ def test_todays_hours_carry_open_now_and_another_days_do_not() -> None:
     (derived,) = build_packet(morning, [other])["derived_facts"]
     assert "open_now" not in derived
 
+
+
+def test_a_fax_question_keeps_only_the_fax_lines_and_says_so_when_there_is_none() -> None:
+    lines = [{"number": "+12015550100"}, {"number": "+12015550199", "type": "Fax"}]
+    service = source([office("registrar", "Registrar")], [contact("r1", phones=lines)])
+    part = part_for(service, "registrar", "Registrar", ["phones"])
+    everything = build_packet(AS_OF, [part])
+    (phones,) = [f for f in everything["facts"] if f["predicate"] == "phones"]
+    assert len(phones["value"]) == 2
+
+    fax = build_packet(AS_OF, [{**part, "phone_kind": "fax"}])
+    (phones,) = [f for f in fax["facts"] if f["predicate"] == "phones"]
+    assert phones["value"] == [{"number": "+12015550199", "type": "Fax"}]
+    assert phones["source_ids"] == everything["facts"][0]["source_ids"]  # Same evidence.
+    validate_packet(fax)
+
+    plain = source([office("registrar", "Registrar")], [contact("r1", phones=lines[:1])])
+    none = build_packet(AS_OF, [{**part_for(plain, "registrar", "Registrar", ["phones"]),
+                                 "phone_kind": "fax"}])
+    assert [f for f in none["facts"] if f["predicate"] == "phones"] == []
+    assert none["missing"] == [{"subject": {"id": "registrar", "name": "Registrar",
+                                            "kind": "office"},
+                                "predicate": "phones", "reason": "unknown"}]
+    validate_packet(none)
