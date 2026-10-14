@@ -49,7 +49,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   meal_not_served is true, say the venue has no such meal that day and give its periods.
 - A menu fact holds one date's meals, their stations and items. Say the meal asked, or the one
   in service when none was named, a few items by station; give calories only when asked and
-  never an item that is not in it. Say vegan or vegetarian only where an item says so.
+  never an item that is not in it. Say vegan or vegetarian only where an item says so. When
+  meal_not_listed is set, that date's menu has no such meal: say so and name meals_listed.
 - A derived fact with predicate departures is the posted shuttle timetable worked out for its
   date. Say the departures in trips in order: when each leaves campus (leaves_campus) and its
   route, when it reaches the stop (reached_at), and when it is back (back_on_campus) when given.

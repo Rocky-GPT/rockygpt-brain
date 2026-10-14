@@ -219,8 +219,18 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
     if facts:
         view["facts"] = facts
 
+    # Weekdays a schedule leaves unknown are the packet's to keep, and no answer to a question
+    # about another day: the writer is shown them only when it has no hours for the day asked.
+    answered_days: dict[str, set[str]] = {}
+    for entry in packet["derived_facts"]:
+        if entry["predicate"] == "hours_on" and entry.get("applies"):
+            answered_days.setdefault(entry["subject"]["id"], set()).add(entry["day"])
     missing = []
     for entry in packet["missing"]:
+        days = entry.get("days")
+        if (entry["predicate"] == "hours" and days and answered_days.get(entry["subject"]["id"])
+                and not answered_days[entry["subject"]["id"]] & set(days)):
+            continue
         row = {"subject": entry["subject"]["name"], "predicate": entry["predicate"]}
         if entry["reason"] != "unknown":
             row["reason"] = entry["reason"]

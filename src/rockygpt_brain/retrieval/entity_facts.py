@@ -182,7 +182,9 @@ def _url(value: Any) -> str | None:
     return value
 
 
-def _source(row: dict[str, Any], now: datetime) -> dict[str, Any]:
+def _source(row: dict[str, Any], now: datetime, on: date | None = None) -> dict[str, Any]:
+    """`on` is the date the record is read for. A record valid for exactly that date is current
+    for it, though that date is tomorrow: freshness is still judged at `now`."""
     captured = _instant(row.get("collected_at"))
     since, until = _date(row.get("valid_from")), _date(row.get("valid_until"))
     for key, parsed in (("valid_from", since), ("valid_until", until)):
@@ -194,7 +196,7 @@ def _source(row: dict[str, Any], now: datetime) -> dict[str, Any]:
     sla = row.get("freshness_sla_hours")
     if captured and isinstance(sla, int) and not isinstance(sla, bool) and sla > 0:
         freshness = "fresh" if captured <= now <= captured + timedelta(hours=sla) else "stale"
-    today = now.astimezone(CAMPUS_TIMEZONE).date()
+    today = on or now.astimezone(CAMPUS_TIMEZONE).date()
     validity = "unspecified"
     if since or until:
         validity = (
@@ -1050,13 +1052,17 @@ def menu_property(
     if on is None or on not in dates:
         return {**empty, "dates_published": [d.isoformat() for d in dates]}, []
     picked = [row for row in rows if _date(row.get("valid_from")) == on]
+    not_listed: str | None = None
     if meal:
         # Only the meal asked for; "late night" and "Late Night" are the same meal.
         asked = " ".join(meal.casefold().split())
-        picked = [row for row in picked
+        chosen = [row for row in picked
                   if " ".join(str(clean(row.get("meal")) or "").casefold().split()) == asked]
-        if not picked:
-            return {**empty, "dates_published": [d.isoformat() for d in dates]}, []
+        if chosen:
+            picked = chosen
+        else:
+            # The date's menu is published and has no such meal: say so, with what it does list.
+            not_listed = " ".join(meal.split())
     meals: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for row in sorted(picked, key=lambda r: (_meal_rank(clean(r.get("meal")) or ""),
                                              clean(r.get("station")) or "", str(r.get("id")))):
@@ -1081,10 +1087,13 @@ def menu_property(
                 and all(isinstance(a, str) for a in allergens)):
             item["allergens"] = list(allergens)
         meals.setdefault(meal, {}).setdefault(station, []).append(item)
-    value = {"date": on.isoformat(), "meals": [
+    value: dict[str, Any] = {"date": on.isoformat(), "meals": [
         {"meal": meal, "stations": [{"station": station, "items": items}
                                     for station, items in stations.items()]}
         for meal, stations in meals.items()]}
+    if not_listed is not None:
+        value = {"date": on.isoformat(), "meals": [], "meal_not_listed": not_listed,
+                 "meals_listed": list(meals)}
     captured = [t for r in picked if (t := _instant(r.get("collected_at")))]
     first = picked[0]
     reading = hashlib.sha256("|".join(sorted(str(r["id"]) for r in picked)).encode()).hexdigest()
@@ -1092,7 +1101,7 @@ def menu_property(
         **first, "id": f"{first['id']}:menu:{reading[:16]}",
         "collected_at": min(captured) if len(captured) == len(picked) else None,
         "valid_from": on, "valid_until": on,
-    }, now)
+    }, now, on)
     source.update(
         collection="menu", source_record_keys=[r["source_record_key"] for r in picked],
         record_ids=[r["id"] for r in picked],
