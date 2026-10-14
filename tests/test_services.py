@@ -5,7 +5,7 @@ tests read the packet the engine returns."""
 
 import asyncio
 import json
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -542,3 +542,9 @@ def test_inspecting_a_venue_reads_its_menu_for_the_campus_date_and_an_office_has
     menu = next(p for p in venue["facts"]["properties"] if p["key"] == "menu")
     assert menu["status"] == "known"
     assert menu["values"][0]["value"]["date"] == TUESDAY_10AM.date().isoformat()
+    assert venue["menu_dates"] and TUESDAY_10AM.date().isoformat() in venue["menu_dates"]
+    today = TUESDAY_10AM.date().isoformat()
+    other = date.fromisoformat(next(d for d in venue["menu_dates"] if d != today))
+    picked = CampusGraph(facts()).inspect("office:birch", TUESDAY_10AM, on=other)
+    menu = next(p for p in picked["facts"]["properties"] if p["key"] == "menu")
+    assert menu["values"][0]["value"]["date"] == other.isoformat()
