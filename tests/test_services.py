@@ -615,3 +615,27 @@ def test_a_venue_that_posts_its_menu_as_a_file_says_so_without_items() -> None:
     assert menu["documents_published"] == [
         {"title": "Atrium Menu Boards 2026",
          "url": "https://media.example/web/en-us/media/Atrium.pdf"}]
+
+
+
+def test_a_shuttle_answer_about_a_stop_says_where_to_wait_there() -> None:
+    base = facts()
+    stop = _row("stop", 1, source_record_key="stop:Garden State Plaza", name="Garden State Plaza",
+                label="Garden State Plaza", description="A mall at Routes 4 and 17.",
+                pickup="the Bus Shelters across from Neiman Marcus")
+    entities = [{**e, "links": [*e["links"], {"collection": "shuttle_stops",
+                                               "source_key": stop["source_key"],
+                                               "source_record_keys": [stop["source_record_key"]]}]}
+                if e["kind"] == "route" else e for e in base.entities]
+    records = {**base.records, "shuttle_stops": [stop]}
+    memory = MemoryEntityFacts(dataset_version="release-1", identity_hash="identities-1",
+                               entities=entities, contacts=[], records=records,
+                               now=lambda: TUESDAY_10AM)
+    message = {"role": "user", "content": "where do I catch the shuttle at the mall"}
+    request = ChatRequest.model_validate({"messages": [message]})
+    engine = ChatEngine(ScriptedGateway(shuttle("Garden State Plaza", None, "next"), finish()),
+                        memory, output="json")  # type: ignore[arg-type]
+    result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+    value = derived(result, "departures")["value"]
+    assert value["stop_description"] == {"description": "A mall at Routes 4 and 17.",
+                                         "pickup": "the Bus Shelters across from Neiman Marcus"}

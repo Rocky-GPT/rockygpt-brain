@@ -36,7 +36,7 @@ MAX_TRIP_ROWS = 128
 # with the most rows one entity may link to.
 RECORD_COLLECTIONS = {
     "dining_hours": MAX_DINING_ROWS, "menu": MAX_MENU_ROWS, "shuttle_trips": MAX_TRIP_ROWS,
-    "menu_documents": 10,
+    "menu_documents": 10, "shuttle_stops": 40,
 }
 # Entities a student can ask about by name: offices and dining venues. A route is not named by
 # students; it is read through the shuttle timetable.
@@ -1204,6 +1204,17 @@ def menu_property(
             [source])
 
 
+def stops_property(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """The route's stops as its stop-descriptions page explains them: the stop name the timetables
+    use, what the place is, and where the shuttle picks up and drops off there."""
+    ordered = sorted(rows, key=lambda r: str(r.get("name")))
+    value = [{"stop": clean(row.get("name")), "description": clean(row.get("description")),
+              "pickup": clean(row.get("pickup"))} for row in ordered]
+    return {"key": "stops", "label": "Shuttle stops", "category": "schedule", "status": "known",
+            "values": [{"value": _json_safe(value), "assertion_ids": [], "source_ids": []}],
+            "assertions": []}
+
+
 def trips_property(
     rows: Sequence[dict[str, Any]], now: datetime
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -1651,6 +1662,8 @@ class EntityFacts:
             if not entity:
                 raise UnknownEntity("No shuttle route has that canonical identity.")
             rows = snapshot.record_reader(entity, "shuttle_trips")
+            # What each stop on the route is and where to wait there (the stop-descriptions page).
+            stop_rows = snapshot.record_reader(entity, "shuttle_stops")
             if len(rows) > MAX_TRIP_ROWS:
                 raise EvidenceUnavailable("Shuttle evidence exceeds the bounded read.")
             if len(linked_rows(entity, rows, "shuttle_trips")) != len(rows):
@@ -1676,7 +1689,7 @@ class EntityFacts:
                 "dataset_version": snapshot.dataset_version,
                 "identity_hash": snapshot.identity_hash,
                 "entity": {key: entity[key] for key in ("id", "kind", "name")},
-                "properties": [prop],
+                "properties": [prop, *([stops_property(stop_rows)] if stop_rows else [])],
                 "sources": sources,
                 "evidence_count": len(rows),
                 "caveats": caveats,

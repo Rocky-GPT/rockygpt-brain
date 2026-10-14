@@ -403,7 +403,8 @@ class _Builder:
         for reader in part["routes"]:
             # A special-day timetable (a holiday) is offered by name, never as a day's facts.
             if any(value.get("value", {}).get("service_day") == "special"
-                   for prop in reader["properties"] for value in prop["values"]):
+                   for prop in reader["properties"] if prop["key"] == "trips"
+                   for value in prop["values"]):
                 special.append(str(reader["entity"]["name"]).removeprefix(
                     "Special Shuttle Schedule: "))
                 continue
@@ -415,7 +416,8 @@ class _Builder:
                 if self.sources.setdefault(source["id"], source) != source:
                     raise PacketInvalid("Two different sources share one id.")
                 local[source["id"]] = source
-            for prop in reader["properties"]:
+            # A route's stop descriptions reach the answer through the departures they explain.
+            for prop in (p for p in reader["properties"] if p["key"] != "stops"):
                 for value in prop["values"]:
                     ids = list(value["source_ids"])
                     if not ids or any(sid not in local for sid in ids):

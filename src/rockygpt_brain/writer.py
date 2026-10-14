@@ -73,7 +73,9 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   is given, that there is service that day, its first and
   last departure and how many trips (first_leaves_campus, last_leaves_campus, trip_count), and
   give each trip's time when trips lists them. When none_left is true, say the last
-  one left at last_left_at and give next_service (its date and first departure). When
+  one left at last_left_at and give next_service (its date and first departure).
+  stop_description says what the asked stop is and where the shuttle picks up there (pickup):
+  give the pickup place when the student asks where to wait or how to find the stop. When
   already_left is true, say it has already left today. When service is none, no shuttle calls
   at that stop (stop) that day; served_on says on which days it does. after (a time) means
   trips is only what leaves campus after it; by means trips is what reaches the stop by that

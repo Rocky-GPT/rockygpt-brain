@@ -878,6 +878,15 @@ class ChatEngine:
                       if text and found is None]
             if unread:
                 answer["time_unreadable"] = unread[0][:20]  # Said, never silently dropped.
+            # The asked stop as its stop-descriptions page explains it: what it is, where to wait.
+            described = [stop for envelope in envelopes for prop in envelope["properties"]
+                         if prop["key"] == "stops" for value in prop["values"]
+                         for stop in value["value"]
+                         if asked and stop_key(stop["stop"]) == stop_key(asked)]
+            if described:
+                found = described[0]
+                answer["stop_description"] = {
+                    key: found[key] for key in ("description", "pickup") if found[key]}
         listed = bool(table) and not answer.get("stop_unknown")
         citations: dict[str, dict[str, Any]] = {}
         for envelope in envelopes:
