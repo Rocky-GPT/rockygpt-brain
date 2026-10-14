@@ -13,6 +13,12 @@ packet. It adds, computes and infers nothing, and it never drops a value a stude
                no fact, derived fact or confirmed absence cites (it backs nothing a writer is told),
                and a full-week schedule when the Brain worked out the one day that was asked: the
                derived fact replaces it, so a writer is handed that day and picks nothing
+  left out     for a day that was asked, a schedule whose own season label plainly is not the
+               date's season (a Summer schedule beside an October date, `season.season_fit`), when
+               another schedule for that office and day remains. It is the one case where a
+               listed value is not handed over, because it cannot be the answer and a writer
+               given it hedges the answer that can be. The packet keeps it. Nothing is ever left
+               out when no other schedule remains
   omitted when they hold the usual value: `status` "known", `current` true, `freshness`
                "fresh", `validity` "unspecified" and its stock limitation, `truncated` false, a
                reason that is the only one there is, and a list of rows with no rows (`facts`,
@@ -25,8 +31,12 @@ packet. It adds, computes and infers nothing, and it never drops a value a stude
                read; the scope, the reason sentence, the section and the page hash stay in the
                packet. `validity_absence` is said as `dates_not_published`. A source's own copy of
                it, and its `season` (each fact says its own), are dropped. An unverified seasonal
-               date keeps `applicability` and its reason but not `applies`, and an empty `window`
-               is left out
+               date keeps `applicability` and a plain reason (the page does not say which dates
+               it covers) but not `applies`, and an empty `window` is left out. A weekday the
+               office's pages were checked for and publish nothing about, on a schedule with no
+               dates, is said as not published alone: whether the schedule's dates are known
+               changes nothing about a day it lists nothing for, so that day carries no
+               `applicability`, `dates_not_published` or `current` flag
   first        when the packet holds an emergency, its fixed wording comes before everything else
 
 A field a row in one of those lists gains later and this function does not know is carried through
@@ -35,9 +45,11 @@ level, the request, a subject) is not carried; the test that compares every pack
 view fails until it is handled.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
+
+from rockygpt_brain.season import season_fit
 
 CAMPUS_TZ = ZoneInfo("America/New_York")
 
@@ -54,6 +66,15 @@ def _campus_instant(value: Any) -> Any:
         return value
     return moment.astimezone(CAMPUS_TZ).isoformat() if moment.tzinfo else value
 
+
+# What a writer is told about a schedule that lists hours but publishes no dates: the fact, not
+# the packet's technical reason (which says "applicability").
+DATES_NOT_PUBLISHED_NOTE = "The page does not say which dates this schedule covers."
+# When the page gives one end of its dates (a Fall term starting August 31), say which is missing.
+_ONE_DATE_NOTE = {
+    "end": "The page gives when this schedule starts but not when it ends.",
+    "start": "The page gives when this schedule ends but not when it starts.",
+}
 
 # The limitation the reader adds to every source with no validity interval. It says nothing a writer
 # can use once `validity` is "unspecified", which is what it comes from.
@@ -112,6 +133,22 @@ def _rest(item: dict[str, Any], handled: frozenset[str]) -> dict[str, Any]:
     return {key: value for key, value in item.items() if key not in handled}
 
 
+def _another_season(entries: list[dict[str, Any]]) -> set[str]:
+    """Ids of derived facts whose schedule's season label plainly is not the date's season, in a
+    group (one office, one date) where another schedule remains to be said."""
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for entry in entries:
+        groups.setdefault((entry["subject"]["id"], entry["date"]), []).append(entry)
+    gone: set[str] = set()
+    for group in groups.values():
+        out = [e for e in group
+               if isinstance(e["value"], dict)
+               and season_fit(e["value"].get("season"), date.fromisoformat(e["date"])) == "out"]
+        if out and len(out) < len(group):
+            gone.update(e["id"] for e in out)
+    return gone
+
+
 def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
     """The part of a validated packet a writer needs, as plain JSON."""
     cited = {sid for kind in ("facts", "not_published", "derived_facts", "missing")
@@ -128,17 +165,40 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
     }
 
     derived, replaced = [], set()
+    another_season = _another_season(packet["derived_facts"])
     for entry in packet["derived_facts"]:
+        replaced.update(entry["from"])  # Shown or left out, its whole week is not said again.
+        if entry["id"] in another_season:
+            continue
+        value = _said(entry["value"])
+        nothing_listed = (entry.get("applicability") == "unverified" and isinstance(value, dict)
+                          and value.get("status") == "not_published"
+                          and value.get("hours") is None and value.get("listed_hours") is None)
+        if nothing_listed:
+            # Its dates change nothing about a day it lists nothing for: say only that nothing is
+            # published for that day.
+            value = {k: v for k, v in value.items()
+                     if k not in {"dates_not_published", "listed_hours"}}
         row: dict[str, Any] = {"subject": entry["subject"]["name"],
                                "predicate": entry["predicate"], "day": entry["day"],
-                               "date": entry["date"], "value": _said(entry["value"])}
-        if not entry["applies"] and "applicability" not in entry:
+                               "date": entry["date"], "value": value}
+        if nothing_listed:
+            pass
+        elif not entry["applies"] and "applicability" not in entry:
             row["applies"] = False  # Then it is not current either: the date is outside it.
         elif not entry["current"]:
             row["current"] = False
         row["sources"] = [number[sid] for sid in entry["source_ids"]]
-        derived.append({**_rest(entry, _DERIVED), **row})
-        replaced.update(entry["from"])
+        merged = {**_rest(entry, _DERIVED), **row}
+        if nothing_listed:
+            merged.pop("applicability", None)
+            merged.pop("applicability_reason", None)
+        elif "applicability_reason" in merged:
+            missing = value.get("dates_not_published", {}).get("which") \
+                if isinstance(value, dict) else None
+            only = missing[0] if isinstance(missing, list) and len(missing) == 1 else ""
+            merged["applicability_reason"] = _ONE_DATE_NOTE.get(only, DATES_NOT_PUBLISHED_NOTE)
+        derived.append(merged)
     if derived:
         view["derived_facts"] = derived
 

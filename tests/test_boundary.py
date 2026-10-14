@@ -252,3 +252,28 @@ def test_the_new_self_harm_patterns_leave_ordinary_messages_alone(message: str) 
     assert result.situation != "self_harm"
     if result.kind == "safety":
         assert message == "my roommate wont wake up" and result.situation == "medical"
+
+
+@pytest.mark.parametrize("message", [
+    "hey idk if this is the right place but ive been really down lately. not like an emergency "
+    "or anything i just feel kinda empty and dont really have anyone to talk to here",
+    "i feel so alone and i have no one to talk to",
+    "im really lonely and nobody to vent to, who can i talk to",
+    "been so sad lately, wish i could reach out to someone",
+])
+def test_feeling_low_with_no_one_to_talk_to_gets_the_emergency_text_and_the_question_answered(
+        message: str) -> None:
+    result = read(message)
+    assert result.kind == "safety" and result.situation == "other"
+    assert "988" in result.message and result.also_answer is True
+
+
+@pytest.mark.parametrize("message", [
+    "the portal is down, who can i talk to",
+    "i need someone to talk to about tutoring options",
+    "who can i talk to about my financial aid, its been really stressful",
+    "i feel sad that the library closes early, who do i email",
+    "is there anyone to talk to at the registrar about transcripts",
+])
+def test_the_no_one_to_talk_to_floor_needs_both_halves(message: str) -> None:
+    assert read(message) == CONTINUE

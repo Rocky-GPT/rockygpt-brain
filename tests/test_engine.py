@@ -713,11 +713,14 @@ def test_an_all_clear_is_not_answered_as_a_thank_you() -> None:
 
 
 def test_a_named_office_is_looked_up_even_when_the_rest_cannot_be_answered() -> None:
-    result = answer(ScriptedGateway(LOOKUP, finish("unsupported")), messages=[
-        {"role": "user", "content": "is the registrar open fridays"}])
+    question = "what is the registrar email and can I book an appointment"
+    words = "book an appointment"
+    result = answer(ScriptedGateway(LOOKUP, finish("unsupported", student_words=words)),
+                    messages=[{"role": "user", "content": question}])
     assert "published@example.edu" in result.body["answer"]
-    assert "I don't have verified information" in result.body["answer"]
+    assert "I don't have verified information about that part" in result.body["answer"]
     assert result.body["status"] == "partial"
+    assert result.trace is not None and result.trace["unsupported_about"] == [words]
 
 
 def test_a_name_the_student_asked_for_keeps_its_conflicts_and_unknowns() -> None:
@@ -925,11 +928,17 @@ def test_a_refusal_points_at_the_office_shown_above_it_and_otherwise_asks_for_on
     from rockygpt_brain.boundary import CAPABILITY_AFTER_LOOKUP_MESSAGE, CAPABILITY_MESSAGE
     from rockygpt_brain.engine import UNSUPPORTED_AFTER_LOOKUP_MESSAGE, UNSUPPORTED_MESSAGE
 
-    messages = [{"role": "user", "content": "is the registrar open fridays"}]
-    with_office = answer(ScriptedGateway(LOOKUP, finish("unsupported")), messages=messages)
+    messages = [{"role": "user", "content": "can I book an appointment with the registrar"}]
+    quote = "book an appointment"
+    with_office = answer(ScriptedGateway(LOOKUP, finish("unsupported", student_words=quote)),
+                         messages=messages)
     assert with_office.body["answer"].endswith(UNSUPPORTED_AFTER_LOOKUP_MESSAGE)
+    # With no office facts above, a refusal stands even with no words to quote.
     alone = answer(ScriptedGateway(finish("unsupported")), messages=messages)
     assert alone.body["answer"] == UNSUPPORTED_MESSAGE
+    with_words = answer(ScriptedGateway(finish("unsupported", student_words=quote)),
+                        messages=messages)
+    assert with_words.body["answer"] == UNSUPPORTED_MESSAGE
     assert "tell me which office" in UNSUPPORTED_MESSAGE
     own = answer(ScriptedGateway(LOOKUP, finish("account_limit")), messages=messages)
     assert own.body["answer"].endswith(CAPABILITY_AFTER_LOOKUP_MESSAGE)
@@ -938,6 +947,37 @@ def test_a_refusal_points_at_the_office_shown_above_it_and_otherwise_asks_for_on
     # An office lookup that found nothing shows no details, so nothing is "above".
     nothing = answer(ScriptedGateway(student_lookup("Cafeteria"), finish("unsupported")))
     assert UNSUPPORTED_AFTER_LOOKUP_MESSAGE not in nothing.body["answer"]
+
+
+def test_an_unsupported_part_beside_facts_needs_the_students_own_words() -> None:
+    """Office facts are shown above, so the model must quote what it cannot answer. A note that
+    mentions appointments is not a question about them."""
+    def run(question: str, **changes: Any) -> ChatResult:
+        return answer(ScriptedGateway(LOOKUP, finish("unsupported", **changes)),
+                      messages=[{"role": "user", "content": question}])
+
+    asked = "contact info for the registrar"
+    for changes in ({}, {"student_words": None},
+                    {"student_words": "make an appointment"},  # not their words
+                    {"student_words": "contact info"},  # a field the lookup answers
+                    {"student_words": "contact info for the registrar"}):  # field and office name
+        dropped = run(asked, **changes)
+        assert "I don't have verified information" not in dropped.body["answer"], changes
+        assert "published@example.edu" in dropped.body["answer"]
+        assert dropped.body["status"] == "answered"
+        assert dropped.trace is not None and dropped.trace["unsupported_dropped"] == [
+            changes.get("student_words")]
+    # Words in the message the lookup did not answer keep the part, whatever the casing.
+    kept = run("Registrar email, and what is the REFUND policy?", student_words="Refund Policy")
+    assert "I don't have verified information about that part" in kept.body["answer"]
+    assert kept.body["status"] == "partial"
+    assert kept.trace is not None and kept.trace["unsupported_about"] == ["Refund Policy"]
+    # A model that pairs the words with the message they are in sets message_index on the part;
+    # that is not an invalid response (it is for a recall only), so it is ignored.
+    stray = run("Registrar email and the refund policy?", student_words="refund policy",
+                message_index=0)
+    assert stray.status_code == 200
+    assert "I don't have verified information about that part" in stray.body["answer"]
 
 
 def test_a_recalled_reply_is_quoted_as_plain_words() -> None:
