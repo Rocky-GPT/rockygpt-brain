@@ -466,3 +466,36 @@ def test_allergens_are_matched_only_as_the_labels_publish_them() -> None:
     nuts = _menu_value(with_allergen="tree nuts")
     assert nuts["meals"] == [] and nuts["matched"] == 0
     assert "Tree Nuts" not in nuts["allergens_published"]
+
+
+def test_a_part_no_tool_answers_beside_a_shuttle_answer_has_no_office_to_point_at() -> None:
+    from rockygpt_brain.engine import UNSUPPORTED_AFTER_LOOKUP_MESSAGE, UNSUPPORTED_PART_MESSAGE
+    result = ask("next shuttle to the mall and is it late?", shuttle("Garden State Plaza", None,
+                                                                      "next"),
+                 finish("unsupported", student_words="is it late"))
+    said = [n["approved_text"] for n in result.body["facts"]["notices"]
+            if n["type"] == "unsupported"]
+    assert said == [UNSUPPORTED_PART_MESSAGE] and UNSUPPORTED_AFTER_LOOKUP_MESSAGE not in said
+
+
+def test_which_stops_the_shuttle_makes_is_the_list_of_its_stops() -> None:
+    stops = completion("shuttle_lookup", {"requests": [{
+        "stop": None, "day": None, "which": "stops", "after": None, "by": None, "times": False}]})
+    value = derived(ask("where does the shuttle go", stops, finish()), "departures")["value"]
+    assert value["stops_served"] == ["Garden State Plaza", "Ramsey Rt 17 Train"]
+    assert value["trips"] == [] and value["trip_count"] == 3
+
+
+def test_all_gives_the_trips_only_when_the_times_were_asked_for() -> None:
+    def call(times: bool) -> dict[str, Any]:
+        args = completion("shuttle_lookup", {"requests": [{
+            "stop": "Ramsey Rt 17 Train", "day": None, "which": "all", "after": None, "by": None,
+            "times": times}]})
+        value: dict[str, Any] = derived(ask("train shuttle", args, finish()),
+                                        "departures")["value"]
+        return value
+    summary, listed = call(False), call(True)
+    assert summary["trips"] == [] and summary["trip_count"] == 2
+    assert (summary["first_leaves_campus"], summary["last_leaves_campus"]) == ("12:00 PM",
+                                                                               "9:40 PM")
+    assert [t["leaves_campus"] for t in listed["trips"]] == ["12:00 PM", "9:40 PM"]

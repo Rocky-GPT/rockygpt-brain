@@ -24,7 +24,7 @@ from datetime import date, timedelta
 from typing import Any
 
 SERVICE_DAYS = ("weekday", "saturday", "sunday")
-WHICH = ("next", "first", "last", "all")
+WHICH = ("next", "first", "last", "all", "stops")
 MAX_LISTED = 2  # How many upcoming departures "next" shows: the one asked for and the one after.
 _CLOCK = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*([AaPp])\.?[Mm]\.?\s*$")
 _PREFIX = re.compile(r"^(?:arrive|depart)\s+", re.IGNORECASE)
@@ -150,15 +150,17 @@ def _shown(trip: dict[str, Any], key: str | None) -> dict[str, Any]:
 
 def departures(
     routes: list[dict[str, Any]], day: date, now_minute: int | None, which: str,
-    stop: str | None, after: int | None = None, by: int | None = None,
+    stop: str | None, after: int | None = None, by: int | None = None, times: bool = True,
 ) -> dict[str, Any]:
     """The answer to "the {next, first, last} shuttle (to {stop}) on this date".
 
     `now_minute` is the campus time of day when `day` is today, and None for any other date (so
     nothing on another date has "already left"). `after` keeps only trips that leave campus after
     that minute ("after my 6pm class"); `by` keeps only trips that reach the stop by that minute
-    ("a 6:50 train") and answers with the latest of them. The result is the facts of the answer,
-    not prose: `trips` are the departures to say, `none_left` that every trip today has left."""
+    ("a 6:50 train") and answers with the latest of them. `times` is whether "all" lists every
+    trip; without it "all" is the day's first, last and count. The result is the facts of the
+    answer, not prose: `trips` are the departures to say, `none_left` that every trip today
+    has left."""
     key = stop_key(stop) if stop else None
     service = service_day(day)
     todays = trips_of(routes, service)
@@ -197,11 +199,18 @@ def departures(
         result.update(trips=[], none_left=True, last_left_at=clock(day_calling[-1]["leaves"]))
         result.update(_next_service(routes, day, key))
         return result
+    if which == "stops":
+        # Where the shuttle goes that day: the stops its trips call at, in first-seen order.
+        names = dict.fromkeys(s["name"] for t in day_calling for s in t["stops"])
+        result.update(stops_served=list(names), trip_count=len(day_calling), trips=[])
+        return result
     if which == "all":
         picked = calling
         result["first_leaves_campus"] = clock(calling[0]["leaves"])
         result["last_leaves_campus"] = clock(calling[-1]["leaves"])
         result["trip_count"] = len(calling)
+        if not times:
+            picked = []
     elif which == "first":
         picked = [t for t in calling if t["leaves"] == calling[0]["leaves"]]
     elif which == "last":
@@ -272,6 +281,8 @@ def describe(answer: dict[str, Any]) -> str:
             text += f" {stop} is served on {' and '.join(answer['served_on'])}."
         return text
     which = answer["which"]
+    if which == "stops":
+        return f"On {when} the shuttle calls at {', '.join(answer.get('stops_served', []))}."
 
     def one(trip: dict[str, Any]) -> str:
         text = f"{trip['leaves_campus']} ({trip['route']})"

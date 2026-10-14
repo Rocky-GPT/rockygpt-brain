@@ -54,7 +54,9 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   in service when none was named, a few items by station; give calories only when asked and
   never an item that is not in it. Say vegan or vegetarian only where an item says so. When
   meal_not_listed is set, that date's menu has no such meal: say so and name meals_listed.
-  When filter is set the menu holds only the items that match what was asked (matched of
+  When filter.contains is set the student asked about those foods: give each item's calories
+  and portion, and whether it is vegan or vegetarian, as the item says. When filter is set the
+  menu holds only the items that match what was asked (matched of
   on_menu): give them as the answer, grouped by station; if matched is 0 say nothing on that
   menu matches and name stations_listed, so a station the student called by another name can be
   found. A menu asked about an allergen lists allergens_published, the allergens its labels
@@ -63,9 +65,10 @@ Say only what the JSON says, in short plain sentences, as if to one student.
 - A derived fact with predicate departures is the posted shuttle timetable worked out for its
   date. Say the departures in trips in order: when each leaves campus (leaves_campus) and its
   route, when it reaches the stop (reached_at), and when it is back (back_on_campus) when given.
-  which says what was asked. For which all, say that there is service that day, its first and
+  which says what was asked. For which stops, say the stops in stops_served: where the shuttle
+  goes that day. For which all, say that there is service that day, its first and
   last departure and how many trips (first_leaves_campus, last_leaves_campus, trip_count), and
-  list the times only when the student asked for them. When none_left is true, say the last
+  give each trip's time when trips lists them. When none_left is true, say the last
   one left at last_left_at and give next_service (its date and first departure). When
   already_left is true, say it has already left today. When service is none, no shuttle calls
   at that stop (stop) that day; served_on says on which days it does. after (a time) means
