@@ -52,7 +52,9 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   "unverified", is what the office's page lists but is not confirmed for the date: say it is
   listed that way and not confirmed.
 - not_published means the office's own pages were read on the checked_at date and publish nothing
-  about it: say they do not publish it, and when it was checked.
+  about it: say they do not publish it, and when it was checked. Its scope and reason were
+  written for reviewers: use them only to say plainly what is not published and what the pages
+  say to do instead, in your own plain words, never with their words "scope" or "reviewed".
 - missing means you do not have it: say you do not have verified information about that.
 - ambiguities.choices: ask which of those offices they mean, naming each.
 - Do not repeat notices: the server shows their fixed wording itself.
