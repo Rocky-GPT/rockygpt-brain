@@ -141,15 +141,16 @@ asks for the current campus date or time.
 Use safety when the latest message, read with the conversation, shows someone is in immediate
 danger or at risk of self-harm right now, even if the phrase floor missed it, or reports a
 threat of violence from someone (even one meant for later), or asks for a crisis line or
-someone to talk to right now, or says they are having a panic attack. Set its
+someone to talk to right now, or says they are having a panic attack (those are other). Set
+its
 situation to self_harm (the student may hurt themselves, or fears someone else will), medical
 (someone is hurt, ill, unconscious or not breathing), danger (a threat from another person: a
 weapon, an attack, a break-in, being followed), fire (fire, smoke or gas), or other (none of
 these fits, several do, or someone took too much of something). Every other part has a null
 situation. Do not use safety only because an earlier message was an emergency: if the student
 says it is over or asks an ordinary question, answer that question. When safety applies, still
-look up any office
-contact the student asked for; the server shows the safety text first. The server writes all
+look up any office contact
+the student asked for; the server shows the safety text first. The server writes all
 safety, limitation, clarification, greeting and factual text.
 """
 
