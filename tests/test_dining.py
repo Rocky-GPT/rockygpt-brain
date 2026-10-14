@@ -2,7 +2,7 @@
 
 import pytest
 
-from rockygpt_brain.dining import after, at, clock_text, named, parse
+from rockygpt_brain.dining import after, at, clock_text, gaps, named, parse
 
 WEEKDAY = ("Breakfast: 08:00 AM - 10:30 AM; Continental: 10:30 AM - 11:00 AM; Lunch: 11:00 AM - "
            "02:00 PM; Lite Lunch: 02:00 PM - 05:00 PM; Dinner: 05:00 PM - 08:00 PM; "
@@ -61,3 +61,17 @@ def test_midnight_as_a_closing_time_is_the_end_of_the_day() -> None:
     assert at([period], 1439) is period and at([period], 0) is None
     assert clock_text(0) == "12:00am" and clock_text(1440) == "12:00am"
     assert clock_text(12 * 60) == "12:00pm" and clock_text(13 * 60 + 5) == "1:05pm"
+
+
+def test_a_gap_is_where_service_stops_and_starts_again() -> None:
+    day = parse("Breakfast: 08:00 AM - 10:30 AM; Continental: 10:30 AM - 11:00 AM; "
+                "Lunch: 11:00 AM - 02:00 PM; Lite Lunch: 02:00 PM - 05:00 PM; "
+                "Dinner: 05:00 PM - 08:00 PM; Late Night: 09:00 PM - 11:00 PM")
+    assert day is not None
+    # Periods that meet leave no gap; only the hour between dinner and late night is closed.
+    assert gaps(day) == [{"after": "Dinner", "closed_from": "8:00pm", "reopens_at": "9:00pm",
+                          "before": "Late Night"}]
+    straight = parse("Brunch: 10:30 AM - 03:00 PM; Lite Lunch: 03:00 PM - 05:00 PM")
+    assert straight is not None and gaps(straight) == []
+    one = parse("07:30 AM - 03:00 PM")
+    assert one is not None and gaps(one) == []

@@ -329,3 +329,28 @@ def test_weekdays_a_schedule_does_not_know_are_not_said_for_another_day() -> Non
     assert [m["days"] for m in writer_view(saturday)["missing"]] == [["Saturday", "Sunday"]]
     week = _atrium_packet(None)  # No date asked: the whole week, unknowns included.
     assert [m["days"] for m in writer_view(week)["missing"]] == [["Saturday", "Sunday"]]
+
+
+def test_a_venue_with_one_unlabelled_range_serves_no_meal_by_name() -> None:
+    """The Atrium publishes 7:30-7:00 with no meal names: breakfast is neither served nor not."""
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "breakfast?"}]})
+    engine = ChatEngine(ScriptedGateway(
+        lookup_meal("The Atrium", ["hours"], "today", "breakfast"), finish()),
+        _atrium(), output="json")  # type: ignore[arg-type]
+    result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+    value = derived(result, "hours_on")["value"]
+    assert value["meals_not_labelled"] is True and value["meal_asked"] == "breakfast"
+    assert "meal_not_served" not in value
+    assert value["hours"] == "07:30 AM - 07:00 PM"
+
+
+def test_where_a_venue_closes_between_its_periods_is_given_not_worked_out() -> None:
+    tuesday = ask("birch hours today", lookup("Birch Tree Inn", ["hours"], "today"), finish())
+    gaps = derived(tuesday, "hours_on")["value"]["closed_gaps"]
+    assert gaps == [
+        {"after": "Breakfast", "closed_from": "10:30am", "reopens_at": "11:00am",
+         "before": "Lunch"},
+        {"after": "Lunch", "closed_from": "2:00pm", "reopens_at": "5:00pm", "before": "Dinner"},
+        {"after": "Dinner", "closed_from": "8:00pm", "reopens_at": "9:00pm",
+         "before": "Late Night"},
+    ]

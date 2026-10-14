@@ -100,6 +100,23 @@ def stops_served(routes: list[dict[str, Any]]) -> list[str]:
     return list(seen.values())
 
 
+_DAY_WORDS = {"weekday": "weekdays", "saturday": "Saturdays", "sunday": "Sundays"}
+
+
+def _stop_label(routes: list[dict[str, Any]], key: str) -> tuple[str | None, list[str]]:
+    """A stop's published name and the kinds of day on which any trip calls at it."""
+    name: str | None = None
+    days = []
+    for service in SERVICE_DAYS:
+        for trip in trips_of(routes, service):
+            for stop in trip["stops"]:
+                if stop["key"] == key:
+                    name = name or stop["name"]
+                    if _DAY_WORDS[service] not in days:
+                        days.append(_DAY_WORDS[service])
+    return name, days
+
+
 def _shown(trip: dict[str, Any], key: str | None) -> dict[str, Any]:
     out: dict[str, Any] = {"route": trip["route"], "leaves_campus": clock(trip["leaves"])}
     if key is not None:
@@ -127,14 +144,15 @@ def departures(
     todays = trips_of(routes, service)
     calling = [trip for trip in todays
                if key is None or any(s["key"] == key for s in trip["stops"])]
+    published, served_on = _stop_label(routes, key) if key else (None, [])
     result: dict[str, Any] = {
-        "date": day.isoformat(), "service_day": service, "which": which,
-        "stop": next((s["name"] for t in todays for s in t["stops"] if s["key"] == key), None)
-        if key else None,
+        "date": day.isoformat(), "service_day": service, "which": which, "stop": published,
         "trips_that_day": len(calling),
     }
     if not calling:
         result["service"] = "none"
+        if key:
+            result["served_on"] = served_on  # The days that do call there, when this one does not.
         return result
     upcoming = [t for t in calling if now_minute is None or t["leaves"] > now_minute]
     if which == "all":
@@ -202,7 +220,10 @@ def describe(answer: dict[str, Any]) -> str:
         return (f"The posted timetable has no stop called “{answer.get('asked')}”. "
                 f"The stops it lists are {', '.join(answer.get('published_stops', []))}.")
     if answer.get("service") == "none":
-        return f"The posted timetable lists no shuttle{to} on {when}."
+        text = f"The posted timetable lists no shuttle{to} on {when}."
+        if stop and answer.get("served_on"):
+            text += f" {stop} is served on {' and '.join(answer['served_on'])}."
+        return text
     which = answer["which"]
 
     def one(trip: dict[str, Any]) -> str:
