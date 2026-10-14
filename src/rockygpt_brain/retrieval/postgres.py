@@ -172,7 +172,9 @@ WITH links AS (
   SELECT * FROM jsonb_to_recordset(%s::jsonb) AS link(source_key text, source_record_keys jsonb)
 )
 SELECT t.id::text AS id, t.source_record_key, r.name AS route_name, r.service_day,
-       t.sequence, t.departure, t.arrival, t.stops, t.collected_at, t.valid_from,
+       t.sequence, t.departure, t.arrival, t.stops,
+       -- A release published before migration 027 has no trains column; it reads as none.
+       to_jsonb(t) -> 'trains' AS trains, t.collected_at, t.valid_from,
        t.valid_until, t.content_hash, s.source_key, s.canonical_url, s.freshness_sla_hours
 FROM rockygpt_v2.shuttle_trips t
 JOIN rockygpt_v2.shuttle_routes r ON r.id = t.route_id

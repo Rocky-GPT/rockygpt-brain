@@ -1219,12 +1219,20 @@ def trips_property(
     for row in ordered:
         raw_stops = row.get("stops")
         stops: list[Any] = raw_stops if isinstance(raw_stops, list) else []
-        trips.append({
+        trip: dict[str, Any] = {
             "sequence": row.get("sequence"), "departure": clean(row.get("departure")),
             "arrival": clean(row.get("arrival")),
             "stops": [{"location": clean(stop.get("location")), "time": clean(stop.get("time"))}
                       for stop in stops if isinstance(stop, dict)],
-        })
+        }
+        # The NJ Transit trains the timetable row lists beside the trip, as published.
+        trains = row.get("trains")
+        if isinstance(trains, dict) and trains:
+            trip["trains"] = {
+                key: [clean(t) for t in trains.get(key, []) if isinstance(t, str)]
+                for key in ("arrives_from_nyc", "leaves_for_nyc")
+            } | ({"see_express": True} if trains.get("see_express") is True else {})
+        trips.append(trip)
     value = {"route": next(iter(names)), "service_day": next(iter(days)), "trips": trips}
     captured = [t for r in ordered if (t := _instant(r.get("collected_at")))]
     first = ordered[0]
