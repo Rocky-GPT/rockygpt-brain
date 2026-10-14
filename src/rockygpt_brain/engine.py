@@ -139,8 +139,9 @@ recall with an earlier message_index only when asked what was said in this chat;
 conversation and does not assert the quoted facts are true today. Use clock only when the student
 asks for the current campus date or time.
 Use safety when the latest message, read with the conversation, shows someone is in immediate
-danger or at risk of self-harm right now, even if the phrase floor missed it, or asks for a
-crisis line or someone to talk to right now, or says they are having a panic attack. Set its
+danger or at risk of self-harm right now, even if the phrase floor missed it, or reports a
+threat of violence from someone (even one meant for later), or asks for a crisis line or
+someone to talk to right now, or says they are having a panic attack. Set its
 situation to self_harm (the student may hurt themselves, or fears someone else will), medical
 (someone is hurt, ill, unconscious or not breathing), danger (a threat from another person: a
 weapon, an attack, a break-in, being followed), fire (fire, smoke or gas), or other (none of
