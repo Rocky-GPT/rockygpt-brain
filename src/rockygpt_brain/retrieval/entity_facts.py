@@ -51,7 +51,7 @@ OBSERVED_FIELDS = frozenset({"email", "phones", "offices"})
 # The office fields a reviewed "not published" claim can cover, and the publisher's name for each.
 ABSENCE_FIELDS = {"email": "email", "phones": "phone", "offices": "office", "hours": "hours",
                   "prefers_email": "prefers_email", "preferred_contact": "preferred_contact",
-                  "contact_note": "contact_note", "department": "department"}
+                  "contact_note": "contact_note", "department": "department", "website": "website"}
 MAX_OBSERVATION_PAGES = 16
 CAMPUS_TIMEZONE = ZoneInfo("America/New_York")
 _DISCOVERY_FILLER = frozenset({"a", "an", "the", "of", "for", "and", "office", "offices"})
@@ -379,7 +379,9 @@ _ABSENCE_COLUMNS = {"email": ("email",), "phones": ("phone", "phones"),
                     "offices": ("office", "offices"), "hours": (),
                     "prefers_email": ("prefers_email",),
                     "preferred_contact": ("preferred_contact",),
-                    "contact_note": ("contact_note",), "department": ("department",)}
+                    "contact_note": ("contact_note",), "department": ("department",),
+                    # A website is a reviewed claim, never a raw column; a value always wins anyway.
+                    "website": ()}
 MAX_ABSENCE_CHECKS = 16
 MAX_ABSENCE_TEXT = 300
 
