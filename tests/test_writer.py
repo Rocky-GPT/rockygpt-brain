@@ -93,6 +93,8 @@ def test_a_verified_reply_is_what_the_student_reads_with_its_sources() -> None:
     (writing("The Registrar's email is wrong@example.edu."), "not_in_the_facts"),
     (writing(None), "no_text"),
     (writing("   "), "no_text"),
+    # Strict output stops a long reply at the length limit, mid-word: it is never shown.
+    (writing("The Registrar's email is published@example.edu. " * 60), "cut_off"),
 ])
 def test_a_reply_the_view_does_not_hold_is_replaced_by_the_codes_text(
     step: Completion, why: str,
