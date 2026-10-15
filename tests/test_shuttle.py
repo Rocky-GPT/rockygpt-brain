@@ -230,3 +230,23 @@ def test_a_ride_back_to_campus_is_timed_by_the_pickup_at_the_stop() -> None:
     out = departures(table, thursday, 15 * 60, "last", "Train")
     assert out["trips"][0]["reached_at"] == "9:50 PM"
     assert out["trips"][0]["leaves_stop_at"] == "10:35 PM"
+
+
+def test_a_trip_that_only_goes_out_is_no_ride_back() -> None:
+    # The Mid-Day page's last trip: out to the train at 5:30 PM, its return "N/A".
+    table = [{"route": "Mid-Day", "service_day": "weekday", "trips": [
+        {"sequence": 1, "departure": "4:45 PM", "arrival": "5:27 PM", "stops": [
+            {"location": "Train", "time": "4:55 PM"}, {"location": "Train", "time": "5:17 PM"}]},
+        {"sequence": 2, "departure": "5:30 PM", "arrival": "N/A", "stops": [
+            {"location": "Train", "time": "5:40 PM"}]}]}]
+    friday = date(2026, 10, 16)
+    back = departures(table, friday, None, "last", "Train", back=True)
+    assert [(t["leaves_stop_at"], t["back_on_campus"]) for t in back["trips"]] == [
+        ("5:17 PM", "5:27 PM")]
+    # After the last ride back has gone, the next day's first ride back is named, not the 5:30.
+    late = departures(table, friday, 17 * 60 + 20, "next", "Train", back=True)
+    assert late["none_left"] is True and late["next_service"]["trips"][0]["leaves_campus"] == (
+        "4:45 PM")
+    # Going out, the 5:30 PM trip is still the last one to the train.
+    out = departures(table, friday, None, "last", "Train")
+    assert out["trips"][0]["leaves_campus"] == "5:30 PM"
