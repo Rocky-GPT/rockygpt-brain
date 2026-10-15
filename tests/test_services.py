@@ -798,3 +798,24 @@ def test_the_campus_stop_trips_leave_from_is_offered_and_answers_where_to_catch_
     assert value["stop_description"] == {
         "description": "The bus stop on campus is located outside the Bradley Center."}
     assert "stop_unknown" not in value
+
+
+def test_a_venue_with_no_daily_menu_answers_in_json_and_never_breaks_the_packet() -> None:
+    # Fresh blind check 10-15: "does the cafe in the library have anything vegan" got a 503,
+    # because the packet refused a not-published menu (and would refuse a website too).
+    key = "The Atrium:menu-listing"
+    listing = _row("listing", 1, source_record_key=key, name="The Atrium", dated=False,
+                   menus=[], content_hash="a" * 64)
+    entities = [{"id": "atrium", "name": "The Atrium", "kind": "venue", "aliases": [],
+                 "links": [{"collection": "menu_listings", "source_key": "dining",
+                            "source_record_keys": [key]}]}]
+    memory = MemoryEntityFacts(dataset_version="r", identity_hash="i", entities=entities,
+                               contacts=[], records={"menu_listings": [listing]},
+                               now=lambda: TUESDAY_10AM)
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "atrium menu"}]})
+    engine = ChatEngine(ScriptedGateway(lookup("The Atrium", ["menu"]), finish()), memory,
+                        output="json")  # type: ignore[arg-type]
+    result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+    assert result.status_code == 200
+    absent = result.body["facts"]["not_published"]
+    assert [entry["predicate"] for entry in absent] == ["menu"]

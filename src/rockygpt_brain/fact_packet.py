@@ -583,8 +583,11 @@ def build_packet(as_of: str, parts: list[dict[str, Any]]) -> dict[str, Any]:
     return packet
 
 
+# Every field the shared reader can confirm unpublished (entity_facts ABSENCE_FIELDS, and a
+# venue's menu from its own listing): a confirmed absence of any other field is refused.
 ABSENCE_PREDICATES = frozenset({"email", "phones", "offices", "hours", "department",
-                               "prefers_email", "preferred_contact", "contact_note"})
+                               "prefers_email", "preferred_contact", "contact_note", "website",
+                               "menu"})
 
 
 def _plain(value: Any) -> bool:
