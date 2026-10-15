@@ -163,6 +163,12 @@ def _pickup(trip: dict[str, Any], key: str) -> int:
 
 
 def _shown(trip: dict[str, Any], key: str | None, back: bool = False) -> dict[str, Any]:
+    if back and key is not None:
+        # A ride back is its pickup at the stop and its arrival: when the bus left campus on its
+        # way out is not part of it, and said beside "last" it reads as the last to leave campus.
+        return {"route": trip["route"], "stop": next(s["name"] for s in trip["stops"]
+                                                     if s["key"] == key),
+                "leaves_stop_at": clock(_pickup(trip, key)), "back_on_campus": clock(trip["back"])}
     out: dict[str, Any] = {"route": trip["route"], "leaves_campus": clock(trip["leaves"])}
     if key is not None:
         calls = [stop for stop in trip["stops"] if stop["key"] == key]
@@ -335,7 +341,12 @@ def describe(answer: dict[str, Any]) -> str:
     origin = answer.get("departs_from")
     where = f" Every trip leaves from {origin}." if origin else ""
 
+    back = answer.get("back_to_campus")
+
     def one(trip: dict[str, Any]) -> str:
+        if back:
+            return (f"{trip['leaves_stop_at']} from {trip['stop']} ({trip['route']}), back on "
+                    f"campus at {trip['back_on_campus']}")
         text = f"{trip['leaves_campus']} ({trip['route']})"
         if trip.get("reached_at"):
             text += f", reaching {trip['stop']} at {trip['reached_at']}"
@@ -356,12 +367,16 @@ def describe(answer: dict[str, Any]) -> str:
                 + "; ".join(one(t) for t in trips) + ".")
     if answer.get("none_left"):
         since = f" after {answer['after']}" if answer.get("after") else ""
-        text = (f"No more shuttles{to} are listed{since} on {when}; the last one left at "
+        text = (f"No more rides back to campus from {stop} are listed{since} on {when}; the "
+                f"last one picked up there at {answer['last_left_at']}." if back else
+                f"No more shuttles{to} are listed{since} on {when}; the last one left at "
                 f"{answer['last_left_at']}.")
         later = answer.get("next_service")
         if later:
-            text += (f" The first on {_date_text(later['date'])} leaves at "
-                     f"{later['trips'][0]['leaves_campus']}.")
+            first = later["trips"][0]
+            text += (f" The first on {_date_text(later['date'])} "
+                     + (f"picks up there at {first['leaves_stop_at']}." if back
+                        else f"leaves at {first['leaves_campus']}."))
         return text
     label = {"next": "Next", "first": "First", "last": "Last", "all": "All"}[which]
     if which == "all":
@@ -370,7 +385,8 @@ def describe(answer: dict[str, Any]) -> str:
                     + where)
         return f"Shuttles{to} on {when}: " + "; ".join(one(t) for t in trips) + "." + where
     since = f" after {answer['after']}" if answer.get("after") else ""
-    lead = f"{label} shuttle{to}{since} on {when}: " + "; ".join(one(t) for t in trips) + "."
+    what = f"ride back to campus from {stop}" if back else f"shuttle{to}"
+    lead = f"{label} {what}{since} on {when}: " + "; ".join(one(t) for t in trips) + "."
     if answer.get("already_left"):
         lead += " It has already left today."
     return lead

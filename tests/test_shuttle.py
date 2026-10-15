@@ -10,6 +10,7 @@ import pytest
 from rockygpt_brain.shuttle import (
     clock,
     departures,
+    describe,
     minutes,
     said_minutes,
     service_day,
@@ -219,8 +220,9 @@ def test_a_ride_back_to_campus_is_timed_by_the_pickup_at_the_stop() -> None:
     thursday = day_of(2026, 10, 15)
     last = departures(table, thursday, 15 * 60, "last", "Train", back=True)
     assert last["back_to_campus"] is True
-    assert [(t["leaves_campus"], t["leaves_stop_at"]) for t in last["trips"]] == [
-        ("9:40 PM", "10:35 PM")]
+    # A ride back is its pickup and its arrival, never when the bus left campus on its way out.
+    assert last["trips"] == [{"route": "Loop", "stop": "Train", "leaves_stop_at": "10:35 PM",
+                              "back_on_campus": "10:45 PM"}]
     # At 10:20 PM the 9:40 trip has left campus, but its pickup at the train is still ahead.
     late = departures(table, thursday, 22 * 60 + 20, "next", "Train", back=True)
     assert [t["leaves_stop_at"] for t in late["trips"]] == ["10:35 PM"]
@@ -245,8 +247,11 @@ def test_a_trip_that_only_goes_out_is_no_ride_back() -> None:
         ("5:17 PM", "5:27 PM")]
     # After the last ride back has gone, the next day's first ride back is named, not the 5:30.
     late = departures(table, friday, 17 * 60 + 20, "next", "Train", back=True)
-    assert late["none_left"] is True and late["next_service"]["trips"][0]["leaves_campus"] == (
-        "4:45 PM")
+    assert late["none_left"] is True and late["next_service"]["trips"][0]["leaves_stop_at"] == (
+        "5:17 PM")
+    assert describe(back) == ("Last ride back to campus from Train on Friday, October 16: 5:17 PM "
+                              "from Train (Mid-Day), back on campus at 5:27 PM.")
+    assert "picked up there at 5:17 PM" in describe(late)
     # Going out, the 5:30 PM trip is still the last one to the train.
     out = departures(table, friday, None, "last", "Train")
     assert out["trips"][0]["leaves_campus"] == "5:30 PM"
