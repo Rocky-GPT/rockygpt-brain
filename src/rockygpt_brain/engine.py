@@ -57,6 +57,7 @@ from rockygpt_brain.shuttle import (
     SPECIAL_TEXT,
     departures,
     describe,
+    first_sentence,
     said_minutes,
     stop_key,
     stops_served,
@@ -114,7 +115,8 @@ menu item has its calories, portion, vegan and vegetarian labels and allergens, 
 never unsupported. A student who wants the whole menu and also one kind of item needs two
 requests, one without a filter. Set meal only when the student asks about that meal alone; leave
 it null to compare or relate meals.
-The shuttle has its own tool, shuttle_lookup: stop is a name from published_stops, or null for
+The shuttle has its own tool, shuttle_lookup: stop is a name from published_stops (is says
+what the stop is: match the student's place to it, "the mall" to a mall stop), or null for
 any stop; day is the one day (null is today); which is next, first, last or all (the whole day;
 all with no stop also says where the shuttle goes). Send the stop as listed. A place that is not in
 published_stops is not served. after is a clock time the student gives ("after my 6pm class":
@@ -545,7 +547,7 @@ def named_options(asked: list[str], known: dict[str, str]) -> list[str]:
 def model_input(turn: Turn, context: Context, root: dict[str, Any],
                 offices: list[dict[str, Any]] | None = None,
                 venues: list[dict[str, Any]] | None = None,
-                stops: list[str] | None = None) -> list[dict[str, Any]]:
+                stops: list[dict[str, str]] | None = None) -> list[dict[str, Any]]:
     state = {
         "campus_now": turn.campus_now.isoformat(),
         "client_omitted_messages": context.client_omitted_messages,
@@ -841,7 +843,7 @@ class ChatEngine:
             stops = None
         return venues, stops
 
-    def _published_stops(self) -> list[str] | None:
+    def _published_stops(self) -> list[dict[str, str]] | None:
         listing = self.facts.list_routes()
         key = (listing["dataset_version"], listing["identity_hash"])
         cached = getattr(self, "_stops_cache", None)
@@ -849,7 +851,20 @@ class ChatEngine:
             return cached[1]  # type: ignore[no-any-return]
         envelopes = [self.facts.get_route_facts(route["entity_id"], key[0], identity_hash=key[1])
                      for route in listing["routes"]]
-        stops = stops_served(table_of(envelopes)) or None
+        # What each stop is, in its stop-descriptions page's own first sentence, so a student's
+        # "the mall" or "the train" can be matched to the stop the page says it is.
+        about: dict[str, str] = {}
+        for envelope in envelopes:
+            for prop in envelope["properties"]:
+                if prop["key"] != "stops":
+                    continue
+                for value in prop["values"]:
+                    for stop in value["value"]:
+                        if sentence := first_sentence(stop.get("description")):
+                            about.setdefault(stop_key(stop["stop"]), sentence)
+        names = stops_served(table_of(envelopes))
+        stops = [{"name": name, **({"is": about[stop_key(name)]} if stop_key(name) in about
+                                   else {})} for name in names] or None
         self._stops_cache = (key, stops)
         return stops
 
@@ -1062,8 +1077,22 @@ class ChatEngine:
             # Outside the model's time: the emergency numbers have their own short limit, and
             # the turn deadline must never turn an emergency reply into a timeout.
             with measure("Compose final response"):
-                return await self._finish(turn, context, finish, results, version, identity_hash,
-                                          trace, known, budget, floor_situation)
+                try:
+                    return await self._finish(turn, context, finish, results, version,
+                                              identity_hash, trace, known, budget, floor_situation)
+                except GatewayError:
+                    named = [part.situation or "other" for part in finish.parts
+                             if part.kind == "safety"]
+                    if not named and not floor_situation:
+                        raise
+                    # A reply that names an emergency is never lost to a malformed part: the
+                    # emergency text and campus numbers go out on their own.
+                    LOG.warning("brain_safety_fallback request_id=%s", turn.request_id)
+                    reply = await self.safety_reply(
+                        turn, floor_situation or emergency_kind(named))
+                    trace.update(decidedBy="safety_fallback", situation=reply.trace["situation"])
+                    trace["lookups"] = [*trace.get("lookups", []), *reply.trace["lookups"]]
+                    return replace(reply, trace=trace)
         except TimeoutError:
             return self._fallback(turn, results, version, "model_timeout")
         except ValidationError:
@@ -1220,8 +1249,9 @@ class ChatEngine:
                 supported = True
             else:
                 # An index means "this message" for a recall only. An unsupported part names the
-                # student's words, which a model sometimes pairs with the message they are in.
-                if part.message_index is not None and part.kind != "unsupported":
+                # student's words, and a safety part the danger in them; a model sometimes pairs
+                # either with the message it is in. Neither is dropped for that.
+                if part.message_index is not None and part.kind not in ("unsupported", "safety"):
                     LOG.warning("brain_invalid_part request_id=%s kind=%s message_index=%s",
                                 turn.request_id, part.kind, part.message_index)
                     raise GatewayError("provider_invalid_response")

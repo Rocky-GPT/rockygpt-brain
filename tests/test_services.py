@@ -179,7 +179,8 @@ def test_the_models_stop_and_stop_list_come_from_the_published_timetable() -> No
     engine = ChatEngine(gateway, facts(), output="json")  # type: ignore[arg-type]
     asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
     state = json.loads(gateway.inputs[0][1]["content"])
-    assert state["published_stops"] == ["Garden State Plaza", "Ramsey Rt 17 Train"]
+    assert [stop["name"] for stop in state["published_stops"]] == ["Garden State Plaza",
+                                                                    "Ramsey Rt 17 Train"]
     assert state["published_venues"] == [{"name": "Birch Tree Inn", "also_called": ["Dining Hall"],
                                           "publishes": ["hours", "menu"]}]
 
@@ -669,3 +670,30 @@ def test_a_shuttle_answer_about_a_stop_says_where_to_wait_there() -> None:
     value = derived(result, "departures")["value"]
     assert value["stop_description"] == {"description": "A mall at Routes 4 and 17.",
                                          "pickup": "the Bus Shelters across from Neiman Marcus"}
+
+
+def test_each_published_stop_says_what_it_is_from_its_own_description() -> None:
+    # "first shuttle to the mall sunday" was sent with no stop (2026-10-15): the model saw only
+    # names. The stop-descriptions page says which stop is the mall.
+    stop = _row("stop", 1, source_record_key="stop:Garden State Plaza", name="Garden State Plaza",
+                label="Garden State Plaza", pickup="the Bus Shelters",
+                description="Located at Routes 4 and 17 in Paramus, this mall stop is often "
+                            "used for the movies (https://example.edu/amc). Other stores too.")
+    base = facts()
+    entities = [{**e, "links": [*e["links"], {"collection": "shuttle_stops",
+                                               "source_key": stop["source_key"],
+                                               "source_record_keys": [stop["source_record_key"]]}]}
+                if e["kind"] == "route" else e for e in base.entities]
+    memory = MemoryEntityFacts(dataset_version="release-1", identity_hash="identities-1",
+                               entities=entities, contacts=[],
+                               records={**base.records, "shuttle_stops": [stop]},
+                               now=lambda: TUESDAY_10AM)
+    gateway = ScriptedGateway(finish())
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "hi"}]})
+    engine = ChatEngine(gateway, memory, output="json")  # type: ignore[arg-type]
+    asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+    state = json.loads(gateway.inputs[0][1]["content"])
+    assert state["published_stops"][0] == {
+        "name": "Garden State Plaza",
+        "is": "Located at Routes 4 and 17 in Paramus, this mall stop is often used for the movies."}
+    assert state["published_stops"][1] == {"name": "Ramsey Rt 17 Train"}
