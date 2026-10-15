@@ -194,16 +194,15 @@
   "entity": "Office of Specialized Services",
   "ask": "hours_on_day",
   "day": "Sunday",
-  "published": true,
+  "published": false,
   "soft": false,
-  "accept": [
-   "Closed"
-  ],
-  "expected": "No, the Office of Specialized Services is not open on Sundays; its office hours are typically Monday-Friday, 8:30 AM-4:30 PM.",
+  "accept": [],
+  "expected": "The page lists Office of Specialized Services hours Monday-Friday only (typically 8:30 AM-4:30 PM); it does not publish Sunday hours.",
   "notes": [
    "",
    ""
-  ]
+  ],
+  "ruled": "Dan 2026-10-15, after the run: a Mon-Fri listing does not say closed on Sunday, so 'not published' is right (was published true, accept ['Closed'])"
  },
  {
   "id": "s013",
