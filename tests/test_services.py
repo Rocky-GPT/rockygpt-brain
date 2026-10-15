@@ -819,3 +819,41 @@ def test_a_venue_with_no_daily_menu_answers_in_json_and_never_breaks_the_packet(
     assert result.status_code == 200
     absent = result.body["facts"]["not_published"]
     assert [entry["predicate"] for entry in absent] == ["menu"]
+
+
+def test_an_allergy_question_says_which_labels_the_students_word_stands_for() -> None:
+    dairy = _menu_value(with_allergens=["dairy"])
+    assert dairy["allergen_words"] == {"dairy": ["Milk"]}
+    nuts = _menu_value(with_allergens=["tree nuts"])
+    assert nuts["allergen_words"] == {"tree nuts": []}
+
+
+def test_a_filtered_meal_still_names_the_rest_of_its_menu() -> None:
+    vegan = _menu_value(diet="vegan")
+    assert vegan["rest_of_menu"] == ["Tofu Stir Fry", "Braised Pot Roast", "Cheese Pizza",
+                                     "New England Clam Chowder"]
+    assert vegan["rest_of_menu_cut"] is False
+    # Looking for one food is not asking for the whole menu.
+    assert "rest_of_menu" not in _menu_value(items=["soup"])
+
+
+def test_a_dish_word_matches_dishes_named_by_their_kind_and_other_dates_are_offered() -> None:
+    from datetime import date
+
+    from rockygpt_brain.retrieval.entity_facts import menu_property
+
+    def row(n: int, day: str, name: str) -> dict[str, Any]:
+        return _row("menu", n, source_record_key=f"{day}:{name}", meal="Lunch",
+                    station="Twists", name=name, calories=300, portion_size="1 CUP",
+                    vegan=False, vegetarian=True, allergens=["Milk"],
+                    label_coverage={"allergens": "published"}, valid_from=day, valid_until=day)
+    rows = [row(1, "2026-10-13", "Creamy Macaroni & Cheese"),
+            row(2, "2026-10-13", "Garden Salad"),
+            row(3, "2026-10-19", "Fried Chicken Tenders")]
+    pasta, _ = menu_property(rows, TUESDAY_10AM, date(2026, 10, 13), None, {"contains": ["pasta"]})
+    assert [i["name"] for m in pasta["values"][0]["value"]["meals"] for s in m["stations"]
+            for i in s["items"]] == ["Creamy Macaroni & Cheese"]
+    tenders, _ = menu_property(rows, TUESDAY_10AM, date(2026, 10, 13), None,
+                               {"contains": ["chicken tenders"]})
+    assert tenders["values"][0]["value"]["on_other_dates"] == [
+        {"date": "2026-10-19", "meal": "Lunch", "name": "Fried Chicken Tenders"}]

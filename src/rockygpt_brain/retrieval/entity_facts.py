@@ -1060,7 +1060,14 @@ _ALLERGEN_WORDS = {  # What a student says -> the words the published labels use
     "dairy": ("milk",), "lactose": ("milk",), "nut": ("tree nut", "peanut"),
     "nuts": ("tree nut", "peanut"), "treenut": ("tree nut",), "treenuts": ("tree nut",),
 }
+# A food word a student uses for a kind of dish -> the words its published names use.
+_FOOD_WORDS = {
+    "pasta": ("pasta", "macaroni", "penne", "rigatoni", "rotini", "spaghetti", "ziti", "lasagna",
+              "linguine", "fettuccine", "tortellini", "ravioli", "orzo", "gnocchi", "noodle"),
+}
 MAX_MENU_WORDS = 3
+MAX_REST_OF_MENU = 40  # The rest of a filtered meal by name: "what is for dinner" is said.
+MAX_OTHER_DATES = 6  # Other published dates a food that is not on the asked date is served.
 
 
 def _squash(text: Any) -> str:
@@ -1074,6 +1081,13 @@ def _allergen_terms(asked: str) -> set[str]:
     return {_squash(term) for term in _ALLERGEN_WORDS.get(one, (asked,))} | {one}
 
 
+def _labels_for(asked: str, labels: Sequence[Any]) -> list[str]:
+    """The published allergen labels a student's word stands for ("dairy" -> Milk)."""
+    terms = _allergen_terms(asked)
+    return [str(a) for a in labels
+            if _squash(a) in terms or any(t in _squash(a) for t in terms)]
+
+
 def _menu_kept(row: dict[str, Any], query: dict[str, Any]) -> bool:
     """Whether one menu row passes every filter the student's question set."""
     raw = row.get("label_coverage")
@@ -1082,7 +1096,8 @@ def _menu_kept(row: dict[str, Any], query: dict[str, Any]) -> bool:
         flag = query["diet"]
         if not (row.get(flag) is True and coverage.get(flag, "published") == "published"):
             return False
-    words = query.get("contains") or []
+    words = [term for w in (query.get("contains") or [])
+             for term in (w, *_FOOD_WORDS.get(_squash(w), ()))]
     if words:
         text = f"{clean(row.get('name'))} {clean(row.get('station'))}".casefold()
         if not any(_squash(w) and _squash(w) in "".join(ch for ch in text if ch.isalnum())
@@ -1092,9 +1107,7 @@ def _menu_kept(row: dict[str, Any], query: dict[str, Any]) -> bool:
     published = coverage.get("allergens", "published") == "published" and listed is not None
 
     def names(asked: str) -> bool:
-        terms = _allergen_terms(asked)
-        return any(_squash(a) in terms or any(t in _squash(a) for t in terms)
-                   for a in listed or [])
+        return bool(_labels_for(asked, listed or []))
 
     # With: the item lists any of them. Without: coverage is published and it lists none.
     if query.get("with_allergens") and not (
@@ -1175,12 +1188,36 @@ def menu_property(
         value["on_menu"] = on_menu
         if query.get("with_allergens") or query.get("without_allergens"):
             value["allergens_published"] = vocabulary
+            # The student's own word for each allergen, with the labels it stands for: "dairy"
+            # is labelled Milk, so a writer never reads "dairy" as missing from the labels.
+            value["allergen_words"] = {
+                asked: _labels_for(asked, vocabulary)
+                for asked in [*query.get("with_allergens", []),
+                              *query.get("without_allergens", [])]}
+        if (query.get("diet") or query.get("with_allergens") or query.get("without_allergens")):
+            # The meal's other items by name, so "what's for dinner, anything vegan" says both.
+            kept = {id(row) for row in picked}
+            rest = list(dict.fromkeys(str(clean(r.get("name"))) for r in day_rows
+                                      if id(r) not in kept and clean(r.get("name"))))
+            if rest:
+                value["rest_of_menu"] = rest[:MAX_REST_OF_MENU]
+                value["rest_of_menu_cut"] = len(rest) > MAX_REST_OF_MENU
         if not picked:
             # Nothing passes: say what the menu does have, so "none" is never a dead end.
             value["meals_listed"] = list(dict.fromkeys(
                 str(clean(r.get("meal"))) for r in sorted(
                     day_rows, key=lambda r: _meal_rank(clean(r.get("meal")) or ""))))
             value["stations_listed"] = sorted({str(clean(r.get("station"))) for r in day_rows})
+            if query.get("contains"):
+                # The food on the venue's other published dates from this one on, so "chicken
+                # tenders" not served today says when it is.
+                later = sorted((d, clean(r.get("meal")), clean(r.get("name"))) for r in rows
+                               if (d := _date(r.get("valid_from"))) and d > on
+                               and _menu_kept(r, query))
+                if later:
+                    value["on_other_dates"] = [
+                        {"date": d.isoformat(), "meal": m, "name": n}
+                        for d, m, n in list(dict.fromkeys(later))[:MAX_OTHER_DATES]]
     cited = picked or day_rows  # Nothing matching is still read from that date's records.
     captured = [t for r in cited if (t := _instant(r.get("collected_at")))]
     first = cited[0]
