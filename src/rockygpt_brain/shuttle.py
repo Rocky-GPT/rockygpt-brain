@@ -252,7 +252,12 @@ def departures(
         return result
     if not calling:
         # Nothing leaves after that time on this date: the day's last trip is the edge of it.
-        result.update(trips=[], none_left=True, last_left_at=clock(when(day_calling[-1])))
+        last = when(day_calling[-1])
+        if now_minute is not None and last <= now_minute:
+            result.update(trips=[], none_left=True, last_left_at=clock(last))
+        else:
+            # The last trip is still ahead today ("after 10 PM" asked at 5 PM): it has not left.
+            result.update(trips=[], none_after=True, last_leaves_at=clock(last))
         result.update(_next_service(routes, day, key, back))
         return result
     if which == "all":
@@ -388,6 +393,16 @@ def describe(answer: dict[str, Any]) -> str:
             return text
         return (f"Shuttles{to} that reach the stop by {answer['by']} on {when}: "
                 + "; ".join(one(t) for t in trips) + ".")
+    if answer.get("none_after"):
+        text = (f"No shuttle{to} is listed after {answer['after']} on {when}; the last one "
+                f"{'picks up there' if back else 'leaves'} at {answer['last_leaves_at']}.")
+        later = answer.get("next_service")
+        if later:
+            first = later["trips"][0]
+            text += (f" The first on {_date_text(later['date'])} "
+                     + (f"picks up there at {first['leaves_stop_at']}." if back
+                        else f"leaves at {first['leaves_campus']}."))
+        return text
     if answer.get("none_left"):
         since = f" after {answer['after']}" if answer.get("after") else ""
         text = (f"No more rides back to campus from {stop} are listed{since} on {when}; the "
