@@ -2,7 +2,7 @@
 
 Question: before the graph-only Brain replaces production, does it answer less than the production
 Brain does? Production (old Brain, Postgres release v2-20261007174845) has full-text documents,
-calendar, events, clubs, programs, courses and faculty; dev (graph-only, dev-campus-topics-20261015)
+calendar, events, clubs, programs, courses and faculty; dev (graph-only; the run used dev-campus-daily-20261015-1322, published 17:24Z)
 has offices, dining, shuttle and topics.
 
 ## Cases (frozen)
