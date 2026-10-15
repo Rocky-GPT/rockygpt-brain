@@ -464,7 +464,8 @@ class _Builder:
         if special:
             self.notices.append({"type": "shuttle_special",
                                  "approved_text": SPECIAL_TEXT.format(days="; ".join(special))})
-        if answer.get("trips") or answer.get("none_left") or answer.get("service") == "none":
+        if (answer.get("trips") or answer.get("none_left") or answer.get("none_after")
+                or answer.get("service") == "none"):
             # Said the same way every time: the timetable is the schedule, not where a shuttle is.
             self.notices.append({"type": "shuttle_scope", "approved_text": SCOPE_TEXT})
         self.derived.append({

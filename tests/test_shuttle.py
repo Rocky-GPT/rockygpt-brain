@@ -181,8 +181,20 @@ def test_after_keeps_only_trips_that_leave_campus_after_the_time() -> None:
 
 def test_nothing_after_the_time_names_the_days_last_and_the_next_days_first() -> None:
     got = departures(routes(), TUESDAY, minutes("4:00 AM"), "next", None, after=minutes("11:00 PM"))
-    assert got["none_left"] is True and got["trips"] == []
-    assert got["last_left_at"] == "9:40 PM" and got["next_service"]["date"] == "2026-10-14"
+    # At 4 AM the 9:40 PM has not left: nothing leaves after 11 PM, and 9:40 PM is still the last.
+    assert got["none_after"] is True and got["trips"] == [] and "none_left" not in got
+    assert got["last_leaves_at"] == "9:40 PM" and got["next_service"]["date"] == "2026-10-14"
+    assert describe(got).startswith("No shuttle is listed after 11:00 PM on Tuesday, October 13; "
+                                    "the last one leaves at 9:40 PM.")
+    # "The last shuttle tonight, game ends around 10" asked at 5:14 PM: same, never "left".
+    tonight = departures(routes(), TUESDAY, minutes("5:14 PM"), "last", None,
+                         after=minutes("10:00 PM"))
+    assert tonight["none_after"] is True and tonight["last_leaves_at"] == "9:40 PM"
+    assert " left" not in describe(tonight)
+    # Once the 9:40 PM has gone, it is the last one that left.
+    gone = departures(routes(), TUESDAY, minutes("10:05 PM"), "next", None,
+                      after=minutes("10:00 PM"))
+    assert gone["none_left"] is True and gone["last_left_at"] == "9:40 PM"
 
 
 def test_by_answers_with_the_latest_trips_that_reach_the_stop_in_time() -> None:
