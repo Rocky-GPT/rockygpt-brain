@@ -540,7 +540,9 @@ _ANSWERABLE_WORDS = frozenset(
     "these those there here please tell give need want get find know contact contacts info "
     "information details detail email emails phone phones number numbers fax call text reach room "
     "rooms office offices location located building website site link page hours hour open opens "
-    "close closes closed time times schedule name department".split())
+    "close closes closed time times schedule name department today tonight tomorrow now morning "
+    "afternoon evening night weekend weekends weekday weekdays monday tuesday wednesday "
+    "thursday friday saturday sunday".split())
 
 
 def _words(text: str) -> list[str]:
@@ -1478,6 +1480,13 @@ class ChatEngine:
                     menu_read = any(r.part and r.part.get("kind") == "office_facts"
                                     and "menu" in r.part.get("fields", [])
                                     for r in results.values())
+                    # The foods a menu lookup searched for are answered words too ("the pasta").
+                    looked_up |= {str(word) for r in results.values() if r.part
+                                  and r.part.get("kind") == "office_facts"
+                                  for prop in r.part["facts"]["properties"]
+                                  if prop["key"] == "menu" for value in prop["values"]
+                                  if isinstance(value.get("value"), dict)
+                                  for word in value["value"].get("filter", {}).get("contains", [])}
                     about = _asked_words(part.student_words, context.latest_message, looked_up,
                                          menu_read)
                     if shown and about is None:
