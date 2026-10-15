@@ -698,3 +698,33 @@ def test_each_published_stop_says_what_it_is_from_its_own_description() -> None:
         "is": "Located at Routes 4 and 17 in Paramus, this mall stop is often used for the movies. "
               "Other stores too."}
     assert state["published_stops"][1] == {"name": "Ramsey Rt 17 Train"}
+
+
+def test_the_campus_stop_trips_leave_from_is_offered_and_answers_where_to_catch_it() -> None:
+    base = facts()
+    campus = _row("stop", 2, source_record_key="stop:Ramapo College (Bradley Center)",
+                  name="Ramapo College (Bradley Center)", label="Ramapo College (Bradley Center)",
+                  description="The bus stop on campus is located outside the Bradley Center.",
+                  pickup=None)
+    entities = [{**e, "links": [*e["links"], {"collection": "shuttle_stops",
+                                               "source_key": campus["source_key"],
+                                               "source_record_keys": [campus["source_record_key"]]}]}
+                if e["kind"] == "route" else e for e in base.entities]
+    memory = MemoryEntityFacts(dataset_version="release-1", identity_hash="identities-1",
+                               entities=entities, contacts=[],
+                               records={**base.records, "shuttle_stops": [campus]},
+                               now=lambda: TUESDAY_10AM)
+    gateway = ScriptedGateway(shuttle("Ramapo College (Bradley Center)", None, "all"), finish())
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "where does the shuttle stop on campus"}]})
+    engine = ChatEngine(gateway, memory, output="json")  # type: ignore[arg-type]
+    result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+    state = json.loads(gateway.inputs[0][1]["content"])
+    assert state["published_stops"][-1] == {
+        "name": "Ramapo College (Bradley Center)",
+        "is": "The bus stop on campus is located outside the Bradley Center.", "departs_here": True}
+    value = derived(result, "departures")["value"]
+    assert value["departs_from"] == "Ramapo College (Bradley Center)"
+    assert value["stop_description"] == {
+        "description": "The bus stop on campus is located outside the Bradley Center."}
+    assert "stop_unknown" not in value

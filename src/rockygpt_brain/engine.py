@@ -121,10 +121,12 @@ The shuttle has its own tool, shuttle_lookup: stop is a name from published_stop
 what the stop is: match the student's place to it, "the mall" to a mall stop), or null for
 any stop; day is the one day (null is today); which is next, first, last or all (the whole day;
 all with no stop also says where the shuttle goes). Send the stop as listed. A place that is not in
-published_stops is not served. after is a clock time the student gives ("after my 6pm class":
+published_stops is not served. A stop with departs_here is where every trip leaves from (the
+campus stop): send it as stop to say where to catch the shuttle on campus. after is a clock time the student gives ("after my 6pm class":
 6:00 PM; tonight is 5:00 PM) and by one they must be at the stop by (a 6:50 train: 6:50 AM);
 otherwise null. times is true with all when the student asks for the times or which one to take,
-false when they only ask whether it runs. The first and the last of a day are two requests.
+false when they only ask whether it runs. back is true when the student rides from the stop back
+to campus ("the last shuttle back from the train"); code then times each trip by its pickup there. The first and the last of a day are two requests.
 Read the fields the student asked for, and a field they did not name only when it plainly makes
 the answer more useful to them (a time is more useful with its place); leave out fields that
 have nothing to do with the question. When the student wants to contact or reach an office and
@@ -248,6 +250,9 @@ class ShuttleRequest(StrictModel):
     # For all only: true when the student wants the times themselves, false for "is there service
     # and from when to when".
     times: bool = False
+    # True when the student rides from the stop back to campus ("the last shuttle back from the
+    # train"): code then times each trip by its pickup at the stop.
+    back: bool = False
 
 
 class ShuttleRequests(StrictModel):
@@ -461,6 +466,12 @@ def with_topics(offices: list[dict[str, Any]] | None,
                                                 else {}), "topic": True} for t in topics]
     fits = len(json.dumps(listed, ensure_ascii=False).encode()) <= MAX_OFFICE_LIST_BYTES
     return listed if fits else offices
+
+
+def described_stops(envelopes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Every stop the routes' stop-descriptions page explains, as the reader returned them."""
+    return [stop for envelope in envelopes for prop in envelope["properties"]
+            if prop["key"] == "stops" for value in prop["values"] for stop in value["value"]]
 
 
 def topic_citation(topic: dict[str, Any]) -> dict[str, Any]:
@@ -928,17 +939,19 @@ class ChatEngine:
         # What each stop is, in its stop-descriptions page's opening sentences, so a student's
         # "the mall" or "the train" can be matched to the stop the page says it is.
         about: dict[str, str] = {}
-        for envelope in envelopes:
-            for prop in envelope["properties"]:
-                if prop["key"] != "stops":
-                    continue
-                for value in prop["values"]:
-                    for stop in value["value"]:
-                        if sentence := stop_summary(stop.get("description")):
-                            about.setdefault(stop_key(stop["stop"]), sentence)
+        described = described_stops(envelopes)
+        for stop in described:
+            if sentence := stop_summary(stop.get("description")):
+                about.setdefault(stop_key(stop["stop"]), sentence)
         names = stops_served(table_of(envelopes))
+        # A described stop no trip calls at is where the trips leave from (the campus stop).
+        origins = list(dict.fromkeys(stop["stop"] for stop in described
+                                     if stop_key(stop["stop"]) not in map(stop_key, names)))
         stops = [{"name": name, **({"is": about[stop_key(name)]} if stop_key(name) in about
-                                   else {})} for name in names] or None
+                                   else {})} for name in names]
+        stops += [{"name": name, **({"is": about[stop_key(name)]} if stop_key(name) in about
+                                    else {}), "departs_here": True} for name in origins]
+        stops = stops or None
         self._stops_cache = (key, stops)
         return stops
 
@@ -956,24 +969,33 @@ class ChatEngine:
         published = stops_served(table)
         asked = " ".join(request.stop.split()) if request.stop else None
         after, by = said_minutes(request.after), said_minutes(request.by)
-        if asked and stop_key(asked) not in {stop_key(name) for name in published}:
+        described = described_stops(envelopes)
+        served = {stop_key(name) for name in published}
+        origin = next((stop for stop in described if asked and stop_key(stop["stop"]) not in served
+                       and stop_key(stop["stop"]) == stop_key(asked)), None)
+        if origin is not None:
+            # The stop trips leave from: its departures are every trip's, and where to wait there.
+            answer = departures(table, day, now_minute, request.which, None, after, by,
+                                request.times)
+            answer["departs_from"] = origin["stop"]
+            answer["stop_description"] = {
+                key: origin[key] for key in ("description", "pickup") if origin.get(key)}
+        elif asked and stop_key(asked) not in served:
             answer: dict[str, Any] = {
                 "date": day.isoformat(), "which": request.which, "stop_unknown": True,
                 "asked": asked[:80], "published_stops": published}
         else:
             answer = departures(table, day, now_minute, request.which, asked, after, by,
-                                request.times)
+                                request.times, request.back)
             unread = [text for text, found in ((request.after, after), (request.by, by))
                       if text and found is None]
             if unread:
                 answer["time_unreadable"] = unread[0][:20]  # Said, never silently dropped.
             # The asked stop as its stop-descriptions page explains it: what it is, where to wait.
-            described = [stop for envelope in envelopes for prop in envelope["properties"]
-                         if prop["key"] == "stops" for value in prop["values"]
-                         for stop in value["value"]
-                         if asked and stop_key(stop["stop"]) == stop_key(asked)]
-            if described:
-                found = described[0]
+            matched = [stop for stop in described
+                       if asked and stop_key(stop["stop"]) == stop_key(asked)]
+            if matched:
+                found = matched[0]
                 answer["stop_description"] = {
                     key: found[key] for key in ("description", "pickup") if found[key]}
         listed = bool(table) and not answer.get("stop_unknown")
