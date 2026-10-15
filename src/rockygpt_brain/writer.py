@@ -88,8 +88,10 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   time, the last of them being the one to take (none_by: nothing does, and
   earliest_reaches_stop is the earliest). time_unreadable is a time that could not be read; say
   that. When stop_unknown is
-  true, say that stop is not on the timetable and name published_stops. It is the posted
-  schedule, not live: never say a shuttle is running, on time or late.
+  true, say that stop is not on the timetable and name published_stops. route is the route the
+  student named; trips are only its trips (route_runs_on: the days it runs, when it does not
+  that day). When route_unknown is true, say no route has that name and name published_routes.
+  It is the posted schedule, not live: never say a shuttle is running, on time or late.
 - A contact note holds many things. Say only the part that relates to what the student asked,
   and leave out its general warnings (an imminent-danger line in a parking answer).
 - Never say a schedule "lists hours" without saying the hours: a caution comes with the values it

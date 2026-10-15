@@ -87,14 +87,31 @@ def _trips() -> list[dict[str, Any]]:
     ]
 
 
-def facts() -> MemoryEntityFacts:
+def _midday_trips() -> list[dict[str, Any]]:
+    """A second weekday route that also calls at the train, for asking about one route by name."""
+    return [_row("trip", 10 + n, source_record_key=f"Mid-Day Weekday Express Train:{n}:{leaves}",
+                 route_name="Mid-Day Weekday Express Train", service_day="weekday", sequence=n,
+                 departure=leaves, arrival=back, stops=[{"location": "Ramsey Rt 17 Train",
+                                                         "time": at}],
+                 valid_from=None, valid_until=None)
+            for n, (leaves, at, back) in enumerate([("7:20 AM", "7:30 AM", "7:40 AM"),
+                                                    ("9:05 AM", "9:15 AM", "9:30 AM"),
+                                                    ("5:30 PM", "5:40 PM", "5:50 PM")])]
+
+
+def facts(midday: bool = False) -> MemoryEntityFacts:
     def link(collection: str, source: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
         return {"collection": collection, "source_key": source,
                 "source_record_keys": [r["source_record_key"] for r in rows]}
 
-    dining, menu, trips = _dining(), _menu(), _trips()
+    dining, menu = _dining(), _menu()
+    trips = _trips() + (_midday_trips() if midday else [])
     by_route = {name: [t for t in trips if t["route_name"] == name]
-                for name in ("Weekday Roadrunner Express", "Saturday Roadrunner Express")}
+                for name in ("Weekday Roadrunner Express", "Saturday Roadrunner Express",
+                             "Mid-Day Weekday Express Train")}
+    extra = [{"id": "route-midday", "name": "Mid-Day Weekday Express Train", "kind": "route",
+              "aliases": [], "links": [link("shuttle_trips", "transportation",
+                                            by_route["Mid-Day Weekday Express Train"])]}]
     return MemoryEntityFacts(
         dataset_version="release-1", identity_hash="identities-1",
         entities=[
@@ -106,21 +123,25 @@ def facts() -> MemoryEntityFacts:
             {"id": "route-saturday", "name": "Saturday Roadrunner Express", "kind": "route",
              "aliases": [], "links": [link("shuttle_trips", "transportation",
                                            by_route["Saturday Roadrunner Express"])]},
-        ],
+        ] + (extra if midday else []),
         contacts=[],
         records={"dining_hours": dining, "menu": menu, "shuttle_trips": trips},
         now=lambda: TUESDAY_10AM,
     )
 
 
-def ask(question: str, *steps: Any, now: datetime = TUESDAY_10AM) -> ChatResult:
+def ask(question: str, *steps: Any, now: datetime = TUESDAY_10AM,
+        midday: bool = False) -> ChatResult:
     request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
-    engine = ChatEngine(ScriptedGateway(*steps), facts(), output="json")  # type: ignore[arg-type]
+    engine = ChatEngine(ScriptedGateway(*steps), facts(midday),  # type: ignore[arg-type]
+                        output="json")
     return asyncio.run(engine.answer(intake(request, now=now), request))
 
 
-def shuttle(stop: str | None, day: str | None, which: str) -> Any:
-    return completion("shuttle_lookup", {"requests": [{"stop": stop, "day": day, "which": which}]})
+def shuttle(stop: str | None, day: str | None, which: str, route: str | None = None,
+            after: str | None = None) -> Any:
+    return completion("shuttle_lookup", {"requests": [{"stop": stop, "day": day, "which": which,
+                                                       "route": route, "after": after}]})
 
 
 def lookup(query: str, fields: list[str], day: str | None = None) -> Any:
@@ -173,6 +194,41 @@ def test_a_stop_the_timetable_does_not_list_is_said_with_the_stops_it_does() -> 
     assert "Ramsey Rt 17 Train" in answer["published_stops"]
 
 
+MIDDAY = "Mid-Day Weekday Express Train"
+
+
+def test_a_named_route_reads_only_its_own_trips() -> None:
+    def trips(*step: Any) -> list[str]:
+        answer = derived(ask("shuttle", *step, finish(), midday=True), "departures")["value"]
+        assert answer["route"] == MIDDAY
+        return [f"{t['leaves_campus']} {t['route']}" for t in answer["trips"]]
+
+    # The weekday's first and last trips are the other route's; the named route's are its own.
+    assert trips(shuttle(None, "wednesday", "first", MIDDAY)) == [f"7:20 AM {MIDDAY}"]
+    assert trips(shuttle(None, "friday", "last", MIDDAY)) == [f"5:30 PM {MIDDAY}"]
+    assert trips(shuttle(None, "wednesday", "next", MIDDAY, after="9:00 AM")) == [
+        f"9:05 AM {MIDDAY}", f"5:30 PM {MIDDAY}"]
+    every = derived(ask("last shuttle friday", shuttle(None, "friday", "last"), finish(),
+                        midday=True), "departures")["value"]
+    assert "route" not in every and every["trips"][0]["leaves_campus"] == "9:40 PM"
+
+
+def test_a_named_route_that_does_not_run_that_day_says_the_days_it_does() -> None:
+    answer = derived(ask("saturday shuttle on tuesday",
+                         shuttle(None, "tuesday", "first", "Saturday Roadrunner Express"),
+                         finish()), "departures")["value"]
+    assert answer["service"] == "none" and answer["route_runs_on"] == ["saturday"]
+
+
+def test_a_route_the_timetable_does_not_list_is_said_with_the_routes_it_does() -> None:
+    answer = derived(ask("night owl shuttle", shuttle(None, None, "next", "Night Owl"),
+                         finish()), "departures")["value"]
+    assert answer["route_unknown"] is True and answer["asked_route"] == "Night Owl"
+    assert sorted(answer["published_routes"]) == ["Saturday Roadrunner Express",
+                                                  "Weekday Roadrunner Express"]
+    assert "trips" not in answer
+
+
 def test_the_models_stop_and_stop_list_come_from_the_published_timetable() -> None:
     gateway = ScriptedGateway(finish())
     request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "hi"}]})
@@ -181,6 +237,8 @@ def test_the_models_stop_and_stop_list_come_from_the_published_timetable() -> No
     state = json.loads(gateway.inputs[0][1]["content"])
     assert [stop["name"] for stop in state["published_stops"]] == ["Garden State Plaza",
                                                                     "Ramsey Rt 17 Train"]
+    assert sorted(state["published_routes"]) == ["Saturday Roadrunner Express",
+                                                 "Weekday Roadrunner Express"]
     assert state["published_venues"] == [{"name": "Birch Tree Inn", "also_called": ["Dining Hall"],
                                           "publishes": ["hours", "menu"]}]
 

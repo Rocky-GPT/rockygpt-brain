@@ -120,7 +120,8 @@ requests, one without a filter. Set meal only when the student asks about that m
 it null to compare or relate meals.
 The shuttle has its own tool, shuttle_lookup: stop is a name from published_stops (is says
 what the stop is: match the student's place to it, "the mall" to a mall stop), or null for
-any stop; day is the one day (null is today); which is next, first, last or all (the whole day;
+any stop; route is a name from published_routes when the student names a route, else null;
+day is the one day (null is today); which is next, first, last or all (the whole day;
 all with no stop also says where the shuttle goes). Send the stop as listed. A place that is not in
 published_stops is not served. A stop with departs_here is where every trip leaves from (the
 campus stop): send it as stop to say where to catch the shuttle on campus. after is a clock time
@@ -245,6 +246,8 @@ class GraphRequests(StrictModel):
 class ShuttleRequest(StrictModel):
     # A stop named as published_stops lists it; null is any stop.
     stop: str | None = Field(max_length=120)
+    # The route the student named, as published_routes lists it; null is every route.
+    route: str | None = Field(default=None, max_length=120)
     # The one day the student asked about; null is today.
     day: Literal[DAY_CHOICES] | None = None  # type: ignore[valid-type]
     which: Literal["next", "first", "last", "all"]
@@ -396,7 +399,7 @@ VENUE_LIST_SECONDS = 10.0
 NUSD_PER_DOLLAR = 1_000_000_000
 MODEL_INPUT_KEYS = ("campus_now", "client_omitted_messages", "server_omitted_messages",
                     "graph_root", "published_offices", "published_venues", "published_stops",
-                    "earlier_messages", "latest_message")
+                    "published_routes", "earlier_messages", "latest_message")
 # The list of offices the model is shown stays this small; a longer one is cut to names, then not
 # sent, rather than crowd out the conversation and the records.
 MAX_OFFICE_LIST_BYTES = 12_000
@@ -611,7 +614,8 @@ def named_options(asked: list[str], known: dict[str, str]) -> list[str]:
 def model_input(turn: Turn, context: Context, root: dict[str, Any],
                 offices: list[dict[str, Any]] | None = None,
                 venues: list[dict[str, Any]] | None = None,
-                stops: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+                stops: list[dict[str, Any]] | None = None,
+                routes: list[str] | None = None) -> list[dict[str, Any]]:
     state = {
         "campus_now": turn.campus_now.isoformat(),
         "client_omitted_messages": context.client_omitted_messages,
@@ -620,6 +624,7 @@ def model_input(turn: Turn, context: Context, root: dict[str, Any],
         "published_offices": offices,
         "published_venues": venues,
         "published_stops": stops,
+        "published_routes": routes,
         "earlier_messages": [
             {"message_index": i, "role": m.role, "content": m.content}
             for i, m in enumerate(context.recent_messages)
@@ -925,10 +930,12 @@ class ChatEngine:
 
     async def _service_lists(
         self,
-    ) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]] | None]:
-        """The dining venues and the shuttle stops the model is shown; None where unreadable."""
+    ) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]] | None, list[str] | None]:
+        """The dining venues, shuttle stops and shuttle routes the model is shown; None where
+        unreadable."""
         venues: list[dict[str, Any]] | None = None
         stops: list[dict[str, Any]] | None = None
+        routes: list[str] | None = None
         try:
             async with asyncio.timeout(VENUE_LIST_SECONDS):
                 venues = await asyncio.to_thread(self._published_venues)
@@ -936,10 +943,10 @@ class ChatEngine:
             venues = None
         try:
             async with asyncio.timeout(OFFICE_LIST_SECONDS):
-                stops = await asyncio.to_thread(self._published_stops)
+                stops, routes = await asyncio.to_thread(self._published_stops)
         except (TimeoutError, EvidenceUnavailable):
-            stops = None
-        return venues, stops
+            stops = routes = None
+        return venues, stops, routes
 
     def _published_venues(self) -> list[dict[str, Any]] | None:
         """The dining venues as the model is shown them, each with the building it is in and the
@@ -981,12 +988,14 @@ class ChatEngine:
         self._venues_cache = (key, venues)
         return venues
 
-    def _published_stops(self) -> list[dict[str, Any]] | None:
+    def _published_stops(self) -> tuple[list[dict[str, Any]] | None, list[str] | None]:
+        """The shuttle stops and the route names the model is shown."""
         listing = self.facts.list_routes()
         key = (listing["dataset_version"], listing["identity_hash"])
+        routes = [route["name"] for route in listing["routes"]] or None
         cached = getattr(self, "_stops_cache", None)
         if cached is not None and cached[0] == key:
-            return cached[1]  # type: ignore[no-any-return]
+            return cached[1], routes
         envelopes = [self.facts.get_route_facts(route["entity_id"], key[0], identity_hash=key[1])
                      for route in listing["routes"]]
         # What each stop is, in its stop-descriptions page's opening sentences, so a student's
@@ -1007,7 +1016,7 @@ class ChatEngine:
                                      else {}), "departs_here": True} for name in origins]
         stops = listed or None
         self._stops_cache = (key, stops)
-        return stops
+        return stops, routes
 
     def _shuttle(self, request: ShuttleRequest, as_of: datetime, version: str | None,
                  identity_hash: str | None) -> OfficeResult:
@@ -1018,6 +1027,10 @@ class ChatEngine:
                                                 identity_hash=pins[1], as_of=as_of)
                      for route in listing["routes"]]
         table = table_of(envelopes)
+        named = [route for route in table
+                 if request.route and _normal(route["route"]) == _normal(request.route)]
+        if named:
+            table = named  # The route the student named: only its trips are read.
         day = target_date(request.day or "today", as_of.date())
         now_minute = as_of.hour * 60 + as_of.minute if day == as_of.date() else None
         published = stops_served(table)
@@ -1028,7 +1041,12 @@ class ChatEngine:
         origin = next((stop for stop in described if asked and stop_key(stop["stop"]) not in served
                        and stop_key(stop["stop"]) == stop_key(asked)), None)
         answer: dict[str, Any]
-        if origin is not None:
+        if request.route and not named:
+            answer = {
+                "date": day.isoformat(), "which": request.which, "route_unknown": True,
+                "asked_route": request.route[:80],
+                "published_routes": list(dict.fromkeys(route["route"] for route in table))}
+        elif origin is not None:
             # The stop trips leave from: its departures are every trip's, and where to wait there.
             answer = departures(table, day, now_minute, request.which, None, after, by,
                                 request.times)
@@ -1053,7 +1071,11 @@ class ChatEngine:
                 found = matched[0]
                 answer["stop_description"] = {
                     key: found[key] for key in ("description", "pickup") if found[key]}
-        listed = bool(table) and not answer.get("stop_unknown")
+        if named:
+            answer["route"] = named[0]["route"]
+            if answer.get("service") == "none":
+                answer["route_runs_on"] = sorted({route["service_day"] for route in named})
+        listed = bool(table) and not answer.get("stop_unknown") and not answer.get("route_unknown")
         citations: dict[str, dict[str, Any]] = {}
         for envelope in envelopes:
             for source in envelope["sources"]:
@@ -1113,9 +1135,9 @@ class ChatEngine:
             # The lookups read the same data and report a failure themselves.
             offices = None
         known = known_office_names(listing) if offices is not None else {}
-        venues, stops = await self._service_lists()
+        venues, stops, routes = await self._service_lists()
         with measure("Prepare model input"):
-            inputs = model_input(turn, context, graph.root(), offices, venues, stops)
+            inputs = model_input(turn, context, graph.root(), offices, venues, stops, routes)
             # What a tie between offices that share a name may be broken by: the latest message
             # and the exchange it follows.
             conversation = "\n".join(
