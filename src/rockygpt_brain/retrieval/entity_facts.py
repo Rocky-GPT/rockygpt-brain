@@ -36,7 +36,7 @@ MAX_TRIP_ROWS = 128
 # with the most rows one entity may link to.
 RECORD_COLLECTIONS = {
     "dining_hours": MAX_DINING_ROWS, "menu": MAX_MENU_ROWS, "shuttle_trips": MAX_TRIP_ROWS,
-    "menu_documents": 10, "menu_listings": 2, "shuttle_stops": 40,
+    "menu_documents": 10, "menu_listings": 2, "shuttle_stops": 40, "campus_topics": 1,
 }
 # Entities a student can ask about by name: offices and dining venues. A route is not named by
 # students; it is read through the shuttle timetable.
@@ -1231,8 +1231,9 @@ def menu_listing_absence(
             check["text_sha256"] = row["content_hash"]
         sources.append(source)
         checks.append(check)
-    files = [str(menu.get("name") or "a menu file") for row in rows
-             for menu in (row.get("menus") if isinstance(row.get("menus"), list) else [])
+    listed: list[Any] = [menu for row in rows
+                         for menu in (row["menus"] if isinstance(row.get("menus"), list) else [])]
+    files = [str(menu.get("name") or "a menu file") for menu in listed
              if isinstance(menu, dict) and menu.get("kind") == "file"]
     reason = ("The venue's listing on the dining site names no daily menu"
               + (": it links only a menu file." if files else ", and no menu file."))
@@ -1676,6 +1677,69 @@ class EntityFacts:
                 "complete": not caveats,
             }
 
+
+    def list_topics(
+        self, *, dataset_version: str | None = None, identity_hash: str | None = None,
+    ) -> dict[str, Any]:
+        """Published topics (sites with no office behind them) with the other names they go by."""
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            topics = sorted(
+                ({"name": entity["name"], "aliases": sorted(set(entity["aliases"])),
+                  "entity_id": entity["id"]}
+                 for entity in snapshot.entities if entity["kind"] == "topic"),
+                key=lambda topic: topic["name"])
+            return {"dataset_version": snapshot.dataset_version,
+                    "identity_hash": snapshot.identity_hash, "topics": topics}
+
+    def get_topic(
+        self, entity_id: str, dataset_version: str, *, identity_hash: str | None = None,
+        as_of: datetime | None = None,
+    ) -> dict[str, Any]:
+        """A topic: the offices its own page names, as this release's identities, or that it is
+        retired, with the page's quoted words. A name the release has no single office for, or a
+        record that is not exactly one, is unavailable evidence, never a guess."""
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            entity = next((e for e in snapshot.entities
+                           if e["id"] == entity_id and e["kind"] == "topic"), None)
+            if entity is None:
+                raise InvalidFactRequest("Unknown topic.")
+            rows = snapshot.record_reader(entity, "campus_topics")
+            if len(rows) != 1 or len(linked_rows(entity, rows, "campus_topics")) != 1:
+                raise EvidenceUnavailable("A topic needs exactly one reviewed record.")
+            row = rows[0]
+            names = row.get("handled_by")
+            if isinstance(names, str):
+                names = json.loads(names)
+            if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
+                raise EvidenceUnavailable("Invalid topic offices.")
+            offices = []
+            for name in names:
+                found = [e for e in snapshot.entities
+                         if e["name"] == name and e["kind"] in NAMED_KINDS]
+                if len(found) != 1:
+                    raise EvidenceUnavailable("A topic names an office this release lacks.")
+                offices.append({"id": found[0]["id"], "name": name, "kind": found[0]["kind"]})
+            status = row.get("status")
+            if status not in ("current", "retired") or (status == "current") != bool(offices):
+                raise EvidenceUnavailable("Invalid topic status.")
+            page = _url(row.get("url"))
+            quote = clean(row.get("quote"))
+            if page is None or not quote:
+                raise EvidenceUnavailable("A topic needs its page and quoted words.")
+            now = as_of if as_of is not None else self.now()
+            source = _source({**row, "canonical_url": page}, now)
+            source.update(collection="campus_topics",
+                          source_record_keys=[row["source_record_key"]], record_ids=[row["id"]])
+            return {
+                "dataset_version": snapshot.dataset_version,
+                "identity_hash": snapshot.identity_hash,
+                "entity": {"id": entity["id"], "name": entity["name"], "kind": "topic"},
+                "status": status, "offices": offices, "quote": quote, "page": page,
+                "section": clean(row.get("section")), "refer_url": _url(row.get("refer_url")),
+                "checked_at": source["collected_at"], "source": source,
+            }
 
     def list_routes(
         self, *, dataset_version: str | None = None, identity_hash: str | None = None,

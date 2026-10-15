@@ -512,7 +512,7 @@ def test_all_gives_the_trips_only_when_the_times_were_asked_for() -> None:
 def test_the_graph_lists_offices_dining_and_shuttle_each_under_its_own_branch() -> None:
     from rockygpt_brain.retrieval.campus_graph import CampusGraph
     root = CampusGraph(facts()).inspect("ramapo", TUESDAY_10AM)
-    assert [c["id"] for c in root["children"]] == ["offices", "dining", "shuttle"]
+    assert [c["id"] for c in root["children"]] == ["offices", "dining", "shuttle", "topics"]
     assert "Only the office branch" not in root["scope"]
     assert CampusGraph(facts()).inspect("offices", TUESDAY_10AM)["children"] == []
     dining = CampusGraph(facts()).inspect("dining", TUESDAY_10AM)

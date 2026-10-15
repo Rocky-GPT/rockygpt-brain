@@ -85,7 +85,9 @@ needed. In ONE request, code walks Ramapo -> Offices -> matching office and read
 records. Do not request individual hops or provide node IDs. Root and category links organize
 navigation, not evidence; only linked records supply facts. Batch independent office queries
 together in one tool call.
-published_offices lists every office with the other names it is known by. When the student's
+published_offices lists every office with the other names it is known by; an entry with topic
+true is a subject with no office of its own (Scholarships): send its name, and the lookup names
+the offices its page sends students to. When the student's
 words point to one listed office (a short form, a typo or a nickname still does), send that
 name as the query, exactly as listed. A name that more than one office is known by is a tie:
 send it as listed so the student is asked, unless their words or the conversation point to one
@@ -352,6 +354,12 @@ DATA_UNAVAILABLE_TEXT = "Campus data is temporarily unavailable."
 INCOMPLETE_TEXT = "I found these details, but couldn't complete the rest of your request."
 AMBIGUOUS_TEXT = "Which office do you mean: {names}?"
 AMBIGUOUS_MORE_TEXT = " There are additional matches; a more specific name will help."
+# A topic is a site with no office behind it; its own page names the offices that handle it.
+TOPIC_ONE_TEXT = "For {topic}, its page sends you to {office}."
+TOPIC_SOME_TEXT = ("For {topic}, its page sends you to these offices: {names}. "
+                   "Which one do you need?")
+TOPIC_RETIRED_TEXT = "{topic} is no longer at Ramapo College. Its page says: \"{quote}\""
+TOPIC_REFER_TEXT = " It points to {url}."
 RECALL_CAUTION = "This quotes the chat; it doesn't verify current campus facts."
 RECALL_TEXT = ("Earlier in the visible conversation, {speaker} said:\n\n{quote}\n\n"
                + RECALL_CAUTION)
@@ -442,6 +450,36 @@ def failed(turn: Turn, code: str) -> ChatResult:
         error["nextAllowanceAt"] = reset.isoformat()
     return ChatResult(status, {"error": error,
                                "reason": code, "requestId": turn.request_id})
+
+
+def with_topics(offices: list[dict[str, Any]] | None,
+                topics: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
+    """The office list with each topic marked as one, when the whole list still fits."""
+    if offices is None or not topics:
+        return offices
+    listed = offices + [{"name": t["name"], **({"also_called": t["aliases"]} if t["aliases"]
+                                                else {}), "topic": True} for t in topics]
+    fits = len(json.dumps(listed, ensure_ascii=False).encode()) <= MAX_OFFICE_LIST_BYTES
+    return listed if fits else offices
+
+
+def topic_citation(topic: dict[str, Any]) -> dict[str, Any]:
+    """The topic's own page, which names its offices, as a citation."""
+    source = topic["source"]
+    return {"id": source["id"], "title": str(source["source_key"]), "url": topic["page"],
+            "urls": [topic["page"]], "collection": source["collection"],
+            "collected_at": source["collected_at"], "freshness": source["freshness"],
+            "valid_from": source["valid_from"], "valid_until": source["valid_until"],
+            "limitations": source["caveats"], "record_title": topic["entity"]["name"]}
+
+
+def topic_part(topic: dict[str, Any], text: str) -> dict[str, Any]:
+    """The topic as the packet carries it: its page, what it says, and the code's own words."""
+    return {"kind": "topic", "topic": topic["entity"]["name"], "status": topic["status"],
+            "offices": [{"id": o["id"], "name": o["name"]} for o in topic["offices"]],
+            "page": topic["page"], "quote": topic["quote"], "checked_at": topic["checked_at"],
+            **({"refer_url": topic["refer_url"]} if topic["refer_url"] else {}),
+            "approved_text": text}
 
 
 def published_offices(listing: dict[str, Any]) -> list[dict[str, Any]] | None:
@@ -772,6 +810,9 @@ class ChatEngine:
             "dataset_version": graph.version, "identity_hash": graph.identity_hash,
             "as_of": as_of.isoformat(),
         }
+        topic = opened.get("topic")
+        if "facts" not in opened and topic is not None:
+            return self._topic(request, topic, opened["candidates"], detail)
         if "facts" not in opened:
             candidates = opened["candidates"]
             if candidates:
@@ -804,6 +845,12 @@ class ChatEngine:
                      "sources": list(sources.values())}
         with measure("Render verified evidence"):
             rendered = render_facts(shown)
+        if topic is not None:
+            sent = TOPIC_ONE_TEXT.format(topic=literal(topic["entity"]["name"]),
+                                         office=literal(opened["label"]))
+            rendered = replace(rendered, text=f"{sent}\n\n{rendered.text}",
+                               citations=[*rendered.citations, topic_citation(topic)])
+            detail["topic"] = topic["entity"]["name"]
         detail["answer"] = {"text": rendered.text, "citations": rendered.citations,
                             "complete": rendered.complete}
         part = {"kind": "office_facts", "query": request.query, "fields": list(request.fields),
@@ -812,6 +859,8 @@ class ChatEngine:
                 "facts": opened["facts"]}
         if also is not None:
             part["also"] = also
+        if topic is not None:
+            part["topic"] = topic_part(topic, sent)
         if request.phone_kind and "phones" in request.fields:
             part["phone_kind"] = request.phone_kind
         if request.day and "hours" in request.fields:
@@ -825,10 +874,35 @@ class ChatEngine:
             detail["day"] = when
         return OfficeResult(rendered, detail=detail, part=part)
 
-    async def _service_lists(self) -> tuple[list[dict[str, Any]] | None, list[str] | None]:
+    def _topic(self, request: OfficeRequest, topic: dict[str, Any],
+               candidates: list[dict[str, Any]], detail: dict[str, Any]) -> OfficeResult:
+        """A topic with several offices asks which one; a retired topic says, in its page's
+        words, that it is gone."""
+        name = literal(topic["entity"]["name"])
+        cited = [topic_citation(topic)]
+        detail["topic"] = topic["entity"]["name"]
+        if topic["status"] == "retired":
+            text = TOPIC_RETIRED_TEXT.format(topic=name, quote=literal(topic["quote"]))
+            if topic["refer_url"]:
+                text += TOPIC_REFER_TEXT.format(url=topic["refer_url"])
+            return OfficeResult(Rendered(text, cited, supported=True, complete=True),
+                                detail=detail, part=topic_part(topic, text))
+        text = TOPIC_SOME_TEXT.format(topic=name, names=", ".join(
+            literal(office["name"]) for office in topic["offices"]))
+        detail.update(candidates=[office["name"] for office in topic["offices"]], truncated=False)
+        part = {"kind": "ambiguous", "query": request.query, "truncated": False,
+                "candidates": [{"id": c["entity_id"], "name": c["name"], "match": c["match"]}
+                               for c in candidates],
+                "topic": topic_part(topic, text)}
+        return OfficeResult(Rendered(text, cited, complete=False), clarification=True,
+                            detail=detail, part=part)
+
+    async def _service_lists(
+        self,
+    ) -> tuple[list[dict[str, Any]] | None, list[dict[str, str]] | None]:
         """The dining venues and the shuttle stops the model is shown; None where unreadable."""
         venues: list[dict[str, Any]] | None = None
-        stops: list[str] | None = None
+        stops: list[dict[str, str]] | None = None
         try:
             async with asyncio.timeout(OFFICE_LIST_SECONDS):
                 found = await asyncio.to_thread(
@@ -956,7 +1030,8 @@ class ChatEngine:
         try:
             async with asyncio.timeout(OFFICE_LIST_SECONDS):
                 listing = await asyncio.to_thread(self.facts.list_offices, limit=500)
-            offices = published_offices(listing)
+                topics = await asyncio.to_thread(self.facts.list_topics)
+            offices = with_topics(published_offices(listing), topics["topics"])
         except (TimeoutError, EvidenceUnavailable):
             # The lookups read the same data and report a failure themselves.
             offices = None
@@ -1081,8 +1156,8 @@ class ChatEngine:
                     return await self._finish(turn, context, finish, results, version,
                                               identity_hash, trace, known, budget, floor_situation)
                 except GatewayError:
-                    named = [part.situation or "other" for part in finish.parts
-                             if part.kind == "safety"]
+                    named: list[str] = [part.situation or "other" for part in finish.parts
+                                        if part.kind == "safety"]
                     if not named and not floor_situation:
                         raise
                     # A reply that names an emergency is never lost to a malformed part: the
@@ -1090,8 +1165,9 @@ class ChatEngine:
                     LOG.warning("brain_safety_fallback request_id=%s", turn.request_id)
                     reply = await self.safety_reply(
                         turn, floor_situation or emergency_kind(named))
-                    trace.update(decidedBy="safety_fallback", situation=reply.trace["situation"])
-                    trace["lookups"] = [*trace.get("lookups", []), *reply.trace["lookups"]]
+                    floor = reply.trace or {}
+                    trace.update(decidedBy="safety_fallback", situation=floor.get("situation"))
+                    trace["lookups"] = [*trace.get("lookups", []), *floor.get("lookups", [])]
                     return replace(reply, trace=trace)
         except TimeoutError:
             return self._fallback(turn, results, version, "model_timeout")
