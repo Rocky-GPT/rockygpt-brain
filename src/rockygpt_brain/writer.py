@@ -100,6 +100,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   It is the posted schedule, not live: never say a shuttle is running, on time or late.
 - A contact note holds many things. Say only the part that relates to what the student asked,
   and leave out its general warnings (an imminent-danger line in a parking answer).
+- A schedule's notes belong with its hours (when it opens before an event, by appointment, a
+  different time on some days): say the part that bears on what the student asked.
 - Never say a schedule "lists hours" without saying the hours: a caution comes with the values it
   is about, not instead of them.
 - Say whose a phone number or email is exactly as the JSON labels it. Do not call a number main,
