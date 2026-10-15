@@ -1337,3 +1337,28 @@ def test_the_graph_lists_each_topic_with_the_offices_its_page_names() -> None:
     node = CampusGraph(service).inspect(branch["children"][0]["id"], NOW)
     assert [o["name"] for o in node["topic"]["offices"]] == ["Student Accounts", "Registrar"]
     assert node["topic"]["quote"] == "both offices"
+
+
+def test_a_venue_is_listed_with_its_building_and_the_offices_published_there() -> None:
+    def contact(key: str, name: str, office: str) -> dict[str, Any]:
+        return {"id": f"c-{key}", "source_key": "directory", "source_record_key": key,
+                "name": name, "office": office, "canonical_url": "https://example.edu/x",
+                "collected_at": NOW, "freshness_sla_hours": 24}
+
+    def entity(key: str, name: str, kind: str) -> dict[str, Any]:
+        return {"id": key, "name": name, "kind": kind, "aliases": [], "links": [
+            {"collection": "contacts", "source_key": "directory", "source_record_keys": [key]}]}
+
+    service = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[entity("cafe", "Common Grounds", "venue"), entity("library", "Library", "office"),
+                  entity("registrar", "Registrar", "office")],
+        contacts=[contact("cafe", "Common Grounds", "Learning Commons"),
+                  contact("library", "Library", "Learning Commons"),
+                  contact("registrar", "Registrar", "D-101")], now=lambda: NOW)
+    gateway = ScriptedGateway(finish())
+    answer(gateway, service=service, messages=[{"role": "user", "content": "hi"}])
+    state = json.loads(gateway.inputs[0][1]["content"])
+    assert state["published_venues"] == [{"name": "Common Grounds", "publishes": [],
+                                          "in": ["Learning Commons"],
+                                          "with": ["Library"]}]
