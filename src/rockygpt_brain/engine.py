@@ -122,11 +122,12 @@ what the stop is: match the student's place to it, "the mall" to a mall stop), o
 any stop; day is the one day (null is today); which is next, first, last or all (the whole day;
 all with no stop also says where the shuttle goes). Send the stop as listed. A place that is not in
 published_stops is not served. A stop with departs_here is where every trip leaves from (the
-campus stop): send it as stop to say where to catch the shuttle on campus. after is a clock time the student gives ("after my 6pm class":
-6:00 PM; tonight is 5:00 PM) and by one they must be at the stop by (a 6:50 train: 6:50 AM);
-otherwise null. times is true with all when the student asks for the times or which one to take,
-false when they only ask whether it runs. back is true when the student rides from the stop back
-to campus ("the last shuttle back from the train"); code then times each trip by its pickup there. The first and the last of a day are two requests.
+campus stop): send it as stop to say where to catch the shuttle on campus. after is a clock time
+the student gives ("after my 6pm class": 6:00 PM; tonight is 5:00 PM) and by one they must be at
+the stop by (a 6:50 train: 6:50 AM); otherwise null. times is true with all when the student asks
+for the times or which one to take, false when they only ask whether it runs. back is true when
+the student rides from the stop back to campus ("the last shuttle back from the train"); code
+then times each trip by its pickup there. The first and the last of a day are two requests.
 Read the fields the student asked for, and a field they did not name only when it plainly makes
 the answer more useful to them (a time is more useful with its place); leave out fields that
 have nothing to do with the question. When the student wants to contact or reach an office and
@@ -596,7 +597,7 @@ def named_options(asked: list[str], known: dict[str, str]) -> list[str]:
 def model_input(turn: Turn, context: Context, root: dict[str, Any],
                 offices: list[dict[str, Any]] | None = None,
                 venues: list[dict[str, Any]] | None = None,
-                stops: list[dict[str, str]] | None = None) -> list[dict[str, Any]]:
+                stops: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     state = {
         "campus_now": turn.campus_now.isoformat(),
         "client_omitted_messages": context.client_omitted_messages,
@@ -910,10 +911,10 @@ class ChatEngine:
 
     async def _service_lists(
         self,
-    ) -> tuple[list[dict[str, Any]] | None, list[dict[str, str]] | None]:
+    ) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]] | None]:
         """The dining venues and the shuttle stops the model is shown; None where unreadable."""
         venues: list[dict[str, Any]] | None = None
-        stops: list[dict[str, str]] | None = None
+        stops: list[dict[str, Any]] | None = None
         try:
             async with asyncio.timeout(OFFICE_LIST_SECONDS):
                 found = await asyncio.to_thread(
@@ -928,7 +929,7 @@ class ChatEngine:
             stops = None
         return venues, stops
 
-    def _published_stops(self) -> list[dict[str, str]] | None:
+    def _published_stops(self) -> list[dict[str, Any]] | None:
         listing = self.facts.list_routes()
         key = (listing["dataset_version"], listing["identity_hash"])
         cached = getattr(self, "_stops_cache", None)
@@ -947,11 +948,12 @@ class ChatEngine:
         # A described stop no trip calls at is where the trips leave from (the campus stop).
         origins = list(dict.fromkeys(stop["stop"] for stop in described
                                      if stop_key(stop["stop"]) not in map(stop_key, names)))
-        stops = [{"name": name, **({"is": about[stop_key(name)]} if stop_key(name) in about
-                                   else {})} for name in names]
-        stops += [{"name": name, **({"is": about[stop_key(name)]} if stop_key(name) in about
-                                    else {}), "departs_here": True} for name in origins]
-        stops = stops or None
+        listed: list[dict[str, Any]] = [
+            {"name": name, **({"is": about[stop_key(name)]} if stop_key(name) in about else {})}
+            for name in names]
+        listed += [{"name": name, **({"is": about[stop_key(name)]} if stop_key(name) in about
+                                     else {}), "departs_here": True} for name in origins]
+        stops = listed or None
         self._stops_cache = (key, stops)
         return stops
 
@@ -973,6 +975,7 @@ class ChatEngine:
         served = {stop_key(name) for name in published}
         origin = next((stop for stop in described if asked and stop_key(stop["stop"]) not in served
                        and stop_key(stop["stop"]) == stop_key(asked)), None)
+        answer: dict[str, Any]
         if origin is not None:
             # The stop trips leave from: its departures are every trip's, and where to wait there.
             answer = departures(table, day, now_minute, request.which, None, after, by,
@@ -981,7 +984,7 @@ class ChatEngine:
             answer["stop_description"] = {
                 key: origin[key] for key in ("description", "pickup") if origin.get(key)}
         elif asked and stop_key(asked) not in served:
-            answer: dict[str, Any] = {
+            answer = {
                 "date": day.isoformat(), "which": request.which, "stop_unknown": True,
                 "asked": asked[:80], "published_stops": published}
         else:

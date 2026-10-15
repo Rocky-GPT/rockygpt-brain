@@ -706,10 +706,10 @@ def test_the_campus_stop_trips_leave_from_is_offered_and_answers_where_to_catch_
                   name="Ramapo College (Bradley Center)", label="Ramapo College (Bradley Center)",
                   description="The bus stop on campus is located outside the Bradley Center.",
                   pickup=None)
-    entities = [{**e, "links": [*e["links"], {"collection": "shuttle_stops",
-                                               "source_key": campus["source_key"],
-                                               "source_record_keys": [campus["source_record_key"]]}]}
-                if e["kind"] == "route" else e for e in base.entities]
+    link = {"collection": "shuttle_stops", "source_key": campus["source_key"],
+            "source_record_keys": [campus["source_record_key"]]}
+    entities = [{**e, "links": [*e["links"], link]} if e["kind"] == "route" else e
+                for e in base.entities]
     memory = MemoryEntityFacts(dataset_version="release-1", identity_hash="identities-1",
                                entities=entities, contacts=[],
                                records={**base.records, "shuttle_stops": [campus]},

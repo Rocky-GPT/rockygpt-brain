@@ -156,7 +156,8 @@ def _stop_label(routes: list[dict[str, Any]], key: str) -> tuple[str | None, lis
 
 def _pickup(trip: dict[str, Any], key: str) -> int:
     """When a trip last calls at a stop: where it picks up on its way back to campus."""
-    return [stop for stop in trip["stops"] if stop["key"] == key][-1]["at"]
+    calls: list[int] = [stop["at"] for stop in trip["stops"] if stop["key"] == key]
+    return calls[-1]
 
 
 def _shown(trip: dict[str, Any], key: str | None, back: bool = False) -> dict[str, Any]:
@@ -320,7 +321,8 @@ def describe(answer: dict[str, Any]) -> str:
             text += f" {stop} is served on {' and '.join(answer['served_on'])}."
         return text
     which = answer["which"]
-    where = f" Every trip leaves from {answer['departs_from']}." if answer.get("departs_from") else ""
+    origin = answer.get("departs_from")
+    where = f" Every trip leaves from {origin}." if origin else ""
 
     def one(trip: dict[str, Any]) -> str:
         text = f"{trip['leaves_campus']} ({trip['route']})"
