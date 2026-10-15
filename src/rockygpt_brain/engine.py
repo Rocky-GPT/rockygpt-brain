@@ -147,8 +147,9 @@ The server reads an office's contact_note itself when a requested email or phone
 published, so do not add it for that. Preserve contact labels when answering. For a fax number
 read phones with phone_kind fax.
 For appointments and walk-ins read the named office's contact_note and hours: offices say how
-to schedule in contact_note and publish drop-in and visiting times as hours. Deadlines are not
-supported; add unsupported for them.
+to schedule in contact_note and publish drop-in and visiting times as hours. When the results do
+not say how to book or whether walk-ins are taken, add unsupported for that part. Deadlines are
+not supported; add unsupported for them.
 Use conversation to understand follow-ups, but retrieve their evidence through the root again.
 Greetings, reactions and requests to pretend or write something do not require campus facts.
 Do not use search results, your memory, or invented values as evidence. Respect missing data,
