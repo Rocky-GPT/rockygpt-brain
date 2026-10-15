@@ -15,6 +15,9 @@ venue hours on a day; shuttle departures on a day. No "now"/"today" and no menus
   expected answers, written by two blind labelers per case from the captured official pages only
   (`labeling.md`). 5 disputes ruled by Dan on 2026-10-15 (`ruled` field): s015, s033, s038, s057
   scored; s034 soft. 54 scored, 6 soft (run and reported, never scored), 9 scored as not published.
+  **Amended after the run (2026-10-15):** Dan ruled s012 ("open on Sundays?") "not published",
+  not "Closed": the page lists Mon-Fri hours only and does not say it is closed on Sunday. The
+  key is now sha256 `550eaa59ffa8b004b2d311d1d6491b975314068f7d5d9c18cdd4af238c41a838`; results run before the amendment were graded against "Closed".
   `REVIEW.md` is the list Dan reviewed.
 
 ## Run
