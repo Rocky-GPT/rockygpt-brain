@@ -213,6 +213,18 @@ def test_a_named_route_reads_only_its_own_trips() -> None:
     assert "route" not in every and every["trips"][0]["leaves_campus"] == "9:40 PM"
 
 
+def test_a_shuttle_lookup_records_its_walk_from_the_root() -> None:
+    def path(step: Any) -> list[str]:
+        lookup = ask("shuttle", step, finish(), midday=True).trace["lookups"][0]
+        return [node["id"] for node in lookup["path"]]
+
+    # Every route is read when none is named, so the walk ends at Shuttle.
+    assert path(shuttle(None, "wednesday", "first")) == ["ramapo", "shuttle"]
+    assert path(shuttle(None, "wednesday", "first", MIDDAY)) == [
+        "ramapo", "shuttle", "route:route-midday"]
+    assert path(shuttle(None, None, "next", "Night Owl")) == ["ramapo", "shuttle"]
+
+
 def test_a_named_route_that_does_not_run_that_day_says_the_days_it_does() -> None:
     answer = derived(ask("saturday shuttle on tuesday",
                          shuttle(None, "tuesday", "first", "Saturday Roadrunner Express"),
