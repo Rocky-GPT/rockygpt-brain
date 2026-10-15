@@ -67,8 +67,11 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   asked about an allergen lists allergens_published, the allergens its labels name: say an allergen
   the labels do not name is not one of them, and that the labels are as the dining service published
   them. allergen_words maps the student's word to the labels it stands for ("dairy" is labelled
-  Milk): never say a word is missing when its list has a label. rest_of_menu names the meal's other
-  items: when the student also asked what is on the menu, say them too. on_other_dates is when a
+  Milk): never say a word is missing when its list has a label. allergens_unlabelled are allergens
+  no label on that menu names: the labels cannot show which items are free of them, so never say
+  an item is free of one or matches; say the published labels do not cover it. rest_of_menu names
+  the meal's other items: when the student also asked what is on the menu, say them too.
+  on_other_dates is when a
   food the date's menu lacks is served: say it.
 - A derived fact with predicate departures is the posted shuttle timetable worked out for its
   date. Say the departures in trips in order: when each leaves campus (leaves_campus) and its

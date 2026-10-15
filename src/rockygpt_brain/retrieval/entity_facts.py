@@ -1149,7 +1149,16 @@ def menu_property(
     vocabulary = sorted({str(a) for r in picked if isinstance(r.get("allergens"), list)
                          for a in r["allergens"] if isinstance(a, str)})
     day_rows = picked
-    if query:
+    # An allergen no label on this menu names (nuts, when the labels never list nuts) cannot be
+    # filtered out: every item would "pass" for want of a label. It filters nothing and is said.
+    unlabelled = [a for a in (query or {}).get("without_allergens") or []
+                  if not _labels_for(a, vocabulary)]
+    if query and unlabelled:
+        query = {**query, "without_allergens": [a for a in query["without_allergens"]
+                                                if a not in unlabelled]}
+    filtering = query is not None and any(query.get(key) for key in (
+        "diet", "contains", "with_allergens", "without_allergens"))
+    if query is not None and filtering:
         picked = [row for row in picked if _menu_kept(row, query)]
     meals: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for row in sorted(picked, key=lambda r: (_meal_rank(clean(r.get("meal")) or ""),
@@ -1182,7 +1191,10 @@ def menu_property(
     if not_listed is not None:
         value = {"date": on.isoformat(), "meals": [], "meal_not_listed": not_listed,
                  "meals_listed": list(meals)}
-    if query:
+    if unlabelled:
+        value["allergens_unlabelled"] = unlabelled
+        value["allergens_published"] = vocabulary
+    if query and filtering:
         value["filter"] = {key: query[key] for key in
                            ("diet", "contains", "with_allergens", "without_allergens")
                            if query.get(key)}
