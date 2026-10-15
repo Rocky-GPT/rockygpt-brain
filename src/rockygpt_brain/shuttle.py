@@ -315,9 +315,15 @@ def describe(answer: dict[str, Any]) -> str:
     if answer.get("stop_unknown"):
         return (f"The posted timetable has no stop called “{answer.get('asked')}”. "
                 f"The stops it lists are {', '.join(answer.get('published_stops', []))}.")
+    if answer.get("route_unknown"):
+        return (f"The posted timetable has no route called “{answer.get('asked_route')}”. "
+                f"The routes it lists are {', '.join(answer.get('published_routes', []))}.")
+    route = answer.get("route")
     if answer.get("service") == "none":
-        text = f"The posted timetable lists no shuttle{to} on {when}."
-        if stop and answer.get("served_on"):
+        text = f"The posted timetable lists no {route or 'shuttle'}{to} on {when}."
+        if route and answer.get("route_runs_on"):
+            text += f" The {route} runs on {' and '.join(answer['route_runs_on'])} service days."
+        elif stop and answer.get("served_on"):
             text += f" {stop} is served on {' and '.join(answer['served_on'])}."
         return text
     which = answer["which"]
