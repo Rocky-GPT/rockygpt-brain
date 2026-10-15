@@ -544,6 +544,15 @@ def test_allergens_are_matched_only_as_the_labels_publish_them() -> None:
     nuts = _menu_value(with_allergens=["tree nuts"])
     assert nuts["meals"] == [] and nuts["matched"] == 0
     assert "Tree Nuts" not in nuts["allergens_published"]
+    # "Nut free" when no label names nuts: every item would pass for want of a label, so nothing
+    # is filtered or said to match; the allergen is said to be one the labels do not cover.
+    nut_free = _menu_value(without_allergens=["tree nuts"])
+    assert nut_free["allergens_unlabelled"] == ["tree nuts"]
+    assert "matched" not in nut_free and "filter" not in nut_free
+    # Beside an allergen the labels do name, only that one filters.
+    mixed = _menu_value(without_allergens=["dairy", "tree nuts"])
+    assert _names(mixed) == _names(free) and mixed["filter"] == {"without_allergens": ["dairy"]}
+    assert mixed["allergens_unlabelled"] == ["tree nuts"]
 
 
 def test_a_part_no_tool_answers_beside_a_shuttle_answer_has_no_office_to_point_at() -> None:
