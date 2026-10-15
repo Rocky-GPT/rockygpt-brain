@@ -1019,19 +1019,31 @@ class ChatEngine:
         self._stops_cache = (key, stops)
         return stops, routes
 
-    def _shuttle(self, request: ShuttleRequest, as_of: datetime, version: str | None,
-                 identity_hash: str | None) -> OfficeResult:
-        """The departure the student asked for, worked out from the posted timetables by code."""
-        listing = self.facts.list_routes(dataset_version=version, identity_hash=identity_hash)
+    def _shuttle(self, request: ShuttleRequest, as_of: datetime,
+                 graph: CampusGraph) -> OfficeResult:
+        """The departure the student asked for, worked out from the posted timetables by code.
+
+        The routes are reached from the root like an office: Ramapo, then Shuttle, then the one
+        route the student named. With no route named every route is read, so the path ends at
+        Shuttle."""
+        with measure("Open root · Ramapo"):
+            graph.open("ramapo", [], as_of)
+        with measure("Open Shuttle · read published routes"):
+            listing = graph.open("shuttle", [], as_of)
         pins = (listing["dataset_version"], listing["identity_hash"])
-        envelopes = [self.facts.get_route_facts(route["entity_id"], pins[0],
-                                                identity_hash=pins[1], as_of=as_of)
-                     for route in listing["routes"]]
+        read = [(node, self.facts.get_route_facts(node["entity_id"], pins[0],
+                                                  identity_hash=pins[1], as_of=as_of))
+                for node in listing["children"]]
+        envelopes = [envelope for _, envelope in read]
         table = table_of(envelopes)
         named = [route for route in table
                  if request.route and _normal(route["route"]) == _normal(request.route)]
         if named:
             table = named  # The route the student named: only its trips are read.
+            opened = [node for node, envelope in read
+                      if any(route in named for route in table_of([envelope]))]
+            if len(opened) == 1:
+                graph.open(opened[0]["id"], [], as_of)
         day = target_date(request.day or "today", as_of.date())
         now_minute = as_of.hour * 60 + as_of.minute if day == as_of.date() else None
         published = stops_served(table)
@@ -1174,17 +1186,19 @@ class ChatEngine:
                     output: list[dict[str, Any]] = []
                     for item in requests:
                         if isinstance(item, ShuttleRequest):
+                            route_walk = CampusGraph(self.facts, dataset_version=version,
+                                                     identity_hash=identity_hash)
                             shuttle_entry: dict[str, Any] = {
                                 "tool": "shuttle_lookup", "traversedBy": "code",
                                 "status": "failed", "result_count": 0,
                                 "arguments": item.model_dump(),
+                                "path": route_walk.path("ramapo"),
                                 "as_of": turn.campus_now.isoformat()}
                             trace["lookups"].append(shuttle_entry)
                             try:
                                 with measure(f"Lookup {len(trace['lookups'])}"):
                                     shuttle_result = await asyncio.to_thread(
-                                        self._shuttle, item, turn.campus_now, version,
-                                        identity_hash)
+                                        self._shuttle, item, turn.campus_now, route_walk)
                             except DatasetChanged:
                                 shuttle_entry["status"] = "dataset_changed"
                                 raise GatewayError("dataset_changed") from None
@@ -1194,6 +1208,8 @@ class ChatEngine:
                             except (UnknownEntity, InvalidFactRequest):
                                 shuttle_entry["status"] = "rejected"
                                 raise GatewayError("provider_invalid_response") from None
+                            finally:
+                                shuttle_entry["path"] = route_walk.path(route_walk.current_node)
                             version = shuttle_result.detail["dataset_version"]
                             identity_hash = shuttle_result.detail["identity_hash"]
                             results[f"r{len(results) + 1}"] = shuttle_result
