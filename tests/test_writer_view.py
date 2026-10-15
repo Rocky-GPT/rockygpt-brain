@@ -305,6 +305,24 @@ def test_a_field_the_packet_gains_never_overwrites_a_key_the_view_sets() -> None
     assert view["facts"][0]["sources"] == [1] and view["sources"][0]["n"] == 1
 
 
+def test_records_from_one_page_on_one_date_are_one_source_to_a_writer() -> None:
+    packet = contact_packet()
+    first = packet["sources"][0]
+    # Another record from the same page, captured seconds later (each shuttle route's timetable).
+    packet["sources"].append({**first, "id": "r2", "captured_at": "2026-10-06T12:00:05+00:00"})
+    packet["facts"][0]["source_ids"] = ["r1", "r2"]
+    packet["facts"][1]["source_ids"] = ["r2"]
+    view = writer_view(packet)
+    assert [f["sources"] for f in view["facts"]] == [[1], [1]]
+    assert len(view["sources"]) == 1 and view["sources"][0]["n"] == 1
+    assert view["sources"][0]["captured_at"].startswith("2026-10-06T08:00:00")  # The earliest.
+    # The same page saying something else (stale here) keeps a number of its own.
+    packet["sources"][1] = {**packet["sources"][1], "freshness": "stale"}
+    view = writer_view(packet)
+    assert [f["sources"] for f in view["facts"]] == [[1, 2], [2]]
+    assert [s.get("freshness") for s in view["sources"]] == [None, "stale"]
+
+
 def test_a_day_that_was_asked_hands_the_writer_that_day_and_not_the_week() -> None:
     packet = every_shape()["a day asked"]
     assert len(next(f for f in packet["facts"] if f["predicate"] == "hours")["value"]["days"]) == 7

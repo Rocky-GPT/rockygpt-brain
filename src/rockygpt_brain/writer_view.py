@@ -24,7 +24,8 @@ packet. It adds, computes and infers nothing, and it never drops a value a stude
                reason that is the only one there is, and a list of rows with no rows (`facts`,
                `missing`, `not_published`, `ambiguities`, `unresolved`, `notices`, `sources`)
   renamed      a subject is its name; a source is its number `n` (numbered once the uncited ones
-               are left out), and `sources` on a fact or an absence lists those numbers;
+               are left out; records read from one page on one date that say nothing else
+               differently share one), and `sources` on a fact or an absence lists those numbers;
                `candidates` are `choices` (names only)
   proofs       inside a schedule, the proof that a weekday or a validity date is not published
                (`absence`, `validity_absence`) is cut to when it was checked and which pages were
@@ -45,6 +46,7 @@ level, the request, a subject) is not carried; the test that compares every pack
 view fails until it is handled.
 """
 
+import json
 from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -155,7 +157,7 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
              for entry in packet[kind]
              for sid in entry.get("source_ids", [])}
     kept = [source for source in packet["sources"] if source["id"] in cited]
-    number = {source["id"]: n for n, source in enumerate(kept, start=1)}
+    number, sources = _numbered(kept)
     request = packet["request"]
     view: dict[str, Any] = {
         "asked": {"intent": request["intent"],
@@ -188,7 +190,7 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
             row["applies"] = False  # Then it is not current either: the date is outside it.
         elif not entry["current"]:
             row["current"] = False
-        row["sources"] = [number[sid] for sid in entry["source_ids"]]
+        row["sources"] = _cited(number, entry["source_ids"])
         merged = {**_rest(entry, _DERIVED), **row}
         if nothing_listed:
             merged.pop("applicability", None)
@@ -214,7 +216,7 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
             row["current"] = False
         if "purpose" in fact:
             row["purpose"] = fact["purpose"]
-        row["sources"] = [number[sid] for sid in fact["source_ids"]]
+        row["sources"] = _cited(number, fact["source_ids"])
         facts.append({**_rest(fact, _FACT), **row})
     if facts:
         view["facts"] = facts
@@ -235,7 +237,7 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
         if entry["reason"] != "unknown":
             row["reason"] = entry["reason"]
         if entry.get("source_ids"):
-            row["sources"] = [number[sid] for sid in entry["source_ids"]]
+            row["sources"] = _cited(number, entry["source_ids"])
         missing.append({**_rest(entry, _MISSING), **row})
     if missing:
         view["missing"] = missing
@@ -249,7 +251,7 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
             row["current"] = False
         if "purpose" in entry:
             row["purpose"] = entry["purpose"]
-        row["sources"] = [number[sid] for sid in entry["source_ids"]]
+        row["sources"] = _cited(number, entry["source_ids"])
         absent.append({**_rest(entry, _ABSENCE), **row})
     if absent:
         view["not_published"] = absent
@@ -286,25 +288,56 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
             view = {"asked": view["asked"], "status": view["status"], "notices": notices,
                     **{k: v for k, v in view.items() if k not in {"asked", "status", "notices"}}}
 
-    sources = []
-    for source in kept:
-        row = {"n": number[source["id"]], "title": source["title"]}
-        if source["urls"]:
-            row["urls"] = list(source["urls"])
-        if source["captured_at"]:
-            row["captured_at"] = _campus_instant(source["captured_at"])
-        if source["freshness"] != "fresh":
-            row["freshness"] = source["freshness"]
-        if source["validity"] != "unspecified":
-            row["validity"] = source["validity"]
-        for key in ("valid_from", "valid_until"):
-            if source.get(key):
-                row[key] = source[key]
-        limits = [text for text in source["limitations"]
-                  if not (text == NO_VALIDITY_NOTE and source["validity"] == "unspecified")]
-        if limits:
-            row["limitations"] = limits
-        sources.append({**_rest(source, _SOURCE), **row})
     if sources:
         view["sources"] = sources
     return view
+
+
+def _source_row(source: dict[str, Any]) -> dict[str, Any]:
+    row: dict[str, Any] = {"title": source["title"]}
+    if source["urls"]:
+        row["urls"] = list(source["urls"])
+    if source["captured_at"]:
+        row["captured_at"] = _campus_instant(source["captured_at"])
+    if source["freshness"] != "fresh":
+        row["freshness"] = source["freshness"]
+    if source["validity"] != "unspecified":
+        row["validity"] = source["validity"]
+    for key in ("valid_from", "valid_until"):
+        if source.get(key):
+            row[key] = source[key]
+    limits = [text for text in source["limitations"]
+              if not (text == NO_VALIDITY_NOTE and source["validity"] == "unspecified")]
+    if limits:
+        row["limitations"] = limits
+    return {**_rest(source, _SOURCE), **row}
+
+
+def _numbered(
+    kept: list[dict[str, Any]],
+) -> tuple[dict[str, int], list[dict[str, Any]]]:
+    """Each cited source's number, and the sources a writer is shown under those numbers.
+
+    Records read from one page on one campus date (a venue's hours and its menu, each shuttle
+    route's timetable) are one source to a writer, so one link is not cited once per record. A
+    record whose page says anything else differently (its freshness, dates or limitations) keeps
+    a number of its own; the earliest capture time of a shared one is the one said."""
+    number: dict[str, int] = {}
+    rows: dict[str, dict[str, Any]] = {}
+    for source in kept:
+        row = _source_row(source)
+        captured = row.get("captured_at")
+        day = captured[:10] if isinstance(captured, str) else captured
+        key = json.dumps({**{k: v for k, v in row.items() if k != "captured_at"}, "day": day},
+                         sort_keys=True, default=str)
+        if key not in rows:
+            # The view's own number, never a field of that name the packet gained.
+            rows[key] = {"n": len(rows) + 1, **{k: v for k, v in row.items() if k != "n"}}
+        elif isinstance(captured, str) and captured < rows[key].get("captured_at", captured):
+            rows[key]["captured_at"] = captured
+        number[source["id"]] = rows[key]["n"]
+    return number, list(rows.values())
+
+
+def _cited(number: dict[str, int], source_ids: list[str]) -> list[int]:
+    return list(dict.fromkeys(number[sid] for sid in source_ids))
