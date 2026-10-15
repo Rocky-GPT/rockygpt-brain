@@ -17,6 +17,8 @@ Rules, all in code:
     it is left going back. `reached_at` is the first, `leaves_stop_at` the last. A ride back to
     campus from a stop is timed by that last call: "the next shuttle back from the train" is the
     next pickup there, even on a trip that left campus before now.
+  - A ride back counts only trips the timetable times back on campus: one that only goes out
+    (its return is N/A) is never offered as the way back.
   - Only what the timetable lists is said. The timetable is scheduled service: it says nothing
     about weather, closures or where a shuttle is right now.
 """
@@ -203,7 +205,9 @@ def departures(
         return _pickup(trip, key) if back and key is not None else trip["leaves"]
     if back:
         result["back_to_campus"] = True
-        calling = sorted(calling, key=lambda trip: (when(trip), trip["route"]))
+        # A trip with no time back on campus (the timetable says N/A) is no ride back.
+        calling = sorted((trip for trip in calling if trip["back"] is not None),
+                         key=lambda trip: (when(trip), trip["route"]))
     if not calling:
         result["service"] = "none"
         if key:
@@ -267,7 +271,8 @@ def _next_service(routes: list[dict[str, Any]], day: date, key: str | None,
     for ahead in range(1, 8):
         later = day + timedelta(days=ahead)
         coming = [t for t in trips_of(routes, service_day(later))
-                  if key is None or any(s["key"] == key for s in t["stops"])]
+                  if (key is None or any(s["key"] == key for s in t["stops"]))
+                  and not (back and t["back"] is None)]
         if coming:
             if back and key is not None:
                 coming = sorted(coming, key=lambda t: _pickup(t, key))
