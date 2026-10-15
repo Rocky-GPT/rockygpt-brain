@@ -1405,3 +1405,5 @@ def test_an_allergy_part_beside_a_menu_is_not_called_unanswerable() -> None:
     message = "does the pasta have any nuts or dairy, i have allergies"
     assert _asked_words("any nuts or dairy", message, {"Birch Tree Inn"}, menu_read=True) is None
     assert _asked_words("any nuts or dairy", message, {"Registrar"}) == "any nuts or dairy"
+    whole = "does the pasta at the dining hall today have any nuts or dairy"
+    assert _asked_words(whole, message, {"Dining Hall", "pasta"}, menu_read=True) is None
