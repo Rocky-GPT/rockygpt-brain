@@ -108,6 +108,17 @@ def trips_of(routes: list[dict[str, Any]], service: str) -> list[dict[str, Any]]
     return sorted(found, key=lambda trip: (trip["leaves"], trip["route"]))
 
 
+def first_sentence(text: Any, limit: int = 160) -> str | None:
+    """A stop description's first sentence, without its links, cut at a word to `limit`."""
+    if not isinstance(text, str):
+        return None
+    plain = " ".join(re.sub(r"\s*\(https?://[^)]*\)", "", text).split())
+    sentence = re.split(r"(?<=[.!?])\s", plain, maxsplit=1)[0]
+    if len(sentence) > limit:
+        sentence = sentence[:limit].rsplit(" ", 1)[0] + "…"
+    return sentence or None
+
+
 def stops_served(routes: list[dict[str, Any]]) -> list[str]:
     """The stop names the published timetables list, once each, in first-seen order."""
     seen: dict[str, str] = {}

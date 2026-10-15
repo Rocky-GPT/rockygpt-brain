@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from rockygpt_brain.boundary import SAFETY_MESSAGE
+from rockygpt_brain.boundary import SAFETY_MESSAGE, safety_text
 from rockygpt_brain.context import build_context
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import MODEL_INPUT_KEYS, ChatEngine, ChatResult
@@ -356,8 +356,25 @@ def test_safety_does_not_hide_a_data_outage() -> None:
     assert result.body["error"]["emergency"]["text"] == SAFETY_MESSAGE
 
 
-def test_safety_parts_are_validated_like_every_other_part() -> None:
+def test_a_safety_part_paired_with_its_message_still_gets_the_safety_text() -> None:
+    # "i took way too many pills and feel really sick" once came back with message_index 0 on
+    # its safety part and the student got a 502 instead of the emergency numbers (2026-10-15).
     result = answer(ScriptedGateway(finish("safety", message_index=0)))
+    assert result.status_code == 200
+    assert result.body["answer"].startswith(SAFETY_MESSAGE)
+
+
+def test_a_malformed_part_beside_a_safety_part_never_loses_the_safety_text() -> None:
+    both = completion("finish", {"parts": [
+        {"kind": "safety", "message_index": None, "situation": "medical"},
+        {"kind": "recall", "message_index": 7, "situation": None}]})
+    result = answer(ScriptedGateway(both))
+    assert result.status_code == 200
+    assert result.body["answer"].startswith(safety_text("medical"))
+
+
+def test_a_malformed_part_without_a_safety_part_is_still_refused() -> None:
+    result = answer(ScriptedGateway(finish("account_limit", message_index=0)))
     assert result.status_code == 502 and result.body["error"]["code"] == "provider_invalid_response"
 
 
