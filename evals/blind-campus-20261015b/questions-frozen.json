@@ -1,0 +1,502 @@
+[
+ {
+  "id": "v1-01",
+  "question": "where is the international student office and what is their email? i need to ask about my I-20",
+  "topic": "office"
+ },
+ {
+  "id": "v1-02",
+  "question": "Hello, I am F-1 student and want to know who sign my travel signature before winter break. Can I just walk in or need appointment?",
+  "topic": "office"
+ },
+ {
+  "id": "v1-03",
+  "question": "how do i request an official transcript from ramapo",
+  "topic": "topic"
+ },
+ {
+  "id": "v1-04",
+  "question": "registrar phone number + what time do they close today",
+  "topic": "office"
+ },
+ {
+  "id": "v1-05",
+  "question": "Which office handles graduate assistantships? I'm in the MBA program and want to apply for one next semester.",
+  "topic": "topic"
+ },
+ {
+  "id": "v1-06",
+  "question": "library hours tonight? i have a paper due and need a quiet place to work late",
+  "topic": "office"
+ },
+ {
+  "id": "v1-07",
+  "question": "Is the library open on sunday and how late",
+  "topic": "office"
+ },
+ {
+  "id": "v1-08",
+  "question": "I don't have a car. Is there a shuttle that goes to a grocery store like ShopRite or Walmart? when does it leave on saturday",
+  "topic": "shuttle"
+ },
+ {
+  "id": "v1-09",
+  "question": "when is the last shuttle back to campus tonight",
+  "topic": "shuttle"
+ },
+ {
+  "id": "v1-10",
+  "question": "my class ends at 9:45pm, is anything still open to eat after that?",
+  "topic": "dining"
+ },
+ {
+  "id": "v1-11",
+  "question": "who do I contact about doing undergraduate research with a professor? is there an office for research",
+  "topic": "topic"
+ },
+ {
+  "id": "v1-12",
+  "question": "graduate admissions office email and location pls",
+  "topic": "office"
+ },
+ {
+  "id": "v1-13",
+  "question": "Is there halal food at the dining hall today? what are the vegetarian options for dinner",
+  "topic": "menu"
+ },
+ {
+  "id": "v1-14",
+  "question": "what is on the lunch menu tomorrow at the dining hall",
+  "topic": "menu"
+ },
+ {
+  "id": "v1-15",
+  "question": "Can international students work on campus? Which office do I ask about getting a job here and a SSN letter",
+  "topic": "office"
+ },
+ {
+  "id": "v1-16",
+  "question": "where is the writing center and do they have evening hours? english is my second language and i need help with my thesis",
+  "topic": "office"
+ },
+ {
+  "id": "v1-17",
+  "question": "IT helpdesk phone? cant log into my email since yesterday",
+  "topic": "office"
+ },
+ {
+  "id": "v1-18",
+  "question": "What time does the first shuttle leave in the morning on weekdays and where does it stop",
+  "topic": "shuttle"
+ },
+ {
+  "id": "v1-19",
+  "question": "who handles health insurance waiver for international students, is it health center or bursar?",
+  "topic": "office"
+ },
+ {
+  "id": "v1-20",
+  "question": "Bursar office hours and phone. I need to pay with an international wire transfer",
+  "topic": "office"
+ },
+ {
+  "id": "v1-21",
+  "question": "does the cafe in the library have anything vegan? how many calories in their wraps",
+  "topic": "menu"
+ },
+ {
+  "id": "v1-22",
+  "question": "has my OPT application been approved yet",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v1-23",
+  "question": "how much does the grad tuition cost per credit for international students",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v1-24",
+  "question": "what should i do if my visa expires while im still in my program, should i leave the country?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v1-25",
+  "question": "Where is the counseling center and are they open right now? feeling homesick and stressed",
+  "topic": "office"
+ },
+ {
+  "id": "v2-01",
+  "question": "whats the phone number for the residence life office",
+  "topic": "office"
+ },
+ {
+  "id": "v2-02",
+  "question": "my shower drain is clogged and theres water all over the bathroom floor, who do i call for maintenance in the dorms?",
+  "topic": "office"
+ },
+ {
+  "id": "v2-03",
+  "question": "is anywhere on campus open for food after 11pm tonight",
+  "topic": "dining"
+ },
+ {
+  "id": "v2-04",
+  "question": "when does the shuttle to the shopping center leave on saturday",
+  "topic": "shuttle"
+ },
+ {
+  "id": "v2-05",
+  "question": "where is the counseling center and do i need an appointment or can i just walk in",
+  "topic": "office"
+ },
+ {
+  "id": "v2-06",
+  "question": "lost my ID card, where do i go to get a new one and what are their hours?",
+  "topic": "office"
+ },
+ {
+  "id": "v2-07",
+  "question": "Where do I pick up packages? I got an email saying I have a package waiting",
+  "topic": "office"
+ },
+ {
+  "id": "v2-08",
+  "question": "how do i start a new club on campus",
+  "topic": "office"
+ },
+ {
+  "id": "v2-09",
+  "question": "health services hours tomorrow",
+  "topic": "office"
+ },
+ {
+  "id": "v2-10",
+  "question": "whats for dinner at the caf tonight? anything vegan",
+  "topic": "menu"
+ },
+ {
+  "id": "v2-11",
+  "question": "Im an RA and one of my residents is having a mental health crisis at 2am, who do I contact right now?",
+  "topic": "office"
+ },
+ {
+  "id": "v2-12",
+  "question": "what time is the last shuttle back to campus from the train station on sunday",
+  "topic": "shuttle"
+ },
+ {
+  "id": "v2-13",
+  "question": "email for public safety? someone keeps setting off the fire alarm in my building",
+  "topic": "office"
+ },
+ {
+  "id": "v2-14",
+  "question": "is the dining hall open on weekends and what time does brunch end",
+  "topic": "dining"
+ },
+ {
+  "id": "v2-15",
+  "question": "does the pasta at the dining hall today have any nuts or dairy, i have allergies",
+  "topic": "menu"
+ },
+ {
+  "id": "v2-16",
+  "question": "wheres the student involvment office located",
+  "topic": "office"
+ },
+ {
+  "id": "v2-17",
+  "question": "how much is the fine if i get written up for having a candle in my room",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v2-18",
+  "question": "who handles housing room changes, i really need to switch roommates",
+  "topic": "topic"
+ },
+ {
+  "id": "v2-19",
+  "question": "where's the shuttle right now? been waiting at the stop for 20 min",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v2-20",
+  "question": "next shuttle to walmart",
+  "topic": "shuttle"
+ },
+ {
+  "id": "v2-21",
+  "question": "what's the mailing address for my dorm so my parents can send me stuff",
+  "topic": "office"
+ },
+ {
+  "id": "v2-22",
+  "question": "is the health center open saturday, and can I get a flu shot there",
+  "topic": "office"
+ },
+ {
+  "id": "v2-23",
+  "question": "hi, how many calories are in the chicken tenders at the dining hall",
+  "topic": "menu"
+ },
+ {
+  "id": "v2-24",
+  "question": "what club events are happening this weekend",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v2-25",
+  "question": "who do i contact about getting a summer housing spot and whats their email",
+  "topic": "topic"
+ },
+ {
+  "id": "v3-01",
+  "question": "I just started as an adjunct in the business school, who do I contact to get my ID card made and where is that office?",
+  "topic": "office"
+ },
+ {
+  "id": "v3-02",
+  "question": "human resources phone number",
+  "topic": "office"
+ },
+ {
+  "id": "v3-03",
+  "question": "new hire here - my laptop wont connect to the campus wifi, is the IT help desk open right now and what's their email?",
+  "topic": "office"
+ },
+ {
+  "id": "v3-04",
+  "question": "Where do I go to get a parking permit as new staff? Is it Public Safety and what are their hours",
+  "topic": "office"
+ },
+ {
+  "id": "v3-05",
+  "question": "im coming back for homecoming as an alum, how do i reach the alumni office?",
+  "topic": "office"
+ },
+ {
+  "id": "v3-06",
+  "question": "I have tickets to a show at the Berrie Center tomorrow night. Whats the box office phone number and when does it open?",
+  "topic": "office"
+ },
+ {
+  "id": "v3-07",
+  "question": "I'm a reporter working on a story about the college. Who handles media inquiries and how do I get in touch with them?",
+  "topic": "office"
+ },
+ {
+  "id": "v3-08",
+  "question": "We're a vendor trying to submit an invoice to Ramapo. Which office deals with purchasing, and do you have an email for them?",
+  "topic": "office"
+ },
+ {
+  "id": "v3-09",
+  "question": "payroll office location + phone pls",
+  "topic": "office"
+ },
+ {
+  "id": "v3-10",
+  "question": "Is the library open on Sunday? I teach a Monday morning class and want to get some prep done there",
+  "topic": "office"
+ },
+ {
+  "id": "v3-11",
+  "question": "I'm here for a conference this weekend, is anywhere on campus serving lunch on Saturday?",
+  "topic": "dining"
+ },
+ {
+  "id": "v3-12",
+  "question": "what time does the dining hall close tonight",
+  "topic": "dining"
+ },
+ {
+  "id": "v3-13",
+  "question": "Is there a coffee place open before 8am? My first class is at 8:30 and I'm commuting in",
+  "topic": "dining"
+ },
+ {
+  "id": "v3-14",
+  "question": "whats for lunch at the dining hall today, any vegan options?",
+  "topic": "menu"
+ },
+ {
+  "id": "v3-15",
+  "question": "I have a peanut allergy - does tonights dinner menu list allergens for the entrees?",
+  "topic": "menu"
+ },
+ {
+  "id": "v3-16",
+  "question": "Visiting campus tomorrow and taking the train in. Does the shuttle go to the Mahwah station, and when's the first one in the morning?",
+  "topic": "shuttle"
+ },
+ {
+  "id": "v3-17",
+  "question": "when is the last shuttle back to the train tonight",
+  "topic": "shuttle"
+ },
+ {
+  "id": "v3-18",
+  "question": "where does the campus shuttle stop? i'm parked near the arena and dont know my way around yet",
+  "topic": "shuttle"
+ },
+ {
+  "id": "v3-19",
+  "question": "Who do I talk to about teaching a summer session course?",
+  "topic": "topic"
+ },
+ {
+  "id": "v3-20",
+  "question": "I'm new faculty and want help setting up my course in the learning management system. Is there an office for teaching support, and do they take walk-ins or do I need an appointment?",
+  "topic": "topic"
+ },
+ {
+  "id": "v3-21",
+  "question": "our department wants to apply for an outside grant, which office handles that and what's their phone #",
+  "topic": "topic"
+ },
+ {
+  "id": "v3-22",
+  "question": "Where is facilities and how do I report that the heat isn't working in my office?",
+  "topic": "office"
+ },
+ {
+  "id": "v3-23",
+  "question": "how much will my first paycheck be after taxes? started oct 1",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v3-24",
+  "question": "what events are happening on campus this weekend that alumni can come to?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v3-25",
+  "question": "Is the shuttle running late right now? I've been waiting at the stop for 20 min",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v4-01",
+  "question": "is the bursar open after 5 on weekdays? i work til 4:30 and cant get there earlier",
+  "topic": "office"
+ },
+ {
+  "id": "v4-02",
+  "question": "registrar phone number and do they take walk ins or do i need an appt",
+  "topic": "office"
+ },
+ {
+  "id": "v4-03",
+  "question": "What time does the cafeteria close tonight? I get out of work at 6 and class starts at 7:30",
+  "topic": "dining"
+ },
+ {
+  "id": "v4-04",
+  "question": "when is the last shuttle from the mahwah train station tonight",
+  "topic": "shuttle"
+ },
+ {
+  "id": "v4-05",
+  "question": "Who do I talk to about going back to school as an adult? I have some credits from 15 years ago",
+  "topic": "topic"
+ },
+ {
+  "id": "v4-06",
+  "question": "financial aid office email + hours pls",
+  "topic": "office"
+ },
+ {
+  "id": "v4-07",
+  "question": "how much do i still owe for fall semester",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v4-08",
+  "question": "Is there anywhere on campus to grab food after 9pm? Night class just let out",
+  "topic": "dining"
+ },
+ {
+  "id": "v4-09",
+  "question": "where is the testing center located and are they open saturdays",
+  "topic": "office"
+ },
+ {
+  "id": "v4-10",
+  "question": "anything vegetarian at the dining hall for dinner tomorrow",
+  "topic": "menu"
+ },
+ {
+  "id": "v4-11",
+  "question": "first shuttle in the morning from campus to the train? need to make the 7am",
+  "topic": "shuttle"
+ },
+ {
+  "id": "v4-12",
+  "question": "Does the advising center have evening hours or virtual appointments? I can't take off work during the day",
+  "topic": "office"
+ },
+ {
+  "id": "v4-13",
+  "question": "who handles summer classes",
+  "topic": "topic"
+ },
+ {
+  "id": "v4-14",
+  "question": "how do i pay my bill, who do i call if the online payment isnt working",
+  "topic": "office"
+ },
+ {
+  "id": "v4-15",
+  "question": "where does the shuttle stop on campus and how often does it run",
+  "topic": "shuttle"
+ },
+ {
+  "id": "v4-16",
+  "question": "library hrs tonight + is the computer lab inside open as late",
+  "topic": "office"
+ },
+ {
+  "id": "v4-17",
+  "question": "can you tell me my advisor's name",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v4-18",
+  "question": "Does the chicken wrap at the cafe have nuts in it? severe allergy",
+  "topic": "menu"
+ },
+ {
+  "id": "v4-19",
+  "question": "veterans office phone",
+  "topic": "office"
+ },
+ {
+  "id": "v4-20",
+  "question": "is the shuttle running right now? where is it",
+  "topic": "shuttle"
+ },
+ {
+  "id": "v4-21",
+  "question": "Who do I contact about scholarships for part time students and where is that office",
+  "topic": "topic"
+ },
+ {
+  "id": "v4-22",
+  "question": "is there coffee open right now somewhere near the academic buildings",
+  "topic": "dining"
+ },
+ {
+  "id": "v4-23",
+  "question": "how many calories in todays lunch special at the student center",
+  "topic": "menu"
+ },
+ {
+  "id": "v4-24",
+  "question": "IT help desk number, cant log into my email and i have an assignment due at midnight",
+  "topic": "office"
+ },
+ {
+  "id": "v4-25",
+  "question": "should i take stats or accounting first if im switching careers into business",
+  "topic": "out_of_scope"
+ }
+]
