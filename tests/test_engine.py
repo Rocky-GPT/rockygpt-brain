@@ -987,6 +987,10 @@ def test_an_unsupported_part_beside_facts_needs_the_students_own_words() -> None
         assert dropped.body["status"] == "answered"
         assert dropped.trace is not None and dropped.trace["unsupported_dropped"] == [
             changes.get("student_words")]
+    # A fax is a phone line the lookup reads (phone_kind fax), so it is answered, never unsupported.
+    fax = run("registrar fax number", student_words="fax number")
+    assert "I don't have verified information" not in fax.body["answer"]
+    assert fax.trace is not None and fax.trace["unsupported_dropped"] == ["fax number"]
     # Words in the message the lookup did not answer keep the part, whatever the casing.
     kept = run("Registrar email, and what is the REFUND policy?", student_words="Refund Policy")
     assert "I don't have verified information about that part" in kept.body["answer"]

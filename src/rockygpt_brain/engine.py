@@ -534,7 +534,7 @@ _ANSWERABLE_WORDS = frozenset(
     "a an the of for to and or in on at about with from by is are was do does did can could will "
     "would how what whats which who whom where when why i me my we you your their its it this that "
     "these those there here please tell give need want get find know contact contacts info "
-    "information details detail email emails phone phones number numbers call text reach room "
+    "information details detail email emails phone phones number numbers fax call text reach room "
     "rooms office offices location located building website site link page hours hour open opens "
     "close closes closed time times schedule name department".split())
 
