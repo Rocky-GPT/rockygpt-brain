@@ -101,15 +101,20 @@ class CampusGraph:
             "offices": {"id": "offices", "label": "Offices", "kind": "category"},
             "dining": {"id": "dining", "label": "Dining", "kind": "category"},
             "shuttle": {"id": "shuttle", "label": "Shuttle", "kind": "category"},
+            "topics": {"id": "topics", "label": "Topics", "kind": "category"},
         }
         self.paths = {"ramapo": ["ramapo"], "offices": ["ramapo", "offices"],
-                      "dining": ["ramapo", "dining"], "shuttle": ["ramapo", "shuttle"]}
+                      "dining": ["ramapo", "dining"], "shuttle": ["ramapo", "shuttle"],
+                      "topics": ["ramapo", "topics"]}
         self.current_node = "ramapo"
 
     def root(self) -> dict[str, Any]:
         return {**self.nodes["ramapo"],
-                "children": [self.nodes[key] for key in ("offices", "dining", "shuttle")],
-                "scope": "Offices, dining venues and shuttle routes are available. Category links "
+                "children": [self.nodes[key]
+                             for key in ("offices", "dining", "shuttle", "topics")],
+                "scope": "Offices, dining venues, shuttle routes and topics (sites with no office "
+                         "of their own, pointing to the offices that handle them) are available. "
+                         "Category links "
                          "are navigation, not evidence. Other campus domains are not exposed by "
                          "this reader."}
 
@@ -137,6 +142,14 @@ class CampusGraph:
         outcome, chosen = lookup_choice(candidates, truncated)
         result = {"candidates": candidates, "truncated": truncated,
                   "dataset_version": self.version, "identity_hash": self.identity_hash}
+        if not exact_name_only and not any(c["match"] == "exact" for c in candidates):
+            # A site with no office behind it (Scholarships, Summer Session) is a topic: its own
+            # page names the offices that handle it. Only its exact name or alias is a topic.
+            with measure("Match topic name"):
+                topic = self._topic(query, as_of)
+            if topic is not None:
+                return self._topic_result(topic, result, fields, as_of, on=on, meal=meal,
+                                          menu_query=menu_query)
         if outcome == "asks" and conversation and not truncated and not exact_name_only:
             named = named_by_conversation(candidates, conversation)
             if named is not None:
@@ -150,6 +163,33 @@ class CampusGraph:
         if not exact_name_only and (note := self._note_for_unpublished(opened, fields, as_of)):
             opened["also"] = note
         return opened
+
+    def _topic(self, query: str, as_of: datetime) -> dict[str, Any] | None:
+        found = self.facts.search_offices(query, dataset_version=self.version,
+                                          identity_hash=self.identity_hash, kinds=("topic",))
+        exact = [c for c in found["candidates"] if c["match"] == "exact"]
+        if len(exact) != 1:
+            return None
+        return self.facts.get_topic(exact[0]["entity_id"], self.version,  # type: ignore[arg-type]
+                                    identity_hash=self.identity_hash, as_of=as_of)
+
+    def _topic_result(
+        self, topic: dict[str, Any], result: dict[str, Any], fields: list[str], as_of: datetime,
+        *, on: date | None, meal: str | None, menu_query: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """One named office is read like a lookup of it; several are offered to choose from; a
+        retired topic has no office to read."""
+        offices = topic["offices"]
+        if len(offices) == 1:
+            with measure("Open the topic's office · read published records"):
+                opened = {**result, **self.open(f"office:{offices[0]['id']}", fields, as_of,
+                                                on=on, meal=meal, menu_query=menu_query)}
+            if note := self._note_for_unpublished(opened, fields, as_of):
+                opened["also"] = note
+            return {**opened, "topic": topic}
+        return {**result, "truncated": False, "topic": topic, "candidates": [
+            {"entity_id": office["id"], "name": office["name"], "aliases": [],
+             "match": "topic", "basis": "topic", "covers": []} for office in offices]}
 
     def _note_for_unpublished(
         self, opened: dict[str, Any], fields: list[str], as_of: datetime,
@@ -183,6 +223,16 @@ class CampusGraph:
             opened = listing
         elif node_id == "dining":
             opened = self.open("dining", [], as_of)
+        elif node_id == "topics" or node_id.startswith("topic:"):
+            listed = self.open("topics", [], as_of)
+            if node_id == "topics":
+                opened = listed
+            elif node_id not in self.nodes:
+                raise InvalidFactRequest("This node is not in the available campus graph.")
+            else:
+                opened = {**self.nodes[node_id], "topic": self.facts.get_topic(
+                    self.nodes[node_id]["entity_id"], self.version,  # type: ignore[arg-type]
+                    identity_hash=self.identity_hash, as_of=as_of)}
         elif node_id == "shuttle" or node_id.startswith("route:"):
             routes = self.open("shuttle", [], as_of)
             if node_id == "shuttle":
@@ -212,6 +262,7 @@ class CampusGraph:
             "children": opened.get("children", []), "truncated": listing["truncated"],
             "facts": opened.get("facts"), "scope": root["scope"],
             **({"menu_dates": opened["menu_dates"]} if "menu_dates" in opened else {}),
+            **({"topic": opened["topic"]} if "topic" in opened else {}),
             "dataset_version": self.version, "identity_hash": self.identity_hash,
             "as_of": as_of.isoformat(),
         }
@@ -247,6 +298,15 @@ class CampusGraph:
             }) for office in listing["offices"]]
             result = {**node, "children": [c for c in children if BRANCH[c["kind"]] == node_id],
                       "truncated": listing["truncated"]}
+        elif node_id == "topics":
+            listing = self.facts.list_topics(dataset_version=self.version,
+                                             identity_hash=self.identity_hash)
+            self.version, self.identity_hash = listing["dataset_version"], listing["identity_hash"]
+            children = [self._child(node_id, {
+                "id": f"topic:{topic['entity_id']}", "label": topic["name"], "kind": "topic",
+                "entity_id": topic["entity_id"], "aliases": topic["aliases"],
+            }) for topic in listing["topics"]]
+            result = {**node, "children": children, "truncated": False}
         elif node_id == "shuttle":
             listing = self.facts.list_routes(dataset_version=self.version,
                                              identity_hash=self.identity_hash)

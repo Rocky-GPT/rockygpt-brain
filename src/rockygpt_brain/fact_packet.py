@@ -461,6 +461,8 @@ class _Builder:
             self.shuttle(part)
         elif kind == "office_facts":
             self.office(part)
+            if part.get("topic"):
+                self.add(part["topic"])  # The site the student named sends them to this office.
             if part.get("also"):
                 # What the office published beside a contact value it does not publish. It is
                 # shown, but it was not asked for, so it is not a requested field or a gap.
@@ -469,6 +471,8 @@ class _Builder:
         elif kind == "ambiguous":
             self.ambiguities.append({"query": part["query"], "truncated": part["truncated"],
                                      "candidates": part["candidates"]})
+            if part.get("topic"):
+                self.add(part["topic"])  # The offices a topic's own page names, to choose from.
         elif kind == "not_found":
             entry = {"query": part["query"], "reason": "no_matching_office"}
             if part.get("approved_text"):

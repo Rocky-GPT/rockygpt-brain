@@ -436,7 +436,7 @@ def test_the_model_is_shown_the_published_offices_and_the_names_each_goes_by() -
     assert tuple(state) == MODEL_INPUT_KEYS
     root = state["graph_root"]
     assert root["id"] == "ramapo" and [child["id"] for child in root["children"]] == [
-        "offices", "dining", "shuttle"]
+        "offices", "dining", "shuttle", "topics"]
     # Offices only, sorted, each with its other names: no person, no id, no record.
     assert state["published_offices"] == [
         {"name": "ID Card Room", "also_called": ["Husky Card"]}, {"name": "Registrar"}]
@@ -1227,3 +1227,113 @@ def test_okay_is_also_kept_when_the_message_itself_takes_a_worry_back() -> None:
     for dropped in ("can u just give me their contact info", "whats the registrar email",
                     "i need the counseling center hours"):
         assert not says_it_is_over(dropped), dropped
+
+
+def topics(*rows: dict[str, Any]) -> MemoryEntityFacts:
+    """The Registrar fixture plus Student Accounts and the given topics (sites with no office)."""
+    base = facts()
+    topic_rows = [{"id": f"topic-{n}", "source_key": "office-pages",
+                   "source_record_key": row["name"], "url": "https://www.ramapo.edu/t/",
+                   "section": "Contact", "refer_url": None, "collected_at": NOW,
+                   "freshness_sla_hours": 168, "content_hash": f"t{n}", **row}
+                  for n, row in enumerate(rows)]
+    entities = [*base.entities,
+                {"id": "accounts", "name": "Student Accounts", "kind": "office", "aliases": [],
+                 "links": []},
+                *({"id": f"topic-{row['name']}", "name": row["name"], "kind": "topic",
+                   "aliases": [], "links": [{"collection": "campus_topics",
+                                             "source_key": "office-pages",
+                                             "source_record_keys": [row["name"]]}]}
+                  for row in topic_rows)]
+    return MemoryEntityFacts(dataset_version="release-1", identity_hash="identities-1",
+                             entities=entities, contacts=base.contacts,
+                             records={"campus_topics": topic_rows}, now=lambda: NOW)
+
+
+def topic_lookup(query: str) -> Completion:
+    return completion("graph_lookup", {"requests": [{"query": query, "fields": ["email"]}]})
+
+
+def test_a_topic_with_one_office_answers_for_that_office_and_says_why() -> None:
+    service = topics({"name": "Summer Session", "status": "current", "handled_by": ["Registrar"],
+                      "quote": "Contact the Registrar's office"})
+    result = answer(ScriptedGateway(topic_lookup("Summer Session"), finish()), service=service,
+                    messages=[{"role": "user", "content": "summer session email?"}])
+    text = result.body["answer"]
+    assert text.startswith("For Summer Session, its page sends you to Registrar.")
+    assert "published@example.edu" in text
+    assert "https://www.ramapo.edu/t/" in [c["url"] for c in result.body["citations"]]
+
+
+def test_a_topic_with_several_offices_offers_them_to_choose_from() -> None:
+    service = topics({"name": "Scholarships", "status": "current",
+                      "handled_by": ["Student Accounts", "Registrar"],
+                      "quote": "Student Accounts ... Registrar"})
+    result = answer(ScriptedGateway(topic_lookup("Scholarships"), finish()), service=service,
+                    messages=[{"role": "user", "content": "who do i ask about scholarships"}])
+    assert result.body["answer"] == ("For Scholarships, its page sends you to these offices: "
+                                     "Student Accounts, Registrar. Which one do you need?")
+    assert result.body["status"] == "clarification"
+
+
+def test_a_retired_topic_says_it_is_gone_in_its_pages_words() -> None:
+    service = topics({"name": "Small Business Development Center", "status": "retired",
+                      "handled_by": [], "refer_url": "https://njsbdc.com/",
+                      "quote": "The Bergen County SBDC is no longer headquartered at Ramapo"})
+    result = answer(ScriptedGateway(topic_lookup("Small Business Development Center"), finish()),
+                    service=service, messages=[{"role": "user", "content": "sbdc contact"}])
+    assert result.body["answer"].startswith(
+        "Small Business Development Center is no longer at Ramapo College. Its page says: "
+        "\"The Bergen County SBDC is no longer headquartered at Ramapo\" It points to "
+        "https://njsbdc.com/.")
+
+
+def test_an_office_named_exactly_wins_over_a_topic_and_a_topic_needs_its_exact_name() -> None:
+    service = topics({"name": "Registrar Help", "status": "current",
+                      "handled_by": ["Student Accounts", "Registrar"], "quote": "x"})
+    result = answer(ScriptedGateway(topic_lookup("Registrar"), finish()), service=service)
+    assert "published@example.edu" in result.body["answer"]
+    assert "its page sends you" not in result.body["answer"]
+
+
+def test_a_topic_naming_an_office_the_release_lacks_is_unavailable_not_guessed() -> None:
+    service = topics({"name": "Scholarships", "status": "current",
+                      "handled_by": ["Bursar"], "quote": "x"})
+    result = answer(ScriptedGateway(topic_lookup("Scholarships"), finish()), service=service)
+    assert result.status_code == 503
+
+
+def test_the_model_sees_topics_marked_in_the_office_list() -> None:
+    service = topics({"name": "Scholarships", "status": "current",
+                      "handled_by": ["Registrar"], "quote": "x"})
+    gateway = ScriptedGateway(finish())
+    answer(gateway, service=service, messages=[{"role": "user", "content": "hi"}])
+    state = json.loads(gateway.inputs[0][1]["content"])
+    assert {"name": "Scholarships", "topic": True} in state["published_offices"]
+
+
+def test_the_packet_carries_the_topic_and_its_page_as_a_notice() -> None:
+    service = topics({"name": "Scholarships", "status": "current",
+                      "handled_by": ["Student Accounts", "Registrar"], "quote": "both offices"})
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "scholarships help"}]})
+    engine = ChatEngine(ScriptedGateway(topic_lookup("Scholarships"), finish()), service,
+                        output="json")
+    packet = asyncio.run(engine.answer(intake(request, now=NOW), request)).body["facts"]
+    assert packet["status"] == "ambiguous"
+    assert [c["name"] for c in packet["ambiguities"][0]["candidates"]] == ["Student Accounts",
+                                                                          "Registrar"]
+    notice = next(n for n in packet["notices"] if n["type"] == "topic")
+    assert notice["page"] == "https://www.ramapo.edu/t/" and notice["quote"] == "both offices"
+    assert notice["approved_text"].startswith("For Scholarships, its page sends you to")
+
+
+def test_the_graph_lists_each_topic_with_the_offices_its_page_names() -> None:
+    from rockygpt_brain.retrieval.campus_graph import CampusGraph
+    service = topics({"name": "Scholarships", "status": "current",
+                      "handled_by": ["Student Accounts", "Registrar"], "quote": "both offices"})
+    branch = CampusGraph(service).inspect("topics", NOW)
+    assert [(c["label"], c["kind"]) for c in branch["children"]] == [("Scholarships", "topic")]
+    node = CampusGraph(service).inspect(branch["children"][0]["id"], NOW)
+    assert [o["name"] for o in node["topic"]["offices"]] == ["Student Accounts", "Registrar"]
+    assert node["topic"]["quote"] == "both offices"

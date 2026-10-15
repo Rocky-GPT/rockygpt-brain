@@ -235,9 +235,26 @@ ORDER BY m.name, m.id
 LIMIT %s
 """
 
+_CAMPUS_TOPICS = """
+WITH links AS (
+  SELECT * FROM jsonb_to_recordset(%s::jsonb) AS link(source_key text, source_record_keys jsonb)
+)
+SELECT t.id::text AS id, t.source_record_key, t.name, t.status, t.handled_by, t.url, t.section,
+       t.quote, t.refer_url, t.checked_at, t.collected_at, t.content_hash, s.source_key,
+       s.freshness_sla_hours
+FROM rockygpt_v2.campus_topics t
+JOIN rockygpt_v2.sources s ON s.id = t.source_id
+WHERE t.dataset_version_id = %s::uuid AND EXISTS (
+  SELECT 1 FROM links l WHERE l.source_key = s.source_key
+    AND l.source_record_keys ? t.source_record_key
+)
+ORDER BY t.name, t.id
+LIMIT %s
+"""
+
 _RECORD_SQL = {"dining_hours": _DINING, "menu": _MENU, "shuttle_trips": _TRIPS,
                "menu_documents": _MENU_DOCUMENTS, "menu_listings": _MENU_LISTINGS,
-               "shuttle_stops": _SHUTTLE_STOPS}
+               "shuttle_stops": _SHUTTLE_STOPS, "campus_topics": _CAMPUS_TOPICS}
 
 
 class PostgresEntityFacts(EntityFacts):

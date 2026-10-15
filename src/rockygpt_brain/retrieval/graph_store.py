@@ -42,7 +42,7 @@ from rockygpt_brain.retrieval.entity_facts import (
 LOG = logging.getLogger(__name__)
 
 GRAPH_FORMAT = "2"
-BUILT_KINDS = ("office", "venue", "route")
+BUILT_KINDS = ("office", "venue", "route", "topic")
 CONTACTS = "contacts"
 SCHEDULES = "campus_hours"
 RETRY_SECONDS = 60.0  # After a failed build or read, answer from the source for this long.
