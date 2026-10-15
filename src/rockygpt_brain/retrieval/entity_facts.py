@@ -1099,7 +1099,9 @@ def _menu_kept(row: dict[str, Any], query: dict[str, Any]) -> bool:
     words = [term for w in (query.get("contains") or [])
              for term in (w, *_FOOD_WORDS.get(_squash(w), ()))]
     if words:
-        text = f"{clean(row.get('name'))} {clean(row.get('station'))}".casefold()
+        # Name, station and portion: the dining service marks main dishes "ENTREE" as a portion.
+        text = (f"{clean(row.get('name'))} {clean(row.get('station'))} "
+                f"{clean(row.get('portion_size')) or ''}").casefold()
         if not any(_squash(w) and _squash(w) in "".join(ch for ch in text if ch.isalnum())
                    or w.casefold() in text for w in words):
             return False

@@ -857,3 +857,7 @@ def test_a_dish_word_matches_dishes_named_by_their_kind_and_other_dates_are_offe
                                {"contains": ["chicken tenders"]})
     assert tenders["values"][0]["value"]["on_other_dates"] == [
         {"date": "2026-10-19", "meal": "Lunch", "name": "Fried Chicken Tenders"}]
+
+
+def test_entrees_are_the_items_the_dining_service_portions_as_an_entree() -> None:
+    assert _names(_menu_value(items=["entrees"])) == ["Tofu Stir Fry", "Braised Pot Roast"]
