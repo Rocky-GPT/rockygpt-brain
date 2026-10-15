@@ -113,7 +113,9 @@ one: "dinner tonight" is dinner, "what time is lunch" is lunch). A venue whose p
 published_venues) has no menu has none to read. For a menu, diet is vegan or vegetarian when
 the student asks for those, items the foods or stations they name (pasta, chicken, soup, the
 grill), with_allergens when they ask what contains an allergen and without_allergens for what is
-free of them, in their own words (dairy, tree nuts); code keeps only the items that match. A
+free of them, in their own words (dairy, tree nuts); code keeps only the items that match.
+Whether a named food has an allergen ("does the pasta have dairy") is items with no allergen
+filter: each item comes with its allergens. A
 menu item has its calories, portion, vegan and vegetarian labels and allergens, so those are
 never unsupported. A student who wants the whole menu and also one kind of item needs two
 requests, one without a filter. Set meal only when the student asks about that meal alone; leave
