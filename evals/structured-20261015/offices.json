@@ -1,0 +1,2195 @@
+[
+ {
+  "name": "Admissions",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/learn/graduate/",
+   "https://www.ramapo.edu/undergraduate/",
+   "https://www.ramapo.edu/undergraduate/educational-opportunity-fund/faqs/",
+   "https://www.ramapo.edu/undergraduate/transfer/faqs/"
+  ]
+ },
+ {
+  "name": "Anisfield School of Business",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "not_published",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/about/phone/",
+   "https://www.ramapo.edu/asb/",
+   "https://www.ramapo.edu/campus-directory/"
+  ]
+ },
+ {
+  "name": "Athletics",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://ramapoathletics.com/staff-directory",
+   "https://ramapoathletics.com/staff-directory/joan-schofield/170",
+   "https://ramapoathletics.com/staff-directory/marie-curran/422",
+   "https://www.ramapo.edu/about/phone/",
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/consumer-information/"
+  ]
+ },
+ {
+  "name": "Behavioral Intervention Team",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "not_published",
+   "email": "known",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/bit/",
+   "https://www.ramapo.edu/campus-directory/"
+  ]
+ },
+ {
+  "name": "Berrie Center Box Office",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/berriecenter/plan-your-visit/",
+   "https://www.ramapo.edu/berriecenter/tickets-seating/",
+   "https://www.ramapo.edu/campus-directory/"
+  ]
+ },
+ {
+  "name": "Bischoff Hall",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/reslife/bischoff-hall/",
+   "https://www.ramapo.edu/reslife/gtcl/"
+  ]
+ },
+ {
+  "name": "Board of Trustees",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "not_published",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/board/",
+   "https://www.ramapo.edu/campus-directory/"
+  ]
+ },
+ {
+  "name": "Budget and Fiscal Planning",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "not_published",
+   "offices": "known",
+   "prefers_email": "known",
+   "preferred_contact": "known",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/budget/adaptive-insights/",
+   "https://www.ramapo.edu/budget/contacts/",
+   "https://www.ramapo.edu/budget/transfers-journal-entries/",
+   "https://www.ramapo.edu/campus-directory/"
+  ]
+ },
+ {
+  "name": "Cahill Career Development Center",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/careercenter/",
+   "https://www.ramapo.edu/careercenter/about-us/"
+  ]
+ },
+ {
+  "name": "Center for Reading and Writing",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/crw/",
+   "https://www.ramapo.edu/crw/contactus/",
+   "https://www.ramapo.edu/crw/schedules/",
+   "https://www.ramapo.edu/fa/arc/college-wide-policies-courses/"
+  ]
+ },
+ {
+  "name": "Center for Student Involvement",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/csi/",
+   "https://www.ramapo.edu/csi/roadrunner-central/"
+  ]
+ },
+ {
+  "name": "Center for Student Success (Academic Advising)",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/studentsuccess/"
+  ]
+ },
+ {
+  "name": "Center for Student Wellness",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "not_published",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/csw/"
+  ]
+ },
+ {
+  "name": "Civic and Community Engagement Center",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/ccec/",
+   "https://www.ramapo.edu/ccec/leadership/"
+  ]
+ },
+ {
+  "name": "College Park Apartments",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/reslife/college-park-apartments-cpa/",
+   "https://www.ramapo.edu/reslife/gtcl/"
+  ]
+ },
+ {
+  "name": "Commencement",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "not_published",
+   "email": "known",
+   "phones": "not_published",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/commencement/contact-us/"
+  ]
+ },
+ {
+  "name": "Commuter Affairs",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/csi/commuter-affairs/",
+   "https://www.ramapo.edu/csi/commuter-affairs/involvement-frequently-asked-questions/"
+  ]
+ },
+ {
+  "name": "Connect Resource Center",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "not_published",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/connect/",
+   "https://www.ramapo.edu/connect/students/"
+  ]
+ },
+ {
+  "name": "Controller",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/controller/",
+   "https://www.ramapo.edu/controller/banner/",
+   "https://www.ramapo.edu/controller/processing-payments/"
+  ]
+ },
+ {
+  "name": "Counseling Center",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/counseling/",
+   "https://www.ramapo.edu/counseling/faq/"
+  ]
+ },
+ {
+  "name": "Dean of Students",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/student-affairs/"
+  ]
+ },
+ {
+  "name": "Degree Completion Program",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "conflicting",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/adult-students/contacts/",
+   "https://www.ramapo.edu/adult-students/faqs/",
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/dcp/",
+   "https://www.ramapo.edu/oabc/home/you-belong-at-ramapo/"
+  ]
+ },
+ {
+  "name": "Dining Services",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/csi/",
+   "https://www.ramapo.edu/reslife/gtcl/"
+  ]
+ },
+ {
+  "name": "ENHANCE Program",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/enhance/",
+   "https://www.ramapo.edu/enhance/information-for-parents-and-guardians/"
+  ]
+ },
+ {
+  "name": "Educational Opportunity Fund (EOF) Program",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/eof-program/"
+  ]
+ },
+ {
+  "name": "Employee Relations",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "not_published",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/er/"
+  ]
+ },
+ {
+  "name": "Environmental Health and Safety",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/about/phone/",
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/ehs/",
+   "https://www.ramapo.edu/ehs/fire-safety/",
+   "https://www.ramapo.edu/ehs/stormwater/watershed/"
+  ]
+ },
+ {
+  "name": "Ethics Liaison Officer",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/ethics-officer/"
+  ]
+ },
+ {
+  "name": "Events and Conferences",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/conferences/about/",
+   "https://www.ramapo.edu/conferences/fss/",
+   "https://www.ramapo.edu/conferences/required-documents/",
+   "https://www.ramapo.edu/conferences/space-requests/"
+  ]
+ },
+ {
+  "name": "Facilities Management",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/facilities/",
+   "https://www.ramapo.edu/facilities/facilities-contacts/",
+   "https://www.ramapo.edu/facilities/service-guide/",
+   "https://www.ramapo.edu/facilities/service-request-portal/"
+  ]
+ },
+ {
+  "name": "Faculty Resource Center",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "not_published",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/frc/",
+   "https://www.ramapo.edu/frc/about-us/"
+  ]
+ },
+ {
+  "name": "Faith and Spirituality Services",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/ministries/"
+  ]
+ },
+ {
+  "name": "Financial Aid",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/finaid/"
+  ]
+ },
+ {
+  "name": "First Generation Student Center",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/eof-program/",
+   "https://www.ramapo.edu/first-gen/"
+  ]
+ },
+ {
+  "name": "First-Year Seminar",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/first-year/"
+  ]
+ },
+ {
+  "name": "Graduate Admissions",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/graduate/",
+   "https://www.ramapo.edu/graduate/faqs/"
+  ]
+ },
+ {
+  "name": "Health Promotion",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "not_published",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/csw/",
+   "https://www.ramapo.edu/health-promotion/mindfulness-ambassador/",
+   "https://www.ramapo.edu/health-promotion/peer-education/"
+  ]
+ },
+ {
+  "name": "Health Services",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/csw/",
+   "https://www.ramapo.edu/student-affairs/student-communications/official-announcement-health-services-at-ramapo-college-july-14-2026/",
+   "https://www.valleyhealth.com/save-your-spot-ramapo-college-health-services",
+   "https://www.valleyhealth.com/sites/default/files/5.18.26%20Final%20FAQs%20for%20Ramapo%20College%20Medicat%20Patient%20Portal_0.pdf"
+  ]
+ },
+ {
+  "name": "Housing & Residence Life",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/reslife/",
+   "https://www.ramapo.edu/reslife/earlyarrival/",
+   "https://www.ramapo.edu/reslife/gtcl/",
+   "https://www.ramapo.edu/reslife/mailroom/"
+  ]
+ },
+ {
+  "name": "ID Card Room",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "conflicting"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/publicsafety/id-cards/",
+   "https://www.ramapo.edu/reslife/earlyarrival/"
+  ]
+ },
+ {
+  "name": "IT Help Desk",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "conflicting"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/its/",
+   "https://www.ramapo.edu/its/help-desk/"
+  ]
+ },
+ {
+  "name": "Instructional Design Center",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/idc/"
+  ]
+ },
+ {
+  "name": "International Travel",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/international-travel/contacts/",
+   "https://www.ramapo.edu/international-travel/reporting-an-incident-abroad/"
+  ]
+ },
+ {
+  "name": "Investigative Genetic Genealogy Center",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "not_published",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/igg/",
+   "https://www.ramapo.edu/igg/bootcamp/",
+   "https://www.ramapo.edu/igg/certificate-program/",
+   "https://www.ramapo.edu/igg/outreach/"
+  ]
+ },
+ {
+  "name": "J. Lee's (Student Lounge & Game Room)",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "not_published",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/csi/"
+  ]
+ },
+ {
+  "name": "Laptop Upcycle @ Ramapo",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "not_published",
+   "email": "known",
+   "phones": "not_published",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/upcycle/contact/",
+   "https://www.ramapo.edu/upcycle/donatealaptop/"
+  ]
+ },
+ {
+  "name": "Laurel Hall",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/reslife/gtcl/",
+   "https://www.ramapo.edu/reslife/laurel-hall/"
+  ]
+ },
+ {
+  "name": "Library",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/library/",
+   "https://www.ramapo.edu/library/library-hours/",
+   "https://www.ramapo.edu/library/library-news/"
+  ]
+ },
+ {
+  "name": "Mackin Hall",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/reslife/gtcl/",
+   "https://www.ramapo.edu/reslife/mackin-hall/"
+  ]
+ },
+ {
+  "name": "Marketing and Branding",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/marketing-communications/",
+   "https://www.ramapo.edu/marketing-communications/general-event-photography-and-video-policy/",
+   "https://www.ramapo.edu/marketing-communications/marketing-advertising/",
+   "https://www.ramapo.edu/marketing-communications/photography-job-request-form/",
+   "https://www.ramapo.edu/marketing-communications/roadrunner-design/",
+   "https://www.ramapo.edu/press-center/"
+  ]
+ },
+ {
+  "name": "Media Services",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "not_published",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/ams/",
+   "https://www.ramapo.edu/campus-directory/"
+  ]
+ },
+ {
+  "name": "Military and Veterans Success",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/military/",
+   "https://www.ramapo.edu/military/veteran-success-team/",
+   "https://www.ramapo.edu/military/veterans-lounge-advisement/"
+  ]
+ },
+ {
+  "name": "Nursing Programs Office",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/about/phone/",
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/nursing/"
+  ]
+ },
+ {
+  "name": "Office of Alumni Relations",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/alumni/benefits/",
+   "https://www.ramapo.edu/alumni/enewsletter/",
+   "https://www.ramapo.edu/alumni/events_/",
+   "https://www.ramapo.edu/alumni/how-to-audit-a-course/",
+   "https://www.ramapo.edu/campus-directory/"
+  ]
+ },
+ {
+  "name": "Office of Fraternity and Sorority Life",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/greek/",
+   "https://www.ramapo.edu/greek/chapter-conduct-status/",
+   "https://www.ramapo.edu/greek/chapters-councils/",
+   "https://www.ramapo.edu/greek/frequently-asked-questions-faq/"
+  ]
+ },
+ {
+  "name": "Office of Grants & Sponsored Programs",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/grants/",
+   "https://www.ramapo.edu/grants/grants-proposal-development-and-writing-resources/"
+  ]
+ },
+ {
+  "name": "Office of Institutional Research",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "not_published",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/ir/"
+  ]
+ },
+ {
+  "name": "Office of Internal Audit",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/internal-audit/",
+   "https://www.ramapo.edu/internal-audit/record-retention/",
+   "https://www.ramapo.edu/internal-audit/whistleblower-policy/"
+  ]
+ },
+ {
+  "name": "Office of Specialized Services",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/oss/",
+   "https://www.ramapo.edu/oss/alternative-testing-for-faculty/faqs-about-testing-for-faculty/",
+   "https://www.ramapo.edu/oss/oss-staff-contact-information/"
+  ]
+ },
+ {
+  "name": "Office of Student Conduct",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/student-conduct/"
+  ]
+ },
+ {
+  "name": "Office of the General Counsel & Institutional Compliance",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/about/phone/",
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/general-counsel/complaint-resources/"
+  ]
+ },
+ {
+  "name": "Office of the President",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/about/phone/",
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/president/advancing-requests-to-the-office-of-the-president/"
+  ]
+ },
+ {
+  "name": "Office of the Provost",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/provost/"
+  ]
+ },
+ {
+  "name": "Ombuds Office",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/ombuds/",
+   "https://www.ramapo.edu/ombuds/services/"
+  ]
+ },
+ {
+  "name": "On-Campus Employment for Students",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/on-campus-employment/new-hire-packet/"
+  ]
+ },
+ {
+  "name": "Open Public Records Act",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/opra/",
+   "https://www.ramapo.edu/president/"
+  ]
+ },
+ {
+  "name": "Orientation Programs",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/orientation/",
+   "https://www.ramapo.edu/orientation/leaders/"
+  ]
+ },
+ {
+  "name": "Payroll",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/payroll/"
+  ]
+ },
+ {
+  "name": "Peer Facilitators",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "not_published",
+   "email": "known",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "not_published",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/peer-facilitators/"
+  ]
+ },
+ {
+  "name": "People Operations and Employee Resources Department",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/poerd/",
+   "https://www.ramapo.edu/poerd/calendar/",
+   "https://www.ramapo.edu/poerd/certification-procedures-for-classified-civil-service-staff-governed-by-n-j-a-c-title-4a/",
+   "https://www.ramapo.edu/poerd/employee-handbook/",
+   "https://www.ramapo.edu/poerd/jobs/"
+  ]
+ },
+ {
+  "name": "Photography Lab",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/photolab/",
+   "https://www.ramapo.edu/photolab/contact/",
+   "https://www.ramapo.edu/photolab/hours/"
+  ]
+ },
+ {
+  "name": "Pine Hall",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/reslife/gtcl/",
+   "https://www.ramapo.edu/reslife/pine-hall/"
+  ]
+ },
+ {
+  "name": "Prestigious Fellowships and Scholarships",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "not_published",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/prestigious-fellowships-and-scholarships/"
+  ]
+ },
+ {
+  "name": "Public Safety (Emergency)",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/publicsafety/",
+   "https://www.ramapo.edu/publicsafety/get-support/",
+   "https://www.ramapo.edu/publicsafety/how-to-report/",
+   "https://www.ramapo.edu/publicsafety/report-an-incident/"
+  ]
+ },
+ {
+  "name": "Public Safety (Non-Emergency)",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/about/phone/",
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/publicsafety/",
+   "https://www.ramapo.edu/publicsafety/get-support/",
+   "https://www.ramapo.edu/publicsafety/how-to-report/",
+   "https://www.ramapo.edu/publicsafety/parking-permits/",
+   "https://www.ramapo.edu/publicsafety/report-an-incident/"
+  ]
+ },
+ {
+  "name": "Purchasing Department",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/purchasing/",
+   "https://www.ramapo.edu/purchasing/prospective-suppliers/"
+  ]
+ },
+ {
+  "name": "RCNJ Center for Holocaust and Genocide Studies",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/holocaust/",
+   "https://www.ramapo.edu/holocaust/contact-us/"
+  ]
+ },
+ {
+  "name": "Ramapo Bookstore",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/about/campus-hours/",
+   "https://www.ramapo.edu/bookstore/",
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/csi/"
+  ]
+ },
+ {
+  "name": "Ramapo Broadcasting Club",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "not_published",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/wrpr-fm/",
+   "https://www.ramapo.edu/wrpr-fm/about-wrpr-fm/"
+  ]
+ },
+ {
+  "name": "Ramapo College Foundation",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/foundation/",
+   "https://www.ramapo.edu/foundation/friends/",
+   "https://www.ramapo.edu/foundation/friends/audit-a-course/",
+   "https://www.ramapo.edu/foundation/matching-gifts/",
+   "https://www.ramapo.edu/giving/how-to-give/"
+  ]
+ },
+ {
+  "name": "Ramapo Green",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "not_published",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/ramapo-green/",
+   "https://www.ramapo.edu/ramapo-green/sustainable-event-guidelines/event-materials/",
+   "https://www.ramapo.edu/ramapo-green/sustainable-event-guidelines/food-and-beverage/"
+  ]
+ },
+ {
+  "name": "Ramapo Honors Program",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://archway.ramapo.edu/rhp/contact-us/",
+   "https://www.ramapo.edu/about/phone/",
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/honors/",
+   "https://www.ramapo.edu/honors/applications/current-ramapo-students/",
+   "https://www.ramapo.edu/honors/applications/transfer-students/",
+   "https://www.ramapo.edu/honors/faq/"
+  ]
+ },
+ {
+  "name": "Ramapo News",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "not_published",
+   "email": "known",
+   "phones": "not_published",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "not_published",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/student-media/"
+  ]
+ },
+ {
+  "name": "Registrar",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/registrar/"
+  ]
+ },
+ {
+  "name": "ResNET",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/resnet/",
+   "https://www.ramapo.edu/resnet/faq/"
+  ]
+ },
+ {
+  "name": "Roadrunner Central",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/csi/",
+   "https://www.ramapo.edu/csi/roadrunner-central/"
+  ]
+ },
+ {
+  "name": "Roukema Center for International Education",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/inter-students/current/",
+   "https://www.ramapo.edu/inter-students/orientation/",
+   "https://www.ramapo.edu/international/",
+   "https://www.ramapo.edu/international/contact/",
+   "https://www.ramapo.edu/study-abroad/program-options/virtual/",
+   "https://www.ramapo.edu/study-abroad/scholarships/pell-students/"
+  ]
+ },
+ {
+  "name": "STEM Center",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/snh/chemistry-and-biochemistry/chemistry-tutors/",
+   "https://www.ramapo.edu/stem-center/"
+  ]
+ },
+ {
+  "name": "School of Arts, Humanities, and Education Office",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "not_published",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "not_published",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/ahe/",
+   "https://www.ramapo.edu/campus-directory/"
+  ]
+ },
+ {
+  "name": "School of Science, Nursing, and Health Office",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "not_published",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "not_published",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/snh/"
+  ]
+ },
+ {
+  "name": "School of Social Sciences and Social Work Office",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "not_published",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "not_published",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/sssw/"
+  ]
+ },
+ {
+  "name": "Student Accounts",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "conflicting"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/student-accounts/",
+   "https://www.ramapo.edu/student-accounts/contacts/"
+  ]
+ },
+ {
+  "name": "Student Government Association",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/sga/",
+   "https://www.ramapo.edu/sga/faq/",
+   "https://www.ramapo.edu/sga/meet-the-sga/"
+  ]
+ },
+ {
+  "name": "Student Leadership Programs",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "not_published",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/leadership/sail-sophomores-advancing-leadership/",
+   "https://www.ramapo.edu/leadership/student-leadership-awards/"
+  ]
+ },
+ {
+  "name": "Substance Use Disorder Services",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/sud/"
+  ]
+ },
+ {
+  "name": "Testing Center",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/testing/"
+  ]
+ },
+ {
+  "name": "The Multicultural Center and the Office of Access, Belonging and Community (ABC)",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/multicultural-center/",
+   "https://www.ramapo.edu/oabc/contact-us/"
+  ]
+ },
+ {
+  "name": "The Overlook",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/reslife/gtcl/",
+   "https://www.ramapo.edu/reslife/the-overlook/"
+  ]
+ },
+ {
+  "name": "The Village",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/reslife/gtcl/",
+   "https://www.ramapo.edu/reslife/village/"
+  ]
+ },
+ {
+  "name": "Title IX",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "not_published",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/oabc/complaint-processing-forms/",
+   "https://www.ramapo.edu/titleix/"
+  ]
+ },
+ {
+  "name": "Transportation Services",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/about/transportation-services/",
+   "https://www.ramapo.edu/about/transportation-services/ramapo-roadrunner-express-shuttle/",
+   "https://www.ramapo.edu/campus-directory/"
+  ]
+ },
+ {
+  "name": "Women's Center & LGBTQ+ Services",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "known",
+   "email": "known",
+   "phones": "known",
+   "offices": "known",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "known"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/womenscenter/",
+   "https://www.ramapo.edu/womenscenter/gender-inclusive-housing/"
+  ]
+ },
+ {
+  "name": "Yearbook",
+  "kind": "office",
+  "status": {
+   "name": "known",
+   "department": "not_published",
+   "email": "known",
+   "phones": "not_published",
+   "offices": "not_published",
+   "prefers_email": "not_published",
+   "preferred_contact": "not_published",
+   "contact_note": "known",
+   "website": "known",
+   "hours": "not_published"
+  },
+  "urls": [
+   "https://www.ramapo.edu/campus-directory/",
+   "https://www.ramapo.edu/student-media/yearbook/"
+  ]
+ }
+]
