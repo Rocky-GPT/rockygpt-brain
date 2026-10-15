@@ -72,7 +72,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   date. Say the departures in trips in order: when each leaves campus (leaves_campus) and its
   route, when it reaches the stop (reached_at), and when it is back (back_on_campus) when given.
   leaves_stop_at is when the same trip picks up at the stop on its way back to campus: always say
-  it when given; with back_to_campus it is the answer, the time to be at the stop.
+  it when given. With back_to_campus each trip is a ride back from the stop: say its pickup there
+  and when it is back on campus, never when a shuttle leaves campus.
   which says what was asked. For which all, say where the shuttle goes that day when stops_served
   is given, that there is service that day, its first and
   last departure and how many trips (first_leaves_campus, last_leaves_campus, trip_count), and
