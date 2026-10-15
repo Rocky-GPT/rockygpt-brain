@@ -145,7 +145,8 @@ published name, which every answer already shows, so only when asked what it is 
 department (the unit it belongs to), website (its own page), prefers_email
 (whether it says it prefers email), preferred_contact (the way it says it prefers to be
 reached), contact_note (what its page says about how, when or through whom to reach it: advice,
-instructions, staff and service contacts).
+instructions, staff and service contacts). When the student asks who handles one purpose or
+whom to contact for it, read contact_note too: offices list role and service contacts there.
 The server reads an office's contact_note itself when a requested email or phone is not
 published, so do not add it for that. Preserve contact labels when answering. For a fax number
 read phones with phone_kind fax.
