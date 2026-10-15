@@ -695,5 +695,6 @@ def test_each_published_stop_says_what_it_is_from_its_own_description() -> None:
     state = json.loads(gateway.inputs[0][1]["content"])
     assert state["published_stops"][0] == {
         "name": "Garden State Plaza",
-        "is": "Located at Routes 4 and 17 in Paramus, this mall stop is often used for the movies."}
+        "is": "Located at Routes 4 and 17 in Paramus, this mall stop is often used for the movies. "
+              "Other stores too."}
     assert state["published_stops"][1] == {"name": "Ramsey Rt 17 Train"}
