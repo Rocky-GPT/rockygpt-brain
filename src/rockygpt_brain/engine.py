@@ -101,7 +101,8 @@ arbitrarily.
 A missing match is a limit of available evidence, not proof that the office does not exist.
 Every query, including follow-ups, is traversed from the root. Offices and the dining venues in
 published_venues (listed with the other names they go by, and used like published_offices) are
-available.
+available. A venue's in is the building it is in and with the offices published at that same
+building: a place the student names ("the cafe in the library") is the venue there.
 Fields: email (an address), phones (phone numbers with any published call, text or SMS
 labels), offices (where it is), hours (opening hours, weekends, closing times); set day to
 today, tomorrow or that weekday only when the student asks about that one day. For the hours
@@ -387,6 +388,8 @@ HELP_FIELDS: list[OfficeField] = ["phones"]
 HELP_TEXT = "On campus, these published numbers can also help:"
 HELP_SECONDS = 3.0  # Emergency text never waits longer than this for the campus numbers.
 OFFICE_LIST_SECONDS = 3.0  # The list of offices shown to the model; without it the turn goes on.
+# Venues with their buildings read every office's location once per release; later turns reuse it.
+VENUE_LIST_SECONDS = 10.0
 NUSD_PER_DOLLAR = 1_000_000_000
 MODEL_INPUT_KEYS = ("campus_now", "client_omitted_messages", "server_omitted_messages",
                     "graph_root", "published_offices", "published_venues", "published_stops",
@@ -916,10 +919,8 @@ class ChatEngine:
         venues: list[dict[str, Any]] | None = None
         stops: list[dict[str, Any]] | None = None
         try:
-            async with asyncio.timeout(OFFICE_LIST_SECONDS):
-                found = await asyncio.to_thread(
-                    self.facts.list_offices, limit=100, kinds=("venue",))
-            venues = published_offices(found) or None
+            async with asyncio.timeout(VENUE_LIST_SECONDS):
+                venues = await asyncio.to_thread(self._published_venues)
         except (TimeoutError, EvidenceUnavailable):
             venues = None
         try:
@@ -928,6 +929,46 @@ class ChatEngine:
         except (TimeoutError, EvidenceUnavailable):
             stops = None
         return venues, stops
+
+    def _published_venues(self) -> list[dict[str, Any]] | None:
+        """The dining venues as the model is shown them, each with the building it is in and the
+        offices published at that same building, so "the cafe in the library" finds the venue in
+        the Library's building. Read once per release: every office's location is read for it."""
+        found = self.facts.list_offices(limit=100, kinds=("venue",), with_ids=True)
+        key = (found["dataset_version"], found["identity_hash"])
+        cached = getattr(self, "_venues_cache", None)
+        if cached is not None and cached[0] == key:
+            return cached[1]  # type: ignore[no-any-return]
+        venues = published_offices(found)
+        if venues is not None:
+            def places(entity_id: str) -> list[str]:
+                try:
+                    facts = self.facts.get_office_facts(entity_id, ["offices"], key[0],
+                                                        identity_hash=key[1])
+                except (UnknownEntity, InvalidFactRequest, EvidenceUnavailable):
+                    return []  # A place that cannot be read is left out; the list still goes.
+                values = [value["value"] for prop in facts["properties"]
+                          if prop["status"] == "known" for value in prop["values"]]
+                items = [item for value in values
+                         for item in (value if isinstance(value, list) else [value])]
+                return [text for item in items
+                        if isinstance(text := item.get("location") if isinstance(item, dict)
+                                      else item, str) and text]
+            buildings = {venue["entity_id"]: places(venue["entity_id"])
+                         for venue in found["offices"]}
+            offices = self.facts.list_offices(limit=500, with_ids=True)["offices"]
+            at = {office["name"]: {p.casefold() for p in places(office["entity_id"])}
+                  for office in offices}
+            for venue, listed in zip(venues, found["offices"], strict=True):
+                inside = buildings[listed["entity_id"]]
+                if inside:
+                    venue["in"] = inside
+                    shared = sorted(name for name, where in at.items()
+                                    if where & {b.casefold() for b in inside})
+                    if shared:
+                        venue["with"] = shared
+        self._venues_cache = (key, venues)
+        return venues
 
     def _published_stops(self) -> list[dict[str, Any]] | None:
         listing = self.facts.list_routes()
