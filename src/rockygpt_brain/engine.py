@@ -547,7 +547,15 @@ def _words(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+(?:'[a-z0-9]+)*", text.casefold().replace("\u2019", "'"))
 
 
-def _asked_words(student_words: str | None, message: str, offices: set[str]) -> str | None:
+# What a menu lookup answers: its items come with their allergen, diet and calorie labels.
+_MENU_ANSWERABLE_WORDS = frozenset(
+    "menu menus food foods dish dishes item items meal meals allergy allergies allergic allergen "
+    "allergens contain contains have has any dairy milk lactose nut nuts peanut peanuts tree "
+    "gluten wheat soy egg eggs fish shellfish sesame vegan vegetarian calorie calories".split())
+
+
+def _asked_words(student_words: str | None, message: str, offices: set[str],
+                 menu_read: bool = False) -> str | None:
     """The student's own words that an unsupported part is about, or None when there are none.
 
     The model must give the words it cannot answer. Words that are not in the student's message, or
@@ -559,7 +567,8 @@ def _asked_words(student_words: str | None, message: str, offices: set[str]) -> 
     if not said or not set(said) <= set(_words(message)):
         return None
     named = {word for name in offices for word in _words(name)}
-    if all(word in _ANSWERABLE_WORDS or word in named for word in said):
+    if all(word in _ANSWERABLE_WORDS or word in named
+           or (menu_read and word in _MENU_ANSWERABLE_WORDS) for word in said):
         return None
     return " ".join(student_words.split())[:100]
 
@@ -1466,7 +1475,11 @@ class ChatEngine:
                     looked_up = {word for r in results.values() if r.part
                                  and r.part.get("kind") == "office_facts"
                                  for word in (r.part["office"]["name"], r.part.get("query") or "")}
-                    about = _asked_words(part.student_words, context.latest_message, looked_up)
+                    menu_read = any(r.part and r.part.get("kind") == "office_facts"
+                                    and "menu" in r.part.get("fields", [])
+                                    for r in results.values())
+                    about = _asked_words(part.student_words, context.latest_message, looked_up,
+                                         menu_read)
                     if shown and about is None:
                         # Office facts are above and nothing the student asked is unsupported: a
                         # contact note that mentions appointments is not a question about them.

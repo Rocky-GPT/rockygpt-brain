@@ -1063,7 +1063,7 @@ _ALLERGEN_WORDS = {  # What a student says -> the words the published labels use
 # A food word a student uses for a kind of dish -> the words its published names use.
 _FOOD_WORDS = {
     "pasta": ("pasta", "macaroni", "penne", "rigatoni", "rotini", "spaghetti", "ziti", "lasagna",
-              "linguine", "fettuccine", "tortellini", "ravioli", "orzo", "gnocchi", "noodle"),
+              "linguine", "fettuccine", "tortellini", "ravioli", "orzo", "gnocchi"),
 }
 MAX_MENU_WORDS = 3
 MAX_REST_OF_MENU = 40  # The rest of a filtered meal by name: "what is for dinner" is said.

@@ -1398,3 +1398,10 @@ def test_the_contact_fallback_is_only_offered_beside_a_shown_email_or_phone() ->
                                "content": "where is budget and the sabbatical rules"}])
     assert "D-211" in result.body["answer"]
     assert "its contact details are the best way to ask" not in result.body["answer"]
+
+
+def test_an_allergy_part_beside_a_menu_is_not_called_unanswerable() -> None:
+    from rockygpt_brain.engine import _asked_words
+    message = "does the pasta have any nuts or dairy, i have allergies"
+    assert _asked_words("any nuts or dairy", message, {"Birch Tree Inn"}, menu_read=True) is None
+    assert _asked_words("any nuts or dairy", message, {"Registrar"}) == "any nuts or dairy"

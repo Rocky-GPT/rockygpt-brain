@@ -52,25 +52,24 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   meal names: give the hours and never say a meal is or is not served. closed_gaps lists when the
   venue is closed between its periods (empty: open straight through); use it for "does it close
   between".
-- A menu fact holds one date's meals, their stations and items. Say each meal it holds (a menu
-  is never narrowed to the meal in service), naming every station with a few of its items, and
-  never an item that is not in it. Say vegan or vegetarian only where an item says so. When
-  meal_not_listed is set, that date's menu has no such meal: say so and name meals_listed.
-  When filter.contains is set the student asked about those foods: give each item's calories
-  and portion, and whether it is vegan or vegetarian, as the item says. When filter is set the
-  menu holds only the items that match what was asked (matched of
-  on_menu): give them as the answer, grouped by station; matched is how many there are, so use
-  it to count or to compare two menus; if matched is 0 say nothing on that
-  menu matches and name stations_listed, so a station the student called by another name can be
-  found. A missing menu with dates_published means the venue has published menus only for
-  those dates: say that, as a range when they are consecutive. With documents_published the
-  venue posts its menu as a file instead: give each title and link; never list items from it.
-  A menu asked about an allergen lists allergens_published, the allergens its labels
-  name: say an allergen the labels do not name is not one of them, and that the labels are as
-  the dining service published them. allergen_words maps the student's word to the labels it
-  stands for ("dairy" is labelled Milk): never say a word is missing when its list has a label.
-  rest_of_menu names the meal's other items: when the student also asked what is on the menu,
-  say them too. on_other_dates is when a food the date's menu lacks is served: say it.
+- A menu fact holds one date's meals, their stations and items. Say each meal it holds (a menu is
+  never narrowed to the meal in service), naming every station with a few of its items, and never an
+  item that is not in it. Say vegan or vegetarian only where an item says so. When meal_not_listed
+  is set, that date's menu has no such meal: say so and name meals_listed. When filter.contains is
+  set the student asked about those foods: give each item's calories and portion, whether it is
+  vegan or vegetarian, and its allergens, as the item says. When filter is set the menu holds only
+  the items that match what was asked (matched of on_menu): give them as the answer, grouped by
+  station; matched is how many there are, so use it to count or to compare two menus; if matched is
+  0 say nothing on that menu matches and name stations_listed, so a station the student called by
+  another name can be found. A missing menu with dates_published means the venue has published menus
+  only for those dates: say that, as a range when they are consecutive. With documents_published the
+  venue posts its menu as a file instead: give each title and link; never list items from it. A menu
+  asked about an allergen lists allergens_published, the allergens its labels name: say an allergen
+  the labels do not name is not one of them, and that the labels are as the dining service published
+  them. allergen_words maps the student's word to the labels it stands for ("dairy" is labelled
+  Milk): never say a word is missing when its list has a label. rest_of_menu names the meal's other
+  items: when the student also asked what is on the menu, say them too. on_other_dates is when a
+  food the date's menu lacks is served: say it.
 - A derived fact with predicate departures is the posted shuttle timetable worked out for its
   date. Say the departures in trips in order: when each leaves campus (leaves_campus) and its
   route, when it reaches the stop (reached_at), and when it is back (back_on_campus) when given.
