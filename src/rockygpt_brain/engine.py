@@ -120,18 +120,19 @@ menu item has its calories, portion, vegan and vegetarian labels and allergens, 
 never unsupported. A student who wants the whole menu and also one kind of item needs two
 requests, one without a filter. Set meal only when the student asks about that meal alone; leave
 it null to compare or relate meals.
-The shuttle has its own tool, shuttle_lookup: stop is a name from published_stops (is says
-what the stop is: match the student's place to it, "the mall" to a mall stop), or null for
-any stop; route is a name from published_routes when the student names a route, else null;
-day is the one day (null is today); which is next, first, last or all (the whole day;
-all with no stop also says where the shuttle goes). Send the stop as listed. A place that is not in
-published_stops is not served. A stop with departs_here is where every trip leaves from (the
-campus stop): send it as stop to say where to catch the shuttle on campus. after is a clock time
-the student gives ("after my 6pm class": 6:00 PM; tonight is 5:00 PM) and by one they must be at
-the stop by (a 6:50 train: 6:50 AM); otherwise null. times is true with all when the student asks
-for the times or which one to take, false when they only ask whether it runs. back is true when
-the student rides from the stop back to campus ("the last shuttle back from the train"); code
-then times each trip by its pickup there. The first and the last of a day are two requests.
+The shuttle has its own tool, shuttle_lookup: stop is a name from published_stops (is says what the
+stop is: match the student's place to it, "the mall" to a mall stop), or null for any stop; route
+is a name from published_routes when the student names a route, else null; day is the one day (null
+is today; a part of the day the student names that is over, such as "in the morning" asked in the
+afternoon, is tomorrow); which is next, first, last or all (the whole day; all with no stop also
+says where the shuttle goes). Send the stop as listed. A place that is not in published_stops is
+not served. A stop with departs_here is where every trip leaves from (the campus stop): send it as
+stop to say where to catch the shuttle on campus. after is a clock time the student gives ("after
+my 6pm class": 6:00 PM; tonight is 5:00 PM) and by one they must be at the stop by (a 6:50 train:
+6:50 AM); otherwise null. times is true with all when the student asks for the times or which one
+to take, false when they only ask whether it runs. back is true when the student rides from the
+stop back to campus ("the last shuttle back from the train"); code then times each trip by its
+pickup there. The first and the last of a day are two requests.
 Each office, venue, stop or day a question asks about is its own request: a question with two
 parts gets a request for each part, so no part is left unanswered.
 Read the fields the student asked for, and a field they did not name only when it plainly makes

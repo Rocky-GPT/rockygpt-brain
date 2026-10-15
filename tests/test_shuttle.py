@@ -255,3 +255,25 @@ def test_a_trip_that_only_goes_out_is_no_ride_back() -> None:
     # Going out, the 5:30 PM trip is still the last one to the train.
     out = departures(table, friday, None, "last", "Train")
     assert out["trips"][0]["leaves_campus"] == "5:30 PM"
+
+
+def test_a_be_there_by_time_already_passed_today_answers_for_the_next_service_day() -> None:
+    from datetime import date as day_of
+
+    from rockygpt_brain.shuttle import departures, describe
+    table = [{"route": "Express", "service_day": "weekday", "trips": [
+        {"sequence": 0, "departure": "7:00 AM", "arrival": "7:20 AM",
+         "stops": [{"location": "Train", "time": "7:10 AM"}]},
+        {"sequence": 1, "departure": "5:30 PM", "arrival": "5:50 PM",
+         "stops": [{"location": "Train", "time": "5:40 PM"}]}]}]
+    # Thursday 4:47 PM, "need to make the 7am": Friday's 7:00 AM trip, never today's 5:40 PM.
+    got = departures(table, day_of(2026, 10, 15), 16 * 60 + 47, "next", "Train", by=7 * 60)
+    assert got["by_passed_today"] is True
+    assert got["next_service"]["date"] == "2026-10-16"
+    # No trip reaches the train by 7:00 AM: the next morning's earliest arrival is said instead.
+    assert got["next_service"]["none_by"] is True
+    assert got["next_service"]["earliest_reaches_stop"] == "7:10 AM"
+    assert describe(got) == ("7:00 AM has already passed today. On Friday, October 16 no shuttle "
+                             "reaches the stop by then; the earliest reaches it at 7:10 AM.")
+    late = departures(table, day_of(2026, 10, 15), 18 * 60, "next", "Train", by=17 * 60 + 45)
+    assert [t["reached_at"] for t in late["next_service"]["trips"]] == ["7:10 AM", "5:40 PM"]

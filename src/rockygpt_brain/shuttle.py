@@ -227,6 +227,19 @@ def departures(
     if by is not None and (key is None or back):
         result["by_needs_a_stop"] = True  # "Get there by" means nothing without a place.
         by = None
+    if by is not None and now_minute is not None and by <= now_minute:
+        # "Be at the train by 7:00 AM" asked after 7:00 AM: today's chance has passed, so the
+        # answer is the next day that has a trip reaching the stop by then.
+        result.update(by=clock(by), by_passed_today=True)
+        for ahead in range(1, 8):
+            later = day + timedelta(days=ahead)
+            then = departures(routes, later, None, which, stop, after, by, times, back)
+            if then.get("trips") or then.get("none_by"):
+                result["next_service"] = {"date": later.isoformat(), "trips": then["trips"],
+                                          **{key: then[key] for key in ("none_by",
+                                             "earliest_reaches_stop") if key in then}}
+                break
+        return result
     if by is not None:
         result["by"] = clock(by)
         reaching = [t for t in upcoming
@@ -357,6 +370,16 @@ def describe(answer: dict[str, Any]) -> str:
         return text
 
     trips = answer.get("trips", [])
+    if answer.get("by_passed_today"):
+        later = answer.get("next_service")
+        text = f"{answer['by']} has already passed today."
+        if later and later.get("none_by"):
+            text += (f" On {_date_text(later['date'])} no shuttle reaches the stop by then; the "
+                     f"earliest reaches it at {later.get('earliest_reaches_stop')}.")
+        elif later:
+            text += (f" On {_date_text(later['date'])}: "
+                     + "; ".join(one(t) for t in later["trips"]) + ".")
+        return text
     if answer.get("by"):
         if answer.get("none_by"):
             text = f"No shuttle{to} is listed that reaches the stop by {answer['by']} on {when}."
