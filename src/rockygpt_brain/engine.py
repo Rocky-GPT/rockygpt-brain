@@ -57,9 +57,9 @@ from rockygpt_brain.shuttle import (
     SPECIAL_TEXT,
     departures,
     describe,
-    first_sentence,
     said_minutes,
     stop_key,
+    stop_summary,
     stops_served,
     table_of,
 )
@@ -851,7 +851,7 @@ class ChatEngine:
             return cached[1]  # type: ignore[no-any-return]
         envelopes = [self.facts.get_route_facts(route["entity_id"], key[0], identity_hash=key[1])
                      for route in listing["routes"]]
-        # What each stop is, in its stop-descriptions page's own first sentence, so a student's
+        # What each stop is, in its stop-descriptions page's opening sentences, so a student's
         # "the mall" or "the train" can be matched to the stop the page says it is.
         about: dict[str, str] = {}
         for envelope in envelopes:
@@ -860,7 +860,7 @@ class ChatEngine:
                     continue
                 for value in prop["values"]:
                     for stop in value["value"]:
-                        if sentence := first_sentence(stop.get("description")):
+                        if sentence := stop_summary(stop.get("description")):
                             about.setdefault(stop_key(stop["stop"]), sentence)
         names = stops_served(table_of(envelopes))
         stops = [{"name": name, **({"is": about[stop_key(name)]} if stop_key(name) in about
