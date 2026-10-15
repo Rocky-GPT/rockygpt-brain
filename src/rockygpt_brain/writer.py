@@ -82,6 +82,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   last departure and how many trips (first_leaves_campus, last_leaves_campus, trip_count), and
   give each trip's time when trips lists them. When none_left is true, say the last
   one left at last_left_at and give next_service (its date and first departure).
+  by_passed_today means the time the student must be at the stop by has passed today: say so and
+  give next_service (its date and trips, or none_by with earliest_reaches_stop).
   departs_from is the stop every trip leaves from (the campus stop): say that is where to catch
   it, as stop_description says.
   stop_description says what the asked stop is and where the shuttle picks up there (pickup):
