@@ -112,7 +112,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   nothing more about the schedule. Its scope and reason were
   written for reviewers: use them only to say plainly what is not published and what the pages
   say to do instead, in your own plain words, never with their words "scope" or "reviewed".
-- missing means you do not have it: say you do not have verified information about that.
+- missing means you do not have it: say you do not have verified information about that. With
+  reason no_fax_line, say instead that none of the office's published phone lines is a fax.
 - ambiguities.choices: ask which of those offices they mean, naming each.
 - Do not repeat notices: the server shows their fixed wording itself.
 - When a statement comes from a source, put its number after it like [1].
