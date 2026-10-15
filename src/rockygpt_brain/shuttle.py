@@ -14,7 +14,9 @@ Rules, all in code:
   - A stop is matched by its published name with "Arrive"/"Depart" prefixes, case and spacing
     folded. Nothing is guessed from a similar name.
   - A trip's first call at a stop is where it is reached going out from campus; its last is where
-    it is left going back. `reached_at` is the first, `leaves_stop_at` the last.
+    it is left going back. `reached_at` is the first, `leaves_stop_at` the last. A ride back to
+    campus from a stop is timed by that last call: "the next shuttle back from the train" is the
+    next pickup there, even on a trip that left campus before now.
   - Only what the timetable lists is said. The timetable is scheduled service: it says nothing
     about weather, closures or where a shuttle is right now.
 """
@@ -152,13 +154,18 @@ def _stop_label(routes: list[dict[str, Any]], key: str) -> tuple[str | None, lis
     return name, days
 
 
-def _shown(trip: dict[str, Any], key: str | None) -> dict[str, Any]:
+def _pickup(trip: dict[str, Any], key: str) -> int:
+    """When a trip last calls at a stop: where it picks up on its way back to campus."""
+    return [stop for stop in trip["stops"] if stop["key"] == key][-1]["at"]
+
+
+def _shown(trip: dict[str, Any], key: str | None, back: bool = False) -> dict[str, Any]:
     out: dict[str, Any] = {"route": trip["route"], "leaves_campus": clock(trip["leaves"])}
     if key is not None:
         calls = [stop for stop in trip["stops"] if stop["key"] == key]
         out["stop"] = calls[0]["name"]
         out["reached_at"] = clock(calls[0]["at"])
-        if len(calls) > 1:
+        if len(calls) > 1 or back:
             out["leaves_stop_at"] = clock(calls[-1]["at"])
     out["back_on_campus"] = clock(trip["back"]) if trip["back"] is not None else None
     out["calls_at"] = list(dict.fromkeys(stop["name"] for stop in trip["stops"]))
@@ -168,6 +175,7 @@ def _shown(trip: dict[str, Any], key: str | None) -> dict[str, Any]:
 def departures(
     routes: list[dict[str, Any]], day: date, now_minute: int | None, which: str,
     stop: str | None, after: int | None = None, by: int | None = None, times: bool = True,
+    back: bool = False,
 ) -> dict[str, Any]:
     """The answer to "the {next, first, last} shuttle (to {stop}) on this date".
 
@@ -177,7 +185,8 @@ def departures(
     ("a 6:50 train") and answers with the latest of them. `times` is whether "all" lists every
     trip; without it "all" is the day's first, last and count. The result is the facts of the
     answer, not prose: `trips` are the departures to say, `none_left` that every trip today
-    has left."""
+    has left. `back` is a ride from the stop back to campus: every time and filter then reads
+    the trip's pickup there (its last call), not when it left campus."""
     key = stop_key(stop) if stop else None
     service = service_day(day)
     todays = trips_of(routes, service)
@@ -187,6 +196,13 @@ def departures(
     result: dict[str, Any] = {
         "date": day.isoformat(), "service_day": service, "which": which, "stop": published,
     }
+    back = back and key is not None
+    # The minute each trip is said by: leaving campus, or picking up at the stop to come back.
+    def when(trip: dict[str, Any]) -> int:
+        return _pickup(trip, key) if back and key is not None else trip["leaves"]
+    if back:
+        result["back_to_campus"] = True
+        calling = sorted(calling, key=lambda trip: (when(trip), trip["route"]))
     if not calling:
         result["service"] = "none"
         if key:
@@ -195,9 +211,9 @@ def departures(
     day_calling = calling
     if after is not None:
         result["after"] = clock(after)
-        calling = [t for t in calling if t["leaves"] > after]
-    upcoming = [t for t in calling if now_minute is None or t["leaves"] > now_minute]
-    if by is not None and key is None:
+        calling = [t for t in calling if when(t) > after]
+    upcoming = [t for t in calling if now_minute is None or when(t) > now_minute]
+    if by is not None and (key is None or back):
         result["by_needs_a_stop"] = True  # "Get there by" means nothing without a place.
         by = None
     if by is not None:
@@ -212,8 +228,8 @@ def departures(
         return result
     if not calling:
         # Nothing leaves after that time on this date: the day's last trip is the edge of it.
-        result.update(trips=[], none_left=True, last_left_at=clock(day_calling[-1]["leaves"]))
-        result.update(_next_service(routes, day, key))
+        result.update(trips=[], none_left=True, last_left_at=clock(when(day_calling[-1])))
+        result.update(_next_service(routes, day, key, back))
         return result
     if which == "all":
         picked = calling
@@ -227,23 +243,24 @@ def departures(
         if not times:
             picked = []
     elif which == "first":
-        picked = [t for t in calling if t["leaves"] == calling[0]["leaves"]]
+        picked = [t for t in calling if when(t) == when(calling[0])]
     elif which == "last":
-        picked = [t for t in calling if t["leaves"] == calling[-1]["leaves"]]
+        picked = [t for t in calling if when(t) == when(calling[-1])]
     else:
         picked = upcoming[:MAX_LISTED]
-    result["trips"] = [_shown(t, key) for t in picked]
+    result["trips"] = [_shown(t, key, back) for t in picked]
     if which in {"first", "last"} and now_minute is not None:
-        result["already_left"] = all(t["leaves"] <= now_minute for t in picked)
+        result["already_left"] = all(when(t) <= now_minute for t in picked)
     if which == "next":
         result["none_left"] = not upcoming
         if not upcoming:
-            result["last_left_at"] = clock(day_calling[-1]["leaves"])
-            result.update(_next_service(routes, day, key))
+            result["last_left_at"] = clock(when(day_calling[-1]))
+            result.update(_next_service(routes, day, key, back))
     return result
 
 
-def _next_service(routes: list[dict[str, Any]], day: date, key: str | None) -> dict[str, Any]:
+def _next_service(routes: list[dict[str, Any]], day: date, key: str | None,
+                  back: bool = False) -> dict[str, Any]:
     """The first trip on the next day that has one to the stop, so "none left" is never a dead
     end. Empty when no day in the coming week has one."""
     for ahead in range(1, 8):
@@ -251,9 +268,13 @@ def _next_service(routes: list[dict[str, Any]], day: date, key: str | None) -> d
         coming = [t for t in trips_of(routes, service_day(later))
                   if key is None or any(s["key"] == key for s in t["stops"])]
         if coming:
-            first = [t for t in coming if t["leaves"] == coming[0]["leaves"]]
+            if back and key is not None:
+                coming = sorted(coming, key=lambda t: _pickup(t, key))
+                first = [t for t in coming if _pickup(t, key) == _pickup(coming[0], key)]
+            else:
+                first = [t for t in coming if t["leaves"] == coming[0]["leaves"]]
             return {"next_service": {"date": later.isoformat(),
-                                     "trips": [_shown(t, key) for t in first]}}
+                                     "trips": [_shown(t, key, back) for t in first]}}
     return {}
 
 
@@ -299,11 +320,14 @@ def describe(answer: dict[str, Any]) -> str:
             text += f" {stop} is served on {' and '.join(answer['served_on'])}."
         return text
     which = answer["which"]
+    where = f" Every trip leaves from {answer['departs_from']}." if answer.get("departs_from") else ""
 
     def one(trip: dict[str, Any]) -> str:
         text = f"{trip['leaves_campus']} ({trip['route']})"
         if trip.get("reached_at"):
             text += f", reaching {trip['stop']} at {trip['reached_at']}"
+        if trip.get("leaves_stop_at"):
+            text += f", leaving {trip['stop']} for campus at {trip['leaves_stop_at']}"
         if trip.get("back_on_campus"):
             text += f", back on campus at {trip['back_on_campus']}"
         return text
@@ -329,8 +353,9 @@ def describe(answer: dict[str, Any]) -> str:
     label = {"next": "Next", "first": "First", "last": "Last", "all": "All"}[which]
     if which == "all":
         if answer.get("stops_served") and not trips:
-            return f"On {when} the shuttle calls at {', '.join(answer['stops_served'])}."
-        return f"Shuttles{to} on {when}: " + "; ".join(one(t) for t in trips) + "."
+            return (f"On {when} the shuttle calls at {', '.join(answer['stops_served'])}."
+                    + where)
+        return f"Shuttles{to} on {when}: " + "; ".join(one(t) for t in trips) + "." + where
     since = f" after {answer['after']}" if answer.get("after") else ""
     lead = f"{label} shuttle{to}{since} on {when}: " + "; ".join(one(t) for t in trips) + "."
     if answer.get("already_left"):

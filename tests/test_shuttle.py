@@ -202,3 +202,31 @@ def test_by_answers_with_the_latest_trips_that_reach_the_stop_in_time() -> None:
     # Without a stop there is nothing to arrive at.
     nostop = departures(table, TUESDAY, minutes("4:00 AM"), "next", None, by=minutes("8:00 AM"))
     assert nostop["by_needs_a_stop"] is True and "by" not in nostop
+
+
+def test_a_ride_back_to_campus_is_timed_by_the_pickup_at_the_stop() -> None:
+    from datetime import date as day_of
+
+    from rockygpt_brain.shuttle import departures
+    # The loop calls at the train going out (9:50) and again coming back (10:35).
+    table = [{"route": "Loop", "service_day": "weekday", "trips": [
+        {"sequence": 1, "departure": "8:40 PM", "arrival": "9:45 PM", "stops": [
+            {"location": "Train", "time": "8:50 PM"}, {"location": "Mall", "time": "9:15 PM"},
+            {"location": "Train", "time": "9:35 PM"}]},
+        {"sequence": 2, "departure": "9:40 PM", "arrival": "10:45 PM", "stops": [
+            {"location": "Train", "time": "9:50 PM"}, {"location": "Mall", "time": "10:15 PM"},
+            {"location": "Train", "time": "10:35 PM"}]}]}]
+    thursday = day_of(2026, 10, 15)
+    last = departures(table, thursday, 15 * 60, "last", "Train", back=True)
+    assert last["back_to_campus"] is True
+    assert [(t["leaves_campus"], t["leaves_stop_at"]) for t in last["trips"]] == [
+        ("9:40 PM", "10:35 PM")]
+    # At 10:20 PM the 9:40 trip has left campus, but its pickup at the train is still ahead.
+    late = departures(table, thursday, 22 * 60 + 20, "next", "Train", back=True)
+    assert [t["leaves_stop_at"] for t in late["trips"]] == ["10:35 PM"]
+    going = departures(table, thursday, 22 * 60 + 20, "next", "Train")
+    assert going["none_left"] is True
+    # Going out, the second call is still said: it is the same trip coming back.
+    out = departures(table, thursday, 15 * 60, "last", "Train")
+    assert out["trips"][0]["reached_at"] == "9:50 PM"
+    assert out["trips"][0]["leaves_stop_at"] == "10:35 PM"
