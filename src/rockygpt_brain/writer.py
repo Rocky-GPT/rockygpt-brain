@@ -17,11 +17,14 @@ import json
 import re
 from typing import Any
 
+# The reply's longest length. Strict output stops a longer reply at exactly this many characters,
+# mid-word, so a reply that reaches it was cut short and is not used (the code's text is).
+WRITER_TEXT_LIMIT = 2400
 WRITE_TOOL: dict[str, Any] = {
     "type": "function", "name": "write_answer", "strict": True,
     "description": "Write the reply the student reads, from the facts you were given.",
     "parameters": {"type": "object", "additionalProperties": False, "required": ["text"],
-                   "properties": {"text": {"type": "string", "maxLength": 1200}}},
+                   "properties": {"text": {"type": "string", "maxLength": WRITER_TEXT_LIMIT}}},
 }
 
 WRITER_PROMPT = """You write the reply a Ramapo College student reads. You are given facts about

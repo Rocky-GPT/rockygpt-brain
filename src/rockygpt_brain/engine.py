@@ -65,7 +65,13 @@ from rockygpt_brain.shuttle import (
 )
 from rockygpt_brain.timing import measure
 from rockygpt_brain.turn import Turn
-from rockygpt_brain.writer import WRITE_TOOL, says_something, unsupported_by, writer_messages
+from rockygpt_brain.writer import (
+    WRITE_TOOL,
+    WRITER_TEXT_LIMIT,
+    says_something,
+    unsupported_by,
+    writer_messages,
+)
 from rockygpt_brain.writer_view import writer_view
 
 LOG = logging.getLogger(__name__)
@@ -1598,6 +1604,8 @@ class ChatEngine:
                 return keep("writer_unavailable")
         if not isinstance(said, str) or not said.strip():
             return keep("no_text")
+        if len(said) >= WRITER_TEXT_LIMIT:
+            return keep("cut_off")  # Stopped at the length limit, mid-sentence.
         problems = unsupported_by(said, view)
         if problems:
             return keep("not_in_the_facts", problems)
