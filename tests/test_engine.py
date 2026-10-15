@@ -1362,3 +1362,33 @@ def test_a_venue_is_listed_with_its_building_and_the_offices_published_there() -
     assert state["published_venues"] == [{"name": "Common Grounds", "publishes": [],
                                           "in": ["Learning Commons"],
                                           "with": ["Library"]}]
+
+
+def budget_office() -> MemoryEntityFacts:
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "budget", "name": "Budget", "kind": "office", "aliases": [], "links": [
+            {"collection": "contacts", "source_key": "directory", "source_record_keys": ["b"]}]}],
+        contacts=[{"id": "c-b", "source_key": "directory", "source_record_key": "b", "name": "Budget",
+                   "email": "budget@example.edu", "office": "D-211", "preferred_contact": "email",
+                   "prefers_email": True, "canonical_url": "https://example.edu/budget",
+                   "collected_at": NOW, "freshness_sla_hours": 24}], now=lambda: NOW)
+
+
+def test_a_preferred_way_to_reach_an_office_comes_with_its_address() -> None:
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Budget", "fields": ["preferred_contact"]}]})
+    result = answer(ScriptedGateway(ask, finish()), service=budget_office(),
+                    messages=[{"role": "user", "content": "best way to reach the budget office"}])
+    assert "budget@example.edu" in result.body["answer"]
+
+
+def test_the_contact_fallback_is_only_offered_beside_a_shown_email_or_phone() -> None:
+    where = completion("graph_lookup", {"requests": [{"query": "Budget", "fields": ["offices"]}]})
+    unsupported = completion("finish", {"parts": [
+        {"kind": "unsupported", "message_index": None, "situation": None,
+         "student_words": "sabbatical rules"}]})
+    result = answer(ScriptedGateway(where, unsupported), service=budget_office(),
+                    messages=[{"role": "user", "content": "where is budget and the sabbatical rules"}])
+    assert "D-211" in result.body["answer"]
+    assert "its contact details are the best way to ask" not in result.body["answer"]

@@ -116,10 +116,20 @@ def _open_now_periods(hours: Any, at: datetime) -> dict[str, str] | None:
     shown = f"{at.hour % 12 or 12}:{at.minute:02d}{'pm' if at.hour >= 12 else 'am'}"
     current = dining.at(periods, clock)
     if current is not None:
-        found: dict[str, str] = {"state": "open", "now": shown,
-                                 "closes": dining.clock_text(current.end)}
+        # Periods that meet (lite lunch to 5:00pm, dinner from 5:00pm) are one stretch of service:
+        # the venue closes at the stretch's end, not when the current meal ends.
+        end, following = current.end, None
+        for period in sorted(periods, key=lambda p: p.start):
+            if period.start == end and period.end > end:
+                following = following or period
+                end = period.end
+        found: dict[str, str] = {"state": "open", "now": shown, "closes": dining.clock_text(end)}
         if current.label:
             found["meal"] = current.label
+        if following is not None:
+            found["meal_ends"] = dining.clock_text(current.end)
+            if following.label:
+                found["then_meal"] = following.label
         return found
     found = {"state": "closed", "now": shown}
     coming = dining.after(periods, clock)

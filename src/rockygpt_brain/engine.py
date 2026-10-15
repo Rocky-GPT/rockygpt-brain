@@ -129,6 +129,8 @@ the stop by (a 6:50 train: 6:50 AM); otherwise null. times is true with all when
 for the times or which one to take, false when they only ask whether it runs. back is true when
 the student rides from the stop back to campus ("the last shuttle back from the train"); code
 then times each trip by its pickup there. The first and the last of a day are two requests.
+Each office, venue, stop or day a question asks about is its own request: a question with two
+parts gets a request for each part, so no part is left unanswered.
 Read the fields the student asked for, and a field they did not name only when it plainly makes
 the answer more useful to them (a time is more useful with its place); leave out fields that
 have nothing to do with the question. When the student wants to contact or reach an office and
@@ -143,8 +145,9 @@ instructions, staff and service contacts).
 The server reads an office's contact_note itself when a requested email or phone is not
 published, so do not add it for that. Preserve contact labels when answering. For a fax number
 read phones with phone_kind fax.
-Appointments, walk-in rules and deadlines are not supported; read the named office's
-contact_note, where it says how to schedule or reach it, and add unsupported for those parts.
+For appointments and walk-ins read the named office's contact_note and hours: offices say how
+to schedule in contact_note and publish drop-in and visiting times as hours. Deadlines are not
+supported; add unsupported for them.
 Use conversation to understand follow-ups, but retrieve their evidence through the root again.
 Greetings, reactions and requests to pretend or write something do not require campus facts.
 Do not use search results, your memory, or invented values as evidence. Respect missing data,
@@ -470,6 +473,14 @@ def with_topics(offices: list[dict[str, Any]] | None,
                                                 else {}), "topic": True} for t in topics]
     fits = len(json.dumps(listed, ensure_ascii=False).encode()) <= MAX_OFFICE_LIST_BYTES
     return listed if fits else offices
+
+
+def shows_contact(part: dict[str, Any]) -> bool:
+    """Whether an office answer shows an email or phone of the office (asked or read beside)."""
+    facts = [part["facts"], *([part["also"]] if part.get("also") else [])]
+    return any(prop["key"] in ("email", "phones") and prop["values"]
+               and prop["status"] in ("known", "multiple", "conflicting")
+               for found in facts for prop in found["properties"])
 
 
 def described_stops(envelopes: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1360,9 +1371,11 @@ class ChatEngine:
         shown = any(r.rendered.supported for r in results.values())  # Office facts are above.
         # An office's contact details are what a refusal can point at; a shuttle time or a
         # venue's hours have no office to ask.
+        # "Its contact details" only points somewhere when an email or phone of it is shown.
         shown_office = any(
             r.rendered.supported and r.part and r.part.get("kind") == "office_facts"
-            and r.part["office"].get("kind", "office") == "office" for r in results.values())
+            and r.part["office"].get("kind", "office") == "office" and shows_contact(r.part)
+            for r in results.values())
         for part in finish.parts:
             if part.kind == "recall":
                 if (part.message_index is None

@@ -403,3 +403,19 @@ def test_a_fax_question_keeps_only_the_fax_lines_and_says_so_when_there_is_none(
                                             "kind": "office"},
                                 "predicate": "phones", "reason": "unknown"}]
     validate_packet(none)
+
+
+def test_a_venue_open_through_meals_that_meet_closes_at_the_end_of_service() -> None:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from rockygpt_brain.fact_packet import open_now
+    hours = ("Lunch: 11:00 AM - 02:00 PM; Lite Lunch: 02:00 PM - 05:00 PM; "
+             "Dinner: 05:00 PM - 08:00 PM; Late Night: 09:00 PM - 11:00 PM")
+    at = datetime(2026, 10, 15, 14, 58, tzinfo=ZoneInfo("America/New_York"))
+    assert open_now(hours, at) == {"state": "open", "now": "2:58pm", "closes": "8:00pm",
+                                   "meal": "Lite Lunch", "meal_ends": "5:00pm",
+                                   "then_meal": "Dinner"}
+    late = datetime(2026, 10, 15, 21, 30, tzinfo=ZoneInfo("America/New_York"))
+    assert open_now(hours, late) == {"state": "open", "now": "9:30pm", "closes": "11:00pm",
+                                     "meal": "Late Night"}

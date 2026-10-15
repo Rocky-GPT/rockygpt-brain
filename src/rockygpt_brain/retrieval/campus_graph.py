@@ -194,21 +194,31 @@ class CampusGraph:
     def _note_for_unpublished(
         self, opened: dict[str, Any], fields: list[str], as_of: datetime,
     ) -> dict[str, Any] | None:
-        """The office's contact note, when a requested email or phone is not published.
+        """The office's contact note, when a requested email or phone is not published, and the
+        address or number of the way it says it prefers to be reached, when that was not asked.
 
         The note is where an office lists its role and service contacts, so it is the one place
         an alternative to the missing value can be. It is read as supplementary: the model did not
         ask for it, so it is neither a requested field nor a reason for an answer to be partial.
         """
-        if "contact_note" in fields:
-            return None
+        wanted = []
         asked = [p for p in opened["facts"]["properties"] if p["key"] in ("email", "phones")]
-        if not any(p["status"] in ("unknown", "not_published") for p in asked):
+        if "contact_note" not in fields and any(
+                p["status"] in ("unknown", "not_published") for p in asked):
+            wanted.append("contact_note")
+        # A preferred way to reach the office is only useful with its address or number.
+        preferred = next((p for p in opened["facts"]["properties"]
+                          if p["key"] == "preferred_contact" and p["status"] == "known"), None)
+        method = {"email": "email", "phone": "phones"}.get(
+            str(preferred["values"][0]["value"]).casefold()) if preferred else None
+        if method and method not in fields:
+            wanted.append(method)
+        if not wanted:
             return None
-        with measure("Read contact note · requested contact not published"):
-            extra = self.open(opened["id"], ["contact_note"], as_of)["facts"]
-        note = next((p for p in extra["properties"] if p["key"] == "contact_note"), None)
-        return extra if note is not None and note["status"] == "known" else None
+        with measure("Read beside the answer · contact note or the preferred contact"):
+            extra = self.open(opened["id"], wanted, as_of)["facts"]
+        kept = [p for p in extra["properties"] if p["status"] == "known"]
+        return {**extra, "properties": kept} if kept else None
 
     def inspect(
         self, node_id: str, as_of: datetime, fields: list[str] | None = None,
