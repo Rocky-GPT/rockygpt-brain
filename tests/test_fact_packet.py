@@ -399,10 +399,14 @@ def test_a_fax_question_keeps_only_the_fax_lines_and_says_so_when_there_is_none(
     none = build_packet(AS_OF, [{**part_for(plain, "registrar", "Registrar", ["phones"]),
                                  "phone_kind": "fax"}])
     assert [f for f in none["facts"] if f["predicate"] == "phones"] == []
-    assert none["missing"] == [{"subject": {"id": "registrar", "name": "Registrar",
-                                            "kind": "office"},
-                                "predicate": "phones", "reason": "unknown"}]
+    # The phone lines were read and none is a fax: said as that, citing the listing read.
+    (entry,) = none["missing"]
+    assert entry["reason"] == "no_fax_line" and entry["predicate"] == "phones"
+    assert entry["source_ids"] and set(entry["source_ids"]) <= {s["id"] for s in none["sources"]}
     validate_packet(none)
+    from rockygpt_brain.writer_view import writer_view
+    (row,) = writer_view(none)["missing"]
+    assert row["reason"] == "no_fax_line" and row["sources"]
 
 
 def test_a_venue_open_through_meals_that_meet_closes_at_the_end_of_service() -> None:

@@ -25,8 +25,10 @@ Version 1.0:
                      {state "open" or "closed", now} says which it is at the turn's campus time,
                      so a writer never compares hours with a clock itself.
     missing        [{subject, predicate, reason}]   a requested fact we cannot state: reason
-                   "unknown" (nobody checked, or the page could not be read) or "no_citable_source"
-                   (a value exists but nothing it comes from has a usable secure link: withheld).
+                   "unknown" (nobody checked, or the page could not be read), "no_citable_source"
+                   (a value exists but nothing it comes from has a usable secure link: withheld)
+                   or "no_fax_line" (a fax was asked for; the office's phone lines, cited by
+                   source_ids, include none published as a fax).
                    Schedule issues also preserve schedule, status, details, days, source statements,
                    and source_ids, with unverified_schedule or partially_unknown_schedule reason.
     not_published  [{subject, predicate, checked_at, current, checks, source_ids}]
@@ -288,10 +290,16 @@ class _Builder:
             values = prop["values"]
             if prop["key"] == "phones" and purpose is None and part.get("phone_kind") == "fax":
                 # The student asked for the fax: only the lines published as one are facts here.
+                lines = values
                 values = [{**v, "value": fax} for v in values if (fax := _fax_lines(v["value"]))]
                 if not values:
+                    # The office publishes phone lines and none of them is a fax: that is what
+                    # was read, not an unread gap. Its listing is cited, not its numbers.
+                    ids = list(dict.fromkeys(sid for v in lines for sid in v["source_ids"]
+                                             if sid in local and local[sid]["urls"]))
                     self.missing.append({"subject": entity, "predicate": "phones",
-                                         "reason": "unknown"})
+                                         "reason": "no_fax_line" if ids else "unknown",
+                                         **({"source_ids": ids} if ids else {})})
                     continue
             for value in values:
                 ids = list(value["source_ids"])
