@@ -1,0 +1,459 @@
+[
+ {
+  "id": "s001",
+  "message": "Where is the Financial Aid office located on campus?",
+  "kind": "office",
+  "entity": "Financial Aid",
+  "ask": "room"
+ },
+ {
+  "id": "s002",
+  "message": "How can I get in touch with the on-campus student employment office?",
+  "kind": "office",
+  "entity": "On-Campus Employment for Students",
+  "ask": "how_to_reach"
+ },
+ {
+  "id": "s003",
+  "message": "contact alumni relations",
+  "kind": "office",
+  "entity": "Office of Alumni Relations",
+  "ask": "how_to_reach"
+ },
+ {
+  "id": "s004",
+  "message": "contact controller's office",
+  "kind": "office",
+  "entity": "Controller",
+  "ask": "how_to_reach"
+ },
+ {
+  "id": "s005",
+  "message": "What's the fax number for Environmental Health and Safety?",
+  "kind": "office",
+  "entity": "Environmental Health and Safety",
+  "ask": "fax"
+ },
+ {
+  "id": "s006",
+  "message": "whats the phone # for the IT help dekk",
+  "kind": "office",
+  "entity": "IT Help Desk",
+  "ask": "phone"
+ },
+ {
+  "id": "s007",
+  "message": "Can you give me the phone number for the Peer Facilitators?",
+  "kind": "office",
+  "entity": "Peer Facilitators",
+  "ask": "phone"
+ },
+ {
+  "id": "s008",
+  "message": "internal audit phone",
+  "kind": "office",
+  "entity": "Office of Internal Audit",
+  "ask": "phone"
+ },
+ {
+  "id": "s009",
+  "message": "grants and sponsored programs office location",
+  "kind": "office",
+  "entity": "Office of Grants & Sponsored Programs",
+  "ask": "room"
+ },
+ {
+  "id": "s010",
+  "message": "where's the womens center & lgbtq+ servcies office at",
+  "kind": "office",
+  "entity": "Women's Center & LGBTQ+ Services",
+  "ask": "room"
+ },
+ {
+  "id": "s011",
+  "message": "health promotion hours friday",
+  "kind": "office",
+  "entity": "Health Promotion",
+  "ask": "hours_on_day",
+  "day": "Friday"
+ },
+ {
+  "id": "s012",
+  "message": "Is the Office of Specialized Services open on Sundays, and if so what are the hours?",
+  "kind": "office",
+  "entity": "Office of Specialized Services",
+  "ask": "hours_on_day",
+  "day": "Sunday"
+ },
+ {
+  "id": "s013",
+  "message": "What's the non-emergency phone number for Public Safety?",
+  "kind": "office",
+  "entity": "Public Safety (Non-Emergency)",
+  "ask": "phone"
+ },
+ {
+  "id": "s014",
+  "message": "Where is the Center for Student Involvement located on campus?",
+  "kind": "office",
+  "entity": "Center for Student Involvement",
+  "ask": "room"
+ },
+ {
+  "id": "s015",
+  "message": "title ix email",
+  "kind": "office",
+  "entity": "Title IX",
+  "ask": "email"
+ },
+ {
+  "id": "s016",
+  "message": "wheres pine hal located",
+  "kind": "office",
+  "entity": "Pine Hall",
+  "ask": "room"
+ },
+ {
+  "id": "s017",
+  "message": "What email should I use to reach the Open Public Records Act office?",
+  "kind": "office",
+  "entity": "Open Public Records Act",
+  "ask": "email"
+ },
+ {
+  "id": "s018",
+  "message": "What's the email address for the Dean of Students office?",
+  "kind": "office",
+  "entity": "Dean of Students",
+  "ask": "email"
+ },
+ {
+  "id": "s019",
+  "message": "is laptop upcyle open thurs? what r the hours",
+  "kind": "office",
+  "entity": "Laptop Upcycle @ Ramapo",
+  "ask": "hours_on_day",
+  "day": "Thursday"
+ },
+ {
+  "id": "s020",
+  "message": "where is the genetic geneology center (the investigative one)?",
+  "kind": "office",
+  "entity": "Investigative Genetic Genealogy Center",
+  "ask": "room"
+ },
+ {
+  "id": "s021",
+  "message": "Does the Center for Reading and Writing have an email address I can use?",
+  "kind": "office",
+  "entity": "Center for Reading and Writing",
+  "ask": "email"
+ },
+ {
+  "id": "s022",
+  "message": "student leadership hours monday",
+  "kind": "office",
+  "entity": "Student Leadership Programs",
+  "ask": "hours_on_day",
+  "day": "Monday"
+ },
+ {
+  "id": "s023",
+  "message": "I need to email the Testing Center, what's their address?",
+  "kind": "office",
+  "entity": "Testing Center",
+  "ask": "email"
+ },
+ {
+  "id": "s024",
+  "message": "What are the College Park Apartments office hours on Tuesday?",
+  "kind": "office",
+  "entity": "College Park Apartments",
+  "ask": "hours_on_day",
+  "day": "Tuesday"
+ },
+ {
+  "id": "s025",
+  "message": "What are the Ramapo College Foundation's hours on Saturday?",
+  "kind": "office",
+  "entity": "Ramapo College Foundation",
+  "ask": "hours_on_day",
+  "day": "Saturday"
+ },
+ {
+  "id": "s026",
+  "message": "does the nursing programs ofice have a fax #?",
+  "kind": "office",
+  "entity": "Nursing Programs Office",
+  "ask": "fax"
+ },
+ {
+  "id": "s027",
+  "message": "library phone number",
+  "kind": "office",
+  "entity": "Library",
+  "ask": "phone"
+ },
+ {
+  "id": "s028",
+  "message": "Can you give me the phone number for Orientation Programs?",
+  "kind": "office",
+  "entity": "Orientation Programs",
+  "ask": "phone"
+ },
+ {
+  "id": "s029",
+  "message": "whats the yearbok email",
+  "kind": "office",
+  "entity": "Yearbook",
+  "ask": "email"
+ },
+ {
+  "id": "s030",
+  "message": "I need to email the Office of the General Counsel and Institutional Compliance, what's their email address?",
+  "kind": "office",
+  "entity": "Office of the General Counsel & Institutional Compliance",
+  "ask": "email"
+ },
+ {
+  "id": "s031",
+  "message": "how do i get in tuch w commuter affairs",
+  "kind": "office",
+  "entity": "Commuter Affairs",
+  "ask": "how_to_reach"
+ },
+ {
+  "id": "s032",
+  "message": "What is the fax number for Housing and Residence Life?",
+  "kind": "office",
+  "entity": "Housing & Residence Life",
+  "ask": "fax"
+ },
+ {
+  "id": "s033",
+  "message": "How can I get in touch with the First Generation Student Center?",
+  "kind": "office",
+  "entity": "First Generation Student Center",
+  "ask": "how_to_reach"
+ },
+ {
+  "id": "s034",
+  "message": "veterans success office sunday hours",
+  "kind": "office",
+  "entity": "Military and Veterans Success",
+  "ask": "hours_on_day",
+  "day": "Sunday"
+ },
+ {
+  "id": "s035",
+  "message": "I'd like to call the Counseling Center, what's their phone number?",
+  "kind": "office",
+  "entity": "Counseling Center",
+  "ask": "phone"
+ },
+ {
+  "id": "s036",
+  "message": "wat are the board of trustees office hrs on wednesday",
+  "kind": "office",
+  "entity": "Board of Trustees",
+  "ask": "hours_on_day",
+  "day": "Wednesday"
+ },
+ {
+  "id": "s037",
+  "message": "What time does the Starbucks at Common Grounds close on Wednesday?",
+  "kind": "dining",
+  "entity": "We Proudly Serve Starbucks at Common Grounds",
+  "ask": "closing_time_on_day",
+  "day": "Wednesday"
+ },
+ {
+  "id": "s038",
+  "message": "What time does the Birch Tree Inn close on Monday?",
+  "kind": "dining",
+  "entity": "Birch Tree Inn",
+  "ask": "closing_time_on_day",
+  "day": "Monday"
+ },
+ {
+  "id": "s039",
+  "message": "starbucks common grounds closing time friday",
+  "kind": "dining",
+  "entity": "We Proudly Serve Starbucks at Common Grounds",
+  "ask": "closing_time_on_day",
+  "day": "Friday"
+ },
+ {
+  "id": "s040",
+  "message": "When is the Starbucks in Common Grounds open on Mondays?",
+  "kind": "dining",
+  "entity": "We Proudly Serve Starbucks at Common Grounds",
+  "ask": "open_hours_on_day",
+  "day": "Monday"
+ },
+ {
+  "id": "s041",
+  "message": "What are the Birch Tree Inn's hours on Friday?",
+  "kind": "dining",
+  "entity": "Birch Tree Inn",
+  "ask": "open_hours_on_day",
+  "day": "Friday"
+ },
+ {
+  "id": "s042",
+  "message": "birch tree inn hours tuesday",
+  "kind": "dining",
+  "entity": "Birch Tree Inn",
+  "ask": "open_hours_on_day",
+  "day": "Tuesday"
+ },
+ {
+  "id": "s043",
+  "message": "When does Dunkin' close on Sundays?",
+  "kind": "dining",
+  "entity": "Dunkin'",
+  "ask": "closing_time_on_day",
+  "day": "Sunday"
+ },
+ {
+  "id": "s044",
+  "message": "What are the Atrium's hours on Friday?",
+  "kind": "dining",
+  "entity": "The Atrium",
+  "ask": "open_hours_on_day",
+  "day": "Friday"
+ },
+ {
+  "id": "s045",
+  "message": "How late is the Atrium open on Wednesday?",
+  "kind": "dining",
+  "entity": "The Atrium",
+  "ask": "closing_time_on_day",
+  "day": "Wednesday"
+ },
+ {
+  "id": "s046",
+  "message": "starbux at common grounds hrs saturday?",
+  "kind": "dining",
+  "entity": "We Proudly Serve Starbucks at Common Grounds",
+  "ask": "open_hours_on_day",
+  "day": "Saturday"
+ },
+ {
+  "id": "s047",
+  "message": "When's the next Saturday Roadrunner Express leaving campus after 10:15 AM on Saturday?",
+  "kind": "shuttle",
+  "entity": "Saturday Roadrunner Express",
+  "ask": "next_from_campus_after",
+  "day": "Saturday",
+  "time": "10:15 AM"
+ },
+ {
+  "id": "s048",
+  "message": "When does the last Mid-Day Weekday Express Train shuttle leave campus on Friday?",
+  "kind": "shuttle",
+  "entity": "Mid-Day Weekday Express Train",
+  "ask": "last_from_campus",
+  "day": "Friday"
+ },
+ {
+  "id": "s049",
+  "message": "On Wednesday, what's the next Weekday Roadrunner Express shuttle leaving campus after 9:00 AM?",
+  "kind": "shuttle",
+  "entity": "Weekday Roadrunner Express",
+  "ask": "next_from_campus_after",
+  "day": "Wednesday",
+  "time": "9:00 AM"
+ },
+ {
+  "id": "s050",
+  "message": "What time does the last Saturday Roadrunner Express leave campus on Saturday?",
+  "kind": "shuttle",
+  "entity": "Saturday Roadrunner Express",
+  "ask": "last_from_campus",
+  "day": "Saturday"
+ },
+ {
+  "id": "s051",
+  "message": "What time does the last Sunday Roadrunner Express shuttle leave campus on Sunday?",
+  "kind": "shuttle",
+  "entity": "Sunday Roadrunner Express",
+  "ask": "last_from_campus",
+  "day": "Sunday"
+ },
+ {
+  "id": "s052",
+  "message": "first weekday roadrunner out of campus thursday",
+  "kind": "shuttle",
+  "entity": "Weekday Roadrunner Express",
+  "ask": "first_from_campus",
+  "day": "Thursday"
+ },
+ {
+  "id": "s053",
+  "message": "When does the first Sunday Roadrunner Express leave campus on Sundays?",
+  "kind": "shuttle",
+  "entity": "Sunday Roadrunner Express",
+  "ask": "first_from_campus",
+  "day": "Sunday"
+ },
+ {
+  "id": "s054",
+  "message": "last midday train shuttle back to campus friday",
+  "kind": "shuttle",
+  "entity": "Mid-Day Weekday Express Train",
+  "ask": "last_arrival_on_campus",
+  "day": "Friday"
+ },
+ {
+  "id": "s055",
+  "message": "It's Monday, when is the next Mid-Day Express Train shuttle leaving campus after 12:15 PM?",
+  "kind": "shuttle",
+  "entity": "Mid-Day Weekday Express Train",
+  "ask": "next_from_campus_after",
+  "day": "Monday",
+  "time": "12:15 PM"
+ },
+ {
+  "id": "s056",
+  "message": "whens the next midday express train shuttle leavin campus after 11am monday",
+  "kind": "shuttle",
+  "entity": "Mid-Day Weekday Express Train",
+  "ask": "next_from_campus_after",
+  "day": "Monday",
+  "time": "11:00 AM"
+ },
+ {
+  "id": "s057",
+  "message": "first midday express train shuttle wednesday",
+  "kind": "shuttle",
+  "entity": "Mid-Day Weekday Express Train",
+  "ask": "first_from_campus",
+  "day": "Wednesday"
+ },
+ {
+  "id": "s058",
+  "message": "last weekday roadrunner leaving campus monday",
+  "kind": "shuttle",
+  "entity": "Weekday Roadrunner Express",
+  "ask": "last_from_campus",
+  "day": "Monday"
+ },
+ {
+  "id": "s059",
+  "message": "What's the next Mid-Day Weekday Express Train shuttle leaving campus after 10:00 AM on Wednesday?",
+  "kind": "shuttle",
+  "entity": "Mid-Day Weekday Express Train",
+  "ask": "next_from_campus_after",
+  "day": "Wednesday",
+  "time": "10:00 AM"
+ },
+ {
+  "id": "s060",
+  "message": "wats the last sat roadrunner express that gets back to campus on saturday",
+  "kind": "shuttle",
+  "entity": "Saturday Roadrunner Express",
+  "ask": "last_arrival_on_campus",
+  "day": "Saturday"
+ }
+]

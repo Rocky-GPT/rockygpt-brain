@@ -1,6 +1,6 @@
 """Ask one Brain every frozen case once, one at a time, and keep each full response.
 
-    python3 run.py <chat url> <out.json> [--diagnostics]
+    python3 run.py <chat url> <out.json> [--diagnostics] [--cases <cases.json>]
 
 Production: https://rockygpt-brain.onrender.com/v1/chat. Dev (written answers, graph-only):
 http://127.0.0.1:8013/v1/chat --diagnostics. Each case is a new one-message conversation. A busy
@@ -53,7 +53,8 @@ def ask(url: str, message: str, diagnostics: bool) -> dict:
 def main() -> None:
     url, out = sys.argv[1], Path(sys.argv[2])
     diagnostics = "--diagnostics" in sys.argv[3:]
-    cases = json.loads(CASES.read_text())
+    cases_path = Path(sys.argv[sys.argv.index("--cases") + 1]) if "--cases" in sys.argv else CASES
+    cases = json.loads(cases_path.read_text())
     rows = json.loads(out.read_text()) if out.exists() else []
     done = {r["id"] for r in rows}
     for case in cases:
