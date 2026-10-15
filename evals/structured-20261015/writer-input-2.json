@@ -1,0 +1,212 @@
+[
+ {
+  "id": "s002",
+  "about": "On-Campus Employment for Students",
+  "kind": "office",
+  "wants": "how to get in touch with the office (no specific method)",
+  "style": "a normal full sentence a student would type into a chat"
+ },
+ {
+  "id": "s004",
+  "about": "Controller",
+  "kind": "office",
+  "wants": "how to get in touch with the office (no specific method)",
+  "style": "very short, like a quick search or text: few words, lowercase is fine"
+ },
+ {
+  "id": "s006",
+  "about": "IT Help Desk",
+  "kind": "office",
+  "wants": "the office's phone number",
+  "style": "casual, with one or two realistic typos or a common shorthand (but the office or place must still be recognisable)"
+ },
+ {
+  "id": "s008",
+  "about": "Office of Internal Audit",
+  "kind": "office",
+  "wants": "the office's phone number",
+  "style": "very short, like a quick search or text: few words, lowercase is fine"
+ },
+ {
+  "id": "s010",
+  "about": "Women's Center & LGBTQ+ Services",
+  "kind": "office",
+  "wants": "where the office is (building/room)",
+  "style": "casual, with one or two realistic typos or a common shorthand (but the office or place must still be recognisable)"
+ },
+ {
+  "id": "s012",
+  "about": "Office of Specialized Services",
+  "kind": "office",
+  "wants": "the office's hours on Sunday",
+  "style": "a normal full sentence a student would type into a chat"
+ },
+ {
+  "id": "s014",
+  "about": "Center for Student Involvement",
+  "kind": "office",
+  "wants": "where the office is (building/room)",
+  "style": "a normal full sentence a student would type into a chat"
+ },
+ {
+  "id": "s016",
+  "about": "Pine Hall",
+  "kind": "office",
+  "wants": "where the office is (building/room)",
+  "style": "casual, with one or two realistic typos or a common shorthand (but the office or place must still be recognisable)"
+ },
+ {
+  "id": "s018",
+  "about": "Dean of Students",
+  "kind": "office",
+  "wants": "the office's email address",
+  "style": "a normal full sentence a student would type into a chat"
+ },
+ {
+  "id": "s020",
+  "about": "Investigative Genetic Genealogy Center",
+  "kind": "office",
+  "wants": "where the office is (building/room)",
+  "style": "casual, with one or two realistic typos or a common shorthand (but the office or place must still be recognisable)"
+ },
+ {
+  "id": "s022",
+  "about": "Student Leadership Programs",
+  "kind": "office",
+  "wants": "the office's hours on Monday",
+  "style": "very short, like a quick search or text: few words, lowercase is fine"
+ },
+ {
+  "id": "s024",
+  "about": "College Park Apartments",
+  "kind": "office",
+  "wants": "the office's hours on Tuesday",
+  "style": "a normal full sentence a student would type into a chat"
+ },
+ {
+  "id": "s026",
+  "about": "Nursing Programs Office",
+  "kind": "office",
+  "wants": "the office's fax number",
+  "style": "casual, with one or two realistic typos or a common shorthand (but the office or place must still be recognisable)"
+ },
+ {
+  "id": "s028",
+  "about": "Orientation Programs",
+  "kind": "office",
+  "wants": "the office's phone number",
+  "style": "a normal full sentence a student would type into a chat"
+ },
+ {
+  "id": "s030",
+  "about": "Office of the General Counsel & Institutional Compliance",
+  "kind": "office",
+  "wants": "the office's email address",
+  "style": "a normal full sentence a student would type into a chat"
+ },
+ {
+  "id": "s032",
+  "about": "Housing & Residence Life",
+  "kind": "office",
+  "wants": "the office's fax number",
+  "style": "a normal full sentence a student would type into a chat"
+ },
+ {
+  "id": "s034",
+  "about": "Military and Veterans Success",
+  "kind": "office",
+  "wants": "the office's hours on Sunday",
+  "style": "very short, like a quick search or text: few words, lowercase is fine"
+ },
+ {
+  "id": "s036",
+  "about": "Board of Trustees",
+  "kind": "office",
+  "wants": "the office's hours on Wednesday",
+  "style": "casual, with one or two realistic typos or a common shorthand (but the office or place must still be recognisable)"
+ },
+ {
+  "id": "s038",
+  "about": "Birch Tree Inn",
+  "kind": "dining",
+  "wants": "what time the venue closes on Monday",
+  "style": "a normal full sentence a student would type into a chat"
+ },
+ {
+  "id": "s040",
+  "about": "We Proudly Serve Starbucks at Common Grounds",
+  "kind": "dining",
+  "wants": "the venue's opening hours on Monday",
+  "style": "a normal full sentence a student would type into a chat"
+ },
+ {
+  "id": "s042",
+  "about": "Birch Tree Inn",
+  "kind": "dining",
+  "wants": "the venue's opening hours on Tuesday",
+  "style": "very short, like a quick search or text: few words, lowercase is fine"
+ },
+ {
+  "id": "s044",
+  "about": "The Atrium",
+  "kind": "dining",
+  "wants": "the venue's opening hours on Friday",
+  "style": "a normal full sentence a student would type into a chat"
+ },
+ {
+  "id": "s046",
+  "about": "We Proudly Serve Starbucks at Common Grounds",
+  "kind": "dining",
+  "wants": "the venue's opening hours on Saturday",
+  "style": "casual, with one or two realistic typos or a common shorthand (but the office or place must still be recognisable)"
+ },
+ {
+  "id": "s048",
+  "about": "Mid-Day Weekday Express Train",
+  "kind": "shuttle",
+  "wants": "the last shuttle leaving campus on Friday",
+  "style": "a normal full sentence a student would type into a chat"
+ },
+ {
+  "id": "s050",
+  "about": "Saturday Roadrunner Express",
+  "kind": "shuttle",
+  "wants": "the last shuttle leaving campus on Saturday",
+  "style": "a normal full sentence a student would type into a chat"
+ },
+ {
+  "id": "s052",
+  "about": "Weekday Roadrunner Express",
+  "kind": "shuttle",
+  "wants": "the first shuttle leaving campus on Thursday",
+  "style": "very short, like a quick search or text: few words, lowercase is fine"
+ },
+ {
+  "id": "s054",
+  "about": "Mid-Day Weekday Express Train",
+  "kind": "shuttle",
+  "wants": "the last shuttle that gets back to campus on Friday",
+  "style": "very short, like a quick search or text: few words, lowercase is fine"
+ },
+ {
+  "id": "s056",
+  "about": "Mid-Day Weekday Express Train",
+  "kind": "shuttle",
+  "wants": "the next shuttle leaving campus after 11:00 AM on Monday",
+  "style": "casual, with one or two realistic typos or a common shorthand (but the office or place must still be recognisable)"
+ },
+ {
+  "id": "s058",
+  "about": "Weekday Roadrunner Express",
+  "kind": "shuttle",
+  "wants": "the last shuttle leaving campus on Monday",
+  "style": "very short, like a quick search or text: few words, lowercase is fine"
+ },
+ {
+  "id": "s060",
+  "about": "Saturday Roadrunner Express",
+  "kind": "shuttle",
+  "wants": "the last shuttle that gets back to campus on Saturday",
+  "style": "casual, with one or two realistic typos or a common shorthand (but the office or place must still be recognisable)"
+ }
+]
