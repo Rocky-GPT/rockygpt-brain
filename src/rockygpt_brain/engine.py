@@ -597,6 +597,27 @@ def _asked_words(student_words: str | None, message: str, offices: set[str],
     return " ".join(student_words.split())[:100]
 
 
+def menu_allergen_text(results: dict[str, Any], message: str) -> str | None:
+    """For an allergy question beside a menu read with no allergen filter ("do the menus list
+    allergens?"), what the menu's labels are, in fixed words: each item lists its allergens."""
+    if not set(_words(message)) & _ALLERGY_WORDS:
+        return None
+    menus = [value["value"] for r in results.values()
+             if r.part and r.part.get("kind") == "office_facts"
+             for prop in r.part["facts"]["properties"] if prop["key"] == "menu"
+             for value in prop["values"] if isinstance(value.get("value"), dict)]
+    if not menus or any(m.get("allergens_published") is not None
+                        or m.get("allergens_unlabelled") for m in menus):
+        return None  # No menu, or an allergen filter already says what the labels name.
+    labels = sorted({str(a) for m in menus for meal in m.get("meals", [])
+                     for station in meal.get("stations", []) for item in station.get("items", [])
+                     for a in item.get("allergens", []) if isinstance(a, str)})
+    if not labels:
+        return "No item on this menu carries a published allergen label."
+    return ("Each item on the dining service's menu lists its allergens as published. The "
+            f"labels on this menu name {', '.join(labels)}.")
+
+
 def _plain_language(finish: Finish) -> str | None:
     """The language the model named, only when it is a single plain word (never free text)."""
     language = (finish.language or "").strip()
@@ -1564,6 +1585,9 @@ class ChatEngine:
                     supported = True
                 else:
                     raise GatewayError("provider_invalid_response")
+        if labels_text := menu_allergen_text(results, context.latest_message):
+            parts.append({"kind": "menu_allergens", "approved_text": labels_text})
+            chunks.append(labels_text)
         if errors and not supported:
             return failed(turn, errors[0])
         if not chunks and not situations:
