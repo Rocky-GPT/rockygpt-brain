@@ -208,7 +208,8 @@ threat of violence from someone (even one meant for later), or asks for a crisis
 someone to talk to right now, or says they are having a panic attack (those are other). Set
 its
 situation to self_harm (the student may hurt themselves, or fears someone else will), medical
-(someone is hurt, ill, unconscious or not breathing), danger (a threat from another person: a
+(someone is badly hurt, unconscious, not breathing or suddenly very ill; feeling sick and
+asking about the health center is not safety), danger (a threat from another person: a
 weapon, an attack, a break-in, being followed), fire (fire, smoke or gas), or other (none of
 these fits, several do, or someone took too much of something). Every other part has a null
 situation. Do not use safety only because an earlier message was an emergency: if the student
@@ -693,7 +694,7 @@ def safety_picked_by(situation: str) -> list[str]:
 def safety_when(situation: str) -> str:
     kinds = {
         "self_harm": "thoughts of self-harm, or worry that someone else may",
-        "medical": "someone is hurt, ill, unconscious or not breathing",
+        "medical": "someone is badly hurt, unconscious, not breathing or suddenly very ill",
         "danger": "a threat from another person: a weapon, an attack, a break-in, being followed",
         "fire": "fire, smoke or gas",
         "other": "none of these fits, several do, or someone took too much of something",
