@@ -1067,6 +1067,8 @@ _FOOD_WORDS = {
 }
 MAX_MENU_WORDS = 3
 MAX_REST_OF_MENU = 40  # The rest of a filtered meal by name: "what is for dinner" is said.
+# A filter that keeps more items than a reply can say lists this many per station, with the count.
+MAX_MATCHES_LISTED, MATCHES_PER_STATION = 30, 3
 MAX_OTHER_DATES = 6  # Other published dates a food that is not on the asked date is served.
 
 
@@ -1211,6 +1213,13 @@ def menu_property(
                            if query.get(key)}
         value["matched"] = len(picked)
         value["on_menu"] = on_menu
+        if len(picked) > MAX_MATCHES_LISTED:
+            # 93 dairy-free items cannot all be said: a few from each station, and how many.
+            for listed_meal in value["meals"]:
+                for station in listed_meal["stations"]:
+                    station["items"] = station["items"][:MATCHES_PER_STATION]
+            value["matches_shown"] = sum(len(st["items"]) for m in value["meals"]
+                                         for st in m["stations"])
         if query.get("with_allergens") or query.get("without_allergens"):
             value["allergens_published"] = vocabulary
             # The student's own word for each allergen, with the labels it stands for: "dairy"

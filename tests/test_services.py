@@ -352,6 +352,28 @@ def test_lunch_on_a_brunch_day_is_answered_with_the_brunch_menu() -> None:
     assert value["meal_not_listed"] == "late night"
 
 
+def test_a_filter_that_keeps_many_items_lists_a_few_per_station_with_the_count() -> None:
+    from datetime import date
+
+    from rockygpt_brain.retrieval.entity_facts import menu_property
+    rows = [_row("menu", i, source_record_key=f"m{i}", meal="Lunch",
+                 station="Grown" if i % 2 else "Savory", name=f"Dish {i}",
+                 valid_from="2026-10-13", valid_until="2026-10-13",
+                 allergens=["Milk"] if i >= 40 else ["Soy"],
+                 label_coverage={"allergens": "published"}) for i in range(42)]
+    prop, _ = menu_property(rows, TUESDAY_10AM, date(2026, 10, 13), "lunch",
+                            {"without_allergens": ["dairy"]})
+    (value,) = [v["value"] for v in prop["values"]]
+    assert value["matched"] == 40 and value["on_menu"] == 42
+    assert [len(s["items"]) for s in value["meals"][0]["stations"]] == [3, 3]
+    assert value["matches_shown"] == 6
+    # A filter that keeps few items lists them all, with no selection said.
+    few, _ = menu_property(rows[:10] + rows[40:], TUESDAY_10AM, date(2026, 10, 13), "lunch",
+                           {"without_allergens": ["dairy"]})
+    (value,) = [v["value"] for v in few["values"]]
+    assert value["matched"] == 10 and "matches_shown" not in value
+
+
 def test_an_hours_question_for_one_meal_is_answered_with_that_period() -> None:
     result = ask("what time is lunch?", lookup_meal("Birch Tree Inn", ["hours"], "today", "lunch"),
                  finish())
