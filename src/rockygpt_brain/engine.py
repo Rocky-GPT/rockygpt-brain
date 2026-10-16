@@ -1006,6 +1006,15 @@ class ChatEngine:
                 detail.update(path=graph.path(graph.current_node), resolvedBy="building")
             elif there:
                 opened = {**opened, "candidates": there}
+        if "facts" in opened and (shared := self._venues_in_building(latest)) and len(shared) > 1:
+            # "The cafe in the student center" names a building two venues share: one picked by
+            # the model, when the student named neither, is a guess, so they are asked which.
+            called = [opened.get("label") or "", *opened.get("aliases", [])]
+            message_words = " ".join(_words(latest))
+            if (opened.get("label") in {venue["name"] for venue in shared}
+                    and not any(" ".join(_words(name)) in message_words
+                                for name in called if name)):
+                opened = {"candidates": shared, "truncated": False}
         if "facts" not in opened and topic is not None:
             return self._topic(request, topic, opened["candidates"], detail)
         if "facts" not in opened:
@@ -1236,6 +1245,14 @@ class ChatEngine:
         else:
             answer = departures(table, day, now_minute, request.which, asked, after, by,
                                 request.times, request.back)
+            # Each route describes the campus stop: one stop, however many routes describe it.
+            origins = list({stop_key(stop["stop"]): stop for stop in described
+                            if stop_key(stop["stop"]) not in served}.values())
+            if asked is None and len(origins) == 1:
+                # Every trip leaves from the campus stop: where it is, and where it does not go.
+                answer["departs_from"] = origins[0]["stop"]
+                answer["stop_description"] = {key: origins[0][key] for key in
+                                              ("description", "pickup") if origins[0].get(key)}
             unread = [text for text, found in ((request.after, after), (request.by, by))
                       if text and found is None]
             if unread:

@@ -912,6 +912,15 @@ def test_the_campus_stop_trips_leave_from_is_offered_and_answers_where_to_catch_
     assert [n["approved_text"] for n in result.body["facts"]["notices"]
             if n["type"] == "campus_stop"] == [
         "The bus stop on campus is located outside the Bradley Center."]
+    # With no stop asked about, every trip still leaves from the campus stop, and that is said.
+    plain = ChatEngine(ScriptedGateway(shuttle(None, None, "next"), finish()), memory,
+                       output="json")  # type: ignore[arg-type]
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "does the shuttle stop at the far lot"}]})
+    anywhere = asyncio.run(plain.answer(intake(request, now=TUESDAY_10AM), request))
+    assert derived(anywhere, "departures")["value"]["departs_from"] == (
+        "Ramapo College (Bradley Center)")
+    assert "campus_stop" in [n["type"] for n in anywhere.body["facts"]["notices"]]
 
 
 def test_a_venue_with_no_daily_menu_answers_in_json_and_never_breaks_the_packet() -> None:
@@ -1001,3 +1010,36 @@ def test_a_place_named_by_its_building_finds_the_venues_in_that_building() -> No
         "Birch Tree Inn"]
     # One word of a building is not enough ("center" alone names many places).
     assert engine._venues_in_building("the counseling center") == []
+
+
+def test_a_building_two_venues_share_is_asked_about_when_the_student_names_neither() -> None:
+    base = facts()
+    atrium = {"id": "atrium", "name": "The Atrium", "kind": "venue", "aliases": [], "links": []}
+    memory = MemoryEntityFacts(dataset_version="release-1", identity_hash="identities-1",
+                               entities=[*base.entities, atrium], contacts=[],
+                               records=base.records, now=lambda: TUESDAY_10AM)
+
+    def run(question: str) -> dict[str, Any]:
+        request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
+        engine = ChatEngine(ScriptedGateway(lookup("Birch Tree Inn", ["hours"], "sunday"),
+                                            finish()), memory,
+                            output="json")  # type: ignore[arg-type]
+        venues = [{"name": "Birch Tree Inn", "in": ["Robert A. Scott Student Center"]},
+                  {"name": "The Atrium", "in": ["Robert A. Scott Student Center"]}]
+
+        def published() -> list[dict[str, Any]]:
+            engine._venues_cache = (("release-1", "identities-1"),  # type: ignore[attr-defined]
+                                    venues)
+            return venues
+        engine._published_venues = published  # type: ignore[method-assign]
+        packet: dict[str, Any] = asyncio.run(
+            engine.answer(intake(request, now=TUESDAY_10AM), request)).body["facts"]
+        return packet
+
+    shared = run("is the cafe in the student center open on sunday")
+    assert [c["name"] for a in shared["ambiguities"] for c in a["candidates"]] == [
+        "Birch Tree Inn", "The Atrium"]
+    # Naming the venue answers it.
+    named = run("is birch tree inn in the student center open on sunday")
+    assert not named["ambiguities"] and any(d["predicate"] == "hours_on"
+                                            for d in named["derived_facts"])
