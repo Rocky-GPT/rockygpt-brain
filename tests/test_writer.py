@@ -110,7 +110,8 @@ def test_a_writer_that_fails_leaves_the_codes_text() -> None:
         raise GatewayError("provider_unavailable")
 
     body, trace = turn(LOOKUP, finish(), broken)  # type: ignore[arg-type]
-    assert trace["writer"] == {"used": False, "why": "writer_unavailable"}
+    assert trace["writer"] == {"used": False, "why": "writer_unavailable",
+                               "error": "provider_unavailable"}
     assert "published@example.edu" in body["answer"]
 
 
