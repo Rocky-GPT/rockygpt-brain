@@ -568,8 +568,12 @@ _ALLERGY_WORDS = frozenset(
     "gluten wheat soy egg eggs shellfish sesame".split())
 
 
+# Where a shuttle stops: its stop description says where it picks up and where it does not go.
+_STOP_WORDS = frozenset("stop stops stopping go goes going pick picks pickup".split())
+
+
 def _asked_words(student_words: str | None, message: str, offices: set[str],
-                 menu_read: bool = False) -> str | None:
+                 menu_read: bool = False, stop_described: bool = False) -> str | None:
     """The student's own words that an unsupported part is about, or None when there are none.
 
     The model must give the words it cannot answer. Words that are not in the student's message, or
@@ -586,6 +590,9 @@ def _asked_words(student_words: str | None, message: str, offices: set[str],
         return None
     # Beside a menu, a part about allergies is answered: every item carries its allergen labels.
     if menu_read and set(said) & _ALLERGY_WORDS:
+        return None
+    # Beside a shuttle stop's description, "does it stop there" is answered by it.
+    if stop_described and set(said) & _STOP_WORDS:
         return None
     return " ".join(student_words.split())[:100]
 
@@ -1504,8 +1511,14 @@ class ChatEngine:
                                   if prop["key"] == "menu" for value in prop["values"]
                                   if isinstance(value.get("value"), dict)
                                   for word in value["value"].get("filter", {}).get("contains", [])}
+                    stop_described = any(
+                        r.part and r.part.get("kind") == "shuttle_facts"
+                        and isinstance(r.part.get("answer"), dict)
+                        and (r.part["answer"].get("stop_description")
+                             or r.part["answer"].get("departs_from"))
+                        for r in results.values())
                     about = _asked_words(part.student_words, context.latest_message, looked_up,
-                                         menu_read)
+                                         menu_read, stop_described)
                     if shown and about is None:
                         # Office facts are above and nothing the student asked is unsupported: a
                         # contact note that mentions appointments is not a question about them.

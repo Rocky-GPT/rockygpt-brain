@@ -813,6 +813,24 @@ def test_a_shuttle_answer_about_a_stop_says_where_to_wait_there() -> None:
     value = derived(result, "departures")["value"]
     assert value["stop_description"] == {"description": "A mall at Routes 4 and 17.",
                                          "pickup": "the Bus Shelters across from Neiman Marcus"}
+    # "Does it stop there" beside a stop's description is answered by it, not unsupported.
+    asked = {"role": "user", "content": "i park near the mall, does the shuttle stop there"}
+    request = ChatRequest.model_validate({"messages": [asked]})
+    engine = ChatEngine(ScriptedGateway(shuttle("Garden State Plaza", None, "next"),
+                                        finish("unsupported",
+                                               student_words="does the shuttle stop there")),
+                        memory, output="json")  # type: ignore[arg-type]
+    stops = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+    assert not [n for n in stops.body["facts"]["notices"] if n["type"] == "unsupported"]
+    assert stops.trace is not None
+    assert stops.trace["unsupported_dropped"] == ["does the shuttle stop there"]
+    # With no stop asked about there is no description to answer it: the part stays.
+    engine = ChatEngine(ScriptedGateway(shuttle(None, None, "next"),
+                                        finish("unsupported",
+                                               student_words="does the shuttle stop there")),
+                        memory, output="json")  # type: ignore[arg-type]
+    plain = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+    assert [n for n in plain.body["facts"]["notices"] if n["type"] == "unsupported"]
 
 
 def test_each_published_stop_says_what_it_is_from_its_own_description() -> None:
