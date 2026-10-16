@@ -298,6 +298,18 @@ def test_a_seasonal_schedule_without_dates_lists_its_weekday_hours_but_is_not_cu
     assert derived["value"]["hours"] is None
     assert derived["value"]["listed_hours"] == "8am-5pm"
     validate_packet(packet)
+    # Not known to apply, so never open_now; only how today's listed hours read at this moment.
+    assert "open_now" not in derived and "listed_open_now" not in derived  # Not asked for today.
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    friday_9am = datetime(2026, 10, 9, 9, 0, tzinfo=ZoneInfo("America/New_York")).isoformat()
+    today = build_packet(friday_9am, [seasonal_part("friday", "2026-10-09")])
+    (now,) = today["derived_facts"]
+    assert "open_now" not in now and now["listed_open_now"]["state"] == "open"
+    validate_packet(today)
+    from rockygpt_brain.writer_view import writer_view
+    (row,) = writer_view(today)["derived_facts"]
+    assert row["listed_open_now"]["state"] == "open"
     # Listed hours may never ride with real hours or on a date that is simply outside a window.
     for change in ({"hours": "8am-5pm"},):
         broken = deepcopy(packet)

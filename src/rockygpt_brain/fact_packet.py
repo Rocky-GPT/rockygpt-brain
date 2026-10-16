@@ -221,9 +221,17 @@ class _Builder:
         self.dataset: dict[str, Any] | None = None
 
     def _open_now(self, picked: dict[str, Any], asked_on: date) -> dict[str, Any]:
-        """Open or closed at this moment, for today's hours that apply and are a plain range."""
-        if (self.as_of is None or asked_on != self.as_of.date() or not picked["applies"]
-                or "status" in picked or picked.get("applicability")):
+        """Open or closed at this moment, for today's hours that apply and are a plain range.
+
+        Hours a schedule lists for today without published dates are not known to apply, so they
+        never give open_now; listed_open_now is the same reading of the listed hours, to be said
+        as "by its listed hours" beside the dates the page does not publish."""
+        if self.as_of is None or asked_on != self.as_of.date() or "status" in picked:
+            return {}
+        if picked.get("applicability") == "unverified":
+            listed = open_now(picked["value"].get("listed_hours"), self.as_of)
+            return {"listed_open_now": listed} if listed else {}
+        if not picked["applies"] or picked.get("applicability"):
             return {}
         state = open_now(picked["value"].get("hours"), self.as_of)
         return {"open_now": state} if state else {}
