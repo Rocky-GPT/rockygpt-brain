@@ -562,6 +562,11 @@ _MENU_ANSWERABLE_WORDS = frozenset(
     "gluten wheat soy egg eggs fish shellfish sesame vegan vegetarian calorie calories".split())
 
 
+_ALLERGY_WORDS = frozenset(
+    "allergy allergies allergic allergen allergens dairy milk lactose nut nuts peanut peanuts "
+    "gluten wheat soy egg eggs shellfish sesame".split())
+
+
 def _asked_words(student_words: str | None, message: str, offices: set[str],
                  menu_read: bool = False) -> str | None:
     """The student's own words that an unsupported part is about, or None when there are none.
@@ -577,6 +582,9 @@ def _asked_words(student_words: str | None, message: str, offices: set[str],
     named = {word for name in offices for word in _words(name)}
     if all(word in _ANSWERABLE_WORDS or word in named
            or (menu_read and word in _MENU_ANSWERABLE_WORDS) for word in said):
+        return None
+    # Beside a menu, a part about allergies is answered: every item carries its allergen labels.
+    if menu_read and set(said) & _ALLERGY_WORDS:
         return None
     return " ".join(student_words.split())[:100]
 
