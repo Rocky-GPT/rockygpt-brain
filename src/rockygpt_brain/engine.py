@@ -661,6 +661,20 @@ def note_answer(results: dict[str, Any], message: str) -> list[str]:
     return found
 
 
+# Words of an allergic reaction happening now: with any of them the medical reply always stands.
+_REACTION = re.compile(r"\b(reaction|reacting|swell\w*|throat|breath\w*|hives|epi ?pen|"
+                       r"anaphyla\w*|ate|eaten|having|dizzy|faint\w*|vomit\w*|itch\w*)\b")
+
+
+def _allergy_menu_question(message: str, results: dict[str, Any]) -> bool:
+    """A menu was read and the message names an allergy without any sign of a reaction."""
+    menu_read = any(r.part and r.part.get("kind") == "office_facts"
+                    and "menu" in r.part.get("fields", []) for r in results.values())
+    text = message.casefold()
+    return (menu_read and bool(set(_words(text)) & _ALLERGY_WORDS)
+            and not _REACTION.search(text))
+
+
 def left_out_departures(written: str, view: dict[str, Any]) -> bool:
     """Whether a writer's reply leaves out every departure time the code worked out: "when's the
     next shuttle? my knee is messed up" was answered with Health Services and no shuttle time."""
@@ -967,8 +981,11 @@ class ChatEngine:
         said = " ".join(_words(message))
         named = any(" ".join(_words(name)) in said for venue in venues
                     for name in [venue["name"], *venue.get("also_called", [])] if name)
-        if len(asked) < 2 or named:
-            return requests
+        # Menus are read venue by venue on purpose ("lunch at the caf"); hours and places of a
+        # venue picked for a question naming none ("coffee on campus") are a guess at the rest.
+        if (not asked or named or any("menu" in item.fields for item in asked)
+                or self._venues_in_building(message)):
+            return requests  # A building named is asked about by the venues in it instead.
         fields: list[OfficeField] = [f for f in asked[0].fields if f != "menu"] or ["hours"]
         missing = [OfficeRequest(query=venue["name"], fields=fields, day=asked[0].day)
                    for key, venue in listed.items()
@@ -1654,6 +1671,12 @@ class ChatEngine:
                                 turn.request_id, part.kind, part.message_index)
                     raise GatewayError("provider_invalid_response")
                 if part.kind == "safety":
+                    if (part.situation == "medical" and not names_a_danger(context.latest_message)
+                            and _allergy_menu_question(context.latest_message, results)):
+                        # "I have a severe peanut allergy, which items contain nuts?" asks about
+                        # food; with no reaction or danger in it, the medical reply is not used.
+                        trace.setdefault("safety_dropped", []).append(part.situation)
+                        continue
                     situations.append(part.situation or "other")
                 elif part.kind == "account_limit":
                     limit_text = (CAPABILITY_AFTER_LOOKUP_MESSAGE if shown_office

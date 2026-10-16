@@ -1057,6 +1057,33 @@ def test_several_venues_looked_up_for_a_question_naming_none_reads_them_all() ->
     every = engine._every_venue(asked, "where can we grab coffee on campus right now")
     assert [r.query for r in every[2:]] == ["Birch Tree Inn", "Dunkin'"]
     assert all(r.fields == ["hours"] and r.day == "today" for r in every[2:])
-    # A question that names a venue, or one lookup, is the model's to scope.
+    # One venue picked for a question naming none is a guess at the rest too.
+    assert [r.query for r in engine._every_venue(asked[:1], "coffee on campus right now")] == [
+        "We Proudly Serve Starbucks at Common Grounds", "Birch Tree Inn", "The Atrium", "Dunkin'"]
+    # A question that names a venue, or reads menus, is the model's to scope.
     assert engine._every_venue(asked, "is the atrium or starbucks open") == asked
-    assert engine._every_venue(asked[:1], "coffee on campus right now") == asked[:1]
+    menus = [OfficeRequest(query="Birch Tree Inn", fields=["menu"], day="today")]
+    assert engine._every_venue(menus, "whats for lunch at the caf") == menus
+
+
+def test_a_food_phrase_matches_its_food_and_a_nutrient_is_said_not_listed() -> None:
+    # "The pizza dish" is pizza; "dish" only says it is one.
+    assert _names(_menu_value(items=["pizza dish"])) == ["Cheese Pizza"]
+    # The rows carry calories and no other nutrient: "high protein" filters nothing.
+    protein = _menu_value(items=["high protein"])
+    assert protein["nutrients_unlisted"] == ["high protein"] and "matched" not in protein
+
+
+def test_an_allergy_named_to_ask_about_a_menu_is_not_a_medical_emergency() -> None:
+    def notices(question: str) -> list[str]:
+        request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
+        menu = completion("graph_lookup", {"requests": [
+            {"query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "lunch"}]})
+        engine = ChatEngine(ScriptedGateway(menu, finish("safety", situation="medical")),
+                            _lunch_menu(), output="json")  # type: ignore[arg-type]
+        result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+        return [n["type"] for n in result.body["facts"]["notices"]]
+
+    assert "safety" not in notices("i have a severe peanut allergy, which lunch items have nuts")
+    # A reaction happening now always gets the emergency reply first.
+    assert "safety" in notices("i ate the pad thai and im having a reaction, peanut allergy")
