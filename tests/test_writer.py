@@ -164,3 +164,12 @@ def test_a_fixed_notice_the_writer_already_said_is_not_shown_twice() -> None:
     # A reply that leaves it out still carries it, once.
     left_out = run("The Registrar's email is published@example.edu [1].")
     assert left_out.count(notice) == 1
+
+
+def test_a_reply_that_drops_every_departure_time_is_not_used() -> None:
+    from rockygpt_brain.engine import left_out_departures
+    view = {"derived_facts": [{"predicate": "departures", "value": {"trips": [
+        {"leaves_campus": "11:35 AM"}, {"leaves_campus": "11:45 AM"}]}}]}
+    assert left_out_departures("Health Services is in D-102.", view)
+    assert not left_out_departures("The next shuttle leaves at 11:35am.", view)
+    assert not left_out_departures("Health Services is in D-102.", {"derived_facts": []})

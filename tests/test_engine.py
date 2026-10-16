@@ -1480,10 +1480,11 @@ def test_a_question_asking_where_is_answered_with_the_room() -> None:
 
 
 def test_a_contact_note_sentence_that_speaks_to_the_question_is_said_in_its_own_words() -> None:
-    note = ("For questions, call the Dining Services Office. There is a specific process for "
+    note = ("For questions, call the Dining Services Office. Students who are ill or injured "
+            "may request a boxed meal through Dining Services. There is a specific process for "
             "making special requests for medical, religious, cultural or other reasons. Students "
             "with such requests should inquire at the Dining Services Office, across from the "
-            "Atrium. To change a meal plan, email mealplan@example.edu.")
+            "Atrium. To request a change to a meal plan, email mealplan@example.edu.")
     dining = MemoryEntityFacts(
         dataset_version="release-1", identity_hash="identities-1",
         entities=[{"id": "dining", "name": "Dining Services", "kind": "office", "aliases": [],
