@@ -101,7 +101,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   departs_from is the stop every trip leaves from (the campus stop): say that is where to catch
   it, as stop_description says.
   stop_description says what the asked stop is and where the shuttle picks up there (pickup):
-  give the pickup place when the student asks where to wait or how to find the stop. When
+  give the pickup place when the student asks where to wait or how to find the stop, and its
+  description whole when they ask whether the shuttle stops at a place. When
   already_left is true, say it has already left today. When service is none, no shuttle calls
   at that stop (stop) that day; served_on says on which days it does. after (a time) means
   trips is only what leaves campus after it; by means trips is what reaches the stop by that
