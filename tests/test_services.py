@@ -331,6 +331,27 @@ def test_a_menu_can_be_asked_for_one_meal_of_the_day() -> None:
     assert not none.body["facts"]["missing"] and none.body["facts"]["status"] == "complete"
 
 
+def test_lunch_on_a_brunch_day_is_answered_with_the_brunch_menu() -> None:
+    from datetime import date
+
+    from rockygpt_brain.retrieval.entity_facts import menu_property
+    rows = [_row("menu", i, source_record_key=f"b{i}", meal=meal, station="Savory", name=name,
+                 valid_from="2026-10-17",
+                 valid_until="2026-10-17", label_coverage={})
+            for i, (meal, name) in enumerate([("Brunch", "Scrambled Eggs"),
+                                              ("Brunch", "Garlic Grilled Chicken"),
+                                              ("Dinner", "Roast Turkey")])]
+    prop, _ = menu_property(rows, TUESDAY_10AM, date(2026, 10, 17), "lunch")
+    (value,) = [v["value"] for v in prop["values"]]
+    assert [m["meal"] for m in value["meals"]] == ["Brunch"]
+    assert value["served_instead"] == {"asked": "lunch", "meal": "Brunch"}
+    assert "meal_not_listed" not in value
+    # Dinner is never swapped for anything: a meal with no stand-in is still "not listed".
+    prop, _ = menu_property(rows, TUESDAY_10AM, date(2026, 10, 17), "late night")
+    (value,) = [v["value"] for v in prop["values"]]
+    assert value["meal_not_listed"] == "late night"
+
+
 def test_an_hours_question_for_one_meal_is_answered_with_that_period() -> None:
     result = ask("what time is lunch?", lookup_meal("Birch Tree Inn", ["hours"], "today", "lunch"),
                  finish())
