@@ -942,6 +942,22 @@ def test_an_allergy_question_says_which_labels_the_students_word_stands_for() ->
     assert nuts["allergens_unlabelled"] == ["tree nuts"]  # A word no label stands for.
 
 
+def test_the_whole_menu_and_a_filtered_list_of_one_meal_reach_the_writer_as_one() -> None:
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "whats for lunch today and is there anything vegan"}]})
+    both = completion("graph_lookup", {"requests": [
+        {"query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "lunch"},
+        {"query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "lunch",
+         "diet": "vegan"}]})
+    engine = ChatEngine(ScriptedGateway(both, finish()), _lunch_menu(),
+                        output="json")  # type: ignore[arg-type]
+    result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+    assert len([f for f in result.body["facts"]["facts"] if f["predicate"] == "menu"]) == 2
+    (menu,) = [f for f in result.body["writerInput"]["facts"] if f["predicate"] == "menu"]
+    assert menu["value"]["filter"] == {"diet": "vegan"}
+    assert menu["value"]["whole_menu_asked"] is True and menu["value"]["rest_of_menu"]
+
+
 def test_a_filtered_meal_still_names_the_rest_of_its_menu() -> None:
     vegan = _menu_value(diet="vegan")
     assert vegan["rest_of_menu"] == ["Tofu Stir Fry", "Braised Pot Roast", "Cheese Pizza",

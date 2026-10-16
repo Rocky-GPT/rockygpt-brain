@@ -1477,3 +1477,45 @@ def test_a_question_asking_where_is_answered_with_the_room() -> None:
     plain = answer(ScriptedGateway(ask, finish()), service=room,
                    messages=[{"role": "user", "content": "id room email please"}])
     assert "C-101" not in plain.body["answer"]
+
+
+def test_a_contact_note_sentence_that_speaks_to_the_question_is_said_in_its_own_words() -> None:
+    note = ("For questions, call the Dining Services Office. There is a specific process for "
+            "making special requests for medical, religious, cultural or other reasons. Students "
+            "with such requests should inquire at the Dining Services Office, across from the "
+            "Atrium. To change a meal plan, email mealplan@example.edu.")
+    dining = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "dining", "name": "Dining Services", "kind": "office", "aliases": [],
+                   "links": [{"collection": "contacts", "source_key": "directory",
+                              "source_record_keys": ["d"]}]}],
+        contacts=[{"id": "c-d", "source_key": "directory", "source_record_key": "d",
+                   "name": "Dining Services", "email": "dining@example.edu",
+                   "contact_note": note, "canonical_url": "https://example.edu/dining",
+                   "collected_at": NOW, "freshness_sla_hours": 24}], now=lambda: NOW)
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Dining Services", "fields": ["email", "contact_note"]}]})
+
+    def notes(question: str) -> list[str]:
+        request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
+        engine = ChatEngine(ScriptedGateway(ask, finish()), dining,  # type: ignore[arg-type]
+                            output="json")
+        packet = asyncio.run(engine.answer(intake(request, now=NOW), request)).body["facts"]
+        return [n["approved_text"] for n in packet["notices"] if n["type"] == "note_answer"]
+
+    # A celiac accommodation is one of the note's special requests for medical reasons.
+    assert notes("who do i talk to about a dietary accommodation for celiac") == [
+        "There is a specific process for making special requests for medical, religious, "
+        "cultural or other reasons. Students with such requests should inquire at the Dining "
+        "Services Office, across from the Atrium."]
+    # A question that only names the office is answered by its fields, not the note.
+    assert notes("dining services email") == []
+
+
+def test_a_writer_reply_that_already_says_a_notice_in_its_own_words_is_not_repeated() -> None:
+    from rockygpt_brain.engine import already_said
+    note = ("In order to get a new identification card, please contact the ID room at "
+            "idroom@example.edu and make an appointment.")
+    assert already_said(note, "C-101. To get a new identification card, contact the ID room at "
+                              "idroom@example.edu and make an appointment.")
+    assert not already_said(note, "The ID Card Room is in C-101.")

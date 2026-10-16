@@ -38,7 +38,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   with no clock time of day for a check date. Never compute, round or guess a value. Never
   add a fact, a policy, advice or a reason that is not in the JSON.
 - asked.fields is what the student asked for: answer that first. Other facts come after, briefly.
-  A fact with purpose "also_published" is extra: say it last and briefly.
+  A fact with purpose "also_published" is extra: say it last and briefly. Name each office
+  (subject) before its details, so the student knows whose contacts they are.
 - derived_facts hold the hours of the one day the student asked about: say that day's hours, and
   not the whole week. Without derived_facts, give the whole week in few words, grouping days that
   share hours (Monday-Friday 8:30am-4:30pm; Saturday closed). You do not know which day the
@@ -80,7 +81,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   Milk): never say a word is missing when its list has a label. allergens_unlabelled are allergens
   no label on that menu names: the labels cannot show which items are free of them, so never say
   an item is free of one or matches; say the published labels do not cover it. rest_of_menu names
-  the meal's other items: when the student also asked what is on the menu, say them too.
+  the meal's other items: say them too when the student also asked what is on the menu
+  (whole_menu_asked is true).
   on_other_dates is when a
   food the date's menu lacks is served: say it.
 - A derived fact with predicate departures is the posted shuttle timetable worked out for its
