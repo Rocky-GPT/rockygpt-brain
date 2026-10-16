@@ -1432,3 +1432,29 @@ def test_a_question_naming_a_purpose_its_contact_note_covers_reads_the_note() ->
     plain = answer(ScriptedGateway(ask, finish()), service=marketing_office(),
                    messages=[{"role": "user", "content": "marketing email please"}])
     assert "news@example.edu" not in plain.body["answer"]
+
+
+def id_card_room(note: str) -> MemoryEntityFacts:
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "id", "name": "ID Card Room", "kind": "office",
+                   "aliases": ["New ID Card"], "links": [
+                       {"collection": "contacts", "source_key": "directory",
+                        "source_record_keys": ["i"]}]}],
+        contacts=[{"id": "c-i", "source_key": "directory", "source_record_key": "i",
+                   "name": "ID Card Room", "office": "C-101", "contact_note": note,
+                   "canonical_url": "https://example.edu/id", "collected_at": NOW,
+                   "freshness_sla_hours": 24}], now=lambda: NOW)
+
+
+def test_where_to_go_reads_a_contact_note_that_says_to_make_an_appointment() -> None:
+    ask = completion("graph_lookup", {"requests": [{"query": "New ID Card", "fields": ["offices"]}]})
+    message = [{"role": "user", "content": "where do i go to get my student ID card made"}]
+    note = ("In order to get a new identification card, please contact the ID room at "
+            "idroom@example.edu and make an appointment.")
+    visit = answer(ScriptedGateway(ask, finish()), service=id_card_room(note), messages=message)
+    assert "C-101" in visit.body["answer"] and "idroom@example.edu" in visit.body["answer"]
+    # A note with nothing about appointments is not added beside the room.
+    other = answer(ScriptedGateway(ask, finish()), messages=message,
+                   service=id_card_room("Lost cards: lost@example.edu"))
+    assert "C-101" in other.body["answer"] and "lost@example.edu" not in other.body["answer"]

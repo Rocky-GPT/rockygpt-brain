@@ -102,6 +102,10 @@ _NOT_PURPOSE = frozenset(
     "address website page whos".split())
 
 
+# A note that says to make an appointment first: a "where do I go" answer needs it beside the room.
+_APPOINTMENT = re.compile(r"\bappointments?\b", re.IGNORECASE)
+
+
 def purpose_words(text: str) -> set[str]:
     """The content words of a text (four letters or more, plural s dropped), minus field and
     question words, for matching what a question is about against an office's contact note."""
@@ -241,6 +245,10 @@ class CampusGraph:
             " ".join([str(opened.get("label") or ""), *opened.get("aliases", [])]))
         if about and "contact_note" not in fields and "contact_note" not in wanted:
             wanted.append("contact_note")
+        # "Where do I go" (the room) reads the note too: an office may see people by appointment.
+        visiting = "offices" in fields and "contact_note" not in fields
+        if visiting and "contact_note" not in wanted:
+            wanted.append("contact_note")
         if not wanted:
             return None
         with measure("Read beside the answer · contact note or the preferred contact"):
@@ -249,7 +257,8 @@ class CampusGraph:
             p["status"] in ("unknown", "not_published") for p in asked)
         kept = [p for p in extra["properties"] if p["status"] == "known" and (
             p["key"] != "contact_note" or unpublished
-            or about & purpose_words(json.dumps([v["value"] for v in p["values"]])))]
+            or about & purpose_words(json.dumps([v["value"] for v in p["values"]]))
+            or (visiting and _APPOINTMENT.search(json.dumps([v["value"] for v in p["values"]]))))]
         return {**extra, "properties": kept} if kept else None
 
     def inspect(
