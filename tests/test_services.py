@@ -1087,3 +1087,52 @@ def test_an_allergy_named_to_ask_about_a_menu_is_not_a_medical_emergency() -> No
     assert "safety" not in notices("i have a severe peanut allergy, which lunch items have nuts")
     # A reaction happening now always gets the emergency reply first.
     assert "safety" in notices("i ate the pad thai and im having a reaction, peanut allergy")
+
+
+def test_an_unknown_stop_still_gets_the_departures_from_campus() -> None:
+    result = ask("does the shuttle stop at the far lot and when is the last one",
+                 shuttle("far lot", None, "last"), finish())
+    answer = derived(result, "departures")["value"]
+    assert answer["stop_unknown"] is True and answer["asked"] == "far lot"
+    assert [t["leaves_campus"] for t in answer["trips"]] == ["9:40 PM"]
+
+
+def test_whats_for_lunch_beside_a_filter_asks_for_the_rest_of_the_menu_too() -> None:
+    def view(question: str) -> dict[str, Any]:
+        request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
+        vegan = completion("graph_lookup", {"requests": [
+            {"query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "lunch",
+             "diet": "vegan"}]})
+        engine = ChatEngine(ScriptedGateway(vegan, finish()), _lunch_menu(),
+                            output="json")  # type: ignore[arg-type]
+        result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+        (menu,) = [f for f in result.body["writerInput"]["facts"] if f["predicate"] == "menu"]
+        value: dict[str, Any] = menu["value"]
+        return value
+
+    assert view("whats for lunch today and is there anything vegan")["whole_menu_asked"] is True
+    assert "whole_menu_asked" not in view("is there anything vegan at lunch")
+
+
+def test_a_bare_question_back_about_a_shared_building_names_its_venues() -> None:
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "is the cafe in the student center open on sunday"}]})
+    base = facts()
+    atrium = {"id": "atrium", "name": "The Atrium", "kind": "venue", "aliases": [], "links": []}
+    memory = MemoryEntityFacts(dataset_version="release-1", identity_hash="identities-1",
+                               entities=[*base.entities, atrium], contacts=[],
+                               records=base.records, now=lambda: TUESDAY_10AM)
+    engine = ChatEngine(ScriptedGateway(finish("clarification")), memory,
+                        output="json")  # type: ignore[arg-type]
+    venues = [{"name": "Birch Tree Inn", "in": ["Robert A. Scott Student Center"]},
+              {"name": "The Atrium", "in": ["Robert A. Scott Student Center"]}]
+
+    def published() -> list[dict[str, Any]]:
+        engine._venues_cache = (("release-1", "identities-1"),  # type: ignore[attr-defined]
+                                venues)
+        return venues
+    engine._published_venues = published  # type: ignore[method-assign]
+    result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+    (asked,) = [n for n in result.body["facts"]["notices"] if n["type"] == "clarification"]
+    assert asked["offices"] == ["Birch Tree Inn", "The Atrium"]
+    assert "Birch Tree Inn" in asked["approved_text"] and "The Atrium" in asked["approved_text"]

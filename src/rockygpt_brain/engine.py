@@ -666,6 +666,24 @@ _REACTION = re.compile(r"\b(reaction|reacting|swell\w*|throat|breath\w*|hives|ep
                        r"anaphyla\w*|ate|eaten|having|dizzy|faint\w*|vomit\w*|itch\w*)\b")
 
 
+# "What's for lunch" / "what's on the menu": the whole menu is asked, beside any filter.
+_WHOLE_MENU = re.compile(r"\bwhat(?:'?s| is| are)\s+(?:for|on)\b")
+
+
+def mark_whole_menu(results: dict[str, Any], message: str) -> None:
+    """Mark a filtered menu read for "what's for lunch, and anything vegan", so the writer gives the
+    meal's other items too when the model read only the vegan list."""
+    if not _WHOLE_MENU.search(message.casefold().replace("\u2019", "'")):
+        return
+    for r in results.values():
+        if r.part and r.part.get("kind") == "office_facts":
+            for prop in r.part["facts"].get("properties", []):
+                for value in prop.get("values", []) if prop.get("key") == "menu" else []:
+                    menu = value.get("value")
+                    if isinstance(menu, dict) and menu.get("filter") and menu.get("rest_of_menu"):
+                        menu["whole_menu_asked"] = True
+
+
 def _allergy_menu_question(message: str, results: dict[str, Any]) -> bool:
     """A menu was read and the message names an allergy without any sign of a reaction."""
     menu_read = any(r.part and r.part.get("kind") == "office_facts"
@@ -1279,9 +1297,17 @@ class ChatEngine:
             answer["stop_description"] = {
                 key: origin[key] for key in ("description", "pickup") if origin.get(key)}
         elif asked and stop_key(asked) not in served:
-            answer = {
-                "date": day.isoformat(), "which": request.which, "stop_unknown": True,
-                "asked": asked[:80], "published_stops": published}
+            # "Does it stop at the far lot, and when is the last one tonight": no such stop, and
+            # the departures from campus still answer the rest.
+            answer = departures(table, day, now_minute, request.which, None, after, by,
+                                request.times)
+            answer.update(stop_unknown=True, asked=asked[:80], published_stops=published)
+            campus = list({stop_key(stop["stop"]): stop for stop in described
+                           if stop_key(stop["stop"]) not in served}.values())
+            if len(campus) == 1:  # Where every trip leaves from, and where it does not go.
+                answer["departs_from"] = campus[0]["stop"]
+                answer["stop_description"] = {key: campus[0][key] for key in
+                                              ("description", "pickup") if campus[0].get(key)}
         else:
             answer = departures(table, day, now_minute, request.which, asked, after, by,
                                 request.times, request.back)
@@ -1308,7 +1334,7 @@ class ChatEngine:
             answer["route"] = named[0]["route"]
             if answer.get("service") == "none":
                 answer["route_runs_on"] = sorted({route["service_day"] for route in named})
-        listed = bool(table) and not answer.get("stop_unknown") and not answer.get("route_unknown")
+        listed = bool(table) and not answer.get("route_unknown")
         citations: dict[str, dict[str, Any]] = {}
         for envelope in envelopes:
             for source in envelope["sources"]:
@@ -1723,6 +1749,10 @@ class ChatEngine:
                 elif part.kind == "clarification":
                     if not lookup_clarified:  # A lookup already asked which office.
                         options = named_options(part.offices, known or {})
+                        if len(options) < 2:
+                            # "The cafe in the student center": the venues there are the choices.
+                            options = [venue["name"] for venue in self._venues_in_building(
+                                context.latest_message)] or options
                         answered_offices = {r.part["office"]["name"] for r in results.values()
                                             if r.part and r.part.get("kind") == "office_facts"}
                         if options and set(options) <= answered_offices:
@@ -1752,6 +1782,7 @@ class ChatEngine:
                     supported = True
                 else:
                     raise GatewayError("provider_invalid_response")
+        mark_whole_menu(results, context.latest_message)
         if labels_text := menu_allergen_text(results, context.latest_message):
             parts.append({"kind": "menu_allergens", "approved_text": labels_text})
             chunks.append(labels_text)
