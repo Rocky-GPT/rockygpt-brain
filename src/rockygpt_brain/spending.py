@@ -95,10 +95,12 @@ class PostgresLedger:
                 privileges = await cursor.fetchone()
                 if not privileges or privileges[0]:
                     raise SpendingError("ledger_unavailable")
+                # One round trip for both settings: the ledger is a remote database and every
+                # model call waits on its transactions.
                 await connection.execute(
-                    sql.SQL("SET LOCAL ROLE {}").format(sql.Identifier(self._role))
+                    sql.SQL("SET LOCAL ROLE {}; SET LOCAL statement_timeout = '3000ms'").format(
+                        sql.Identifier(self._role))
                 )
-                await connection.execute("SET LOCAL statement_timeout = '3000ms'")
                 yield connection
         except SpendingError:
             raise
@@ -141,20 +143,20 @@ class PostgresLedger:
             cap, paused = await self._account(connection)
             if paused:
                 raise SpendingError("account_paused")
-            if self.environment == "development":
-                cursor = await connection.execute(
-                    "SELECT extra_nusd FROM brain_ops.monthly_allowances "
-                    "WHERE environment = %s AND month = %s", (self.environment, month),
-                )
-                extra = await cursor.fetchone()
-                cap += int(extra[0]) if extra else 0
+            # The month's committed spend and, in development, its dated supplement, read in one
+            # round trip (production has no supplement: the second column is always 0 there).
             cursor = await connection.execute(
-                "SELECT COALESCE(SUM(CASE WHEN state = 'settled' THEN cost_nusd "
-                "ELSE reserved_nusd END), 0) FROM brain_ops.operations "
-                "WHERE environment = %s AND (state <> 'settled' OR charged_month = %s)",
-                (self.environment, month),
+                "SELECT COALESCE((SELECT SUM(CASE WHEN state = 'settled' THEN cost_nusd "
+                "ELSE reserved_nusd END) FROM brain_ops.operations "
+                "WHERE environment = %s AND (state <> 'settled' OR charged_month = %s)), 0), "
+                "CASE WHEN %s THEN COALESCE((SELECT extra_nusd FROM brain_ops.monthly_allowances "
+                "WHERE environment = %s AND month = %s), 0) ELSE 0 END",
+                (self.environment, month, self.environment == "development",
+                 self.environment, month),
             )
             row = await cursor.fetchone()
+            if row is not None:
+                cap += int(row[1])
             if row is None or int(row[0]) + amount_nusd > cap:
                 raise SpendingError("budget_exhausted")
             await connection.execute(

@@ -75,7 +75,9 @@ from rockygpt_brain.writer import (
 from rockygpt_brain.writer_view import writer_view
 
 LOG = logging.getLogger(__name__)
-TURN_SECONDS = 40.0
+# A slow provider gets 52 s; with the emergency numbers' wait and 2 s the outer guard is 57 s,
+# inside the student and dev UIs' 60 s request timeout.
+TURN_SECONDS = 52.0
 MAX_TOOL_ATTEMPTS = 8
 MAX_RESULTS = 8
 MAX_ANSWER_CHARS = 12_000
