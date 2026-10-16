@@ -954,6 +954,27 @@ class ChatEngine:
             "fixedTexts": fixed_texts(),
         }
 
+    def _every_venue(self, requests: list[OfficeRequest], message: str) -> list[OfficeRequest]:
+        """"Where can we grab coffee on campus right now": the model looked up several venues and
+        the student named none, so it is a question about all of them; the ones it skipped are
+        read too (menus aside), so an open venue is never left out."""
+        cached = getattr(self, "_venues_cache", None)
+        venues = cached[1] if cached else None
+        if not venues:
+            return requests
+        listed = {_normal(venue["name"]): venue for venue in venues}
+        asked = [item for item in requests if _normal(item.query) in listed]
+        said = " ".join(_words(message))
+        named = any(" ".join(_words(name)) in said for venue in venues
+                    for name in [venue["name"], *venue.get("also_called", [])] if name)
+        if len(asked) < 2 or named:
+            return requests
+        fields: list[OfficeField] = [f for f in asked[0].fields if f != "menu"] or ["hours"]
+        missing = [OfficeRequest(query=venue["name"], fields=fields, day=asked[0].day)
+                   for key, venue in listed.items()
+                   if key not in {_normal(item.query) for item in asked}]
+        return [*requests, *missing]
+
     def _venues_in_building(self, query: str) -> list[dict[str, Any]]:
         """The published venues in a building the query names by at least two of its words."""
         cached = getattr(self, "_venues_cache", None)
@@ -1361,6 +1382,7 @@ class ChatEngine:
                             requests = ShuttleRequests.model_validate(call.arguments).requests
                         else:
                             requests = GraphRequests.model_validate(call.arguments).requests
+                            requests = self._every_venue(requests, context.latest_message)
                         attempts += len(requests)
                         if (attempts > MAX_TOOL_ATTEMPTS
                                 or len(results) + len(requests) > MAX_RESULTS):

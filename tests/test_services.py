@@ -1043,3 +1043,20 @@ def test_a_building_two_venues_share_is_asked_about_when_the_student_names_neith
     named = run("is birch tree inn in the student center open on sunday")
     assert not named["ambiguities"] and any(d["predicate"] == "hours_on"
                                             for d in named["derived_facts"])
+
+
+def test_several_venues_looked_up_for_a_question_naming_none_reads_them_all() -> None:
+    from rockygpt_brain.engine import OfficeRequest
+    engine = ChatEngine(ScriptedGateway(), facts(), output="json")  # type: ignore[arg-type]
+    engine._venues_cache = (("release-1", "identities-1"), [  # type: ignore[attr-defined]
+        {"name": "Birch Tree Inn", "also_called": ["Dining Hall"]}, {"name": "The Atrium"},
+        {"name": "Dunkin'"}, {"name": "We Proudly Serve Starbucks at Common Grounds"}])
+    asked = [OfficeRequest(query="We Proudly Serve Starbucks at Common Grounds",
+                           fields=["hours"], day="today"),
+             OfficeRequest(query="The Atrium", fields=["name", "hours"], day="today")]
+    every = engine._every_venue(asked, "where can we grab coffee on campus right now")
+    assert [r.query for r in every[2:]] == ["Birch Tree Inn", "Dunkin'"]
+    assert all(r.fields == ["hours"] and r.day == "today" for r in every[2:])
+    # A question that names a venue, or one lookup, is the model's to scope.
+    assert engine._every_venue(asked, "is the atrium or starbucks open") == asked
+    assert engine._every_venue(asked[:1], "coffee on campus right now") == asked[:1]
