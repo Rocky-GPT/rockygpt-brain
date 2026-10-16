@@ -342,8 +342,11 @@ def describe(answer: dict[str, Any]) -> str:
     stop = answer.get("stop")
     to = f" to {stop}" if stop else ""
     if answer.get("stop_unknown"):
-        return (f"The posted timetable has no stop called “{answer.get('asked')}”. "
-                f"The stops it lists are {', '.join(answer.get('published_stops', []))}.")
+        unknown = (f"The posted timetable has no stop called “{answer.get('asked')}”. "
+                   f"The stops it lists are {', '.join(answer.get('published_stops', []))}.")
+        if not (answer.get("trips") or answer.get("none_left") or answer.get("none_after")):
+            return unknown
+        return unknown + " " + describe({**answer, "stop_unknown": False})
     if answer.get("route_unknown"):
         return (f"The posted timetable has no route called “{answer.get('asked_route')}”. "
                 f"The routes it lists are {', '.join(answer.get('published_routes', []))}.")
