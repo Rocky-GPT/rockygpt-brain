@@ -366,12 +366,12 @@ def test_a_filter_that_keeps_many_items_lists_a_few_per_station_with_the_count()
     (value,) = [v["value"] for v in prop["values"]]
     assert value["matched"] == 40 and value["on_menu"] == 42
     assert [len(s["items"]) for s in value["meals"][0]["stations"]] == [3, 3]
-    assert value["matches_shown"] == 6
+    assert value["matches_cut"] is True and "matches_shown" not in value
     # A filter that keeps few items lists them all, with no selection said.
     few, _ = menu_property(rows[:10] + rows[40:], TUESDAY_10AM, date(2026, 10, 13), "lunch",
                            {"without_allergens": ["dairy"]})
     (value,) = [v["value"] for v in few["values"]]
-    assert value["matched"] == 10 and "matches_shown" not in value
+    assert value["matched"] == 10 and "matches_cut" not in value
 
 
 def test_an_hours_question_for_one_meal_is_answered_with_that_period() -> None:
