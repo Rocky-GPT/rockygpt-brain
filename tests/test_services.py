@@ -889,6 +889,10 @@ def test_the_campus_stop_trips_leave_from_is_offered_and_answers_where_to_catch_
     assert value["stop_description"] == {
         "description": "The bus stop on campus is located outside the Bradley Center."}
     assert "stop_unknown" not in value
+    # Said in the page's own words, so "does it stop at my lot" is never left open.
+    assert [n["approved_text"] for n in result.body["facts"]["notices"]
+            if n["type"] == "campus_stop"] == [
+        "The bus stop on campus is located outside the Bradley Center."]
 
 
 def test_a_venue_with_no_daily_menu_answers_in_json_and_never_breaks_the_packet() -> None:
