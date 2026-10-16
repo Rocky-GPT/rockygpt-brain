@@ -588,6 +588,23 @@ def test_a_nut_free_question_on_labels_that_never_name_nuts_is_said_in_fixed_wor
     assert "matched" not in menu["value"]
 
 
+def test_do_the_menus_list_allergens_is_answered_with_the_labels_in_fixed_words() -> None:
+    def run(question: str) -> list[str]:
+        request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
+        menu = completion("graph_lookup", {"requests": [
+            {"query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "lunch"}]})
+        engine = ChatEngine(ScriptedGateway(menu, finish()), _lunch_menu(),
+                            output="json")  # type: ignore[arg-type]
+        result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+        return [n["approved_text"] for n in result.body["facts"]["notices"]
+                if n["type"] == "menu_allergens"]
+
+    assert run("do the menus list allergens? i have a severe peanut allergy") == [
+        "Each item on the dining service's menu lists its allergens as published. The labels "
+        "on this menu name Milk, Shellfish, Soy, Wheat."]
+    assert run("whats for lunch today") == []
+
+
 def test_allergens_are_matched_only_as_the_labels_publish_them() -> None:
     from rockygpt_brain.fact_packet import unlabelled_text
     assert unlabelled_text(["tree nuts"], ["Milk", "Soy"]).startswith(

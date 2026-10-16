@@ -1448,7 +1448,8 @@ def id_card_room(note: str) -> MemoryEntityFacts:
 
 
 def test_where_to_go_reads_a_contact_note_that_says_to_make_an_appointment() -> None:
-    ask = completion("graph_lookup", {"requests": [{"query": "New ID Card", "fields": ["offices"]}]})
+    ask = completion("graph_lookup",
+                     {"requests": [{"query": "New ID Card", "fields": ["offices"]}]})
     message = [{"role": "user", "content": "where do i go to get my student ID card made"}]
     note = ("In order to get a new identification card, please contact the ID room at "
             "idroom@example.edu and make an appointment.")
