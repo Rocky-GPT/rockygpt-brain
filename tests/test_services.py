@@ -528,7 +528,26 @@ def test_a_food_the_menu_does_not_have_says_what_it_does_have() -> None:
     assert both["meals"] == [] and both["filter"] == {"diet": "vegan", "contains": ["pizza"]}
 
 
+def test_a_nut_free_question_on_labels_that_never_name_nuts_is_said_in_fixed_words() -> None:
+    nut_free = completion("graph_lookup", {"requests": [
+        {"query": "Birch Tree Inn", "fields": ["menu"], "day": "today",
+         "without_allergens": ["nuts"]}]})
+    result = ask("anything at dinner thats nut free? allergy", nut_free, finish())
+    (said,) = [n["approved_text"] for n in result.body["facts"]["notices"]
+               if n["type"] == "allergen_unlabelled"]
+    # No item is called free of nuts. This menu's items carry no allergen labels at all.
+    assert said == ("None of these items' published allergen labels list nuts. The labels on "
+                    "this menu name no allergens, so they cannot confirm that an item is free of "
+                    "nuts. For an allergy, check with Dining Services before eating.")
+    (menu,) = [f for f in result.body["facts"]["facts"] if f["predicate"] == "menu"]
+    assert "matched" not in menu["value"]
+
+
 def test_allergens_are_matched_only_as_the_labels_publish_them() -> None:
+    from rockygpt_brain.fact_packet import unlabelled_text
+    assert unlabelled_text(["tree nuts"], ["Milk", "Soy"]).startswith(
+        "None of these items' published allergen labels list tree nuts. The labels on this menu "
+        "name only Milk, Soy, so they cannot confirm that an item is free of tree nuts.")
     dairy = _menu_value(with_allergens=["dairy"])
     assert _names(dairy) == ["Cheese Pizza", "New England Clam Chowder"]
     assert dairy["allergens_published"] == ["Milk", "Shellfish", "Soy", "Wheat"]

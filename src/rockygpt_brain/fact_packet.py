@@ -196,6 +196,15 @@ def _fax_lines(phones: Any) -> list[dict[str, Any]]:
         for key in ("type", "label", "text"))]
 
 
+def unlabelled_text(asked: list[str], labels: list[str]) -> str:
+    """What a menu's labels say about an allergen none of them names ("nut free?")."""
+    words = " or ".join(asked)
+    named = (f"name only {', '.join(labels)}" if labels else "name no allergens")
+    return (f"None of these items' published allergen labels list {words}. The labels on this "
+            f"menu {named}, so they cannot confirm that an item is free of {words}. For an "
+            f"allergy, check with Dining Services before eating.")
+
+
 class _Builder:
     def __init__(self) -> None:
         self.as_of: datetime | None = None
@@ -409,6 +418,15 @@ class _Builder:
                         and d["date"] == asked_on.isoformat()]
                 if made:
                     made[0]["from"] = list(dict.fromkeys([*made[0]["from"], *superseded]))
+        for fact in self.facts[first_new:]:
+            menu = fact["value"]
+            if fact["predicate"] == "menu" and isinstance(menu, dict) and menu.get(
+                    "allergens_unlabelled"):
+                # Said in the code's words: no label names it, which is not the same as free of it.
+                self.notices.append({"type": "allergen_unlabelled", "subject": entity,
+                                     "approved_text": unlabelled_text(
+                                         menu["allergens_unlabelled"],
+                                         menu.get("allergens_published") or [])})
         if not reader.get("complete", True):
             self.notices.append({"type": "evidence_incomplete", "subject": entity,
                                  "caveats": list(reader.get("caveats", []))})
