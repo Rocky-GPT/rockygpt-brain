@@ -1135,11 +1135,20 @@ def menu_property(
         return {**empty, "dates_published": [d.isoformat() for d in dates]}, []
     picked = [row for row in rows if _date(row.get("valid_from")) == on]
     not_listed: str | None = None
+    served_instead: dict[str, str] | None = None
     if meal:
         # Only the meal asked for; "late night" and "Late Night" are the same meal.
         asked = " ".join(meal.casefold().split())
-        chosen = [row for row in picked
-                  if " ".join(str(clean(row.get("meal")) or "").casefold().split()) == asked]
+
+        def named(wanted: str) -> list[dict[str, Any]]:
+            return [row for row in picked
+                    if " ".join(str(clean(row.get("meal")) or "").casefold().split()) == wanted]
+        chosen = named(asked)
+        if not chosen and asked in {"breakfast", "lunch"} and named("brunch"):
+            # A weekend serves brunch in place of breakfast and lunch: that is the meal asked about.
+            chosen = named("brunch")
+            served_instead = {"asked": " ".join(meal.split()),
+                              "meal": str(clean(chosen[0].get("meal")))}
         if chosen:
             picked = chosen
         else:
@@ -1188,6 +1197,8 @@ def menu_property(
         {"meal": meal, "stations": [{"station": station, "items": items}
                                     for station, items in stations.items()]}
         for meal, stations in meals.items()]}
+    if served_instead is not None:
+        value["served_instead"] = served_instead
     if not_listed is not None:
         value = {"date": on.isoformat(), "meals": [], "meal_not_listed": not_listed,
                  "meals_listed": list(meals)}
