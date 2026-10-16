@@ -132,6 +132,15 @@ def _open_now_periods(hours: Any, at: datetime) -> dict[str, str] | None:
             found["meal_ends"] = dining.clock_text(current.end)
             if following.label:
                 found["then_meal"] = following.label
+        later = [p for p in periods if p.start > end]
+        if later:
+            # Service stops and starts again (dinner to 8:00pm, late night from 9:00pm): "closes"
+            # is only this stretch, so the reopening and the day's last close go with it.
+            again = min(later, key=lambda p: p.start)
+            found["reopens"] = dining.clock_text(again.start)
+            if again.label:
+                found["reopens_meal"] = again.label
+            found["last_closes"] = dining.clock_text(max(p.end for p in periods))
         return found
     found = {"state": "closed", "now": shown}
     coming = dining.after(periods, clock)

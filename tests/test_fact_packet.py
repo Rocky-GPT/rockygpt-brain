@@ -429,9 +429,11 @@ def test_a_venue_open_through_meals_that_meet_closes_at_the_end_of_service() -> 
     hours = ("Lunch: 11:00 AM - 02:00 PM; Lite Lunch: 02:00 PM - 05:00 PM; "
              "Dinner: 05:00 PM - 08:00 PM; Late Night: 09:00 PM - 11:00 PM")
     at = datetime(2026, 10, 15, 14, 58, tzinfo=ZoneInfo("America/New_York"))
+    # Dinner ends at 8:00pm and late night starts at 9:00pm: 8:00pm is not the day's close.
     assert open_now(hours, at) == {"state": "open", "now": "2:58pm", "closes": "8:00pm",
                                    "meal": "Lite Lunch", "meal_ends": "5:00pm",
-                                   "then_meal": "Dinner"}
+                                   "then_meal": "Dinner", "reopens": "9:00pm",
+                                   "reopens_meal": "Late Night", "last_closes": "11:00pm"}
     late = datetime(2026, 10, 15, 21, 30, tzinfo=ZoneInfo("America/New_York"))
     assert open_now(hours, late) == {"state": "open", "now": "9:30pm", "closes": "11:00pm",
                                      "meal": "Late Night"}
