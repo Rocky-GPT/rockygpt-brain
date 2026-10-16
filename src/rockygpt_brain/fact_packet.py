@@ -205,6 +205,16 @@ def _fax_lines(phones: Any) -> list[dict[str, Any]]:
         for key in ("type", "label", "text"))]
 
 
+def appointment_sentences(facts: dict[str, Any]) -> str | None:
+    """The sentences of an office's contact note that say to make an appointment, as written."""
+    notes = [str(value["value"]) for prop in facts.get("properties", [])
+             if prop.get("key") == "contact_note" and prop.get("status") == "known"
+             for value in prop.get("values", [])]
+    said = [s.strip() for note in notes for s in re.split(r"(?<=[.!?])\s+", note)
+            if re.search(r"\bappointments?\b", s, re.IGNORECASE)]
+    return " ".join(said) or None
+
+
 def unlabelled_text(asked: list[str], labels: list[str]) -> str:
     """What a menu's labels say about an allergen none of them names ("nut free?")."""
     words = " or ".join(asked)
@@ -527,6 +537,14 @@ class _Builder:
                 # shown, but it was not asked for, so it is not a requested field or a gap.
                 self.office({**part, "facts": part["also"], "fields": []},
                             purpose="also_published")
+                if "offices" in part.get("fields", []) and (said := appointment_sentences(
+                        part["also"])):
+                    # "Where do I go": the office's own words on making an appointment first.
+                    self.notices.append({"type": "appointment_note",
+                                         "subject": {"id": part["office"]["id"],
+                                                     "name": part["office"]["name"],
+                                                     "kind": part["office"].get("kind", "office")},
+                                         "approved_text": said})
         elif kind == "ambiguous":
             self.ambiguities.append({"query": part["query"], "truncated": part["truncated"],
                                      "candidates": part["candidates"]})

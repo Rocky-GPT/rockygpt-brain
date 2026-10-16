@@ -622,8 +622,10 @@ def test_allergens_are_matched_only_as_the_labels_publish_them() -> None:
     assert _names(both) == ["Steamed Brown Rice", "Tofu Stir Fry", "Braised Pot Roast"]
     either = _menu_value(with_allergens=["shellfish", "soy"])
     assert _names(either) == ["Tofu Stir Fry", "Black Bean Burger", "New England Clam Chowder"]
+    # "Which items contain tree nuts" when no label names them: never "none match", which reads
+    # as nut-free; it is said to be an allergen the labels do not cover.
     nuts = _menu_value(with_allergens=["tree nuts"])
-    assert nuts["meals"] == [] and nuts["matched"] == 0
+    assert nuts["allergens_unlabelled"] == ["tree nuts"] and "matched" not in nuts
     assert "Tree Nuts" not in nuts["allergens_published"]
     # "Nut free" when no label names nuts: every item would pass for want of a label, so nothing
     # is filtered or said to match; the allergen is said to be one the labels do not cover.
@@ -937,7 +939,7 @@ def test_an_allergy_question_says_which_labels_the_students_word_stands_for() ->
     dairy = _menu_value(with_allergens=["dairy"])
     assert dairy["allergen_words"] == {"dairy": ["Milk"]}
     nuts = _menu_value(with_allergens=["tree nuts"])
-    assert nuts["allergen_words"] == {"tree nuts": []}
+    assert nuts["allergens_unlabelled"] == ["tree nuts"]  # A word no label stands for.
 
 
 def test_a_filtered_meal_still_names_the_rest_of_its_menu() -> None:

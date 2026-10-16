@@ -1162,11 +1162,12 @@ def menu_property(
     day_rows = picked
     # An allergen no label on this menu names (nuts, when the labels never list nuts) cannot be
     # filtered out: every item would "pass" for want of a label. It filters nothing and is said.
-    unlabelled = [a for a in (query or {}).get("without_allergens") or []
-                  if not _labels_for(a, vocabulary)]
+    # The same holds for "which items contain nuts": no label names them, so none can be said to.
+    unlabelled = [a for key in ("without_allergens", "with_allergens")
+                  for a in (query or {}).get(key) or [] if not _labels_for(a, vocabulary)]
     if query and unlabelled:
-        query = {**query, "without_allergens": [a for a in query["without_allergens"]
-                                                if a not in unlabelled]}
+        query = {**query, **{key: [a for a in query.get(key) or [] if a not in unlabelled]
+                             for key in ("without_allergens", "with_allergens")}}
     filtering = query is not None and any(query.get(key) for key in (
         "diet", "contains", "with_allergens", "without_allergens"))
     if query is not None and filtering:

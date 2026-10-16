@@ -1455,6 +1455,13 @@ def test_where_to_go_reads_a_contact_note_that_says_to_make_an_appointment() -> 
             "idroom@example.edu and make an appointment.")
     visit = answer(ScriptedGateway(ask, finish()), service=id_card_room(note), messages=message)
     assert "C-101" in visit.body["answer"] and "idroom@example.edu" in visit.body["answer"]
+    # Said in the office's own words, so a writer cannot leave the appointment out.
+    request = ChatRequest.model_validate({"messages": message})
+    engine = ChatEngine(ScriptedGateway(ask, finish()), id_card_room(note),  # type: ignore[arg-type]
+                        output="json")
+    packet = asyncio.run(engine.answer(intake(request, now=NOW), request)).body["facts"]
+    assert [n["approved_text"] for n in packet["notices"]
+            if n["type"] == "appointment_note"] == [note]
     # A note with nothing about appointments is not added beside the room.
     other = answer(ScriptedGateway(ask, finish()), messages=message,
                    service=id_card_room("Lost cards: lost@example.edu"))
