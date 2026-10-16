@@ -1459,3 +1459,14 @@ def test_where_to_go_reads_a_contact_note_that_says_to_make_an_appointment() -> 
     other = answer(ScriptedGateway(ask, finish()), messages=message,
                    service=id_card_room("Lost cards: lost@example.edu"))
     assert "C-101" in other.body["answer"] and "lost@example.edu" not in other.body["answer"]
+
+
+def test_a_question_asking_where_is_answered_with_the_room() -> None:
+    ask = completion("graph_lookup", {"requests": [{"query": "ID Card Room", "fields": ["email"]}]})
+    room = id_card_room("Lost cards: lost@example.edu")
+    where = answer(ScriptedGateway(ask, finish()), service=room, messages=[
+        {"role": "user", "content": "where is the id room and whats their email"}])
+    assert "C-101" in where.body["answer"]
+    plain = answer(ScriptedGateway(ask, finish()), service=room,
+                   messages=[{"role": "user", "content": "id room email please"}])
+    assert "C-101" not in plain.body["answer"]

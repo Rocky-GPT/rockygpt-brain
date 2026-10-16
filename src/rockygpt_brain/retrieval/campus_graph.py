@@ -249,6 +249,10 @@ class CampusGraph:
         visiting = "offices" in fields and "contact_note" not in fields
         if visiting and "contact_note" not in wanted:
             wanted.append("contact_note")
+        # A question that asks where ("where can I get a flu shot") is answered with the room,
+        # whatever fields the lookup asked for.
+        if "offices" not in fields and re.search(r"\bwhere\b", latest, re.IGNORECASE):
+            wanted.append("offices")
         if not wanted:
             return None
         with measure("Read beside the answer · contact note or the preferred contact"):
