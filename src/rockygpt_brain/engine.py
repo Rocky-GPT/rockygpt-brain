@@ -842,7 +842,8 @@ class ChatEngine:
         }
 
     def _lookup(self, request: OfficeRequest, graph: CampusGraph, as_of: datetime, *,
-                exact_name_only: bool = False, conversation: str = "") -> OfficeResult:
+                exact_name_only: bool = False, conversation: str = "",
+                latest: str = "") -> OfficeResult:
         # A menu is read for one date: the day asked, today when none is named.
         on = (target_date(request.day or "today", as_of.date())
               if "menu" in request.fields else None)
@@ -855,7 +856,8 @@ class ChatEngine:
             ("with_allergens", said(request.with_allergens)),
             ("without_allergens", said(request.without_allergens))) if value}
         opened = graph.lookup(request.query, list(request.fields), as_of,
-                              exact_name_only=exact_name_only, conversation=conversation, on=on,
+                              exact_name_only=exact_name_only, conversation=conversation,
+                              latest=latest, on=on,
                               meal=request.meal if menu else None,
                               menu_query=query if menu and query else None)
         detail: dict[str, Any] = {
@@ -1255,7 +1257,7 @@ class ChatEngine:
                             with measure(f"Lookup {len(trace['lookups'])}"):
                                 result = await asyncio.to_thread(
                                     self._lookup, item, traversal, turn.campus_now,
-                                    conversation=conversation)
+                                    conversation=conversation, latest=context.latest_message)
                         except DatasetChanged:
                             entry["status"] = "dataset_changed"
                             raise GatewayError("dataset_changed") from None

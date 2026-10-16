@@ -6,6 +6,8 @@ root, directory and office or venue in code; that node carries its published rec
 must still be discovered before they can be opened, even on follow-up turns.
 """
 
+import json
+import re
 from datetime import date, datetime
 from typing import Any
 
@@ -90,6 +92,24 @@ def named_by_conversation(
 BRANCH = {"office": "offices", "venue": "dining"}
 
 
+# Words that say what a question is about rather than which field it wants or how it is asked.
+_NOT_PURPOSE = frozenset(
+    "what whats when where which whom whose does have need want with about their there this that "
+    "from your into them they help office offices contact contacts reach email emails phone "
+    "phones number numbers call hours open opens room rooms located location ramapo college "
+    "campus student students please thanks know tell find here just like also some would could "
+    "should handles handle talk speak someone anyone person people right today tomorrow tonight "
+    "address website page whos".split())
+
+
+def purpose_words(text: str) -> set[str]:
+    """The content words of a text (four letters or more, plural s dropped), minus field and
+    question words, for matching what a question is about against an office's contact note."""
+    words = re.findall(r"[a-z]+", text.casefold())
+    return {word[:-1] if len(word) > 4 and word.endswith("s") else word
+            for word in words if len(word) >= 4 and word not in _NOT_PURPOSE}
+
+
 class CampusGraph:
     def __init__(self, facts: EntityFacts, *, dataset_version: str | None = None,
                  identity_hash: str | None = None) -> None:
@@ -122,7 +142,7 @@ class CampusGraph:
         return [dict(self.nodes[key]) for key in self.paths.get(node_id, [])]
 
     def lookup(self, query: str, fields: list[str], as_of: datetime, *,
-               exact_name_only: bool = False, conversation: str = "",
+               exact_name_only: bool = False, conversation: str = "", latest: str = "",
                on: date | None = None, meal: str | None = None,
                menu_query: dict[str, Any] | None = None) -> dict[str, Any]:
         """Run one complete root-first traversal, without intermediate model decisions."""
@@ -149,7 +169,7 @@ class CampusGraph:
                 topic = self._topic(query, as_of)
             if topic is not None:
                 return self._topic_result(topic, result, fields, as_of, on=on, meal=meal,
-                                          menu_query=menu_query)
+                                          menu_query=menu_query, latest=latest)
         if outcome == "asks" and conversation and not truncated and not exact_name_only:
             named = named_by_conversation(candidates, conversation)
             if named is not None:
@@ -160,7 +180,8 @@ class CampusGraph:
         with measure("Open matched office · read published records · shared entity facts"):
             opened = {**result, **self.open(f"office:{chosen[0]['entity_id']}", fields, as_of,
                                             on=on, meal=meal, menu_query=menu_query)}
-        if not exact_name_only and (note := self._note_for_unpublished(opened, fields, as_of)):
+        if not exact_name_only and (
+                note := self._note_for_unpublished(opened, fields, as_of, latest)):
             opened["also"] = note
         return opened
 
@@ -176,6 +197,7 @@ class CampusGraph:
     def _topic_result(
         self, topic: dict[str, Any], result: dict[str, Any], fields: list[str], as_of: datetime,
         *, on: date | None, meal: str | None, menu_query: dict[str, Any] | None,
+        latest: str = "",
     ) -> dict[str, Any]:
         """One named office is read like a lookup of it; several are offered to choose from; a
         retired topic has no office to read."""
@@ -184,7 +206,7 @@ class CampusGraph:
             with measure("Open the topic's office · read published records"):
                 opened = {**result, **self.open(f"office:{offices[0]['id']}", fields, as_of,
                                                 on=on, meal=meal, menu_query=menu_query)}
-            if note := self._note_for_unpublished(opened, fields, as_of):
+            if note := self._note_for_unpublished(opened, fields, as_of, latest):
                 opened["also"] = note
             return {**opened, "topic": topic}
         return {**result, "truncated": False, "topic": topic, "candidates": [
@@ -192,7 +214,7 @@ class CampusGraph:
              "match": "topic", "basis": "topic", "covers": []} for office in offices]}
 
     def _note_for_unpublished(
-        self, opened: dict[str, Any], fields: list[str], as_of: datetime,
+        self, opened: dict[str, Any], fields: list[str], as_of: datetime, latest: str = "",
     ) -> dict[str, Any] | None:
         """The office's contact note, when a requested email or phone is not published, and the
         address or number of the way it says it prefers to be reached, when that was not asked.
@@ -213,11 +235,21 @@ class CampusGraph:
             str(preferred["values"][0]["value"]).casefold()) if preferred else None
         if method and method not in fields:
             wanted.append(method)
+        # A question that names a purpose the contact note speaks to ("media inquiries", "parking
+        # permit") reads the note too: it is where offices list role and service contacts.
+        about = purpose_words(latest) - purpose_words(
+            " ".join([str(opened.get("label") or ""), *opened.get("aliases", [])]))
+        if about and "contact_note" not in fields and "contact_note" not in wanted:
+            wanted.append("contact_note")
         if not wanted:
             return None
         with measure("Read beside the answer · contact note or the preferred contact"):
             extra = self.open(opened["id"], wanted, as_of)["facts"]
-        kept = [p for p in extra["properties"] if p["status"] == "known"]
+        unpublished = "contact_note" in wanted and any(
+            p["status"] in ("unknown", "not_published") for p in asked)
+        kept = [p for p in extra["properties"] if p["status"] == "known" and (
+            p["key"] != "contact_note" or unpublished
+            or about & purpose_words(json.dumps([v["value"] for v in p["values"]])))]
         return {**extra, "properties": kept} if kept else None
 
     def inspect(
