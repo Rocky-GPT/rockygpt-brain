@@ -448,6 +448,14 @@ class _Builder:
         for fact in self.facts[first_new:]:
             menu = fact["value"]
             if fact["predicate"] == "menu" and isinstance(menu, dict) and menu.get(
+                    "nutrients_unlisted"):
+                # "High protein": the rows carry calories only, so no item is said to match.
+                self.notices.append({"type": "nutrients_unlisted", "subject": entity,
+                                     "approved_text": (
+                                         "The dining service's menu lists each item's calories, "
+                                         "portion and diet and allergen labels; it does not list "
+                                         f"{' or '.join(menu['nutrients_unlisted'])}.")})
+            if fact["predicate"] == "menu" and isinstance(menu, dict) and menu.get(
                     "allergens_unlabelled"):
                 # Said in the code's words: no label names it, which is not the same as free of it.
                 self.notices.append({"type": "allergen_unlabelled", "subject": entity,

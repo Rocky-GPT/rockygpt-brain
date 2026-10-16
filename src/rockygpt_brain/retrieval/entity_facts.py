@@ -1090,6 +1090,19 @@ def _labels_for(asked: str, labels: Sequence[Any]) -> list[str]:
             if _squash(a) in terms or any(t in _squash(a) for t in terms)]
 
 
+# Words that say a food is a dish, not which food: "the chicken dish" is chicken.
+_FOOD_FILLER = frozenset("dish dishes food foods meal meals item items option options plate "
+                         "plates something anything stuff".split())
+# What a student may ask a menu for that its rows do not carry: calories are the only nutrient.
+_NUTRIENTS = frozenset("protein proteins carb carbs carbohydrate carbohydrates fat fats sugar "
+                       "sugars sodium salt fiber fibre cholesterol".split())
+
+
+def _main_food(asked: str) -> str:
+    """The food in a phrase, without words that only say it is a dish ("chicken dish")."""
+    return " ".join(w for w in asked.split() if w.casefold() not in _FOOD_FILLER)
+
+
 def _menu_kept(row: dict[str, Any], query: dict[str, Any]) -> bool:
     """Whether one menu row passes every filter the student's question set."""
     raw = row.get("label_coverage")
@@ -1099,7 +1112,7 @@ def _menu_kept(row: dict[str, Any], query: dict[str, Any]) -> bool:
         if not (row.get(flag) is True and coverage.get(flag, "published") == "published"):
             return False
     words = [term for w in (query.get("contains") or [])
-             for term in (w, *_FOOD_WORDS.get(_squash(w), ()))]
+             for term in (w, *_FOOD_WORDS.get(_squash(w), ()), _main_food(w)) if term]
     if words:
         # Name, station and portion: the dining service marks main dishes "ENTREE" as a portion.
         text = (f"{clean(row.get('name'))} {clean(row.get('station'))} "
@@ -1168,6 +1181,12 @@ def menu_property(
     if query and unlabelled:
         query = {**query, **{key: [a for a in query.get(key) or [] if a not in unlabelled]
                              for key in ("without_allergens", "with_allergens")}}
+    # "Anything high protein": the rows carry calories and no other nutrient, so a nutrient word
+    # filters nothing (every item would fail for want of a number) and is said not published.
+    nutrients = [w for w in (query or {}).get("contains") or []
+                 if set(w.casefold().split()) & _NUTRIENTS]
+    if query and nutrients:
+        query = {**query, "contains": [w for w in query["contains"] if w not in nutrients]}
     filtering = query is not None and any(query.get(key) for key in (
         "diet", "contains", "with_allergens", "without_allergens"))
     if query is not None and filtering:
@@ -1205,6 +1224,8 @@ def menu_property(
     if not_listed is not None:
         value = {"date": on.isoformat(), "meals": [], "meal_not_listed": not_listed,
                  "meals_listed": list(meals)}
+    if nutrients:
+        value["nutrients_unlisted"] = nutrients
     if unlabelled:
         value["allergens_unlabelled"] = unlabelled
         value["allergens_published"] = vocabulary
