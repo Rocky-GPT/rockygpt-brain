@@ -991,3 +991,13 @@ def test_a_dish_word_matches_dishes_named_by_their_kind_and_other_dates_are_offe
 
 def test_entrees_are_the_items_the_dining_service_portions_as_an_entree() -> None:
     assert _names(_menu_value(items=["entrees"])) == ["Tofu Stir Fry", "Braised Pot Roast"]
+
+
+def test_a_place_named_by_its_building_finds_the_venues_in_that_building() -> None:
+    engine = ChatEngine(ScriptedGateway(), facts(), output="json")  # type: ignore[arg-type]
+    engine._venues_cache = (("release-1", "identities-1"),  # type: ignore[attr-defined]
+                            [{"name": "Birch Tree Inn", "in": ["Robert A. Scott Student Center"]}])
+    assert [v["name"] for v in engine._venues_in_building("cafe in the student center")] == [
+        "Birch Tree Inn"]
+    # One word of a building is not enough ("center" alone names many places).
+    assert engine._venues_in_building("the counseling center") == []

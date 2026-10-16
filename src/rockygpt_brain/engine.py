@@ -210,8 +210,8 @@ someone to talk to right now, or says they are having a panic attack (those are 
 its
 situation to self_harm (the student may hurt themselves, or fears someone else will), medical
 (someone is badly hurt, unconscious, not breathing or suddenly very ill, or having an allergic
-reaction now; feeling sick, or naming an allergy or condition to ask about food or services, is
-not safety), danger (a threat from another person: a
+reaction now; feeling sick (a cold, the flu, a fever, strep), or naming an allergy or condition
+to ask about food or services, is not safety), danger (a threat from another person: a
 weapon, an attack, a break-in, being followed), fire (fire, smoke or gas), or other (none of
 these fits, several do, or someone took too much of something). Every other part has a null
 situation. Do not use safety only because an earlier message was an emergency: if the student
@@ -616,7 +616,9 @@ def _asked_words(student_words: str | None, message: str, offices: set[str],
 # A dietary need (celiac, an allergy, kosher) is what offices call a special or medical request.
 _DIET_NEEDS = frozenset("celiac allergy allergie allergic dietary diet gluten accommodation "
                         "kosher halal".split())
-_DIET_REQUEST = frozenset({"medical", "special", "request"})
+_DIET_REQUEST = frozenset({"medical", "special"})
+# A sentence that points back ("Students with such requests should ...") goes with the one before.
+_POINTS_BACK = re.compile(r"\b(such|these|those)\b", re.IGNORECASE)
 MAX_NOTE_SENTENCES = 3
 
 
@@ -641,11 +643,32 @@ def note_answer(results: dict[str, Any], message: str) -> list[str]:
                  for prop in facts.get("properties", [])
                  if prop.get("key") == "contact_note" and prop.get("status") == "known"
                  for value in prop.get("values", [])]
-        matched = [s.strip() for note in notes for s in re.split(r"(?<=[.!?])\s+", note)
-                   if about & purpose_words(s)]
-        if 0 < len(matched) <= MAX_NOTE_SENTENCES:
-            found.append(" ".join(matched))
+        sentences = [s.strip() for note in notes for s in re.split(r"(?<=[.!?])\s+", note)]
+        scores = [len(about & purpose_words(s)) for s in sentences]
+        best = max(scores, default=0)
+        if not best:
+            continue
+        # The sentences that share the most of what was asked, each with one that points back.
+        keep: list[int] = []
+        for n, score in enumerate(scores):
+            if score == best and len(keep) < MAX_NOTE_SENTENCES:
+                keep.append(n)
+                if n + 1 < len(sentences) and _POINTS_BACK.search(sentences[n + 1]):
+                    keep.append(n + 1)
+        found.append(" ".join(sentences[n] for n in dict.fromkeys(keep)))
     return found
+
+
+def left_out_departures(written: str, view: dict[str, Any]) -> bool:
+    """Whether a writer's reply leaves out every departure time the code worked out: "when's the
+    next shuttle? my knee is messed up" was answered with Health Services and no shuttle time."""
+    # Hours and minutes only: a writer may say "11:35am" for "11:35 AM".
+    times = {found[0] for entry in view.get("derived_facts", [])
+             if entry.get("predicate") == "departures" and isinstance(entry.get("value"), dict)
+             for trip in entry["value"].get("trips", [])
+             for key in ("leaves_campus", "leaves_stop_at")
+             if (found := re.match(r"\d{1,2}:\d{2}", str(trip.get(key) or "")))}
+    return bool(times) and not any(t in written for t in times)
 
 
 def menu_allergen_text(results: dict[str, Any], message: str) -> str | None:
@@ -929,6 +952,23 @@ class ChatEngine:
             "fixedTexts": fixed_texts(),
         }
 
+    def _venues_in_building(self, query: str) -> list[dict[str, Any]]:
+        """The published venues in a building the query names by at least two of its words."""
+        cached = getattr(self, "_venues_cache", None)
+        venues = cached[1] if cached else None
+        if not venues:
+            return []
+        asked = {w for w in _words(query) if len(w) >= 4}
+        names = [venue["name"] for venue in venues
+                 if any(len(asked & {w for w in _words(building) if len(w) >= 4}) >= 2
+                        for building in venue.get("in", []))]
+        if not names:
+            return []
+        listing = self.facts.list_offices(limit=100, kinds=("venue",), with_ids=True)
+        ids = {office["name"]: office["entity_id"] for office in listing["offices"]}
+        return [{"entity_id": ids[name], "name": name, "match": "building"}
+                for name in names if name in ids]
+
     def _lookup(self, request: OfficeRequest, graph: CampusGraph, as_of: datetime, *,
                 exact_name_only: bool = False, conversation: str = "",
                 latest: str = "") -> OfficeResult:
@@ -954,6 +994,18 @@ class ChatEngine:
             "as_of": as_of.isoformat(),
         }
         topic = opened.get("topic")
+        if "facts" not in opened and topic is None and not opened["candidates"]:
+            # "The cafe in the student center": no name matched, but the words name a building
+            # published venues are in. One venue there is the one asked about; several are asked.
+            there = self._venues_in_building(request.query)
+            if len(there) == 1:
+                opened = graph.lookup(there[0]["name"], list(request.fields), as_of,
+                                      latest=latest, on=on,
+                                      meal=request.meal if menu else None,
+                                      menu_query=query if menu and query else None)
+                detail.update(path=graph.path(graph.current_node), resolvedBy="building")
+            elif there:
+                opened = {**opened, "candidates": there}
         if "facts" not in opened and topic is not None:
             return self._topic(request, topic, opened["candidates"], detail)
         if "facts" not in opened:
@@ -1713,6 +1765,8 @@ class ChatEngine:
         problems = unsupported_by(said, view)
         if problems:
             return keep("not_in_the_facts", problems)
+        if left_out_departures(said, view):
+            return keep("left_out_departures")  # The shuttle answer is the code's, not dropped.
         # A fixed notice the writer already said, word for word or in its own words, is not
         # shown a second time.
         fixed = [text for text in dict.fromkeys(
