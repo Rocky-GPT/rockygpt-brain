@@ -1609,9 +1609,11 @@ class ChatEngine:
         view = result.body.get("writerInput")
         packet = result.body.get("facts")
 
-        def keep(why: str, problems: list[str] | None = None) -> ChatResult:
+        def keep(why: str, problems: list[str] | None = None, error: str | None = None,
+                 ) -> ChatResult:
             trace["writer"] = {"used": False, "why": why, **({"problems": problems} if problems
-                                                              else {})}
+                                                              else {}),
+                               **({"error": error} if error else {})}
             return replace(result, body={**result.body, "answer": code_text})
 
         if not isinstance(view, dict) or not isinstance(packet, dict):
@@ -1624,8 +1626,9 @@ class ChatEngine:
                     input=writer_messages(view, language), tools=[WRITE_TOOL], budget=budget)
                 call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
                 said = call.arguments.get("text") if call and call.name == "write_answer" else None
-            except (GatewayError, TimeoutError):
-                return keep("writer_unavailable")
+            except (GatewayError, TimeoutError) as error:
+                # Which failure, for the inspector: a timeout, the turn's deadline, a cut reply.
+                return keep("writer_unavailable", error=getattr(error, "code", "timeout"))
         if not isinstance(said, str) or not said.strip():
             return keep("no_text")
         if len(said) >= WRITER_TEXT_LIMIT:

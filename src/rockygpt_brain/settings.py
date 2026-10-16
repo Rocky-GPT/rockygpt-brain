@@ -56,6 +56,9 @@ class ProviderSettings:
     prices: Prices
     max_input_bytes: int = 100_000
     max_output_tokens: int = 1_200
+    # The writer says a whole answer (a menu, a week of hours) after reasoning about it: its reply
+    # and its reasoning share this, and 1,200 left large answers cut short (provider_incomplete).
+    writer_max_output_tokens: int = 2_400
     max_turn_nusd: int = 25_000_000
 
     @classmethod
@@ -95,6 +98,7 @@ class ProviderSettings:
                 expires = datetime.fromisoformat(release["valid_until"])
             max_input = int(env.get("BRAIN_MAX_INPUT_BYTES", "100000"))
             max_output = int(env.get("BRAIN_MAX_OUTPUT_TOKENS", "1200"))
+            writer_output = int(env.get("BRAIN_WRITER_MAX_OUTPUT_TOKENS", "2400"))
             max_turn = int(env.get("BRAIN_MAX_TURN_NUSD", "25000000"))
         except (ValueError, OverflowError, KeyError) as error:
             raise ConfigurationError("Invalid provider pricing configuration") from error
@@ -102,7 +106,7 @@ class ProviderSettings:
         if not prices.valid(datetime.now(UTC)):
             raise ConfigurationError("Provider pricing is invalid or expired")
         if not (1 <= max_input <= 100_000 and 1 <= max_output <= 8_000
-                and 1 <= max_turn <= 1_000_000_000):
+                and 1 <= writer_output <= 8_000 and 1 <= max_turn <= 1_000_000_000):
             raise ConfigurationError("Invalid provider execution limits")
         return cls(
             environment=environment,  # type: ignore[arg-type]
@@ -110,5 +114,6 @@ class ProviderSettings:
             project=required("BRAIN_OPENAI_PROJECT"),
             ledger_url=required("BRAIN_LEDGER_DATABASE_URL"),
             prices=prices, max_input_bytes=max_input, max_output_tokens=max_output,
+            writer_max_output_tokens=writer_output,
             max_turn_nusd=max_turn,
         )

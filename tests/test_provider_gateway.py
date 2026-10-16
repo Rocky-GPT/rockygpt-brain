@@ -340,3 +340,16 @@ def test_response_serialization_omits_wrapper_nulls_but_preserves_argument_nulls
                                    "encrypted_content": "encrypted"}
     assert result["output"][1]["arguments"] == '{"result_id":null}'
     assert "status" not in result["output"][1]
+
+
+def test_the_writers_call_gets_its_own_output_budget() -> None:
+    gateway, ledger, transport, budget = setup()
+    call(gateway, budget)
+    assert transport.request["max_output_tokens"] == SETTINGS.max_output_tokens
+    gateway, ledger, transport, budget = setup()
+    asyncio.run(gateway.complete(
+        input=[{"role": "user", "content": "facts"}],
+        tools=[{"type": "function", "name": "write_answer"}], budget=budget))
+    # A whole answer and the reasoning about it share this; the reservation covers all of it.
+    assert transport.request["max_output_tokens"] == SETTINGS.writer_max_output_tokens == 2_400
+    assert ledger.metadata["max_output_tokens"] == 2_400

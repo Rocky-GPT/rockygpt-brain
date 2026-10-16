@@ -228,9 +228,13 @@ class Gateway:
             raise GatewayError("turn_limit")
         if self._monotonic() >= budget.deadline:
             raise GatewayError("deadline_exceeded")
+        # The writer's call (its one tool is write_answer) gets the writer's own output budget.
+        max_output = (settings.writer_max_output_tokens
+                      if [t.get("name") for t in tools] == ["write_answer"]
+                      else settings.max_output_tokens)
         request: dict[str, Any] = {
             "model": settings.prices.model, "input": input, "tools": tools,
-            "max_output_tokens": settings.max_output_tokens, "store": False,
+            "max_output_tokens": max_output, "store": False,
             "service_tier": "default",
             "include": ["reasoning.encrypted_content"],
         }
@@ -246,7 +250,7 @@ class Gateway:
         # One token per UTF-8 byte is conservative for text. The envelope margin
         # covers provider-internal framing; actual overruns pause the account.
         input_bound = byte_count + 1_024
-        reserve_cost = settings.prices.cost(input_bound, settings.max_output_tokens)
+        reserve_cost = settings.prices.cost(input_bound, max_output)
         if budget.committed_nusd + reserve_cost > budget.max_cost_nusd:
             raise GatewayError("turn_budget_exhausted")
         with measure("Reserve model allowance"):
@@ -254,7 +258,7 @@ class Gateway:
                 budget.request_id, reserve_cost,
                 {"provider": "openai", "project": settings.project,
                  "price": settings.prices.metadata(), "input_token_bound": input_bound,
-                 "max_output_tokens": settings.max_output_tokens}, self._now(),
+                 "max_output_tokens": max_output}, self._now(),
             )
         budget.committed_nusd += reserve_cost
         remaining = budget.deadline - self._monotonic()
@@ -317,7 +321,7 @@ class Gateway:
                 returned_model if isinstance(returned_model, str) else "", self._now(),
             )
         budget.committed_nusd += actual - reserve_cost
-        if (actual > reserve_cost or usage.output_tokens > settings.max_output_tokens
+        if (actual > reserve_cost or usage.output_tokens > max_output
                 or usage.input_tokens > input_bound):
             with measure("Pause model spending"):
                 await self.ledger.pause()
