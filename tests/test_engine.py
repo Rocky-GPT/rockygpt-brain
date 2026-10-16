@@ -1407,3 +1407,25 @@ def test_an_allergy_part_beside_a_menu_is_not_called_unanswerable() -> None:
     assert _asked_words("any nuts or dairy", message, {"Registrar"}) == "any nuts or dairy"
     whole = "does the pasta at the dining hall today have any nuts or dairy"
     assert _asked_words(whole, message, {"Dining Hall", "pasta"}, menu_read=True) is None
+
+
+def marketing_office() -> MemoryEntityFacts:
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "mkt", "name": "Marketing", "kind": "office", "aliases": [], "links": [
+            {"collection": "contacts", "source_key": "directory", "source_record_keys": ["m"]}]}],
+        contacts=[{"id": "c-m", "source_key": "directory", "source_record_key": "m",
+                   "name": "Marketing", "email": "marketing@example.edu",
+                   "contact_note": "Media inquiries: news@example.edu",
+                   "canonical_url": "https://example.edu/marketing",
+                   "collected_at": NOW, "freshness_sla_hours": 24}], now=lambda: NOW)
+
+
+def test_a_question_naming_a_purpose_its_contact_note_covers_reads_the_note() -> None:
+    ask = completion("graph_lookup", {"requests": [{"query": "Marketing", "fields": ["email"]}]})
+    press = answer(ScriptedGateway(ask, finish()), service=marketing_office(), messages=[
+        {"role": "user", "content": "who handles media inquiries and how do I reach them"}])
+    assert "news@example.edu" in press.body["answer"]
+    plain = answer(ScriptedGateway(ask, finish()), service=marketing_office(),
+                   messages=[{"role": "user", "content": "marketing email please"}])
+    assert "news@example.edu" not in plain.body["answer"]
