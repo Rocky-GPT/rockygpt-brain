@@ -69,7 +69,9 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   the items that match what was asked (matched of on_menu): give them as the answer, grouped by
   station; matched is how many there are, so use it to count or to compare two menus; if matched is
   0 say nothing on that menu matches and name stations_listed, so a station the student called by
-  another name can be found. A missing menu with dates_published means the venue has published menus
+  another name can be found. With matches_shown, only some matches are listed: say matched of
+  on_menu match and that these are some of them.
+  A missing menu with dates_published means the venue has published menus
   only for those dates: say that, as a range when they are consecutive. With documents_published the
   venue posts its menu as a file instead: give each title and link; never list items from it. A menu
   asked about an allergen lists allergens_published, the allergens its labels name: say an allergen
