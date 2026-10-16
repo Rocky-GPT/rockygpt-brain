@@ -259,8 +259,10 @@ def test_a_venue_says_which_meal_is_on_and_what_comes_next() -> None:
     noon = datetime(2026, 10, 13, 12, 15, tzinfo=EASTERN)
     result = ask("is birch open?", lookup("Birch Tree Inn", ["hours"], "today"), finish(), now=noon)
     entry = derived(result, "hours_on")
+    # Lunch ends at 2:00pm and dinner starts at 5:00pm: the day's last close is late night's.
     assert entry["open_now"] == {"state": "open", "now": "12:15pm", "closes": "2:00pm",
-                                 "meal": "Lunch"}
+                                 "meal": "Lunch", "reopens": "5:00pm", "reopens_meal": "Dinner",
+                                 "last_closes": "11:00pm"}
     assert [p["label"] for p in entry["value"]["periods"]] == [
         "Breakfast", "Lunch", "Dinner", "Late Night"]
     gap = datetime(2026, 10, 13, 20, 30, tzinfo=EASTERN)
