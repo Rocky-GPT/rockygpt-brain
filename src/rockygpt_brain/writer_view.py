@@ -204,12 +204,27 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
     if derived:
         view["derived_facts"] = derived
 
+    # "What's for lunch, and anything vegan": the whole menu and the vegan list of the same meal.
+    # The writer gets the filtered list, told the whole menu was asked (its other items are in
+    # rest_of_menu), instead of two overlapping lists of which it says one.
+    def menu_key(fact: dict[str, Any]) -> tuple[Any, ...] | None:
+        value = fact["value"]
+        if fact["predicate"] != "menu" or not isinstance(value, dict) or not value.get("meals"):
+            return None
+        return (fact["subject"].get("id"), value.get("date"),
+                tuple(m.get("meal") for m in value["meals"]))
+    filtered = {key for fact in packet["facts"] if (key := menu_key(fact))
+                and fact["value"].get("filter") and fact["value"].get("rest_of_menu")}
+    whole = {fact["id"] for fact in packet["facts"] if (key := menu_key(fact)) in filtered
+             and not fact["value"].get("filter")}
     facts = []
     for fact in packet["facts"]:
-        if fact["id"] in replaced:
+        if fact["id"] in replaced or fact["id"] in whole:
             continue
         row = {"subject": fact["subject"]["name"], "predicate": fact["predicate"],
                "value": _said(fact["value"])}
+        if whole and menu_key(fact) in filtered and fact["value"].get("filter"):
+            row["value"] = {**row["value"], "whole_menu_asked": True}
         if fact["status"] != "known":
             row["status"] = fact["status"]
         if not fact["current"]:

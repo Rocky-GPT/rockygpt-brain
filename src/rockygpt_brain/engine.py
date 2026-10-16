@@ -51,7 +51,7 @@ from rockygpt_brain.retrieval import (
     InvalidFactRequest,
     UnknownEntity,
 )
-from rockygpt_brain.retrieval.campus_graph import CampusGraph
+from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
 from rockygpt_brain.shuttle import (
     SCOPE_TEXT,
     SPECIAL_TEXT,
@@ -108,7 +108,8 @@ A missing match is a limit of available evidence, not proof that the office does
 Every query, including follow-ups, is traversed from the root. Offices and the dining venues in
 published_venues (listed with the other names they go by, and used like published_offices) are
 available. A venue's in is the building it is in and with the offices published at that same
-building: a place the student names ("the cafe in the library") is the venue there.
+building: a place the student names ("the cafe in the library") is the venue there; send its
+listed name, never the building, and when several venues are in that building ask which.
 Fields: email (an address), phones (phone numbers with any published call, text or SMS
 labels), offices (where it is), hours (opening hours, weekends, closing times); set day to
 today, tomorrow or that weekday only when the student asks about that one day. For the hours
@@ -557,6 +558,20 @@ def _words(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+(?:'[a-z0-9]+)*", text.casefold().replace("\u2019", "'"))
 
 
+_FILLER = frozenset("please order that this with from your there these they have will into "
+                    "also when what which them their about".split())
+
+
+def already_said(notice: str, written: str) -> bool:
+    """Whether a writer's reply already says a fixed notice, in its own words: nearly every
+    content word of the notice is in the reply ("To get a new ID card, contact ... and make an
+    appointment" says "In order to get a new identification card, please contact ...")."""
+    wanted = {w for w in _words(notice) if len(w) >= 4 and w not in _FILLER}
+    if len(wanted) < 4:
+        return " ".join(notice.casefold().split()) in " ".join(written.casefold().split())
+    return len(wanted & set(_words(written))) >= 0.85 * len(wanted)
+
+
 # What a menu lookup answers: its items come with their allergen, diet and calorie labels.
 _MENU_ANSWERABLE_WORDS = frozenset(
     "menu menus food foods dish dishes item items meal meals allergy allergies allergic allergen "
@@ -596,6 +611,41 @@ def _asked_words(student_words: str | None, message: str, offices: set[str],
     if stop_described and set(said) & _STOP_WORDS:
         return None
     return " ".join(student_words.split())[:100]
+
+
+# A dietary need (celiac, an allergy, kosher) is what offices call a special or medical request.
+_DIET_NEEDS = frozenset("celiac allergy allergie allergic dietary diet gluten accommodation "
+                        "kosher halal".split())
+_DIET_REQUEST = frozenset({"medical", "special", "request"})
+MAX_NOTE_SENTENCES = 3
+
+
+def note_answer(results: dict[str, Any], message: str) -> list[str]:
+    """The sentences of a read contact note that speak to what the question is about, in the
+    note's own words: "Who do I talk to about a dietary accommodation for celiac?" is answered by
+    Dining Services' "special requests for medical ... reasons ... inquire at the ... Office"."""
+    asked = purpose_words(message)
+    if asked & _DIET_NEEDS:
+        asked |= _DIET_REQUEST
+    found: list[str] = []
+    for r in results.values():
+        if not (r.part and r.part.get("kind") == "office_facts"):
+            continue
+        named = purpose_words(" ".join([str(r.part["office"].get("name") or ""),
+                                        *r.part["office"].get("aliases", [])]))
+        about = asked - named
+        if not about:
+            continue
+        notes = [str(value["value"])
+                 for facts in (r.part["facts"], r.part.get("also") or {})
+                 for prop in facts.get("properties", [])
+                 if prop.get("key") == "contact_note" and prop.get("status") == "known"
+                 for value in prop.get("values", [])]
+        matched = [s.strip() for note in notes for s in re.split(r"(?<=[.!?])\s+", note)
+                   if about & purpose_words(s)]
+        if 0 < len(matched) <= MAX_NOTE_SENTENCES:
+            found.append(" ".join(matched))
+    return found
 
 
 def menu_allergen_text(results: dict[str, Any], message: str) -> str | None:
@@ -1589,6 +1639,8 @@ class ChatEngine:
         if labels_text := menu_allergen_text(results, context.latest_message):
             parts.append({"kind": "menu_allergens", "approved_text": labels_text})
             chunks.append(labels_text)
+        for note_text in note_answer(results, context.latest_message):
+            parts.append({"kind": "note_answer", "approved_text": note_text})
         if errors and not supported:
             return failed(turn, errors[0])
         if not chunks and not situations:
@@ -1661,12 +1713,12 @@ class ChatEngine:
         problems = unsupported_by(said, view)
         if problems:
             return keep("not_in_the_facts", problems)
-        said_flat = " ".join(said.casefold().split())
-        # A fixed notice the writer already said is not shown a second time.
+        # A fixed notice the writer already said, word for word or in its own words, is not
+        # shown a second time.
         fixed = [text for text in dict.fromkeys(
                      n["approved_text"] for n in view.get("notices", [])
                      if isinstance(n.get("approved_text"), str))
-                 if " ".join(text.casefold().split()) not in said_flat]
+                 if not already_said(text, said)]
         sources = [f"[{s['n']}]({s['urls'][0]})" for s in view.get("sources", []) if s.get("urls")]
         text = "\n\n".join([said.strip(), *fixed,
                             *([("Sources: " + " ".join(sources))] if sources else [])])
