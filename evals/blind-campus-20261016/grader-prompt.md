@@ -18,9 +18,9 @@ The only dates with menus are the ones present in menu_items.
 
 ## Offices and topics (read them from the published campus graph, read-only)
 List every office (with the other names it goes by):
-  curl -s -H 'x-rockygpt-diagnostics: 1' 'http://localhost:8014/v1/dev/graph/node?node_id=offices'
+  curl -s -H 'x-rockygpt-diagnostics: 1' 'http://localhost:8016/v1/dev/graph/node?node_id=offices'
 Open one office (its id from the list, e.g. office:1234...):
-  curl -s -H 'x-rockygpt-diagnostics: 1' 'http://localhost:8014/v1/dev/graph/node?node_id=office:<id>'
+  curl -s -H 'x-rockygpt-diagnostics: 1' 'http://localhost:8016/v1/dev/graph/node?node_id=office:<id>'
   facts.properties is one entry per field (name, email, phones, offices = rooms, website, hours,
   contact_note, preferred_contact, ...). status "known" has values; "not_published" means the office's
   own pages were read and do not publish it (an answer saying so, with or without the check date, is
