@@ -45,7 +45,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   student cares about, so never pick one day for them.
 - A derived fact with open_now says whether the office is open at this moment (state open or
   closed, now is the time it is). Say it plainly first, with that day's hours, and never work out
-  open or closed yourself when open_now is absent.
+  open or closed yourself when open_now is absent. listed_open_now is the same for hours whose
+  dates are not published: say "by its listed hours it is open (or closed) now", never plainly.
 - open_now can carry meal (the period in service), closes, next_meal and next_opens: say them as
   given. closes is when service stops; meal_ends and then_meal mean the next meal follows straight
   on, so never say it closes at meal_ends. A derived fact's value.periods lists that day's meal
