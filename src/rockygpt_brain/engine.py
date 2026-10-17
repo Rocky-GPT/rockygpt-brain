@@ -803,12 +803,16 @@ def service_labels(properties: list[dict[str, Any]]) -> list[str]:
 
 
 _WEEKDAY = re.compile(r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b")
+# The student's own relative day: "hours tomorrow? my paper is due friday" asks about tomorrow.
+_RELATIVE_DAY = re.compile(r"\b(today|tonight|tomorrow|tmrw|tmr|tmrow|now|rn)\b")
 
 
 def named_weekday(message: str) -> str | None:
-    """The one weekday a message names ("first shuttle saturday morning"), or None."""
-    names = set(_WEEKDAY.findall(message.casefold()))
-    return names.pop() if len(names) == 1 else None
+    """The one weekday a message names ("first shuttle saturday morning"), or None when it names
+    none, several, or also says today, tonight, tomorrow or now in its own words."""
+    folded = message.casefold()
+    names = set(_WEEKDAY.findall(folded))
+    return names.pop() if len(names) == 1 and not _RELATIVE_DAY.search(folded) else None
 
 
 def keep_named_day(requests: list[Any], message: str, today: Any) -> list[Any]:
