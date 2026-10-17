@@ -1037,8 +1037,9 @@ class ChatEngine:
     def _dining_kind(self, requests: list[OfficeRequest]) -> list[OfficeRequest]:
         """"The chicken sandwich at the cafe", "is the cafe open early": a kind of place that names
         no venue matched nothing and was answered as a missing office. It asks about the venues:
-        every venue that publishes a menu for a menu, every venue for anything else. A building
-        named ("the cafe in the library") is left to the venues in it."""
+        every venue that publishes a menu for a menu, every venue for anything else. A menu asked
+        of something that is not a venue is asked of the venues with menus. A building named
+        ("the cafe in the library") is left to the venues in it."""
         cached = getattr(self, "_venues_cache", None)
         venues = cached[1] if cached else None
         if not venues:
@@ -1047,7 +1048,12 @@ class ChatEngine:
                   for name in [venue["name"], *venue.get("also_called", [])]}
         out: dict[str, OfficeRequest] = {}
         for item in requests:
-            if (_normal(item.query) in listed or not names_a_dining_kind(item.query)
+            # Only venues have menus: a menu asked of anything else ("Dining Services") is the
+            # venues' too.
+            menu_elsewhere = "menu" in item.fields and not self.facts.search_offices(
+                item.query, kinds=("venue",))["candidates"]
+            if (_normal(item.query) in listed
+                    or not (names_a_dining_kind(item.query) or menu_elsewhere)
                     or self._venues_in_building(item.query)):
                 out.setdefault(item.model_dump_json(), item)
                 continue
@@ -1101,7 +1107,10 @@ class ChatEngine:
                 index += [(office, tokens) for label in service_labels(facts["properties"])
                           if (tokens := discovery_tokens(label))]
             self._labels_cache = cached = (key, index)
-        parts = [discovery_tokens(part) for part in re.split(r"/|\bor\b", query.casefold())]
+        # One short word ("post", "hall") is in too many labels to name a service by itself.
+        parts = [tokens for part in re.split(r"/|\bor\b", query.casefold())
+                 if len(tokens := discovery_tokens(part)) > 1
+                 or any(len(token) >= 5 for token in tokens)]
         found = {office["entity_id"]: office for office, tokens in cached[1]
                  for part in parts if part and part <= tokens}
         return [{"entity_id": office["entity_id"], "name": office["name"], "match": "service"}

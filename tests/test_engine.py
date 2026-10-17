@@ -1553,6 +1553,11 @@ def test_a_service_an_office_lists_as_a_labelled_contact_finds_that_office() -> 
         {"role": "user", "content": "where is the mailroom and what's the email"}])
     assert "mailroom@example.edu" in found.body["answer"]
     assert found.trace is not None and found.trace["lookups"][0]["resolvedBy"] == "service"
+    # One short word is in too many labels to name a service: "hall" alone is not Mackin Hall.
+    hall = completion("graph_lookup", {"requests": [{"query": "hall", "fields": ["email"]}]})
+    vague = answer(ScriptedGateway(hall, finish()), service=res_life(), messages=[
+        {"role": "user", "content": "hall email"}])
+    assert "mackin@example.edu" not in vague.body["answer"]
     # Words that no label has are still not found.
     nothing = completion("graph_lookup", {"requests": [
         {"query": "bursar", "fields": ["email"]}]})
