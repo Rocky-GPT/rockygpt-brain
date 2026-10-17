@@ -392,6 +392,8 @@ DATA_UNAVAILABLE_TEXT = "Campus data is temporarily unavailable."
 INCOMPLETE_TEXT = "I found these details, but couldn't complete the rest of your request."
 AMBIGUOUS_TEXT = "Which office do you mean: {names}?"
 AMBIGUOUS_MORE_TEXT = " There are additional matches; a more specific name will help."
+# "The cafe" names no venue: the one venue that publishes a menu is read, and that is said.
+ONLY_MENU_TEXT = "{venue} is the only campus dining venue that publishes a menu."
 # A topic is a site with no office behind it; its own page names the offices that handle it.
 TOPIC_ONE_TEXT = "For {topic}, its page sends you to {office}."
 TOPIC_SOME_TEXT = ("For {topic}, its page sends you to these offices: {names}. "
@@ -1081,6 +1083,9 @@ class ChatEngine:
                   for name in [venue["name"], *venue.get("also_called", [])]}
         out: dict[str, OfficeRequest] = {}
         for item in requests:
+            if self._only_menu_venue(item):  # The lookup reads that venue and says why.
+                out.setdefault(item.model_dump_json(), item)
+                continue
             # Only venues have menus: a menu asked of anything else ("Dining Services") is the
             # venues' too.
             menu_elsewhere = "menu" in item.fields and not self.facts.search_offices(
@@ -1095,6 +1100,25 @@ class ChatEngine:
                 each = item.model_copy(update={"query": venue["name"]})
                 out.setdefault(each.model_dump_json(), each)
         return list(out.values())
+
+    def _only_menu_venue(self, request: OfficeRequest) -> str | None:
+        """"Anything gluten free at the cafe": a menu asked of a kind of place, or of something
+        that is not a venue, when one venue alone publishes a menu. That venue is read, and the
+        reply says it is the only one with a menu instead of quietly answering for it."""
+        cached = getattr(self, "_venues_cache", None)
+        venues = cached[1] if cached else None
+        if "menu" not in request.fields or not venues:
+            return None
+        menus = [venue for venue in venues if "menu" in venue.get("publishes", [])]
+        listed = {_normal(name) for venue in venues
+                  for name in [venue["name"], *venue.get("also_called", [])]}
+        if (len(menus) != 1 or _normal(request.query) in listed
+                or self._venues_in_building(request.query)):
+            return None
+        if names_a_dining_kind(request.query) or not self.facts.search_offices(
+                request.query, kinds=("venue",))["candidates"]:
+            return str(menus[0]["name"])
+        return None
 
     def _every_venue(self, requests: list[OfficeRequest], message: str) -> list[OfficeRequest]:
         """"Where can we grab coffee on campus right now": the model looked up several venues and
@@ -1169,6 +1193,9 @@ class ChatEngine:
     def _lookup(self, request: OfficeRequest, graph: CampusGraph, as_of: datetime, *,
                 exact_name_only: bool = False, conversation: str = "",
                 latest: str = "") -> OfficeResult:
+        only_menu = self._only_menu_venue(request)
+        if only_menu:
+            request = request.model_copy(update={"query": only_menu})
         # A menu is read for one date: the day asked, today when none is named.
         on = (target_date(request.day or "today", as_of.date())
               if "menu" in request.fields else None)
@@ -1275,6 +1302,15 @@ class ChatEngine:
             part["topic"] = topic_part(topic, sent)
         if request.phone_kind and "phones" in request.fields:
             part["phone_kind"] = request.phone_kind
+        if only_menu:
+            detail["resolvedBy"] = "only_menu_venue"
+            for prop in shown["properties"]:
+                for value in prop.get("values", []) if prop.get("key") == "menu" else []:
+                    if isinstance(value.get("value"), dict):
+                        value["value"]["only_menu_venue"] = True
+            lead = ONLY_MENU_TEXT.format(venue=literal(only_menu))
+            rendered = replace(rendered, text=f"{lead}\n\n{rendered.text}")
+            detail["answer"] = {**detail["answer"], "text": rendered.text}
         if menu and request.details:
             # "Any vegan options, and are there calorie counts": each listed item says them.
             for prop in shown["properties"]:

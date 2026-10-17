@@ -108,6 +108,9 @@ def _menu_text(value: dict[str, Any]) -> str:
         listed = ", ".join(literal(meal) for meal in value.get("meals_listed", []))
         return (f"{literal(value.get('date', ''))}. The published menu lists no "
                 f"{literal(value['meal_not_listed'])}" + (f"; it lists {listed}" if listed else ""))
+    if value.get("allergens_unlabelled") and not value["meals"]:
+        return (f"{literal(value.get('date', ''))}. The published allergen labels on this menu "
+                f"do not name {', '.join(literal(a) for a in value['allergens_unlabelled'])}")
     if value.get("filter") is not None and not value["meals"]:
         listed = ", ".join(literal(station) for station in value.get("stations_listed", []))
         return (f"{literal(value.get('date', ''))}. No item on the published menu matches"
