@@ -432,4 +432,4 @@ def describe(answer: dict[str, Any]) -> str:
     lead = f"{label} {what}{since} on {when}: " + "; ".join(one(t) for t in trips) + "."
     if answer.get("already_left"):
         lead += " It has already left today."
-    return lead
+    return lead + ("" if back else where)

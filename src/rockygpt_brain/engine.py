@@ -59,6 +59,7 @@ from rockygpt_brain.shuttle import (
     departures,
     describe,
     said_minutes,
+    service_day,
     stop_key,
     stop_summary,
     stops_served,
@@ -136,15 +137,15 @@ The shuttle has its own tool, shuttle_lookup: stop is a name from published_stop
 stop is: match the student's place to it, "the mall" to a mall stop), or null for any stop; route
 is a name from published_routes when the student names a route, else null; day is the one day (null
 is today; a part of the day the student names that is over, such as "in the morning" asked in the
-afternoon, is tomorrow); which is next, first, last or all (the whole day; all with no stop also
-says where the shuttle goes). Send the stop as listed. A place that is not in published_stops is
-not served. A stop with departs_here is where every trip leaves from (the campus stop): send it as
-stop to say where to catch the shuttle on campus. after is a clock time the student gives ("after
-my 6pm class": 6:00 PM; tonight is 5:00 PM) and by one they must be at the stop by (a 6:50 train:
-6:50 AM); otherwise null. times is true with all when the student asks for the times or which one
-to take, false when they only ask whether it runs. back is true when the student rides from the
-stop back to campus ("the last shuttle back from the train"); code then times each trip by its
-pickup there. The first and the last of a day are two requests.
+afternoon, is tomorrow, unless a weekday is named); which is next, first, last or all (the whole
+day; all with no stop also says where the shuttle goes). Send the stop as listed. A place that is
+not in published_stops is not served. A stop with departs_here is where every trip leaves from (the
+campus stop): send it as stop to say where to catch the shuttle on campus. after is a clock time
+the student gives ("after my 6pm class": 6:00 PM; tonight is 5:00 PM) and by one they must be at
+the stop by (a 6:50 train: 6:50 AM); otherwise null. times is true with all when the student asks
+for the times or which one to take, false when they only ask whether it runs. back is true when the
+student rides from the stop back to campus ("the last shuttle back from the train"); code then
+times each trip by its pickup there. The first and the last of a day are two requests.
 Each office, venue, stop or day a question asks about is its own request: a question with two
 parts gets a request for each part, so no part is left unanswered.
 Read the fields the student asked for, and a field they did not name only when it plainly makes
@@ -801,6 +802,34 @@ def service_labels(properties: list[dict[str, Any]]) -> list[str]:
     return labels
 
 
+_WEEKDAY = re.compile(r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b")
+
+
+def named_weekday(message: str) -> str | None:
+    """The one weekday a message names ("first shuttle saturday morning"), or None."""
+    names = set(_WEEKDAY.findall(message.casefold()))
+    return names.pop() if len(names) == 1 else None
+
+
+def keep_named_day(requests: list[Any], message: str, today: Any) -> list[Any]:
+    """"First shuttle saturday morning", asked on a Saturday afternoon, was read as tomorrow
+    (Sunday) because the morning was over. A weekday the student names is that day: a request
+    whose today or tomorrow falls on another weekday is read for the named one. An office's
+    null day (the whole week) already shows it; a shuttle's null day is today."""
+    named = named_weekday(message)
+    if named is None:
+        return requests
+    want = target_date(named, today)
+    out = []
+    for item in requests:
+        relative = item.day in ("today", "tomorrow") or (
+            item.day is None and isinstance(item, ShuttleRequest))
+        if relative and target_date(item.day or "today", today) != want:
+            item = item.model_copy(update={"day": named})
+        out.append(item)
+    return out
+
+
 def names_a_dining_kind(query: str) -> bool:
     """Whether a lookup's query is a kind of place to eat ("the cafe") and nothing more."""
     words = [w for w in _words(query) if w not in _KIND_FILLER]
@@ -1424,7 +1453,11 @@ class ChatEngine:
             # the departures from campus still answer the rest.
             answer = departures(table, day, now_minute, request.which, None, after, by,
                                 request.times)
-            answer.update(stop_unknown=True, asked=asked[:80], published_stops=published)
+            # The stops that day ("not on Sunday's timetable" lists Sunday's), else every stop.
+            that_day = stops_served([route for route in table
+                                     if route["service_day"] == service_day(day)])
+            answer.update(stop_unknown=True, asked=asked[:80],
+                          published_stops=that_day or published)
             campus = list({stop_key(stop["stop"]): stop for stop in described
                            if stop_key(stop["stop"]) not in served}.values())
             if len(campus) == 1:  # Where every trip leaves from, and where it does not go.
@@ -1442,6 +1475,12 @@ class ChatEngine:
                 answer["departs_from"] = origins[0]["stop"]
                 answer["stop_description"] = {key: origins[0][key] for key in
                                               ("description", "pickup") if origins[0].get(key)}
+            elif len(origins) == 1 and not request.back:
+                # "Shuttle to the train, and where do I wait for it": the trips to a named stop
+                # leave from the campus stop too, described apart from the stop asked about.
+                answer["departs_from"] = origins[0]["stop"]
+                answer["campus_pickup"] = {key: origins[0][key] for key in
+                                           ("description", "pickup") if origins[0].get(key)}
             unread = [text for text, found in ((request.after, after), (request.by, by))
                       if text and found is None]
             if unread:
@@ -1550,6 +1589,8 @@ class ChatEngine:
                             requests = GraphRequests.model_validate(call.arguments).requests
                             requests = self._every_venue(self._dining_kind(requests),
                                                          context.latest_message)
+                        requests = keep_named_day(requests, context.latest_message,
+                                                  turn.campus_now.date())
                         attempts += len(requests)
                         if (attempts > MAX_TOOL_ATTEMPTS
                                 or len(results) + len(requests) > MAX_RESULTS):

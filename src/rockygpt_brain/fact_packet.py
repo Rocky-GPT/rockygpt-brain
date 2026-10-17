@@ -521,7 +521,9 @@ class _Builder:
                 or answer.get("service") == "none"):
             # Said the same way every time: the timetable is the schedule, not where a shuttle is.
             self.notices.append({"type": "shuttle_scope", "approved_text": SCOPE_TEXT})
-        described = (answer.get("stop_description") or {}).get("description")
+        # Beside a named stop, the campus stop is described apart (campus_pickup).
+        described = (answer.get("campus_pickup") or answer.get("stop_description")
+                     or {}).get("description")
         if answer.get("departs_from") and isinstance(described, str) and described.strip():
             # The campus stop's own page says where the shuttle stops on campus and where it
             # does not go: said as published, so "does it stop at my lot" is never left open.
