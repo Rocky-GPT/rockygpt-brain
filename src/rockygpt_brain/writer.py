@@ -103,8 +103,9 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   which says what was asked. For which all, say where the shuttle goes that day when stops_served
   is given, that there is service that day, its first and
   last departure and how many trips (first_leaves_campus, last_leaves_campus, trip_count), and
-  give each trip's time when trips lists them. An empty trips beside trip_count means the times
-  were not asked for: never say the timetable has no times. When none_left is true, say the last
+  give each trip's time when trips lists them. times_not_asked means every trip is timed but the
+  student did not ask for the times: never say times are not provided or not published. When
+  none_left is true, say the last
   one left at last_left_at and give next_service (its date and first departure). When
   none_after is true, nothing is listed after the after time, and the day's last still leaves at
   last_leaves_at (it has not left): say both, then next_service.

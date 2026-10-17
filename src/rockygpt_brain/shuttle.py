@@ -271,6 +271,8 @@ def departures(
         result["trip_count"] = len(calling)
         if not times:
             picked = []
+            # Every trip is timed on the timetable; only this answer leaves the times out.
+            result["times_not_asked"] = True
     elif which == "first":
         picked = [t for t in calling if when(t) == when(calling[0])]
     elif which == "last":
