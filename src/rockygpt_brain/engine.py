@@ -152,7 +152,8 @@ Read the fields the student asked for, and a field they did not name only when i
 the answer more useful to them (a time is more useful with its place); leave out fields that
 have nothing to do with the question. When the student wants to contact or reach an office and
 asks for nothing more specific (no particular detail, and not which way, what time or who to
-ask), read email, phones and offices.
+ask), read email, phones and offices. When they say when they need it (at 1am, right now,
+tonight), read hours too: they say whether it is open then.
 Other fields, read when they answer the question or plainly help it: name (the office's
 published name, which every answer already shows, so only when asked what it is called),
 department (the unit it belongs to), website (its own page), prefers_email
@@ -1521,6 +1522,14 @@ class ChatEngine:
                 answer["departs_from"] = origins[0]["stop"]
                 answer["campus_pickup"] = {key: origins[0][key] for key in
                                            ("description", "pickup") if origins[0].get(key)}
+            if asked is None and answer.get("stops_served"):
+                # "Is there a stop near a Walmart or a ShopRite": what each stop is, in its own
+                # stop page's opening sentences, so the stops are more than names.
+                about = {stop_key(stop["stop"]): sentence for stop in described
+                         if (sentence := stop_summary(stop.get("description")))}
+                if said := {name: about[stop_key(name)] for name in answer["stops_served"]
+                            if stop_key(name) in about}:
+                    answer["stops_described"] = said
             unread = [text for text, found in ((request.after, after), (request.by, by))
                       if text and found is None]
             if unread:
