@@ -669,6 +669,8 @@ def test_all_gives_the_trips_only_when_the_times_were_asked_for() -> None:
     assert (summary["first_leaves_campus"], summary["last_leaves_campus"]) == ("12:00 PM",
                                                                                "9:40 PM")
     assert [t["leaves_campus"] for t in listed["trips"]] == ["12:00 PM", "9:40 PM"]
+    # Left out on purpose, and said so, so no reply calls the timetable untimed.
+    assert summary["times_not_asked"] is True and "times_not_asked" not in listed
 
 
 def test_the_graph_lists_offices_dining_and_shuttle_each_under_its_own_branch() -> None:
