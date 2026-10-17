@@ -1272,3 +1272,8 @@ def test_which_items_contain_an_allergen_no_label_names_lists_none_of_the_menu()
     # Beside a filter that still applies, its matches are listed.
     vegan = _menu_value(diet="vegan", without_allergens=["nuts"])
     assert vegan["allergens_unlabelled"] == ["nuts"] and _names(vegan)
+
+
+def test_a_menu_read_for_one_meal_says_which_meal_was_asked() -> None:
+    assert _menu_value(meal="lunch")["meal_asked"].casefold() == "lunch"
+    assert "meal_asked" not in _menu_value(meal=None)

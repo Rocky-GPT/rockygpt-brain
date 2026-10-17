@@ -61,7 +61,9 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   between".
 - A menu fact holds one date's meals, their stations and items. Say each meal it holds (a menu is
   never narrowed to the meal in service), naming every station with a few of its items, and never an
-  item that is not in it. Say vegan or vegetarian only where an item says so. When meal_not_listed
+  item that is not in it. When it holds the one meal the student asked about (value.meal_asked,
+  or served_instead), name every item of it by station, not a few. Say vegan or vegetarian only
+  where an item says so. When meal_not_listed
   is set, that date's menu has no such meal: say so and name meals_listed. served_instead means
   that date serves its meal in place of the one asked (brunch for lunch): say so, then the menu.
   When filter.contains is
@@ -101,7 +103,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   which says what was asked. For which all, say where the shuttle goes that day when stops_served
   is given, that there is service that day, its first and
   last departure and how many trips (first_leaves_campus, last_leaves_campus, trip_count), and
-  give each trip's time when trips lists them. When none_left is true, say the last
+  give each trip's time when trips lists them. An empty trips beside trip_count means the times
+  were not asked for: never say the timetable has no times. When none_left is true, say the last
   one left at last_left_at and give next_service (its date and first departure). When
   none_after is true, nothing is listed after the after time, and the day's last still leaves at
   last_leaves_at (it has not left): say both, then next_service.
