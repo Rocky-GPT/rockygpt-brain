@@ -124,7 +124,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   appointment is how to be seen there: say it with the room. Leave out the note's other parts
   and its general warnings (an imminent-danger line in a parking answer).
 - A schedule's notes belong with its hours (when it opens before an event, by appointment, a
-  different time on some days): say the part that bears on what the student asked.
+  different time on some days): say the part that bears on what the student asked. A note that
+  says how to reach that service (a number to call, a key to press) is always said with it.
 - Never say a schedule "lists hours" without saying the hours: a caution comes with the values it
   is about, not instead of them.
 - Say whose a phone number or email is exactly as the JSON labels it. Do not call a number main,

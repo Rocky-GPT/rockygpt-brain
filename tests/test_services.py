@@ -1170,6 +1170,12 @@ def test_a_kind_of_place_to_eat_asks_about_the_venues_not_a_missing_office() -> 
         OfficeRequest(query="The Atrium", fields=["hours"])])
     assert [(r.query, r.without_allergens) for r in two] == [
         ("Birch Tree Inn", ["gluten"]), ("Birch Tree Inn", ["nuts"]), ("The Atrium", [])]
+    # Only venues have menus: a menu asked of an office is asked of the venues with menus.
+    office = engine._dining_kind([OfficeRequest(query="Dining Services", fields=["menu"],
+                                                diet="vegan")])
+    assert [(r.query, r.diet) for r in office] == [("Birch Tree Inn", "vegan")]
+    assert engine._dining_kind([OfficeRequest(query="Dining Services", fields=["email"])])[
+        0].query == "Dining Services"
 
 
 def test_a_menu_question_about_the_items_marks_what_each_item_says() -> None:
