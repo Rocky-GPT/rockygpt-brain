@@ -1202,6 +1202,9 @@ def test_a_weekday_the_student_names_is_that_day_even_when_its_morning_is_over()
     assert keep_named_day([tomorrow], "first shuttle sunday?", saturday) == [tomorrow]
     assert keep_named_day([tomorrow], "saturday or sunday?", saturday) == [tomorrow]
     assert keep_named_day([tomorrow], "first shuttle tomorrow", saturday) == [tomorrow]
+    # The student's own "tomorrow" beside another weekday is still tomorrow.
+    assert keep_named_day([tomorrow], "writing center hours tomorrow? paper due friday",
+                          saturday) == [tomorrow]
     # An office's null day is the whole week, which shows the named day already.
     week = OfficeRequest(query="Registrar", fields=["hours"], day=None)
     assert keep_named_day([week], "is the registrar open on saturday", saturday) == [week]
