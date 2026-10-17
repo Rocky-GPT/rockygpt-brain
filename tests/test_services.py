@@ -1190,3 +1190,56 @@ def test_a_trip_with_no_stop_asked_says_where_it_goes_in_the_codes_own_text() ->
         {"route": "Weekday Roadrunner Express", "leaves_campus": "7:00 AM",
          "back_on_campus": "7:55 AM", "calls_at": ["Garden State Plaza"]}]})
     assert "calling at Garden State Plaza" in text
+
+
+def test_a_weekday_the_student_names_is_that_day_even_when_its_morning_is_over() -> None:
+    from rockygpt_brain.engine import OfficeRequest, ShuttleRequest, keep_named_day
+    saturday = date(2026, 10, 17)
+    tomorrow = ShuttleRequest(stop=None, day="tomorrow", which="first")
+    (kept,) = keep_named_day([tomorrow], "first shuttle saturday morning what time?", saturday)
+    assert kept.day == "saturday"
+    # Tomorrow that is the named day, two weekdays named, or none named: as the model sent it.
+    assert keep_named_day([tomorrow], "first shuttle sunday?", saturday) == [tomorrow]
+    assert keep_named_day([tomorrow], "saturday or sunday?", saturday) == [tomorrow]
+    assert keep_named_day([tomorrow], "first shuttle tomorrow", saturday) == [tomorrow]
+    # An office's null day is the whole week, which shows the named day already.
+    week = OfficeRequest(query="Registrar", fields=["hours"], day=None)
+    assert keep_named_day([week], "is the registrar open on saturday", saturday) == [week]
+    today = OfficeRequest(query="Registrar", fields=["hours"], day="tomorrow")
+    assert keep_named_day([today], "registrar open monday?", saturday)[0].day == "monday"
+
+
+def test_a_named_stop_says_the_campus_stop_and_an_unknown_one_lists_that_days() -> None:
+    base = facts()
+    stops = [_row("stop", 2, source_record_key="stop:Ramapo College (Bradley Center)",
+                  name="Ramapo College (Bradley Center)", label="Ramapo College (Bradley Center)",
+                  description="The bus stop on campus is located outside the Bradley Center.",
+                  pickup=None),
+             _row("stop", 3, source_record_key="stop:Garden State Plaza",
+                  name="Garden State Plaza", label="Garden State Plaza",
+                  description="A shopping mall.", pickup="In front of Macy's.")]
+    link = {"collection": "shuttle_stops", "source_key": stops[0]["source_key"],
+            "source_record_keys": [s["source_record_key"] for s in stops]}
+    memory = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{**e, "links": [*e["links"], link]} if e["kind"] == "route" else e
+                  for e in base.entities], contacts=[],
+        records={**base.records, "shuttle_stops": stops}, now=lambda: TUESDAY_10AM)
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "shuttle to the plaza, where do i wait"}]})
+    engine = ChatEngine(ScriptedGateway(shuttle("Garden State Plaza", None, "next"), finish()),
+                        memory, output="json")
+    result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+    value = derived(result, "departures")["value"]
+    assert value["departs_from"] == "Ramapo College (Bradley Center)"
+    assert value["campus_pickup"] == {
+        "description": "The bus stop on campus is located outside the Bradley Center."}
+    assert value["stop_description"]["pickup"] == "In front of Macy's."
+    # The campus stop notice is the campus stop's words, never the asked stop's.
+    assert [n["approved_text"] for n in result.body["facts"]["notices"]
+            if n["type"] == "campus_stop"] == [
+        "The bus stop on campus is located outside the Bradley Center."]
+    unknown = derived(ask("first shuttle to mahwah station on saturday", shuttle(
+        "Mahwah station", "saturday", "first"), finish()), "departures")["value"]
+    assert unknown["stop_unknown"] and set(unknown["published_stops"]) <= {
+        "Garden State Plaza", "Ramsey Rt 17 Train"}
