@@ -1103,6 +1103,13 @@ def _main_food(asked: str) -> str:
     return " ".join(w for w in asked.split() if w.casefold() not in _FOOD_FILLER)
 
 
+def _all_words_in(asked: str, text: str) -> bool:
+    """A food of two or more words whose every word is one of the item's, in any order: "chicken
+    sandwich" is "Fried Chicken Patty Sandwich"."""
+    wanted = {_squash(word) for word in re.findall(r"[a-z0-9]+", asked.casefold())}
+    return len(wanted) > 1 and wanted <= {_squash(word) for word in re.findall(r"[a-z0-9]+", text)}
+
+
 def _menu_kept(row: dict[str, Any], query: dict[str, Any]) -> bool:
     """Whether one menu row passes every filter the student's question set."""
     raw = row.get("label_coverage")
@@ -1118,7 +1125,7 @@ def _menu_kept(row: dict[str, Any], query: dict[str, Any]) -> bool:
         text = (f"{clean(row.get('name'))} {clean(row.get('station'))} "
                 f"{clean(row.get('portion_size')) or ''}").casefold()
         if not any(_squash(w) and _squash(w) in "".join(ch for ch in text if ch.isalnum())
-                   or w.casefold() in text for w in words):
+                   or w.casefold() in text or _all_words_in(w, text) for w in words):
             return False
     listed = row.get("allergens") if isinstance(row.get("allergens"), list) else None
     published = coverage.get("allergens", "published") == "published" and listed is not None

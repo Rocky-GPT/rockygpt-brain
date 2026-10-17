@@ -52,6 +52,7 @@ from rockygpt_brain.retrieval import (
     UnknownEntity,
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
+from rockygpt_brain.retrieval.entity_facts import discovery_tokens
 from rockygpt_brain.shuttle import (
     SCOPE_TEXT,
     SPECIAL_TEXT,
@@ -113,7 +114,8 @@ available. A venue's in is the building it is in and with the offices published 
 building: a place the student names ("the cafe in the library") is the venue there; send its
 listed name, never the building, and when several venues are in that building ask which.
 Fields: email (an address), phones (phone numbers with any published call, text or SMS
-labels), offices (where it is), hours (opening hours, weekends, closing times); set day to
+labels), offices (where it is), hours (opening hours, weekends, closing times, and the
+after-hours, drop-in and emergency lines offices publish as schedules); set day to
 today, tomorrow or that weekday only when the student asks about that one day. For the hours
 in general, or for more than one day (weekends, weekdays, Tuesdays and Thursdays), leave day
 null so the whole week is shown. For a dining venue, hours gives its meal periods for that day
@@ -124,7 +126,8 @@ the student asks for those, items the foods or stations they name (pasta, chicke
 grill), with_allergens when they ask what contains an allergen and without_allergens for what is
 free of them, in their own words (dairy, tree nuts); code keeps only the items that match.
 Whether a named food has an allergen ("does the pasta have dairy") is items with no allergen
-filter: each item comes with its allergens. A
+filter: each item comes with its allergens. details is what the student asks about the items
+themselves ("are there calorie counts": calories). A
 menu item has its calories, portion, vegan and vegetarian labels and allergens, so those are
 never unsupported. A student who wants the whole menu and also one kind of item needs two
 requests, one without a filter. Set meal only when the student asks about that meal alone; leave
@@ -155,7 +158,8 @@ department (the unit it belongs to), website (its own page), prefers_email
 (whether it says it prefers email), preferred_contact (the way it says it prefers to be
 reached), contact_note (what its page says about how, when or through whom to reach it: advice,
 instructions, staff and service contacts). When the student asks who handles one purpose or
-whom to contact for it, read contact_note too: offices list role and service contacts there.
+whom to contact or talk to for it, read email, phones, offices and contact_note: offices list
+role and service contacts there.
 The server reads an office's contact_note itself when a requested email or phone is not
 published, so do not add it for that. Preserve contact labels when answering. For a fax number
 read phones with phone_kind fax.
@@ -253,6 +257,10 @@ class OfficeRequest(StrictModel):
     # (all of them), in their own words. At most three each.
     with_allergens: list[str] = Field(default_factory=list, max_length=3)
     without_allergens: list[str] = Field(default_factory=list, max_length=3)
+    # For a menu only: what the student asks about the items themselves ("are there calorie
+    # counts"), so the reply gives it for every item it lists.
+    details: list[Literal["calories", "portion", "allergens"]] = Field(
+        default_factory=list, max_length=3)
 
 
 class GraphRequests(StrictModel):
@@ -759,6 +767,46 @@ def _normal(text: str) -> str:
     return " ".join(text.casefold().split())
 
 
+# Words for a kind of place to eat or drink rather than a venue's name: "the cafe", "the dining
+# hall". "Dining" alone is the Dining Services office, and "food" alone may be a need, so neither
+# is here. ("Café" reads as "caf".)
+_DINING_KINDS = frozenset([
+    "caf", "cafe", "cafes", "cafeteria", "cafeterias", "dining hall", "dining halls",
+    "dining options", "dining venue", "dining venues", "food court", "coffee shop",
+    "coffee shops", "coffee place", "coffee places", "coffee", "restaurant", "restaurants",
+    "eatery", "eateries", "food place", "food places", "place to eat", "places to eat",
+    "snack bar"])
+_KIND_FILLER = frozenset("the a an on campus ramapo college at any some open nearest main "
+                         "school student students".split())
+
+
+# A labelled contact in a contact note: "The Residence Life Mailroom: orlmailroom@ramapo.edu".
+_NOTE_LABEL = re.compile(r"([A-Z][A-Za-z&'’/ -]{2,60}?):\s*(?=[\w.+-]+@|\(?\+?\d)")
+
+
+def service_labels(properties: list[dict[str, Any]]) -> list[str]:
+    """The services an office lists as labelled contacts: its phone labels and its contact
+    note's labelled entries."""
+    labels: list[str] = []
+    for prop in properties:
+        if prop.get("status") != "known":
+            continue
+        for value in prop.get("values", []):
+            item = value.get("value")
+            if prop.get("key") == "phones":
+                labels += [line["type"] for line in item if isinstance(line, dict)
+                           and isinstance(line.get("type"), str)] if isinstance(item, list) else []
+            elif prop.get("key") == "contact_note" and isinstance(item, str):
+                labels += [label.strip() for label in _NOTE_LABEL.findall(item)]
+    return labels
+
+
+def names_a_dining_kind(query: str) -> bool:
+    """Whether a lookup's query is a kind of place to eat ("the cafe") and nothing more."""
+    words = [w for w in _words(query) if w not in _KIND_FILLER]
+    return bool(words) and " ".join(words) in _DINING_KINDS
+
+
 def known_office_names(listing: dict[str, Any] | None) -> dict[str, str]:
     """Each published name, and each alias only one office has, mapped to the office's name."""
     owners: dict[str, set[str]] = {}
@@ -986,6 +1034,29 @@ class ChatEngine:
             "fixedTexts": fixed_texts(),
         }
 
+    def _dining_kind(self, requests: list[OfficeRequest]) -> list[OfficeRequest]:
+        """"The chicken sandwich at the cafe", "is the cafe open early": a kind of place that names
+        no venue matched nothing and was answered as a missing office. It asks about the venues:
+        every venue that publishes a menu for a menu, every venue for anything else. A building
+        named ("the cafe in the library") is left to the venues in it."""
+        cached = getattr(self, "_venues_cache", None)
+        venues = cached[1] if cached else None
+        if not venues:
+            return requests
+        listed = {_normal(name) for venue in venues
+                  for name in [venue["name"], *venue.get("also_called", [])]}
+        out: dict[str, OfficeRequest] = {}
+        for item in requests:
+            if (_normal(item.query) in listed or not names_a_dining_kind(item.query)
+                    or self._venues_in_building(item.query)):
+                out.setdefault(item.model_dump_json(), item)
+                continue
+            menus = [venue for venue in venues if "menu" in venue.get("publishes", [])]
+            for venue in (menus if "menu" in item.fields and menus else venues):
+                each = item.model_copy(update={"query": venue["name"]})
+                out.setdefault(each.model_dump_json(), each)
+        return list(out.values())
+
     def _every_venue(self, requests: list[OfficeRequest], message: str) -> list[OfficeRequest]:
         """"Where can we grab coffee on campus right now": the model looked up several venues and
         the student named none, so it is a question about all of them; the ones it skipped are
@@ -1009,6 +1080,32 @@ class ChatEngine:
                    for key, venue in listed.items()
                    if key not in {_normal(item.query) for item in asked}]
         return [*requests, *missing]
+
+    def _offices_by_service(self, query: str) -> list[dict[str, Any]]:
+        """"Post office / mailroom": no office is called that, but Housing & Residence Life lists
+        "The Residence Life Mailroom" as a labelled contact. The offices with a service label the
+        query names, read the way names are (every word of one part of the query is a word of the
+        label); "a / b" and "a or b" are tried as two parts. Labels are read once per release."""
+        listing = self.facts.list_offices(limit=500, with_ids=True)
+        key = (listing["dataset_version"], listing["identity_hash"])
+        cached = getattr(self, "_labels_cache", None)
+        if cached is None or cached[0] != key:
+            index: list[tuple[dict[str, Any], frozenset[str]]] = []
+            for office in listing["offices"]:
+                try:
+                    facts = self.facts.get_office_facts(office["entity_id"],
+                                                        ["phones", "contact_note"], key[0],
+                                                        identity_hash=key[1])
+                except (UnknownEntity, InvalidFactRequest, EvidenceUnavailable):
+                    continue
+                index += [(office, tokens) for label in service_labels(facts["properties"])
+                          if (tokens := discovery_tokens(label))]
+            self._labels_cache = cached = (key, index)
+        parts = [discovery_tokens(part) for part in re.split(r"/|\bor\b", query.casefold())]
+        found = {office["entity_id"]: office for office, tokens in cached[1]
+                 for part in parts if part and part <= tokens}
+        return [{"entity_id": office["entity_id"], "name": office["name"], "match": "service"}
+                for office in found.values()]
 
     def _venues_in_building(self, query: str) -> list[dict[str, Any]]:
         """The published venues in a building the query names by at least two of its words."""
@@ -1064,6 +1161,17 @@ class ChatEngine:
                 detail.update(path=graph.path(graph.current_node), resolvedBy="building")
             elif there:
                 opened = {**opened, "candidates": there}
+        if "facts" not in opened and topic is None and not opened["candidates"] and not menu:
+            # "The mailroom": no office is called that, but one lists it as a labelled contact.
+            # That office is read with its contact note and phones, where the label is.
+            serving = self._offices_by_service(request.query)
+            if len(serving) == 1:
+                wanted: list[str] = list(dict.fromkeys(
+                    [*request.fields, "contact_note", "phones"]))
+                opened = graph.lookup(serving[0]["name"], wanted, as_of, latest=latest)
+                detail.update(path=graph.path(graph.current_node), resolvedBy="service")
+            elif len(serving) <= 3:  # More than that names something too common to ask about.
+                opened = {**opened, "candidates": serving}
         if "facts" in opened and (shared := self._venues_in_building(latest)) and len(shared) > 1:
             # "The cafe in the student center" names a building two venues share: one picked by
             # the model, when the student named neither, is a guess, so they are asked which.
@@ -1125,6 +1233,12 @@ class ChatEngine:
             part["topic"] = topic_part(topic, sent)
         if request.phone_kind and "phones" in request.fields:
             part["phone_kind"] = request.phone_kind
+        if menu and request.details:
+            # "Any vegan options, and are there calorie counts": each listed item says them.
+            for prop in shown["properties"]:
+                for value in prop.get("values", []) if prop.get("key") == "menu" else []:
+                    if isinstance(value.get("value"), dict):
+                        value["value"]["details_asked"] = list(request.details)
         if request.day and "hours" in request.fields:
             # Worked out here, on the campus clock, so a writer never has to.
             when: dict[str, str] = {
@@ -1425,7 +1539,8 @@ class ChatEngine:
                             requests = ShuttleRequests.model_validate(call.arguments).requests
                         else:
                             requests = GraphRequests.model_validate(call.arguments).requests
-                            requests = self._every_venue(requests, context.latest_message)
+                            requests = self._every_venue(self._dining_kind(requests),
+                                                         context.latest_message)
                         attempts += len(requests)
                         if (attempts > MAX_TOOL_ATTEMPTS
                                 or len(results) + len(requests) > MAX_RESULTS):

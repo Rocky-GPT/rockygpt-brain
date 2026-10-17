@@ -596,7 +596,8 @@ def test_the_trace_records_each_lookup_the_model_asked_for_and_how_it_ended() ->
     assert (lookup["tool"], lookup["traversedBy"]) == ("graph_lookup", "code")
     assert lookup["arguments"] == {
         "query": "Registrar", "fields": ["email"], "day": None, "phone_kind": None,
-        "meal": None, "diet": None, "items": [], "with_allergens": [], "without_allergens": []}
+        "meal": None, "diet": None, "items": [], "with_allergens": [], "without_allergens": [],
+        "details": []}
     assert (lookup["status"], lookup["result_count"], lookup["office"]) == ("ok", 1, "Registrar")
     assert [node["id"] for node in lookup["path"]] == ["ramapo", "offices", "office:registrar"]
     assert (lookup["dataset_version"], lookup["identity_hash"]) == ("release-1", "identities-1")
@@ -1520,3 +1521,41 @@ def test_a_writer_reply_that_already_says_a_notice_in_its_own_words_is_not_repea
     assert already_said(note, "C-101. To get a new identification card, contact the ID room at "
                               "idroom@example.edu and make an appointment.")
     assert not already_said(note, "The ID Card Room is in C-101.")
+
+
+def res_life() -> MemoryEntityFacts:
+    note = ("Residents may contact the Resident Assistants during posted hours. The Residence Life "
+            "Mailroom: mailroom@example.edu Mackin Hall: mackin@example.edu")
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "rl", "name": "Housing & Residence Life", "kind": "office",
+                   "aliases": ["Res Life"], "links": [
+                       {"collection": "contacts", "source_key": "directory",
+                        "source_record_keys": ["r"]}]}],
+        contacts=[{"id": "c-r", "source_key": "directory", "source_record_key": "r",
+                   "name": "Housing & Residence Life", "email": "reslife@example.edu",
+                   "contact_note": note, "canonical_url": "https://example.edu/reslife",
+                   "collected_at": NOW, "freshness_sla_hours": 24}], now=lambda: NOW)
+
+
+def test_a_service_an_office_lists_as_a_labelled_contact_finds_that_office() -> None:
+    from rockygpt_brain.engine import service_labels
+    assert service_labels([
+        {"key": "contact_note", "status": "known", "values": [{"value": (
+            "Call us. The Residence Life Mailroom: orl@example.edu Early Arrival: e@example.edu "
+            "Desk: (201) 555-0100")}]},
+        {"key": "phones", "status": "known", "values": [{"value": [
+            {"number": "+12015550100"}, {"type": "Mackin Hall", "number": "+12015550101"}]}]},
+    ]) == ["The Residence Life Mailroom", "Early Arrival", "Desk", "Mackin Hall"]
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "post office / mailroom", "fields": ["offices", "email"]}]})
+    found = answer(ScriptedGateway(ask, finish()), service=res_life(), messages=[
+        {"role": "user", "content": "where is the mailroom and what's the email"}])
+    assert "mailroom@example.edu" in found.body["answer"]
+    assert found.trace is not None and found.trace["lookups"][0]["resolvedBy"] == "service"
+    # Words that no label has are still not found.
+    nothing = completion("graph_lookup", {"requests": [
+        {"query": "bursar", "fields": ["email"]}]})
+    missing = answer(ScriptedGateway(nothing, finish()), service=res_life(), messages=[
+        {"role": "user", "content": "bursar email"}])
+    assert "mailroom@example.edu" not in missing.body["answer"]

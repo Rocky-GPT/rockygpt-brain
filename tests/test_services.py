@@ -1136,3 +1136,51 @@ def test_a_bare_question_back_about_a_shared_building_names_its_venues() -> None
     (asked,) = [n for n in result.body["facts"]["notices"] if n["type"] == "clarification"]
     assert asked["offices"] == ["Birch Tree Inn", "The Atrium"]
     assert "Birch Tree Inn" in asked["approved_text"] and "The Atrium" in asked["approved_text"]
+
+
+def test_every_word_of_a_food_matches_an_item_in_any_order() -> None:
+    # "Chicken sandwich" is "Fried Chicken Patty Sandwich": its words, not one phrase.
+    assert _names(_menu_value(items=["bean burger"])) == ["Black Bean Burger"]
+    assert _names(_menu_value(items=["burger black"])) == ["Black Bean Burger"]
+    assert _names(_menu_value(items=["clam soup"])) == []
+
+
+def test_a_kind_of_place_to_eat_asks_about_the_venues_not_a_missing_office() -> None:
+    from rockygpt_brain.engine import OfficeRequest, names_a_dining_kind
+    assert names_a_dining_kind("the cafe") and names_a_dining_kind("Café")
+    assert names_a_dining_kind("dining hall on campus")
+    # "Dining" alone is the Dining Services office; a venue's own name is not a kind.
+    assert not names_a_dining_kind("dining") and not names_a_dining_kind("Dining Services")
+    assert not names_a_dining_kind("Birch Tree Inn")
+    engine = ChatEngine(ScriptedGateway(), facts(), output="json")
+    engine._venues_cache = (("release-1", "identities-1"), [
+        {"name": "Birch Tree Inn", "publishes": ["hours", "menu"]},
+        {"name": "The Atrium", "publishes": ["hours"]}, {"name": "Dunkin'"}])
+    menu = engine._dining_kind([OfficeRequest(query="cafe", fields=["menu"], day="today",
+                                              items=["chicken sandwich"])])
+    assert [(r.query, r.items) for r in menu] == [("Birch Tree Inn", ["chicken sandwich"])]
+    hours = engine._dining_kind([OfficeRequest(query="the cafe", fields=["hours"],
+                                               day="tomorrow")])
+    assert [r.query for r in hours] == ["Birch Tree Inn", "The Atrium", "Dunkin'"]
+    assert all(r.day == "tomorrow" for r in hours)
+    # Two filters on "the cafe" read the one menu twice, once per filter; a name stays as sent.
+    two = engine._dining_kind([
+        OfficeRequest(query="cafe", fields=["menu"], without_allergens=["gluten"]),
+        OfficeRequest(query="cafe", fields=["menu"], without_allergens=["nuts"]),
+        OfficeRequest(query="The Atrium", fields=["hours"])])
+    assert [(r.query, r.without_allergens) for r in two] == [
+        ("Birch Tree Inn", ["gluten"]), ("Birch Tree Inn", ["nuts"]), ("The Atrium", [])]
+
+
+def test_a_menu_question_about_the_items_marks_what_each_item_says() -> None:
+    value = _menu_value(diet="vegan", details=["calories"])
+    assert value["details_asked"] == ["calories"]
+    assert "details_asked" not in _menu_value(diet="vegan")
+
+
+def test_a_trip_with_no_stop_asked_says_where_it_goes_in_the_codes_own_text() -> None:
+    from rockygpt_brain.shuttle import describe
+    text = describe({"date": "2026-10-19", "which": "first", "stop": None, "trips": [
+        {"route": "Weekday Roadrunner Express", "leaves_campus": "7:00 AM",
+         "back_on_campus": "7:55 AM", "calls_at": ["Garden State Plaza"]}]})
+    assert "calling at Garden State Plaza" in text
