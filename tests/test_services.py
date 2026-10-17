@@ -1156,9 +1156,11 @@ def test_a_kind_of_place_to_eat_asks_about_the_venues_not_a_missing_office() -> 
     engine._venues_cache = (("release-1", "identities-1"), [
         {"name": "Birch Tree Inn", "publishes": ["hours", "menu"]},
         {"name": "The Atrium", "publishes": ["hours"]}, {"name": "Dunkin'"}])
+    # One venue alone publishes a menu: the lookup reads it and says so (below); the request
+    # stays as sent.
     menu = engine._dining_kind([OfficeRequest(query="cafe", fields=["menu"], day="today",
                                               items=["chicken sandwich"])])
-    assert [(r.query, r.items) for r in menu] == [("Birch Tree Inn", ["chicken sandwich"])]
+    assert [(r.query, r.items) for r in menu] == [("cafe", ["chicken sandwich"])]
     hours = engine._dining_kind([OfficeRequest(query="the cafe", fields=["hours"],
                                                day="tomorrow")])
     assert [r.query for r in hours] == ["Birch Tree Inn", "The Atrium", "Dunkin'"]
@@ -1169,11 +1171,18 @@ def test_a_kind_of_place_to_eat_asks_about_the_venues_not_a_missing_office() -> 
         OfficeRequest(query="cafe", fields=["menu"], without_allergens=["nuts"]),
         OfficeRequest(query="The Atrium", fields=["hours"])])
     assert [(r.query, r.without_allergens) for r in two] == [
-        ("Birch Tree Inn", ["gluten"]), ("Birch Tree Inn", ["nuts"]), ("The Atrium", [])]
+        ("cafe", ["gluten"]), ("cafe", ["nuts"]), ("The Atrium", [])]
+    # With two venues publishing menus, a kind of place is asked of both.
+    engine._venues_cache = (("release-1", "identities-1"), [
+        {"name": "Birch Tree Inn", "publishes": ["hours", "menu"]},
+        {"name": "The Atrium", "publishes": ["hours", "menu"]}])
+    both = engine._dining_kind([OfficeRequest(query="the cafe", fields=["menu"])])
+    assert [r.query for r in both] == ["Birch Tree Inn", "The Atrium"]
     # Only venues have menus: a menu asked of an office is asked of the venues with menus.
     office = engine._dining_kind([OfficeRequest(query="Dining Services", fields=["menu"],
                                                 diet="vegan")])
-    assert [(r.query, r.diet) for r in office] == [("Birch Tree Inn", "vegan")]
+    assert [(r.query, r.diet) for r in office] == [("Birch Tree Inn", "vegan"),
+                                                   ("The Atrium", "vegan")]
     assert engine._dining_kind([OfficeRequest(query="Dining Services", fields=["email"])])[
         0].query == "Dining Services"
 
@@ -1246,3 +1255,20 @@ def test_a_named_stop_says_the_campus_stop_and_an_unknown_one_lists_that_days() 
         "Mahwah station", "saturday", "first"), finish()), "departures")["value"]
     assert unknown["stop_unknown"] and set(unknown["published_stops"]) <= {
         "Garden State Plaza", "Ramsey Rt 17 Train"}
+
+
+def test_a_menu_asked_of_the_cafe_says_the_one_venue_with_a_menu_is_read() -> None:
+    result = ask("anything vegan at the cafe", lookup("the cafe", ["menu"], "today"), finish())
+    (menu,) = [f for f in result.body["facts"]["facts"] if f["predicate"] == "menu"]
+    assert menu["value"]["only_menu_venue"] is True
+    assert result.trace is not None
+    assert result.trace["lookups"][0]["arguments"]["query"] == "the cafe"
+    assert result.trace["lookups"][0]["resolvedBy"] == "only_menu_venue"
+
+
+def test_which_items_contain_an_allergen_no_label_names_lists_none_of_the_menu() -> None:
+    value = _menu_value(with_allergens=["nuts"])
+    assert value["meals"] == [] and value["allergens_unlabelled"] == ["nuts"]
+    # Beside a filter that still applies, its matches are listed.
+    vegan = _menu_value(diet="vegan", without_allergens=["nuts"])
+    assert vegan["allergens_unlabelled"] == ["nuts"] and _names(vegan)

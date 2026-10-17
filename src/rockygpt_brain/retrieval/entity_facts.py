@@ -1188,6 +1188,11 @@ def menu_property(
     if query and unlabelled:
         query = {**query, **{key: [a for a in query.get(key) or [] if a not in unlabelled]
                              for key in ("without_allergens", "with_allergens")}}
+        if not any(query.get(key) for key in (
+                "diet", "contains", "with_allergens", "without_allergens")):
+            # "What on the menu has nuts" with no label naming nuts: no item answers it either
+            # way, so none is listed; the menu says the labels do not cover it.
+            picked = []
     # "Anything high protein": the rows carry calories and no other nutrient, so a nutrient word
     # filters nothing (every item would fail for want of a number) and is said not published.
     nutrients = [w for w in (query or {}).get("contains") or []
