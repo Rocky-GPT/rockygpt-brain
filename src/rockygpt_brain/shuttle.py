@@ -371,6 +371,8 @@ def describe(answer: dict[str, Any]) -> str:
         text = f"{trip['leaves_campus']} ({trip['route']})"
         if trip.get("reached_at"):
             text += f", reaching {trip['stop']} at {trip['reached_at']}"
+        elif trip.get("calls_at"):  # With no stop asked, where the trip goes.
+            text += f", calling at {', '.join(trip['calls_at'])}"
         if trip.get("leaves_stop_at"):
             text += f", leaving {trip['stop']} for campus at {trip['leaves_stop_at']}"
         if trip.get("back_on_campus"):
