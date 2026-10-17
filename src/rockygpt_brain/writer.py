@@ -111,8 +111,6 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   last_leaves_at (it has not left): say both, then next_service.
   by_passed_today means the time the student must be at the stop by has passed today: say so and
   give next_service (its date and trips, or none_by with earliest_reaches_stop).
-  stops_described says what each stop is: when the student asks whether the shuttle goes to or
-  near a place, say the stop whose description names it, or that no stop's description does.
   departs_from is the stop every trip leaves from (the campus stop): say that is where to catch
   it, as stop_description says (campus_pickup, when stop_description is the asked stop's).
   stop_description says what the asked stop is and where the shuttle picks up there (pickup):

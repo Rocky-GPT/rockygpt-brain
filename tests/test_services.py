@@ -1280,24 +1280,3 @@ def test_a_menu_read_for_one_meal_says_which_meal_was_asked() -> None:
     assert _menu_value(meal="lunch")["meal_asked"].casefold() == "lunch"
     assert "meal_asked" not in _menu_value(meal=None)
 
-
-def test_where_the_shuttle_goes_says_what_each_stop_is() -> None:
-    base = facts()
-    plaza = _row("stop", 3, source_record_key="stop:Garden State Plaza", name="Garden State Plaza",
-                 label="Garden State Plaza", description="A shopping mall with a ShopRite nearby.",
-                 pickup=None)
-    link = {"collection": "shuttle_stops", "source_key": plaza["source_key"],
-            "source_record_keys": [plaza["source_record_key"]]}
-    memory = MemoryEntityFacts(
-        dataset_version="release-1", identity_hash="identities-1",
-        entities=[{**e, "links": [*e["links"], link]} if e["kind"] == "route" else e
-                  for e in base.entities], contacts=[],
-        records={**base.records, "shuttle_stops": [plaza]}, now=lambda: TUESDAY_10AM)
-    every = completion("shuttle_lookup", {"requests": [{
-        "stop": None, "day": None, "which": "all", "after": None, "by": None, "times": False}]})
-    request = ChatRequest.model_validate(
-        {"messages": [{"role": "user", "content": "does the shuttle go near a shoprite"}]})
-    engine = ChatEngine(ScriptedGateway(every, finish()), memory, output="json")
-    result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
-    value = derived(result, "departures")["value"]
-    assert value["stops_described"]["Garden State Plaza"].startswith("A shopping mall")
