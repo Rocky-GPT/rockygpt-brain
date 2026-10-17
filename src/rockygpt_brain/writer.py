@@ -82,7 +82,9 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   them. allergen_words maps the student's word to the labels it stands for ("dairy" is labelled
   Milk): never say a word is missing when its list has a label. allergens_unlabelled are allergens
   no label on that menu names: the labels cannot show which items are free of them, so never say
-  an item is free of one or matches; say the published labels do not cover it. rest_of_menu names
+  an item is free of one or matches; say the published labels do not cover it. With meals empty
+  beside allergens_unlabelled the menu is published and its items are left out for that reason:
+  never say no meals or no menu is listed. rest_of_menu names
   the meal's other items: say them too when the student also asked what is on the menu
   (whole_menu_asked is true).
   only_menu_venue means the student named a kind of place (the cafe), not this venue: say first
