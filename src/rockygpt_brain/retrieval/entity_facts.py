@@ -1158,6 +1158,7 @@ def menu_property(
     picked = [row for row in rows if _date(row.get("valid_from")) == on]
     not_listed: str | None = None
     served_instead: dict[str, str] | None = None
+    meal_asked: str | None = None
     if meal:
         # Only the meal asked for; "late night" and "Late Night" are the same meal.
         asked = " ".join(meal.casefold().split())
@@ -1173,6 +1174,7 @@ def menu_property(
                               "meal": str(clean(chosen[0].get("meal")))}
         if chosen:
             picked = chosen
+            meal_asked = str(clean(chosen[0].get("meal")))
         else:
             # The date's menu is published and has no such meal: say so, with what it does list.
             not_listed = " ".join(meal.split())
@@ -1233,6 +1235,8 @@ def menu_property(
         for meal, stations in meals.items()]}
     if served_instead is not None:
         value["served_instead"] = served_instead
+    elif meal_asked is not None:
+        value["meal_asked"] = meal_asked  # The one meal asked: all of it is said.
     if not_listed is not None:
         value = {"date": on.isoformat(), "meals": [], "meal_not_listed": not_listed,
                  "meals_listed": list(meals)}
