@@ -58,6 +58,10 @@ def citation_url(value: Any) -> str | None:
     return quote(value, safe="/:?&=#%+@,;-._~!$*")
 
 
+# How much of a how-to section the code's own text gives before pointing to its page.
+PROCEDURE_TEXT_CHARS = 400
+
+
 def _value_text(key: str, value: Any) -> str:
     """Format structured fields without changing their published content or order."""
     if key == "phones" and isinstance(value, list):
@@ -90,6 +94,13 @@ def _value_text(key: str, value: Any) -> str:
             for item in value)
     if key == "menu" and isinstance(value, dict) and isinstance(value.get("meals"), list):
         return _menu_text(value)
+    if key == "procedures" and isinstance(value, dict) and isinstance(value.get("text"), str):
+        # The code's own text names the section, starts it and links its page; the writer is
+        # given the whole section. Three offices' sections in full would not fit one reply.
+        start = value["text"][:PROCEDURE_TEXT_CHARS]
+        more = "…" if len(value["text"]) > PROCEDURE_TEXT_CHARS or value.get("text_cut") else ""
+        return (f"{literal(value.get('heading', ''))}: {literal(start)}{more} "
+                f"(see {literal(value.get('page', ''))})")
     if isinstance(value, bool):
         return "Yes" if value else "No"
     return literal(value)
