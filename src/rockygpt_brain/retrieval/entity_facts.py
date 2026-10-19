@@ -1330,8 +1330,11 @@ MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 3, 1800
 
 
 def _procedure_words(text: str) -> set[str]:
+    """Content words by their stem: a long word by its first six letters (withdraw, withdrawing
+    and withdrawal are one word), a shorter one without its plural s."""
     words = re.findall(r"[a-z0-9]+", text.casefold())
-    return {word[:-1] if len(word) > 3 and word.endswith("s") else word
+    return {word[:6] if len(word) > 6 else (word[:-1] if len(word) > 3 and word.endswith("s")
+                                            else word)
             for word in words if len(word) > 2 and word not in _PROCEDURE_FILLER}
 
 
@@ -1341,16 +1344,18 @@ def procedures_property(
     """The sections of an office's own pages that speak to what the student wants to do.
 
     Each linked row is one captured page of the office's site with its headed sections. A section
-    is scored by the student's content words found in its heading (three each) and its text (one
-    each); one with no word in its heading needs two in its text. The best few are said in the
-    page's own words, each citing its page. Nothing matching is `unknown`: the pages were read
-    and none speaks to it, which says nothing about whether the office does it."""
+    is scored by the asked words it has, each weighted by how rare it is across this office's
+    sections (a word on every page says little), three times over in its heading; one with no
+    asked word in its heading needs two in its text, and a section scoring under half the best is
+    left out. The best few are said in the page's own words, each citing its page. Nothing
+    matching is `unknown`: the pages were read and none speaks to it, which says nothing about
+    whether the office does it."""
     empty = {"key": "procedures", "label": "How-to and policies", "category": "procedures",
              "status": "unknown", "values": [], "assertions": [], "pages_read": len(rows)}
     wanted = _procedure_words(about or "")
     if not rows or not wanted:
         return empty, []
-    scored: list[tuple[int, int, int, dict[str, Any], dict[str, Any]]] = []
+    found: list[tuple[int, int, dict[str, Any], str, str, set[str], set[str]]] = []
     for row_index, row in enumerate(rows):
         sections = row.get("sections")
         if not isinstance(sections, list):
@@ -1361,15 +1366,24 @@ def procedures_property(
             heading, text = clean(section.get("heading")), clean(section.get("text"))
             if not isinstance(heading, str) or not isinstance(text, str) or not text:
                 continue
-            in_heading = wanted & _procedure_words(heading)
-            in_text = wanted & _procedure_words(text)
-            if not in_heading and len(in_text) < 2:
-                continue
-            score = 3 * len(in_heading) + len(in_text)
-            scored.append((-score, row_index, index, row, {"heading": heading, "text": text}))
+            found.append((row_index, index, row, heading, text,
+                          _procedure_words(heading), _procedure_words(text)))
+    # How many of the office's sections each asked word is in: a rare word tells sections apart.
+    seen = {word: sum(1 for *_, top, body in found if word in top or word in body)
+            for word in wanted}
+    weight = {word: math.log(1 + len(found) / count) for word, count in seen.items() if count}
+    scored: list[tuple[float, int, int, dict[str, Any], dict[str, Any]]] = []
+    for row_index, index, row, heading, text, top, body in found:
+        in_heading, in_text = wanted & top, wanted & body
+        if not in_heading and len(in_text) < 2:
+            continue
+        score = sum(3 * weight[w] for w in in_heading) + sum(weight[w] for w in in_text)
+        scored.append((-score, row_index, index, row, {"heading": heading, "text": text}))
     if not scored:
         return empty, []
-    picked = sorted(scored, key=lambda item: item[:3])[:MAX_PROCEDURES]
+    ranked = sorted(scored, key=lambda item: item[:3])
+    best = -ranked[0][0]
+    picked = [item for item in ranked if -item[0] >= best / 2][:MAX_PROCEDURES]
     values: list[dict[str, Any]] = []
     assertions: list[dict[str, Any]] = []
     sources: dict[str, dict[str, Any]] = {}
