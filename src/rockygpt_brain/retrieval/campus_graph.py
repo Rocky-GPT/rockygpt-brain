@@ -148,7 +148,8 @@ class CampusGraph:
     def lookup(self, query: str, fields: list[str], as_of: datetime, *,
                exact_name_only: bool = False, conversation: str = "", latest: str = "",
                on: date | None = None, meal: str | None = None,
-               menu_query: dict[str, Any] | None = None) -> dict[str, Any]:
+               menu_query: dict[str, Any] | None = None,
+               about: str | None = None) -> dict[str, Any]:
         """Run one complete root-first traversal, without intermediate model decisions."""
         with measure("Open root · Ramapo"):
             self.open("ramapo", [], as_of)
@@ -173,7 +174,7 @@ class CampusGraph:
                 topic = self._topic(query, as_of)
             if topic is not None:
                 return self._topic_result(topic, result, fields, as_of, on=on, meal=meal,
-                                          menu_query=menu_query, latest=latest)
+                                          menu_query=menu_query, latest=latest, about=about)
         if outcome == "asks" and conversation and not truncated and not exact_name_only:
             named = named_by_conversation(candidates, conversation)
             if named is not None:
@@ -183,7 +184,8 @@ class CampusGraph:
             return result
         with measure("Open matched office · read published records · shared entity facts"):
             opened = {**result, **self.open(f"office:{chosen[0]['entity_id']}", fields, as_of,
-                                            on=on, meal=meal, menu_query=menu_query)}
+                                            on=on, meal=meal, menu_query=menu_query,
+                                            about=about)}
         if not exact_name_only and (
                 note := self._note_for_unpublished(opened, fields, as_of, latest)):
             opened["also"] = note
@@ -201,7 +203,7 @@ class CampusGraph:
     def _topic_result(
         self, topic: dict[str, Any], result: dict[str, Any], fields: list[str], as_of: datetime,
         *, on: date | None, meal: str | None, menu_query: dict[str, Any] | None,
-        latest: str = "",
+        latest: str = "", about: str | None = None,
     ) -> dict[str, Any]:
         """One named office is read like a lookup of it; several are offered to choose from; a
         retired topic has no office to read."""
@@ -209,7 +211,8 @@ class CampusGraph:
         if len(offices) == 1:
             with measure("Open the topic's office · read published records"):
                 opened = {**result, **self.open(f"office:{offices[0]['id']}", fields, as_of,
-                                                on=on, meal=meal, menu_query=menu_query)}
+                                                on=on, meal=meal, menu_query=menu_query,
+                                                about=about)}
             if note := self._note_for_unpublished(opened, fields, as_of, latest):
                 opened["also"] = note
             return {**opened, "topic": topic}
@@ -304,7 +307,8 @@ class CampusGraph:
             # A venue's menu is read for the inspection's campus date; an office has no menu.
             venue = self.nodes[node_id]["kind"] == "venue"
             chosen = fields if fields is not None else [
-                field for field in OFFICE_FIELDS if venue or field != "menu"]
+                field for field in OFFICE_FIELDS
+                if field != "procedures" and (venue or field != "menu")]
             day = on or as_of.astimezone(CAMPUS_TIMEZONE).date()
             opened = self.open(node_id, chosen, as_of, on=day if venue else None)
             if venue:
@@ -330,7 +334,8 @@ class CampusGraph:
 
     def open(self, node_id: str, fields: list[str], as_of: datetime, *,
              on: date | None = None, meal: str | None = None,
-             menu_query: dict[str, Any] | None = None) -> dict[str, Any]:
+             menu_query: dict[str, Any] | None = None,
+             about: str | None = None) -> dict[str, Any]:
         if node_id not in self.nodes:
             raise InvalidFactRequest("Open only a child returned by this turn's graph.")
         node = self.nodes[node_id]
@@ -379,5 +384,5 @@ class CampusGraph:
                 result["facts"] = self.facts.get_office_facts(
                     node["entity_id"], fields, self.version,
                     identity_hash=self.identity_hash, as_of=as_of, on=on, meal=meal,
-                    menu_query=menu_query)
+                    menu_query=menu_query, about=about)
         return {**result, "dataset_version": self.version, "identity_hash": self.identity_hash}
