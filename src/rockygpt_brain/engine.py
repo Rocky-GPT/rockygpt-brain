@@ -593,8 +593,10 @@ term: pick it only when the student asks about that term or no current section a
 student asks two things (how
 to do it and what happens if not), pick a section for each. A section about a different task that
 shares words is not an answer (a degree audit is not auditing a course; a junior's question is not
-answered by first-year steps). Pick none when none answers. Answer only with the pick_sections
-tool."""
+answered by first-year steps). A lookup with other_office is an office the student did not name
+whose own pages share the words: pick from it only when its section answers what the student
+wants and the named office's sections do not, or answer only part. Pick none when none answers.
+Answer only with the pick_sections tool."""
 
 
 def procedures_of(result: "OfficeResult") -> dict[str, Any] | None:
@@ -605,13 +607,22 @@ def procedures_of(result: "OfficeResult") -> dict[str, Any] | None:
                  if p.get("key") == "procedures" and p.get("values")), None)
 
 
-def pick_messages(asked: list[tuple[str, str, dict[str, Any]]]) -> list[dict[str, Any]]:
-    """What the picking model is given: per lookup, the student's task and the candidates."""
-    lookups = [{"lookup": k, "office": office, "student_wants": about, "sections": [
+# Another office whose pages speak to the task is offered with its best few sections.
+OTHER_OFFICES, OTHER_SECTIONS = 2, 5
+
+
+def pick_messages(asked: list[tuple[str, str, dict[str, Any]]],
+                  others: int = 0) -> list[dict[str, Any]]:
+    """What the picking model is given: per lookup, the student's task and the candidates. The
+    last `others` lookups are other offices found by their pages, not asked for."""
+    first_other = len(asked) - others
+    lookups = [{"lookup": k, "office": office, "student_wants": about,
+                **({"other_office": True} if k >= first_other else {}), "sections": [
         {"n": n, "heading": v["value"].get("heading"), "page": v["value"].get("page"),
          "start": str(v["value"].get("text", ""))[:280],
          **({"past_term": v["value"]["past_term"]} if v["value"].get("past_term") else {})}
-        for n, v in enumerate(prop["values"])]} for k, (about, office, prop) in enumerate(asked)]
+        for n, v in enumerate(prop["values"][:OTHER_SECTIONS if k >= first_other else None])]}
+        for k, (about, office, prop) in enumerate(asked)]
     return [{"role": "system", "content": PICK_PROMPT},
             {"role": "user", "content": json.dumps(lookups, ensure_ascii=False)}]
 
@@ -1438,23 +1449,29 @@ class ChatEngine:
 
     async def _pick_procedures(self, looked_up: list[tuple[str, int, OfficeRequest]],
                                results: dict[str, OfficeResult], output: list[dict[str, Any]],
-                               budget: TurnBudget, trace: dict[str, Any]) -> None:
+                               budget: TurnBudget, trace: dict[str, Any],
+                               as_of: datetime) -> None:
         """Code ranks an office's sections by the words asked; a model then keeps the ones that
         answer, in one call for every office this round read. "How do I get a degree audit"
         shares words with Audit Grades, which does not answer it. If the call fails, the four
         best ranked are kept."""
         asked = [(rid, at, item, prop) for rid, at, item in looked_up
                  if (prop := procedures_of(results[rid])) is not None]
-        if not asked:
+        with measure("Find other offices whose pages speak to it"):
+            others = await asyncio.to_thread(self._other_offices, looked_up, results, as_of)
+        if not asked and not others:
             return
         chosen: dict[int, list[int]] | None = None
         offered = [(item.about or "", str(results[rid].detail.get("office", "")), prop)
                    for rid, _, item, prop in asked]
+        offered += [(about, str(result.detail.get("office", "")), prop)
+                    for about, result, prop in others]
         with measure("Pick the how-to sections that answer"):
             try:
                 async with asyncio.timeout(PICK_SECONDS):
                     completion = await self.gateway.complete(
-                        input=pick_messages(offered), tools=[PICK_TOOL], budget=budget)
+                        input=pick_messages(offered, len(others)), tools=[PICK_TOOL],
+                        budget=budget)
                 call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
                 if call is not None and call.name == "pick_sections":
                     chosen = {int(entry["lookup"]): [int(n) for n in entry["sections"]]
@@ -1469,6 +1486,68 @@ class ChatEngine:
                     else list(range(min(PICKED_PROCEDURES, len(prop["values"])))))
             results[rid] = keep_procedures(results[rid], keep)
             output[at]["rendered"] = results[rid].rendered.text
+        # Another office is said only for the sections picked from it, as its own lookup.
+        for k, (about, result, _) in enumerate(others, start=len(asked)):
+            keep = [n for n in (chosen or {}).get(k, []) if n < OTHER_SECTIONS]
+            if not keep or len(results) >= MAX_RESULTS:
+                continue
+            kept = keep_procedures(result, keep)
+            rid = f"r{len(results) + 1}"
+            results[rid] = kept
+            trace["lookups"].append({
+                "tool": "graph_lookup", "traversedBy": "code", "status": "ok",
+                "foundBy": "other_office_pages", "result_count": 1,
+                "arguments": {"query": kept.detail.get("office"), "fields": ["procedures"],
+                              "about": about}, **kept.detail})
+            output.append({"query": str(kept.detail.get("office", "")),
+                           "found_by": "other office's pages", "rendered": kept.rendered.text,
+                           "supported": kept.rendered.supported,
+                           "complete": kept.rendered.complete, "clarification": False,
+                           "error": None})
+
+    def _other_offices(self, looked_up: list[tuple[str, int, OfficeRequest]],
+                       results: dict[str, OfficeResult], as_of: datetime,
+                       ) -> list[tuple[str, OfficeResult, dict[str, Any]]]:
+        """Offices the student did not name whose own pages best speak to a how-to asked of one
+        they did ("become a peer tutor" asked of Advising is on the tutoring center's pages), each
+        read the way an asked office is. At most OTHER_OFFICES a round."""
+        named = {str(r.part["office"]["id"]) for r in results.values()
+                 if r.part and r.part.get("kind") == "office_facts"}
+        found: list[tuple[str, OfficeResult, dict[str, Any]]] = []
+        for rid, _, item in looked_up:
+            result = results[rid]
+            if "procedures" not in item.fields or not item.about or not result.part:
+                continue
+            version = result.detail.get("dataset_version")
+            identity_hash = result.detail.get("identity_hash")
+            if not isinstance(version, str):
+                continue
+            try:
+                offices = self.facts.offices_by_procedure(
+                    item.about, version, identity_hash=identity_hash, exclude=sorted(named),
+                    limit=OTHER_OFFICES)
+            except (DatasetChanged, EvidenceUnavailable, InvalidFactRequest) as error:
+                LOG.warning("brain_other_offices_failed error=%s", type(error).__name__)
+                continue
+            for office in offices:
+                if len(found) >= OTHER_OFFICES or office["entity_id"] in named:
+                    continue
+                named.add(office["entity_id"])
+                request = OfficeRequest(query=office["name"], fields=["procedures"],
+                                        about=item.about)
+                graph = CampusGraph(self.facts, dataset_version=version,
+                                    identity_hash=identity_hash)
+                try:
+                    other = self._lookup(request, graph, as_of, exact_name_only=True)
+                except (DatasetChanged, EvidenceUnavailable, UnknownEntity,
+                        InvalidFactRequest) as error:
+                    LOG.warning("brain_other_office_read_failed error=%s", type(error).__name__)
+                    continue
+                prop = procedures_of(other)
+                if (prop is not None and other.part
+                        and other.part["office"]["id"] == office["entity_id"]):
+                    found.append((item.about, other, prop))
+        return found
 
     def _topic(self, request: OfficeRequest, topic: dict[str, Any],
                candidates: list[dict[str, Any]], detail: dict[str, Any]) -> OfficeResult:
@@ -1859,7 +1938,8 @@ class ChatEngine:
                                        "clarification": result.clarification,
                                        "error": result.error_code})
                         looked_up.append((rid, len(output) - 1, item))
-                    await self._pick_procedures(looked_up, results, output, budget, trace)
+                    await self._pick_procedures(looked_up, results, output, budget, trace,
+                                                turn.campus_now)
                     with measure("Prepare lookup output for model"):
                         inputs.append({"type": "function_call_output", "call_id": call.call_id,
                                        "output": json.dumps(output, ensure_ascii=False)})

@@ -1357,6 +1357,14 @@ def _procedure_words(text: str) -> set[str]:
             for word in words if len(word) > 2 and word not in _PROCEDURE_FILLER}
 
 
+def _section_words(row: dict[str, Any], heading: str, text: str) -> tuple[set[str], set[str]]:
+    """A section's heading words and text words. The page's own address names what it is about
+    (/study-abroad/how-to-apply/): its words past the site folder count like the heading."""
+    path = urlsplit(str(row.get("url") or "")).path.strip("/").split("/")[1:]
+    return (_procedure_words(heading) | _procedure_words(" ".join(path)),
+            _procedure_words(text))
+
+
 def procedures_property(
     rows: Sequence[dict[str, Any]], now: datetime, about: str | None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -1385,12 +1393,8 @@ def procedures_property(
             heading, text = clean(section.get("heading")), clean(section.get("text"))
             if not isinstance(heading, str) or not isinstance(text, str) or not text:
                 continue
-            # The page's own address names what it is about (/study-abroad/how-to-apply/): its
-            # words past the site folder count like the section's heading.
-            path = urlsplit(str(row.get("url") or "")).path.strip("/").split("/")[1:]
             found.append((row_index, index, row, heading, text,
-                          _procedure_words(heading) | _procedure_words(" ".join(path)),
-                          _procedure_words(text)))
+                          *_section_words(row, heading, text)))
     # How many of the office's sections each asked word is in: a rare word tells sections apart.
     seen = {word: sum(1 for *_, top, body in found if word in top or word in body)
             for word in wanted}
@@ -1716,6 +1720,76 @@ class EntityFacts:
                 "candidates": found[:limit],
                 "truncated": len(found) > limit,
             }
+
+    def offices_by_procedure(
+        self,
+        about: str,
+        dataset_version: str,
+        *,
+        identity_hash: str | None = None,
+        exclude: Sequence[str] = (),
+        limit: int = 2,
+    ) -> list[dict[str, Any]]:
+        """The other offices whose own pages best speak to what the student wants to do: every
+        linked section of the release is scored as one office's are (each asked word weighted by
+        how rare it is across all of them, three times over in a heading), and an office counts
+        by its best section. Only offices within half of the best section anywhere are returned,
+        best first, so a word shared by many pages names no office. A page an excluded office
+        links (a residence hall shares Housing's pages) is not another office's, and offices whose
+        best section is on one page are that page once. The sections are read once per
+        release."""
+        wanted = _procedure_words(about or "")
+        if not wanted or not 1 <= limit <= 5:
+            return []
+        cached = getattr(self, "_section_index", None)
+        if cached is None or cached[0] != (dataset_version, identity_hash):
+            index: list[tuple[str, str, str, frozenset[str], frozenset[str]]] = []
+            with self.snapshot() as snapshot:
+                self._pin(snapshot, dataset_version, identity_hash)
+                for entity in snapshot.entities:
+                    if not any(link.get("collection") == "office_sections"
+                               for link in entity["links"]):
+                        continue
+                    pages = linked_rows(entity, snapshot.record_reader(entity, "office_sections"),
+                                        "office_sections")
+                    for row in pages:
+                        for section in row.get("sections") or []:
+                            if not isinstance(section, dict):
+                                continue
+                            heading = clean(section.get("heading"))
+                            text = clean(section.get("text"))
+                            if isinstance(heading, str) and isinstance(text, str) and text:
+                                words = _section_words(row, heading, text)
+                                index.append((entity["id"], entity["name"], str(row["id"]),
+                                              frozenset(words[0]), frozenset(words[1])))
+            self._section_index = cached = ((dataset_version, identity_hash), index)
+        sections = cached[1]
+        seen = {word: sum(1 for *_, top, body in sections if word in top or word in body)
+                for word in wanted}
+        weight = {word: math.log(1 + len(sections) / count) for word, count in seen.items()
+                  if count}
+        excluded_pages = {page for entity_id, _, page, *_ in sections if entity_id in exclude}
+        best: dict[str, tuple[float, str, str]] = {}
+        for entity_id, name, page, top, body in sections:
+            in_heading, in_text = wanted & top, wanted & body
+            if not in_heading and len(in_text) < 2:
+                continue
+            score = sum(3 * weight[w] for w in in_heading) + sum(weight[w] for w in in_text)
+            if score > best.get(entity_id, (0.0, "", ""))[0]:
+                best[entity_id] = (score, name, page)
+        if not best:
+            return []
+        top_score = max(score for score, *_ in best.values())
+        found: list[dict[str, Any]] = []
+        said: set[str] = set()
+        for score, name, page, entity_id in sorted(
+                (-score, name, page, entity_id) for entity_id, (score, name, page) in best.items()):
+            if (-score < top_score / 2 or entity_id in exclude or page in excluded_pages
+                    or page in said):
+                continue
+            said.add(page)
+            found.append({"entity_id": entity_id, "name": name, "score": round(-score, 2)})
+        return found[:limit]
 
     def get_office_facts(
         self,
