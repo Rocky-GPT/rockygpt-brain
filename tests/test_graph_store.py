@@ -318,8 +318,10 @@ def test_the_engine_is_held_to_small_memory_and_one_thread(
     monkeypatch.setattr(graph_store, "ladybug_module", lambda: Recording)
     opened(basic(), folder)
     assert [call["read_only"] for call in seen] == [False, True]  # Built, then opened.
+    # Serving stays small; a build, which checkpoints every record at once, gets more.
+    assert seen[1]["buffer_pool_size"] == graph_store.BUFFER_POOL_BYTES == 64 * 1024 * 1024
+    assert seen[0]["buffer_pool_size"] == graph_store.BUILD_BUFFER_POOL_BYTES == 512 * 1024 * 1024
     for kwargs in seen:
-        assert kwargs["buffer_pool_size"] == graph_store.BUFFER_POOL_BYTES == 64 * 1024 * 1024
         assert kwargs["max_num_threads"] == 1
         assert kwargs["max_db_size"] == graph_store.MAX_DB_BYTES
 

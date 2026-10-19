@@ -53,6 +53,9 @@ KEEP_RELEASES = 3  # Published release files kept in a directory, newest first.
 FINGERPRINT_SECONDS = 30.0  # How often the copy is checked against in-place edits of the rows.
 # The service has 512 MB: keep the engine's buffer pool, threads and file size small.
 BUFFER_POOL_BYTES = 64 * 1024 * 1024
+# Building writes every record once and checkpoints them together: with each office's own pages
+# (10 MB of text) a 64 MB pool fills at the checkpoint, so a build gets more. Serving keeps 64 MB.
+BUILD_BUFFER_POOL_BYTES = 512 * 1024 * 1024
 MAX_THREADS = 1
 MAX_DB_BYTES = 1024 * 1024 * 1024
 
@@ -79,7 +82,8 @@ def ladybug_module() -> Any:
 
 def _database(lb: Any, path: Path, *, read_only: bool) -> Any:
     return lb.Database(
-        str(path), read_only=read_only, buffer_pool_size=BUFFER_POOL_BYTES,
+        str(path), read_only=read_only,
+        buffer_pool_size=BUFFER_POOL_BYTES if read_only else BUILD_BUFFER_POOL_BYTES,
         max_num_threads=MAX_THREADS, max_db_size=MAX_DB_BYTES)
 
 
