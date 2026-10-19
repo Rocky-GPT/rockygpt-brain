@@ -19,7 +19,9 @@ from typing import Any
 
 # The reply's longest length. Strict output stops a longer reply at exactly this many characters,
 # mid-word, so a reply that reaches it was cut short and is not used (the code's text is).
-WRITER_TEXT_LIMIT = 2400
+# 4,000: a how-to answer gives an office's steps in full; at 2,400 a third of how-to replies
+# were cut off (blind how-to set, 10-19) and the code's shorter text went out instead.
+WRITER_TEXT_LIMIT = 4000
 WRITE_TOOL: dict[str, Any] = {
     "type": "function", "name": "write_answer", "strict": True,
     "description": "Write the reply the student reads, from the facts you were given.",
@@ -176,6 +178,7 @@ _EMAIL = re.compile(r"[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+")
 _URL = re.compile(r"https?://[^\s)\]>\"']+")
 _PHONE = re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)")
 _NUMBER = re.compile(r"\d+")
+_LIST_ITEM = re.compile(r"(?m)^[ \t]*\d{1,2}[.)][ \t]")
 _MARKER = re.compile(r"\[(\d+)\]")
 
 
@@ -209,6 +212,8 @@ def unsupported_by(text: str, view: dict[str, Any]) -> list[str]:
             problems.append(f"a phone number the facts do not hold: {phone.strip()}")
     rest = _PHONE.sub(" ", rest)
     rest = _MARKER.sub(lambda m: " " if m.group(1) in sources else m.group(0), rest)
+    # A numbered step ("2. Submit the form") numbers the reply's own list, not a fact.
+    rest = _LIST_ITEM.sub(" ", rest)
     for number in _NUMBER.findall(rest):
         if str(int(number)) not in numbers:
             problems.append(f"a number the facts do not hold: {number}")
