@@ -135,7 +135,9 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   says to do or what its rule is, in plain short sentences, keeping every step, form, link,
   email, phone, date and amount exactly as written and in its order; a numbered list is fine for
   steps. Never add a step, condition or deadline it does not state. text_cut means the section
-  goes on: say the page has more. Name the office first, and cite each section.
+  goes on: say the page has more. Name the office first, and cite each section. Procedures facts
+  come best match first: give the first one's steps in full, and each other one in a sentence
+  with its page.
 - A schedule's notes belong with its hours (when it opens before an event, by appointment, a
   different time on some days): say the part that bears on what the student asked. A note that
   says how to reach that service (a number to call, a key to press) is always said with it.
