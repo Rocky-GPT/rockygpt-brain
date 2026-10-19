@@ -1635,3 +1635,24 @@ def test_three_offices_procedures_fit_one_reply_in_the_codes_own_text() -> None:
     assert said.startswith("Academic Dismissal Appeals: Step.")
     assert said.endswith("(see https://www.ramapo.edu/a/)")
     assert len(said) < PROCEDURE_TEXT_CHARS + 120
+
+
+def test_rare_words_and_word_forms_pick_the_section_that_answers() -> None:
+    from rockygpt_brain.retrieval.entity_facts import procedures_property
+
+    def page(n: int, sections: list[tuple[str, str]]) -> dict[str, Any]:
+        return {"id": f"p{n}", "source_key": "office-pages", "source_record_key": f"k{n}",
+                "url": f"https://www.ramapo.edu/registrar/{n}/", "collected_at": NOW,
+                "freshness_sla_hours": 168, "content_hash": f"h{n}",
+                "sections": [{"heading": h, "text": t} for h, t in sections]}
+    rows = [
+        page(1, [("Declare a major", "Use the add/drop form to add or drop a major or minor class."),
+                 ("Add/Drop for classes", "Add or drop a class during add/drop on Web Self-Service.")]),
+        page(2, [("Withdrawing from a Course", "After the add/drop period a withdrawal gets a W grade.")]),
+        page(3, [("Class schedules", "The class schedule lists every class.")]),
+    ]
+    prop, _ = procedures_property(rows, NOW, "withdraw from a course, drop a class after add/drop")
+    headings = [v["value"]["heading"] for v in prop["values"]]
+    assert headings[0] == "Withdrawing from a Course"
+    # A section far below the best is left out rather than padding the answer.
+    assert "Class schedules" not in headings

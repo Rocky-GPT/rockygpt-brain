@@ -178,7 +178,9 @@ conflicts, source dates and ambiguity. Do not infer office hours, policies, or a
 from contact details. A Ramapo procedure or rule ("how do I request a transcript", "can I appeal
 a parking ticket", "what is the guest policy") is procedures of the office that handles it, or of
 each of the up to three listed offices that could: set about to what the student wants to do or
-know, in their words; code reads the sections of that office's own pages that speak to it. This
+know in a few words, with the words a college page would use for it beside theirs ("drop a class
+after add/drop": withdraw from a course, drop a class); code reads the sections of that office's
+own pages that speak to it. This
 first slice cannot answer other campus facts or general essays: for events, advice,
 explanations and the offices of any other college, use unsupported and make no lookup.
 
@@ -268,9 +270,9 @@ class OfficeRequest(StrictModel):
     # counts"), so the reply gives it for every item it lists.
     details: list[Literal["calories", "portion", "allergens"]] = Field(
         default_factory=list, max_length=3)
-    # For procedures only: what the student wants to do or know, in their own words ("request a
-    # transcript", "appeal a parking ticket"). Code reads the sections of the office's own pages
-    # that speak to it.
+    # For procedures only: what the student wants to do or know, in a few words, with the words a
+    # college page would use beside theirs ("withdraw from a course, drop a class"). Code reads the
+    # sections of the office's own pages that speak to it.
     about: str | None = Field(default=None, max_length=160)
 
 
