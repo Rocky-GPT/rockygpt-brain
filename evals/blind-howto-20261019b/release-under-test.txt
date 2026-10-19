@@ -1,0 +1,3 @@
+brain under test: 440218e ("Give the writer 4,000 characters, and let a reply number its own steps") plus this set's freeze commit
+(a clean git archive export, run as the written-mode dev Brain on :8013; graders read :8013)
+release: dev-campus-daily-20261019-1459 (data 2f3bff0: office sections with the 29 reviewed site owners)
