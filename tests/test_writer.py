@@ -94,7 +94,7 @@ def test_a_verified_reply_is_what_the_student_reads_with_its_sources() -> None:
     (writing(None), "no_text"),
     (writing("   "), "no_text"),
     # Strict output stops a long reply at the length limit, mid-word: it is never shown.
-    (writing("The Registrar's email is published@example.edu. " * 60), "cut_off"),
+    (writing("The Registrar's email is published@example.edu. " * 100), "cut_off"),
 ])
 def test_a_reply_the_view_does_not_hold_is_replaced_by_the_codes_text(
     step: Completion, why: str,
@@ -173,3 +173,13 @@ def test_a_reply_that_drops_every_departure_time_is_not_used() -> None:
     assert left_out_departures("Health Services is in D-102.", view)
     assert not left_out_departures("The next shuttle leaves at 11:35am.", view)
     assert not left_out_departures("Health Services is in D-102.", {"derived_facts": []})
+
+
+def test_a_numbered_step_is_the_replys_own_list_not_a_fact() -> None:
+    from rockygpt_brain.writer import unsupported_by
+    view = {"facts": [{"subject": "Registrar", "predicate": "procedures",
+                       "value": {"heading": "Transcripts", "text": "Submit the form. Pay $10."}}],
+            "sources": [{"n": 1}]}
+    assert unsupported_by("Registrar:\n1. Submit the form.\n2. Pay $10. [1]", view) == []
+    # A number inside a sentence is still checked.
+    assert unsupported_by("It takes 3 days.", view) == ["a number the facts do not hold: 3"]
