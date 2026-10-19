@@ -1327,7 +1327,7 @@ _PROCEDURE_FILLER = frozenset(
     "ramapo college campus student students".split())
 # The sections a procedure read offers (the engine keeps the few that answer), and the most of
 # one section's text that is said.
-MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 12, 1800
+MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 20, 1800
 
 
 def _procedure_words(text: str) -> set[str]:
