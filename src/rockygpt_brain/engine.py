@@ -387,6 +387,9 @@ class OfficeResult:
     clarification: bool = False
     detail: dict[str, Any] = field(default_factory=dict)  # Which office, or which candidates.
     part: dict[str, Any] | None = None  # The same result as typed JSON, for output="json".
+    # Sentences said before the facts (a topic's referral, "the only venue with a menu"), each
+    # with its citations, so a result narrowed after the lookup renders the same way.
+    leads: list[tuple[str, list[dict[str, Any]]]] = field(default_factory=list)
 
 
 def answered(turn: Turn, answer: str, status: str, citations: list[dict[str, Any]] | None = None,
@@ -563,6 +566,82 @@ def published_offices(listing: dict[str, Any]) -> list[dict[str, Any]] | None:
         if len(json.dumps(menu, ensure_ascii=False).encode()) <= MAX_OFFICE_LIST_BYTES:
             return menu
     return None
+
+
+# The sections a how-to answer says, chosen by a model from the candidates code ranked.
+PICKED_PROCEDURES = 3
+PICK_SECONDS = 12.0
+PICK_TOOL: dict[str, Any] = {
+    "type": "function", "name": "pick_sections", "strict": True,
+    "description": "For each lookup, the numbers of the sections that answer what the student "
+                   "wants, best first; none when none does.",
+    "parameters": {"type": "object", "additionalProperties": False, "required": ["picks"],
+                   "properties": {"picks": {"type": "array", "items": {
+                       "type": "object", "additionalProperties": False,
+                       "required": ["lookup", "sections"],
+                       "properties": {"lookup": {"type": "integer"},
+                                      "sections": {"type": "array", "maxItems": 3,
+                                                   "items": {"type": "integer"}}}}}}},
+}
+PICK_PROMPT = """A student asked a Ramapo College office a "how do I" or policy question. For each
+lookup you are given what the student wants and numbered sections of that office's own pages (a
+heading, the page and the start of the text). Pick the sections that directly answer what the
+student wants, best first, at most three. A section about a different task that shares words is
+not an answer (a degree audit is not auditing a course; a junior's question is not answered by
+first-year steps). Pick none when none answers. Answer only with the pick_sections tool."""
+
+
+def procedures_of(result: "OfficeResult") -> dict[str, Any] | None:
+    """The how-to property of an office result, when it has candidate sections."""
+    if not result.part or result.part.get("kind") != "office_facts":
+        return None
+    return next((p for p in result.part["facts"].get("properties", [])
+                 if p.get("key") == "procedures" and p.get("values")), None)
+
+
+def pick_messages(asked: list[tuple[str, str, dict[str, Any]]]) -> list[dict[str, Any]]:
+    """What the picking model is given: per lookup, the student's task and the candidates."""
+    lookups = [{"lookup": k, "office": office, "student_wants": about, "sections": [
+        {"n": n, "heading": v["value"].get("heading"), "page": v["value"].get("page"),
+         "start": str(v["value"].get("text", ""))[:280]}
+        for n, v in enumerate(prop["values"])]} for k, (about, office, prop) in enumerate(asked)]
+    return [{"role": "system", "content": PICK_PROMPT},
+            {"role": "user", "content": json.dumps(lookups, ensure_ascii=False)}]
+
+
+def keep_procedures(result: "OfficeResult", keep: list[int]) -> "OfficeResult":
+    """The result with only the chosen how-to sections, in the chosen order, and the page sources
+    they cite; none chosen leaves the property unknown. Its text is rendered again."""
+    assert result.part is not None
+    facts = result.part["facts"]
+    properties = []
+    for prop in facts["properties"]:
+        if prop.get("key") != "procedures":
+            properties.append(prop)
+            continue
+        values = [prop["values"][n] for n in dict.fromkeys(keep)
+                  if isinstance(n, int) and 0 <= n < len(prop["values"])][:PICKED_PROCEDURES]
+        ids = {a for v in values for a in v["assertion_ids"]}
+        properties.append({**prop, "status": "known" if values else "unknown", "values": values,
+                           "assertions": [a for a in prop["assertions"] if a["id"] in ids]})
+    cited = {s for p in properties for v in p.get("values", []) for s in v.get("source_ids", [])}
+    sources = [s for s in facts["sources"]
+               if s.get("collection") != "office_sections" or s["id"] in cited]
+    narrowed = {**facts, "properties": properties, "sources": sources}
+    shown = narrowed
+    also = result.part.get("also")
+    if also is not None:
+        merged = {source["id"]: source for source in [*sources, *also["sources"]]}
+        shown = {**narrowed, "properties": [*properties, *also["properties"]],
+                 "sources": list(merged.values())}
+    rendered = render_facts(shown)
+    for text, citations in reversed(result.leads):
+        rendered = replace(rendered, text=f"{text}\n\n{rendered.text}",
+                           citations=[*rendered.citations, *citations])
+    detail = {**result.detail, "answer": {"text": rendered.text, "citations": rendered.citations,
+                                          "complete": rendered.complete}}
+    return replace(result, rendered=rendered, detail=detail,
+                   part={**result.part, "facts": narrowed})
 
 
 # Words for what the Brain can look up (the fields of an office record) and the words around them.
@@ -1301,12 +1380,16 @@ class ChatEngine:
                      "sources": list(sources.values())}
         with measure("Render verified evidence"):
             rendered = render_facts(shown)
+        # Sentences said before the facts, kept so a result whose how-to sections are narrowed
+        # later renders the same way (keep_procedures).
+        leads: list[tuple[str, list[dict[str, Any]]]] = []
         if topic is not None:
             sent = TOPIC_ONE_TEXT.format(topic=literal(topic["entity"]["name"]),
                                          office=literal(opened["label"]))
             rendered = replace(rendered, text=f"{sent}\n\n{rendered.text}",
                                citations=[*rendered.citations, topic_citation(topic)])
             detail["topic"] = topic["entity"]["name"]
+            leads.append((sent, [topic_citation(topic)]))
         detail["answer"] = {"text": rendered.text, "citations": rendered.citations,
                             "complete": rendered.complete}
         part = {"kind": "office_facts", "query": request.query, "fields": list(request.fields),
@@ -1327,6 +1410,7 @@ class ChatEngine:
                         value["value"]["only_menu_venue"] = True
             lead = ONLY_MENU_TEXT.format(venue=literal(only_menu))
             rendered = replace(rendered, text=f"{lead}\n\n{rendered.text}")
+            leads.insert(0, (lead, []))
             detail["answer"] = {**detail["answer"], "text": rendered.text}
         if menu and request.details:
             # "Any vegan options, and are there calorie counts": each listed item says them.
@@ -1343,7 +1427,41 @@ class ChatEngine:
                 when["meal"] = request.meal  # A venue's one period, when one was named.
             part["when"] = when
             detail["day"] = when
-        return OfficeResult(rendered, detail=detail, part=part)
+        return OfficeResult(rendered, detail=detail, part=part, leads=leads)
+
+    async def _pick_procedures(self, looked_up: list[tuple[str, int, OfficeRequest]],
+                               results: dict[str, OfficeResult], output: list[dict[str, Any]],
+                               budget: TurnBudget, trace: dict[str, Any]) -> None:
+        """Code ranks an office's sections by the words asked; a model then keeps the ones that
+        answer, in one call for every office this round read. "How do I get a degree audit"
+        shares words with Audit Grades, which does not answer it. If the call fails, the three
+        best ranked are kept."""
+        asked = [(rid, at, item, prop) for rid, at, item in looked_up
+                 if (prop := procedures_of(results[rid])) is not None]
+        if not asked:
+            return
+        chosen: dict[int, list[int]] | None = None
+        offered = [(item.about or "", str(results[rid].detail.get("office", "")), prop)
+                   for rid, _, item, prop in asked]
+        with measure("Pick the how-to sections that answer"):
+            try:
+                async with asyncio.timeout(PICK_SECONDS):
+                    completion = await self.gateway.complete(
+                        input=pick_messages(offered), tools=[PICK_TOOL], budget=budget)
+                call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
+                if call is not None and call.name == "pick_sections":
+                    chosen = {int(entry["lookup"]): [int(n) for n in entry["sections"]]
+                              for entry in call.arguments.get("picks", [])
+                              if isinstance(entry, dict)}
+            except (GatewayError, TimeoutError, KeyError, TypeError, ValueError) as error:
+                LOG.warning("brain_procedure_pick_failed error=%s",
+                            getattr(error, "code", type(error).__name__))
+        trace["procedurePicks"] = "model" if chosen is not None else "ranked"
+        for k, (rid, at, _, prop) in enumerate(asked):
+            keep = (chosen.get(k, []) if chosen is not None
+                    else list(range(min(PICKED_PROCEDURES, len(prop["values"])))))
+            results[rid] = keep_procedures(results[rid], keep)
+            output[at]["rendered"] = results[rid].rendered.text
 
     def _topic(self, request: OfficeRequest, topic: dict[str, Any],
                candidates: list[dict[str, Any]], detail: dict[str, Any]) -> OfficeResult:
@@ -1653,6 +1771,8 @@ class ChatEngine:
                                 or len(results) + len(requests) > MAX_RESULTS):
                             raise GatewayError("turn_budget_exhausted")
                     output: list[dict[str, Any]] = []
+                    # This round's office lookups, by result and output place, for the picking.
+                    looked_up: list[tuple[str, int, OfficeRequest]] = []
                     for item in requests:
                         if isinstance(item, ShuttleRequest):
                             route_walk = CampusGraph(self.facts, dataset_version=version,
@@ -1731,6 +1851,8 @@ class ChatEngine:
                                        "complete": result.rendered.complete,
                                        "clarification": result.clarification,
                                        "error": result.error_code})
+                        looked_up.append((rid, len(output) - 1, item))
+                    await self._pick_procedures(looked_up, results, output, budget, trace)
                     with measure("Prepare lookup output for model"):
                         inputs.append({"type": "function_call_output", "call_id": call.call_id,
                                        "output": json.dumps(output, ensure_ascii=False)})

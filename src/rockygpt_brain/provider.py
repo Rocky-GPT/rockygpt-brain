@@ -38,7 +38,8 @@ class NotSentError(Exception):
 class TurnBudget:
     request_id: str
     deadline: float
-    max_calls: int = 4
+    # Understand, (pick how-to sections), finish and write; a second lookup round is the fifth.
+    max_calls: int = 5
     max_cost_nusd: int = 25_000_000
     calls: int = 0
     committed_nusd: int = 0

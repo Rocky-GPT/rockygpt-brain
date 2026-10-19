@@ -1620,9 +1620,18 @@ def test_a_procedure_is_read_from_the_sections_of_the_offices_own_pages() -> Non
 def test_a_how_do_i_question_reads_the_offices_procedures_end_to_end() -> None:
     ask = completion("graph_lookup", {"requests": [
         {"query": "Registrar", "fields": ["procedures"], "about": "request a transcript"}]})
-    result = answer(ScriptedGateway(ask, finish()), service=registrar_with_pages(), messages=[
-        {"role": "user", "content": "how do i get my transcript"}])
+    # A model keeps the sections that answer: here the first, not the unofficial-transcript one.
+    pick = completion("pick_sections", {"picks": [{"lookup": 0, "sections": [0]}]})
+    result = answer(ScriptedGateway(ask, pick, finish()), service=registrar_with_pages(),
+                    messages=[{"role": "user", "content": "how do i get my transcript"}])
     assert "Parchment" in result.body["answer"]
+    assert "Web Self-Service" not in result.body["answer"]
+    assert result.trace is not None and result.trace["procedurePicks"] == "model"
+    # Picking none leaves the office's pages unknown for it rather than saying a guess.
+    none = completion("pick_sections", {"picks": [{"lookup": 0, "sections": []}]})
+    unpicked = answer(ScriptedGateway(ask, none, finish()), service=registrar_with_pages(),
+                      messages=[{"role": "user", "content": "how do i get my transcript"}])
+    assert "Parchment" not in unpicked.body["answer"]
     assert result.trace is not None
     assert result.trace["lookups"][0]["arguments"]["about"] == "request a transcript"
 
@@ -1659,3 +1668,13 @@ def test_rare_words_and_word_forms_pick_the_section_that_answers() -> None:
     assert headings[0] == "Withdrawing from a Course"
     # A section far below the best is left out rather than padding the answer.
     assert "Class schedules" not in headings
+
+
+def test_a_failed_pick_keeps_the_best_ranked_sections() -> None:
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Registrar", "fields": ["procedures"], "about": "request a transcript"}]})
+    odd = completion("write_answer", {"text": "not a pick"})  # Not the pick tool: no choice made.
+    result = answer(ScriptedGateway(ask, odd, finish()), service=registrar_with_pages(),
+                    messages=[{"role": "user", "content": "how do i get my transcript"}])
+    assert "Parchment" in result.body["answer"]
+    assert result.trace is not None and result.trace["procedurePicks"] == "ranked"
