@@ -569,7 +569,7 @@ def published_offices(listing: dict[str, Any]) -> list[dict[str, Any]] | None:
 
 
 # The sections a how-to answer says, chosen by a model from the candidates code ranked.
-PICKED_PROCEDURES = 3
+PICKED_PROCEDURES = 4
 PICK_SECONDS = 12.0
 PICK_TOOL: dict[str, Any] = {
     "type": "function", "name": "pick_sections", "strict": True,
@@ -580,15 +580,19 @@ PICK_TOOL: dict[str, Any] = {
                        "type": "object", "additionalProperties": False,
                        "required": ["lookup", "sections"],
                        "properties": {"lookup": {"type": "integer"},
-                                      "sections": {"type": "array", "maxItems": 3,
+                                      "sections": {"type": "array", "maxItems": 4,
                                                    "items": {"type": "integer"}}}}}}},
 }
 PICK_PROMPT = """A student asked a Ramapo College office a "how do I" or policy question. For each
 lookup you are given what the student wants and numbered sections of that office's own pages (a
 heading, the page and the start of the text). Pick the sections that directly answer what the
-student wants, best first, at most three. A section about a different task that shares words is
-not an answer (a degree audit is not auditing a course; a junior's question is not answered by
-first-year steps). Pick none when none answers. Answer only with the pick_sections tool."""
+student wants, best first, at most four. Prefer a section that gives the steps or the rule asked
+over one that only mentions the topic or lists resources. A page about a past term or a previous
+deadline is not today's rule when a current one is offered. When the student asks two things (how
+to do it and what happens if not), pick a section for each. A section about a different task that
+shares words is not an answer (a degree audit is not auditing a course; a junior's question is not
+answered by first-year steps). Pick none when none answers. Answer only with the pick_sections
+tool."""
 
 
 def procedures_of(result: "OfficeResult") -> dict[str, Any] | None:
@@ -1434,7 +1438,7 @@ class ChatEngine:
                                budget: TurnBudget, trace: dict[str, Any]) -> None:
         """Code ranks an office's sections by the words asked; a model then keeps the ones that
         answer, in one call for every office this round read. "How do I get a degree audit"
-        shares words with Audit Grades, which does not answer it. If the call fails, the three
+        shares words with Audit Grades, which does not answer it. If the call fails, the four
         best ranked are kept."""
         asked = [(rid, at, item, prop) for rid, at, item in looked_up
                  if (prop := procedures_of(results[rid])) is not None]
