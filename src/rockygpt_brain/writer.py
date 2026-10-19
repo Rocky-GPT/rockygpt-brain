@@ -139,7 +139,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   steps. Never add a step, condition or deadline it does not state. text_cut means the section
   goes on: say the page has more. Name the office first, and cite each section. Procedures facts
   come best match first: give the first one's steps in full, and each other one in a sentence
-  with its page.
+  with its page. past_term means the section is for that term, which is over: say so, and never
+  give its dates as coming up.
 - A schedule's notes belong with its hours (when it opens before an event, by appointment, a
   different time on some days): say the part that bears on what the student asked. A note that
   says how to reach that service (a number to call, a key to press) is always said with it.

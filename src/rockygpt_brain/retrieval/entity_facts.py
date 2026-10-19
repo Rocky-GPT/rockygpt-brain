@@ -1330,6 +1330,24 @@ _PROCEDURE_FILLER = frozenset(
 MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 20, 1800
 
 
+# A term a page is about ("Spring 2026") and the month and day it ends: a section that names only
+# terms already over is for a past term, not today's.
+_TERM = re.compile(r"\b(Winter|Spring|Summer|Fall)\s+(20\d\d)\b")
+_TERM_ENDS = {"Winter": (1, 31), "Spring": (5, 31), "Summer": (8, 31), "Fall": (12, 31)}
+
+
+def past_term(text: str, today: date) -> str | None:
+    """The latest term a text names, when every term it names has ended by today; else None."""
+    terms = [(int(year), season) for season, year in _TERM.findall(text)]
+    if not terms:
+        return None
+    ends = [date(year, *_TERM_ENDS[season]) for year, season in terms]
+    if max(ends) >= today:
+        return None
+    year, season = max(terms, key=lambda t: date(t[0], *_TERM_ENDS[t[1]]))
+    return f"{season} {year}"
+
+
 def _procedure_words(text: str) -> set[str]:
     """Content words by their stem: a long word by its first six letters (withdraw, withdrawing
     and withdrawal are one word), a shorter one without its plural s."""
@@ -1377,13 +1395,19 @@ def procedures_property(
     seen = {word: sum(1 for *_, top, body in found if word in top or word in body)
             for word in wanted}
     weight = {word: math.log(1 + len(found) / count) for word, count in seen.items() if count}
+    today = now.astimezone(CAMPUS_TIMEZONE).date()
     scored: list[tuple[float, int, int, dict[str, Any], dict[str, Any]]] = []
     for row_index, index, row, heading, text, top, body in found:
         in_heading, in_text = wanted & top, wanted & body
         if not in_heading and len(in_text) < 2:
             continue
         score = sum(3 * weight[w] for w in in_heading) + sum(weight[w] for w in in_text)
-        scored.append((-score, row_index, index, row, {"heading": heading, "text": text}))
+        # A section for a term that is over ("Spring 2026 Check-Out") ranks below today's.
+        over = past_term(f"{heading} {text[:600]} {row.get('url') or ''}", today)
+        if over:
+            score /= 2
+        scored.append((-score, row_index, index, row,
+                       {"heading": heading, "text": text, **({"past_term": over} if over else {})}))
     if not scored:
         return empty, []
     ranked = sorted(scored, key=lambda item: item[:3])
@@ -1401,7 +1425,8 @@ def procedures_property(
         sources[row["id"]] = source
         value = {"heading": section["heading"], "page": url,
                  "text": section["text"][:MAX_PROCEDURE_CHARS],
-                 **({"text_cut": True} if len(section["text"]) > MAX_PROCEDURE_CHARS else {})}
+                 **({"text_cut": True} if len(section["text"]) > MAX_PROCEDURE_CHARS else {}),
+                 **({"past_term": section["past_term"]} if section.get("past_term") else {})}
         assertion = {"id": f"{source['id']}:procedures:{index}", "source_id": source["id"],
                      "field": "procedures", "raw_value": {"section": index},
                      "value": _json_safe(value), "caveats": []}
