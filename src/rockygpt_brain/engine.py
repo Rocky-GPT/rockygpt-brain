@@ -588,7 +588,9 @@ lookup you are given what the student wants and numbered sections of that office
 heading, the page and the start of the text). Pick the sections that directly answer what the
 student wants, best first, at most four. Prefer a section that gives the steps or the rule asked
 over one that only mentions the topic or lists resources. A page about a past term or a previous
-deadline is not today's rule when a current one is offered. When the student asks two things (how
+deadline is not today's rule when a current one is offered; a section with past_term is for that
+term: pick it only when the student asks about that term or no current section answers. When the
+student asks two things (how
 to do it and what happens if not), pick a section for each. A section about a different task that
 shares words is not an answer (a degree audit is not auditing a course; a junior's question is not
 answered by first-year steps). Pick none when none answers. Answer only with the pick_sections
@@ -607,7 +609,8 @@ def pick_messages(asked: list[tuple[str, str, dict[str, Any]]]) -> list[dict[str
     """What the picking model is given: per lookup, the student's task and the candidates."""
     lookups = [{"lookup": k, "office": office, "student_wants": about, "sections": [
         {"n": n, "heading": v["value"].get("heading"), "page": v["value"].get("page"),
-         "start": str(v["value"].get("text", ""))[:280]}
+         "start": str(v["value"].get("text", ""))[:280],
+         **({"past_term": v["value"]["past_term"]} if v["value"].get("past_term") else {})}
         for n, v in enumerate(prop["values"])]} for k, (about, office, prop) in enumerate(asked)]
     return [{"role": "system", "content": PICK_PROMPT},
             {"role": "user", "content": json.dumps(lookups, ensure_ascii=False)}]

@@ -4,7 +4,7 @@ import asyncio
 import json
 from collections.abc import Callable
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import pytest
@@ -1615,6 +1615,26 @@ def test_a_procedure_is_read_from_the_sections_of_the_offices_own_pages() -> Non
     # A plain read of the office never reads its pages.
     plain = service.get_office_facts("registrar", None, "release-1", identity_hash="identities-1")
     assert all(p["key"] != "procedures" for p in plain["properties"])
+
+
+def test_a_section_for_a_term_that_is_over_is_marked_and_ranked_below_todays() -> None:
+    from rockygpt_brain.retrieval.entity_facts import past_term, procedures_property
+    today = date(2026, 10, 19)
+    assert past_term("Spring 2026 Check-Out", today) == "Spring 2026"
+    assert past_term("Fall 2026 move-in and Spring 2026 notes", today) is None
+    assert past_term("Spring 2027 housing", today) is None
+    assert past_term("How to check out", today) is None
+    page = {"id": "page-1", "source_key": "office-pages",
+            "source_record_key": "www.ramapo.edu/reslife/a/",
+            "url": "https://www.ramapo.edu/reslife/a/", "site_folder": "reslife",
+            "collected_at": NOW, "freshness_sla_hours": 168, "content_hash": "h1",
+            "sections": [
+                {"heading": "Spring 2026 Check-Out", "text": "Check out of your room by May 15."},
+                {"heading": "Check-Out", "text": "Check out of your room with your RA."}]}
+    prop, _ = procedures_property([page], NOW, "check out of my room")
+    first, second = (v["value"] for v in prop["values"])
+    assert first["heading"] == "Check-Out" and "past_term" not in first
+    assert second["past_term"] == "Spring 2026"
 
 
 def test_a_how_do_i_question_reads_the_offices_procedures_end_to_end() -> None:
