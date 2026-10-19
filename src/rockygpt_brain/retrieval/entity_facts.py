@@ -1325,8 +1325,9 @@ _PROCEDURE_FILLER = frozenset(
     "can could would should will how what when where which who whom why i me my we our you your "
     "it its this that these those there here get got need want please tell know find out office "
     "ramapo college campus student students".split())
-# The sections a procedure answer gives, and the most of one section's text that is said.
-MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 3, 1800
+# The sections a procedure read offers (the engine keeps the few that answer), and the most of
+# one section's text that is said.
+MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 12, 1800
 
 
 def _procedure_words(text: str) -> set[str]:
@@ -1387,7 +1388,7 @@ def procedures_property(
         return empty, []
     ranked = sorted(scored, key=lambda item: item[:3])
     best = -ranked[0][0]
-    picked = [item for item in ranked if -item[0] >= best / 2][:MAX_PROCEDURES]
+    picked = [item for item in ranked if -item[0] >= best / 4][:MAX_PROCEDURES]
     values: list[dict[str, Any]] = []
     assertions: list[dict[str, Any]] = []
     sources: dict[str, dict[str, Any]] = {}

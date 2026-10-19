@@ -103,7 +103,7 @@ def test_runtime_describes_the_prompt_tools_parts_and_fixed_texts_the_engine_rea
     assert texts["unsupported"] == UNSUPPORTED_MESSAGE
     assert texts["unsupported_after_lookup"] == UNSUPPORTED_AFTER_LOOKUP_MESSAGE
     assert {"greeting", "thanks", "okay", "about", "not_found", "incomplete"} <= set(texts)
-    assert body["limits"]["maxTurnNusd"] == 25_000_000 and body["limits"]["maxModelCalls"] == 4
+    assert body["limits"]["maxTurnNusd"] == 25_000_000 and body["limits"]["maxModelCalls"] == 5
     assert body["model"] is None  # No real gateway here, so there is no price table.
 
 
