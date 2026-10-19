@@ -1625,3 +1625,13 @@ def test_a_how_do_i_question_reads_the_offices_procedures_end_to_end() -> None:
     assert "Parchment" in result.body["answer"]
     assert result.trace is not None
     assert result.trace["lookups"][0]["arguments"]["about"] == "request a transcript"
+
+
+def test_three_offices_procedures_fit_one_reply_in_the_codes_own_text() -> None:
+    from rockygpt_brain.answers import PROCEDURE_TEXT_CHARS, _value_text
+    long = {"heading": "Academic Dismissal Appeals", "page": "https://www.ramapo.edu/a/",
+            "text": "Step. " * 400, "text_cut": True}
+    said = _value_text("procedures", long)
+    assert said.startswith("Academic Dismissal Appeals: Step.")
+    assert said.endswith("(see https://www.ramapo.edu/a/)")
+    assert len(said) < PROCEDURE_TEXT_CHARS + 120
