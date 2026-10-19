@@ -1366,8 +1366,12 @@ def procedures_property(
             heading, text = clean(section.get("heading")), clean(section.get("text"))
             if not isinstance(heading, str) or not isinstance(text, str) or not text:
                 continue
+            # The page's own address names what it is about (/study-abroad/how-to-apply/): its
+            # words past the site folder count like the section's heading.
+            path = urlsplit(str(row.get("url") or "")).path.strip("/").split("/")[1:]
             found.append((row_index, index, row, heading, text,
-                          _procedure_words(heading), _procedure_words(text)))
+                          _procedure_words(heading) | _procedure_words(" ".join(path)),
+                          _procedure_words(text)))
     # How many of the office's sections each asked word is in: a rare word tells sections apart.
     seen = {word: sum(1 for *_, top, body in found if word in top or word in body)
             for word in wanted}
