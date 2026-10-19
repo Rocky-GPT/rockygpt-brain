@@ -1,0 +1,4 @@
+brain under test: 61368f8 ("Tell the model an office found by its pages is already read"; past_term 66af2fb, other offices fbe1b8c)
+(a clean git archive export, run as the written-mode dev Brain on :8013; graders read :8013)
+release: dev-campus-daily-20261019-1927 (data 8f6ba5c; office pages re-crawled 2026-10-19 with up to 1500 unlisted pages)
+note: the Provost's policy addresses (/provost/policy/...) redirect to catalog.ramapo.edu, which no collector captures yet; not in this release
