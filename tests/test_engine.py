@@ -1656,6 +1656,28 @@ def test_a_how_do_i_question_reads_the_offices_procedures_end_to_end() -> None:
     assert result.trace["lookups"][0]["arguments"]["about"] == "request a transcript"
 
 
+def test_a_long_faq_section_says_the_question_that_matches_and_short_names_count() -> None:
+    from rockygpt_brain.retrieval.entity_facts import MAX_PROCEDURE_CHARS, procedures_property
+    filler = "How do I visit campus? Tours run daily from the welcome center. " * 40
+    faq = (filler + "Will my county college credits be accepted? We accept up to the maximum 65 "
+           "transfer credits from a two-year school. " + "Is housing available? Yes. " * 20)
+    assert len(faq) > MAX_PROCEDURE_CHARS
+    page = {"id": "page-1", "source_key": "office-pages",
+            "source_record_key": "www.ramapo.edu/undergraduate/transfer/faqs/",
+            "url": "https://www.ramapo.edu/undergraduate/transfer/faqs/",
+            "site_folder": "undergraduate", "collected_at": NOW, "freshness_sla_hours": 168,
+            "content_hash": "h1", "sections": [{"heading": "FAQs", "text": faq},
+                                               {"heading": "New ID Cards",
+                                                "text": "Email the ID room for an appointment."}]}
+    prop, _ = procedures_property([page], NOW, "maximum transfer credits from a county college")
+    first = prop["values"][0]["value"]
+    assert first["text"].startswith("Will my county college credits be accepted?")
+    assert "65" in first["text"] and first["text_cut"] is True
+    # "ID" in capitals names the card; "id" as a word of two letters says nothing.
+    ids, _ = procedures_property([page], NOW, "get a student ID")
+    assert ids["values"][0]["value"]["heading"] == "New ID Cards"
+
+
 def advising_and_tutoring() -> MemoryEntityFacts:
     def office(key: str, name: str, url: str, sections: list[dict[str, str]]) -> tuple[
             dict[str, Any], dict[str, Any], dict[str, Any]]:

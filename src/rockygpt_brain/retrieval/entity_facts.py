@@ -1350,11 +1350,36 @@ def past_term(text: str, today: date) -> str | None:
 
 def _procedure_words(text: str) -> set[str]:
     """Content words by their stem: a long word by its first six letters (withdraw, withdrawing
-    and withdrawal are one word), a shorter one without its plural s."""
+    and withdrawal are one word), a shorter one without its plural s. A two-letter word counts
+    only written in capitals, as a name for something (ID, RA, GA)."""
     words = re.findall(r"[a-z0-9]+", text.casefold())
+    capitals = {word.casefold() for word in re.findall(r"\b[A-Z]{2}\b", text)}
     return {word[:6] if len(word) > 6 else (word[:-1] if len(word) > 3 and word.endswith("s")
                                             else word)
-            for word in words if len(word) > 2 and word not in _PROCEDURE_FILLER}
+            for word in words if len(word) > 2 and word not in _PROCEDURE_FILLER} | (
+        capitals - _PROCEDURE_FILLER)
+
+
+def _passage(text: str, wanted: set[str], weight: dict[str, float], limit: int) -> str:
+    """The part of a long section that is said: its start when the asked words are there, else
+    from the question or sentence that has the most of them. FAQ pages are captured as one long
+    section, and the answer asked can be its tenth question."""
+    if len(text) <= limit:
+        return text
+    starts = [0, *(m.end() for m in re.finditer(r"(?<=[.?!])\s+", text))]
+    spans = list(zip(starts, [*starts[1:], len(text)], strict=True))
+    scores = [sum(weight.get(w, 0.0) for w in wanted & _procedure_words(text[a:b]))
+              for a, b in spans]
+    best = max(range(len(spans)), key=lambda i: (scores[i], -i))
+    if scores[best] == 0 or spans[best][1] <= limit:
+        return text[:limit]
+    # Start at the question the best sentence answers, when one is just before it.
+    start = spans[best][0]
+    for i in range(best, max(-1, best - 4), -1):
+        if text[spans[i][0]:spans[i][1]].rstrip().endswith("?"):
+            start = spans[i][0]
+            break
+    return text[start:start + limit]
 
 
 def _section_words(row: dict[str, Any], heading: str, text: str) -> tuple[set[str], set[str]]:
@@ -1427,9 +1452,9 @@ def procedures_property(
         source.update(collection="office_sections", source_record_keys=[row["source_record_key"]],
                       record_ids=[row["id"]])
         sources[row["id"]] = source
-        value = {"heading": section["heading"], "page": url,
-                 "text": section["text"][:MAX_PROCEDURE_CHARS],
-                 **({"text_cut": True} if len(section["text"]) > MAX_PROCEDURE_CHARS else {}),
+        said = _passage(section["text"], wanted, weight, MAX_PROCEDURE_CHARS)
+        value = {"heading": section["heading"], "page": url, "text": said,
+                 **({"text_cut": True} if said != section["text"] else {}),
                  **({"past_term": section["past_term"]} if section.get("past_term") else {})}
         assertion = {"id": f"{source['id']}:procedures:{index}", "source_id": source["id"],
                      "field": "procedures", "raw_value": {"section": index},
