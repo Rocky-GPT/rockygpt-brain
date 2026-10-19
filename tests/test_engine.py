@@ -1656,6 +1656,63 @@ def test_a_how_do_i_question_reads_the_offices_procedures_end_to_end() -> None:
     assert result.trace["lookups"][0]["arguments"]["about"] == "request a transcript"
 
 
+def advising_and_tutoring() -> MemoryEntityFacts:
+    def office(key: str, name: str, url: str, sections: list[dict[str, str]]) -> tuple[
+            dict[str, Any], dict[str, Any], dict[str, Any]]:
+        page = {"id": f"page-{key}", "source_key": "office-pages", "source_record_key": url,
+                "site_folder": key, "url": f"https://{url}", "sections": sections,
+                "collected_at": NOW, "freshness_sla_hours": 168, "content_hash": f"h-{key}"}
+        entity = {"id": key, "name": name, "kind": "office", "aliases": [], "links": [
+            {"collection": "contacts", "source_key": "directory", "source_record_keys": [key]},
+            {"collection": "office_sections", "source_key": "office-pages",
+             "source_record_keys": [url]}]}
+        contact = {"id": f"source-{key}", "source_key": "directory", "source_record_key": key,
+                   "name": name, "email": f"{key}@example.edu",
+                   "canonical_url": f"https://example.edu/{key}", "collected_at": NOW,
+                   "freshness_sla_hours": 24}
+        return entity, contact, page
+    rows = [office("advising", "Academic Advising", "www.ramapo.edu/advising/", [
+                {"heading": "Meet your advisor", "text": "Book an advising appointment."},
+                {"heading": "Peer mentors", "text": "Become a peer mentor for first-years."}]),
+            office("tutoring", "Center for Reading and Writing", "www.ramapo.edu/crw/tutor/", [
+                {"heading": "Become a peer tutor",
+                 "text": "Apply to become a peer tutor with the online form by March 1."}]),
+            office("library", "Library", "www.ramapo.edu/library/", [
+                {"heading": "Borrowing", "text": "Borrow books with your ID."}])]
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[entity for entity, _, _ in rows], contacts=[contact for _, contact, _ in rows],
+        records={"office_sections": [page for _, _, page in rows]}, now=lambda: NOW)
+
+
+def test_a_how_to_on_another_offices_pages_is_offered_and_said_as_that_office() -> None:
+    service = advising_and_tutoring()
+    # Only the offices whose pages speak to it, never the one already asked.
+    found = service.offices_by_procedure("become a peer tutor", "release-1",
+                                         identity_hash="identities-1", exclude=["advising"])
+    assert [office["name"] for office in found] == ["Center for Reading and Writing"]
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Academic Advising", "fields": ["procedures"], "about": "become a peer tutor"}]})
+    pick = completion("pick_sections", {"picks": [{"lookup": 0, "sections": []},
+                                                  {"lookup": 1, "sections": [0]}]})
+    gateway = ScriptedGateway(ask, pick, finish())
+    result = answer(gateway, service=service,
+                    messages=[{"role": "user", "content": "how do i become a peer tutor"}])
+    assert "March 1" in result.body["answer"]
+    assert result.trace is not None
+    (other,) = [e for e in result.trace["lookups"] if e.get("foundBy") == "other_office_pages"]
+    assert other["office"] == "Center for Reading and Writing"
+    # The picker was told which lookup the student did not ask for.
+    offered = json.loads(gateway.inputs[1][1]["content"])
+    assert "other_office" not in offered[0] and offered[1]["other_office"] is True
+    # Not picked, another office is never said.
+    none = completion("pick_sections", {"picks": [{"lookup": 0, "sections": [1]},
+                                                  {"lookup": 1, "sections": []}]})
+    kept = answer(ScriptedGateway(ask, none, finish()), service=service,
+                  messages=[{"role": "user", "content": "how do i become a peer tutor"}])
+    assert "March 1" not in kept.body["answer"]
+
+
 def test_three_offices_procedures_fit_one_reply_in_the_codes_own_text() -> None:
     from rockygpt_brain.answers import PROCEDURE_TEXT_CHARS, _value_text
     long = {"heading": "Academic Dismissal Appeals", "page": "https://www.ramapo.edu/a/",
