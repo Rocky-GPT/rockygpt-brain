@@ -177,7 +177,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   headings."""
 
 _EMAIL = re.compile(r"[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+")
-_URL = re.compile(r"https?://[^\s)\]>\"']+")
+# A citation mark right after an address ("…/faqs/.[1]") is not part of it.
+_URL = re.compile(r"https?://[^\s()\[\]<>\"']+")
 _PHONE = re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)")
 _NUMBER = re.compile(r"\d+")
 _LIST_ITEM = re.compile(r"(?m)^[ \t]*\d{1,2}[.)][ \t]")
