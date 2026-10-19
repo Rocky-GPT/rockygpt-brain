@@ -175,9 +175,12 @@ Use conversation to understand follow-ups, but retrieve their evidence through t
 Greetings, reactions and requests to pretend or write something do not require campus facts.
 Do not use search results, your memory, or invented values as evidence. Respect missing data,
 conflicts, source dates and ambiguity. Do not infer office hours, policies, or account records
-from contact details. This first slice cannot answer other campus facts or general essays: for
-events, policies, advice, explanations and the offices of any other college, with no Ramapo
-office named, use unsupported and make no lookup.
+from contact details. A Ramapo procedure or rule ("how do I request a transcript", "can I appeal
+a parking ticket", "what is the guest policy") is procedures of the office that handles it, or of
+each of the up to three listed offices that could: set about to what the student wants to do or
+know, in their words; code reads the sections of that office's own pages that speak to it. This
+first slice cannot answer other campus facts or general essays: for events, advice,
+explanations and the offices of any other college, use unsupported and make no lookup.
 
 Always finish with the finish tool; never write an answer as free text. All graph record
 results are automatically included by the server, including their limitations. The finish
@@ -238,7 +241,7 @@ class StrictModel(BaseModel):
 
 OfficeField = Literal[
     "name", "department", "email", "phones", "offices", "prefers_email",
-    "preferred_contact", "contact_note", "website", "hours", "menu",
+    "preferred_contact", "contact_note", "website", "hours", "menu", "procedures",
 ]
 
 
@@ -265,6 +268,10 @@ class OfficeRequest(StrictModel):
     # counts"), so the reply gives it for every item it lists.
     details: list[Literal["calories", "portion", "allergens"]] = Field(
         default_factory=list, max_length=3)
+    # For procedures only: what the student wants to do or know, in their own words ("request a
+    # transcript", "appeal a parking ticket"). Code reads the sections of the office's own pages
+    # that speak to it.
+    about: str | None = Field(default=None, max_length=160)
 
 
 class GraphRequests(StrictModel):
@@ -1203,6 +1210,8 @@ class ChatEngine:
         on = (target_date(request.day or "today", as_of.date())
               if "menu" in request.fields else None)
         menu = "menu" in request.fields
+        # What the student wants to do, for the sections of the office's own pages.
+        about = request.about if "procedures" in request.fields else None
         def said(texts: list[str]) -> list[str]:
             return [t.strip()[:40] for t in texts if t.strip()]
 
@@ -1214,7 +1223,8 @@ class ChatEngine:
                               exact_name_only=exact_name_only, conversation=conversation,
                               latest=latest, on=on,
                               meal=request.meal if menu else None,
-                              menu_query=query if menu and query else None)
+                              menu_query=query if menu and query else None,
+                              about=about)
         detail: dict[str, Any] = {
             "path": graph.path(graph.current_node), "result_count": len(opened["candidates"]),
             "dataset_version": graph.version, "identity_hash": graph.identity_hash,
@@ -1229,7 +1239,8 @@ class ChatEngine:
                 opened = graph.lookup(there[0]["name"], list(request.fields), as_of,
                                       latest=latest, on=on,
                                       meal=request.meal if menu else None,
-                                      menu_query=query if menu and query else None)
+                                      menu_query=query if menu and query else None,
+                                      about=about)
                 detail.update(path=graph.path(graph.current_node), resolvedBy="building")
             elif there:
                 opened = {**opened, "candidates": there}
@@ -1240,7 +1251,8 @@ class ChatEngine:
             if len(serving) == 1:
                 wanted: list[str] = list(dict.fromkeys(
                     [*request.fields, "contact_note", "phones"]))
-                opened = graph.lookup(serving[0]["name"], wanted, as_of, latest=latest)
+                opened = graph.lookup(serving[0]["name"], wanted, as_of, latest=latest,
+                                      about=about)
                 detail.update(path=graph.path(graph.current_node), resolvedBy="service")
             elif len(serving) <= 3:  # More than that names something too common to ask about.
                 opened = {**opened, "candidates": serving}

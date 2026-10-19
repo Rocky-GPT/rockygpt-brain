@@ -131,6 +131,11 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   with its contacts and never leave it out. Beside a room, its sentence about making an
   appointment is how to be seen there: say it with the room. Leave out the note's other parts
   and its general warnings (an imminent-danger line in a parking answer).
+- A procedures fact is one section of the office's own page (heading, text, page). Say what it
+  says to do or what its rule is, in plain short sentences, keeping every step, form, link,
+  email, phone, date and amount exactly as written and in its order; a numbered list is fine for
+  steps. Never add a step, condition or deadline it does not state. text_cut means the section
+  goes on: say the page has more. Name the office first, and cite each section.
 - A schedule's notes belong with its hours (when it opens before an event, by appointment, a
   different time on some days): say the part that bears on what the student asked. A note that
   says how to reach that service (a number to call, a key to press) is always said with it.
@@ -162,7 +167,8 @@ Say only what the JSON says, in short plain sentences, as if to one student.
 - When reply_language is present, write the whole reply in that language, keeping every email
   address, phone number, room, time, web address and name (an office, venue, stop or route)
   exactly as given.
-- At most six sentences. No greeting, no sign-off, no headings."""
+- At most six sentences, besides the steps of a procedure. No greeting, no sign-off, no
+  headings."""
 
 _EMAIL = re.compile(r"[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+")
 _URL = re.compile(r"https?://[^\s)\]>\"']+")

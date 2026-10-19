@@ -597,7 +597,7 @@ def test_the_trace_records_each_lookup_the_model_asked_for_and_how_it_ended() ->
     assert lookup["arguments"] == {
         "query": "Registrar", "fields": ["email"], "day": None, "phone_kind": None,
         "meal": None, "diet": None, "items": [], "with_allergens": [], "without_allergens": [],
-        "details": []}
+        "details": [], "about": None}
     assert (lookup["status"], lookup["result_count"], lookup["office"]) == ("ok", 1, "Registrar")
     assert [node["id"] for node in lookup["path"]] == ["ramapo", "offices", "office:registrar"]
     assert (lookup["dataset_version"], lookup["identity_hash"]) == ("release-1", "identities-1")
@@ -1564,3 +1564,64 @@ def test_a_service_an_office_lists_as_a_labelled_contact_finds_that_office() -> 
     missing = answer(ScriptedGateway(nothing, finish()), service=res_life(), messages=[
         {"role": "user", "content": "bursar email"}])
     assert "mailroom@example.edu" not in missing.body["answer"]
+
+
+def registrar_with_pages() -> MemoryEntityFacts:
+    def page(n: int, url: str, sections: list[dict[str, str]]) -> dict[str, Any]:
+        return {"id": f"page-{n}", "source_key": "office-pages", "source_record_key": url,
+                "site_folder": "registrar", "url": f"https://{url}", "sections": sections,
+                "collected_at": NOW, "freshness_sla_hours": 168, "content_hash": f"h{n}"}
+    pages = [
+        page(1, "www.ramapo.edu/registrar/transcripts/", [
+            {"heading": "How do I request an official transcript?",
+             "text": "Order official transcripts online through Parchment. Each costs $10."},
+            {"heading": "Unofficial transcripts", "text": "Print one from Web Self-Service."}]),
+        page(2, "www.ramapo.edu/registrar/forms/", [
+            {"heading": "Change of Major", "text": "Submit the change of major form."}]),
+    ]
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "registrar", "name": "Registrar", "kind": "office", "aliases": [],
+                   "links": [{"collection": "contacts", "source_key": "directory",
+                              "source_record_keys": ["registrar"]},
+                             {"collection": "office_sections", "source_key": "office-pages",
+                              "source_record_keys": [p["source_record_key"] for p in pages]}]}],
+        contacts=[{"id": "source-registrar", "source_key": "directory",
+                   "source_record_key": "registrar", "name": "Registrar",
+                   "email": "registrar@example.edu", "canonical_url": "https://example.edu/reg",
+                   "collected_at": NOW, "freshness_sla_hours": 24}],
+        records={"office_sections": pages}, now=lambda: NOW)
+
+
+def test_a_procedure_is_read_from_the_sections_of_the_offices_own_pages() -> None:
+    from rockygpt_brain.retrieval.entity_facts import procedures_property
+    service = registrar_with_pages()
+    facts = service.get_office_facts("registrar", ["procedures"], "release-1",
+                                     identity_hash="identities-1", about="request a transcript")
+    (prop,) = facts["properties"]
+    assert prop["status"] == "known"
+    first = prop["values"][0]["value"]
+    assert first["heading"] == "How do I request an official transcript?"
+    assert first["page"] == "https://www.ramapo.edu/registrar/transcripts/"
+    assert "Parchment" in first["text"]
+    # Each section cites its own page.
+    (source,) = [s for s in facts["sources"] if s["id"] == "page-1"]
+    assert source["citation_urls"] == ["https://www.ramapo.edu/registrar/transcripts/"]
+    # Words no section has are unknown, never not published; no words reads nothing.
+    none = service.get_office_facts("registrar", ["procedures"], "release-1",
+                                    identity_hash="identities-1", about="parking permit")
+    assert none["properties"][0]["status"] == "unknown"
+    assert procedures_property([], NOW, "transcript")[0]["status"] == "unknown"
+    # A plain read of the office never reads its pages.
+    plain = service.get_office_facts("registrar", None, "release-1", identity_hash="identities-1")
+    assert all(p["key"] != "procedures" for p in plain["properties"])
+
+
+def test_a_how_do_i_question_reads_the_offices_procedures_end_to_end() -> None:
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Registrar", "fields": ["procedures"], "about": "request a transcript"}]})
+    result = answer(ScriptedGateway(ask, finish()), service=registrar_with_pages(), messages=[
+        {"role": "user", "content": "how do i get my transcript"}])
+    assert "Parchment" in result.body["answer"]
+    assert result.trace is not None
+    assert result.trace["lookups"][0]["arguments"]["about"] == "request a transcript"

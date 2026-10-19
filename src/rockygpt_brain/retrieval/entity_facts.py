@@ -37,6 +37,7 @@ MAX_TRIP_ROWS = 128
 RECORD_COLLECTIONS = {
     "dining_hours": MAX_DINING_ROWS, "menu": MAX_MENU_ROWS, "shuttle_trips": MAX_TRIP_ROWS,
     "menu_documents": 10, "menu_listings": 2, "shuttle_stops": 40, "campus_topics": 1,
+    "office_sections": 400,
 }
 # Entities a student can ask about by name: offices and dining venues. A route is not named by
 # students; it is read through the shuttle timetable.
@@ -1317,6 +1318,81 @@ def menu_property(
             [source])
 
 
+# What a student's words about a procedure are matched on: the content words, without question
+# and filler words. Plural s is dropped, as menu words do.
+_PROCEDURE_FILLER = frozenset(
+    "a an the and or of for to in on at by with from about into is are was be been do does did "
+    "can could would should will how what when where which who whom why i me my we our you your "
+    "it its this that these those there here get got need want please tell know find out office "
+    "ramapo college campus student students".split())
+# The sections a procedure answer gives, and the most of one section's text that is said.
+MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 3, 1800
+
+
+def _procedure_words(text: str) -> set[str]:
+    words = re.findall(r"[a-z0-9]+", text.casefold())
+    return {word[:-1] if len(word) > 3 and word.endswith("s") else word
+            for word in words if len(word) > 2 and word not in _PROCEDURE_FILLER}
+
+
+def procedures_property(
+    rows: Sequence[dict[str, Any]], now: datetime, about: str | None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """The sections of an office's own pages that speak to what the student wants to do.
+
+    Each linked row is one captured page of the office's site with its headed sections. A section
+    is scored by the student's content words found in its heading (three each) and its text (one
+    each); one with no word in its heading needs two in its text. The best few are said in the
+    page's own words, each citing its page. Nothing matching is `unknown`: the pages were read
+    and none speaks to it, which says nothing about whether the office does it."""
+    empty = {"key": "procedures", "label": "How-to and policies", "category": "procedures",
+             "status": "unknown", "values": [], "assertions": [], "pages_read": len(rows)}
+    wanted = _procedure_words(about or "")
+    if not rows or not wanted:
+        return empty, []
+    scored: list[tuple[int, int, int, dict[str, Any], dict[str, Any]]] = []
+    for row_index, row in enumerate(rows):
+        sections = row.get("sections")
+        if not isinstance(sections, list):
+            raise EvidenceUnavailable("An office page record has no sections.")
+        for index, section in enumerate(sections):
+            if not isinstance(section, dict):
+                continue
+            heading, text = clean(section.get("heading")), clean(section.get("text"))
+            if not isinstance(heading, str) or not isinstance(text, str) or not text:
+                continue
+            in_heading = wanted & _procedure_words(heading)
+            in_text = wanted & _procedure_words(text)
+            if not in_heading and len(in_text) < 2:
+                continue
+            score = 3 * len(in_heading) + len(in_text)
+            scored.append((-score, row_index, index, row, {"heading": heading, "text": text}))
+    if not scored:
+        return empty, []
+    picked = sorted(scored, key=lambda item: item[:3])[:MAX_PROCEDURES]
+    values: list[dict[str, Any]] = []
+    assertions: list[dict[str, Any]] = []
+    sources: dict[str, dict[str, Any]] = {}
+    for _, _, index, row, section in picked:
+        url = _url(row.get("url"))
+        source = sources.get(row["id"]) or _source(
+            {**row, "canonical_url": url, "valid_from": None, "valid_until": None}, now)
+        source.update(collection="office_sections", source_record_keys=[row["source_record_key"]],
+                      record_ids=[row["id"]])
+        sources[row["id"]] = source
+        value = {"heading": section["heading"], "page": url,
+                 "text": section["text"][:MAX_PROCEDURE_CHARS],
+                 **({"text_cut": True} if len(section["text"]) > MAX_PROCEDURE_CHARS else {})}
+        assertion = {"id": f"{source['id']}:procedures:{index}", "source_id": source["id"],
+                     "field": "procedures", "raw_value": {"section": index},
+                     "value": _json_safe(value), "caveats": []}
+        assertions.append(assertion)
+        values.append({"value": _json_safe(value), "assertion_ids": [assertion["id"]],
+                       "source_ids": [source["id"]]})
+    return ({**empty, "status": "known", "values": values, "assertions": assertions},
+            list(sources.values()))
+
+
 def menu_listing_absence(
     rows: Sequence[dict[str, Any]], now: datetime,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
@@ -1608,13 +1684,16 @@ class EntityFacts:
         on: date | None = None,
         meal: str | None = None,
         menu_query: dict[str, Any] | None = None,
+        about: str | None = None,
     ) -> dict[str, Any]:
         """The facts of one office or dining venue. `on` is the date a menu is asked for,
         `meal` the one meal of it, and `menu_query` the filters (diet, words, allergen) the
-        student's question puts on it."""
+        student's question puts on it; `about` is what the student wants to do, in their words,
+        for the sections of the office's own pages that speak to it (procedures)."""
         if fields is None:
-            # Every field an office or venue has on record; a menu is asked for by its date.
-            fields = tuple(field for field in OFFICE_FIELDS if field != "menu")
+            # Every field an office or venue has on record; a menu is asked for by its date, and
+            # procedures by what the student wants to do.
+            fields = tuple(field for field in OFFICE_FIELDS if field not in {"menu", "procedures"})
         if (
             not isinstance(entity_id, str)
             or not entity_id
@@ -1727,6 +1806,17 @@ class EntityFacts:
                 sources.extend(menu_sources)
                 properties = sorted(
                     [*properties, menu], key=lambda prop: list(selected).index(prop["key"]))
+            if "procedures" in selected:
+                pages = snapshot.record_reader(entity, "office_sections")
+                if len(pages) > RECORD_COLLECTIONS["office_sections"]:
+                    raise EvidenceUnavailable("Office page evidence exceeds the bounded read.")
+                if len(linked_rows(entity, pages, "office_sections")) != len(pages):
+                    raise EvidenceUnavailable(
+                        "An office page has no exact canonical identity link.")
+                procedures, page_sources = procedures_property(pages, now, about)
+                sources.extend(page_sources)
+                properties = sorted([*properties, procedures],
+                                    key=lambda prop: list(selected).index(prop["key"]))
             if "hours" in selected and venue:
                 hours, dining_sources = dining_property(dining_rows, now)
                 if hours["status"] == "unknown" and not dining_rows:

@@ -924,3 +924,18 @@ def test_naming_a_directory_without_ladybug_keeps_answering_from_postgres(
         engine = configured(monkeypatch, str(folder))
     assert isinstance(engine.facts, PostgresEntityFacts)  # A graph problem is not an outage.
     assert "brain_graph_store_not_installed" in caplog.text
+
+
+def test_an_offices_own_pages_survive_the_graph_and_answer_a_procedure_the_same(
+        folder: Path) -> None:
+    from test_engine import registrar_with_pages
+    memory = registrar_with_pages()
+    graph = GraphEntityFacts(build_release_graph(memory, folder), now=lambda: NOW)
+
+    def read(service: EntityFacts) -> dict[str, Any]:
+        return service.get_office_facts("registrar", ["procedures"], "release-1",
+                                        identity_hash="identities-1", as_of=NOW,
+                                        about="request a transcript")
+    expected = read(memory)
+    assert expected["properties"][0]["status"] == "known"
+    assert read(graph) == expected
