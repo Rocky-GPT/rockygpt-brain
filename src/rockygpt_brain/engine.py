@@ -180,7 +180,8 @@ a parking ticket", "what is the guest policy") is procedures of the office that 
 each of the up to three listed offices that could: set about to what the student wants to do or
 know in a few words, with the words a college page would use for it beside theirs ("drop a class
 after add/drop": withdraw from a course, drop a class); code reads the sections of that office's
-own pages that speak to it. This
+own pages that speak to it; an output with found_by is another office's pages, already read for
+it, so never look that office up again. This
 first slice cannot answer other campus facts or general essays: for events, advice,
 explanations and the offices of any other college, use unsupported and make no lookup.
 
