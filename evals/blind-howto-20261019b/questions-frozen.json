@@ -1,0 +1,497 @@
+[
+ {
+  "id": "k1-01",
+  "question": "how do i swap a class for a different section after the semester already started",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-02",
+  "question": "Is there free tutoring for math? How do I sign up and where do I go?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-03",
+  "question": "my dorm sink has been leaking for 3 days, how do i put in a maintenance request",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-04",
+  "question": "whats the last day to drop a class without getting a W",
+  "topic": "policy"
+ },
+ {
+  "id": "k1-05",
+  "question": "I'm going to miss a week of classes for a family funeral. How do I get my absences excused and who do I tell?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-06",
+  "question": "how do i join a club? is there like a list of them somewhere",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-07",
+  "question": "how many books can i check out from the library and for how long",
+  "topic": "policy"
+ },
+ {
+  "id": "k1-08",
+  "question": "who do i report it to if my roommate keeps having people over at 3am and it's not stopping",
+  "topic": "contact"
+ },
+ {
+  "id": "k1-09",
+  "question": "can i reserve a study room in the library? how",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-10",
+  "question": "do i have a hold on my account rn? it wont let me register",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k1-11",
+  "question": "how do I take a class pass/fail and does it count toward my gen eds",
+  "topic": "policy"
+ },
+ {
+  "id": "k1-12",
+  "question": "Someone has been harassing me in a group chat with people from my floor. How do I report it, and is it anonymous?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-13",
+  "question": "what happens if i fail a class freshman year, can i retake it and replace the grade",
+  "topic": "policy"
+ },
+ {
+  "id": "k1-14",
+  "question": "how to get a writing tutor to look at my essay before its due",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-15",
+  "question": "the heat in my room isnt working and its freezing, who do i call after hours",
+  "topic": "contact"
+ },
+ {
+  "id": "k1-16",
+  "question": "how do i change my advisor",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-17",
+  "question": "Can I overload and take 21 credits next semester? What do I need to do to get approved?",
+  "topic": "policy"
+ },
+ {
+  "id": "k1-18",
+  "question": "i want to start my own club, whats the process to get it officially recognized",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-19",
+  "question": "how do i print in the library and do i need to pay for it",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-20",
+  "question": "should i drop orgo or just try to push through? i have a 58 right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k1-21",
+  "question": "is there a policy on attendance like how many classes can u miss before it affects ur grade",
+  "topic": "policy"
+ },
+ {
+  "id": "k1-22",
+  "question": "how do I request a room change in housing and who do i email about it",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-23",
+  "question": "I got sick with the flu and missed my midterm. Can I make it up and do I need a doctors note?",
+  "topic": "policy"
+ },
+ {
+  "id": "k1-24",
+  "question": "is the writing center open right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k1-25",
+  "question": "how do i get extra time on tests? i have adhd",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-01",
+  "question": "how do i apply for graduation? im a senior planning to finish in may",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-02",
+  "question": "What's the deadline to file for graduation if I'm finishing in December, and who do I contact if I missed it?",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-03",
+  "question": "how do i get an official transcript sent to a grad school",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-04",
+  "question": "can i get credit for an internship? how does that work and who do i talk to",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-05",
+  "question": "I want to study abroad junior spring. What's the process to apply and when are applications due?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-06",
+  "question": "do my financial aid and scholarships transfer if i study abroad for a semester",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-07",
+  "question": "how do i renew my fafsa for next year",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-08",
+  "question": "whats the minimum gpa to keep my merit scholarship? and how many credits do i need per year",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-09",
+  "question": "how do I get into the honors program as a junior, is it too late?",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-10",
+  "question": "Who do I contact about doing undergrad research with a professor, and is there funding for summer research?",
+  "topic": "contact"
+ },
+ {
+  "id": "k2-11",
+  "question": "can career services review my resume? how do i book an appointment",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-12",
+  "question": "how do i request a letter of rec from a professor for grad school, is there like a form or do i just email them",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-13",
+  "question": "how do i get a degree audit to check if im on track to graduate",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-14",
+  "question": "Can I walk in the May commencement ceremony if I still have one class left over the summer?",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-15",
+  "question": "how do I get an enrollment verification letter for an internship that needs proof im a student",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-16",
+  "question": "whats the SAP policy for financial aid? like what happens if my gpa drops",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-17",
+  "question": "how do i apply for latin honors / graduating with honors, is it automatic or do i have to do something",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-18",
+  "question": "Can I take a class at another college over the summer and transfer the credits back? What do I need to do before I enroll there?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-19",
+  "question": "where is the career center and what are their hours",
+  "topic": "contact"
+ },
+ {
+  "id": "k2-20",
+  "question": "how do i add a minor before i graduate, whats the deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-21",
+  "question": "do internships through ramapo have to be paid? and does the school help find them or do i find my own",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-22",
+  "question": "how do i order my diploma or change the name on it",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-23",
+  "question": "am I on track to graduate in may? how many credits do i have left",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k2-24",
+  "question": "how much financial aid will i get next year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k2-25",
+  "question": "should i do study abroad or an internship senior year, which looks better for grad school",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k3-01",
+  "question": "how do i set up a payment plan for my tuition bill",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-02",
+  "question": "I got a refund from financial aid showing on my account but no money yet. how do refunds work and when do they usually come out? who do I call about it",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-03",
+  "question": "how do i waive the student health insurance? i'm already on my parents plan",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-04",
+  "question": "whats the deadline to waive the health insurance",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-05",
+  "question": "Can I change my meal plan after the semester already started?",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-06",
+  "question": "how do I request a room change? my roommate and I really don't get along and I want out asap",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-07",
+  "question": "what happens if i break my housing contract and move home mid semester, do i still have to pay",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-08",
+  "question": "how do i make an appt at the counseling center",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-09",
+  "question": "is counseling free for students or does it cost money",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-10",
+  "question": "I have ADHD and anxiety and I want to get extra time on exams. How do I register with the accessibility office and what documentation do I need?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-12",
+  "question": "who do i contact about a hold on my account from the bursar? cant register for classes",
+  "topic": "contact"
+ },
+ {
+  "id": "k3-13",
+  "question": "Is there a late fee if I pay my bill after the due date?",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-14",
+  "question": "how do i request housing accomodations for a medical condition, like a single room",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-15",
+  "question": "can i get my meal plan money back if i dont use all the swipes",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-16",
+  "question": "where is the health center and do I need an appointment or can I just walk in",
+  "topic": "contact"
+ },
+ {
+  "id": "k3-17",
+  "question": "if i drop a class do i get a refund for it? like what's the refund schedule",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-18",
+  "question": "I'm having a really hard time and I don't know who to talk to. is there someone I can talk to tonight, after hours?",
+  "topic": "contact"
+ },
+ {
+  "id": "k3-19",
+  "question": "how do i set up direct deposit for my refund",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-20",
+  "question": "should i get the bigger meal plan or the smaller one? which is better value",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k3-21",
+  "question": "can i cancel my housing for next year if i already signed up and paid the deposit? do i get the deposit back",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-22",
+  "question": "how do i get my professor to know about my accommodations, do i have to tell them myself or does the office send a letter",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-23",
+  "question": "who do i email about a charge on my bill i dont understand",
+  "topic": "contact"
+ },
+ {
+  "id": "k3-24",
+  "question": "is my room change request approved yet",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k3-25",
+  "question": "can commuters buy a meal plan and how do you sign up",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-01",
+  "question": "Im the treasurer for our student club, how do we reserve a room in the student center for a general body meeting and who approves it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-02",
+  "question": "how do I get reimbursed for snacks I bought out of pocket for a club event",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-03",
+  "question": "Our club wants to bring in an outside DJ for a party. Is there a policy on outside performers or vendors needing a contract or insurance?",
+  "topic": "policy"
+ },
+ {
+  "id": "k4-04",
+  "question": "can clubs sell food at a bake sale on campus or is there a rule against it",
+  "topic": "policy"
+ },
+ {
+  "id": "k4-05",
+  "question": "I'm a student worker and I forgot to submit my timesheet before the deadline. How do I fix it so I still get paid, and who do I talk to?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-06",
+  "question": "how do i set up direct deposit for my on campus job",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-07",
+  "question": "What paperwork do I need to fill out before I can start working as a student employee? I-9 stuff?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-08",
+  "question": "how many hours a week am I allowed to work as a student employee during the semester",
+  "topic": "policy"
+ },
+ {
+  "id": "k4-09",
+  "question": "Hi, I'm giving a guest lecture at Ramapo next month. Where should visitors park, and do I need a parking pass?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-10",
+  "question": "I'm a vendor delivering catering for an event in the Trustees Pavilion. Where's the loading area and who do I check in with?",
+  "topic": "contact"
+ },
+ {
+  "id": "k4-11",
+  "question": "how does an outside company become an approved vendor for the college, is there a form",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-12",
+  "question": "I live in Mahwah, can community members use the campus gym or pool? How do I sign up?",
+  "topic": "policy"
+ },
+ {
+  "id": "k4-13",
+  "question": "Our church group wants to rent a space on campus for a weekend retreat. Who handles outside rentals and how do we request it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-14",
+  "question": "are dogs allowed on campus if I'm walking the trails",
+  "topic": "policy"
+ },
+ {
+  "id": "k4-15",
+  "question": "Parent here. My daughter asked me to fill out the FAFSA parent part, but how do I give the college permission to talk to me about her financial aid? Is there a FERPA release form?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-16",
+  "question": "How do I set up a payment plan for my son's tuition and who should I call if I have questions about the bill",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-17",
+  "question": "how can a parent pay the tuition bill online if they dont have the students login",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-18",
+  "question": "What's the policy on tuition refunds if my kid withdraws mid semester?",
+  "topic": "policy"
+ },
+ {
+  "id": "k4-19",
+  "question": "we're a club wanting to post flyers around campus. do they need to be stamped/approved first and where do we bring them",
+  "topic": "policy"
+ },
+ {
+  "id": "k4-20",
+  "question": "Can our student org have an event with alcohol on campus if everyone attending is over 21? What's the process?",
+  "topic": "policy"
+ },
+ {
+  "id": "k4-21",
+  "question": "how do i request a shuttle or van for a club trip off campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-22",
+  "question": "I found a wallet after our event in the H wing. Where do I turn in lost and found items?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-23",
+  "question": "how much is left in our club's budget account right now?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k4-24",
+  "question": "Did my paycheck from the library job go through yet this week",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k4-25",
+  "question": "Should my son take out a private loan or a parent PLUS loan? which is better",
+  "topic": "out_of_scope"
+ }
+]
