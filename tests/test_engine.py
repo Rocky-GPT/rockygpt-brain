@@ -1646,9 +1646,12 @@ def test_rare_words_and_word_forms_pick_the_section_that_answers() -> None:
                 "freshness_sla_hours": 168, "content_hash": f"h{n}",
                 "sections": [{"heading": h, "text": t} for h, t in sections]}
     rows = [
-        page(1, [("Declare a major", "Use the add/drop form to add or drop a major or minor class."),
-                 ("Add/Drop for classes", "Add or drop a class during add/drop on Web Self-Service.")]),
-        page(2, [("Withdrawing from a Course", "After the add/drop period a withdrawal gets a W grade.")]),
+        page(1, [("Declare a major",
+                  "Use the add/drop form to add or drop a major or minor class."),
+                 ("Add/Drop for classes",
+                  "Add or drop a class during add/drop on Web Self-Service.")]),
+        page(2, [("Withdrawing from a Course",
+                  "After the add/drop period a withdrawal gets a W grade.")]),
         page(3, [("Class schedules", "The class schedule lists every class.")]),
     ]
     prop, _ = procedures_property(rows, NOW, "withdraw from a course, drop a class after add/drop")
