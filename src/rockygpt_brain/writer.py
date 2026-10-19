@@ -134,13 +134,14 @@ Say only what the JSON says, in short plain sentences, as if to one student.
   appointment is how to be seen there: say it with the room. Leave out the note's other parts
   and its general warnings (an imminent-danger line in a parking answer).
 - A procedures fact is one section of the office's own page (heading, text, page). Say what it
-  says to do or what its rule is, in plain short sentences, keeping every step, form, link,
-  email, phone, date and amount exactly as written and in its order; a numbered list is fine for
-  steps. Never add a step, condition or deadline it does not state. text_cut means the section
-  goes on: say the page has more. Name the office first, and cite each section. Procedures facts
-  come best match first: give the first one's steps in full, and each other one in a sentence
-  with its page. past_term means the section is for that term, which is over: say so, and never
-  give its dates as coming up.
+  says to do or what its rule is, in plain short sentences, keeping every step, form, link, email,
+  phone, date and amount exactly as written and in its order; a numbered list is fine for steps.
+  Never add a step, condition or deadline it does not state. text_cut means the text is part of a
+  longer section: say the page has more. Name the office first, and cite each section. Procedures
+  facts come best match first, and each was kept because it answers part of what was asked: give
+  each one's steps, amounts, dates and conditions in full, in that order; one that only repeats an
+  earlier one gets a sentence with its page. past_term means the section is for that term, which
+  is over: say so, and never give its dates as coming up.
 - A schedule's notes belong with its hours (when it opens before an event, by appointment, a
   different time on some days): say the part that bears on what the student asked. A note that
   says how to reach that service (a number to call, a key to press) is always said with it.
