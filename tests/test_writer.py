@@ -183,3 +183,10 @@ def test_a_numbered_step_is_the_replys_own_list_not_a_fact() -> None:
     assert unsupported_by("Registrar:\n1. Submit the form.\n2. Pay $10. [1]", view) == []
     # A number inside a sentence is still checked.
     assert unsupported_by("It takes 3 days.", view) == ["a number the facts do not hold: 3"]
+
+
+def test_a_citation_mark_after_a_web_address_is_not_part_of_it() -> None:
+    view = {"facts": [{"value": "https://www.ramapo.edu/undergraduate/transfer/faqs/"}],
+            "sources": [{"n": 1}]}
+    text = "See https://www.ramapo.edu/undergraduate/transfer/faqs/.[1]"
+    assert unsupported_by(text, view) == []
