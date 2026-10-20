@@ -1726,6 +1726,17 @@ def test_a_page_with_how_to_entries_offers_them_instead_of_its_sections() -> Non
              "howto_entries": [{"task": "Check which items are allowed", "section": "Allowed items",
                                 "steps": [{"text": "Fish tanks up to 10 gallons are allowed.",
                                            "quote": "Fish tanks up to 10 gallons are allowed"}]}]}
+    # A long list without sentence ends is read in pieces: the piece naming the item is said.
+    banned = "Items not allowed: " + " ".join(f"item number {n}" for n in range(200)) + (
+        " Bed risers and lofted furniture of any kind "
+        + " ".join(f"thing {n}" for n in range(200)))
+    risers = {**listed, "sections": [{"heading": "Prohibited", "text": banned}],
+              "howto_entries": [{"task": "Check which items you may not bring",
+                                 "section": "Prohibited",
+                                 "steps": [{"text": "Some items are not allowed.",
+                                            "quote": "Items not allowed"}]}]}
+    lofted, _ = procedures_property([risers], NOW, "bring bed risers lofted bed")
+    assert "Bed risers and lofted furniture" in lofted["values"][0]["value"]["page_words"]
     microwave, _ = procedures_property([items], NOW, "bring a microwave items allowed")
     assert "Microwaves other than the College's are banned." in (
         microwave["values"][0]["value"]["page_words"])

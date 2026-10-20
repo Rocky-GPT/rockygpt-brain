@@ -1374,8 +1374,18 @@ def _passage(text: str, wanted: set[str], weight: dict[str, float], limit: int) 
     if len(text) <= limit:
         return text
     starts = [0, *(m.end() for m in re.finditer(r"(?<=[.?!])\s+", text))]
-    spans = list(zip(starts, [*starts[1:], len(text)], strict=True))
-    scores = [sum(weight.get(w, 0.0) for w in wanted & _procedure_words(text[a:b]))
+    spans: list[tuple[int, int]] = []
+    # A list run together without sentence ends (a prohibited-items list) is read in pieces of
+    # about 300 characters, so the piece that names the asked item can be the one said.
+    for start, end in zip(starts, [*starts[1:], len(text)], strict=True):
+        while end - start > 400:
+            cut = text.rfind(" ", start + 200, start + 300)
+            cut = cut if cut > start else start + 300
+            spans.append((start, cut + 1))
+            start = cut + 1
+        spans.append((start, end))
+    # An asked word no listed entry or heading has (only the page's own text) still counts.
+    scores = [sum(weight.get(w, 1.0) for w in wanted & _procedure_words(text[a:b]))
               for a, b in spans]
     best = max(range(len(spans)), key=lambda i: (scores[i], -i))
     if scores[best] == 0 or spans[best][1] <= limit:
@@ -1397,7 +1407,8 @@ def _section_words(row: dict[str, Any], heading: str, text: str) -> tuple[set[st
             _procedure_words(text))
 
 
-def _procedure_units(row: dict[str, Any]) -> list[tuple[str, dict[str, Any], set[str], set[str]]]:
+def _procedure_units(row: dict[str, Any], *, sections_only: bool = False,
+                     ) -> list[tuple[str, dict[str, Any], set[str], set[str]]]:
     """What a page offers a how-to read: its how-to entries when publish listed some (a task in
     plain words, who it is for, the office the page says handles it, its term and its steps, each
     held to the page's words), else its headed sections. Each comes with its key in the page, and
@@ -1407,7 +1418,7 @@ def _procedure_units(row: dict[str, Any]) -> list[tuple[str, dict[str, Any], set
         raise EvidenceUnavailable("An office page record has no sections.")
     entries = row.get("howto_entries")
     units: list[tuple[str, dict[str, Any], set[str], set[str]]] = []
-    if isinstance(entries, list) and entries:
+    if isinstance(entries, list) and entries and not sections_only:
         for index, entry in enumerate(entries):
             if not isinstance(entry, dict) or not isinstance(entry.get("steps"), list):
                 continue
@@ -1462,7 +1473,13 @@ def procedures_property(
         return empty, []
     found: list[tuple[int, str, dict[str, Any], dict[str, Any], set[str], set[str]]] = []
     for row_index, row in enumerate(rows):
-        for index, unit, top, body in _procedure_units(row):
+        units = _procedure_units(row)
+        # A page whose listed entries share none of the asked words offers its own sections: the
+        # asked rule can be in a list no entry was written for (bed risers in prohibited items).
+        if units and units[0][0].startswith("e") and not any(
+                wanted & top or len(wanted & body) >= 2 for _, _, top, body in units):
+            units = _procedure_units(row, sections_only=True)
+        for index, unit, top, body in units:
             found.append((row_index, index, row, unit, top, body))
     # How many of the office's sections each asked word is in: a rare word tells sections apart.
     seen = {word: sum(1 for *_, top, body in found if word in top or word in body)
