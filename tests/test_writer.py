@@ -190,3 +190,26 @@ def test_a_citation_mark_after_a_web_address_is_not_part_of_it() -> None:
             "sources": [{"n": 1}]}
     text = "See https://www.ramapo.edu/undergraduate/transfer/faqs/.[1]"
     assert unsupported_by(text, view) == []
+
+
+def test_a_turn_that_used_every_call_still_gets_its_writer() -> None:
+    from rockygpt_brain.provider import TurnBudget
+
+    class Counting(ScriptedGateway):
+        """Counts calls against the turn's limit, as the real gateway does."""
+
+        async def complete(self, *, input: list[dict[str, Any]], tools: list[dict[str, Any]],
+                           budget: TurnBudget) -> Completion:
+            if budget.calls >= budget.max_calls:
+                raise GatewayError("turn_limit")
+            budget.calls += 1
+            return await super().complete(input=input, tools=tools, budget=budget)
+
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "What is the Registrar email?"}]})
+    # Four lookup rounds and the finish use all five calls; the writer is a sixth.
+    steps = [LOOKUP, LOOKUP, LOOKUP, LOOKUP, finish(),
+             writing("The Registrar's email is published@example.edu [1].")]
+    engine = ChatEngine(Counting(*steps), facts(), output="written")  # type: ignore[arg-type]
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    assert result.trace is not None and result.trace["writer"] == {"used": True}

@@ -2277,6 +2277,9 @@ class ChatEngine:
             return keep("no_view")
         if packet.get("status") == "emergency" or not says_something(view):
             return keep("nothing_to_write")
+        # The writer's one call is its own: lookups that used the turn's calls leave it one more
+        # (the cost limit still holds), so a long how-to turn is still written, not the code's text.
+        budget.max_calls = max(budget.max_calls, budget.calls + 1)
         with measure("Write the answer from the facts"):
             try:
                 completion = await self.gateway.complete(
