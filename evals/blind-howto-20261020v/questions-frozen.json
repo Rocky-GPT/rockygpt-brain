@@ -1,0 +1,502 @@
+[
+ {
+  "id": "v1-01",
+  "question": "i got a letter saying theres a hold on my account and i cant register for classes. what do i do and who do i talk to",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-02",
+  "question": "my car got a ticket on campus last night but i was parked in the lot my friend said was ok. how do i fight it",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-03",
+  "question": "I'm failing two classes and i think i should just stop going to them but I don't want to mess up my financial aid. what's the right way to leave a class",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-04",
+  "question": "my roommate is making my life miserable, never cleans, has people over all night. can i move out of my room?",
+  "topic": "policy"
+ },
+ {
+  "id": "v1-05",
+  "question": "I have ADHD and anxiety and I need more time on tests. Where do I even start",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-06",
+  "question": "lost my wallet w/ my student card in it",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-07",
+  "question": "I started as undeclared but now I know I want to do nursing instead of biology. how do I switch and does it take a long time",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-08",
+  "question": "my parents are paying part of tuition but they dont make enough for me to get as much aid as i need anymore, their income changed. is there anything i can do",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-09",
+  "question": "Can my boyfriend from another school sleep over in my dorm on weekends? how many nights",
+  "topic": "policy"
+ },
+ {
+  "id": "v1-10",
+  "question": "i need proof i was enrolled last semester for my insurance company, how do i get that",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-11",
+  "question": "Our club wants to hold a bake sale and a concert in the student center. what do we have to do first and who approves it",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-12",
+  "question": "somebody keeps sending me creepy messages on instagram and i think its another student. who can i report that to",
+  "topic": "contact"
+ },
+ {
+  "id": "v1-13",
+  "question": "im a commuter and i got stuck in a snowstorm, how do i know if classes are canceled",
+  "topic": "policy"
+ },
+ {
+  "id": "v1-14",
+  "question": "I was in the hospital for 2 weeks and missed a ton of class. professors are saying nothing can be done. is there a way to get the semester excused or withdraw without failing",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-15",
+  "question": "i took classes at my community college over the summer how do i make sure they count here",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-16",
+  "question": "whats my gpa right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v1-17",
+  "question": "i feel really overwhelmed lately and cant sleep, is there someone on campus i can talk to and does it cost money",
+  "topic": "contact"
+ },
+ {
+  "id": "v1-18",
+  "question": "My laptop screen cracked and i cant afford to fix it, any program that helps with that? also where can i print stuff meanwhile",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-19",
+  "question": "how do i get my diploma mailed to me, i graduated in may but moved",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-20",
+  "question": "I want to do a semester abroad next year but my major is pretty packed. how do I figure out if its possible and who to ask",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-21",
+  "question": "will i get my financial aid refund before the semester starts? i need it for books",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v1-22",
+  "question": "I work 30 hrs a week off campus and need to find a job on campus instead bc my car broke. how does that work",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-23",
+  "question": "i have a service dog, can he live with me in the dorms? do i have to tell anyone",
+  "topic": "policy"
+ },
+ {
+  "id": "v1-24",
+  "question": "my professor gave me a C but i think he graded my final wrong, i showed my work and everything. what can i do abt that",
+  "topic": "procedure"
+ },
+ {
+  "id": "v1-25",
+  "question": "which dining plan should I buy if I eat like 2 meals a day",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v2-01",
+  "question": "I'm transferring from NJCU with 54 credits. How do I find out which of my credits will actually count at Ramapo?",
+  "topic": "procedure"
+ },
+ {
+  "id": "v2-02",
+  "question": "how do i send my community college transcript to ramapo and who do i email if it never shows up",
+  "topic": "procedure"
+ },
+ {
+  "id": "v2-03",
+  "question": "I stopped going in 2017 and want to come back. Do I have to reapply or is there a readmission process?",
+  "topic": "procedure"
+ },
+ {
+  "id": "v2-04",
+  "question": "I'm a veteran using the GI Bill. Who do I talk to at Ramapo to get my benefits certified?",
+  "topic": "contact"
+ },
+ {
+  "id": "v2-05",
+  "question": "does ramapo have a yellow ribbon program",
+  "topic": "policy"
+ },
+ {
+  "id": "v2-06",
+  "question": "I'm 34 with two kids and work full time. Are there evening or online classes, and how do I register for them?",
+  "topic": "procedure"
+ },
+ {
+  "id": "v2-07",
+  "question": "is there a deadline to apply as a transfer student for spring",
+  "topic": "policy"
+ },
+ {
+  "id": "v2-08",
+  "question": "Can I get credit for my military training or work experience? How would I go about asking?",
+  "topic": "procedure"
+ },
+ {
+  "id": "v2-09",
+  "question": "what is the policy on transfer credits from a school that wasnt regionally accredited",
+  "topic": "policy"
+ },
+ {
+  "id": "v2-10",
+  "question": "I got dismissed for bad grades years ago. What's the process to petition to come back, and who reviews it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "v2-11",
+  "question": "how do I get a parking permit as a commuter student who only comes 2 nights a week",
+  "topic": "procedure"
+ },
+ {
+  "id": "v2-12",
+  "question": "Is there childcare on campus or any help for student parents?",
+  "topic": "policy"
+ },
+ {
+  "id": "v2-13",
+  "question": "how do i apply for fin aid again after being away for 6 years, do i need to do the FAFSA again",
+  "topic": "procedure"
+ },
+ {
+  "id": "v2-14",
+  "question": "who is my advisor going to be as a new transfer and how do i meet with them",
+  "topic": "contact"
+ },
+ {
+  "id": "v2-15",
+  "question": "I'm a veteran and I need to withdraw from a class because I got deployed for training. What happens to my benefits and my grade?",
+  "topic": "policy"
+ },
+ {
+  "id": "v2-16",
+  "question": "whats the max number of credits i can transfer in from another college",
+  "topic": "policy"
+ },
+ {
+  "id": "v2-17",
+  "question": "I want to take just one class without being a full degree student. Is that possible and how do I sign up?",
+  "topic": "procedure"
+ },
+ {
+  "id": "v2-18",
+  "question": "how to get my old ramapo transcript, I left in 2010 and my name has changed since",
+  "topic": "procedure"
+ },
+ {
+  "id": "v2-19",
+  "question": "Do transfer students have to live on campus? I'm 28 and would rather not",
+  "topic": "policy"
+ },
+ {
+  "id": "v2-20",
+  "question": "Where do I go for tutoring or writing help when I've been out of school forever and feel lost, and do I need an appointment?",
+  "topic": "contact"
+ },
+ {
+  "id": "v2-21",
+  "question": "will my 2 year degree from Bergen cover gen ed requirements here",
+  "topic": "policy"
+ },
+ {
+  "id": "v2-22",
+  "question": "how many of my credits from Rutgers will transfer, and what will my GPA be?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v2-23",
+  "question": "What's my balance on my student account and when is my payment due?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v2-24",
+  "question": "Is Ramapo better than Montclair State for adult learners? Which one should I pick?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v2-25",
+  "question": "How do I apply for the transfer scholarship, and who do I contact if I have a disability and need accommodations for my classes?",
+  "topic": "procedure"
+ },
+ {
+  "id": "v3-01",
+  "question": "How do I submit a maintenance request for my dorm room? The heater is making a loud banging noise",
+  "topic": "procedure"
+ },
+ {
+  "id": "v3-02",
+  "question": "can my boyfriend stay overnight in my room? my roommate says its fine but is it actually allowed",
+  "topic": "policy"
+ },
+ {
+  "id": "v3-03",
+  "question": "How do I request a room change if my roommate and I aren't getting along, and who in Residence Life do I talk to first?",
+  "topic": "contact"
+ },
+ {
+  "id": "v3-04",
+  "question": "whats the process to switch roommates",
+  "topic": "procedure"
+ },
+ {
+  "id": "v3-05",
+  "question": "I locked myself out of my room at 2am. What do I do?",
+  "topic": "procedure"
+ },
+ {
+  "id": "v3-06",
+  "question": "Can I have a mini fridge or microwave in my dorm?",
+  "topic": "policy"
+ },
+ {
+  "id": "v3-07",
+  "question": "how do i get an emotional support animal approved for housing",
+  "topic": "procedure"
+ },
+ {
+  "id": "v3-08",
+  "question": "What is the campus policy on candles and incense in residence halls",
+  "topic": "policy"
+ },
+ {
+  "id": "v3-09",
+  "question": "Who do I call for campus safety emergencies vs non emergencies? Also is there an escort service at night?",
+  "topic": "contact"
+ },
+ {
+  "id": "v3-10",
+  "question": "how do i report a noise complaint about the people next door",
+  "topic": "procedure"
+ },
+ {
+  "id": "v3-11",
+  "question": "I want to move off campus mid semester, how do I cancel my housing contract and will I get charged?",
+  "topic": "procedure"
+ },
+ {
+  "id": "v3-12",
+  "question": "what do i do if i find mold in my room",
+  "topic": "procedure"
+ },
+ {
+  "id": "v3-13",
+  "question": "Is there a quiet hours policy and what are the times?",
+  "topic": "policy"
+ },
+ {
+  "id": "v3-14",
+  "question": "How do I sign up for housing for next year and when is the deadline?",
+  "topic": "procedure"
+ },
+ {
+  "id": "v3-15",
+  "question": "my keycard stopped working for my building, how do i get a new one and does it cost anything",
+  "topic": "procedure"
+ },
+ {
+  "id": "v3-16",
+  "question": "Can I paint my walls or hang stuff with nails in my apartment?",
+  "topic": "policy"
+ },
+ {
+  "id": "v3-17",
+  "question": "how do I stay on campus during winter break",
+  "topic": "procedure"
+ },
+ {
+  "id": "v3-18",
+  "question": "Someone stole my laptop from my room. How do I file a report with campus safety and who should I tell in housing?",
+  "topic": "contact"
+ },
+ {
+  "id": "v3-19",
+  "question": "how do i get my package from the mail room, it says its been delivered but i never got a notice",
+  "topic": "procedure"
+ },
+ {
+  "id": "v3-20",
+  "question": "What's the policy on alcohol in the dorms if I'm over 21 but my roommate isn't?",
+  "topic": "policy"
+ },
+ {
+  "id": "v3-21",
+  "question": "is there a way to get a single room? how do i apply",
+  "topic": "procedure"
+ },
+ {
+  "id": "v3-22",
+  "question": "How do I request housing accommodations for a disability like a first floor room or an accessible bathroom?",
+  "topic": "procedure"
+ },
+ {
+  "id": "v3-23",
+  "question": "Which dorm has the best rooms for sophomores and how much is the rent going to go up?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v3-24",
+  "question": "is my maintenance request I put in yesterday done yet? nobody came",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v3-25",
+  "question": "Can you tell me if my roommate and I are going to be placed together next semester? I already submitted the form",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v4-01",
+  "question": "how do i apply for financial aid at ramapo",
+  "topic": "procedure"
+ },
+ {
+  "id": "v4-02",
+  "question": "When is the FAFSA deadline for Ramapo and who do I talk to if I'm missing a document?",
+  "topic": "contact"
+ },
+ {
+  "id": "v4-03",
+  "question": "how do I pay my tuition bill online",
+  "topic": "procedure"
+ },
+ {
+  "id": "v4-04",
+  "question": "is there a payment plan so i dont have to pay everything at once",
+  "topic": "policy"
+ },
+ {
+  "id": "v4-05",
+  "question": "I want a work study job on campus, how do I find one and apply?",
+  "topic": "procedure"
+ },
+ {
+  "id": "v4-06",
+  "question": "how do i get paid for my on campus job, direct deposit?? what forms do i need",
+  "topic": "procedure"
+ },
+ {
+  "id": "v4-07",
+  "question": "what is the refund policy if I withdraw from all my classes",
+  "topic": "policy"
+ },
+ {
+  "id": "v4-08",
+  "question": "how do i appeal my financial aid package if my family's income changed",
+  "topic": "procedure"
+ },
+ {
+  "id": "v4-09",
+  "question": "whats the satisfactory academic progress rule for keeping my aid",
+  "topic": "policy"
+ },
+ {
+  "id": "v4-10",
+  "question": "my refund hasnt come yet, who do i contact about it",
+  "topic": "contact"
+ },
+ {
+  "id": "v4-11",
+  "question": "How do I apply for a scholarship through the college and are there any that need a separate application?",
+  "topic": "procedure"
+ },
+ {
+  "id": "v4-12",
+  "question": "can i use my financial aid to buy books at the bookstore before classes start",
+  "topic": "policy"
+ },
+ {
+  "id": "v4-13",
+  "question": "how do i set up my parent to pay my bill (authorized payer)",
+  "topic": "procedure"
+ },
+ {
+  "id": "v4-14",
+  "question": "what happens if I dont pay my balance by the deadline, will I get dropped from classes",
+  "topic": "policy"
+ },
+ {
+  "id": "v4-15",
+  "question": "how to get a 1098-T tax form",
+  "topic": "procedure"
+ },
+ {
+  "id": "v4-16",
+  "question": "how do i accept or decline my loans on my aid offer",
+  "topic": "procedure"
+ },
+ {
+  "id": "v4-17",
+  "question": "Who do I email about student employment questions like my hours and timesheet approvals?",
+  "topic": "contact"
+ },
+ {
+  "id": "v4-18",
+  "question": "is there emergency money or a fund for students who cant afford food or rent right now",
+  "topic": "policy"
+ },
+ {
+  "id": "v4-19",
+  "question": "how do i get verified, financial aid said they selected me for verification",
+  "topic": "procedure"
+ },
+ {
+  "id": "v4-20",
+  "question": "can international students work on campus and how do they get paid",
+  "topic": "policy"
+ },
+ {
+  "id": "v4-21",
+  "question": "What's my current balance and do I owe anything this semester?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v4-22",
+  "question": "how much will I get in financial aid next year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v4-23",
+  "question": "Should I take out a private loan or just work more hours, which is smarter?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "v4-24",
+  "question": "how do I get my aid to cover study abroad costs and who is the person to ask",
+  "topic": "contact"
+ },
+ {
+  "id": "v4-25",
+  "question": "do i need to reapply for fin aid every yr or does it renew automatically",
+  "topic": "policy"
+ }
+]
