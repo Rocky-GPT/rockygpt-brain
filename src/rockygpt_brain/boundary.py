@@ -108,8 +108,10 @@ _DANGER: dict[str, list[re.Pattern[str]]] = {
         "medical": (
             r"\b(not|isnt|arent|stopped|stop|cant|cannot|wont|hardly|barely) breath(e|ing)\b",
             r"\b(trouble|difficulty) breathing\b|\bunable to breathe\b",
+            # Not answering messages ("won't respond to my emails") is not a person who can't.
             r"\b(wont|cant|couldnt|cannot|not|isnt|barely) (wake|waking|respond|responding|moving|"
-            r"responsive|conscious)\b",
+            r"responsive|conscious)\b(?! to (my|our|any|the|his|her|their)? ?(emails?|e mails?|"
+            r"texts?|messages?|calls?|dms?|voicemails?)\b)",
             r"\b(unconscious|unresponsive|passed out|blacked out|collapsed|fainted|choking|"
             r"heart attack|having a stroke|chest pain)\b",
             rf"\bseizure{_NOT_A_HAZARD}",

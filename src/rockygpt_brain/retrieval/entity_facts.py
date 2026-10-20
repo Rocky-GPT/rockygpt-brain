@@ -1338,16 +1338,21 @@ _TERM = re.compile(r"\b(Winter|Spring|Summer|Fall)\s+(20\d\d)\b")
 _TERM_ENDS = {"Winter": (1, 31), "Spring": (5, 31), "Summer": (8, 31), "Fall": (12, 31)}
 
 
+# An academic year ("2025-2026", "2025-26") ends with its summer, on August 31 of its second year.
+_ACADEMIC_YEAR = re.compile(r"\b(20\d\d)\s*[-–/]\s*(?:20)?(\d\d)\b")
+
+
 def past_term(text: str, today: date) -> str | None:
-    """The latest term a text names, when every term it names has ended by today; else None."""
-    terms = [(int(year), season) for season, year in _TERM.findall(text)]
-    if not terms:
+    """The latest term or academic year a text names, when every one it names has ended by today;
+    else None."""
+    named = [(date(int(year), *_TERM_ENDS[season]), f"{season} {year}")
+             for season, year in _TERM.findall(text)]
+    for first, second in _ACADEMIC_YEAR.findall(text):
+        if int(second) == (int(first) + 1) % 100:
+            named.append((date(int(first) + 1, 8, 31), f"{first}-{int(first) + 1}"))
+    if not named or max(end for end, _ in named) >= today:
         return None
-    ends = [date(year, *_TERM_ENDS[season]) for year, season in terms]
-    if max(ends) >= today:
-        return None
-    year, season = max(terms, key=lambda t: date(t[0], *_TERM_ENDS[t[1]]))
-    return f"{season} {year}"
+    return max(named)[1]
 
 
 def _procedure_words(text: str) -> set[str]:
