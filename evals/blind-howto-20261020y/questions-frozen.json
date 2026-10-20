@@ -1,0 +1,487 @@
+[
+ {
+  "id": "y1-01",
+  "question": "Do commuter students have to buy a meal plan? I'm a transfer and live at home",
+  "topic": "policy"
+ },
+ {
+  "id": "y1-02",
+  "question": "can freshmen bring a car on campus if they live in the dorms",
+  "topic": "policy"
+ },
+ {
+  "id": "y1-03",
+  "question": "How do I get a commuter parking permit and who do I contact if the website won't let me register?",
+  "topic": "procedure"
+ },
+ {
+  "id": "y1-04",
+  "question": "whats the difference between how grad students and undergrads apply for graduation",
+  "topic": "procedure"
+ },
+ {
+  "id": "y1-05",
+  "question": "Do part-time students qualify for financial aid or only full time?",
+  "topic": "policy"
+ },
+ {
+  "id": "y1-06",
+  "question": "im a grad student, how many credits do i need to be considered full time",
+  "topic": "policy"
+ },
+ {
+  "id": "y1-07",
+  "question": "Can commuters use the residence hall laundry rooms?",
+  "topic": "policy"
+ },
+ {
+  "id": "y1-08",
+  "question": "How do I request to move out of my dorm room mid semester and who handles that",
+  "topic": "procedure"
+ },
+ {
+  "id": "y1-09",
+  "question": "Is there a place for commuters to store stuff or hang out between classes",
+  "topic": "policy"
+ },
+ {
+  "id": "y1-10",
+  "question": "do graduate students have to follow the same academic integrity policy as undergrads",
+  "topic": "policy"
+ },
+ {
+  "id": "y1-11",
+  "question": "how do i get on the waitlist for on campus housing if i currently commute",
+  "topic": "procedure"
+ },
+ {
+  "id": "y1-12",
+  "question": "Are residents allowed to have pets or only fish? Also is an emotional support animal handled differently?",
+  "topic": "policy"
+ },
+ {
+  "id": "y1-13",
+  "question": "Can part time undergrads register for classes at the same time as full time or is there a different registration date",
+  "topic": "policy"
+ },
+ {
+  "id": "y1-14",
+  "question": "do commuters get a locker anywhere",
+  "topic": "policy"
+ },
+ {
+  "id": "y1-15",
+  "question": "How do graduate students pay tuition vs undergrads, do they get billed differently?",
+  "topic": "procedure"
+ },
+ {
+  "id": "y1-16",
+  "question": "Can I have my boyfriend, who is a commuter, stay overnight in my dorm? what are the guest rules",
+  "topic": "policy"
+ },
+ {
+  "id": "y1-17",
+  "question": "whats the max number of credits a part time student can take b4 they get charged as full time",
+  "topic": "policy"
+ },
+ {
+  "id": "y1-18",
+  "question": "I'm a grad student living off campus. Can I still use the gym and health center and who do I ask about fees?",
+  "topic": "contact"
+ },
+ {
+  "id": "y1-19",
+  "question": "How do I switch from commuter to resident for next semester, what forms do I need",
+  "topic": "procedure"
+ },
+ {
+  "id": "y1-20",
+  "question": "who do i email about the graduate assistantship vs undergrad work study",
+  "topic": "contact"
+ },
+ {
+  "id": "y1-21",
+  "question": "Do residents have to leave over winter break or can we stay in the dorms?",
+  "topic": "policy"
+ },
+ {
+  "id": "y1-22",
+  "question": "How much is the commuter parking permit this year vs the resident one?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "y1-23",
+  "question": "Which is cheaper for me, living on campus or commuting from Paramus? I'm an undergrad",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "y1-24",
+  "question": "what's my current balance and am I still classified as a full time student",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "y1-25",
+  "question": "can part-time students be resident assistants or is that only for full-time undergrads? how do I apply",
+  "topic": "procedure"
+ },
+ {
+  "id": "y2-01",
+  "question": "how do i get a refund if i dropped a class after paying tuition",
+  "topic": "procedure"
+ },
+ {
+  "id": "y2-02",
+  "question": "I got a parking ticket and I think its unfair. how do I appeal it and who do I talk to about the fine?",
+  "topic": "procedure"
+ },
+ {
+  "id": "y2-03",
+  "question": "whats the late fee for paying my bill after the deadline",
+  "topic": "policy"
+ },
+ {
+  "id": "y2-04",
+  "question": "how do I get my housing deposit back",
+  "topic": "procedure"
+ },
+ {
+  "id": "y2-05",
+  "question": "when will my refund show up",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "y2-06",
+  "question": "I overpaid my student account, how do I request the money back? Is it a check or direct deposit and who do I contact?",
+  "topic": "procedure"
+ },
+ {
+  "id": "y2-07",
+  "question": "library fine for overdue book, how do i pay or get it waived",
+  "topic": "procedure"
+ },
+ {
+  "id": "y2-08",
+  "question": "how do I get reimbursed for something I bought for my club",
+  "topic": "procedure"
+ },
+ {
+  "id": "y2-09",
+  "question": "what is the refund policy for meal plans if i move off campus mid semester",
+  "topic": "policy"
+ },
+ {
+  "id": "y2-10",
+  "question": "financial aid refund direct deposit setup??",
+  "topic": "procedure"
+ },
+ {
+  "id": "y2-11",
+  "question": "do i get charged for a damaged room when i move out and how do i dispute the charge",
+  "topic": "policy"
+ },
+ {
+  "id": "y2-13",
+  "question": "who do i email about a charge on my bursar bill i dont recognize",
+  "topic": "contact"
+ },
+ {
+  "id": "y2-14",
+  "question": "can I set up a payment plan for tuition and how",
+  "topic": "procedure"
+ },
+ {
+  "id": "y2-15",
+  "question": "I withdrew from the semester. do i get my tuition back and whats the deadline for a full refund",
+  "topic": "policy"
+ },
+ {
+  "id": "y2-16",
+  "question": "how do i get my parking permit money back if i sold my car",
+  "topic": "procedure"
+ },
+ {
+  "id": "y2-17",
+  "question": "lost my ID card, is there a fee for a replacement and where do I go",
+  "topic": "procedure"
+ },
+ {
+  "id": "y2-18",
+  "question": "what happens if i dont pay my balance, will they put a hold on my registration",
+  "topic": "policy"
+ },
+ {
+  "id": "y2-19",
+  "question": "i got charged a lab fee but im not in a lab course. how do i fix that",
+  "topic": "procedure"
+ },
+ {
+  "id": "y2-20",
+  "question": "Is the application fee refundable if I decide not to attend? And who handles that?",
+  "topic": "policy"
+ },
+ {
+  "id": "y2-21",
+  "question": "how to get a w-2 or 1098-t for taxes tuition",
+  "topic": "procedure"
+ },
+ {
+  "id": "y2-22",
+  "question": "my scholarship was supposed to cover my bill but I'm still being charged, what do I do",
+  "topic": "procedure"
+ },
+ {
+  "id": "y2-23",
+  "question": "should I use my refund to pay off my loans or save it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "y2-24",
+  "question": "bursar office hours and phone number",
+  "topic": "contact"
+ },
+ {
+  "id": "y2-25",
+  "question": "how do I get reimbursed for a campus job expense like mileage or supplies i paid for out of pocket",
+  "topic": "procedure"
+ },
+ {
+  "id": "y3-01",
+  "question": "how do i get my student ID card? i'm a freshman and never got one",
+  "topic": "procedure"
+ },
+ {
+  "id": "y3-02",
+  "question": "Hi, I'm new here and I'm confused about how to register for classes for next semester. What are the steps and who do I talk to if I get a hold on my account?",
+  "topic": "procedure"
+ },
+ {
+  "id": "y3-04",
+  "question": "how do i drop a class",
+  "topic": "procedure"
+ },
+ {
+  "id": "y3-05",
+  "question": "whos my advisor and how do i meet with them",
+  "topic": "contact"
+ },
+ {
+  "id": "y3-06",
+  "question": "I lost my ID card, how do I get a replacement and does it cost anything?",
+  "topic": "procedure"
+ },
+ {
+  "id": "y3-07",
+  "question": "how do i get a parking pass for freshman year? do first years even get to have cars",
+  "topic": "policy"
+ },
+ {
+  "id": "y3-08",
+  "question": "what is the deadline to withdraw from a class without it showing on my transcript",
+  "topic": "policy"
+ },
+ {
+  "id": "y3-09",
+  "question": "how do i set up my ramapo email and wifi on my phone",
+  "topic": "procedure"
+ },
+ {
+  "id": "y3-10",
+  "question": "i think i might wanna switch my major, how does that work",
+  "topic": "procedure"
+ },
+ {
+  "id": "y3-11",
+  "question": "Where do I go if my laptop wont connect to the campus wifi in my room? Who do I call?",
+  "topic": "contact"
+ },
+ {
+  "id": "y3-12",
+  "question": "do i have to have a meal plan if i live on campus",
+  "topic": "policy"
+ },
+ {
+  "id": "y3-13",
+  "question": "how do I get a tutor for my chem class",
+  "topic": "procedure"
+ },
+ {
+  "id": "y3-14",
+  "question": "is there a way to get a room change if my roommate and I dont get along? who do I email about it",
+  "topic": "procedure"
+ },
+ {
+  "id": "y3-15",
+  "question": "how do i apply for fin aid again for next year, do i have to redo the FAFSA",
+  "topic": "procedure"
+ },
+ {
+  "id": "y3-16",
+  "question": "can I bring a mini fridge and a microwave to my dorm",
+  "topic": "policy"
+ },
+ {
+  "id": "y3-17",
+  "question": "What do I do if I have a disability and need extra time on exams? Where do I start?",
+  "topic": "procedure"
+ },
+ {
+  "id": "y3-18",
+  "question": "how do i get a transcript sent to another school",
+  "topic": "procedure"
+ },
+ {
+  "id": "y3-19",
+  "question": "found a wallet in the library where do i turn it in",
+  "topic": "procedure"
+ },
+ {
+  "id": "y3-20",
+  "question": "how do I join a club or start my own",
+  "topic": "procedure"
+ },
+ {
+  "id": "y3-21",
+  "question": "whats my current balance on my student account",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "y3-22",
+  "question": "what grade do I need to keep my scholarship? and what happens if I fall below it",
+  "topic": "policy"
+ },
+ {
+  "id": "y3-24",
+  "question": "which professor should i take for intro to psych, i heard some are really hard",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "y3-25",
+  "question": "I'm feeling really overwhelmed and homesick my first semester. how do I make an appointment with counseling and is it free?",
+  "topic": "contact"
+ },
+ {
+  "id": "y4-01",
+  "question": "how do i apply to graduate? i'm a senior and have no idea what the deadline or steps are",
+  "topic": "procedure"
+ },
+ {
+  "id": "y4-02",
+  "question": "Who do I contact to find out if I'm actually on track to graduate in May? I think I might be missing a gen ed",
+  "topic": "contact"
+ },
+ {
+  "id": "y4-03",
+  "question": "how do i get my official transcript sent to another school im transferring to",
+  "topic": "procedure"
+ },
+ {
+  "id": "y4-04",
+  "question": "Is there a fee for ordering transcripts and how long does it take?",
+  "topic": "policy"
+ },
+ {
+  "id": "y4-05",
+  "question": "i want to withdraw from ramapo completely this semester, what do i have to do",
+  "topic": "procedure"
+ },
+ {
+  "id": "y4-06",
+  "question": "What happens to my financial aid if I withdraw in the middle of the semester? Do I have to pay anything back and who do I talk to about it",
+  "topic": "policy"
+ },
+ {
+  "id": "y4-07",
+  "question": "how do i move out of my dorm at the end of the year? when do i have to be out",
+  "topic": "procedure"
+ },
+ {
+  "id": "y4-08",
+  "question": "can i get my housing deposit back if im leaving",
+  "topic": "policy"
+ },
+ {
+  "id": "y4-09",
+  "question": "how to request a leave of absence",
+  "topic": "procedure"
+ },
+ {
+  "id": "y4-10",
+  "question": "I'm a transfer-out student and need a letter proving I was enrolled. How do I get an enrollment verification?",
+  "topic": "procedure"
+ },
+ {
+  "id": "y4-11",
+  "question": "whats the deal with graduation regalia, where do i get a cap and gown and do i need to rsvp for commencement",
+  "topic": "procedure"
+ },
+ {
+  "id": "y4-12",
+  "question": "How many guest tickets do we get for commencement? my family is big",
+  "topic": "policy"
+ },
+ {
+  "id": "y4-13",
+  "question": "will i still have access to my ramapo email after i graduate",
+  "topic": "policy"
+ },
+ {
+  "id": "y4-14",
+  "question": "how do i keep using career services after graduation, like resume reviews",
+  "topic": "procedure"
+ },
+ {
+  "id": "y4-15",
+  "question": "I owe a library fine and a parking ticket. Will that block me from getting my diploma?",
+  "topic": "policy"
+ },
+ {
+  "id": "y4-16",
+  "question": "diploma name is wrong spelling, how do i fix it before it gets printed and who handles that?",
+  "topic": "contact"
+ },
+ {
+  "id": "y4-17",
+  "question": "how do i return my ID card or do i just keep it when i leave",
+  "topic": "procedure"
+ },
+ {
+  "id": "y4-18",
+  "question": "need to send my final grades to the grad school i applied to. do i send transcript from registrar or what",
+  "topic": "procedure"
+ },
+ {
+  "id": "y4-19",
+  "question": "how do I apply for a degree audit / what do I need to do to petition to graduate early in December?",
+  "topic": "procedure"
+ },
+ {
+  "id": "y4-20",
+  "question": "Do I have to do an exit loan counseling thing when I graduate? How do I complete it and who do I call about my loans",
+  "topic": "procedure"
+ },
+ {
+  "id": "y4-21",
+  "question": "what's my current balance and will i be able to graduate with a hold on my account",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "y4-22",
+  "question": "Should I transfer to Rutgers or finish my degree at Ramapo? which is better for a CS career",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "y4-23",
+  "question": "is the commencement ceremony going to be indoors or outdoors this year, and what time does it start",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "y4-24",
+  "question": "how do i get credits evaluated to transfer from ramapo to another college? who sends the course descriptions",
+  "topic": "procedure"
+ },
+ {
+  "id": "y4-25",
+  "question": "can i walk in commencement if im 3 credits short and finishing in the summer",
+  "topic": "policy"
+ }
+]
