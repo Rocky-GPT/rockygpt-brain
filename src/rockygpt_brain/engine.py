@@ -595,7 +595,9 @@ term: pick it only when the student asks about that term or no current section a
 student asks two things (how
 to do it and what happens if not), pick a section for each. A section about a different task that
 shares words is not an answer (a degree audit is not auditing a course; a junior's question is not
-answered by first-year steps). applies_to says who a section is for: one for another group (College
+answered by first-year steps). A section about one program, place, building or event answers only
+a question naming it: for a general question pick the general section. applies_to says who a
+section is for: one for another group (College
 employees, another program) does not answer a student asking for themselves. handled_by names the
 office the page says handles it: when that office's own section is offered too, pick that one. A
 lookup with other_office is an office the student did not name
