@@ -1737,6 +1737,12 @@ def test_a_page_with_how_to_entries_offers_them_instead_of_its_sections() -> Non
                                             "quote": "Items not allowed"}]}]}
     lofted, _ = procedures_property([risers], NOW, "bring bed risers lofted bed")
     assert "Bed risers and lofted furniture" in lofted["values"][0]["value"]["page_words"]
+    # A picker reads the part that matches, not the opening definitions.
+    policy = {**listed, "howto_entries": [], "sections": [{"heading": "Procedure", "text": (
+        "I. Definitions. " + "Words defined here at length. " * 20
+        + "Protests and peaceful demonstrations must be registered with the Center.")}]}
+    protest, _ = procedures_property([policy], NOW, "organize a peaceful protest")
+    assert "Protests and peaceful demonstrations" in protest["values"][0]["value"]["match"]
     microwave, _ = procedures_property([items], NOW, "bring a microwave items allowed")
     assert "Microwaves other than the College's are banned." in (
         microwave["values"][0]["value"]["page_words"])
