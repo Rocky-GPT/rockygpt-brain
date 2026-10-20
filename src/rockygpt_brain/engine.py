@@ -572,7 +572,7 @@ def published_offices(listing: dict[str, Any]) -> list[dict[str, Any]] | None:
 
 # The sections a how-to answer says, chosen by a model from the candidates code ranked.
 PICKED_PROCEDURES = 4
-PICK_SECONDS = 12.0
+PICK_SECONDS = 18.0
 PICK_TOOL: dict[str, Any] = {
     "type": "function", "name": "pick_sections", "strict": True,
     "description": "For each lookup, the numbers of the sections that answer what the student "
@@ -626,7 +626,7 @@ def pick_messages(asked: list[tuple[str, str, dict[str, Any]]],
     lookups = [{"lookup": k, "office": office, "student_wants": about,
                 **({"other_office": True} if k >= first_other else {}), "sections": [
         {"n": n, "heading": v["value"].get("heading"), "page": v["value"].get("page"),
-         "start": str(v["value"].get("text", ""))[:280],
+         "start": str(v["value"].get("match") or v["value"].get("text", ""))[:280],
          **{key: v["value"][key] for key in ("applies_to", "handled_by", "past_term")
             if v["value"].get(key)}}
         for n, v in enumerate(prop["values"][:OTHER_SECTIONS if k >= first_other else None])]}
@@ -645,7 +645,11 @@ def keep_procedures(result: "OfficeResult", keep: list[int]) -> "OfficeResult":
         if prop.get("key") != "procedures":
             properties.append(prop)
             continue
-        values = [prop["values"][n] for n in dict.fromkeys(keep)
+        # The picker's matching snippet is not said: the writer has the text and page words.
+        values = [{**prop["values"][n], "value": {key: value for key, value in
+                                                   prop["values"][n]["value"].items()
+                                                   if key != "match"}}
+                  for n in dict.fromkeys(keep)
                   if isinstance(n, int) and 0 <= n < len(prop["values"])][:PICKED_PROCEDURES]
         ids = {a for v in values for a in v["assertion_ids"]}
         properties.append({**prop, "status": "known" if values else "unknown", "values": values,

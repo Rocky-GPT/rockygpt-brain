@@ -1327,9 +1327,11 @@ _PROCEDURE_FILLER = frozenset(
     "ramapo college campus student students".split())
 # The sections a procedure read offers (the engine keeps the few that answer), and the most of
 # one section's text that is said.
-MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 20, 1800
+MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 16, 1800
 # The most of a how-to entry's own section said beside its steps, the part matching what was asked.
 MAX_PAGE_WORDS_CHARS = 900
+# The most of a candidate a section picker reads.
+PICK_MATCH_CHARS = 280
 
 
 # A term a page is about ("Spring 2026") and the month and day it ends: a section that names only
@@ -1518,9 +1520,13 @@ def procedures_property(
         said = _passage(section["text"], wanted, weight, MAX_PROCEDURE_CHARS)
         around = (_passage(section["source_text"], wanted, weight, MAX_PAGE_WORDS_CHARS)
                   if section.get("source_text") else None)
+        # What a picker reads of it: the part that best matches what was asked, not its opening
+        # (a policy's Procedure section opens with definitions; "Protests" comes later).
+        match = _passage(section["text"], wanted, weight, PICK_MATCH_CHARS)
         value = {"heading": section["heading"], "page": url, "text": said,
                  **({"text_cut": True} if said != section["text"] else {}),
                  **({"page_words": around} if around else {}),
+                 **({"match": match} if match and not section["text"].startswith(match) else {}),
                  **{key: section[key] for key in ("applies_to", "handled_by", "past_term")
                     if section.get(key)}}
         entry = index.startswith("e")
