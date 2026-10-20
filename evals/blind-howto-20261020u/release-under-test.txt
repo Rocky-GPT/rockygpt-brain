@@ -1,0 +1,3 @@
+brain under test: 302aa7f (7c7e744 + other offices weighed against the best office not asked), all calls on gpt-6-luna
+(a clean git archive export .local-logs/dev-brain/code-302aa7f, run as the written-mode dev Brain on :8013 via .local-logs/dev-brain/start_written_8013.py; graders read :8013)
+release: dev-campus-daily-20261020-1035 (data 4f1f93d; 8,722 verified how-to entries)
