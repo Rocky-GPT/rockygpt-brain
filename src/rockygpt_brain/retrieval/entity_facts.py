@@ -1900,9 +1900,14 @@ class EntityFacts:
             score = sum(3 * weight[w] for w in in_heading) + sum(weight[w] for w in in_text)
             if score > best.get(entity_id, (0.0, "", ""))[0]:
                 best[entity_id] = (score, name, page)
-        if not best:
+        # Half of the best other office: the asked office's own pages always match best, and
+        # against them every other office's page fell under half (printing from a laptop at the
+        # Library left out the ITS page that gives the steps).
+        others = [score for entity_id, (score, _, page) in best.items()
+                  if entity_id not in exclude and page not in excluded_pages]
+        if not others:
             return []
-        top_score = max(score for score, *_ in best.values())
+        top_score = max(others)
         found: list[dict[str, Any]] = []
         said: set[str] = set()
         for score, name, page, entity_id in sorted(

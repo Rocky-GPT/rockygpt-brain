@@ -1787,6 +1787,11 @@ def test_a_how_to_on_another_offices_pages_is_offered_and_said_as_that_office() 
     found = service.offices_by_procedure("become a peer tutor", "release-1",
                                          identity_hash="identities-1", exclude=["advising"])
     assert [office["name"] for office in found] == ["Center for Reading and Writing"]
+    # The asked office's own pages match best; another office is weighed against the others only.
+    found = service.offices_by_procedure(
+        "book an advising appointment to meet your advisor about a tutor", "release-1",
+        identity_hash="identities-1", exclude=["advising"])
+    assert [office["name"] for office in found] == ["Center for Reading and Writing"]
     ask = completion("graph_lookup", {"requests": [
         {"query": "Academic Advising", "fields": ["procedures"], "about": "become a peer tutor"}]})
     pick = completion("pick_sections", {"picks": [{"lookup": 0, "sections": []},
