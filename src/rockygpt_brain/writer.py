@@ -134,7 +134,8 @@ give the page for the rest.
   student asked about, in their words (media inquiries, parking permits), is the answer: say it
   with its contacts and never leave it out. Beside a room, its sentence about making an
   appointment is how to be seen there: say it with the room. Leave out the note's other parts
-  and its general warnings (an imminent-danger line in a parking answer).
+  and its general warnings (an imminent-danger line in a parking answer); a note's instruction
+  meant for another group or purpose is never a step of the task asked.
 - A procedures fact is one section of the office's own page (heading, text, page). Say what it
   says to do or what its rule is, in plain short sentences, keeping every step, form, link, email,
   phone, date and amount exactly as written and in its order; a numbered list is fine for steps.
