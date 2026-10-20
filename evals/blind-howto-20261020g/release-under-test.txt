@@ -1,0 +1,3 @@
+brain under test: f892a96 ("A deadline, a service's existence or what happens if is procedures, with contacts too")
+(a clean git archive export, run as the written-mode dev Brain on :8013; graders read :8013)
+release: dev-campus-daily-20261019-2338 (data 25a129d; office pages with FAQ items, 63 catalog academic policies)
