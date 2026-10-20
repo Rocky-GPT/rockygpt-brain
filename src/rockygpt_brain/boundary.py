@@ -127,6 +127,8 @@ _DANGER: dict[str, list[re.Pattern[str]]] = {
             r"(me|us|him|her|them|people|everyone)\b",
             r"\b(being|getting|got|been|was) (just )?(attacked|assaulted|robbed|stalked|followed|"
             r"chased|threatened|jumped|mugged|beaten|kidnapped|stabbed|shot|choked)\b",
+            # A thing doing it ("without it hurting me", "will this hurt me") is not a person.
+            r"(?<!\bit )(?<!\bthis )(?<!\bthat )"
             r"\b(attacking|hurting|threatening|stalking|following|chasing|shooting|hitting|"
             r"beating|hit|punched|slapped|choked|grabbed|dragged|pinned|trapped|locked|cornered|"
             r"kidnapped) me\b",
