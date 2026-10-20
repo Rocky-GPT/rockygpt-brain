@@ -1475,12 +1475,12 @@ def procedures_property(
         return empty, []
     found: list[tuple[int, str, dict[str, Any], dict[str, Any], set[str], set[str]]] = []
     for row_index, row in enumerate(rows):
+        # A page offers its listed entries and its own sections; a section is kept below only when
+        # it matches better than every entry of its page (the asked rule can be in a list no entry
+        # was written for: protests in a policy's definitions, bed risers in prohibited items).
         units = _procedure_units(row)
-        # A page whose listed entries share none of the asked words offers its own sections: the
-        # asked rule can be in a list no entry was written for (bed risers in prohibited items).
-        if units and units[0][0].startswith("e") and not any(
-                wanted & top or len(wanted & body) >= 2 for _, _, top, body in units):
-            units = _procedure_units(row, sections_only=True)
+        if units and units[0][0].startswith("e"):
+            units = [*units, *_procedure_units(row, sections_only=True)]
         for index, unit, top, body in units:
             found.append((row_index, index, row, unit, top, body))
     # How many of the office's sections each asked word is in: a rare word tells sections apart.
@@ -1502,6 +1502,12 @@ def procedures_property(
             score /= 2
         scored.append((-score, row_index, index, row,
                        {**unit, **({"past_term": over} if over else {})}))
+    best_entry: dict[int, float] = {}
+    for score, row_index, index, _, _ in scored:
+        if index.startswith("e"):
+            best_entry[row_index] = max(best_entry.get(row_index, 0.0), -score)
+    scored = [item for item in scored if item[2].startswith("e")
+              or -item[0] > best_entry.get(item[1], 0.0)]
     if not scored:
         return empty, []
     ranked = sorted(scored, key=lambda item: item[:3])

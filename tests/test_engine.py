@@ -1718,7 +1718,8 @@ def test_a_page_with_how_to_entries_offers_them_instead_of_its_sections() -> Non
                                     "steps": [{"text": "A first violation carries a $200 fine.",
                                                "quote": "First violation: $200 fine"}]}]}
     alcohol, _ = procedures_property([sanctions], NOW, "second alcohol violation")
-    assert "Second violation: $300 fine." in alcohol["values"][0]["value"]["page_words"]
+    said = alcohol["values"][0]["value"]
+    assert "Second violation: $300 fine." in said["text"] + said.get("page_words", "")
     # The asked rule can be in another section of the same page.
     items = {**listed, "sections": [
         {"heading": "Allowed items", "text": "Fish tanks up to 10 gallons are allowed."},
