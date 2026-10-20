@@ -1472,11 +1472,12 @@ def _procedure_units(row: dict[str, Any], *, sections_only: bool = False,
                 extra["source_text"] = page_text
             # The entry's own section in full: its steps are written from it and can leave out a
             # rule asked (the aid policy's undergraduate GPA beside the graduate one).
-            own = next((text for section in sections if isinstance(section, dict)
-                        if clean(section.get("heading")) == extra.get("section")
+            own = next(((n, text) for n, section in enumerate(sections)
+                        if isinstance(section, dict)
+                        and clean(section.get("heading")) == extra.get("section")
                         and isinstance(text := clean(section.get("text")), str) and text), None)
             if own:
-                extra["section_text"] = own
+                extra["section_index"], extra["section_text"] = str(own[0]), own[1]
             text = " ".join(f"{n}. {step}" for n, step in enumerate(steps, start=1))
             top, body = _section_words(row, f"{task} {extra.get('applies_to', '')}", text)
             units.append((f"e{index}", {"heading": task, "text": text, **extra}, top,
@@ -1581,8 +1582,16 @@ def procedures_property(
             said = _passage(section["text"], wanted, weight, MAX_PROCEDURE_CHARS)
         around = (_passage(section["source_text"], wanted, weight, MAX_PAGE_WORDS_CHARS)
                   if section.get("source_text") else None)
-        own = (_passage(section["section_text"], wanted, weight, MAX_SECTION_WORDS_CHARS)
-               if section.get("section_text") else None)
+        # The entry's section is said from where its meaning matched, when a piece further in
+        # matched best ("Animals" deep in the prohibited-items list the entry's steps sum up).
+        section_at = (getattr(meaning, "at", {}).get((str(row["id"]), section["section_index"]), 0)
+                      if meaning and section.get("section_index") else 0)
+        if section.get("section_text") and section_at:
+            start = max(0, section_at - 300)
+            own = section["section_text"][start:start + MAX_SECTION_WORDS_CHARS]
+        else:
+            own = (_passage(section["section_text"], wanted, weight, MAX_SECTION_WORDS_CHARS)
+                   if section.get("section_text") else None)
         # What a picker reads of it: the part that best matches what was asked, not its opening
         # (a policy's Procedure section opens with definitions; "Protests" comes later).
         match = (section["text"][at:at + PICK_MATCH_CHARS] if at
