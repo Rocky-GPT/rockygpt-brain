@@ -1,0 +1,3 @@
+brain under test: 0a000c3 (meaning search 9d947c2 + entry section_words 17af5bf + writer rule 0a000c3), all chat calls on gpt-6-luna at default (medium) effort
+(a clean git archive export .local-logs/dev-brain/code-0a000c3, run as the written-mode dev Brain on :8013 via .local-logs/dev-brain/start_written_8013.py with BRAIN_OPENAI_EMBED_MODEL=text-embedding-3-large; graders read :8013)
+release: dev-campus-daily-20261020-1035 (data 4f1f93d; 8,722 verified how-to entries); meaning index release-2f6b590e286b4004.meaning.* built 10-20 12:34
