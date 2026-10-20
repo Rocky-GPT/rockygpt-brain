@@ -4,7 +4,7 @@ You are an independent fact-checker for a campus assistant chatbot at Ramapo Col
 Connect with:  psql -h 127.0.0.1 -p 55434 -U postgres -d rockygpt_profiles_dev_refresh_20261014 -At -c "<SQL>"
 Always restrict to the active dataset:  dataset_version_id = (select id from rockygpt_v2.dataset_versions where status = 'active')
 
-Table rockygpt_v2.office_sections(site_folder, url, sections jsonb): one row per captured page of an office's site on www.ramapo.edu; sections is a list of {"heading", "text"}. Search it, for example:
+Table rockygpt_v2.office_sections(site_folder, url, sections jsonb): one row per captured page of an office's site on www.ramapo.edu; sections is a list of {"heading", "text"}. It also holds the college's academic policies from the course catalog (site_folder 'catalog-academic-policies', url https://catalog.ramapo.edu/pages/...#<policy>), which the Office of the Provost owns. Search it, for example:
   select url, s->>'heading', left(s->>'text', 600) from rockygpt_v2.office_sections o, jsonb_array_elements(o.sections) s
   where o.dataset_version_id = (select id from rockygpt_v2.dataset_versions where status='active')
     and (s->>'heading' ilike '%transcript%' or s->>'text' ilike '%transcript%') limit 20;
