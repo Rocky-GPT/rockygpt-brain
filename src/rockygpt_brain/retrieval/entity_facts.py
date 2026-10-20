@@ -1329,7 +1329,7 @@ _PROCEDURE_FILLER = frozenset(
 # one section's text that is said.
 MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 16, 1800
 # The most of a how-to entry's own section said beside its steps, the part matching what was asked.
-MAX_PAGE_WORDS_CHARS = 900
+MAX_PAGE_WORDS_CHARS = 1400
 # The most of a candidate a section picker reads.
 PICK_MATCH_CHARS = 280
 
