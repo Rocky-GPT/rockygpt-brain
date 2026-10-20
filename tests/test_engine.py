@@ -597,7 +597,7 @@ def test_the_trace_records_each_lookup_the_model_asked_for_and_how_it_ended() ->
     assert lookup["arguments"] == {
         "query": "Registrar", "fields": ["email"], "day": None, "phone_kind": None,
         "meal": None, "diet": None, "items": [], "with_allergens": [], "without_allergens": [],
-        "details": [], "about": None}
+        "details": [], "about": None, "page_terms": []}
     assert (lookup["status"], lookup["result_count"], lookup["office"]) == ("ok", 1, "Registrar")
     assert [node["id"] for node in lookup["path"]] == ["ramapo", "offices", "office:registrar"]
     assert (lookup["dataset_version"], lookup["identity_hash"]) == ("release-1", "identities-1")
@@ -1747,6 +1747,18 @@ def test_a_page_with_how_to_entries_offers_them_instead_of_its_sections() -> Non
     microwave, _ = procedures_property([items], NOW, "bring a microwave items allowed")
     assert "Microwaves other than the College's are banned." in (
         microwave["values"][0]["value"]["page_words"])
+    # A long page is said in a few places: the allowed list names fish, the prohibited list
+    # (far down the page) names animals, and both are said.
+    filler = " ".join(f"Rule {n} is about something else entirely." for n in range(80))
+    pets = {**listed, "sections": [
+        {"heading": "Allowed items", "text": f"Fish in tanks up to 10 gallons. {filler}"},
+        {"heading": "Prohibited items", "text": f"{filler} Animals of any kind are prohibited."}],
+            "howto_entries": [{"task": "Check which items are allowed", "section": "Allowed items",
+                               "steps": [{"text": "Fish tanks up to 10 gallons are allowed.",
+                                          "quote": "Fish in tanks up to 10 gallons"}]}]}
+    animals, _ = procedures_property([pets], NOW, "items allowed: a fish or small animals")
+    around = animals["values"][0]["value"]["page_words"]
+    assert "Fish in tanks" in around and "Animals of any kind are prohibited." in around
     travel, _ = procedures_property([listed], NOW, "get reimbursed for travel")
     assert travel["values"][0]["value"]["applies_to"] == "College employees"
     assert travel["values"][0]["value"]["handled_by"] == "Controller"
@@ -1798,6 +1810,20 @@ def test_a_how_to_on_another_offices_pages_is_offered_and_said_as_that_office() 
     assert result.trace is not None
     (other,) = [e for e in result.trace["lookups"] if e.get("foundBy") == "other_office_pages"]
     assert other["office"] == "Center for Reading and Writing"
+
+
+def test_the_pages_are_searched_with_the_pages_own_terms_beside_the_students() -> None:
+    service = advising_and_tutoring()
+    # The student's words share nothing with the page; the page's own term finds it.
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Academic Advising", "fields": ["procedures"],
+         "about": "help other kids with their essays", "page_terms": ["peer tutor"]}]})
+    pick = completion("pick_sections", {"picks": [{"lookup": 0, "sections": []},
+                                                  {"lookup": 1, "sections": [0]}]})
+    gateway = ScriptedGateway(ask, pick, finish())
+    result = answer(gateway, service=service,
+                    messages=[{"role": "user", "content": "can i help other kids with essays"}])
+    assert "March 1" in result.body["answer"]
     # The picker was told which lookup the student did not ask for.
     offered = json.loads(gateway.inputs[1][1]["content"])
     assert "other_office" not in offered[0] and offered[1]["other_office"] is True
