@@ -1514,6 +1514,31 @@ def test_a_contact_note_sentence_that_speaks_to_the_question_is_said_in_its_own_
     assert notes("dining services email") == []
 
 
+def test_a_contact_note_line_is_said_alone_not_with_the_staff_lines_after_it() -> None:
+    note = ("After Hours Drop Box: Gray mailbox located outside D-224\n"
+            "E-mail: registrar@example.edu\n"
+            "Beth Foster Associate Registrar: bfoster@example.edu\n"
+            "Lillian R. Smith Records Assistant: lsmith@example.edu")
+    registrar = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "reg", "name": "Registrar", "kind": "office", "aliases": [],
+                   "links": [{"collection": "contacts", "source_key": "directory",
+                              "source_record_keys": ["r"]}]}],
+        contacts=[{"id": "c-r", "source_key": "directory", "source_record_key": "r",
+                   "name": "Registrar", "email": "registrar@example.edu",
+                   "contact_note": note, "canonical_url": "https://example.edu/registrar",
+                   "collected_at": NOW, "freshness_sla_hours": 24}], now=lambda: NOW)
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Registrar", "fields": ["email", "contact_note"]}]})
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "where do i drop off a form after the office closes"}]})
+    engine = ChatEngine(ScriptedGateway(ask, finish()), registrar,  # type: ignore[arg-type]
+                        output="json")
+    packet = asyncio.run(engine.answer(intake(request, now=NOW), request)).body["facts"]
+    assert [n["approved_text"] for n in packet["notices"] if n["type"] == "note_answer"] == [
+        "After Hours Drop Box: Gray mailbox located outside D-224"]
+
+
 def test_a_writer_reply_that_already_says_a_notice_in_its_own_words_is_not_repeated() -> None:
     from rockygpt_brain.engine import already_said
     note = ("In order to get a new identification card, please contact the ID room at "
