@@ -1,0 +1,487 @@
+[
+ {
+  "id": "l1-01",
+  "question": "I work till 5 and my classes are at night. How do I get a form signed by the registrar if the office is closed when I'm on campus?",
+  "topic": "procedure"
+ },
+ {
+  "id": "l1-02",
+  "question": "where can i park for a 6pm class",
+  "topic": "policy"
+ },
+ {
+  "id": "l1-03",
+  "question": "How do I set up a payment plan for tuition? Who do I contact in the bursar office about it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "l1-04",
+  "question": "can i drop a class online or do i have to go in person",
+  "topic": "procedure"
+ },
+ {
+  "id": "l1-05",
+  "question": "Is there a deadline to withdraw from a course without it showing as a W on my transcript?",
+  "topic": "policy"
+ },
+ {
+  "id": "l1-06",
+  "question": "im a part time student, do i still need a parking permit to park after 5pm",
+  "topic": "policy"
+ },
+ {
+  "id": "l1-07",
+  "question": "How do I get a copy of my transcript sent to my employer? I work full time and can't come in during the day.",
+  "topic": "procedure"
+ },
+ {
+  "id": "l1-08",
+  "question": "my employer offers tuition reimbursement, how do I get a letter from the college proving I was enrolled and what grade i got",
+  "topic": "procedure"
+ },
+ {
+  "id": "l1-09",
+  "question": "how do i reset my password for the student email/ moodle login. its late and no one is in the office",
+  "topic": "procedure"
+ },
+ {
+  "id": "l1-10",
+  "question": "What are the hours for the financial aid office and is there any way to talk to someone in the evening?",
+  "topic": "contact"
+ },
+ {
+  "id": "l1-11",
+  "question": "how do i appeal a parking ticket i got on a weeknight",
+  "topic": "procedure"
+ },
+ {
+  "id": "l1-12",
+  "question": "Can I take classes online only? How do I find out which courses are offered fully online?",
+  "topic": "procedure"
+ },
+ {
+  "id": "l1-13",
+  "question": "what do i do if i lost my student id and cant get to campus during the day",
+  "topic": "procedure"
+ },
+ {
+  "id": "l1-14",
+  "question": "How do I apply for a leave of absence while I figure out my work schedule, and does it affect my financial aid?",
+  "topic": "procedure"
+ },
+ {
+  "id": "l1-15",
+  "question": "who do i email about a hold on my account? it's blocking me from registering",
+  "topic": "contact"
+ },
+ {
+  "id": "l1-16",
+  "question": "Is the library open late and can I use it if I'm only taking one class?",
+  "topic": "policy"
+ },
+ {
+  "id": "l1-17",
+  "question": "how do i get academic advising if i can only meet after 6",
+  "topic": "procedure"
+ },
+ {
+  "id": "l1-18",
+  "question": "What's my current balance and when is my payment due?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "l1-19",
+  "question": "how do I change my major from undeclared to business, and who approves it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "l1-20",
+  "question": "Can I get credit for work experience or a professional certification I already have?",
+  "topic": "policy"
+ },
+ {
+  "id": "l1-21",
+  "question": "whats the best evening class to take with an easy professor",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "l1-22",
+  "question": "I need to order an official transcript but I have an unpaid parking fine, will they still send it?",
+  "topic": "policy"
+ },
+ {
+  "id": "l1-23",
+  "question": "how do I submit my immunization records online",
+  "topic": "procedure"
+ },
+ {
+  "id": "l1-24",
+  "question": "is the shuttle running tonight? i get out of class at 9:30",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "l1-25",
+  "question": "Who do I contact at IT if the wifi or my online class login isn't working on a weekend, and how do I open a help ticket?",
+  "topic": "contact"
+ },
+ {
+  "id": "l2-01",
+  "question": "can i have a mini fridge in my dorm room",
+  "topic": "policy"
+ },
+ {
+  "id": "l2-02",
+  "question": "Are candles or incense allowed in the residence halls? I want to put some in my room for decoration",
+  "topic": "policy"
+ },
+ {
+  "id": "l2-03",
+  "question": "what are the quiet hours in the apartments",
+  "topic": "policy"
+ },
+ {
+  "id": "l2-04",
+  "question": "How do I request a room change, and who do I contact about it? My roommate and I are not getting along at all and I need to move.",
+  "topic": "procedure"
+ },
+ {
+  "id": "l2-05",
+  "question": "can my boyfriend stay overnight in my room? how long can guests stay",
+  "topic": "policy"
+ },
+ {
+  "id": "l2-06",
+  "question": "whats the check out process when i move out for the semester",
+  "topic": "procedure"
+ },
+ {
+  "id": "l2-07",
+  "question": "can i use a microwave or toaster oven or air fryer in my room",
+  "topic": "policy"
+ },
+ {
+  "id": "l2-08",
+  "question": "How do I check in to my room on move in day? Do I need to pick up my key somewhere first?",
+  "topic": "procedure"
+ },
+ {
+  "id": "l2-09",
+  "question": "what happens if I lose my room key",
+  "topic": "procedure"
+ },
+ {
+  "id": "l2-10",
+  "question": "Can I put nails or command strips on the walls? I want to hang posters and a tapestry.",
+  "topic": "policy"
+ },
+ {
+  "id": "l2-11",
+  "question": "I got charged for damage to my room and I dont think it was me. how do i dispute a damage charge",
+  "topic": "procedure"
+ },
+ {
+  "id": "l2-12",
+  "question": "are pets allowed in housing? what about a fish tank",
+  "topic": "policy"
+ },
+ {
+  "id": "l2-13",
+  "question": "who is my RA and how do i reach them at night if theres a problem",
+  "topic": "contact"
+ },
+ {
+  "id": "l2-14",
+  "question": "can i bring a christmas tree or string lights?? fire safety rules",
+  "topic": "policy"
+ },
+ {
+  "id": "l2-15",
+  "question": "What is the fine if I get caught with alcohol in my dorm and I'm under 21, and what is the process after I get written up?",
+  "topic": "policy"
+ },
+ {
+  "id": "l2-16",
+  "question": "how do i report a maintenance problem like a broken heater or leaky sink",
+  "topic": "procedure"
+ },
+ {
+  "id": "l2-17",
+  "question": "can i keep my car on campus if i live in the dorms and how do i get a parking permit",
+  "topic": "procedure"
+ },
+ {
+  "id": "l2-18",
+  "question": "do i have to move out over winter break or can i stay in my room",
+  "topic": "policy"
+ },
+ {
+  "id": "l2-19",
+  "question": "Can I bring my own bed risers, a lofted bed kit, or a mattress topper? What are the rules on furniture?",
+  "topic": "policy"
+ },
+ {
+  "id": "l2-20",
+  "question": "how do i get out of my housing contract early",
+  "topic": "procedure"
+ },
+ {
+  "id": "l2-21",
+  "question": "whats the damage deposit for housing and when do i get it back",
+  "topic": "policy"
+ },
+ {
+  "id": "l2-22",
+  "question": "Can I request a single room because of anxiety? Who do I talk to about housing accommodations?",
+  "topic": "contact"
+ },
+ {
+  "id": "l2-23",
+  "question": "will I get a good roommate this year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "l2-24",
+  "question": "which dorm is the best for freshmen and has the nicest rooms",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "l2-25",
+  "question": "how much do I owe for housing this semester",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "l3-01",
+  "question": "how do i order an official transcript",
+  "topic": "procedure"
+ },
+ {
+  "id": "l3-02",
+  "question": "I need a letter proving I'm enrolled full time for my insurance company. Where do I get an enrollment verification and who do I email if it takes too long?",
+  "topic": "procedure"
+ },
+ {
+  "id": "l3-03",
+  "question": "can i retake a class i got a C- in and will the old grade still count in my gpa",
+  "topic": "policy"
+ },
+ {
+  "id": "l3-04",
+  "question": "How do I declare a major? I'm a sophomore and still undeclared",
+  "topic": "procedure"
+ },
+ {
+  "id": "l3-05",
+  "question": "change of major form",
+  "topic": "procedure"
+ },
+ {
+  "id": "l3-06",
+  "question": "how do i add a minor",
+  "topic": "procedure"
+ },
+ {
+  "id": "l3-07",
+  "question": "Hi, I took classes at Bergen Community College over the summer. How do I get them transferred to Ramapo and who do I talk to about whether they'll count toward my major?",
+  "topic": "contact"
+ },
+ {
+  "id": "l3-08",
+  "question": "what is the policy on grade changes? my professor said he made a mistake entering my final grade",
+  "topic": "policy"
+ },
+ {
+  "id": "l3-10",
+  "question": "whats the deadline to apply to graduate for may",
+  "topic": "policy"
+ },
+ {
+  "id": "l3-12",
+  "question": "Is there a limit on how many times I can repeat a course?",
+  "topic": "policy"
+ },
+ {
+  "id": "l3-13",
+  "question": "how do I see my degree audit / what requirements I still need",
+  "topic": "procedure"
+ },
+ {
+  "id": "l3-15",
+  "question": "How do I appeal a grade I think was unfair, and who is the first person I should contact?",
+  "topic": "contact"
+ },
+ {
+  "id": "l3-16",
+  "question": "transcript for grad school app, how long does it take to send and does it cost anything",
+  "topic": "procedure"
+ },
+ {
+  "id": "l3-17",
+  "question": "how do i get an incomplete changed to a grade",
+  "topic": "procedure"
+ },
+ {
+  "id": "l3-18",
+  "question": "i want to double major, is that allowed? whats the process",
+  "topic": "policy"
+ },
+ {
+  "id": "l3-19",
+  "question": "how do i request a leave of absence or withdraw from the college entirely",
+  "topic": "procedure"
+ },
+ {
+  "id": "l3-20",
+  "question": "where do I send my AP scores so they count as credit",
+  "topic": "procedure"
+ },
+ {
+  "id": "l3-21",
+  "question": "what is my current GPA and how many credits have I completed so far?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "l3-22",
+  "question": "will my transfer credits from Montclair get accepted? i took 4 gen eds there",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "l3-23",
+  "question": "Should I switch from biology to psychology if I want to get into a good grad program?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "l3-24",
+  "question": "who is the registrar and what's their office phone number",
+  "topic": "contact"
+ },
+ {
+  "id": "l3-25",
+  "question": "how do I get a diploma replaced if I lost mine, or change the name printed on it",
+  "topic": "procedure"
+ },
+ {
+  "id": "l4-01",
+  "question": "how do i make an appointment with counseling",
+  "topic": "procedure"
+ },
+ {
+  "id": "l4-02",
+  "question": "Is there a food pantry on campus and how do I use it? I'm kind of embarrassed to ask but I'm running low on money for groceries this month",
+  "topic": "procedure"
+ },
+ {
+  "id": "l4-03",
+  "question": "How do I register with disability services to get extended time on exams?",
+  "topic": "procedure"
+ },
+ {
+  "id": "l4-04",
+  "question": "what documentation do i need for accomodations",
+  "topic": "policy"
+ },
+ {
+  "id": "l4-05",
+  "question": "Who do I contact at health services if I think I have the flu, and do I need to book ahead?",
+  "topic": "contact"
+ },
+ {
+  "id": "l4-06",
+  "question": "tutoring?? how do i sign up for free tutoring for calc",
+  "topic": "procedure"
+ },
+ {
+  "id": "l4-07",
+  "question": "Can I get an after hours counselor if I'm having a really bad night? who do I call",
+  "topic": "contact"
+ },
+ {
+  "id": "l4-08",
+  "question": "how to get my immunization records submitted to the college",
+  "topic": "procedure"
+ },
+ {
+  "id": "l4-09",
+  "question": "I was harassed by another student last week. What are my options for reporting it and getting support?",
+  "topic": "procedure"
+ },
+ {
+  "id": "l4-10",
+  "question": "does career services look over resumes",
+  "topic": "policy"
+ },
+ {
+  "id": "l4-11",
+  "question": "whats the process to report sexual assault confidentially",
+  "topic": "procedure"
+ },
+ {
+  "id": "l4-12",
+  "question": "Is counseling free for students or do I have to pay per session?",
+  "topic": "policy"
+ },
+ {
+  "id": "l4-13",
+  "question": "how do I find an internship through the school and who should I email about it",
+  "topic": "contact"
+ },
+ {
+  "id": "l4-14",
+  "question": "my professor wont follow my accomodation letter. what do i do",
+  "topic": "procedure"
+ },
+ {
+  "id": "l4-15",
+  "question": "can health services give me a note for missing class because i was sick",
+  "topic": "policy"
+ },
+ {
+  "id": "l4-16",
+  "question": "How do I get emergency funds or help if I can't afford books or rent this semester?",
+  "topic": "procedure"
+ },
+ {
+  "id": "l4-17",
+  "question": "where is the writing center and do i need an appt",
+  "topic": "procedure"
+ },
+ {
+  "id": "l4-18",
+  "question": "I want to get a mock interview before my job fair. How do I schedule one?",
+  "topic": "procedure"
+ },
+ {
+  "id": "l4-19",
+  "question": "What happens to my info if I go to counseling? Will my parents or professors be told?",
+  "topic": "policy"
+ },
+ {
+  "id": "l4-20",
+  "question": "how do i get a service or emotional support animal approved in my dorm",
+  "topic": "procedure"
+ },
+ {
+  "id": "l4-21",
+  "question": "someone stole my laptop from the library, how do i report it and who helps me after",
+  "topic": "procedure"
+ },
+ {
+  "id": "l4-22",
+  "question": "Can you tell me if my accommodation request was approved yet?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "l4-23",
+  "question": "i think i might be depressed, should i go on medication or just do therapy?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "l4-24",
+  "question": "how much does a counseling session cost at the health center this semester exactly",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "l4-25",
+  "question": "Where can I get a flu shot and what's the number for the nurse?",
+  "topic": "contact"
+ }
+]

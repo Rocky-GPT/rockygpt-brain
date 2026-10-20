@@ -1,0 +1,3 @@
+brain under test: c64a855 ("Take an entry's page words from its whole page"; wants e4984bb; safety and past-year 9fcfd22)
+(a clean git archive export, run as the written-mode dev Brain on :8013; graders read :8013)
+release: dev-campus-daily-20261020-0132 (data 100d7f3; 8,626 verified how-to entries on 1,870 of 2,574 office pages)
