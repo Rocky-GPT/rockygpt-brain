@@ -8,6 +8,7 @@ output capability: checking a citation ID alone would not prove its claims.
 import asyncio
 import json
 import logging
+import os
 import re
 import time
 from collections.abc import Mapping, Sequence
@@ -584,7 +585,8 @@ def published_offices(listing: dict[str, Any]) -> list[dict[str, Any]] | None:
 
 # The sections a how-to answer says, chosen by a model from the candidates code ranked.
 PICKED_PROCEDURES = 6
-PICK_SECONDS = 18.0
+# A pick that thinks harder (BRAIN_OPENAI_DECIDE_EFFORT) needs longer; past it the ranked are kept.
+PICK_SECONDS = float(os.environ.get("BRAIN_PICK_SECONDS", "18"))
 PICK_TOOL: dict[str, Any] = {
     "type": "function", "name": "pick_sections", "strict": True,
     "description": "For each lookup, the numbers of the sections that answer what the student "
