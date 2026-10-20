@@ -76,6 +76,21 @@ def _where(url: str) -> str:
     return " > ".join(w.replace("-", " ") for w in path.strip("/").split("/") if w and w != "pages")
 
 
+def _pieces(text: str, start: int = 1_000, size: int = 1_000) -> list[tuple[int, str]]:
+    """A long text past its first `start` characters, in pieces of about `size` characters that
+    end at a sentence or space and overlap by 100, each with where it starts."""
+    pieces = []
+    while start < len(text):
+        end = min(len(text), start + size)
+        if end < len(text):
+            cut = max(text.rfind(". ", start, end), text.rfind(" ", start + size // 2, end))
+            end = cut + 1 if cut > start else end
+        at = max(0, start - 100)
+        pieces.append((at, text[at:end].strip()))
+        start = end
+    return pieces
+
+
 def collect(facts: GraphOnlyFacts) -> tuple[str, str, list[dict[str, Any]], dict[str, str]]:
     """Every how-to unit of the active release, once per page, with the offices linking it."""
     version, identity = facts.active_release()
@@ -175,11 +190,21 @@ def main(argv: list[str] | None = None) -> int:
     read = write_questions(units, questions)
     questions_path.write_text(json.dumps(questions, ensure_ascii=False))
     texts: list[tuple[int, str]] = []
+    # Where each vector's text starts in its unit: 0 its opening, a piece's offset, -1 a question.
+    offsets: list[int] = []
     for n, unit in enumerate(units):
-        texts.append((n, f"Ramapo College page: {_where(unit['page'])}\n"
-                         f"{unit['heading']}\n{unit['text'][:1200]}"))
+        header = f"Ramapo College page: {_where(unit['page'])}\n{unit['heading']}\n"
+        texts.append((n, header + unit["text"][:1200]))
+        offsets.append(0)
+        # A long section is also embedded piece by piece past its opening, so an item deep in a
+        # list ("Animals" in a prohibited-items list) can be found by its meaning.
+        for at, piece in _pieces(unit["text"]):
+            texts.append((n, header + "…" + piece))
+            offsets.append(at)
         if unit["entry"]:
-            texts += [(n, q) for q in questions.get(_digest(unit["heading"], unit["text"]), [])]
+            asked = questions.get(_digest(unit["heading"], unit["text"]), [])
+            texts += [(n, q) for q in asked]
+            offsets += [-1] * len(asked)
     cache: dict[str, list[float]] = (json.loads(vectors_path.read_text())
                                      if vectors_path.exists() else {})
     embedded = embed_all([t for _, t in texts], cache)
@@ -192,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
     meta = {"dataset_version": version, "identity_hash": identity, "model": EMBED_MODEL,
             "dimensions": DIMENSIONS, "entities": names,
             "units": [[u["record_id"], u["index"], u["entities"]] for u in units],
-            "owner": [n for n, _ in texts]}
+            "owner": [n for n, _ in texts], "offsets": offsets}
     if (version, identity) != (pointer["dataset_version"], pointer["identity_hash"]):
         print("The active release changed while the index was built; run it again.",
               file=sys.stderr)

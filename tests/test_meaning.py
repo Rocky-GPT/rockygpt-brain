@@ -143,3 +143,22 @@ def test_an_entry_carries_its_own_section_for_what_its_steps_leave_out() -> None
     assert value["text"] == "1. Graduate students need a 3.0 GPA."
     assert "Undergraduate students must have a cumulative GPA of at least 2.0." in (
         value["section_words"])
+
+
+def test_a_long_section_is_said_from_the_piece_that_matched_its_meaning() -> None:
+    listing = "Prohibited items: " + "candles, " * 150 + "Animals of any kind except fish."
+    at = listing.index("Animals")
+    flat = array.array("f", [1.0, 0.0, 0.0, 1.0])  # The opening, then the piece at `at`.
+    index = MeaningIndex({"dataset_version": "release-1", "identity_hash": "identities-1",
+                          "model": "m", "dimensions": 2, "entities": {},
+                          "units": [["page-1", "0", ["housing"]]], "owner": [0, 0],
+                          "offsets": [0, at]}, flat)
+    scores = index.scores([0.0, 1.0])
+    assert scores.at == {("page-1", "0"): at}
+    page = {"id": "page-1", "source_key": "office-pages", "source_record_key": "r",
+            "url": "https://www.ramapo.edu/reslife/prohibited-items/", "collected_at": NOW,
+            "freshness_sla_hours": 168, "content_hash": "h",
+            "sections": [{"heading": "Prohibited items", "text": listing}]}
+    prop, _ = procedures_property([page], NOW, "can my kid keep a cat in the dorm", scores)
+    value = prop["values"][0]["value"]
+    assert value["text"].startswith("Animals of any kind") and value["text_cut"]

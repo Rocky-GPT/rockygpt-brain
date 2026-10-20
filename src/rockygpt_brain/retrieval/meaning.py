@@ -39,6 +39,13 @@ class MeaningUnit:
     entity_ids: tuple[str, ...]
 
 
+class MeaningScores(dict[tuple[str, str], float]):
+    """Each unit's similarity to a question; `at` says where in a long unit's text the best
+    matching piece starts (absent when its opening or a written question matched best)."""
+
+    at: dict[tuple[str, str], int]
+
+
 class MeaningIndex:
     """The unit embeddings of one release, searched by cosine similarity."""
 
@@ -52,6 +59,9 @@ class MeaningIndex:
         self.names: dict[str, str] = dict(meta.get("entities", {}))
         # Vector k belongs to unit owner[k]: a unit's own text and its written questions.
         self.owner: list[int] = list(meta["owner"])
+        # Where vector k's text starts in its unit's text: 0 the opening, a piece of a long
+        # section further in, -1 a question written for the unit.
+        self.offsets: list[int] = list(meta.get("offsets") or [0] * len(self.owner))
         if len(vectors) != len(self.owner) * self.dimensions:
             raise ValueError("The meaning index vectors do not match its units.")
         self._vectors = memoryview(vectors)
@@ -67,7 +77,7 @@ class MeaningIndex:
         vectors.frombytes(vectors_path.read_bytes())
         return cls(json.loads(meta_path.read_text()), vectors)
 
-    def scores(self, query: Sequence[float]) -> dict[tuple[str, str], float]:
+    def scores(self, query: Sequence[float]) -> MeaningScores:
         """Every unit's similarity to the query (its best vector), best first."""
         size = self.dimensions
         if len(query) != size:
@@ -76,12 +86,17 @@ class MeaningIndex:
         unit_query = [value / norm for value in query]
         vectors = self._vectors
         best = [-2.0] * len(self.units)
+        where = [0] * len(self.units)
         for k, unit in enumerate(self.owner):
             score = dot(unit_query, vectors[k * size:(k + 1) * size])
             if score > best[unit]:
-                best[unit] = score
+                best[unit], where[unit] = score, self.offsets[k]
         order = sorted(range(len(best)), key=best.__getitem__, reverse=True)
-        return {(self.units[u].record_id, self.units[u].index): best[u] for u in order}
+        scores = MeaningScores(
+            ((self.units[u].record_id, self.units[u].index), best[u]) for u in order)
+        scores.at = {(self.units[u].record_id, self.units[u].index): where[u]
+                     for u in order if where[u] > 0}
+        return scores
 
     def offices(self, ranked: Mapping[tuple[str, str], float], *, exclude: Sequence[str] = (),
                 exclude_records: Sequence[str] = (), limit: int = 3) -> list[str]:

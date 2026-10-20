@@ -1572,14 +1572,21 @@ def procedures_property(
         source.update(collection="office_sections", source_record_keys=[row["source_record_key"]],
                       record_ids=[row["id"]])
         sources[row["id"]] = source
-        said = _passage(section["text"], wanted, weight, MAX_PROCEDURE_CHARS)
+        # By meaning, a long section is said from the piece that matched (the prohibited-items
+        # list's "Animals" for a question about a cat), which shares no word with the question.
+        at = getattr(meaning, "at", {}).get((str(row["id"]), index), 0) if meaning else 0
+        if at:
+            said = section["text"][at:at + MAX_PROCEDURE_CHARS]
+        else:
+            said = _passage(section["text"], wanted, weight, MAX_PROCEDURE_CHARS)
         around = (_passage(section["source_text"], wanted, weight, MAX_PAGE_WORDS_CHARS)
                   if section.get("source_text") else None)
         own = (_passage(section["section_text"], wanted, weight, MAX_SECTION_WORDS_CHARS)
                if section.get("section_text") else None)
         # What a picker reads of it: the part that best matches what was asked, not its opening
         # (a policy's Procedure section opens with definitions; "Protests" comes later).
-        match = _passage(section["text"], wanted, weight, PICK_MATCH_CHARS)
+        match = (section["text"][at:at + PICK_MATCH_CHARS] if at
+                 else _passage(section["text"], wanted, weight, PICK_MATCH_CHARS))
         value = {"heading": section["heading"], "page": url, "text": said,
                  **({"text_cut": True} if said != section["text"] else {}),
                  **({"section_words": own} if own else {}),
