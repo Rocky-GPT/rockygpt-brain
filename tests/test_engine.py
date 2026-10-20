@@ -1705,6 +1705,14 @@ def test_a_page_with_how_to_entries_offers_them_instead_of_its_sections() -> Non
     assert "Expressive Activity" not in headings and "Start a club" in headings
     first = prop["values"][0]["value"]
     assert first["text"] == "1. Ask the Center for Student Involvement in SC-218."
+    # An entry carries its section's own words matching the question, for what its steps leave out.
+    sanctions = {**listed, "sections": [{"heading": "Alcohol", "text":
+                                         "First violation: $200 fine. Second violation: $300 fine."}],
+                 "howto_entries": [{"task": "Know the alcohol sanctions", "section": "Alcohol",
+                                    "steps": [{"text": "A first violation carries a $200 fine.",
+                                               "quote": "First violation: $200 fine"}]}]}
+    alcohol, _ = procedures_property([sanctions], NOW, "second alcohol violation")
+    assert "Second violation: $300 fine." in alcohol["values"][0]["value"]["page_words"]
     travel, _ = procedures_property([listed], NOW, "get reimbursed for travel")
     assert travel["values"][0]["value"]["applies_to"] == "College employees"
     assert travel["values"][0]["value"]["handled_by"] == "Controller"

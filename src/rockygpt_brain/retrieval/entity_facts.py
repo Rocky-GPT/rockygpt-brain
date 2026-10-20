@@ -1328,6 +1328,8 @@ _PROCEDURE_FILLER = frozenset(
 # The sections a procedure read offers (the engine keeps the few that answer), and the most of
 # one section's text that is said.
 MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 20, 1800
+# The most of a how-to entry's own section said beside its steps, the part matching what was asked.
+MAX_PAGE_WORDS_CHARS = 900
 
 
 # A term a page is about ("Spring 2026") and the month and day it ends: a section that names only
@@ -1411,6 +1413,13 @@ def _procedure_units(row: dict[str, Any]) -> list[tuple[str, dict[str, Any], set
                 continue
             extra = {key: value for key in ("applies_to", "handled_by", "term", "section")
                      if isinstance(value := clean(entry.get(key)), str) and value}
+            # The page's own words the entry came from: a listed entry can leave out a row of its
+            # table (a second violation's sanction), which a reader asked about still needs.
+            source_text = next((clean(section.get("text")) for section in sections
+                                if isinstance(section, dict)
+                                and clean(section.get("heading")) == extra.get("section")), None)
+            if isinstance(source_text, str) and source_text:
+                extra["source_text"] = source_text
             text = " ".join(f"{n}. {step}" for n, step in enumerate(steps, start=1))
             top, body = _section_words(row, f"{task} {extra.get('applies_to', '')}", text)
             units.append((f"e{index}", {"heading": task, "text": text, **extra}, top,
@@ -1483,8 +1492,11 @@ def procedures_property(
                       record_ids=[row["id"]])
         sources[row["id"]] = source
         said = _passage(section["text"], wanted, weight, MAX_PROCEDURE_CHARS)
+        around = (_passage(section["source_text"], wanted, weight, MAX_PAGE_WORDS_CHARS)
+                  if section.get("source_text") else None)
         value = {"heading": section["heading"], "page": url, "text": said,
                  **({"text_cut": True} if said != section["text"] else {}),
+                 **({"page_words": around} if around else {}),
                  **{key: section[key] for key in ("applies_to", "handled_by", "past_term")
                     if section.get(key)}}
         entry = index.startswith("e")
