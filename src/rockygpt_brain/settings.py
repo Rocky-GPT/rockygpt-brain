@@ -60,6 +60,9 @@ class ProviderSettings:
     # and its reasoning share this, and 1,200 left large answers cut short (provider_incomplete).
     writer_max_output_tokens: int = 2_400
     max_turn_nusd: int = 25_000_000
+    # An optional more capable model for the two calls that decide what a how-to answer says (the
+    # section pick and the writer), priced separately so the ledger charges each call its own rate.
+    strong_prices: Prices | None = None
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "ProviderSettings":
@@ -100,10 +103,20 @@ class ProviderSettings:
             max_output = int(env.get("BRAIN_MAX_OUTPUT_TOKENS", "1200"))
             writer_output = int(env.get("BRAIN_WRITER_MAX_OUTPUT_TOKENS", "2400"))
             max_turn = int(env.get("BRAIN_MAX_TURN_NUSD", "25000000"))
+            strong = None
+            if env.get("BRAIN_OPENAI_STRONG_MODEL", "").strip():
+                strong_input = int(required("BRAIN_OPENAI_STRONG_INPUT_NUSD_PER_TOKEN"))
+                strong = Prices(
+                    required("BRAIN_OPENAI_STRONG_MODEL"), strong_input,
+                    int(required("BRAIN_OPENAI_STRONG_OUTPUT_NUSD_PER_TOKEN")),
+                    int(env.get("BRAIN_OPENAI_STRONG_CACHED_INPUT_NUSD_PER_TOKEN",
+                                str(strong_input))),
+                    datetime.fromisoformat(required("BRAIN_OPENAI_STRONG_PRICE_VALID_UNTIL")))
         except (ValueError, OverflowError, KeyError) as error:
             raise ConfigurationError("Invalid provider pricing configuration") from error
         prices = Prices(model, input_rate, output_rate, cached_rate, expires)
-        if not prices.valid(datetime.now(UTC)):
+        if not prices.valid(datetime.now(UTC)) or (
+                strong is not None and not strong.valid(datetime.now(UTC))):
             raise ConfigurationError("Provider pricing is invalid or expired")
         if not (1 <= max_input <= 100_000 and 1 <= max_output <= 8_000
                 and 1 <= writer_output <= 8_000 and 1 <= max_turn <= 1_000_000_000):
@@ -115,5 +128,5 @@ class ProviderSettings:
             ledger_url=required("BRAIN_LEDGER_DATABASE_URL"),
             prices=prices, max_input_bytes=max_input, max_output_tokens=max_output,
             writer_max_output_tokens=writer_output,
-            max_turn_nusd=max_turn,
+            max_turn_nusd=max_turn, strong_prices=strong,
         )
