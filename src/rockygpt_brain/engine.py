@@ -179,12 +179,13 @@ from contact details. A Ramapo procedure or rule ("how do I request a transcript
 parking ticket", "what is the guest policy", a deadline, whether a service exists, what happens if)
 is procedures of the office that handles it, also when the student asks who to contact too, or of
 each of the up to three listed offices that could: set about to what the student wants to do or
-know in a few words, with the words a college page would use for it beside theirs ("drop a class
-after add/drop": withdraw from a course, drop a class); code reads the sections of that office's
-own pages that speak to it; an output with found_by is another office's pages, already read for it,
-so never look that office up again. This
-first slice cannot answer other campus facts or general essays: for events, advice,
-explanations and the offices of any other college, use unsupported and make no lookup.
+know in a few words, and page_terms to the words an official college page would use for it where
+they differ from the student's (the name of the policy, form, program or process, the page's word
+for the group or the charge); code reads the sections of that office's own pages that speak to
+it; an output with found_by is another office's pages, already read for it, so never look that
+office up again. This first slice cannot answer other campus facts or general essays: for
+events, advice, explanations and the offices of any other college, use unsupported and make no
+lookup.
 
 Always finish with the finish tool; never write an answer as free text. All graph record
 results are automatically included by the server, including their limitations. The finish
@@ -272,10 +273,20 @@ class OfficeRequest(StrictModel):
     # counts"), so the reply gives it for every item it lists.
     details: list[Literal["calories", "portion", "allergens"]] = Field(
         default_factory=list, max_length=3)
-    # For procedures only: what the student wants to do or know, in a few words, with the words a
-    # college page would use beside theirs ("withdraw from a course, drop a class"). Code reads the
+    # For procedures only: what the student wants to do or know, in a few words. Code reads the
     # sections of the office's own pages that speak to it.
     about: str | None = Field(default=None, max_length=160)
+    # For procedures only: up to four words or short phrases an official page would use for it
+    # where the student's differ. Code searches the pages with them beside about.
+    page_terms: list[str] = Field(default_factory=list, max_length=4)
+
+    @property
+    def search_words(self) -> str | None:
+        """What the pages are searched with: about, and the page's own terms beside it."""
+        if not self.about:
+            return None
+        terms = [term.strip()[:40] for term in self.page_terms if term.strip()]
+        return "; ".join([self.about, ", ".join(terms)]) if terms else self.about
 
 
 class GraphRequests(StrictModel):
@@ -615,7 +626,7 @@ def procedures_of(result: "OfficeResult") -> dict[str, Any] | None:
 
 
 # Another office whose pages speak to the task is offered with its best few sections.
-OTHER_OFFICES, OTHER_SECTIONS = 2, 5
+OTHER_OFFICES, OTHER_SECTIONS = 3, 5
 
 
 def pick_messages(asked: list[tuple[str, str, dict[str, Any]]],
@@ -1327,6 +1338,7 @@ class ChatEngine:
         menu = "menu" in request.fields
         # What the student wants to do, for the sections of the office's own pages.
         about = request.about if "procedures" in request.fields else None
+        search = request.search_words if about else None
         def said(texts: list[str]) -> list[str]:
             return [t.strip()[:40] for t in texts if t.strip()]
 
@@ -1339,7 +1351,7 @@ class ChatEngine:
                               latest=latest, on=on,
                               meal=request.meal if menu else None,
                               menu_query=query if menu and query else None,
-                              about=about)
+                              about=search)
         detail: dict[str, Any] = {
             "path": graph.path(graph.current_node), "result_count": len(opened["candidates"]),
             "dataset_version": graph.version, "identity_hash": graph.identity_hash,
@@ -1540,7 +1552,8 @@ class ChatEngine:
                 continue
             try:
                 offices = self.facts.offices_by_procedure(
-                    item.about, version, identity_hash=identity_hash, exclude=sorted(named),
+                    item.search_words or item.about, version, identity_hash=identity_hash,
+                    exclude=sorted(named),
                     limit=OTHER_OFFICES)
             except (DatasetChanged, EvidenceUnavailable, InvalidFactRequest) as error:
                 LOG.warning("brain_other_offices_failed error=%s", type(error).__name__)
@@ -1550,7 +1563,7 @@ class ChatEngine:
                     continue
                 named.add(office["entity_id"])
                 request = OfficeRequest(query=office["name"], fields=["procedures"],
-                                        about=item.about)
+                                        about=item.about, page_terms=item.page_terms)
                 graph = CampusGraph(self.facts, dataset_version=version,
                                     identity_hash=identity_hash)
                 try:

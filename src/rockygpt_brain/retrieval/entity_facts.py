@@ -1328,8 +1328,9 @@ _PROCEDURE_FILLER = frozenset(
 # The sections a procedure read offers (the engine keeps the few that answer), and the most of
 # one section's text that is said.
 MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 16, 1800
-# The most of a how-to entry's own section said beside its steps, the part matching what was asked.
-MAX_PAGE_WORDS_CHARS = 1400
+# The most of a how-to entry's page said beside its steps: the parts matching what was asked, at
+# most PAGE_WORDS_PARTS of them.
+MAX_PAGE_WORDS_CHARS, PAGE_WORDS_PARTS = 2400, 3
 # The most of a candidate a section picker reads.
 PICK_MATCH_CHARS = 280
 
@@ -1369,16 +1370,11 @@ def _procedure_words(text: str) -> set[str]:
         capitals - _PROCEDURE_FILLER)
 
 
-def _passage(text: str, wanted: set[str], weight: dict[str, float], limit: int) -> str:
-    """The part of a long section that is said: its start when the asked words are there, else
-    from the question or sentence that has the most of them. FAQ pages are captured as one long
-    section, and the answer asked can be its tenth question."""
-    if len(text) <= limit:
-        return text
+def _spans(text: str) -> list[tuple[int, int]]:
+    """A text's sentences, a list run together without sentence ends (a prohibited-items list)
+    read in pieces of about 300 characters, so the piece that names the asked item can be said."""
     starts = [0, *(m.end() for m in re.finditer(r"(?<=[.?!])\s+", text))]
     spans: list[tuple[int, int]] = []
-    # A list run together without sentence ends (a prohibited-items list) is read in pieces of
-    # about 300 characters, so the piece that names the asked item can be the one said.
     for start, end in zip(starts, [*starts[1:], len(text)], strict=True):
         while end - start > 400:
             cut = text.rfind(" ", start + 200, start + 300)
@@ -1386,19 +1382,64 @@ def _passage(text: str, wanted: set[str], weight: dict[str, float], limit: int) 
             spans.append((start, cut + 1))
             start = cut + 1
         spans.append((start, end))
+    return spans
+
+
+def _span_scores(text: str, spans: list[tuple[int, int]], wanted: set[str],
+                 weight: dict[str, float]) -> list[float]:
     # An asked word no listed entry or heading has (only the page's own text) still counts.
-    scores = [sum(weight.get(w, 1.0) for w in wanted & _procedure_words(text[a:b]))
-              for a, b in spans]
+    return [sum(weight.get(w, 1.0) for w in wanted & _procedure_words(text[a:b]))
+            for a, b in spans]
+
+
+def _question_start(text: str, spans: list[tuple[int, int]], best: int) -> int:
+    """Where the part around a sentence starts: the question it answers, when one is just
+    before it."""
+    for i in range(best, max(-1, best - 4), -1):
+        if text[spans[i][0]:spans[i][1]].rstrip().endswith("?"):
+            return spans[i][0]
+    return spans[best][0]
+
+
+def _passage(text: str, wanted: set[str], weight: dict[str, float], limit: int) -> str:
+    """The part of a long section that is said: its start when the asked words are there, else
+    from the question or sentence that has the most of them. FAQ pages are captured as one long
+    section, and the answer asked can be its tenth question."""
+    if len(text) <= limit:
+        return text
+    spans = _spans(text)
+    scores = _span_scores(text, spans, wanted, weight)
     best = max(range(len(spans)), key=lambda i: (scores[i], -i))
     if scores[best] == 0 or spans[best][1] <= limit:
         return text[:limit]
-    # Start at the question the best sentence answers, when one is just before it.
-    start = spans[best][0]
-    for i in range(best, max(-1, best - 4), -1):
-        if text[spans[i][0]:spans[i][1]].rstrip().endswith("?"):
-            start = spans[i][0]
-            break
+    start = _question_start(text, spans, best)
     return text[start:start + limit]
+
+
+def _passages(text: str, wanted: set[str], weight: dict[str, float], limit: int,
+              parts: int) -> str:
+    """The parts of a whole page that speak to what was asked, in page order: around each of
+    its best-matching sentences, up to `parts` of them. One part can leave the asked rule out
+    (the allowed-items list names fish; the prohibited-items list, animals), so a page is said
+    in a few places, not one."""
+    if len(text) <= limit:
+        return text
+    spans = _spans(text)
+    scores = _span_scores(text, spans, wanted, weight)
+    order = sorted((i for i in range(len(spans)) if scores[i] > 0),
+                   key=lambda i: (-scores[i], i))
+    size = limit // parts
+    windows: list[tuple[int, int]] = []
+    for i in order:
+        if len(windows) == parts:
+            break
+        start = _question_start(text, spans, i)
+        if any(a <= start < b or a <= spans[i][0] < b for a, b in windows):
+            continue
+        windows.append((start, min(len(text), start + size)))
+    if not windows:
+        return text[:limit]
+    return " … ".join(text[a:b] for a, b in sorted(windows))
 
 
 def _section_words(row: dict[str, Any], heading: str, text: str) -> tuple[set[str], set[str]]:
@@ -1524,8 +1565,8 @@ def procedures_property(
                       record_ids=[row["id"]])
         sources[row["id"]] = source
         said = _passage(section["text"], wanted, weight, MAX_PROCEDURE_CHARS)
-        around = (_passage(section["source_text"], wanted, weight, MAX_PAGE_WORDS_CHARS)
-                  if section.get("source_text") else None)
+        around = (_passages(section["source_text"], wanted, weight, MAX_PAGE_WORDS_CHARS,
+                            PAGE_WORDS_PARTS) if section.get("source_text") else None)
         # What a picker reads of it: the part that best matches what was asked, not its opening
         # (a policy's Procedure section opens with definitions; "Protests" comes later).
         match = _passage(section["text"], wanted, weight, PICK_MATCH_CHARS)
