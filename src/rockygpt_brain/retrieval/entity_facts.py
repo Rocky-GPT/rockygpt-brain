@@ -1357,15 +1357,24 @@ def past_term(text: str, today: date) -> str | None:
     return max(named)[1]
 
 
+def _stem(word: str) -> str:
+    """A word without its common ending, then by its first six letters: fund, funds, funded and
+    funding are one word, as are withdraw, withdrawing and withdrawal, and house and housing."""
+    for ending, keep in (("ing", 4), ("ed", 4), ("es", 4), ("s", 3)):
+        if word.endswith(ending) and len(word) - len(ending) >= keep and not word.endswith("ss"):
+            word = word[:-len(ending)]
+            break
+    if len(word) > 4 and word.endswith("e"):
+        word = word[:-1]
+    return word[:6]
+
+
 def _procedure_words(text: str) -> set[str]:
-    """Content words by their stem: a long word by its first six letters (withdraw, withdrawing
-    and withdrawal are one word), a shorter one without its plural s. A two-letter word counts
-    only written in capitals, as a name for something (ID, RA, GA)."""
+    """Content words by their stem (_stem). A two-letter word counts only written in capitals, as
+    a name for something (ID, RA, GA)."""
     words = re.findall(r"[a-z0-9]+", text.casefold())
     capitals = {word.casefold() for word in re.findall(r"\b[A-Z]{2}\b", text)}
-    return {word[:6] if len(word) > 6 else (word[:-1] if len(word) > 3 and word.endswith("s")
-                                            else word)
-            for word in words if len(word) > 2 and word not in _PROCEDURE_FILLER} | (
+    return {_stem(word) for word in words if len(word) > 2 and word not in _PROCEDURE_FILLER} | (
         capitals - _PROCEDURE_FILLER)
 
 
