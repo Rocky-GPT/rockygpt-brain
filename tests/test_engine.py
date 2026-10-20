@@ -1624,6 +1624,12 @@ def test_a_section_for_a_term_that_is_over_is_marked_and_ranked_below_todays() -
     assert past_term("Fall 2026 move-in and Spring 2026 notes", today) is None
     assert past_term("Spring 2027 housing", today) is None
     assert past_term("How to check out", today) is None
+    # An academic year ends on August 31 of its second year.
+    assert past_term("2025-2026 parking permit prices", today) == "2025-2026"
+    assert past_term("2025-26 rates", today) == "2025-2026"
+    assert past_term("2026-2027 parking permit prices", today) is None
+    assert past_term("2025-2026 and 2026-2027 rates", today) is None
+    assert past_term("call 201-684-7000", today) is None
     page = {"id": "page-1", "source_key": "office-pages",
             "source_record_key": "www.ramapo.edu/reslife/a/",
             "url": "https://www.ramapo.edu/reslife/a/", "site_folder": "reslife",

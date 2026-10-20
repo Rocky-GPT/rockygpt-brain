@@ -297,3 +297,21 @@ def test_a_thing_hurting_me_is_not_a_person_hurting_me(message: str) -> None:
 ])
 def test_a_person_hurting_me_still_gets_the_safety_help(message: str) -> None:
     assert is_safety(message)
+
+
+@pytest.mark.parametrize("message", [
+    "My professor won't respond to my emails. What should I do?",
+    "my advisor isnt responding to my messages",
+    "the registrar wont respond to any calls",
+])
+def test_someone_not_answering_messages_is_not_unresponsive(message: str) -> None:
+    assert read(message) == CONTINUE
+
+
+@pytest.mark.parametrize("message", [
+    "my roommate won't respond",
+    "he is not responding to me and wont wake up",
+    "she isnt responsive",
+])
+def test_a_person_who_cannot_respond_still_gets_the_safety_help(message: str) -> None:
+    assert is_safety(message)
