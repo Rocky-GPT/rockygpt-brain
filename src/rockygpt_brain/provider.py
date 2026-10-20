@@ -223,7 +223,12 @@ class Gateway:
         self, *, input: list[dict[str, Any]], tools: list[dict[str, Any]], budget: TurnBudget,
     ) -> Completion:
         settings = self.settings
-        if not settings.prices.valid(self._now()):
+        names = [t.get("name") for t in tools]
+        # The section pick and the writer may run on the more capable model, at its own rates.
+        prices = (settings.strong_prices
+                  if settings.strong_prices is not None
+                  and names in (["write_answer"], ["pick_sections"]) else settings.prices)
+        if not prices.valid(self._now()):
             raise GatewayError("model_not_configured")
         if budget.calls >= budget.max_calls:
             raise GatewayError("turn_limit")
@@ -231,10 +236,10 @@ class Gateway:
             raise GatewayError("deadline_exceeded")
         # The writer's call (its one tool is write_answer) gets the writer's own output budget.
         max_output = (settings.writer_max_output_tokens
-                      if [t.get("name") for t in tools] == ["write_answer"]
+                      if names == ["write_answer"]
                       else settings.max_output_tokens)
         request: dict[str, Any] = {
-            "model": settings.prices.model, "input": input, "tools": tools,
+            "model": prices.model, "input": input, "tools": tools,
             "max_output_tokens": max_output, "store": False,
             "service_tier": "default",
             "include": ["reasoning.encrypted_content"],
@@ -251,19 +256,19 @@ class Gateway:
         # One token per UTF-8 byte is conservative for text. The envelope margin
         # covers provider-internal framing; actual overruns pause the account.
         input_bound = byte_count + 1_024
-        reserve_cost = settings.prices.cost(input_bound, max_output)
+        reserve_cost = prices.cost(input_bound, max_output)
         if budget.committed_nusd + reserve_cost > budget.max_cost_nusd:
             raise GatewayError("turn_budget_exhausted")
         with measure("Reserve model allowance"):
             reservation = await self.ledger.reserve(
                 budget.request_id, reserve_cost,
                 {"provider": "openai", "project": settings.project,
-                 "price": settings.prices.metadata(), "input_token_bound": input_bound,
+                 "price": prices.metadata(), "input_token_bound": input_bound,
                  "max_output_tokens": max_output}, self._now(),
             )
         budget.committed_nusd += reserve_cost
         remaining = budget.deadline - self._monotonic()
-        if remaining <= 0 or not settings.prices.valid(self._now()):
+        if remaining <= 0 or not prices.valid(self._now()):
             with measure("Release unused model allowance"):
                 await self.ledger.release(reservation, "not_sent_deadline_or_price", self._now())
             budget.committed_nusd -= reserve_cost
@@ -305,9 +310,9 @@ class Gateway:
         except GatewayError:
             await self._uncertain(reservation, "invalid_usage")
             raise
-        actual = settings.prices.cost(usage.input_tokens, usage.output_tokens, usage.cached_tokens)
+        actual = prices.cost(usage.input_tokens, usage.output_tokens, usage.cached_tokens)
         response_id, returned_model = response.get("id"), response.get("model")
-        if returned_model != settings.prices.model:
+        if returned_model != prices.model:
             # The configured rates cannot price an unexpected model. Preserve
             # the full hold and pause admission for operator reconciliation.
             await self._uncertain(reservation, "provider_model_mismatch")

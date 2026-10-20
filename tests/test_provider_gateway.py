@@ -11,7 +11,7 @@ import pytest
 from openai import APIStatusError, APITimeoutError
 
 from rockygpt_brain.provider import Gateway, GatewayError, NotSentError, TurnBudget
-from rockygpt_brain.settings import Prices, ProviderSettings
+from rockygpt_brain.settings import ConfigurationError, Prices, ProviderSettings
 from rockygpt_brain.spending import Reservation, SpendingError
 
 NOW = datetime(2026, 10, 1, tzinfo=UTC)
@@ -353,3 +353,35 @@ def test_the_writers_call_gets_its_own_output_budget() -> None:
     # A whole answer and the reasoning about it share this; the reservation covers all of it.
     assert transport.request["max_output_tokens"] == SETTINGS.writer_max_output_tokens == 2_400
     assert ledger.metadata["max_output_tokens"] == 2_400
+
+
+def test_the_pick_and_the_writer_run_on_the_strong_model_at_its_own_rates() -> None:
+    from dataclasses import replace
+    strong = Prices("strong-model", 2_500, 10_000, 2_500, datetime(2026, 11, 1, tzinfo=UTC))
+    settings = replace(SETTINGS, strong_prices=strong)
+    for tool in ("write_answer", "pick_sections"):
+        gateway, ledger, transport, budget = setup(
+            {**response(), "model": "strong-model"}, settings)
+        budget.max_cost_nusd = 1_000_000_000  # Its rates need the raised per-turn limit.
+        asyncio.run(gateway.complete(input=[{"role": "user", "content": "facts"}],
+                                     tools=[{"type": "function", "name": tool}], budget=budget))
+        assert transport.request["model"] == "strong-model"
+        assert ledger.metadata["price"]["model"] == "strong-model"
+    # Every other call stays on the configured model.
+    gateway, ledger, transport, budget = setup(settings=settings)
+    call(gateway, budget)
+    assert transport.request["model"] == "test-model"
+
+
+def test_a_strong_model_needs_its_full_prices() -> None:
+    env = {"BRAIN_ENVIRONMENT": "development", "BRAIN_OPENAI_API_KEY": "k",
+           "BRAIN_OPENAI_PROJECT": "p", "BRAIN_LEDGER_DATABASE_URL": "u",
+           "BRAIN_OPENAI_STRONG_MODEL": "strong-model"}
+    with pytest.raises(ConfigurationError):
+        ProviderSettings.from_env(env)
+    env.update({"BRAIN_OPENAI_STRONG_INPUT_NUSD_PER_TOKEN": "2500",
+                "BRAIN_OPENAI_STRONG_OUTPUT_NUSD_PER_TOKEN": "10000",
+                "BRAIN_OPENAI_STRONG_PRICE_VALID_UNTIL": "2026-11-01T00:00:00-04:00"})
+    settings = ProviderSettings.from_env(env)
+    assert settings.strong_prices is not None and settings.strong_prices.model == "strong-model"
+    assert settings.strong_prices.cached_input_nusd == 2_500
