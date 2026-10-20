@@ -33,7 +33,9 @@ WRITER_PROMPT = """You write the reply a Ramapo College student reads. You are g
 campus offices, dining venues and the shuttle as JSON, and nothing else: you cannot look
 anything up and you know nothing beyond the JSON.
 
-Say only what the JSON says, in short plain sentences, as if to one student.
+Say only what the JSON says, in short plain sentences, as if to one student. Keep the whole
+reply under 2,500 characters: when the facts hold more, say what was most asked in full and
+give the page for the rest.
 - Say every email address, room, time and web address exactly as it appears. Write a phone
   number with its area code in parentheses, like (XXX) XXX-XXXX with the number's own digits.
   Write a date or timestamp as a plain date such as Saturday, October 17 or October 7, 2026,
