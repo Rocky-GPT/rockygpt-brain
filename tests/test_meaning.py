@@ -185,3 +185,14 @@ def test_an_entrys_section_is_said_from_where_its_meaning_matched() -> None:
     prop, _ = procedures_property([page], NOW, "keep a cat in the dorm", index.scores([0.0, 1.0]))
     entry = next(v["value"] for v in prop["values"] if v["value"]["heading"].startswith("Avoid"))
     assert "Animals of any kind except fish." in entry["section_words"]
+
+
+def test_a_long_text_is_cut_between_words_never_inside_a_link() -> None:
+    from rockygpt_brain.retrieval.entity_facts import _cut
+    text = ("Log into RCNJ Experience (https://experience.elluciancloud.com/rconj/) and open "
+            "the card.")
+    said = _cut(text, 0, 40)
+    assert said == "Log into RCNJ Experience"
+    # A start inside a word moves to the next word.
+    assert _cut(text, 2, 200).startswith("into RCNJ")
+    assert _cut(text, 0, 500) == text

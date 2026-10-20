@@ -1416,6 +1416,19 @@ def _question_start(text: str, spans: list[tuple[int, int]], best: int) -> int:
     return spans[best][0]
 
 
+def _cut(text: str, start: int, limit: int) -> str:
+    """Up to `limit` characters of a text from `start`, never ending or starting inside a word: a
+    link cut at "https://experience.ellu" was said as a broken address."""
+    if start > 0 and not text[start - 1].isspace():
+        space = text.find(" ", start, start + limit // 2)
+        start = space + 1 if space >= 0 else start
+    end = start + limit
+    if end < len(text) and not text[end].isspace():
+        space = text.rfind(" ", start + limit // 2, end)
+        end = space if space >= 0 else end
+    return text[start:end].strip()
+
+
 def _passage(text: str, wanted: set[str], weight: dict[str, float], limit: int) -> str:
     """The part of a long section that is said: its start when the asked words are there, else
     from the question or sentence that has the most of them. FAQ pages are captured as one long
@@ -1426,9 +1439,9 @@ def _passage(text: str, wanted: set[str], weight: dict[str, float], limit: int) 
     scores = _span_scores(text, spans, wanted, weight)
     best = max(range(len(spans)), key=lambda i: (scores[i], -i))
     if scores[best] == 0 or spans[best][1] <= limit:
-        return text[:limit]
+        return _cut(text, 0, limit)
     start = _question_start(text, spans, best)
-    return text[start:start + limit]
+    return _cut(text, start, limit)
 
 
 def _section_words(row: dict[str, Any], heading: str, text: str) -> tuple[set[str], set[str]]:
@@ -1577,7 +1590,7 @@ def procedures_property(
         # list's "Animals" for a question about a cat), which shares no word with the question.
         at = getattr(meaning, "at", {}).get((str(row["id"]), index), 0) if meaning else 0
         if at:
-            said = section["text"][at:at + MAX_PROCEDURE_CHARS]
+            said = _cut(section["text"], at, MAX_PROCEDURE_CHARS)
         else:
             said = _passage(section["text"], wanted, weight, MAX_PROCEDURE_CHARS)
         around = (_passage(section["source_text"], wanted, weight, MAX_PAGE_WORDS_CHARS)
@@ -1586,15 +1599,16 @@ def procedures_property(
         # matched best ("Animals" deep in the prohibited-items list the entry's steps sum up).
         section_at = (getattr(meaning, "at", {}).get((str(row["id"]), section["section_index"]), 0)
                       if meaning and section.get("section_index") else 0)
+        own: str | None
         if section.get("section_text") and section_at:
             start = max(0, section_at - 300)
-            own = section["section_text"][start:start + MAX_SECTION_WORDS_CHARS]
+            own = _cut(section["section_text"], start, MAX_SECTION_WORDS_CHARS)
         else:
             own = (_passage(section["section_text"], wanted, weight, MAX_SECTION_WORDS_CHARS)
                    if section.get("section_text") else None)
         # What a picker reads of it: the part that best matches what was asked, not its opening
         # (a policy's Procedure section opens with definitions; "Protests" comes later).
-        match = (section["text"][at:at + PICK_MATCH_CHARS] if at
+        match = (_cut(section["text"], at, PICK_MATCH_CHARS) if at
                  else _passage(section["text"], wanted, weight, PICK_MATCH_CHARS))
         value = {"heading": section["heading"], "page": url, "text": said,
                  **({"text_cut": True} if said != section["text"] else {}),
