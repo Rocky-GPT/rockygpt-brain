@@ -1809,6 +1809,36 @@ def test_a_how_to_on_another_offices_pages_is_offered_and_said_as_that_office() 
     assert "March 1" not in kept.body["answer"]
 
 
+def test_a_picked_long_section_is_said_without_the_pickers_snippet() -> None:
+    long_text = "Definitions: " + "Words defined at length. " * 30 + (
+        "Protests must be registered with the Center for Student Involvement.")
+    page = {"id": "page-1", "source_key": "office-pages",
+            "source_record_key": "www.ramapo.edu/registrar/policy/", "site_folder": "registrar",
+            "url": "https://www.ramapo.edu/registrar/policy/", "collected_at": NOW,
+            "freshness_sla_hours": 168, "content_hash": "h1",
+            "sections": [{"heading": "Procedure", "text": long_text}]}
+    service = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "registrar", "name": "Registrar", "kind": "office", "aliases": [],
+                   "links": [{"collection": "contacts", "source_key": "directory",
+                              "source_record_keys": ["registrar"]},
+                             {"collection": "office_sections", "source_key": "office-pages",
+                              "source_record_keys": [page["source_record_key"]]}]}],
+        contacts=[{"id": "source-registrar", "source_key": "directory",
+                   "source_record_key": "registrar", "name": "Registrar",
+                   "email": "registrar@example.edu", "canonical_url": "https://example.edu/reg",
+                   "collected_at": NOW, "freshness_sla_hours": 24}],
+        records={"office_sections": [page]}, now=lambda: NOW)
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Registrar", "fields": ["procedures"], "about": "register a protest"}]})
+    pick = completion("pick_sections", {"picks": [{"lookup": 0, "sections": [0]}]})
+    result = answer(ScriptedGateway(ask, pick, finish()), service=service,
+                    messages=[{"role": "user", "content": "how do i register a protest"}])
+    # The snippet leaves the value and its assertion alike, so the reply is rendered, not failed.
+    assert result.status_code == 200
+    assert "https://www.ramapo.edu/registrar/policy/" in result.body["answer"]
+
+
 def test_three_offices_procedures_fit_one_reply_in_the_codes_own_text() -> None:
     from rockygpt_brain.answers import PROCEDURE_TEXT_CHARS, _value_text
     long = {"heading": "Academic Dismissal Appeals", "page": "https://www.ramapo.edu/a/",

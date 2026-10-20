@@ -652,8 +652,12 @@ def keep_procedures(result: "OfficeResult", keep: list[int]) -> "OfficeResult":
                   for n in dict.fromkeys(keep)
                   if isinstance(n, int) and 0 <= n < len(prop["values"])][:PICKED_PROCEDURES]
         ids = {a for v in values for a in v["assertion_ids"]}
+        # Each kept value is the same as its assertion's, so the snippet leaves both.
+        assertions = [{**a, "value": {key: value for key, value in a["value"].items()
+                                      if key != "match"}} if isinstance(a.get("value"), dict)
+                      else a for a in prop["assertions"] if a["id"] in ids]
         properties.append({**prop, "status": "known" if values else "unknown", "values": values,
-                           "assertions": [a for a in prop["assertions"] if a["id"] in ids]})
+                           "assertions": assertions})
     cited = {s for p in properties for v in p.get("values", []) for s in v.get("source_ids", [])}
     sources = [s for s in facts["sources"]
                if s.get("collection") != "office_sections" or s["id"] in cited]
@@ -1925,8 +1929,9 @@ class ChatEngine:
                         except DatasetChanged:
                             entry["status"] = "dataset_changed"
                             raise GatewayError("dataset_changed") from None
-                        except EvidenceUnavailable:
+                        except EvidenceUnavailable as error:
                             entry["status"] = "data_unavailable"
+                            LOG.warning("brain_lookup_data_unavailable reason=%s", str(error)[:120])
                             raise GatewayError("data_unavailable") from None
                         except (UnknownEntity, InvalidFactRequest):
                             entry["status"] = "rejected"
