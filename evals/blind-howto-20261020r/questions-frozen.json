@@ -1,0 +1,482 @@
+[
+ {
+  "id": "r1-01",
+  "question": "how do i get my student id card? i'm a freshman and haven't gotten one yet",
+  "topic": "procedure"
+ },
+ {
+  "id": "r1-02",
+  "question": "Hi, my daughter is starting in the fall and lives on campus. Can we bring a mini fridge and microwave to her dorm room, and what are the rules on that?",
+  "topic": "policy"
+ },
+ {
+  "id": "r1-03",
+  "question": "how do I add a class after the first week?",
+  "topic": "procedure"
+ },
+ {
+  "id": "r1-04",
+  "question": "whos the person i talk to about my fafsa and how do i fix a mistake i made on it",
+  "topic": "contact"
+ },
+ {
+  "id": "r1-05",
+  "question": "can my friend from home sleep over in my room for the weekend",
+  "topic": "policy"
+ },
+ {
+  "id": "r1-06",
+  "question": "how do i connect my phone and laptop to the wifi",
+  "topic": "procedure"
+ },
+ {
+  "id": "r1-07",
+  "question": "I lost my room key. what do I do and is there a fee?",
+  "topic": "procedure"
+ },
+ {
+  "id": "r1-08",
+  "question": "where do i buy parking permit as a first yr student and can freshmen even have cars",
+  "topic": "policy"
+ },
+ {
+  "id": "r1-09",
+  "question": "how do I set up my ramapo email and log into the portal for the first time",
+  "topic": "procedure"
+ },
+ {
+  "id": "r1-10",
+  "question": "what's the meal plan change deadline? i think i got too many swipes",
+  "topic": "policy"
+ },
+ {
+  "id": "r1-11",
+  "question": "im super homesick and idk who to talk to. is there counseling on campus and how do i make an appt",
+  "topic": "contact"
+ },
+ {
+  "id": "r1-12",
+  "question": "How can my parents see my grades or pay my tuition bill? Do they need some kind of permission from me?",
+  "topic": "policy"
+ },
+ {
+  "id": "r1-13",
+  "question": "how to drop a class without it hurting my gpa",
+  "topic": "procedure"
+ },
+ {
+  "id": "r1-14",
+  "question": "my roomate is really loud at night how do i request a room change",
+  "topic": "procedure"
+ },
+ {
+  "id": "r1-15",
+  "question": "I have ADHD and had an IEP in high school. How do I get accommodations for tests at Ramapo?",
+  "topic": "procedure"
+ },
+ {
+  "id": "r1-16",
+  "question": "where do i get my textbooks",
+  "topic": "procedure"
+ },
+ {
+  "id": "r1-17",
+  "question": "can i have a pet in the dorms? like a fish or something small",
+  "topic": "policy"
+ },
+ {
+  "id": "r1-18",
+  "question": "how do I sign up for a clubs and get involved, who do I email",
+  "topic": "contact"
+ },
+ {
+  "id": "r1-19",
+  "question": "i got a parking ticket on campus how do i appeal it",
+  "topic": "procedure"
+ },
+ {
+  "id": "r1-20",
+  "question": "How do I get a job on campus as a work study student? And do I need to bring anything on my first day, like I-9 documents?",
+  "topic": "procedure"
+ },
+ {
+  "id": "r1-21",
+  "question": "what's my balance on my account right now and when is it due",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "r1-22",
+  "question": "is the shuttle running right now? i need to get to the train station",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "r1-23",
+  "question": "Which major do you think I should pick if I like math but also want to make a lot of money?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "r1-24",
+  "question": "how do i get a free flu shot or see a nurse if i feel sick, and do i need to show my vaccine records?",
+  "topic": "procedure"
+ },
+ {
+  "id": "r1-25",
+  "question": "Can you tell me what time my chem lab meets tomorrow?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "r2-01",
+  "question": "how do I apply for graduation? and when is the deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "r2-02",
+  "question": "I'm a senior and I think I'm missing a gen ed requirement. who do I talk to to check if I'm actually on track to graduate in May?",
+  "topic": "contact"
+ },
+ {
+  "id": "r2-03",
+  "question": "how do i order an official transcript to send to grad school",
+  "topic": "procedure"
+ },
+ {
+  "id": "r2-04",
+  "question": "Can I walk in the commencement ceremony if I still have one class to finish over the summer?",
+  "topic": "policy"
+ },
+ {
+  "id": "r2-05",
+  "question": "where do I get my cap and gown",
+  "topic": "procedure"
+ },
+ {
+  "id": "r2-06",
+  "question": "do I need to fill out a degree audit or something before senior year? how do I see what requirements I have left",
+  "topic": "procedure"
+ },
+ {
+  "id": "r2-07",
+  "question": "how do I get credit for an internship? my major requires one and I found a company on my own",
+  "topic": "procedure"
+ },
+ {
+  "id": "r2-08",
+  "question": "whats the policy on taking a class at another college (like a community college) over summer and transferring it back to ramapo",
+  "topic": "policy"
+ },
+ {
+  "id": "r2-09",
+  "question": "Who do I contact about getting my resume reviewed and also about mock interviews?",
+  "topic": "contact"
+ },
+ {
+  "id": "r2-10",
+  "question": "can alumni still use career services after they graduate and for how long",
+  "topic": "policy"
+ },
+ {
+  "id": "r2-12",
+  "question": "i graduated last year and never got my diploma in the mail. how do i get it or a replacement",
+  "topic": "procedure"
+ },
+ {
+  "id": "r2-13",
+  "question": "how do I apply to petition for a course substitution for a requirement",
+  "topic": "procedure"
+ },
+ {
+  "id": "r2-14",
+  "question": "what is the minimum GPA to graduate with honors (cum laude etc)",
+  "topic": "policy"
+ },
+ {
+  "id": "r2-15",
+  "question": "How do I declare a minor this late in my senior year, and who has to sign off on it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "r2-16",
+  "question": "can i get a transcript sent same day? i have a job offer that needs it asap",
+  "topic": "procedure"
+ },
+ {
+  "id": "r2-17",
+  "question": "I have an unpaid parking ticket and a library fine. will that stop me from graduating or getting my transcript?",
+  "topic": "policy"
+ },
+ {
+  "id": "r2-18",
+  "question": "how to withdraw from a class this late in the semester? will it delay my graduation",
+  "topic": "procedure"
+ },
+ {
+  "id": "r2-19",
+  "question": "is there an on campus job fair this semester and how do I sign up as a senior",
+  "topic": "procedure"
+ },
+ {
+  "id": "r2-20",
+  "question": "how do i get a letter verifying my degree for an employer, is it the registrar",
+  "topic": "contact"
+ },
+ {
+  "id": "r2-21",
+  "question": "What happens to my ramapo email address after I graduate? Do I keep it?",
+  "topic": "policy"
+ },
+ {
+  "id": "r2-22",
+  "question": "will I pass my capstone class if I get a C? and what's my current GPA",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "r2-23",
+  "question": "which companies are hiring ramapo grads in nursing or business right now, and what's the average starting salary",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "r2-24",
+  "question": "do i have enough credits to graduate? i'm at 112 i think",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "r2-25",
+  "question": "how do I get an incomplete grade changed so it's on my record before graduation, and who handles that",
+  "topic": "procedure"
+ },
+ {
+  "id": "r3-02",
+  "question": "When is tuition due and what happens if I miss the deadline? My daughter is a freshman and I want to make sure we don't get dropped from her classes.",
+  "topic": "policy"
+ },
+ {
+  "id": "r3-03",
+  "question": "how do I fill out the FAFSA for ramapo, whats the school code",
+  "topic": "procedure"
+ },
+ {
+  "id": "r3-04",
+  "question": "who do i contact about my financial aid package being different than last year",
+  "topic": "contact"
+ },
+ {
+  "id": "r3-05",
+  "question": "How do I get a refund if I dropped a class and my account has a credit balance? Also who should I email about it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "r3-06",
+  "question": "do i have to pay a fee to withdraw from the semester",
+  "topic": "policy"
+ },
+ {
+  "id": "r3-07",
+  "question": "how to apply for work study",
+  "topic": "procedure"
+ },
+ {
+  "id": "r3-08",
+  "question": "whats the process for appealing my financial aid if i lost SAP status",
+  "topic": "procedure"
+ },
+ {
+  "id": "r3-09",
+  "question": "My dad lost his job this year and our income dropped a lot. Is there a way to ask the college to reconsider my aid? What do we need to submit?",
+  "topic": "procedure"
+ },
+ {
+  "id": "r3-10",
+  "question": "where do i send an outside scholarship check",
+  "topic": "procedure"
+ },
+ {
+  "id": "r3-11",
+  "question": "can i use my financial aid to pay for books or does that only go to tuition",
+  "topic": "policy"
+ },
+ {
+  "id": "r3-12",
+  "question": "how do I add my parents as authorized payers on my student account so they can see the bill",
+  "topic": "procedure"
+ },
+ {
+  "id": "r3-13",
+  "question": "bursar office hours and phone number?",
+  "topic": "contact"
+ },
+ {
+  "id": "r3-14",
+  "question": "How do I sign up for direct deposit so my refund goes to my bank account instead of getting a paper check?",
+  "topic": "procedure"
+ },
+ {
+  "id": "r3-15",
+  "question": "is there a late fee if I pay my bill after the due date",
+  "topic": "policy"
+ },
+ {
+  "id": "r3-16",
+  "question": "how do i accept or decline my loans on the portal",
+  "topic": "procedure"
+ },
+ {
+  "id": "r3-17",
+  "question": "What's the process to get a hold removed from my account so I can register for classes? I think it's a balance thing.",
+  "topic": "procedure"
+ },
+ {
+  "id": "r3-18",
+  "question": "how much do I owe right now for spring semester",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "r3-19",
+  "question": "will I get a scholarship if my GPA is a 3.4? my friend said ramapo gives merit money",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "r3-20",
+  "question": "do I need to resubmit verification docs every year? how do I submit tax transcript stuff to fin aid",
+  "topic": "procedure"
+ },
+ {
+  "id": "r3-21",
+  "question": "Is my financial aid affected if I go part time? How many credits do I need to keep my aid?",
+  "topic": "policy"
+ },
+ {
+  "id": "r3-22",
+  "question": "how do i get my 1098-T tax form for tuition",
+  "topic": "procedure"
+ },
+ {
+  "id": "r3-23",
+  "question": "my parent plus loan got denied, what are my options and who can help me figure it out",
+  "topic": "contact"
+ },
+ {
+  "id": "r3-24",
+  "question": "what is the refund policy if I withdraw after the semester starts, do we get tuition money back",
+  "topic": "policy"
+ },
+ {
+  "id": "r3-25",
+  "question": "should I take out a private loan or just pay with a credit card, which is better for me",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "r4-02",
+  "question": "Can my boyfriend stay overnight in my room in the Village? What's the guest policy and do I have to sign him in?",
+  "topic": "policy"
+ },
+ {
+  "id": "r4-03",
+  "question": "i got a parking ticket yesterday how do i appeal it and who do i email",
+  "topic": "procedure"
+ },
+ {
+  "id": "r4-05",
+  "question": "can freshmen have cars on campus?",
+  "topic": "policy"
+ },
+ {
+  "id": "r4-06",
+  "question": "whats the number for campus safety if its not an emergency",
+  "topic": "contact"
+ },
+ {
+  "id": "r4-07",
+  "question": "I lost my ID card. How do I get a replacement and does it cost anything?",
+  "topic": "procedure"
+ },
+ {
+  "id": "r4-08",
+  "question": "how do i change my meal plan",
+  "topic": "procedure"
+ },
+ {
+  "id": "r4-09",
+  "question": "my roomate is making my life miserable, how do i switch rooms or request a room change",
+  "topic": "procedure"
+ },
+ {
+  "id": "r4-10",
+  "question": "Do I need a meal plan if I live in a suite style apartment?",
+  "topic": "policy"
+ },
+ {
+  "id": "r4-11",
+  "question": "how do i request a housing accomodation for a medical reason + who do i talk to",
+  "topic": "procedure"
+ },
+ {
+  "id": "r4-12",
+  "question": "can i bring a microwave or mini fridge to my dorm",
+  "topic": "policy"
+ },
+ {
+  "id": "r4-13",
+  "question": "how do I report a broken heater or maintenence issue in my apartment",
+  "topic": "procedure"
+ },
+ {
+  "id": "r4-14",
+  "question": "is there a safety escort at night? how do i request one",
+  "topic": "procedure"
+ },
+ {
+  "id": "r4-15",
+  "question": "i got locked out of my room at 2am what do i do",
+  "topic": "procedure"
+ },
+ {
+  "id": "r4-16",
+  "question": "How do I report a theft or file a police report on campus?",
+  "topic": "procedure"
+ },
+ {
+  "id": "r4-17",
+  "question": "can i have a food allergy accomodation for dining? how to set that up",
+  "topic": "procedure"
+ },
+ {
+  "id": "r4-18",
+  "question": "whats the policy on bikes and scooters on campus",
+  "topic": "policy"
+ },
+ {
+  "id": "r4-19",
+  "question": "how do I cancel my housing contract if I'm moving home mid semester",
+  "topic": "procedure"
+ },
+ {
+  "id": "r4-20",
+  "question": "what to do with my car if i get a boot or its towed",
+  "topic": "procedure"
+ },
+ {
+  "id": "r4-21",
+  "question": "how do i get a ride from the train station to campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "r4-22",
+  "question": "How do I get my money back for unused dining dollars?",
+  "topic": "procedure"
+ },
+ {
+  "id": "r4-23",
+  "question": "how much is the commuter parking permit this year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "r4-24",
+  "question": "Which dorm is the best for sophomores? i cant decide between Birch and Laurel",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "r4-25",
+  "question": "is my housing deposit refunded yet? i paid in may",
+  "topic": "out_of_scope"
+ }
+]
