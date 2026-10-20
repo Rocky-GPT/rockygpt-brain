@@ -1719,6 +1719,16 @@ def test_a_page_with_how_to_entries_offers_them_instead_of_its_sections() -> Non
                                                "quote": "First violation: $200 fine"}]}]}
     alcohol, _ = procedures_property([sanctions], NOW, "second alcohol violation")
     assert "Second violation: $300 fine." in alcohol["values"][0]["value"]["page_words"]
+    # The asked rule can be in another section of the same page.
+    items = {**listed, "sections": [
+        {"heading": "Allowed items", "text": "Fish tanks up to 10 gallons are allowed."},
+        {"heading": "Prohibited items", "text": "Microwaves other than the College's are banned."}],
+             "howto_entries": [{"task": "Check which items are allowed", "section": "Allowed items",
+                                "steps": [{"text": "Fish tanks up to 10 gallons are allowed.",
+                                           "quote": "Fish tanks up to 10 gallons are allowed"}]}]}
+    microwave, _ = procedures_property([items], NOW, "bring a microwave items allowed")
+    assert "Microwaves other than the College's are banned." in (
+        microwave["values"][0]["value"]["page_words"])
     travel, _ = procedures_property([listed], NOW, "get reimbursed for travel")
     assert travel["values"][0]["value"]["applies_to"] == "College employees"
     assert travel["values"][0]["value"]["handled_by"] == "Controller"
