@@ -1706,8 +1706,8 @@ def test_a_page_with_how_to_entries_offers_them_instead_of_its_sections() -> Non
     first = prop["values"][0]["value"]
     assert first["text"] == "1. Ask the Center for Student Involvement in SC-218."
     # An entry carries its section's own words matching the question, for what its steps leave out.
-    sanctions = {**listed, "sections": [{"heading": "Alcohol", "text":
-                                         "First violation: $200 fine. Second violation: $300 fine."}],
+    table = "First violation: $200 fine. Second violation: $300 fine."
+    sanctions = {**listed, "sections": [{"heading": "Alcohol", "text": table}],
                  "howto_entries": [{"task": "Know the alcohol sanctions", "section": "Alcohol",
                                     "steps": [{"text": "A first violation carries a $200 fine.",
                                                "quote": "First violation: $200 fine"}]}]}
