@@ -1418,13 +1418,15 @@ def _procedure_units(row: dict[str, Any]) -> list[tuple[str, dict[str, Any], set
                 continue
             extra = {key: value for key in ("applies_to", "handled_by", "term", "section")
                      if isinstance(value := clean(entry.get(key)), str) and value}
-            # The page's own words the entry came from: a listed entry can leave out a row of its
-            # table (a second violation's sanction), which a reader asked about still needs.
-            source_text = next((clean(section.get("text")) for section in sections
-                                if isinstance(section, dict)
-                                and clean(section.get("heading")) == extra.get("section")), None)
-            if isinstance(source_text, str) and source_text:
-                extra["source_text"] = source_text
+            # The page's own words: a listed entry can leave out a row of its table (a second
+            # violation's sanction), or the asked rule can sit in another section of the same page
+            # (an allowed-items entry, the prohibited-items list), which a reader still needs.
+            page_text = " ".join(
+                f"{heading}: {text}" for section in sections if isinstance(section, dict)
+                if isinstance(heading := clean(section.get("heading")), str)
+                and isinstance(text := clean(section.get("text")), str) and text)
+            if page_text:
+                extra["source_text"] = page_text
             text = " ".join(f"{n}. {step}" for n, step in enumerate(steps, start=1))
             top, body = _section_words(row, f"{task} {extra.get('applies_to', '')}", text)
             units.append((f"e{index}", {"heading": task, "text": text, **extra}, top,
