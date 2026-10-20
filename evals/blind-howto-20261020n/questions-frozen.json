@@ -1,0 +1,497 @@
+[
+ {
+  "id": "n1-01",
+  "question": "how do i register for fall classes? my advisor said i have to do it soon",
+  "topic": "procedure"
+ },
+ {
+  "id": "n1-02",
+  "question": "I have an advising hold on my account and cant register. how do I get it removed and who do I email?",
+  "topic": "contact"
+ },
+ {
+  "id": "n1-03",
+  "question": "can i change my meal plan for next semester or am i stuck with the one i have",
+  "topic": "policy"
+ },
+ {
+  "id": "n1-04",
+  "question": "how do I join a club on campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "n1-05",
+  "question": "what do i need to do to start a new club if there isnt one for what i like",
+  "topic": "procedure"
+ },
+ {
+  "id": "n1-06",
+  "question": "looking for an on campus job, where do I apply and do I need work study",
+  "topic": "procedure"
+ },
+ {
+  "id": "n1-07",
+  "question": "im failing calc 2 and need help. is there free tutoring and how do i sign up",
+  "topic": "procedure"
+ },
+ {
+  "id": "n1-08",
+  "question": "whats the deadline to withdraw from a class without it hurting my gpa",
+  "topic": "policy"
+ },
+ {
+  "id": "n1-09",
+  "question": "can I take summer classes at another college and transfer the credits back to ramapo?",
+  "topic": "policy"
+ },
+ {
+  "id": "n1-10",
+  "question": "how do i find out who my advisor is",
+  "topic": "procedure"
+ },
+ {
+  "id": "n1-11",
+  "question": "do i have to move out of my dorm over the summer or can i stay",
+  "topic": "policy"
+ },
+ {
+  "id": "n1-12",
+  "question": "How do I apply for housing for next year, and who do I talk to if I want to switch roommates or buildings?",
+  "topic": "contact"
+ },
+ {
+  "id": "n1-13",
+  "question": "how to get a parking permit as a freshman",
+  "topic": "procedure"
+ },
+ {
+  "id": "n1-14",
+  "question": "whats the policy on pass/fail for a gen ed course",
+  "topic": "policy"
+ },
+ {
+  "id": "n1-15",
+  "question": "i think i want to change my major from bio to psych. how",
+  "topic": "procedure"
+ },
+ {
+  "id": "n1-16",
+  "question": "where do I get an internship for the summer and is there someone who can look at my resume",
+  "topic": "contact"
+ },
+ {
+  "id": "n1-17",
+  "question": "how do i drop a class after the add/drop period ends",
+  "topic": "procedure"
+ },
+ {
+  "id": "n1-18",
+  "question": "my fafsa for next year, how do I renew it and who do I call about my aid package",
+  "topic": "contact"
+ },
+ {
+  "id": "n1-19",
+  "question": "can friends from home sleep over in my room for a weekend",
+  "topic": "policy"
+ },
+ {
+  "id": "n1-20",
+  "question": "i got a C- in a required class, can i retake it and does the old grade go away",
+  "topic": "policy"
+ },
+ {
+  "id": "n1-21",
+  "question": "how do I request extra time on exams / accomodations for my ADHD",
+  "topic": "procedure"
+ },
+ {
+  "id": "n1-22",
+  "question": "what classes should I take next semester for the nursing track",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "n1-24",
+  "question": "is the gym open right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "n1-25",
+  "question": "how can I get my meal plan swipes back if i lose my id card, and where do i get a new one",
+  "topic": "procedure"
+ },
+ {
+  "id": "n2-01",
+  "question": "how do I apply for graduation? im a senior finishing in May",
+  "topic": "procedure"
+ },
+ {
+  "id": "n2-02",
+  "question": "Is there a deadline to submit the graduation application and what happens if I miss it?",
+  "topic": "policy"
+ },
+ {
+  "id": "n2-03",
+  "question": "where do I find my degree audit and who do I talk to if it shows a requirement as unmet when I already took the class",
+  "topic": "contact"
+ },
+ {
+  "id": "n2-04",
+  "question": "how do i get an internship approved for credit",
+  "topic": "procedure"
+ },
+ {
+  "id": "n2-05",
+  "question": "What are the requirements to do a senior capstone or thesis? Can I do one in a different department than my major",
+  "topic": "policy"
+ },
+ {
+  "id": "n2-06",
+  "question": "I think a transfer credit was never applied to my record. How do I get it fixed before I graduate?",
+  "topic": "procedure"
+ },
+ {
+  "id": "n2-07",
+  "question": "how do I apply to the honors program as a junior",
+  "topic": "procedure"
+ },
+ {
+  "id": "n2-08",
+  "question": "whats the GPA you need for latin honors at graduation",
+  "topic": "policy"
+ },
+ {
+  "id": "n2-09",
+  "question": "how do I request an official transcript to send to grad schools, and how long does it take",
+  "topic": "procedure"
+ },
+ {
+  "id": "n2-10",
+  "question": "can i walk in commencement if im still a few credits short",
+  "topic": "policy"
+ },
+ {
+  "id": "n2-11",
+  "question": "how do I change my name on my diploma",
+  "topic": "procedure"
+ },
+ {
+  "id": "n2-12",
+  "question": "I need a letter of recommendation for grad school, does the college have a process for that or do I just ask professors?",
+  "topic": "procedure"
+ },
+ {
+  "id": "n2-13",
+  "question": "who do I contact about a hold on my account that's blocking me from graduating",
+  "topic": "contact"
+ },
+ {
+  "id": "n2-14",
+  "question": "how do I declare a minor this late, im a junior",
+  "topic": "procedure"
+ },
+ {
+  "id": "n2-15",
+  "question": "Can I take a class at another college over the summer and transfer it back to finish my degree? How do I get permission?",
+  "topic": "policy"
+ },
+ {
+  "id": "n2-16",
+  "question": "how do I fix a wrong grade or an incomplete that is still on my transcript",
+  "topic": "procedure"
+ },
+ {
+  "id": "n2-17",
+  "question": "what is the policy on repeating a course to replace a bad grade, does the old grade still count",
+  "topic": "policy"
+ },
+ {
+  "id": "n2-18",
+  "question": "how do i get a diploma mailed if i move after graduating",
+  "topic": "procedure"
+ },
+ {
+  "id": "n2-19",
+  "question": "does career services help with resume reviews and grad school personal statements, and how do I make an appt",
+  "topic": "contact"
+ },
+ {
+  "id": "n2-20",
+  "question": "how do i apply for the 4+1 or accelerated masters program at ramapo",
+  "topic": "procedure"
+ },
+ {
+  "id": "n2-21",
+  "question": "How do I request a course substitution or waiver for a major requirement?",
+  "topic": "procedure"
+ },
+ {
+  "id": "n2-22",
+  "question": "what do i need to do to get my cap and gown",
+  "topic": "procedure"
+ },
+ {
+  "id": "n2-23",
+  "question": "am I on track to graduate on time? I have 98 credits right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "n2-24",
+  "question": "Which grad school should I apply to for a psych masters, UPenn or Rutgers?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "n2-25",
+  "question": "what's my GPA and do I have any holds right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "n3-01",
+  "question": "how do I appeal a parking ticket i got in lot C",
+  "topic": "procedure"
+ },
+ {
+  "id": "n3-02",
+  "question": "I got written up in my dorm for having a candle. what happens now and do i have to go to a hearing?",
+  "topic": "procedure"
+ },
+ {
+  "id": "n3-03",
+  "question": "what is the policy on academic dishonesty at Ramapo",
+  "topic": "policy"
+ },
+ {
+  "id": "n3-04",
+  "question": "my professor says i plagiarized on a paper and i think its a mistake. how do i appeal and who do i talk to",
+  "topic": "procedure"
+ },
+ {
+  "id": "n3-05",
+  "question": "how to report a sexual assault or harassment incident",
+  "topic": "procedure"
+ },
+ {
+  "id": "n3-06",
+  "question": "what are the possible sanctions if you're found responsible in a student conduct hearing",
+  "topic": "policy"
+ },
+ {
+  "id": "n3-07",
+  "question": "can my parents find out if I get a conduct violation?",
+  "topic": "policy"
+ },
+ {
+  "id": "n3-08",
+  "question": "who do I contact at student conduct office",
+  "topic": "contact"
+ },
+ {
+  "id": "n3-09",
+  "question": "how much is the fine for parking without a permit",
+  "topic": "policy"
+ },
+ {
+  "id": "n3-10",
+  "question": "Is alchohol allowed in the residence halls if your over 21?",
+  "topic": "policy"
+ },
+ {
+  "id": "n3-11",
+  "question": "how do i report a roommate who is bullying me",
+  "topic": "procedure"
+ },
+ {
+  "id": "n3-12",
+  "question": "what's the deadline to appeal a conduct decision",
+  "topic": "procedure"
+ },
+ {
+  "id": "n3-13",
+  "question": "I was caught with weed in my room. am I going to get kicked out of housing? What is the process",
+  "topic": "policy"
+ },
+ {
+  "id": "n3-14",
+  "question": "how can I anonymously report something I saw on campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "n3-15",
+  "question": "does a conduct violation go on my transcript",
+  "topic": "policy"
+ },
+ {
+  "id": "n3-16",
+  "question": "do i need a lawyer for a student conduct hearing? can i bring someone with me",
+  "topic": "policy"
+ },
+ {
+  "id": "n3-17",
+  "question": "how do I contest a towing",
+  "topic": "procedure"
+ },
+ {
+  "id": "n3-18",
+  "question": "what happens if i fail a class bc of cheating, can i retake it",
+  "topic": "policy"
+ },
+ {
+  "id": "n3-19",
+  "question": "who do I call if I need to report a bias incident or hate speech and what info do they need",
+  "topic": "contact"
+ },
+ {
+  "id": "n3-20",
+  "question": "can I get fined for having a pet fish or other pets in my dorm",
+  "topic": "policy"
+ },
+ {
+  "id": "n3-21",
+  "question": "got a letter saying I have to meet with a hearing officer. what should i expect",
+  "topic": "procedure"
+ },
+ {
+  "id": "n3-22",
+  "question": "will I be suspended for my third parking ticket?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "n3-23",
+  "question": "do you think the dean will go easy on me for a first offense? I was caught cheating on my chem exam",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "n3-24",
+  "question": "Do I have any unpaid tickets or holds on my account right now?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "n3-25",
+  "question": "how do I file a complaint against a campus safety officer",
+  "topic": "procedure"
+ },
+ {
+  "id": "n4-01",
+  "question": "How do I apply to Ramapo as a transfer student?",
+  "topic": "procedure"
+ },
+ {
+  "id": "n4-02",
+  "question": "my daughter is a junior in HS and we want to visit campus. how do we sign up for a tour and where do we park",
+  "topic": "procedure"
+ },
+ {
+  "id": "n4-03",
+  "question": "Can I get a copy of my transcript from 1998? I graduated a long time ago. How do I order one and who do I call if it's not online?",
+  "topic": "procedure"
+ },
+ {
+  "id": "n4-04",
+  "question": "is the library open to the public",
+  "topic": "policy"
+ },
+ {
+  "id": "n4-05",
+  "question": "How do I find out about alumni events near me",
+  "topic": "procedure"
+ },
+ {
+  "id": "n4-06",
+  "question": "What documents do I need to submit to apply as a first year student? Do you require SAT scores?",
+  "topic": "procedure"
+ },
+ {
+  "id": "n4-07",
+  "question": "Can visitors use the gym or pool? Is there a guest fee?",
+  "topic": "policy"
+ },
+ {
+  "id": "n4-08",
+  "question": "how do i rent a space on campus for a community event, like a meeting hall or the theater",
+  "topic": "procedure"
+ },
+ {
+  "id": "n4-09",
+  "question": "I'm a parent and I need to get my son's grades. does ramapo let parents see them?",
+  "topic": "policy"
+ },
+ {
+  "id": "n4-10",
+  "question": "who do i contact to verify that someone graduated from ramapo for a job background check",
+  "topic": "contact"
+ },
+ {
+  "id": "n4-11",
+  "question": "What's the best way to get to campus from NYC by public transit?",
+  "topic": "procedure"
+ },
+ {
+  "id": "n4-12",
+  "question": "Do I need a permit to park on campus when I'm just visiting for a day? How do I get a visitor pass?",
+  "topic": "procedure"
+ },
+ {
+  "id": "n4-13",
+  "question": "How can my family attend commencement? Are tickets needed and how many guests can each grad bring",
+  "topic": "policy"
+ },
+ {
+  "id": "n4-14",
+  "question": "whats the process to request a diploma replacement, mine got lost in a move",
+  "topic": "procedure"
+ },
+ {
+  "id": "n4-15",
+  "question": "I want to take a single class without being a full student. Is there a way to do that and how do I register?",
+  "topic": "procedure"
+ },
+ {
+  "id": "n4-16",
+  "question": "Are pets or service animals allowed when touring the campus? Who should I let know ahead of time if my son uses a wheelchair?",
+  "topic": "policy"
+ },
+ {
+  "id": "n4-17",
+  "question": "how do I apply for fin aid as a prospective student, and when is the FAFSA deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "n4-18",
+  "question": "Who do I call about getting a campus job reference or a recommendation letter from a professor I had years ago?",
+  "topic": "contact"
+ },
+ {
+  "id": "n4-19",
+  "question": "How do I donate to the college or set up a scholarship in my parents' name?",
+  "topic": "procedure"
+ },
+ {
+  "id": "n4-20",
+  "question": "can my kid's friend sleep over in the dorms during admitted students weekend",
+  "topic": "policy"
+ },
+ {
+  "id": "n4-21",
+  "question": "how do I report something suspicious or an emergency when I'm on campus as a visitor",
+  "topic": "procedure"
+ },
+ {
+  "id": "n4-22",
+  "question": "What are my chances of getting accepted with a 3.2 GPA?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "n4-23",
+  "question": "Is the cafeteria open right now and how much is a meal swipe for guests?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "n4-24",
+  "question": "Which is better for nursing, Ramapo or Montclair State? My daughter can't decide, what would you recommend",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "n4-25",
+  "question": "how do i get an alumni email address or ID card, and is there a contact for the alumni office",
+  "topic": "contact"
+ }
+]
