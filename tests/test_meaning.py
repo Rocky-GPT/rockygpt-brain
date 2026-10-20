@@ -123,3 +123,23 @@ def test_a_follow_up_is_searched_with_what_the_student_wants() -> None:
     asked = meaning_query(" and for grad students? ",
                           ["apply for graduation", "apply for graduation"])
     assert asked == "and for grad students?\napply for graduation"
+
+
+def test_an_entry_carries_its_own_section_for_what_its_steps_leave_out() -> None:
+    policy = ("Students are reviewed annually. Graduate students must have a cumulative GPA of "
+              "3.0. Undergraduate students must have a cumulative GPA of at least 2.0.")
+    page = {"id": "page-1", "source_key": "office-pages", "source_record_key": "r",
+            "url": "https://www.ramapo.edu/finaid/policies/", "collected_at": NOW,
+            "freshness_sla_hours": 168, "content_hash": "h",
+            "sections": [{"heading": "Other", "text": "Unrelated words. " * 200},
+                         {"heading": "Satisfactory Academic Progress", "text": policy}],
+            "howto_entries": [{"task": "Keep satisfactory academic progress for aid",
+                               "section": "Satisfactory Academic Progress",
+                               "steps": [{"text": "Graduate students need a 3.0 GPA.",
+                                          "quote": "Graduate students must have a cumulative "
+                                                   "GPA of 3.0"}]}]}
+    prop, _ = procedures_property([page], NOW, "satisfactory academic progress gpa for aid")
+    value = prop["values"][0]["value"]
+    assert value["text"] == "1. Graduate students need a 3.0 GPA."
+    assert "Undergraduate students must have a cumulative GPA of at least 2.0." in (
+        value["section_words"])

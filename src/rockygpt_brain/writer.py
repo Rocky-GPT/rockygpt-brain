@@ -145,8 +145,10 @@ give the page for the rest.
   one's steps, amounts, dates and conditions, in that order; one that only repeats an earlier one
   gets a sentence with its page. past_term means the section is for that term, which is over: say
   so, and never give its dates as coming up. term names the term or year it is for: say it.
-  page_words are the page's own words around it: use
-  them for what the steps leave out that was asked (another case, a date, an amount). applies_to
+  section_words are the words of the page section its steps were written from: when they say
+  something asked that the steps leave out (the rule for another group the student is in, a
+  tier, a date, an amount, a contact), give it from there in the page's terms. page_words are
+  the page's own words around it: use them the same way. applies_to
   says who it is for: say it. handled_by names the office that handles it: name that office.
   asked.wants says what the student wants to do or know: say only what applies to it; a rule for a
   different fee, deadline, place, program or group is left out, never given as the answer. Never
