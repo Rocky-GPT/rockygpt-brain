@@ -571,7 +571,7 @@ def published_offices(listing: dict[str, Any]) -> list[dict[str, Any]] | None:
 
 
 # The sections a how-to answer says, chosen by a model from the candidates code ranked.
-PICKED_PROCEDURES = 4
+PICKED_PROCEDURES = 6
 PICK_SECONDS = 18.0
 PICK_TOOL: dict[str, Any] = {
     "type": "function", "name": "pick_sections", "strict": True,
@@ -582,13 +582,13 @@ PICK_TOOL: dict[str, Any] = {
                        "type": "object", "additionalProperties": False,
                        "required": ["lookup", "sections"],
                        "properties": {"lookup": {"type": "integer"},
-                                      "sections": {"type": "array", "maxItems": 4,
+                                      "sections": {"type": "array", "maxItems": 6,
                                                    "items": {"type": "integer"}}}}}}},
 }
 PICK_PROMPT = """A student asked a Ramapo College office a "how do I" or policy question. For each
 lookup you are given what the student wants and numbered sections of that office's own pages (a
 heading, the page and the start of the text). Pick the sections that directly answer what the
-student wants, best first, at most four. Prefer a section that gives the steps or the rule asked
+student wants, best first, at most six. Prefer a section that gives the steps or the rule asked
 over one that only mentions the topic or lists resources. A page about a past term or a previous
 deadline is not today's rule when a current one is offered; a section with past_term is for that
 term: pick it only when the student asks about that term or no current section answers. When the
