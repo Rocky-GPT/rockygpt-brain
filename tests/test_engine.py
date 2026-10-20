@@ -1747,18 +1747,6 @@ def test_a_page_with_how_to_entries_offers_them_instead_of_its_sections() -> Non
     microwave, _ = procedures_property([items], NOW, "bring a microwave items allowed")
     assert "Microwaves other than the College's are banned." in (
         microwave["values"][0]["value"]["page_words"])
-    # A long page is said in a few places: the allowed list names fish, the prohibited list
-    # (far down the page) names animals, and both are said.
-    filler = " ".join(f"Rule {n} is about something else entirely." for n in range(80))
-    pets = {**listed, "sections": [
-        {"heading": "Allowed items", "text": f"Fish in tanks up to 10 gallons. {filler}"},
-        {"heading": "Prohibited items", "text": f"{filler} Animals of any kind are prohibited."}],
-            "howto_entries": [{"task": "Check which items are allowed", "section": "Allowed items",
-                               "steps": [{"text": "Fish tanks up to 10 gallons are allowed.",
-                                          "quote": "Fish in tanks up to 10 gallons"}]}]}
-    animals, _ = procedures_property([pets], NOW, "items allowed: a fish or small animals")
-    around = animals["values"][0]["value"]["page_words"]
-    assert "Fish in tanks" in around and "Animals of any kind are prohibited." in around
     travel, _ = procedures_property([listed], NOW, "get reimbursed for travel")
     assert travel["values"][0]["value"]["applies_to"] == "College employees"
     assert travel["values"][0]["value"]["handled_by"] == "Controller"

@@ -1328,9 +1328,8 @@ _PROCEDURE_FILLER = frozenset(
 # The sections a procedure read offers (the engine keeps the few that answer), and the most of
 # one section's text that is said.
 MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 16, 1800
-# The most of a how-to entry's page said beside its steps: the parts matching what was asked, at
-# most PAGE_WORDS_PARTS of them.
-MAX_PAGE_WORDS_CHARS, PAGE_WORDS_PARTS = 2400, 3
+# The most of a how-to entry's own section said beside its steps, the part matching what was asked.
+MAX_PAGE_WORDS_CHARS = 1400
 # The most of a candidate a section picker reads.
 PICK_MATCH_CHARS = 280
 
@@ -1414,32 +1413,6 @@ def _passage(text: str, wanted: set[str], weight: dict[str, float], limit: int) 
         return text[:limit]
     start = _question_start(text, spans, best)
     return text[start:start + limit]
-
-
-def _passages(text: str, wanted: set[str], weight: dict[str, float], limit: int,
-              parts: int) -> str:
-    """The parts of a whole page that speak to what was asked, in page order: around each of
-    its best-matching sentences, up to `parts` of them. One part can leave the asked rule out
-    (the allowed-items list names fish; the prohibited-items list, animals), so a page is said
-    in a few places, not one."""
-    if len(text) <= limit:
-        return text
-    spans = _spans(text)
-    scores = _span_scores(text, spans, wanted, weight)
-    order = sorted((i for i in range(len(spans)) if scores[i] > 0),
-                   key=lambda i: (-scores[i], i))
-    size = limit // parts
-    windows: list[tuple[int, int]] = []
-    for i in order:
-        if len(windows) == parts:
-            break
-        start = _question_start(text, spans, i)
-        if any(a <= start < b or a <= spans[i][0] < b for a, b in windows):
-            continue
-        windows.append((start, min(len(text), start + size)))
-    if not windows:
-        return text[:limit]
-    return " … ".join(text[a:b] for a, b in sorted(windows))
 
 
 def _section_words(row: dict[str, Any], heading: str, text: str) -> tuple[set[str], set[str]]:
@@ -1565,8 +1538,8 @@ def procedures_property(
                       record_ids=[row["id"]])
         sources[row["id"]] = source
         said = _passage(section["text"], wanted, weight, MAX_PROCEDURE_CHARS)
-        around = (_passages(section["source_text"], wanted, weight, MAX_PAGE_WORDS_CHARS,
-                            PAGE_WORDS_PARTS) if section.get("source_text") else None)
+        around = (_passage(section["source_text"], wanted, weight, MAX_PAGE_WORDS_CHARS)
+                  if section.get("source_text") else None)
         # What a picker reads of it: the part that best matches what was asked, not its opening
         # (a policy's Procedure section opens with definitions; "Protests" comes later).
         match = _passage(section["text"], wanted, weight, PICK_MATCH_CHARS)
