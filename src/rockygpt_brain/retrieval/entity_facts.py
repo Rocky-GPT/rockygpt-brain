@@ -1547,7 +1547,7 @@ def procedures_property(
                  **({"text_cut": True} if said != section["text"] else {}),
                  **({"page_words": around} if around else {}),
                  **({"match": match} if match and not section["text"].startswith(match) else {}),
-                 **{key: section[key] for key in ("applies_to", "handled_by", "past_term")
+                 **{key: section[key] for key in ("applies_to", "handled_by", "term", "past_term")
                     if section.get(key)}}
         entry = index.startswith("e")
         assertion = {"id": f"{source['id']}:procedures:{index}", "source_id": source["id"],

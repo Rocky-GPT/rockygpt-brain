@@ -11,7 +11,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -66,7 +66,7 @@ from rockygpt_brain.shuttle import (
     table_of,
 )
 from rockygpt_brain.timing import measure
-from rockygpt_brain.turn import Turn
+from rockygpt_brain.turn import CAMPUS_TZ, Turn
 from rockygpt_brain.writer import (
     WRITE_TOOL,
     WRITER_TEXT_LIMIT,
@@ -602,9 +602,10 @@ heading, the page and the start of the text). Pick the sections that directly an
 student wants, best first, at most six. Prefer a section that gives the steps or the rule asked
 over one that only mentions the topic or lists resources. A page about a past term or a previous
 deadline is not today's rule when a current one is offered; a section with past_term is for that
-term: pick it only when the student asks about that term or no current section answers. When the
-student asks two things (how
-to do it and what happens if not), pick a section for each. A section about a different task that
+term: pick it only when the student asks about that term or no current section answers. term
+names the term or year a section is for: "this semester" or "next semester" is the one around
+today or the next one after it. When the student asks two things (how to do it and what happens
+if not), pick a section for each. A section about a different task that
 shares words is not an answer (a degree audit is not auditing a course; a junior's question is not
 answered by first-year steps). A section about one program, place, building or event answers only
 a question naming it: for a general question pick the general section. applies_to says who a
@@ -630,7 +631,7 @@ OTHER_OFFICES, OTHER_SECTIONS = 3, 8
 
 
 def pick_messages(asked: list[tuple[str, str, dict[str, Any]]],
-                  others: int = 0) -> list[dict[str, Any]]:
+                  others: int = 0, today: date | None = None) -> list[dict[str, Any]]:
     """What the picking model is given: per lookup, the student's task and the candidates. The
     last `others` lookups are other offices found by their pages, not asked for."""
     first_other = len(asked) - others
@@ -638,12 +639,14 @@ def pick_messages(asked: list[tuple[str, str, dict[str, Any]]],
                 **({"other_office": True} if k >= first_other else {}), "sections": [
         {"n": n, "heading": v["value"].get("heading"), "page": v["value"].get("page"),
          "start": str(v["value"].get("match") or v["value"].get("text", ""))[:280],
-         **{key: v["value"][key] for key in ("applies_to", "handled_by", "past_term")
+         **{key: v["value"][key] for key in ("applies_to", "handled_by", "term", "past_term")
             if v["value"].get(key)}}
         for n, v in enumerate(prop["values"][:OTHER_SECTIONS if k >= first_other else None])]}
         for k, (about, office, prop) in enumerate(asked)]
+    said: Any = ({"today": f"{today:%A, %B} {today.day}, {today.year}", "lookups": lookups}
+                 if today else lookups)
     return [{"role": "system", "content": PICK_PROMPT},
-            {"role": "user", "content": json.dumps(lookups, ensure_ascii=False)}]
+            {"role": "user", "content": json.dumps(said, ensure_ascii=False)}]
 
 
 def keep_procedures(result: "OfficeResult", keep: list[int]) -> "OfficeResult":
@@ -1498,7 +1501,9 @@ class ChatEngine:
             try:
                 async with asyncio.timeout(PICK_SECONDS):
                     completion = await self.gateway.complete(
-                        input=pick_messages(offered, len(others)), tools=[PICK_TOOL],
+                        input=pick_messages(offered, len(others),
+                                            as_of.astimezone(CAMPUS_TZ).date()),
+                        tools=[PICK_TOOL],
                         budget=budget)
                 call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
                 if call is not None and call.name == "pick_sections":

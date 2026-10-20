@@ -1798,6 +1798,15 @@ def test_a_how_to_on_another_offices_pages_is_offered_and_said_as_that_office() 
     assert result.trace is not None
     (other,) = [e for e in result.trace["lookups"] if e.get("foundBy") == "other_office_pages"]
     assert other["office"] == "Center for Reading and Writing"
+    # The picker was told which lookup the student did not ask for.
+    offered = json.loads(gateway.inputs[1][1]["content"])["lookups"]
+    assert "other_office" not in offered[0] and offered[1]["other_office"] is True
+    # Not picked, another office is never said.
+    none = completion("pick_sections", {"picks": [{"lookup": 0, "sections": [1]},
+                                                  {"lookup": 1, "sections": []}]})
+    kept = answer(ScriptedGateway(ask, none, finish()), service=service,
+                  messages=[{"role": "user", "content": "how do i become a peer tutor"}])
+    assert "March 1" not in kept.body["answer"]
 
 
 def test_the_pages_are_searched_with_the_pages_own_terms_beside_the_students() -> None:
@@ -1812,15 +1821,8 @@ def test_the_pages_are_searched_with_the_pages_own_terms_beside_the_students() -
     result = answer(gateway, service=service,
                     messages=[{"role": "user", "content": "can i help other kids with essays"}])
     assert "March 1" in result.body["answer"]
-    # The picker was told which lookup the student did not ask for.
-    offered = json.loads(gateway.inputs[1][1]["content"])
-    assert "other_office" not in offered[0] and offered[1]["other_office"] is True
-    # Not picked, another office is never said.
-    none = completion("pick_sections", {"picks": [{"lookup": 0, "sections": [1]},
-                                                  {"lookup": 1, "sections": []}]})
-    kept = answer(ScriptedGateway(ask, none, finish()), service=service,
-                  messages=[{"role": "user", "content": "how do i become a peer tutor"}])
-    assert "March 1" not in kept.body["answer"]
+    # The picker is told today's date, so it can tell this semester's section from the next.
+    assert json.loads(gateway.inputs[1][1]["content"])["today"].endswith(f", {NOW.year}")
 
 
 def test_a_picked_long_section_is_said_without_the_pickers_snippet() -> None:
