@@ -148,7 +148,10 @@ give the page for the rest.
   them for what the steps leave out that was asked (another case, a date, an amount). applies_to
   says who it is for: say it. handled_by names the office that handles it: name that office.
   asked.wants says what the student wants to do or know: say only what applies to it; a rule for a
-  different fee, deadline, place, program or group is left out, never given as the answer.
+  different fee, deadline, place, program or group is left out, never given as the answer. Never
+  say a page or an office does not cover, mention or allow something: the facts are only what was
+  read for this question, so for a part they do not answer say you have no verified information
+  about that part.
 - A schedule's notes belong with its hours (when it opens before an event, by appointment, a
   different time on some days): say the part that bears on what the student asked. A note that
   says how to reach that service (a number to call, a key to press) is always said with it.
