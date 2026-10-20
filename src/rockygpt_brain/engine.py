@@ -804,7 +804,8 @@ def note_answer(results: dict[str, Any], message: str) -> list[str]:
                  for prop in facts.get("properties", [])
                  if prop.get("key") == "contact_note" and prop.get("status") == "known"
                  for value in prop.get("values", [])]
-        sentences = [s.strip() for note in notes for s in re.split(r"(?<=[.!?])\s+", note)]
+        sentences = [piece for note in notes for s in re.split(r"(?<=[.!?])\s+", note)
+                     for piece in note_entries(s)]
         scores = [len(about & purpose_words(s)) for s in sentences]
         best = max(scores, default=0)
         if not best:
@@ -933,6 +934,14 @@ _KIND_FILLER = frozenset("the a an on campus ramapo college at any some open nea
 
 # A labelled contact in a contact note: "The Residence Life Mailroom: orlmailroom@ramapo.edu".
 _NOTE_LABEL = re.compile(r"([A-Z][A-Za-z&'’/ -]{2,60}?):\s*(?=[\w.+-]+@|\(?\+?\d)")
+
+
+def note_entries(sentence: str) -> list[str]:
+    """A note sentence cut before each labelled contact ("Beth Foster Associate Registrar:
+    b@x.edu"): a run of staff addresses with no full stop is many entries, not one sentence."""
+    starts = [0, *(m.start() for m in _NOTE_LABEL.finditer(sentence) if m.start())]
+    pieces = [sentence[a:b].strip() for a, b in zip(starts, [*starts[1:], len(sentence)], strict=True)]
+    return [piece for piece in pieces if piece]
 
 
 def service_labels(properties: list[dict[str, Any]]) -> list[str]:
