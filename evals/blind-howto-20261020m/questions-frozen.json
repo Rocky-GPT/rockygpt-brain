@@ -1,0 +1,492 @@
+[
+ {
+  "id": "m1-01",
+  "question": "how do I declare a major at ramapo? im a sophomore and still undecided",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-02",
+  "question": "Who do I contact to find out who my academic advisor is, and how do I switch to a different advisor if I don't click with mine?",
+  "topic": "contact"
+ },
+ {
+  "id": "m1-03",
+  "question": "whats the gen ed requirements, like how many credits of it do i need to graduate",
+  "topic": "policy"
+ },
+ {
+  "id": "m1-04",
+  "question": "can I use AP credits or transfer credits for gen ed courses",
+  "topic": "policy"
+ },
+ {
+  "id": "m1-05",
+  "question": "How early should I start planning to study abroad? I want to go junior spring and need to know the application steps and who to talk to.",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-06",
+  "question": "do my financial aid and scholarships carry over if i study abroad",
+  "topic": "policy"
+ },
+ {
+  "id": "m1-07",
+  "question": "im a commuter and want to move on campus next semester, how do i apply for housing",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-08",
+  "question": "is there a deadline to switch from commuter to resident mid year or only in the spring for fall",
+  "topic": "policy"
+ },
+ {
+  "id": "m1-09",
+  "question": "how do i get a campus job",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-10",
+  "question": "What paperwork do I need to fill out before I can start working a student job on campus, and who do I give it to?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-11",
+  "question": "is there a max number of hours a student worker can work per week",
+  "topic": "policy"
+ },
+ {
+  "id": "m1-13",
+  "question": "can i double major and will it make me stay longer than 4 years",
+  "topic": "policy"
+ },
+ {
+  "id": "m1-14",
+  "question": "I want to change my major from bio to psych. what form do I need and does the department have to approve it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-15",
+  "question": "how do i register for classes if theres a hold on my account",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-16",
+  "question": "whats the policy on taking a course at another college over the summer and transferring it back",
+  "topic": "policy"
+ },
+ {
+  "id": "m1-17",
+  "question": "do commuter students get a meal plan option and how do I sign up",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-18",
+  "question": "how do i request a roommate change or room change once i live on campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-19",
+  "question": "where do I find a degree audit to see what requirements I have left",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-20",
+  "question": "how many credits do I need to be considered a sophomore vs junior? and who do I ask to check my class standing",
+  "topic": "contact"
+ },
+ {
+  "id": "m1-21",
+  "question": "how do i get a parking pass as a commuter",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-22",
+  "question": "Can you tell me which study abroad program is the best for a nursing major?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m1-23",
+  "question": "what's my GPA right now and am I on track to graduate in 2028",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m1-24",
+  "question": "How much does a semester in a residence hall cost this year vs commuting?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m1-25",
+  "question": "can i take a pass/fail class for a gen ed or does it have to be a letter grade? also who do i email abt it",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-01",
+  "question": "How do I submit my verification documents for FAFSA? I got a notice saying I was selected",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-02",
+  "question": "my fafsa has the wrong income on it, how do i correct it and who do i talk to at financial aid",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-03",
+  "question": "What is the satisfactory academic progress policy for financial aid?",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-04",
+  "question": "I lost my financial aid because of SAP. How do I appeal?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-05",
+  "question": "How does work study work at Ramapo? how do i apply for a job",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-06",
+  "question": "Where do I send an outside scholarship check?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-07",
+  "question": "how do i accept or decline part of my loans",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-08",
+  "question": "As a parent, how do I apply for a Parent PLUS loan for my daughter?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-09",
+  "question": "Is there a deadline to appeal a financial aid decision, and what do I need to include in the letter?",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-10",
+  "question": "my dad lost his job this year. can i ask for my aid to be reviewed again? who do i email",
+  "topic": "contact"
+ },
+ {
+  "id": "m2-11",
+  "question": "What happens to my aid if I withdraw from a class or drop below full time?",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-12",
+  "question": "How do I complete entrance counseling and the master promissory note for a federal loan",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-13",
+  "question": "financial aid office hours and phone number?",
+  "topic": "contact"
+ },
+ {
+  "id": "m2-14",
+  "question": "how do i report an outside scholarship to financial aid, will it reduce my other aid",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-15",
+  "question": "Do I have to refile the FAFSA every year and what's the priority deadline for Ramapo?",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-16",
+  "question": "i'm a transfer student, how do i get my aid from my old school sent here or transferred over",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-17",
+  "question": "How do I get a copy of my tax transcript for verification if the IRS data retrieval tool doesn't work?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-18",
+  "question": "Does financial aid cover summer classes? How do I apply for summer aid?",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-19",
+  "question": "how to set up direct deposit for my aid refund",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-20",
+  "question": "Can I get a statement of exactly how much aid I will get next semester?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m2-21",
+  "question": "Is my financial aid package final yet? I haven't seen anything on my portal",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m2-22",
+  "question": "Should I take out the unsubsidized loan or ask my parents to pay out of pocket? what do you recommend",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m2-23",
+  "question": "I'm a dependent student but my parents are divorced and won't give me their info for the FAFSA. What do I do?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-24",
+  "question": "how many credits do i need to keep my aid and what gpa",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-25",
+  "question": "My loan disbursement is late and I need to pay the bursar, who do I contact and how do I request a payment extension?",
+  "topic": "contact"
+ },
+ {
+  "id": "m3-01",
+  "question": "how do i get approval to hang flyers around campus for my club's event",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-02",
+  "question": "Where are students allowed to post flyers and how long can they stay up?",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-03",
+  "question": "my club wants to do a bake sale to raise money, what do we need to do first and who do we talk to",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-04",
+  "question": "can student orgs fundraise off campus",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-05",
+  "question": "how do i reserve a campus van for a club trip",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-06",
+  "question": "do i need a special license or training to drive a college vehicle? im 20",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-07",
+  "question": "I'm making a short film for my class and want to shoot on campus at the library and the quad. do I need permission? who approves filming",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-08",
+  "question": "can outside people film on campus or only students",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-09",
+  "question": "how do we organize a peaceful protest on campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-10",
+  "question": "whats the demonstration policy, are there places on campus where protests arent allowed",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-11",
+  "question": "how do i run for SGA",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-12",
+  "question": "when r SGA elections and how do i vote",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-13",
+  "question": "How can I get funding from student government for an event my org is hosting, and who is the person to email about it?",
+  "topic": "contact"
+ },
+ {
+  "id": "m3-15",
+  "question": "can we have an event with alcohol if its a 21+ org event",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-16",
+  "question": "need to book a room in the student center for a club meeting, how",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-17",
+  "question": "who do i contact about getting a table in the atrium to sign people up for my org?",
+  "topic": "contact"
+ },
+ {
+  "id": "m3-18",
+  "question": "can we chalk the sidewalks to advertise an event",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-19",
+  "question": "how do I get reimbursed after I bought supplies for my club event with my own money? I have the receipts",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-20",
+  "question": "can i bring a guest speaker to campus, what's the process and do they have to sign anything",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-21",
+  "question": "Is there a rule about amplified sound or having a DJ outside at an event?",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-22",
+  "question": "how much money does my club have left in its SGA account",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m3-23",
+  "question": "is the van available this saturday",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m3-24",
+  "question": "do you think my protest idea is a good idea or will I get in trouble",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m3-25",
+  "question": "i want to sell tshirts for my org fundraiser, how do I get a vendor permit or whatever its called, and is there a fee",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-01",
+  "question": "how do i reset my ramapo password",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-02",
+  "question": "I got a new phone and now I can't get my two factor codes for my ramapo login. how do I set up duo again and who do I contact if it doesnt work?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-03",
+  "question": "how to connect to wifi in the dorms",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-04",
+  "question": "can I connect my xbox or smart tv to the campus wifi?",
+  "topic": "policy"
+ },
+ {
+  "id": "m4-05",
+  "question": "where do i go for tech help on campus",
+  "topic": "contact"
+ },
+ {
+  "id": "m4-06",
+  "question": "is there free microsoft office for students and how do i download it",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-07",
+  "question": "how do I print stuff on campus? do I have to pay per page",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-08",
+  "question": "cant log into canvas, says my account doesnt exist",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-09",
+  "question": "How do I access my student email and set it up on my iphone?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-10",
+  "question": "what is the student portal and how do i log in to it for the first time",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-11",
+  "question": "how do I get my ramapo email forwarded to my gmail",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-12",
+  "question": "my laptop broke, can i borrow one from the college",
+  "topic": "policy"
+ },
+ {
+  "id": "m4-13",
+  "question": "whats the IT help desk phone number and hours",
+  "topic": "contact"
+ },
+ {
+  "id": "m4-14",
+  "question": "how long after I graduate do I keep my ramapo email",
+  "topic": "policy"
+ },
+ {
+  "id": "m4-15",
+  "question": "How do I get software like Adobe or SPSS on my own computer for class?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-16",
+  "question": "wifi keeps dropping in my room in the apartments, how do I report it",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-17",
+  "question": "i think someone hacked my student account, i got a weird login alert. what do i do",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-18",
+  "question": "how do i get a professor added to my canvas course or see an old course from last semester",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-19",
+  "question": "are there computer labs i can use and are they open late",
+  "topic": "policy"
+ },
+ {
+  "id": "m4-20",
+  "question": "What's the policy on using AI like chatgpt for assignments?",
+  "topic": "policy"
+ },
+ {
+  "id": "m4-21",
+  "question": "can you tell me what my current wifi password is",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m4-22",
+  "question": "is canvas down right now?? it wont load",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m4-23",
+  "question": "which laptop should I buy for a computer science major, mac or windows",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m4-24",
+  "question": "how do i change my name or preferred name in the system and in my email",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-25",
+  "question": "I'm an online/commuter student, how do I get on the vpn to use library databases from home and who do I email if its not working",
+  "topic": "procedure"
+ }
+]
