@@ -213,3 +213,21 @@ def test_a_turn_that_used_every_call_still_gets_its_writer() -> None:
     engine = ChatEngine(Counting(*steps), facts(), output="written")  # type: ignore[arg-type]
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     assert result.trace is not None and result.trace["writer"] == {"used": True}
+
+
+def test_the_writer_is_told_what_the_student_wants_for_a_how_to() -> None:
+    from test_engine import registrar_with_pages
+    ask = Completion("", (ToolCall("c", "graph_lookup", {"requests": [
+        {"query": "Registrar", "fields": ["procedures"], "about": "request a transcript"}]}),),
+        [{"type": "function_call", "call_id": "c", "name": "graph_lookup", "arguments": json.dumps(
+            {"requests": [{"query": "Registrar", "fields": ["procedures"],
+                           "about": "request a transcript"}]})}], Usage(1, 1, 0))
+    pick = Completion("", (ToolCall("p", "pick_sections", {"picks": [{"lookup": 0,
+                                                                      "sections": [0]}]}),),
+                      [], Usage(1, 1, 0))
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "how do i get my transcript"}]})
+    engine = ChatEngine(ScriptedGateway(ask, pick, finish()), registrar_with_pages(),
+                        output="json")  # type: ignore[arg-type]
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    assert result.body["writerInput"]["asked"]["wants"] == ["request a transcript"]

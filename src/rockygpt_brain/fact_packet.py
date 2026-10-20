@@ -237,6 +237,9 @@ class _Builder:
         self.sources: dict[str, dict[str, Any]] = {}
         self.entities: dict[str, dict[str, Any]] = {}
         self.fields: list[str] = []
+        # What the student wants to do or know, as the reading of the question put it for a
+        # how-to lookup, so a writer leaves out a rule for another situation.
+        self.wants: list[str] = []
         self.dataset: dict[str, Any] | None = None
 
     def _open_now(self, picked: dict[str, Any], asked_on: date) -> dict[str, Any]:
@@ -262,6 +265,8 @@ class _Builder:
         if purpose is None:
             self.entities.setdefault(entity["id"], {**entity, "query": part["query"]})
             self.fields.extend(f for f in part["fields"] if f not in self.fields)
+            if isinstance(part.get("about"), str) and part["about"] not in self.wants:
+                self.wants.append(part["about"])
         self.dataset = self.dataset or {"version": reader.get("dataset_version"),
                                         "identityHash": reader.get("identity_hash")}
         first_new = len(self.facts)
@@ -637,7 +642,8 @@ def build_packet(as_of: str, parts: list[dict[str, Any]]) -> dict[str, Any]:
     packet: dict[str, Any] = {
         "version": PACKET_VERSION,
         "request": {"intent": _intent(builder), "entities": list(builder.entities.values()),
-                    "fields": builder.fields, "asOf": as_of, "dataset": builder.dataset},
+                    "fields": builder.fields, "asOf": as_of, "dataset": builder.dataset,
+                    **({"wants": builder.wants} if builder.wants else {})},
         "status": _status(builder),
         "facts": builder.facts,
         "derived_facts": builder.derived,

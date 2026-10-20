@@ -1421,7 +1421,7 @@ class ChatEngine:
         part = {"kind": "office_facts", "query": request.query, "fields": list(request.fields),
                 "office": {"id": opened["entity_id"], "name": opened["label"],
                            "kind": opened.get("kind", "office")},
-                "facts": opened["facts"]}
+                "facts": opened["facts"], **({"about": about} if about else {})}
         if also is not None:
             part["also"] = also
         if topic is not None:
