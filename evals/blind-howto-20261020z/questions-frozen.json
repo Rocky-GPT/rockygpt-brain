@@ -1,0 +1,502 @@
+[
+ {
+  "id": "z1-01",
+  "question": "how do I drop a class and what happens if I miss the deadline?",
+  "topic": "procedure"
+ },
+ {
+  "id": "z1-02",
+  "question": "What's the process to withdraw from a course after the add/drop period, and will a W show up on my transcript or does it hurt my GPA?",
+  "topic": "policy"
+ },
+ {
+  "id": "z1-03",
+  "question": "how do i get a replacement id card. and what if i never replace it, can i still get into the dining hall",
+  "topic": "procedure"
+ },
+ {
+  "id": "z1-04",
+  "question": "I got a parking ticket on campus, how do I appeal it and what happens if I just don't pay",
+  "topic": "procedure"
+ },
+ {
+  "id": "z1-05",
+  "question": "how do i register for classes and what if my registration time already passed",
+  "topic": "procedure"
+ },
+ {
+  "id": "z1-06",
+  "question": "need to change my major to nursing?? whats the steps and who do i talk to. also what if I dont declare by a certain time",
+  "topic": "contact"
+ },
+ {
+  "id": "z1-07",
+  "question": "how do I order an official transcript, and what happens if I have a hold on my account",
+  "topic": "procedure"
+ },
+ {
+  "id": "z1-08",
+  "question": "What happens if I don't submit my FAFSA by the priority deadline? And how do I even submit it",
+  "topic": "policy"
+ },
+ {
+  "id": "z1-09",
+  "question": "how to request a housing accomodation for a medical reason and what if its denied",
+  "topic": "procedure"
+ },
+ {
+  "id": "z1-10",
+  "question": "can my friend stay overnight in my dorm? how do I register a guest and what happens if I dont",
+  "topic": "policy"
+ },
+ {
+  "id": "z1-11",
+  "question": "How do I report a maintenance problem in my room, and what if nobody fixes it after a week?",
+  "topic": "procedure"
+ },
+ {
+  "id": "z1-12",
+  "question": "how do i apply to graduate and what happens if i miss the graduation application deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "z1-13",
+  "question": "I want to take a leave of absence for a semester. How do I do that and will I lose my financial aid or scholarship if I do?",
+  "topic": "policy"
+ },
+ {
+  "id": "z1-14",
+  "question": "who do i contact about a late tuition payment and what are the consequences of not paying by the due date",
+  "topic": "contact"
+ },
+ {
+  "id": "z1-15",
+  "question": "how do i get extra time on exams w/ a disability and what if I dont register with the office early in the semester",
+  "topic": "procedure"
+ },
+ {
+  "id": "z1-16",
+  "question": "What is the procedure to appeal a grade, and what happens if the professor won't change it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "z1-17",
+  "question": "i lost my laptop in the library how do i report it and what happens if nobody turns it in",
+  "topic": "procedure"
+ },
+ {
+  "id": "z1-18",
+  "question": "how do I reserve a room for my club meeting and what happens if my club doesnt show up or cancel",
+  "topic": "procedure"
+ },
+ {
+  "id": "z1-19",
+  "question": "how do i waive the student health insurance, and what happens if I miss the waiver deadline?",
+  "topic": "policy"
+ },
+ {
+  "id": "z1-20",
+  "question": "Can I keep my car on campus as a freshman? How do I get a parking permit and what if I park without one",
+  "topic": "policy"
+ },
+ {
+  "id": "z1-21",
+  "question": "How do I get reimbursed for money I spent on a club event? What if I lost the receipt?",
+  "topic": "procedure"
+ },
+ {
+  "id": "z1-22",
+  "question": "how do I transfer credits from community college and what if they dont accept some of my courses",
+  "topic": "procedure"
+ },
+ {
+  "id": "z1-23",
+  "question": "What's my balance right now and when do I have to pay it by or I get dropped from classes?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "z1-24",
+  "question": "If I fail my midterm and don't go to office hours, am I going to fail the class? how should I study for it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "z1-25",
+  "question": "is my financial aid going to disburse this week, and what happens to my aid if I drop below full time",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "z2-01",
+  "question": "where do i click to drop a class on the student portal",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-02",
+  "question": "How do I submit the FAFSA for Ramapo and what's the school code? Also who do I email if my aid shows as incomplete?",
+  "topic": "contact"
+ },
+ {
+  "id": "z2-03",
+  "question": "what form do i need to change my major and who signs it",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-04",
+  "question": "I need an official transcript sent to another college, where do i order it",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-05",
+  "question": "how do i set up my ramapo email and password for the first time? it keeps saying my account is locked",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-06",
+  "question": "where is the form to request a leave of absence",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-07",
+  "question": "how do i waive the student health insurance, is there a deadline",
+  "topic": "policy"
+ },
+ {
+  "id": "z2-08",
+  "question": "how do i get my 1098-T tax form",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-09",
+  "question": "can i pay my bill in installments online? where do I sign up for the payment plan",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-10",
+  "question": "how do i request disability accommodations through the portal and who should i contact to start",
+  "topic": "contact"
+ },
+ {
+  "id": "z2-11",
+  "question": "whats the process to apply for graduation, which form and by when",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-12",
+  "question": "how do i register for classes if i have a hold on my account",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-13",
+  "question": "where do i upload my immunization records",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-14",
+  "question": "hey how do I apply for on campus housing for next year and what is the deadline, also is there a fee to apply",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-15",
+  "question": "how to appeal a financial aid decision / SAP",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-16",
+  "question": "how do i get a parking permit online",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-17",
+  "question": "what's the policy on withdrawing from a course after the deadline",
+  "topic": "policy"
+ },
+ {
+  "id": "z2-18",
+  "question": "how do i apply for a tuition waiver or reimbursment for a class",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-19",
+  "question": "where do i find my unofficial transcript and degree audit",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-20",
+  "question": "how do i reserve a study room or event space online",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-21",
+  "question": "whats my current balance and do i owe anything this semester",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "z2-22",
+  "question": "which classes should I take next semester to graduate on time as a bio major?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "z2-23",
+  "question": "is the registrar's office open right now, is the portal down",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "z2-24",
+  "question": "how do i get a replacement student ID, and can I use a digital one on my phone",
+  "topic": "procedure"
+ },
+ {
+  "id": "z2-25",
+  "question": "how do I file a complaint about a professor and who handles it",
+  "topic": "contact"
+ },
+ {
+  "id": "z3-01",
+  "question": "I'm freaking out. I think I'm going to fail two of my classes this semester and I'm on a scholarship that says I need to keep a 3.0. What am I supposed to do? Is there some way to withdraw from a class without it ruining everything, and who do I even talk to about this?",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-02",
+  "question": "how do i drop a class after the deadline passed?? i was sick for like 3 weeks and didnt know what to do and now im scared i'll get an F. is there an appeal or something",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-03",
+  "question": "My roommate has been making me really uncomfortable and I don't feel safe in my room anymore. I've tried talking to her and it hasn't worked. How do I ask to move to a different room or building and who do I contact? I really don't want to wait until next semester.",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-04",
+  "question": "i lost my wallet with my student ID in it and my debit card. i cant get into my dorm now. how do i get a replacement ID and how much is it",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-05",
+  "question": "I got a parking ticket yesterday but I had a permit, it was just hanging wrong or something and I'm a commuter student who can't afford a fine right now. How do I appeal it? Is there a deadline? Please help I'm so stressed about money.",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-06",
+  "question": "My mom just got diagnosed with cancer and I need to go home for a while. I don't know if I should withdraw from the whole semester or what. What are my options and will I lose my financial aid? Who should I call first?",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-07",
+  "question": "can my boyfriend stay overnight in my dorm. my roommate said its not allowed but i heard otherwise and im worried ill get in trouble",
+  "topic": "policy"
+ },
+ {
+  "id": "z3-08",
+  "question": "I have severe anxiety and ADHD and I'm struggling a lot in class, especially with timed exams. I've never registered for accommodations before. How do I start the process and what documentation do they want? I'm embarrassed and don't know where to begin.",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-09",
+  "question": "someone stole my laptop from the library while i went to the bathroom. what do i do?? who do i report it to",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-10",
+  "question": "Hi, I'm really worried because my financial aid still hasn't come through and my tuition bill is due soon. I'm afraid they will drop me from my classes. Is there a payment plan I can sign up for, and who should I contact in the financial aid or bursar office?",
+  "topic": "contact"
+ },
+ {
+  "id": "z3-11",
+  "question": "how do i change my major from undeclared to nursing, im scared i'm too late",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-12",
+  "question": "I got an email saying I've been accused of plagiarism on a paper and I have a meeting. I didn't do it on purpose, I just forgot a citation. What is the academic integrity process and what are my rights? Can I bring someone with me? I'm terrified of getting expelled.",
+  "topic": "policy"
+ },
+ {
+  "id": "z3-13",
+  "question": "I feel really overwhelmed and sad lately and I don't know who to talk to. Is there free counseling on campus and how do I make an appointment? Is it confidential?",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-14",
+  "question": "will i be kicked out if my gpa is under 2.0",
+  "topic": "policy"
+ },
+ {
+  "id": "z3-15",
+  "question": "My professor gave me a grade I think is totally wrong and he's not responding to my emails. I've sent three. How do I appeal a grade, who do I go to next, and is there a time limit? This could cost me my graduation.",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-16",
+  "question": "need a transcript sent to another school asap because im transferring and the deadline is friday. how do i order it and how long does it take",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-17",
+  "question": "I'm a first-gen student and I've run out of food money and I'm too embarrassed to ask anyone. Does Ramapo have a food pantry or any emergency help for students? How do I get it without everyone knowing?",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-18",
+  "question": "What is my current balance owed on my student account? I'm panicking because I think I owe a lot and don't want a hold on my registration.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "z3-19",
+  "question": "Is my financial aid going to be enough for next year? I'm really worried about being able to afford to stay at Ramapo and I don't know if I should transfer to a cheaper school. What would you do?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "z3-20",
+  "question": "I was sexually harassed by someone in my club and I don't know what to do or if I should even report it. What are the steps for reporting to Title IX, can I do it anonymously, and who can I talk to first that will keep it private?",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-21",
+  "question": "got a hold on my account and cant register for classes, registration starts tmrw. how do i find out what the hold is and get it removed",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-22",
+  "question": "I live in a dorm and my room has mold and the heat doesn't work, it's freezing and I've been getting sick. I put in a maintenance request two weeks ago and nothing happened. Who do I escalate this to? Can I get a refund or move?",
+  "topic": "contact"
+ },
+ {
+  "id": "z3-23",
+  "question": "Can I bring my emotional support dog to live in the dorms? I have a note from my doctor but I'm worried they will say no. What is the process for requesting this and how far in advance do I need to do it?",
+  "topic": "policy"
+ },
+ {
+  "id": "z3-24",
+  "question": "How do I get reimbursed for money I spent on supplies for my club event? I used my own credit card and I'm worried I won't get it back, I can't afford to lose $200.",
+  "topic": "procedure"
+ },
+ {
+  "id": "z3-25",
+  "question": "i missed the graduation application deadline by a week. am i not going to graduate in may?? how do i fix this",
+  "topic": "procedure"
+ },
+ {
+  "id": "z4-01",
+  "question": "I'm an RA and a resident locked themselves out at 2am, what's the procedure for lockouts and who do I call?",
+  "topic": "procedure"
+ },
+ {
+  "id": "z4-02",
+  "question": "how do i get paid as a student worker? do i need to fill out paperwork first",
+  "topic": "procedure"
+ },
+ {
+  "id": "z4-03",
+  "question": "Is there a limit on how many hours a student employee can work per week during the semester?",
+  "topic": "policy"
+ },
+ {
+  "id": "z4-04",
+  "question": "what's the policy on RAs having guests stay overnight in their own room",
+  "topic": "policy"
+ },
+ {
+  "id": "z4-05",
+  "question": "how do I become a tutor at the tutoring center and who do i email about it",
+  "topic": "contact"
+ },
+ {
+  "id": "z4-06",
+  "question": "as a TA can I see my students grades or is that against FERPA",
+  "topic": "policy"
+ },
+ {
+  "id": "z4-07",
+  "question": "i work on campus and my direct deposit is wrong, how do i fix it",
+  "topic": "procedure"
+ },
+ {
+  "id": "z4-08",
+  "question": "Do RAs get free housing and a meal plan? How does the compensation work?",
+  "topic": "policy"
+ },
+ {
+  "id": "z4-09",
+  "question": "how do I report a roommate conflict between two residents on my floor",
+  "topic": "procedure"
+ },
+ {
+  "id": "z4-10",
+  "question": "can student employees work more than one on-campus job at the same time",
+  "topic": "policy"
+ },
+ {
+  "id": "z4-11",
+  "question": "where do i submit my timesheet for work study",
+  "topic": "procedure"
+ },
+ {
+  "id": "z4-12",
+  "question": "what do I do if a resident on my floor is being really sad and talking about hurting themselves",
+  "topic": "procedure"
+ },
+ {
+  "id": "z4-13",
+  "question": "i'm an international student, can I work on campus? who do I talk to",
+  "topic": "contact"
+ },
+ {
+  "id": "z4-14",
+  "question": "How do I apply for the RA position and when are applications due?",
+  "topic": "procedure"
+ },
+ {
+  "id": "z4-15",
+  "question": "whats the GPA requirement to stay an RA",
+  "topic": "policy"
+ },
+ {
+  "id": "z4-16",
+  "question": "how do i request a day off from my student job for a family emergency",
+  "topic": "procedure"
+ },
+ {
+  "id": "z4-17",
+  "question": "what is my work study award for this year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "z4-18",
+  "question": "I need to write up a policy violation I saw on my floor (alcohol). Where do I file the incident report and what happens to the student after?",
+  "topic": "procedure"
+ },
+ {
+  "id": "z4-19",
+  "question": "can tutors get paid for missed sessions when students no show",
+  "topic": "policy"
+ },
+ {
+  "id": "z4-20",
+  "question": "how do i get a key replaced if i lost my RA keys",
+  "topic": "procedure"
+ },
+ {
+  "id": "z4-21",
+  "question": "is anyone working the front desk in Birch right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "z4-22",
+  "question": "Who do I contact about getting a work-study job and how do I know if I'm eligible?",
+  "topic": "contact"
+ },
+ {
+  "id": "z4-23",
+  "question": "do TAs need to take any training before they start",
+  "topic": "policy"
+ },
+ {
+  "id": "z4-24",
+  "question": "should I take the RA job or keep my off campus job, which is better for my career?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "z4-25",
+  "question": "how do i book a room for a floor program that i'm planning as an RA",
+  "topic": "procedure"
+ }
+]
