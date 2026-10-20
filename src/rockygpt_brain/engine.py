@@ -1564,6 +1564,13 @@ class ChatEngine:
                 LOG.warning("brain_procedure_pick_failed error=%s",
                             getattr(error, "code", type(error).__name__))
         trace["procedurePicks"] = "model" if chosen is not None else "ranked"
+        # What each pick saw, for finding where a missed answer was lost (diagnostics only).
+        trace["procedureOffered"] = [
+            {"office": office, "about": about, "other": k >= len(asked),
+             "picked": (chosen or {}).get(k), "sections": [
+                 [v["value"].get("heading"), v["value"].get("page")]
+                 for v in prop["values"][:OTHER_SECTIONS if k >= len(asked) else None]]}
+            for k, (about, office, prop) in enumerate(offered)]
         for k, (rid, at, _, prop) in enumerate(asked):
             keep = (chosen.get(k, []) if chosen is not None
                     else list(range(min(PICKED_PROCEDURES, len(prop["values"])))))
