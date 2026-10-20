@@ -940,7 +940,8 @@ def note_entries(sentence: str) -> list[str]:
     """A note sentence cut before each labelled contact ("Beth Foster Associate Registrar:
     b@x.edu"): a run of staff addresses with no full stop is many entries, not one sentence."""
     starts = [0, *(m.start() for m in _NOTE_LABEL.finditer(sentence) if m.start())]
-    pieces = [sentence[a:b].strip() for a, b in zip(starts, [*starts[1:], len(sentence)], strict=True)]
+    ends = [*starts[1:], len(sentence)]
+    pieces = [sentence[a:b].strip() for a, b in zip(starts, ends, strict=True)]
     return [piece for piece in pieces if piece]
 
 
