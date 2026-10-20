@@ -1,0 +1,497 @@
+[
+ {
+  "id": "w1-01",
+  "question": "how do i drop a class today?? deadline is tonight i think",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-02",
+  "question": "my tuition payment is due tomorrow, how do i pay it and who do i call if the portal wont let me",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-03",
+  "question": "what happens if I miss the add/drop deadline",
+  "topic": "policy"
+ },
+ {
+  "id": "w1-04",
+  "question": "registration closes today, how do I register for classes if I have a hold on my account",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-05",
+  "question": "FAFSA deadline tmrw. where do i go for help at ramapo",
+  "topic": "contact"
+ },
+ {
+  "id": "w1-06",
+  "question": "how do i submit a housing accomodation request, need it in by friday",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-07",
+  "question": "can i still withdraw from a course after the deadline",
+  "topic": "policy"
+ },
+ {
+  "id": "w1-08",
+  "question": "need an official transcript sent to another school by tomorrow how long does it take",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-09",
+  "question": "how do I apply for graduation? is the deadline today",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-10",
+  "question": "lost my ID card and I need it for an exam tomorrow morning. what do i do",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-11",
+  "question": "pay parking ticket online? due tomorrow",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-12",
+  "question": "how do I request an incomplete from my professor",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-13",
+  "question": "whats the refund policy if I drop after the first week",
+  "topic": "policy"
+ },
+ {
+  "id": "w1-14",
+  "question": "how to waive student health insurance before the deadline and who handles it",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-15",
+  "question": "i need to change my major form due tomorrow where is it",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-16",
+  "question": "can i set up a payment plan for my bill. who do i email",
+  "topic": "contact"
+ },
+ {
+  "id": "w1-17",
+  "question": "how do I reserve a room on campus for my club meeting tomorrow night",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-18",
+  "question": "Is there a late fee if I pay my housing deposit after today",
+  "topic": "policy"
+ },
+ {
+  "id": "w1-19",
+  "question": "how do i get a parking permit, need it by tmrw bc i have to drive in",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-20",
+  "question": "How do I appeal my financial aid suspension? The appeal is due tomorrow and I have no idea what documents to include or who to talk to.",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-21",
+  "question": "what is my balance right now, due today",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "w1-22",
+  "question": "is the registrar's office open right now? need to turn in a form before it closes",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "w1-23",
+  "question": "will I get a refund check before friday?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "w1-24",
+  "question": "how do i get a letter proving enrollment asap",
+  "topic": "procedure"
+ },
+ {
+  "id": "w1-25",
+  "question": "can my guest stay over tonight in my dorm, whats the rule",
+  "topic": "policy"
+ },
+ {
+  "id": "w2-01",
+  "question": "How do I apply for graduation as an MSN student and who do I email if my degree audit says I'm missing a course?",
+  "topic": "procedure"
+ },
+ {
+  "id": "w2-02",
+  "question": "whats the process for getting a leave of absence from my grad program",
+  "topic": "procedure"
+ },
+ {
+  "id": "w2-03",
+  "question": "Can I transfer credits from another university into the MBA program? How many are allowed?",
+  "topic": "policy"
+ },
+ {
+  "id": "w2-04",
+  "question": "how do i register for classes as a grad student",
+  "topic": "procedure"
+ },
+ {
+  "id": "w2-05",
+  "question": "What is the deadline to withdraw from a graduate course and will it show on my transcript?",
+  "topic": "policy"
+ },
+ {
+  "id": "w2-06",
+  "question": "I'm a part-time grad student working full time, are there evening or online ways to meet with an advisor? who would I contact",
+  "topic": "contact"
+ },
+ {
+  "id": "w2-08",
+  "question": "Where do I submit my thesis/capstone and what format does it need to be in?",
+  "topic": "procedure"
+ },
+ {
+  "id": "w2-09",
+  "question": "do grad students qualify for assistantships and how do i apply",
+  "topic": "procedure"
+ },
+ {
+  "id": "w2-10",
+  "question": "How do I request an extension on an incomplete grade for my education practicum?",
+  "topic": "procedure"
+ },
+ {
+  "id": "w2-11",
+  "question": "whats the policy on clinical placements for nursing students, who sets them up?",
+  "topic": "policy"
+ },
+ {
+  "id": "w2-12",
+  "question": "How do I set up a payment plan for tuition? Also who do I call at the bursar's office?",
+  "topic": "contact"
+ },
+ {
+  "id": "w2-13",
+  "question": "how do i get my transcript sent to another school for a phd application",
+  "topic": "procedure"
+ },
+ {
+  "id": "w2-14",
+  "question": "Is there a maximum time limit to finish a master's degree after I start?",
+  "topic": "policy"
+ },
+ {
+  "id": "w2-15",
+  "question": "How do I apply for financial aid or a grad PLUS loan as a graduate student?",
+  "topic": "procedure"
+ },
+ {
+  "id": "w2-16",
+  "question": "what do I do if I need disability accomodations for my exams in grad school",
+  "topic": "procedure"
+ },
+ {
+  "id": "w2-17",
+  "question": "can i use the library and gym as a grad student and how do i get my ID",
+  "topic": "policy"
+ },
+ {
+  "id": "w2-18",
+  "question": "How do I change from the part-time to the full-time track in my program?",
+  "topic": "procedure"
+ },
+ {
+  "id": "w2-19",
+  "question": "who do i talk to about getting my teaching certification endorsement processed after I finish the ed program",
+  "topic": "contact"
+ },
+ {
+  "id": "w2-20",
+  "question": "What is the academic integrity policy for graduate students and how do I appeal if I'm accused of plagiarism?",
+  "topic": "policy"
+ },
+ {
+  "id": "w2-21",
+  "question": "How do I get reimbursed for the conference travel I did for my research?",
+  "topic": "procedure"
+ },
+ {
+  "id": "w2-22",
+  "question": "What's my current balance and when is my next payment due?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "w2-23",
+  "question": "Should I do the MBA or the MSN first if I want to move into healthcare management?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "w2-24",
+  "question": "is the grad admissions office open right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "w2-25",
+  "question": "how do i apply for the master's programs, what are the deadlines, and who can I reach out to with questions about GRE waivers?",
+  "topic": "contact"
+ },
+ {
+  "id": "w3-01",
+  "question": "im on the soccer team, what do i have to do to get a medical clearance before preseason?",
+  "topic": "procedure"
+ },
+ {
+  "id": "w3-02",
+  "question": "Are student athletes allowed to miss class for away games and who do I talk to about making up exams?",
+  "topic": "policy"
+ },
+ {
+  "id": "w3-03",
+  "question": "how do EOF students apply for the summer program",
+  "topic": "procedure"
+ },
+ {
+  "id": "w3-04",
+  "question": "I'm an EOF student. Who is my counselor and how do I make an appointment with them?",
+  "topic": "contact"
+ },
+ {
+  "id": "w3-05",
+  "question": "what GPA do I need to stay in the honors program",
+  "topic": "policy"
+ },
+ {
+  "id": "w3-06",
+  "question": "how do i apply to the Honors Program as a current sophomore? is it too late",
+  "topic": "procedure"
+ },
+ {
+  "id": "w3-07",
+  "question": "I commute from 40 minutes away. How do I get a commuter parking permit and where can I park?",
+  "topic": "procedure"
+ },
+ {
+  "id": "w3-08",
+  "question": "is there a lounge or place for commuters to hang out between classes",
+  "topic": "policy"
+ },
+ {
+  "id": "w3-09",
+  "question": "im a veteran using my GI bill, how do i get my enrollment certified at ramapo",
+  "topic": "procedure"
+ },
+ {
+  "id": "w3-10",
+  "question": "Who is the veterans certifying official and what's their email or phone?",
+  "topic": "contact"
+ },
+ {
+  "id": "w3-11",
+  "question": "do veterans get priority registration?",
+  "topic": "policy"
+ },
+ {
+  "id": "w3-12",
+  "question": "how do I register with the office of specialized services to get testing accommodations",
+  "topic": "procedure"
+ },
+ {
+  "id": "w3-13",
+  "question": "I have ADHD and need extended time on tests. What documentation do I need to bring and who do I send it to?",
+  "topic": "procedure"
+ },
+ {
+  "id": "w3-14",
+  "question": "can i bring my emotional support animal to live in the dorms? what is the process",
+  "topic": "policy"
+ },
+ {
+  "id": "w3-15",
+  "question": "what's the NCAA eligibility rule for transfer athletes, can i play right away",
+  "topic": "policy"
+ },
+ {
+  "id": "w3-16",
+  "question": "how do I request a note taker or ASL interpreter for my classes",
+  "topic": "procedure"
+ },
+ {
+  "id": "w3-17",
+  "question": "hows the athletic training room hours and do i need an appt for an injury",
+  "topic": "contact"
+ },
+ {
+  "id": "w3-18",
+  "question": "Can commuter students stay overnight in the residence halls if they have a late class or bad weather?",
+  "topic": "policy"
+ },
+ {
+  "id": "w3-19",
+  "question": "What's my GPA right now and am I still eligible for my honors scholarship?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "w3-20",
+  "question": "should I go D3 athletics or focus on academics, which one is better for me? I'm on the lacrosse team",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "w3-21",
+  "question": "is the EOF grant going up next year and how much will i get",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "w3-22",
+  "question": "how do i apply for the veterans tuition waiver or Yellow Ribbon, and who handles it",
+  "topic": "procedure"
+ },
+ {
+  "id": "w3-23",
+  "question": "honors thesis - how do I pick an advisor and what are the deadlines",
+  "topic": "procedure"
+ },
+ {
+  "id": "w3-24",
+  "question": "what happens if I get a parking ticket on campus as a commuter and how do i appeal it",
+  "topic": "procedure"
+ },
+ {
+  "id": "w3-25",
+  "question": "i'm a disabled student can i get a handicap parking spot closer to my building, how",
+  "topic": "procedure"
+ },
+ {
+  "id": "w4-01",
+  "question": "My daughter is a freshman at Ramapo and lost her student ID. How does she get a replacement and does it cost anything?",
+  "topic": "procedure"
+ },
+ {
+  "id": "w4-02",
+  "question": "Can I stay overnight in my son's dorm room when I visit for parents weekend?",
+  "topic": "policy"
+ },
+ {
+  "id": "w4-03",
+  "question": "how do i pay my sons tuition bill, he said theres a payment plan?? who do i call",
+  "topic": "procedure"
+ },
+ {
+  "id": "w4-04",
+  "question": "What is the process for my child to withdraw from a class after the deadline? She is really struggling and we are worried about her GPA.",
+  "topic": "procedure"
+ },
+ {
+  "id": "w4-05",
+  "question": "Parking permit for a commuter student - how do we get one and where does he park?",
+  "topic": "procedure"
+ },
+ {
+  "id": "w4-06",
+  "question": "my son got a parking ticket on campus. how do we appeal it",
+  "topic": "procedure"
+ },
+ {
+  "id": "w4-07",
+  "question": "Does Ramapo allow students to have cars on campus as freshmen?",
+  "topic": "policy"
+ },
+ {
+  "id": "w4-08",
+  "question": "How can I see my daughter's grades? She says I need her permission or something with FERPA.",
+  "topic": "policy"
+ },
+ {
+  "id": "w4-09",
+  "question": "What do we do to request housing accommodations for my son who has a medical condition, and who is the contact?",
+  "topic": "contact"
+ },
+ {
+  "id": "w4-10",
+  "question": "how do I get a transcript sent to another college for my daughter who wants to transfer",
+  "topic": "procedure"
+ },
+ {
+  "id": "w4-11",
+  "question": "Is there a refund if my son withdraws from the college mid semester?",
+  "topic": "policy"
+ },
+ {
+  "id": "w4-12",
+  "question": "My daughter has a documented learning disability. How does she get extra time on tests at Ramapo?",
+  "topic": "procedure"
+ },
+ {
+  "id": "w4-13",
+  "question": "What is the pet policy in the residence halls? she wants to bring her cat",
+  "topic": "policy"
+ },
+ {
+  "id": "w4-14",
+  "question": "How do I know if my son's financial aid has been disbursed? What's his balance right now?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "w4-15",
+  "question": "can my kid change his major and how long does it take",
+  "topic": "procedure"
+ },
+ {
+  "id": "w4-16",
+  "question": "Who do I contact if I'm worried about my daughter's mental health and want someone to check on her? Is there counseling on campus and how does she sign up?",
+  "topic": "contact"
+ },
+ {
+  "id": "w4-17",
+  "question": "My son left his laptop in the library. What should he do to get it back?",
+  "topic": "procedure"
+ },
+ {
+  "id": "w4-18",
+  "question": "how do we waive the student health insurance",
+  "topic": "procedure"
+ },
+ {
+  "id": "w4-19",
+  "question": "What are the rules about alcohol in the dorms? Just want to understand before move in day.",
+  "topic": "policy"
+ },
+ {
+  "id": "w4-20",
+  "question": "Will my daughter get a good grade in her chemistry class? Which professor should she take?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "w4-21",
+  "question": "how does my student get a meal plan changed or cancelled? we're commuters now",
+  "topic": "procedure"
+ },
+ {
+  "id": "w4-22",
+  "question": "Is the shuttle running right now and what's the bus schedule for tomorrow",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "w4-23",
+  "question": "What do we do to get a roommate switched? Daughter and her roommate are not getting along at all. Who handles that?",
+  "topic": "contact"
+ },
+ {
+  "id": "w4-24",
+  "question": "Does my son need to submit his immunization records before classes start, and where do they go?",
+  "topic": "policy"
+ },
+ {
+  "id": "w4-25",
+  "question": "How can he get reimbursed for a club trip he paid for out of pocket?",
+  "topic": "procedure"
+ }
+]
