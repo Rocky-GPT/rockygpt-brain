@@ -626,7 +626,7 @@ def procedures_of(result: "OfficeResult") -> dict[str, Any] | None:
 
 
 # Another office whose pages speak to the task is offered with its best few sections.
-OTHER_OFFICES, OTHER_SECTIONS = 3, 5
+OTHER_OFFICES, OTHER_SECTIONS = 3, 8
 
 
 def pick_messages(asked: list[tuple[str, str, dict[str, Any]]],
