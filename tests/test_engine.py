@@ -1678,6 +1678,8 @@ def test_a_how_do_i_question_reads_the_offices_procedures_end_to_end() -> None:
     assert "Parchment" in result.body["answer"]
     assert "Web Self-Service" not in result.body["answer"]
     assert result.trace is not None and result.trace["procedurePicks"] == "model"
+    assert [len(o["sections"]) for o in result.trace["procedureOffered"]] and all(
+        o["sections"] and o["office"] for o in result.trace["procedureOffered"])
     # Picking none leaves the office's pages unknown for it rather than saying a guess.
     none = completion("pick_sections", {"picks": [{"lookup": 0, "sections": []}]})
     unpicked = answer(ScriptedGateway(ask, none, finish()), service=registrar_with_pages(),
