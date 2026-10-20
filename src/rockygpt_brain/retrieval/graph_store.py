@@ -38,6 +38,7 @@ from rockygpt_brain.retrieval.entity_facts import (
     Snapshot,
     validate_entities,
 )
+from rockygpt_brain.retrieval.meaning import MEANING_SUFFIX, VECTORS_SUFFIX, MeaningIndex
 
 LOG = logging.getLogger(__name__)
 
@@ -567,6 +568,8 @@ def publish_release_graph(
                        key=lambda f: f.stat().st_mtime, reverse=True)
         for old in files[KEEP_RELEASES - 1:]:
             _remove(old)
+            for sidecar in (MEANING_SUFFIX, VECTORS_SUFFIX):
+                _remove(old.with_suffix(sidecar))
     except OSError as exc:
         _remove(temp)
         raise GraphUnavailable("The release pointer could not be written.") from exc
@@ -593,6 +596,7 @@ class GraphOnlyFacts(EntityFacts):
         self._served = 0
         self._loads = 0
         self._last_error: str | None = None
+        self._meaning: tuple[Path, MeaningIndex | None] | None = None
 
     @property
     def serving(self) -> str:
@@ -646,6 +650,27 @@ class GraphOnlyFacts(EntityFacts):
     def active_release(self) -> tuple[str, str]:
         graph = self._graph()
         return graph.dataset_version, graph.identity_hash
+
+    def meaning_index(self) -> MeaningIndex | None:
+        """The meaning index published beside the active release file, loaded once per file; one
+        built for another release is never used."""
+        graph = self._graph()
+        cached = self._meaning
+        if cached is not None and cached[0] == graph.path:
+            return cached[1]
+        with self._lock:
+            try:
+                index = MeaningIndex.load(graph.path)
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                LOG.warning("brain_meaning_index_unavailable exception_type=%s",
+                            type(exc).__name__)
+                index = None
+            if index is not None and (index.dataset_version, index.identity_hash) != (
+                    graph.dataset_version, graph.identity_hash):
+                LOG.warning("brain_meaning_index_other_release")
+                index = None
+            self._meaning = (graph.path, index)
+            return index
 
     def evidence_fingerprint(self) -> str:
         return self._graph().fingerprint

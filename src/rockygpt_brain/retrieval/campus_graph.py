@@ -8,6 +8,7 @@ must still be discovered before they can be opened, even on follow-up turns.
 
 import json
 import re
+from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Any
 
@@ -149,7 +150,8 @@ class CampusGraph:
                exact_name_only: bool = False, conversation: str = "", latest: str = "",
                on: date | None = None, meal: str | None = None,
                menu_query: dict[str, Any] | None = None,
-               about: str | None = None) -> dict[str, Any]:
+               about: str | None = None,
+               meaning: Mapping[tuple[str, str], float] | None = None) -> dict[str, Any]:
         """Run one complete root-first traversal, without intermediate model decisions."""
         with measure("Open root · Ramapo"):
             self.open("ramapo", [], as_of)
@@ -174,7 +176,8 @@ class CampusGraph:
                 topic = self._topic(query, as_of)
             if topic is not None:
                 return self._topic_result(topic, result, fields, as_of, on=on, meal=meal,
-                                          menu_query=menu_query, latest=latest, about=about)
+                                          menu_query=menu_query, latest=latest, about=about,
+                                          meaning=meaning)
         if outcome == "asks" and conversation and not truncated and not exact_name_only:
             named = named_by_conversation(candidates, conversation)
             if named is not None:
@@ -185,7 +188,7 @@ class CampusGraph:
         with measure("Open matched office · read published records · shared entity facts"):
             opened = {**result, **self.open(f"office:{chosen[0]['entity_id']}", fields, as_of,
                                             on=on, meal=meal, menu_query=menu_query,
-                                            about=about)}
+                                            about=about, meaning=meaning)}
         if not exact_name_only and (
                 note := self._note_for_unpublished(opened, fields, as_of, latest)):
             opened["also"] = note
@@ -204,6 +207,7 @@ class CampusGraph:
         self, topic: dict[str, Any], result: dict[str, Any], fields: list[str], as_of: datetime,
         *, on: date | None, meal: str | None, menu_query: dict[str, Any] | None,
         latest: str = "", about: str | None = None,
+        meaning: Mapping[tuple[str, str], float] | None = None,
     ) -> dict[str, Any]:
         """One named office is read like a lookup of it; several are offered to choose from; a
         retired topic has no office to read."""
@@ -212,7 +216,7 @@ class CampusGraph:
             with measure("Open the topic's office · read published records"):
                 opened = {**result, **self.open(f"office:{offices[0]['id']}", fields, as_of,
                                                 on=on, meal=meal, menu_query=menu_query,
-                                                about=about)}
+                                                about=about, meaning=meaning)}
             if note := self._note_for_unpublished(opened, fields, as_of, latest):
                 opened["also"] = note
             return {**opened, "topic": topic}
@@ -335,7 +339,8 @@ class CampusGraph:
     def open(self, node_id: str, fields: list[str], as_of: datetime, *,
              on: date | None = None, meal: str | None = None,
              menu_query: dict[str, Any] | None = None,
-             about: str | None = None) -> dict[str, Any]:
+             about: str | None = None,
+             meaning: Mapping[tuple[str, str], float] | None = None) -> dict[str, Any]:
         if node_id not in self.nodes:
             raise InvalidFactRequest("Open only a child returned by this turn's graph.")
         node = self.nodes[node_id]
@@ -384,5 +389,5 @@ class CampusGraph:
                 result["facts"] = self.facts.get_office_facts(
                     node["entity_id"], fields, self.version,
                     identity_hash=self.identity_hash, as_of=as_of, on=on, meal=meal,
-                    menu_query=menu_query, about=about)
+                    menu_query=menu_query, about=about, meaning=meaning)
         return {**result, "dataset_version": self.version, "identity_hash": self.identity_hash}

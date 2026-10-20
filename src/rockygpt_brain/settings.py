@@ -63,6 +63,9 @@ class ProviderSettings:
     # An optional more capable model for the two calls that decide what a how-to answer says (the
     # section pick and the writer), priced separately so the ledger charges each call its own rate.
     strong_prices: Prices | None = None
+    # An optional embeddings model for finding how-to sections by meaning (its output rate is
+    # unused); the question is embedded at the dimensions of the release's meaning index.
+    embed_prices: Prices | None = None
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "ProviderSettings":
@@ -112,11 +115,18 @@ class ProviderSettings:
                     int(env.get("BRAIN_OPENAI_STRONG_CACHED_INPUT_NUSD_PER_TOKEN",
                                 str(strong_input))),
                     datetime.fromisoformat(required("BRAIN_OPENAI_STRONG_PRICE_VALID_UNTIL")))
+            embed = None
+            if env.get("BRAIN_OPENAI_EMBED_MODEL", "").strip():
+                embed = Prices(
+                    required("BRAIN_OPENAI_EMBED_MODEL"),
+                    int(required("BRAIN_OPENAI_EMBED_INPUT_NUSD_PER_TOKEN")), 1, 0,
+                    datetime.fromisoformat(required("BRAIN_OPENAI_EMBED_PRICE_VALID_UNTIL")))
         except (ValueError, OverflowError, KeyError) as error:
             raise ConfigurationError("Invalid provider pricing configuration") from error
         prices = Prices(model, input_rate, output_rate, cached_rate, expires)
-        if not prices.valid(datetime.now(UTC)) or (
-                strong is not None and not strong.valid(datetime.now(UTC))):
+        if not prices.valid(datetime.now(UTC)) or any(
+                extra is not None and not extra.valid(datetime.now(UTC))
+                for extra in (strong, embed)):
             raise ConfigurationError("Provider pricing is invalid or expired")
         if not (1 <= max_input <= 100_000 and 1 <= max_output <= 8_000
                 and 1 <= writer_output <= 8_000 and 1 <= max_turn <= 1_000_000_000):
@@ -128,5 +138,5 @@ class ProviderSettings:
             ledger_url=required("BRAIN_LEDGER_DATABASE_URL"),
             prices=prices, max_input_bytes=max_input, max_output_tokens=max_output,
             writer_max_output_tokens=writer_output,
-            max_turn_nusd=max_turn, strong_prices=strong,
+            max_turn_nusd=max_turn, strong_prices=strong, embed_prices=embed,
         )

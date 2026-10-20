@@ -9,14 +9,17 @@ import hashlib
 import json
 import math
 import re
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote, urlsplit
 from zoneinfo import ZoneInfo
+
+if TYPE_CHECKING:
+    from rockygpt_brain.retrieval.meaning import MeaningIndex
 
 from rockygpt_brain.retrieval.projection import (
     CONTACT_FIELDS,
@@ -1332,6 +1335,8 @@ MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 16, 1800
 MAX_PAGE_WORDS_CHARS = 1400
 # The most of a candidate a section picker reads.
 PICK_MATCH_CHARS = 280
+# How far below today's a section about a term that is over ranks, by meaning.
+MEANING_PAST_TERM = 0.1
 
 
 # A term a page is about ("Spring 2026") and the month and day it ends: a section that names only
@@ -1481,6 +1486,7 @@ def _procedure_units(row: dict[str, Any], *, sections_only: bool = False,
 
 def procedures_property(
     rows: Sequence[dict[str, Any]], now: datetime, about: str | None,
+    meaning: Mapping[tuple[str, str], float] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """The sections of an office's own pages that speak to what the student wants to do.
 
@@ -1513,29 +1519,40 @@ def procedures_property(
     today = now.astimezone(CAMPUS_TIMEZONE).date()
     scored: list[tuple[float, int, str, dict[str, Any], dict[str, Any]]] = []
     for row_index, index, row, unit, top, body in found:
-        in_heading, in_text = wanted & top, wanted & body
-        if not in_heading and len(in_text) < 2:
-            continue
-        score = sum(3 * weight[w] for w in in_heading) + sum(weight[w] for w in in_text)
-        # A section for a term that is over ("Spring 2026 Check-Out") ranks below today's.
+        # By meaning when the question was embedded (the student's words and the page's need share
+        # none: "excused for a funeral", "attendance is determined by the instructor"); else by
+        # the asked words.
         over = past_term(
             f"{unit.get('term', '')} {unit['heading']} {unit['text'][:600]} {row.get('url') or ''}",
             today)
-        if over:
-            score /= 2
+        if meaning is not None:
+            similarity = meaning.get((str(row["id"]), index))
+            if similarity is None:
+                continue
+            # A section for a term that is over ranks below today's.
+            score = similarity - (MEANING_PAST_TERM if over else 0.0)
+        else:
+            in_heading, in_text = wanted & top, wanted & body
+            if not in_heading and len(in_text) < 2:
+                continue
+            score = sum(3 * weight[w] for w in in_heading) + sum(weight[w] for w in in_text)
+            # A section for a term that is over ("Spring 2026 Check-Out") ranks below today's.
+            if over:
+                score /= 2
         scored.append((-score, row_index, index, row,
                        {**unit, **({"past_term": over} if over else {})}))
     best_entry: dict[int, float] = {}
     for score, row_index, index, _, _ in scored:
         if index.startswith("e"):
-            best_entry[row_index] = max(best_entry.get(row_index, 0.0), -score)
+            best_entry[row_index] = max(best_entry.get(row_index, -math.inf), -score)
     scored = [item for item in scored if item[2].startswith("e")
-              or -item[0] > best_entry.get(item[1], 0.0)]
+              or -item[0] > best_entry.get(item[1], -math.inf)]
     if not scored:
         return empty, []
     ranked = sorted(scored, key=lambda item: item[:3])
     best = -ranked[0][0]
-    picked = [item for item in ranked if -item[0] >= best / 4][:MAX_PROCEDURES]
+    picked = (ranked[:MAX_PROCEDURES] if meaning is not None
+              else [item for item in ranked if -item[0] >= best / 4][:MAX_PROCEDURES])
     values: list[dict[str, Any]] = []
     assertions: list[dict[str, Any]] = []
     sources: dict[str, dict[str, Any]] = {}
@@ -1676,6 +1693,11 @@ class EntityFacts:
     """Shared office search and canonical fact reader; adapters supply one snapshot."""
 
     backend = "unspecified"  # Which store the adapter reads, shown by the developer runtime page.
+
+    def meaning_index(self) -> "MeaningIndex | None":
+        """The how-to units' embeddings for the active release, when one was published beside it;
+        without one, how-to sections are found by the asked words."""
+        return None
 
     def __init__(self, *, now: Callable[[], datetime] | None = None) -> None:
         self.now = now or (lambda: datetime.now(UTC))
@@ -1931,6 +1953,7 @@ class EntityFacts:
         meal: str | None = None,
         menu_query: dict[str, Any] | None = None,
         about: str | None = None,
+        meaning: Mapping[tuple[str, str], float] | None = None,
     ) -> dict[str, Any]:
         """The facts of one office or dining venue. `on` is the date a menu is asked for,
         `meal` the one meal of it, and `menu_query` the filters (diet, words, allergen) the
@@ -2059,7 +2082,7 @@ class EntityFacts:
                 if len(linked_rows(entity, pages, "office_sections")) != len(pages):
                     raise EvidenceUnavailable(
                         "An office page has no exact canonical identity link.")
-                procedures, page_sources = procedures_property(pages, now, about)
+                procedures, page_sources = procedures_property(pages, now, about, meaning)
                 sources.extend(page_sources)
                 properties = sorted([*properties, procedures],
                                     key=lambda prop: list(selected).index(prop["key"]))
