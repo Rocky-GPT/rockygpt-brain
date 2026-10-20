@@ -249,6 +249,8 @@ class Gateway:
             "service_tier": "default",
             "include": ["reasoning.encrypted_content"],
         }
+        if settings.decide_effort and names in (["write_answer"], ["pick_sections"]):
+            request["reasoning"] = {"effort": settings.decide_effort}
         if tools:
             request.update(tool_choice="required", parallel_tool_calls=False)
         try:

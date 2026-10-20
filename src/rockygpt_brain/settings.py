@@ -66,6 +66,9 @@ class ProviderSettings:
     # An optional embeddings model for finding how-to sections by meaning (its output rate is
     # unused); the question is embedded at the dimensions of the release's meaning index.
     embed_prices: Prices | None = None
+    # How hard the model thinks on the two calls that decide what a how-to answer says (the
+    # section pick and the writer); None leaves the model's default (medium for gpt-6-luna).
+    decide_effort: str | None = None
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "ProviderSettings":
@@ -115,6 +118,10 @@ class ProviderSettings:
                     int(env.get("BRAIN_OPENAI_STRONG_CACHED_INPUT_NUSD_PER_TOKEN",
                                 str(strong_input))),
                     datetime.fromisoformat(required("BRAIN_OPENAI_STRONG_PRICE_VALID_UNTIL")))
+            effort = env.get("BRAIN_OPENAI_DECIDE_EFFORT", "").strip() or None
+            if effort is not None and effort not in {"none", "low", "medium", "high", "xhigh",
+                                                     "max"}:
+                raise ValueError("unknown reasoning effort")
             embed = None
             if env.get("BRAIN_OPENAI_EMBED_MODEL", "").strip():
                 embed = Prices(
@@ -139,4 +146,5 @@ class ProviderSettings:
             prices=prices, max_input_bytes=max_input, max_output_tokens=max_output,
             writer_max_output_tokens=writer_output,
             max_turn_nusd=max_turn, strong_prices=strong, embed_prices=embed,
+            decide_effort=effort,
         )

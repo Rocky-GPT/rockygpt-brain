@@ -385,3 +385,58 @@ def test_a_strong_model_needs_its_full_prices() -> None:
     settings = ProviderSettings.from_env(env)
     assert settings.strong_prices is not None and settings.strong_prices.model == "strong-model"
     assert settings.strong_prices.cached_input_nusd == 2_500
+
+
+def test_the_pick_and_the_writer_think_at_the_set_effort_and_nothing_else_does() -> None:
+    settings = replace(SETTINGS, decide_effort="high")
+    for tool in ("write_answer", "pick_sections"):
+        gateway, _, transport, budget = setup(settings=settings)
+        asyncio.run(gateway.complete(input=[{"role": "user", "content": "facts"}],
+                                     tools=[{"type": "function", "name": tool}], budget=budget))
+        assert transport.request["reasoning"] == {"effort": "high"}
+    gateway, _, transport, budget = setup(settings=settings)
+    call(gateway, budget)
+    assert "reasoning" not in transport.request
+    env = {"BRAIN_ENVIRONMENT": "development", "BRAIN_OPENAI_API_KEY": "k",
+           "BRAIN_OPENAI_PROJECT": "p", "BRAIN_LEDGER_DATABASE_URL": "u",
+           "BRAIN_OPENAI_DECIDE_EFFORT": "extreme"}
+    with pytest.raises(ConfigurationError):
+        ProviderSettings.from_env(env)
+
+
+class EmbeddingTransport(FakeTransport):
+    async def embed(self, request: dict[str, Any], remaining_seconds: float) -> dict[str, Any]:
+        self.ledger.events.append("embed")
+        self.request = request
+        if self.error:
+            raise self.error
+        return self.response
+
+
+def test_an_embedding_is_held_and_settled_in_the_ledger_and_is_not_a_model_call() -> None:
+    embed = Prices("embed-model", 130, 1, 0, datetime(2026, 11, 1, tzinfo=UTC))
+    ledger = FakeLedger()
+    transport = EmbeddingTransport(ledger, {"model": "embed-model-2026", "data": [
+        {"embedding": [0.5, 0.5, 0.0]}], "usage": {"prompt_tokens": 7}})
+    gateway = Gateway(replace(SETTINGS, embed_prices=embed), ledger=ledger, transport=transport,
+                      now=lambda: NOW, monotonic=lambda: 1.0)
+    budget = TurnBudget("request", 10.0)
+    vector = asyncio.run(gateway.embed("lost my id", dimensions=3, budget=budget))
+    assert vector == [0.5, 0.5, 0.0]
+    assert ledger.events == ["reserve", "embed", "settle"] and ledger.cost == 7 * 130
+    assert transport.request == {"model": "embed-model", "input": "lost my id", "dimensions": 3}
+    assert budget.calls == 0 and budget.committed_nusd == 7 * 130
+    # A vector of the wrong size is not used, and its hold is kept.
+    ledger = FakeLedger()
+    transport = EmbeddingTransport(ledger, {"model": "embed-model", "data": [
+        {"embedding": [0.5]}], "usage": {"prompt_tokens": 7}})
+    gateway = Gateway(replace(SETTINGS, embed_prices=embed), ledger=ledger, transport=transport,
+                      now=lambda: NOW, monotonic=lambda: 1.0)
+    with pytest.raises(GatewayError):
+        asyncio.run(gateway.embed("lost my id", dimensions=3, budget=TurnBudget("r", 10.0)))
+    assert ledger.events == ["reserve", "embed", "uncertain"]
+    # Without an embeddings model nothing is sent.
+    gateway, ledger, _, budget = setup()
+    with pytest.raises(GatewayError):
+        asyncio.run(gateway.embed("x", dimensions=3, budget=budget))
+    assert ledger.events == []
