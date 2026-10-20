@@ -63,6 +63,8 @@ class ProviderSettings:
     # An optional more capable model for the two calls that decide what a how-to answer says (the
     # section pick and the writer), priced separately so the ledger charges each call its own rate.
     strong_prices: Prices | None = None
+    # Which of those two calls run on it (by tool name); both unless set.
+    strong_calls: tuple[str, ...] = ("write_answer", "pick_sections")
     # An optional embeddings model for finding how-to sections by meaning (its output rate is
     # unused); the question is embedded at the dimensions of the release's meaning index.
     embed_prices: Prices | None = None
@@ -118,6 +120,11 @@ class ProviderSettings:
                     int(env.get("BRAIN_OPENAI_STRONG_CACHED_INPUT_NUSD_PER_TOKEN",
                                 str(strong_input))),
                     datetime.fromisoformat(required("BRAIN_OPENAI_STRONG_PRICE_VALID_UNTIL")))
+            strong_calls = tuple(name.strip() for name in env.get(
+                "BRAIN_OPENAI_STRONG_CALLS", "write_answer,pick_sections").split(",")
+                if name.strip())
+            if not set(strong_calls) <= {"write_answer", "pick_sections"}:
+                raise ValueError("unknown strong-model call")
             effort = env.get("BRAIN_OPENAI_DECIDE_EFFORT", "").strip() or None
             if effort is not None and effort not in {"none", "low", "medium", "high", "xhigh",
                                                      "max"}:
@@ -146,5 +153,5 @@ class ProviderSettings:
             prices=prices, max_input_bytes=max_input, max_output_tokens=max_output,
             writer_max_output_tokens=writer_output,
             max_turn_nusd=max_turn, strong_prices=strong, embed_prices=embed,
-            decide_effort=effort,
+            decide_effort=effort, strong_calls=strong_calls,
         )

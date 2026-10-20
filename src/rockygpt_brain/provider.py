@@ -231,8 +231,8 @@ class Gateway:
         names = [t.get("name") for t in tools]
         # The section pick and the writer may run on the more capable model, at its own rates.
         prices = (settings.strong_prices
-                  if settings.strong_prices is not None
-                  and names in (["write_answer"], ["pick_sections"]) else settings.prices)
+                  if settings.strong_prices is not None and len(names) == 1
+                  and names[0] in settings.strong_calls else settings.prices)
         if not prices.valid(self._now()):
             raise GatewayError("model_not_configured")
         if budget.calls >= budget.max_calls:
