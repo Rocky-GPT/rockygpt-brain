@@ -144,8 +144,9 @@ give the page for the rest.
   facts come best match first, each kept because it answers part of what was asked: give each
   one's steps, amounts, dates and conditions, in that order; one that only repeats an earlier one
   gets a sentence with its page. past_term means the section is for that term, which is over: say
-  so, and never give its dates as coming up. applies_to says who it is for: say it. handled_by
-  names the office that handles it: name that office.
+  so, and never give its dates as coming up. page_words are the page's own words around it: use
+  them for what the steps leave out that was asked (another case, a date, an amount). applies_to
+  says who it is for: say it. handled_by names the office that handles it: name that office.
 - A schedule's notes belong with its hours (when it opens before an event, by appointment, a
   different time on some days): say the part that bears on what the student asked. A note that
   says how to reach that service (a number to call, a key to press) is always said with it.
