@@ -277,3 +277,23 @@ def test_feeling_low_with_no_one_to_talk_to_gets_the_emergency_text_and_the_ques
 ])
 def test_the_no_one_to_talk_to_floor_needs_both_halves(message: str) -> None:
     assert read(message) == CONTINUE
+
+
+@pytest.mark.parametrize("message", [
+    "can i drop a class in my first semester without it hurting me",
+    "will withdrawing hurt me? is it hurting me to take a W",
+    "will this hit me with a late fee",
+])
+def test_a_thing_hurting_me_is_not_a_person_hurting_me(message: str) -> None:
+    assert read(message) == CONTINUE
+
+
+@pytest.mark.parametrize("message", [
+    "he keeps hurting me",
+    "someone is hurting me",
+    "my roommate is hitting me",
+    "it is my boyfriend, he is hurting me",
+    "that guy is following me",
+])
+def test_a_person_hurting_me_still_gets_the_safety_help(message: str) -> None:
+    assert is_safety(message)
