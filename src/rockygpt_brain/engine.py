@@ -595,7 +595,10 @@ term: pick it only when the student asks about that term or no current section a
 student asks two things (how
 to do it and what happens if not), pick a section for each. A section about a different task that
 shares words is not an answer (a degree audit is not auditing a course; a junior's question is not
-answered by first-year steps). A lookup with other_office is an office the student did not name
+answered by first-year steps). applies_to says who a section is for: one for another group (College
+employees, another program) does not answer a student asking for themselves. handled_by names the
+office the page says handles it: when that office's own section is offered too, pick that one. A
+lookup with other_office is an office the student did not name
 whose own pages share the words: pick from it only when its section answers what the student
 wants and the named office's sections do not, or answer only part. Pick none when none answers.
 Answer only with the pick_sections tool."""
@@ -622,7 +625,8 @@ def pick_messages(asked: list[tuple[str, str, dict[str, Any]]],
                 **({"other_office": True} if k >= first_other else {}), "sections": [
         {"n": n, "heading": v["value"].get("heading"), "page": v["value"].get("page"),
          "start": str(v["value"].get("text", ""))[:280],
-         **({"past_term": v["value"]["past_term"]} if v["value"].get("past_term") else {})}
+         **{key: v["value"][key] for key in ("applies_to", "handled_by", "past_term")
+            if v["value"].get(key)}}
         for n, v in enumerate(prop["values"][:OTHER_SECTIONS if k >= first_other else None])]}
         for k, (about, office, prop) in enumerate(asked)]
     return [{"role": "system", "content": PICK_PROMPT},

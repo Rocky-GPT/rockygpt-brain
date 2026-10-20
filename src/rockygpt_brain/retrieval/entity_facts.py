@@ -1390,6 +1390,43 @@ def _section_words(row: dict[str, Any], heading: str, text: str) -> tuple[set[st
             _procedure_words(text))
 
 
+def _procedure_units(row: dict[str, Any]) -> list[tuple[str, dict[str, Any], set[str], set[str]]]:
+    """What a page offers a how-to read: its how-to entries when publish listed some (a task in
+    plain words, who it is for, the office the page says handles it, its term and its steps, each
+    held to the page's words), else its headed sections. Each comes with its key in the page, and
+    its heading words and text words."""
+    sections = row.get("sections")
+    if not isinstance(sections, list):
+        raise EvidenceUnavailable("An office page record has no sections.")
+    entries = row.get("howto_entries")
+    units: list[tuple[str, dict[str, Any], set[str], set[str]]] = []
+    if isinstance(entries, list) and entries:
+        for index, entry in enumerate(entries):
+            if not isinstance(entry, dict) or not isinstance(entry.get("steps"), list):
+                continue
+            task = clean(entry.get("task"))
+            steps = [clean(step.get("text")) for step in entry["steps"] if isinstance(step, dict)]
+            steps = [step for step in steps if isinstance(step, str) and step]
+            if not isinstance(task, str) or not task or not steps:
+                continue
+            extra = {key: value for key in ("applies_to", "handled_by", "term", "section")
+                     if isinstance(value := clean(entry.get(key)), str) and value}
+            text = " ".join(f"{n}. {step}" for n, step in enumerate(steps, start=1))
+            top, body = _section_words(row, f"{task} {extra.get('applies_to', '')}", text)
+            units.append((f"e{index}", {"heading": task, "text": text, **extra}, top,
+                          body | _procedure_words(extra.get("section", ""))))
+        if units:
+            return units
+    for index, section in enumerate(sections):
+        if not isinstance(section, dict):
+            continue
+        heading, text = clean(section.get("heading")), clean(section.get("text"))
+        if isinstance(heading, str) and isinstance(text, str) and text:
+            units.append((str(index), {"heading": heading, "text": text},
+                          *_section_words(row, heading, text)))
+    return units
+
+
 def procedures_property(
     rows: Sequence[dict[str, Any]], now: datetime, about: str | None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -1407,36 +1444,29 @@ def procedures_property(
     wanted = _procedure_words(about or "")
     if not rows or not wanted:
         return empty, []
-    found: list[tuple[int, int, dict[str, Any], str, str, set[str], set[str]]] = []
+    found: list[tuple[int, str, dict[str, Any], dict[str, Any], set[str], set[str]]] = []
     for row_index, row in enumerate(rows):
-        sections = row.get("sections")
-        if not isinstance(sections, list):
-            raise EvidenceUnavailable("An office page record has no sections.")
-        for index, section in enumerate(sections):
-            if not isinstance(section, dict):
-                continue
-            heading, text = clean(section.get("heading")), clean(section.get("text"))
-            if not isinstance(heading, str) or not isinstance(text, str) or not text:
-                continue
-            found.append((row_index, index, row, heading, text,
-                          *_section_words(row, heading, text)))
+        for index, unit, top, body in _procedure_units(row):
+            found.append((row_index, index, row, unit, top, body))
     # How many of the office's sections each asked word is in: a rare word tells sections apart.
     seen = {word: sum(1 for *_, top, body in found if word in top or word in body)
             for word in wanted}
     weight = {word: math.log(1 + len(found) / count) for word, count in seen.items() if count}
     today = now.astimezone(CAMPUS_TIMEZONE).date()
-    scored: list[tuple[float, int, int, dict[str, Any], dict[str, Any]]] = []
-    for row_index, index, row, heading, text, top, body in found:
+    scored: list[tuple[float, int, str, dict[str, Any], dict[str, Any]]] = []
+    for row_index, index, row, unit, top, body in found:
         in_heading, in_text = wanted & top, wanted & body
         if not in_heading and len(in_text) < 2:
             continue
         score = sum(3 * weight[w] for w in in_heading) + sum(weight[w] for w in in_text)
         # A section for a term that is over ("Spring 2026 Check-Out") ranks below today's.
-        over = past_term(f"{heading} {text[:600]} {row.get('url') or ''}", today)
+        over = past_term(
+            f"{unit.get('term', '')} {unit['heading']} {unit['text'][:600]} {row.get('url') or ''}",
+            today)
         if over:
             score /= 2
         scored.append((-score, row_index, index, row,
-                       {"heading": heading, "text": text, **({"past_term": over} if over else {})}))
+                       {**unit, **({"past_term": over} if over else {})}))
     if not scored:
         return empty, []
     ranked = sorted(scored, key=lambda item: item[:3])
@@ -1455,9 +1485,12 @@ def procedures_property(
         said = _passage(section["text"], wanted, weight, MAX_PROCEDURE_CHARS)
         value = {"heading": section["heading"], "page": url, "text": said,
                  **({"text_cut": True} if said != section["text"] else {}),
-                 **({"past_term": section["past_term"]} if section.get("past_term") else {})}
+                 **{key: section[key] for key in ("applies_to", "handled_by", "past_term")
+                    if section.get(key)}}
+        entry = index.startswith("e")
         assertion = {"id": f"{source['id']}:procedures:{index}", "source_id": source["id"],
-                     "field": "procedures", "raw_value": {"section": index},
+                     "field": "procedures",
+                     "raw_value": {"entry": int(index[1:])} if entry else {"section": int(index)},
                      "value": _json_safe(value), "caveats": []}
         assertions.append(assertion)
         values.append({"value": _json_safe(value), "assertion_ids": [assertion["id"]],
@@ -1778,15 +1811,9 @@ class EntityFacts:
                     pages = linked_rows(entity, snapshot.record_reader(entity, "office_sections"),
                                         "office_sections")
                     for row in pages:
-                        for section in row.get("sections") or []:
-                            if not isinstance(section, dict):
-                                continue
-                            heading = clean(section.get("heading"))
-                            text = clean(section.get("text"))
-                            if isinstance(heading, str) and isinstance(text, str) and text:
-                                words = _section_words(row, heading, text)
-                                index.append((entity["id"], entity["name"], str(row["id"]),
-                                              frozenset(words[0]), frozenset(words[1])))
+                        for _, _, heading_words, text_words in _procedure_units(row):
+                            index.append((entity["id"], entity["name"], str(row["id"]),
+                                          frozenset(heading_words), frozenset(text_words)))
             self._section_index = cached = ((dataset_version, identity_hash), index)
         sections = cached[1]
         seen = {word: sum(1 for *_, top, body in sections if word in top or word in body)
