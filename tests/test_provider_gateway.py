@@ -440,3 +440,19 @@ def test_an_embedding_is_held_and_settled_in_the_ledger_and_is_not_a_model_call(
     with pytest.raises(GatewayError):
         asyncio.run(gateway.embed("x", dimensions=3, budget=budget))
     assert ledger.events == []
+
+
+def test_the_strong_model_can_be_kept_to_the_writer() -> None:
+    strong = Prices("strong-model", 2_500, 10_000, 2_500, datetime(2026, 11, 1, tzinfo=UTC))
+    settings = replace(SETTINGS, strong_prices=strong, strong_calls=("write_answer",))
+    gateway, _, transport, budget = setup({**response(), "model": "strong-model"}, settings)
+    budget.max_cost_nusd = 1_000_000_000
+    asyncio.run(gateway.complete(input=[{"role": "user", "content": "facts"}],
+                                 tools=[{"type": "function", "name": "write_answer"}],
+                                 budget=budget))
+    assert transport.request["model"] == "strong-model"
+    gateway, _, transport, budget = setup(settings=settings)
+    asyncio.run(gateway.complete(input=[{"role": "user", "content": "facts"}],
+                                 tools=[{"type": "function", "name": "pick_sections"}],
+                                 budget=budget))
+    assert transport.request["model"] == "test-model"
