@@ -1,0 +1,492 @@
+[
+ {
+  "id": "x1-01",
+  "question": "can my boyfriend stay overnight in my dorm room",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-02",
+  "question": "Are candles allowed in the residence halls? like the kind with a wick, for my room",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-03",
+  "question": "whats the policy on mini fridges and microwaves in the dorms",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-04",
+  "question": "Can I have a pet in my apartment on campus? I have a cat and I really don't want to leave her home all semester",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-05",
+  "question": "is it ok to have an emotional support animal in housing, and who do I talk to about getting it approved",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-06",
+  "question": "can I have a coffee maker or hot plate in my room",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-07",
+  "question": "how many guests can I have at once and how long can they stay",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-08",
+  "question": "alcohol policy for students over 21 living in the apartments?",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-09",
+  "question": "can i hang stuff on the walls with command strips or do i need to use nails/ tape would damage the paint",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-10",
+  "question": "Is smoking or vaping allowed anywhere on campus, including outside near the dorms?",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-11",
+  "question": "can I bring my bike inside my room or where am I supposed to keep it",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-12",
+  "question": "are quiet hours enforced in the halls and what happens if my roommate keeps playing music late at night",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-13",
+  "question": "can i park my car on campus as a freshman?",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-14",
+  "question": "Am I allowed to have a string lights / LED lights in my dorm? someone told me they're a fire hazard",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-15",
+  "question": "can I leave stuff in my room over winter break or do I have to take everything home",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-16",
+  "question": "can i drink in my room if im 21 but my roommate is 19",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-17",
+  "question": "is it allowed to host a party or event in the lounge, and how do I reserve it",
+  "topic": "procedure"
+ },
+ {
+  "id": "x1-18",
+  "question": "can I bring a drone on campus to film stuff for a class project",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-19",
+  "question": "Can I paint my room or put up a loft bed? Who do I ask for permission?",
+  "topic": "contact"
+ },
+ {
+  "id": "x1-20",
+  "question": "Can a friend from another college sleep over in my room for a week during their spring break?",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-21",
+  "question": "are weed gummies okay if I have a medical card? asking for housing rules",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-22",
+  "question": "Can I get fined for having a candle and if so how much would the fine be?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "x1-23",
+  "question": "is it allowed to chalk the sidewalks on campus for my club's event",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-24",
+  "question": "my RA said I can't have my extension cord, is that true?? what is the rule on power strips",
+  "topic": "policy"
+ },
+ {
+  "id": "x1-25",
+  "question": "should I risk keeping my hamster in my dorm or will res life find out",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "x2-01",
+  "question": "my professor gave me a grade i think is wrong. what do i do to dispute it and who do i talk to first",
+  "topic": "procedure"
+ },
+ {
+  "id": "x2-02",
+  "question": "how do i file a complaint about a professor",
+  "topic": "procedure"
+ },
+ {
+  "id": "x2-03",
+  "question": "my roommate is never respecting quiet hours and i've talked to her twice. can i request a room change? how",
+  "topic": "procedure"
+ },
+ {
+  "id": "x2-04",
+  "question": "who do i contact about roomate conflict",
+  "topic": "contact"
+ },
+ {
+  "id": "x2-05",
+  "question": "there's a hold on my account bc of a bill and i cant register for classes. how do i get it removed",
+  "topic": "procedure"
+ },
+ {
+  "id": "x2-06",
+  "question": "I think I was charged twice on my tuition bill. Who in the Bursar's office should I email and what do I need to send them?",
+  "topic": "contact"
+ },
+ {
+  "id": "x2-07",
+  "question": "payment plan for tuition?? how do i sign up",
+  "topic": "procedure"
+ },
+ {
+  "id": "x2-08",
+  "question": "what is the policy if a professor doesn't show up to class? how long do we have to wait",
+  "topic": "policy"
+ },
+ {
+  "id": "x2-09",
+  "question": "a staff member in the financial aid office was really rude to me and wouldn't help. who do i report that to",
+  "topic": "contact"
+ },
+ {
+  "id": "x2-10",
+  "question": "how do i report harassment by another student",
+  "topic": "procedure"
+ },
+ {
+  "id": "x2-11",
+  "question": "can my RA go in my room without telling me? whats the policy on room searches",
+  "topic": "policy"
+ },
+ {
+  "id": "x2-12",
+  "question": "i got accused of plagiarism in my english class. what happens next and what are my rights",
+  "topic": "policy"
+ },
+ {
+  "id": "x2-13",
+  "question": "how do i appeal a financial aid decision, i lost my aid because of SAP",
+  "topic": "procedure"
+ },
+ {
+  "id": "x2-14",
+  "question": "my prof wont accept my accomodation letter from disability services, what can i do",
+  "topic": "procedure"
+ },
+ {
+  "id": "x2-15",
+  "question": "can i get a refund if i withdraw from a class after the deadline? asking for the bursar",
+  "topic": "policy"
+ },
+ {
+  "id": "x2-16",
+  "question": "how do I get out of a campus housing contract early?",
+  "topic": "procedure"
+ },
+ {
+  "id": "x2-17",
+  "question": "my advisor never responds to emails. how do i get assigned a new one",
+  "topic": "procedure"
+ },
+ {
+  "id": "x2-18",
+  "question": "what is the grievance process for students at ramapo",
+  "topic": "policy"
+ },
+ {
+  "id": "x2-19",
+  "question": "got a parking ticket from campus safety i think was unfair, how to appeal and who handles it",
+  "topic": "procedure"
+ },
+ {
+  "id": "x2-20",
+  "question": "somebody keeps stealing my food from the suite fridge, who do i tell",
+  "topic": "contact"
+ },
+ {
+  "id": "x2-21",
+  "question": "how much do i owe the college right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "x2-22",
+  "question": "should i just drop my chem class or try to talk to the professor first? im failing",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "x2-23",
+  "question": "is professor Hendricks a good teacher? thinking of reporting her for being unfair",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "x2-24",
+  "question": "what happens if i cant pay my bill by the deadline, will they drop me from my classes",
+  "topic": "policy"
+ },
+ {
+  "id": "x2-25",
+  "question": "can i switch to a different professor for the same course if we dont get along? how",
+  "topic": "procedure"
+ },
+ {
+  "id": "x3-01",
+  "question": "when is the last day to drop a class without it showing on my transcript?",
+  "topic": "policy"
+ },
+ {
+  "id": "x3-02",
+  "question": "i missed the add/drop deadline, is there any way to still drop a course? who do i talk to",
+  "topic": "procedure"
+ },
+ {
+  "id": "x3-03",
+  "question": "What happens if I miss the deadline to pay my tuition bill?",
+  "topic": "policy"
+ },
+ {
+  "id": "x3-04",
+  "question": "how do i get a late withdrawal approved after the withdrawal deadline passed",
+  "topic": "procedure"
+ },
+ {
+  "id": "x3-05",
+  "question": "fafsa deadline for rammapo??",
+  "topic": "policy"
+ },
+ {
+  "id": "x3-06",
+  "question": "I forgot to submit my housing application before the deadline. Can I still apply for on campus housing for next semester, and who should I email about it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "x3-07",
+  "question": "whats the deadline to apply for graduation",
+  "topic": "policy"
+ },
+ {
+  "id": "x3-08",
+  "question": "missed grad application deadline by like 2 days, am i screwed",
+  "topic": "policy"
+ },
+ {
+  "id": "x3-09",
+  "question": "how do i request an incomplete in a class and whats the deadline to finish the work",
+  "topic": "procedure"
+ },
+ {
+  "id": "x3-10",
+  "question": "deadline to declare a major?",
+  "topic": "policy"
+ },
+ {
+  "id": "x3-11",
+  "question": "can i appeal a late fee on my account if i missed the payment deadline bc of a family emergency",
+  "topic": "procedure"
+ },
+ {
+  "id": "x3-12",
+  "question": "when do I have to register for classes by to avoid a late registration fee",
+  "topic": "policy"
+ },
+ {
+  "id": "x3-13",
+  "question": "What is the process to petition for an exception to an academic deadline?",
+  "topic": "procedure"
+ },
+ {
+  "id": "x3-14",
+  "question": "i didnt waive the student health insurance by the deadline. can i still do it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "x3-15",
+  "question": "whats the last day to change from letter grade to pass/fail",
+  "topic": "policy"
+ },
+ {
+  "id": "x3-16",
+  "question": "I missed the deadline to submit my scholarship renewal paperwork. Who in financial aid do I contact and what are my options?",
+  "topic": "contact"
+ },
+ {
+  "id": "x3-17",
+  "question": "how long do i have to appeal a grade after the semester ends",
+  "topic": "policy"
+ },
+ {
+  "id": "x3-18",
+  "question": "deadline to apply for study abroad for spring? and who do i contact if im late",
+  "topic": "contact"
+ },
+ {
+  "id": "x3-19",
+  "question": "if i dont pay by the due date will they drop me from my classes",
+  "topic": "policy"
+ },
+ {
+  "id": "x3-20",
+  "question": "how do i request an extension on my payment plan due date",
+  "topic": "procedure"
+ },
+ {
+  "id": "x3-21",
+  "question": "do professors have to accept late work or is that up to them? is there a college policy",
+  "topic": "policy"
+ },
+ {
+  "id": "x3-22",
+  "question": "How do I submit a medical withdrawal after the semester deadline has passed?",
+  "topic": "procedure"
+ },
+ {
+  "id": "x3-23",
+  "question": "what is my exact registration time and has my hold been cleared before the deadline",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "x3-24",
+  "question": "Is it better to drop my chem class before the deadline or tough it out? I'm getting a C- right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "x3-25",
+  "question": "how much is the late registration fee this semester",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "x4-01",
+  "question": "i'm a freshman and have never used the Career Center. how do i make an appointment to get my resume looked at?",
+  "topic": "procedure"
+ },
+ {
+  "id": "x4-02",
+  "question": "how do I get a tutor for calc",
+  "topic": "procedure"
+ },
+ {
+  "id": "x4-03",
+  "question": "First time going to the health center, do I need to make an appointment or can I just walk in? And what do I need to bring?",
+  "topic": "procedure"
+ },
+ {
+  "id": "x4-05",
+  "question": "never used the library before, how do I borrow a book or request one from another library?",
+  "topic": "procedure"
+ },
+ {
+  "id": "x4-06",
+  "question": "how do i sign up for counseling and who do i call if its urgent",
+  "topic": "contact"
+ },
+ {
+  "id": "x4-07",
+  "question": "Where do I go to get a student ID and what if mine stopped working at the dining hall",
+  "topic": "procedure"
+ },
+ {
+  "id": "x4-09",
+  "question": "Im a transfer student and want to know how to get my credits evaluated. who do i talk to?",
+  "topic": "contact"
+ },
+ {
+  "id": "x4-10",
+  "question": "whats the process to request disability accomodations for exams",
+  "topic": "procedure"
+ },
+ {
+  "id": "x4-11",
+  "question": "can my friend from home sleep over in my dorm for the weekend",
+  "topic": "policy"
+ },
+ {
+  "id": "x4-12",
+  "question": "how do i apply for work study / get a campus job",
+  "topic": "procedure"
+ },
+ {
+  "id": "x4-13",
+  "question": "how do I use the writing center, do they proofread my paper for me?",
+  "topic": "policy"
+ },
+ {
+  "id": "x4-14",
+  "question": "how do i get my transcript sent to another school",
+  "topic": "procedure"
+ },
+ {
+  "id": "x4-15",
+  "question": "I want to join a club but dont know how. how do i find clubs and start my own if there isnt one?",
+  "topic": "procedure"
+ },
+ {
+  "id": "x4-16",
+  "question": "how do I report my laptop stolen from the library",
+  "topic": "procedure"
+ },
+ {
+  "id": "x4-17",
+  "question": "Is there a printing service on campus and how do I print my stuff, do I have to pay per page?",
+  "topic": "policy"
+ },
+ {
+  "id": "x4-18",
+  "question": "how do I connect to the campus wifi on my xbox/switch in the dorm",
+  "topic": "procedure"
+ },
+ {
+  "id": "x4-19",
+  "question": "how do i sign up for a study abroad program and who is the person to email about it",
+  "topic": "contact"
+ },
+ {
+  "id": "x4-20",
+  "question": "how to get ahold of financial aid, i have a question on my fafsa verification",
+  "topic": "contact"
+ },
+ {
+  "id": "x4-21",
+  "question": "what is my current balance on my student account",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "x4-22",
+  "question": "which classes should I take next semester as a bio major?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "x4-23",
+  "question": "is the gym open right now?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "x4-24",
+  "question": "how do i get a bike registered or is there somewhere to lock it up on campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "x4-25",
+  "question": "i've never used the Registrar. how do i find out when my registration time is and what to do if there's a hold on my account",
+  "topic": "procedure"
+ }
+]
