@@ -1678,6 +1678,38 @@ def test_a_long_faq_section_says_the_question_that_matches_and_short_names_count
     assert ids["values"][0]["value"]["heading"] == "New ID Cards"
 
 
+def test_a_page_with_how_to_entries_offers_them_instead_of_its_sections() -> None:
+    from rockygpt_brain.retrieval.entity_facts import procedures_property
+    base = {"source_key": "office-pages", "site_folder": "clubs", "collected_at": NOW,
+            "freshness_sla_hours": 168, "content_hash": "h"}
+    listed = {**base, "id": "page-1", "source_record_key": "www.ramapo.edu/clubs/",
+              "url": "https://www.ramapo.edu/clubs/",
+              "sections": [{"heading": "Expressive Activity",
+                            "text": "To start a demonstration, register the activity."}],
+              "howto_entries": [
+                  {"task": "Start a new student club", "applies_to": "", "handled_by": "",
+                   "term": "", "section": "Clubs", "steps": [
+                       {"text": "Ask the Center for Student Involvement in SC-218.",
+                        "quote": "Stop by the Center for Student Involvement in SC-218"}]},
+                  {"task": "Get reimbursed for travel", "applies_to": "College employees",
+                   "handled_by": "Controller", "term": "", "section": "Travel", "steps": [
+                       {"text": "Submit the travel form.", "quote": "Submit the travel form"}]}]}
+    unlisted = {**base, "id": "page-2", "source_record_key": "www.ramapo.edu/clubs/old/",
+                "url": "https://www.ramapo.edu/clubs/old/",
+                "sections": [{"heading": "Start a club", "text": "Start a club with ten members."}]}
+    prop, _ = procedures_property([listed, unlisted], NOW, "start a new club")
+    headings = [v["value"]["heading"] for v in prop["values"]]
+    # The entry names the task; the page's protest section is not offered beside it, and a page
+    # with no entries still offers its sections.
+    assert headings[0] == "Start a new student club"
+    assert "Expressive Activity" not in headings and "Start a club" in headings
+    first = prop["values"][0]["value"]
+    assert first["text"] == "1. Ask the Center for Student Involvement in SC-218."
+    travel, _ = procedures_property([listed], NOW, "get reimbursed for travel")
+    assert travel["values"][0]["value"]["applies_to"] == "College employees"
+    assert travel["values"][0]["value"]["handled_by"] == "Controller"
+
+
 def advising_and_tutoring() -> MemoryEntityFacts:
     def office(key: str, name: str, url: str, sections: list[dict[str, str]]) -> tuple[
             dict[str, Any], dict[str, Any], dict[str, Any]]:

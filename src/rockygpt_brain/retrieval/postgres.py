@@ -257,7 +257,7 @@ WITH links AS (
   SELECT * FROM jsonb_to_recordset(%s::jsonb) AS link(source_key text, source_record_keys jsonb)
 )
 SELECT o.id::text AS id, o.source_record_key, o.site_folder, o.url, o.sections, o.collected_at,
-       o.content_hash, s.source_key, s.freshness_sla_hours
+       o.content_hash, o.howto_entries, s.source_key, s.freshness_sla_hours
 FROM rockygpt_v2.office_sections o
 JOIN rockygpt_v2.sources s ON s.id = o.source_id
 WHERE o.dataset_version_id = %s::uuid AND EXISTS (

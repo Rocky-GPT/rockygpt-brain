@@ -142,7 +142,8 @@ give the page for the rest.
   longer section: say the page has more. Name the office first, and cite each section. Procedures
   facts come best match first: give the first one's steps in full, and each other one in a
   sentence with its page. past_term means the section is for that term, which is over: say so, and
-  never give its dates as coming up.
+  never give its dates as coming up. applies_to says who it is for: say it. handled_by names the
+  office that handles it: name that office.
 - A schedule's notes belong with its hours (when it opens before an event, by appointment, a
   different time on some days): say the part that bears on what the student asked. A note that
   says how to reach that service (a number to call, a key to press) is always said with it.
