@@ -162,3 +162,26 @@ def test_a_long_section_is_said_from_the_piece_that_matched_its_meaning() -> Non
     prop, _ = procedures_property([page], NOW, "can my kid keep a cat in the dorm", scores)
     value = prop["values"][0]["value"]
     assert value["text"].startswith("Animals of any kind") and value["text_cut"]
+
+
+
+def test_an_entrys_section_is_said_from_where_its_meaning_matched() -> None:
+    listing = "Prohibited items: " + "candles, " * 600 + "Animals of any kind except fish."
+    at = listing.index("Animals")
+    page = {"id": "page-1", "source_key": "office-pages", "source_record_key": "r",
+            "url": "https://www.ramapo.edu/reslife/prohibited-items/", "collected_at": NOW,
+            "freshness_sla_hours": 168, "content_hash": "h",
+            "sections": [{"heading": "Prohibited items", "text": listing}],
+            "howto_entries": [{"task": "Avoid prohibited items in campus housing",
+                               "section": "Prohibited items",
+                               "steps": [{"text": "Leave prohibited items at home.",
+                                          "quote": "Prohibited items"}]}]}
+    # The entry, the section's opening, then the section's piece at `at`, which matches best.
+    flat = array.array("f", [1.0, 0.0, 1.0, 0.0, 0.0, 1.0])
+    index = MeaningIndex({"dataset_version": "release-1", "identity_hash": "identities-1",
+                          "model": "m", "dimensions": 2, "entities": {},
+                          "units": [["page-1", "e0", ["housing"]], ["page-1", "0", ["housing"]]],
+                          "owner": [0, 1, 1], "offsets": [0, 0, at]}, flat)
+    prop, _ = procedures_property([page], NOW, "keep a cat in the dorm", index.scores([0.0, 1.0]))
+    entry = next(v["value"] for v in prop["values"] if v["value"]["heading"].startswith("Avoid"))
+    assert "Animals of any kind except fish." in entry["section_words"]
