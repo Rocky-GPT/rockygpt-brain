@@ -10,6 +10,7 @@ import json
 import logging
 import re
 import time
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from typing import Any, Literal, Protocol, get_args
@@ -624,6 +625,12 @@ def procedures_of(result: "OfficeResult") -> dict[str, Any] | None:
         return None
     return next((p for p in result.part["facts"].get("properties", [])
                  if p.get("key") == "procedures" and p.get("values")), None)
+
+
+def meaning_query(latest: str, abouts: Sequence[str]) -> str:
+    """What a how-to question is searched with by meaning: the student's own message, and what
+    the model says they want (a follow-up like "and for grad students?" says little alone)."""
+    return "\n".join([latest.strip(), *dict.fromkeys(a.strip() for a in abouts)])[:2_000]
 
 
 # Another office whose pages speak to the task is offered with its best few sections.
@@ -1331,7 +1338,8 @@ class ChatEngine:
 
     def _lookup(self, request: OfficeRequest, graph: CampusGraph, as_of: datetime, *,
                 exact_name_only: bool = False, conversation: str = "",
-                latest: str = "") -> OfficeResult:
+                latest: str = "",
+                meaning: Mapping[tuple[str, str], float] | None = None) -> OfficeResult:
         only_menu = self._only_menu_venue(request)
         if only_menu:
             request = request.model_copy(update={"query": only_menu})
@@ -1342,6 +1350,7 @@ class ChatEngine:
         # What the student wants to do, for the sections of the office's own pages.
         about = request.about if "procedures" in request.fields else None
         search = request.search_words if about else None
+        meaning = meaning if about else None
         def said(texts: list[str]) -> list[str]:
             return [t.strip()[:40] for t in texts if t.strip()]
 
@@ -1354,7 +1363,7 @@ class ChatEngine:
                               latest=latest, on=on,
                               meal=request.meal if menu else None,
                               menu_query=query if menu and query else None,
-                              about=search)
+                              about=search, meaning=meaning)
         detail: dict[str, Any] = {
             "path": graph.path(graph.current_node), "result_count": len(opened["candidates"]),
             "dataset_version": graph.version, "identity_hash": graph.identity_hash,
@@ -1370,7 +1379,7 @@ class ChatEngine:
                                       latest=latest, on=on,
                                       meal=request.meal if menu else None,
                                       menu_query=query if menu and query else None,
-                                      about=about)
+                                      about=about, meaning=meaning)
                 detail.update(path=graph.path(graph.current_node), resolvedBy="building")
             elif there:
                 opened = {**opened, "candidates": there}
@@ -1382,7 +1391,7 @@ class ChatEngine:
                 wanted: list[str] = list(dict.fromkeys(
                     [*request.fields, "contact_note", "phones"]))
                 opened = graph.lookup(serving[0]["name"], wanted, as_of, latest=latest,
-                                      about=about)
+                                      about=about, meaning=meaning)
                 detail.update(path=graph.path(graph.current_node), resolvedBy="service")
             elif len(serving) <= 3:  # More than that names something too common to ask about.
                 opened = {**opened, "candidates": serving}
@@ -1478,10 +1487,38 @@ class ChatEngine:
             detail["day"] = when
         return OfficeResult(rendered, detail=detail, part=part, leads=leads)
 
+    async def _meaning(self, requests: Sequence[Any], latest: str, budget: TurnBudget,
+                       trace: dict[str, Any]) -> dict[tuple[str, str], float] | None:
+        """How like the student's question every how-to unit of the release is, when this round
+        asks for procedures and a meaning index was published; else None (word matching). A
+        failed embedding falls back to word matching, never fails the answer."""
+        abouts = [item.about for item in requests
+                  if isinstance(item, OfficeRequest) and "procedures" in item.fields
+                  and item.about]
+        embed = getattr(self.gateway, "embed", None)
+        if not abouts or embed is None:
+            return None
+        index = await asyncio.to_thread(self.facts.meaning_index)
+        if index is None:
+            return None
+        text = meaning_query(latest, abouts)
+        try:
+            with measure("Embed the question for how-to search"):
+                vector = await embed(text, dimensions=index.dimensions, budget=budget)
+        except GatewayError as error:
+            LOG.warning("brain_meaning_embed_failed code=%s", error.code)
+            trace["procedureSearch"] = "words"
+            return None
+        with measure("Rank how-to units by meaning"):
+            scores = await asyncio.to_thread(index.scores, vector)
+        trace["procedureSearch"] = "meaning"
+        return scores
+
     async def _pick_procedures(self, looked_up: list[tuple[str, int, OfficeRequest]],
                                results: dict[str, OfficeResult], output: list[dict[str, Any]],
                                budget: TurnBudget, trace: dict[str, Any],
-                               as_of: datetime) -> None:
+                               as_of: datetime,
+                               meaning: Mapping[tuple[str, str], float] | None = None) -> None:
         """Code ranks an office's sections by the words asked; a model then keeps the ones that
         answer, in one call for every office this round read. "How do I get a degree audit"
         shares words with Audit Grades, which does not answer it. If the call fails, the four
@@ -1489,7 +1526,8 @@ class ChatEngine:
         asked = [(rid, at, item, prop) for rid, at, item in looked_up
                  if (prop := procedures_of(results[rid])) is not None]
         with measure("Find other offices whose pages speak to it"):
-            others = await asyncio.to_thread(self._other_offices, looked_up, results, as_of)
+            others = await asyncio.to_thread(self._other_offices, looked_up, results, as_of,
+                                             meaning)
         if not asked and not others:
             return
         chosen: dict[int, list[int]] | None = None
@@ -1540,6 +1578,7 @@ class ChatEngine:
 
     def _other_offices(self, looked_up: list[tuple[str, int, OfficeRequest]],
                        results: dict[str, OfficeResult], as_of: datetime,
+                       meaning: Mapping[tuple[str, str], float] | None = None,
                        ) -> list[tuple[str, OfficeResult, dict[str, Any]]]:
         """Offices the student did not name whose own pages best speak to a how-to asked of one
         they did ("become a peer tutor" asked of Advising is on the tutoring center's pages), each
@@ -1555,11 +1594,19 @@ class ChatEngine:
             identity_hash = result.detail.get("identity_hash")
             if not isinstance(version, str):
                 continue
+            index = self.facts.meaning_index() if meaning is not None else None
             try:
-                offices = self.facts.offices_by_procedure(
-                    item.search_words or item.about, version, identity_hash=identity_hash,
-                    exclude=sorted(named),
-                    limit=OTHER_OFFICES)
+                if index is not None and meaning is not None:
+                    # By meaning: the offices whose own units are most like the question.
+                    offices = [{"entity_id": entity_id, "name": index.names[entity_id]}
+                               for entity_id in index.offices(meaning, exclude=sorted(named),
+                                                              limit=OTHER_OFFICES)
+                               if entity_id in index.names]
+                else:
+                    offices = self.facts.offices_by_procedure(
+                        item.search_words or item.about, version, identity_hash=identity_hash,
+                        exclude=sorted(named),
+                        limit=OTHER_OFFICES)
             except (DatasetChanged, EvidenceUnavailable, InvalidFactRequest) as error:
                 LOG.warning("brain_other_offices_failed error=%s", type(error).__name__)
                 continue
@@ -1572,7 +1619,8 @@ class ChatEngine:
                 graph = CampusGraph(self.facts, dataset_version=version,
                                     identity_hash=identity_hash)
                 try:
-                    other = self._lookup(request, graph, as_of, exact_name_only=True)
+                    other = self._lookup(request, graph, as_of, exact_name_only=True,
+                                         meaning=meaning)
                 except (DatasetChanged, EvidenceUnavailable, UnknownEntity,
                         InvalidFactRequest) as error:
                     LOG.warning("brain_other_office_read_failed error=%s", type(error).__name__)
@@ -1893,6 +1941,8 @@ class ChatEngine:
                     output: list[dict[str, Any]] = []
                     # This round's office lookups, by result and output place, for the picking.
                     looked_up: list[tuple[str, int, OfficeRequest]] = []
+                    meaning = await self._meaning(requests, context.latest_message, budget,
+                                                  trace)
                     for item in requests:
                         if isinstance(item, ShuttleRequest):
                             route_walk = CampusGraph(self.facts, dataset_version=version,
@@ -1943,7 +1993,8 @@ class ChatEngine:
                             with measure(f"Lookup {len(trace['lookups'])}"):
                                 result = await asyncio.to_thread(
                                     self._lookup, item, traversal, turn.campus_now,
-                                    conversation=conversation, latest=context.latest_message)
+                                    conversation=conversation, latest=context.latest_message,
+                                    meaning=meaning)
                         except DatasetChanged:
                             entry["status"] = "dataset_changed"
                             raise GatewayError("dataset_changed") from None
@@ -1974,7 +2025,7 @@ class ChatEngine:
                                        "error": result.error_code})
                         looked_up.append((rid, len(output) - 1, item))
                     await self._pick_procedures(looked_up, results, output, budget, trace,
-                                                turn.campus_now)
+                                                turn.campus_now, meaning)
                     with measure("Prepare lookup output for model"):
                         inputs.append({"type": "function_call_output", "call_id": call.call_id,
                                        "output": json.dumps(output, ensure_ascii=False)})

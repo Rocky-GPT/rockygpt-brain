@@ -74,6 +74,7 @@ class Completion:
 
 class Transport(Protocol):
     async def send(self, request: dict[str, Any], remaining_seconds: float) -> dict[str, Any]: ...
+    async def embed(self, request: dict[str, Any], remaining_seconds: float) -> dict[str, Any]: ...
     async def close(self) -> None: ...
 
 
@@ -91,6 +92,10 @@ class OpenAITransport:
         # encrypted reasoning and string-encoded tool arguments without adding
         # those invalid wrapper nulls to the next request.
         return response.model_dump(exclude_none=True)  # type: ignore[no-any-return]
+
+    async def embed(self, request: dict[str, Any], remaining_seconds: float) -> dict[str, Any]:
+        response = await self._client.embeddings.create(**request, timeout=remaining_seconds)
+        return response.model_dump(exclude_none=True)
 
     async def close(self) -> None:
         await self._client.close()
@@ -334,3 +339,74 @@ class Gateway:
             raise GatewayError("provider_usage_exceeded")
         with measure("Decode model decision"):
             return _completion(response, usage)
+
+    async def embed(self, text: str, *, dimensions: int, budget: TurnBudget) -> list[float]:
+        """The embedding of one text, held and settled in the ledger like a model call. It is not
+        a model decision, so it does not count toward the turn's model calls."""
+        async with budget._lock:
+            try:
+                return await self._embed(text, dimensions=dimensions, budget=budget)
+            except SpendingError as error:
+                raise GatewayError(error.code) from error
+
+    async def _embed(self, text: str, *, dimensions: int, budget: TurnBudget) -> list[float]:
+        prices = self.settings.embed_prices
+        if prices is None or not prices.valid(self._now()):
+            raise GatewayError("model_not_configured")
+        if self._monotonic() >= budget.deadline:
+            raise GatewayError("deadline_exceeded")
+        # One token per UTF-8 byte is a safe bound for text.
+        input_bound = len(text.encode("utf-8")) + 64
+        reserve_cost = prices.cost(input_bound, 0)
+        if budget.committed_nusd + reserve_cost > budget.max_cost_nusd:
+            raise GatewayError("turn_budget_exhausted")
+        with measure("Reserve embedding allowance"):
+            reservation = await self.ledger.reserve(
+                budget.request_id, reserve_cost,
+                {"provider": "openai", "project": self.settings.project,
+                 "price": prices.metadata(), "input_token_bound": input_bound,
+                 "max_output_tokens": 0}, self._now(),
+            )
+        budget.committed_nusd += reserve_cost
+        remaining = budget.deadline - self._monotonic()
+        try:
+            async with asyncio.timeout(max(remaining, 0.001)):
+                with measure("Provider request · embedding"):
+                    response = await self.transport.embed(
+                        {"model": prices.model, "input": text, "dimensions": dimensions},
+                        remaining)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            status = error.status_code if isinstance(error, APIStatusError) else None
+            LOG.warning("provider_embed_failure request_id=%s exception_type=%s http_status=%s",
+                        budget.request_id, type(error).__name__, status)
+            await self._uncertain(reservation, "embed_failed")
+            raise GatewayError("provider_unavailable", retryable=True) from error
+        try:
+            used = _integer((response.get("usage") or {}).get("prompt_tokens"))
+            vector = response["data"][0]["embedding"]
+            if (not isinstance(vector, list) or len(vector) != dimensions
+                    or not all(isinstance(x, (int, float)) for x in vector)):
+                raise GatewayError("provider_invalid_response")
+        except (GatewayError, KeyError, IndexError, TypeError) as error:
+            await self._uncertain(reservation, "invalid_usage")
+            raise GatewayError("provider_invalid_response") from error
+        returned_model = response.get("model")
+        if not isinstance(returned_model, str) or not returned_model.startswith(prices.model):
+            await self._uncertain(reservation, "provider_model_mismatch")
+            with measure("Pause model spending"):
+                await self.ledger.pause()
+            raise GatewayError("provider_model_mismatch")
+        actual = prices.cost(used, 0)
+        with measure("Settle embedding usage"):
+            await self.ledger.settle(
+                reservation, actual, {"input_tokens": used, "output_tokens": 0,
+                                      "cached_tokens": 0}, "", returned_model, self._now(),
+            )
+        budget.committed_nusd += actual - reserve_cost
+        if actual > reserve_cost:
+            with measure("Pause model spending"):
+                await self.ledger.pause()
+            raise GatewayError("provider_usage_exceeded")
+        return [float(x) for x in vector]
