@@ -1624,7 +1624,7 @@ class ChatEngine:
         if call is None or call.name != "write_answer":
             return fallback("no_reply")
         arguments = call.arguments
-        # A second look: the parts the reply found no facts for are searched on their own, and
+        # A second look: the parts the reply found no section for are searched on their own, and
         # the reply is written again with what that finds beside the first evidence.
         asks = one_call.gave_up(arguments, latest)
         if asks:
