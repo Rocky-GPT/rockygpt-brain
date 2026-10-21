@@ -41,6 +41,8 @@ RECORD_COLLECTIONS = {
     "dining_hours": MAX_DINING_ROWS, "menu": MAX_MENU_ROWS, "shuttle_trips": MAX_TRIP_ROWS,
     "menu_documents": 10, "menu_listings": 2, "shuttle_stops": 40, "campus_topics": 1,
     "office_sections": 400,
+    # A program's catalog row and the requirement groups the catalog lists for it, in order.
+    "programs": 1, "requirement_groups": 32,
 }
 # Entities a student can ask about by name: offices and dining venues. A route is not named by
 # students; it is read through the shuttle timetable.
@@ -1809,6 +1811,52 @@ def trips_property(
                          "source_ids": [source["id"]]}], "assertions": [assertion]}, [source])
 
 
+MAX_REQUIREMENT_GROUPS = 32
+REQUIREMENT_FIELDS = ("label", "shape", "note", "choose", "rule", "course_list")
+
+
+def program_properties(
+    program: dict[str, Any], groups: Sequence[dict[str, Any]], now: datetime,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """A program's catalog row and its requirement groups, each exactly as published, cited to
+    the program's catalog page. The groups keep the catalog's section order; nothing is chosen,
+    summed or rewritten here."""
+    url = _url(program.get("program_url"))
+    source = _source({**program, "canonical_url": url}, now)
+    source.update(collection="programs", source_record_keys=[program["source_record_key"]],
+                  record_ids=[program["id"]], content_hash=program.get("content_hash"))
+    value = {"name": clean(program.get("name")), "degree": clean(program.get("degree")),
+             "kind": clean(program.get("program_kind")), "school": clean(program.get("school")),
+             "description": clean(program.get("description")), "catalog_url": url}
+    identity = {"id": f"{source['id']}:program", "source_id": source["id"], "field": "program",
+                "raw_value": None, "value": _json_safe(value), "caveats": []}
+    props = [{"key": "program", "label": "Program", "category": "identity", "status": "known",
+              "values": [{"value": _json_safe(value), "assertion_ids": [identity["id"]],
+                          "source_ids": [source["id"]]}], "assertions": [identity]}]
+    sources = [source]
+    values, assertions = [], []
+    for order, row in enumerate(groups):
+        group = row.get("requirement")
+        if not isinstance(group, dict):
+            raise EvidenceUnavailable("Invalid published requirement group.")
+        reading = _source({**row, "canonical_url": url}, now)
+        reading.update(collection="requirement_groups",
+                       source_record_keys=[row["source_record_key"]], record_ids=[row["id"]],
+                       content_hash=row.get("content_hash"))
+        sources.append(reading)
+        published = {"order": order, **{key: group.get(key) for key in REQUIREMENT_FIELDS}}
+        assertion = {"id": f"{reading['id']}:requirement", "source_id": reading["id"],
+                     "field": "requirements", "raw_value": None, "value": _json_safe(published),
+                     "caveats": []}
+        assertions.append(assertion)
+        values.append({"value": _json_safe(published), "assertion_ids": [assertion["id"]],
+                       "source_ids": [reading["id"]]})
+    props.append({"key": "requirements", "label": "Requirements", "category": "academic",
+                  "status": "known" if values else "unknown", "values": values,
+                  "assertions": assertions})
+    return props, sources
+
+
 class EntityFacts:
     """Shared office search and canonical fact reader; adapters supply one snapshot."""
 
@@ -2395,6 +2443,66 @@ class EntityFacts:
                 "properties": [prop, *([stops_property(stop_rows)] if stop_rows else [])],
                 "sources": sources,
                 "evidence_count": len(rows),
+                "caveats": caveats,
+                "complete": not caveats,
+            }
+
+
+    def identities(self, kinds: Sequence[str]) -> list[dict[str, Any]]:
+        """The canonical identities of the given kinds (id, name, aliases), for discovery only:
+        naming an identity establishes none of its facts."""
+        with self.snapshot() as snapshot:
+            return [{"id": e["id"], "name": e["name"], "aliases": list(e["aliases"])}
+                    for e in snapshot.entities if e["kind"] in kinds]
+
+    def get_program_facts(
+        self,
+        entity_id: str,
+        dataset_version: str,
+        *,
+        identity_hash: str | None = None,
+        as_of: datetime | None = None,
+    ) -> dict[str, Any]:
+        """One program's catalog row and its requirement groups in catalog order, each with its
+        source and freshness. A linked group the release does not hold is a caveat."""
+        if (not isinstance(entity_id, str) or not entity_id or len(entity_id) > 100
+                or not isinstance(dataset_version, str) or not dataset_version):
+            raise InvalidFactRequest("A canonical entity and dataset pin are required.")
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            entity = next((e for e in snapshot.entities
+                           if e["id"] == entity_id and e["kind"] == "program"), None)
+            if not entity:
+                raise UnknownEntity("No program has that canonical identity.")
+            programs = snapshot.record_reader(entity, "programs")
+            groups = snapshot.record_reader(entity, "requirement_groups")
+            if len(programs) != 1 or len(linked_rows(entity, programs, "programs")) != 1:
+                raise EvidenceUnavailable("A program has no single exact catalog record.")
+            if len(groups) > MAX_REQUIREMENT_GROUPS:
+                raise EvidenceUnavailable("Requirement evidence exceeds the bounded read.")
+            if len(linked_rows(entity, groups, "requirement_groups")) != len(groups):
+                raise EvidenceUnavailable("A requirement group has no exact canonical link.")
+            now = as_of if as_of is not None else self.now()
+            if now.tzinfo is None:
+                raise InvalidFactRequest("The fact clock must include its timezone.")
+            # Groups in the order the program's link lists them (the catalog's section order).
+            wanted = [key for link in entity["links"]
+                      if link.get("collection") == "requirement_groups"
+                      for key in link["source_record_keys"]]
+            by_key = {row["source_record_key"]: row for row in groups}
+            ordered = [by_key[key] for key in wanted if key in by_key]
+            properties, sources = program_properties(programs[0], ordered, now)
+            missing = len(wanted) - len(ordered)
+            caveats = [f"{missing} linked requirement groups are missing."] if missing else []
+            return {
+                "schema_version": 4,
+                "mapping_version": "entity-facts-7",
+                "dataset_version": snapshot.dataset_version,
+                "identity_hash": snapshot.identity_hash,
+                "entity": {key: entity[key] for key in ("id", "kind", "name")},
+                "properties": properties,
+                "sources": sources,
+                "evidence_count": 1 + len(ordered),
                 "caveats": caveats,
                 "complete": not caveats,
             }

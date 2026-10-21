@@ -8,8 +8,10 @@ must not reconcile raw rows or infer its own fact values.
 ## Current implementation: offices
 
 The current rebuild reads **office contact facts and office schedules**, dining venues'
-hours and menus, and shuttle routes' trips. It does not yet implement fact projections
-for people, programs, clubs, events, buildings, schools, subjects, or courses. The
+hours and menus, shuttle routes' trips, topics' site pages, and **programs** (majors,
+minors, certificates: their catalog row and requirement groups, `get_program_facts`). It
+does not yet implement fact projections for people, clubs, events, buildings, schools,
+subjects, or courses. The
 development graph-node inspector exposes the Offices, Dining (venues) and Shuttle
 (routes) branches. It does not yet implement broad developer graph projections,
 profiles, paginated context groups, or versioned cursors.
@@ -344,3 +346,20 @@ Add a field or entity kind only with a concrete use case, exact published identi
 links, provenance-preserving mappings, and regression coverage for agreement,
 conflict, unknowns, missing evidence, and date boundaries. Source publication
 quality and model interpretation must be evaluated separately from reader behavior.
+
+## Programs (entity-facts-7)
+
+A `program` identity links one `programs` row (key `catalog:<code>`) and the requirement
+groups the catalog lists for it (`requirement_groups`, from the program-requirement-groups
+artifact), in the catalog's section order; one group may be listed by several programs.
+`get_program_facts` returns the row (`program`) and each group exactly as published
+(`requirements`: label, shape, note, choose, rule, course_list), cited to the program's
+catalog page with the programs artifact's capture time. No group is a `not_published` claim:
+a program with none linked is `unknown`; a linked group the release lacks is a caveat.
+
+Discovery (`academics.find_programs`) names a program by its catalog name without its level
+("Computer Science" of "Computer Science BS"); the question's level words (minor,
+certificate, master's, 4+1, major) choose the level, and with none the undergraduate major is
+read while its other published levels are named beside it. Naming a program establishes none
+of its facts. Requirements are written out by code (`academics.render_requirements`), never
+summed or interpreted beyond the catalog's own `choose`.
