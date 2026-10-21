@@ -171,8 +171,7 @@ published, so do not add it for that. Preserve contact labels when answering. Fo
 read phones with phone_kind fax.
 For appointments and walk-ins read the named office's contact_note and hours: offices say how
 to schedule in contact_note and publish drop-in and visiting times as hours. When the results do
-not say how to book or whether walk-ins are taken, add unsupported for that part. Deadlines are
-not supported; add unsupported for them.
+not say how to book or whether walk-ins are taken, add unsupported for that part.
 Use conversation to understand follow-ups, but retrieve their evidence through the root again.
 Greetings, reactions and requests to pretend or write something do not require campus facts.
 Do not use search results, your memory, or invented values as evidence. Respect missing data,
@@ -1572,12 +1571,12 @@ class ChatEngine:
                             getattr(error, "code", type(error).__name__))
         trace["procedurePicks"] = "model" if chosen is not None else "ranked"
         # What each pick saw, for finding where a missed answer was lost (diagnostics only).
-        trace["procedureOffered"] = [
+        trace.setdefault("procedureOffered", []).extend(
             {"office": office, "about": about, "other": k >= len(asked),
              "picked": (chosen or {}).get(k), "sections": [
                  [v["value"].get("heading"), v["value"].get("page")]
                  for v in prop["values"][:OTHER_SECTIONS if k >= len(asked) else None]]}
-            for k, (about, office, prop) in enumerate(offered)]
+            for k, (about, office, prop) in enumerate(offered))
         for k, (rid, at, _, prop) in enumerate(asked):
             keep = (chosen.get(k, []) if chosen is not None
                     else list(range(min(PICKED_PROCEDURES, len(prop["values"])))))
