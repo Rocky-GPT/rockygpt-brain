@@ -212,3 +212,13 @@ def test_a_page_whose_address_names_only_ended_terms_or_years_is_past() -> None:
                      today) is None
     assert past_page("https://www.ramapo.edu/x/catalog-2025-2026/", today) is None
     assert past_page(base + "future-deadlines/", today) is None
+
+
+def test_a_section_heading_naming_only_an_old_year_is_past() -> None:
+    from datetime import date
+
+    from rockygpt_brain.retrieval.entity_facts import past_heading
+    today = date(2026, 10, 20)
+    assert past_heading("April 1-30, 2014", today) == "2014"
+    assert past_heading("Make an appointment", today) is None
+    assert past_heading("Fall 2025 deadlines", today) is None

@@ -1382,6 +1382,16 @@ def past_page(url: str, today: date) -> str | None:
     return max(named)[1]
 
 
+def past_heading(heading: str, today: date) -> str | None:
+    """The latest year a section heading names ("April 1-30, 2014"), when every year it names is
+    two or more years before today's; else None. Only a heading: page text names old years for
+    other reasons (founded in 1969)."""
+    years = [int(year) for year in _PAGE_YEAR.findall(heading)]
+    if not years or max(years) > today.year - 2:
+        return None
+    return str(max(years))
+
+
 def _stem(word: str) -> str:
     """A word without its common ending, then by its first six letters: fund, funds, funded and
     funding are one word, as are withdraw, withdrawing and withdrawal, and house and housing."""
@@ -1573,7 +1583,8 @@ def procedures_property(
         # the asked words.
         over = past_term(
             f"{unit.get('term', '')} {unit['heading']} {unit['text'][:600]} {row.get('url') or ''}",
-            today) or past_page(str(row.get("url") or ""), today)
+            today) or past_page(str(row.get("url") or ""), today) or past_heading(
+            f"{unit['heading']} {unit.get('section', '')}", today)
         if meaning is not None:
             similarity = meaning.get((str(row["id"]), index))
             if similarity is None:
