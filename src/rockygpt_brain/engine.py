@@ -1357,12 +1357,13 @@ class ChatEngine:
         """"Post office / mailroom": no office is called that, but Housing & Residence Life lists
         "The Residence Life Mailroom" as a labelled contact. The offices with a service label the
         query names, read the way names are (every word of one part of the query is a word of the
-        label); "a / b" and "a or b" are tried as two parts. Labels are read once per release."""
+        label, its last word among them: "Computer Lab Aides" are aides, not the computer lab);
+        "a / b" and "a or b" are tried as two parts. Labels are read once per release."""
         listing = self.facts.list_offices(limit=500, with_ids=True)
         key = (listing["dataset_version"], listing["identity_hash"])
         cached = getattr(self, "_labels_cache", None)
         if cached is None or cached[0] != key:
-            index: list[tuple[dict[str, Any], frozenset[str]]] = []
+            index: list[tuple[dict[str, Any], frozenset[str], frozenset[str]]] = []
             for office in listing["offices"]:
                 try:
                     facts = self.facts.get_office_facts(office["entity_id"],
@@ -1370,15 +1371,17 @@ class ChatEngine:
                                                         identity_hash=key[1])
                 except (UnknownEntity, InvalidFactRequest, EvidenceUnavailable):
                     continue
-                index += [(office, tokens) for label in service_labels(facts["properties"])
-                          if (tokens := discovery_tokens(label))]
+                index += [(office, tokens, head) for label in service_labels(facts["properties"])
+                          if (tokens := discovery_tokens(label))
+                          and (head := next((last for word in reversed(label.split())
+                                             if (last := discovery_tokens(word))), tokens))]
             self._labels_cache = cached = (key, index)
         # One short word ("post", "hall") is in too many labels to name a service by itself.
         parts = [tokens for part in re.split(r"/|\bor\b", query.casefold())
                  if len(tokens := discovery_tokens(part)) > 1
                  or any(len(token) >= 5 for token in tokens)]
-        found = {office["entity_id"]: office for office, tokens in cached[1]
-                 for part in parts if part and part <= tokens}
+        found = {office["entity_id"]: office for office, tokens, head in cached[1]
+                 for part in parts if part and part <= tokens and head <= part}
         return [{"entity_id": office["entity_id"], "name": office["name"], "match": "service"}
                 for office in found.values()]
 

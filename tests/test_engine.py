@@ -1561,7 +1561,8 @@ def test_a_writer_reply_that_already_says_a_notice_in_its_own_words_is_not_repea
 
 def res_life() -> MemoryEntityFacts:
     note = ("Residents may contact the Resident Assistants during posted hours. The Residence Life "
-            "Mailroom: mailroom@example.edu Mackin Hall: mackin@example.edu")
+            "Mailroom: mailroom@example.edu Mackin Hall: mackin@example.edu Computer Lab Aides: "
+            "aides@example.edu")
     return MemoryEntityFacts(
         dataset_version="release-1", identity_hash="identities-1",
         entities=[{"id": "rl", "name": "Housing & Residence Life", "kind": "office",
@@ -1594,6 +1595,12 @@ def test_a_service_an_office_lists_as_a_labelled_contact_finds_that_office() -> 
     vague = answer(ScriptedGateway(hall, finish()), service=res_life(), messages=[
         {"role": "user", "content": "hall email"}])
     assert "mackin@example.edu" not in vague.body["answer"]
+    # A label is the thing its last word names: "Computer Lab Aides" are aides, so the computer
+    # lab is not this office's service (it named the wrong office's hours on set zh, 10-21).
+    lab = completion("graph_lookup", {"requests": [{"query": "computer lab", "fields": ["email"]}]})
+    other = answer(ScriptedGateway(lab, finish()), service=res_life(), messages=[
+        {"role": "user", "content": "computer lab email"}])
+    assert "aides@example.edu" not in other.body["answer"]
     # Words that no label has are still not found.
     nothing = completion("graph_lookup", {"requests": [
         {"query": "bursar", "fields": ["email"]}]})
