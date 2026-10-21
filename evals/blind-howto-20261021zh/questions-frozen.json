@@ -1,0 +1,302 @@
+[
+ {
+  "id": "zh1-01",
+  "question": "How do I apply for graduation and what's the deadline to do it for May commencement?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh1-02",
+  "question": "do seniors have to buy their own cap and gown or does the school give it to you",
+  "topic": "policy"
+ },
+ {
+  "id": "zh1-03",
+  "question": "I'm a junior and want to start looking for internships. Where do I go for help with my resume and who should I email to set up an appointment?",
+  "topic": "contact"
+ },
+ {
+  "id": "zh1-04",
+  "question": "can I get academic credit for an internship? how does that work",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh1-05",
+  "question": "how to study abroad for a semester",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh1-06",
+  "question": "Will my financial aid transfer if I study abroad in the spring, and who do I talk to about it?",
+  "topic": "contact"
+ },
+ {
+  "id": "zh1-07",
+  "question": "whats the gpa requirement for honors program and how do i apply",
+  "topic": "policy"
+ },
+ {
+  "id": "zh1-08",
+  "question": "How do I declare a minor? Do I need my advisor to sign off?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh1-09",
+  "question": "are there certificate programs i can do alongside my major, like data analytics or something",
+  "topic": "policy"
+ },
+ {
+  "id": "zh1-10",
+  "question": "How many tickets does each graduate get for commencement and can I request extra for family?",
+  "topic": "policy"
+ },
+ {
+  "id": "zh1-11",
+  "question": "I think I'm short a credit for graduating in December. How do I find out exactly what I still need?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh1-12",
+  "question": "when is the next career fair",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zh1-13",
+  "question": "Can you tell me if I'm on track to graduate with honors based on my current GPA of 3.6?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zh1-14",
+  "question": "do you think a minor in business or a certificate in project management would look better to employers?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zh1-15",
+  "question": "How do I get my diploma mailed to me if I can't pick it up after graduating, and what if my name is wrong on it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh2-01",
+  "question": "My daughter is moving in to her dorm in August. How do we find out our move-in time and what are we allowed to bring? Who do we call if we have questions?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh2-02",
+  "question": "can parents help carry stuff up on move in day or is there a limit on how many people can come",
+  "topic": "policy"
+ },
+ {
+  "id": "zh2-03",
+  "question": "How do I pay my son's tuition bill? I'm the one paying but he is the one with the account. Does he have to add me somehow?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh2-04",
+  "question": "Can I see my daughter's grades? She is 19 and I pay for everything but she says the school won't tell me anything. Is that true?",
+  "topic": "policy"
+ },
+ {
+  "id": "zh2-05",
+  "question": "what is ramapo's FERPA policy and how does my son give us permission to see his records",
+  "topic": "policy"
+ },
+ {
+  "id": "zh2-06",
+  "question": "Is there campus police on all night? I want to know my kid is safe walking back from the library late. Whats the number for emergencies and the non emergency number?",
+  "topic": "contact"
+ },
+ {
+  "id": "zh2-07",
+  "question": "How do we visit our son on a weekend, can we stay overnight in his room or do we need to get a hotel nearby?",
+  "topic": "policy"
+ },
+ {
+  "id": "zh2-08",
+  "question": "My daughter has a severe food allergy and anxiety. Where do we go to set up accommodations for housing and dining before she starts in the fall, and what paperwork do we need from her doctor?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh2-09",
+  "question": "if my son loses his student ID how does he get a new one and does it cost anything",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh2-10",
+  "question": "We got a bill with a late fee but I thought the payment plan covered it. How do I set up a payment plan and who in billing can I talk to?",
+  "topic": "contact"
+ },
+ {
+  "id": "zh2-11",
+  "question": "What should my child do if she feels unsafe or someone is bothering her on campus? Is there somewhere confidential she can go for help or someone to talk to about stress?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh2-12",
+  "question": "Does my freshman need to bring a car? Can freshmen have cars on campus and how does she get a parking permit",
+  "topic": "policy"
+ },
+ {
+  "id": "zh2-13",
+  "question": "What is my son's current balance and has his financial aid disbursed yet? He's in Mahwah residence hall.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zh2-14",
+  "question": "Which dorm is safest and should I choose a single or a double for my anxious daughter? What would you recommend?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zh2-15",
+  "question": "my daughter is sick and in the health center right now, can you tell me if shes been seen and whether theyve released her",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zh3-01",
+  "question": "I'm an F-1 student, how do I get a new I-20 if mine is about to expire and who do I contact for it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh3-02",
+  "question": "can i work on campus as an international student? how many hours",
+  "topic": "policy"
+ },
+ {
+  "id": "zh3-03",
+  "question": "How do I apply for CPT? I have an internship offer for next summer and I don't know which form or office to go to.",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh3-04",
+  "question": "im a veteran using GI bill, how do i get my enrollment certified each semester",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh3-05",
+  "question": "Who is the VA certifying official at Ramapo and where is the office?",
+  "topic": "contact"
+ },
+ {
+  "id": "zh3-06",
+  "question": "do I need to tell the international office before I travel home for winter break? what do I need on my I-20 to re-enter",
+  "topic": "policy"
+ },
+ {
+  "id": "zh3-07",
+  "question": "how to get a social security number as intl student",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh3-08",
+  "question": "What happens to my visa status if I drop below full time? Can I drop a class without losing F-1?",
+  "topic": "policy"
+ },
+ {
+  "id": "zh3-09",
+  "question": "Are there any veteran tuition benefits or waivers for NJ resident vets, and how do I apply?",
+  "topic": "policy"
+ },
+ {
+  "id": "zh3-10",
+  "question": "how do i transfer my SEVIS record to Ramapo from another school",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh3-11",
+  "question": "I'm a reservist and got called up for training mid semester. What do I do about my classes and who should I tell?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh3-12",
+  "question": "Can you tell me if my OPT application was approved yet?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zh3-13",
+  "question": "Will I get a visa interview date at the US embassy in India if I apply next month? How long are the wait times right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zh3-14",
+  "question": "how much is the health insurance for international students this year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zh3-15",
+  "question": "my passport expires in 4 months, what should i do and does the school help with that? also need new I-20 after?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh4-01",
+  "question": "how do i reset my ramapo email password if i forgot it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh4-02",
+  "question": "wifi in my dorm keeps dropping and my xbox wont connect at all, how do i register a gaming console on the network and who do i call if its still broken",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh4-03",
+  "question": "How do I print from my laptop in the library?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh4-04",
+  "question": "is there a limit on how many pages u can print per semester",
+  "topic": "policy"
+ },
+ {
+  "id": "zh4-05",
+  "question": "i left my water bottle and a charger in the library yesterday. where is lost and found and how do i claim it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh4-06",
+  "question": "who do i contact for help with 2 factor / duo thing on my phone, i got a new phone and cant log in",
+  "topic": "contact"
+ },
+ {
+  "id": "zh4-07",
+  "question": "How can I get Microsoft Office or Adobe for free as a student? Do I have to download it from somewhere specific?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh4-08",
+  "question": "what are the computer lab hours",
+  "topic": "policy"
+ },
+ {
+  "id": "zh4-09",
+  "question": "my heater is broken in my room and its freezing. how do i submit a maintenance request and how long does it usually take",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh4-10",
+  "question": "can i borrow a laptop or charger from the library and for how long",
+  "topic": "policy"
+ },
+ {
+  "id": "zh4-11",
+  "question": "how do i book a study room at the library for a group",
+  "topic": "procedure"
+ },
+ {
+  "id": "zh4-12",
+  "question": "ive been locked out of my account after too many tries, whos the it help desk number/email and are they open on weekends",
+  "topic": "contact"
+ },
+ {
+  "id": "zh4-13",
+  "question": "Can you check if my printing balance is low? I think I ran out of pages",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zh4-14",
+  "question": "which is better for a cs major, a macbook or a windows laptop? need to buy before fall",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zh4-15",
+  "question": "is the wifi down right now in the village apartments? nothing is loading",
+  "topic": "out_of_scope"
+ }
+]
