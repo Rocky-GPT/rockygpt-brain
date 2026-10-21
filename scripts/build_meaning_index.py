@@ -120,10 +120,19 @@ def collect(facts: GraphOnlyFacts) -> tuple[str, str, list[dict[str, Any]], dict
     return version, identity, list(units.values()), names
 
 
-def office_cards(facts: GraphOnlyFacts, version: str,
-                 identity: str) -> list[tuple[str, str, str]]:
-    """Each office's card, read with the shared fact reader: its name, its other names and the
-    titles of its contact lines ("Director of Athletics, Intramurals and Recreation")."""
+CARD_HEADINGS = 30
+
+
+def office_cards(facts: GraphOnlyFacts, version: str, identity: str,
+                 units: list[dict[str, Any]]) -> list[tuple[str, str, str]]:
+    """Each office's card, read with the shared fact reader: its name, its other names, the
+    titles of its contact lines ("Director of Athletics, Intramurals and Recreation") and the
+    headings of the how-to units it is first to link (what it handles)."""
+    handles: dict[str, list[str]] = {}
+    for unit in units:
+        headings = handles.setdefault(unit["entities"][0], [])
+        if unit["heading"] not in headings and len(headings) < CARD_HEADINGS:
+            headings.append(unit["heading"])
     with facts.snapshot() as snapshot:
         facts._pin(snapshot, version, identity)
         offices = [(e["id"], e["name"], list(e.get("aliases") or []))
@@ -134,12 +143,14 @@ def office_cards(facts: GraphOnlyFacts, version: str,
         titles = [str(line.get("type")) for prop in found["properties"]
                   if prop["key"] == "phones" and prop["status"] == "known"
                   for value in prop["values"] for line in value["value"]
-                  if isinstance(line, dict) and line.get("type") and line["type"] != "Fax"]
+                  if isinstance(line, dict) and " " in str(line.get("type") or "").strip()]
         card = f"Ramapo College office: {name}"
         if aliases:
             card += f"\nAlso called: {', '.join(aliases)}"
         if titles:
             card += f"\nContacts: {'; '.join(dict.fromkeys(titles))}"
+        if handles.get(entity_id):
+            card += f"\nHandles: {'; '.join(handles[entity_id])}"
         cards.append((entity_id, name, card))
     return cards
 
@@ -207,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
     release_file = args.dir / pointer["file"]
     facts = GraphOnlyFacts(args.dir)
     version, identity, units, names = collect(facts)
-    cards = office_cards(facts, version, identity)
+    cards = office_cards(facts, version, identity, units)
     names.update({entity_id: name for entity_id, name, _ in cards})
     args.cache.mkdir(parents=True, exist_ok=True)
     questions_path = args.cache / "questions.json"
