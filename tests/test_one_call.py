@@ -15,9 +15,9 @@ from test_meaning import index_of, meaning_service
 from test_writer import writing
 
 
-def one_reply(text: str, sections: list[int]) -> Completion:
-    arguments = {"parts": [{"asked": "how to become a tutor", "sections": sections}],
-                 "text": text}
+def one_reply(text: str, sections: list[int], not_on_pages: bool = False) -> Completion:
+    arguments = {"parts": [{"asked": "how to become a tutor", "not_on_pages": not_on_pages,
+                            "sections": sections}], "text": text}
     return Completion("", (ToolCall("w", "write_answer", arguments),),
                       [{"type": "function_call", "call_id": "w", "name": "write_answer",
                         "arguments": json.dumps(arguments)}], Usage(10, 10, 0))
@@ -126,3 +126,11 @@ def test_one_page_gives_at_most_two_units_so_the_next_page_is_read() -> None:
                       ("page-b", "0", ["tutoring"], [[0.9, 0.1, 0]])])
     _, order = chosen_units(index, [[1, 0, 0]])
     assert order == [("page-a", "0"), ("page-a", "1"), ("page-b", "0")]
+
+
+def test_a_part_no_page_can_hold_gets_no_second_look() -> None:
+    gateway = PartsGateway(one_reply("I don't have verified information about your balance.", [],
+                                     not_on_pages=True))
+    result = ask(gateway, "how do i become a peer tutor")
+    assert len(gateway.inputs) == 1 and result.trace is not None
+    assert "oneCallSecondLook" not in result.trace
