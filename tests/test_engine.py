@@ -1167,6 +1167,13 @@ def test_a_not_911_message_is_answered_beside_the_emergency_text() -> None:
                  "its not a 911 thing, just a parking question", "non 911 but who do i call"):
         result = floor(text)
         assert result.kind == "safety" and result.also_answer is True
+    # An emergency beside a question about the college's process for it: the emergency text
+    # first, then the answer (Dan 10-20). Self-harm is the floor's reply alone.
+    for text in ("my roommate is threatening me, what are my options for moving rooms",
+                 "if i call 911 for my drunk friend will we get in trouble? medical amnesty"):
+        result = floor(text)
+        assert result.kind == "safety" and result.also_answer is True, text
+    assert floor("i want to kill myself, how do i move rooms").also_answer is False
     # Anything specific, or 911 said another way, is the floor's reply alone.
     for text in ("its not 911 but my friend isnt breathing", "should i call 911",
                  "i cant call 911 he is outside", "i need 911"):
