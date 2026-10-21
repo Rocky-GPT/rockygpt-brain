@@ -1636,6 +1636,26 @@ def registrar_with_pages() -> MemoryEntityFacts:
         records={"office_sections": pages}, now=lambda: NOW)
 
 
+def test_a_topics_site_pages_are_read_for_procedures_as_an_offices_are() -> None:
+    page = {"id": "page-s", "source_key": "office-pages",
+            "source_record_key": "www.ramapo.edu/scholarships/faqs/", "site_folder": "scholarships",
+            "url": "https://www.ramapo.edu/scholarships/faqs/", "sections": [
+                {"heading": "When is the application due?",
+                 "text": "Submit the General Application in AcademicWorks by 9/23/26."}],
+            "collected_at": NOW, "freshness_sla_hours": 168, "content_hash": "hs"}
+    service = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "scholarships", "name": "Scholarships", "kind": "topic", "aliases": [],
+                   "links": [{"collection": "office_sections", "source_key": "office-pages",
+                              "source_record_keys": [page["source_record_key"]]}]}],
+        contacts=[], records={"office_sections": [page]}, now=lambda: NOW)
+    facts = service.get_office_facts("scholarships", ["email", "procedures"], "release-1",
+                                     identity_hash="identities-1", about="application deadline")
+    props = {p["key"]: p for p in facts["properties"]}
+    assert "9/23/26" in props["procedures"]["values"][0]["value"]["text"]
+    assert props["email"]["status"] != "known"  # A topic has no contacts of its own.
+
+
 def test_a_procedure_is_read_from_the_sections_of_the_offices_own_pages() -> None:
     from rockygpt_brain.retrieval.entity_facts import procedures_property
     service = registrar_with_pages()

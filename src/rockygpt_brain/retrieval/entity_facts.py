@@ -45,6 +45,8 @@ RECORD_COLLECTIONS = {
 # Entities a student can ask about by name: offices and dining venues. A route is not named by
 # students; it is read through the shuttle timetable.
 NAMED_KINDS = ("office", "venue")
+# Read for facts as offices are: a topic (a site with no office behind it) has its site's pages.
+FACT_KINDS = (*NAMED_KINDS, "topic")
 # An Archway group (a residence hall desk, a center) or a campus facility that a reviewed
 # directory contact belongs to is read like an office: it has the same contact and hours records.
 DESK_KINDS = ("club", "organization", "facility")
@@ -2105,7 +2107,7 @@ class EntityFacts:
                 (
                     entity
                     for entity in snapshot.entities
-                    if entity["id"] == entity_id and entity["kind"] in NAMED_KINDS
+                    if entity["id"] == entity_id and entity["kind"] in FACT_KINDS
                 ),
                 None,
             )
