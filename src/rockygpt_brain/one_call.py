@@ -18,7 +18,8 @@ from typing import Any
 
 from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 
-PER_PART = 8  # Each part's own best units: a "how do I apply" part keeps its application section.
+PER_PART = 10  # Each part's own best units: a "how do I apply" part keeps its application section.
+PER_PAGE = 2  # At most this many from one page, so its near-copies don't crowd out the next page.
 MAX_UNITS = 24
 MAX_PARTS = 3
 SECTION_WORDS_CHARS = 2000
@@ -32,8 +33,9 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   deadline, amount and condition the chosen sections give for it, exactly as written (a step's
   page words in quotes are the page's own). Never add, compute or guess anything the JSON does not
   say.
-- When sections disagree about the same date, amount or rule, give each with its section number
-  and say the pages differ; never pick one silently.
+- When sections disagree about the same date, amount or rule for the same people, place and term,
+  give each with its section number and say the pages differ; never pick one silently. Different
+  values for different groups, places or terms are not a disagreement: say which applies to whom.
 - Name the office before its steps and contacts. Give contacts only of offices whose sections you
   used, or the right office when no section answers.
 - Answer every part of the question. Before saying a part is not covered, check every section
@@ -111,9 +113,9 @@ def search_text(latest: str, earlier_user: str | None) -> str:
 def chosen_units(index: MeaningIndex, vectors: Sequence[Sequence[float]], cap: int = MAX_UNITS,
                  seen: set[tuple[str, str]] | None = None,
                  ) -> tuple[MeaningScores, list[tuple[str, str]]]:
-    """Each part's own best units, interleaved so every part keeps its first few, at most `cap`;
-    their scores and match offsets. Units in `seen` were already given and are skipped; the
-    chosen ones are added to it."""
+    """Each part's own best units (at most PER_PAGE from one page record), interleaved so every
+    part keeps its first few, at most `cap`; their scores and match offsets. Units in `seen` were
+    already given and are skipped; the chosen ones are added to it."""
     seen = set() if seen is None else seen
     keyed = {(u.record_id, u.index): u for u in index.units}
     chosen: dict[tuple[str, str], float] = {}
@@ -121,8 +123,15 @@ def chosen_units(index: MeaningIndex, vectors: Sequence[Sequence[float]], cap: i
     per_part: list[list[tuple[str, str]]] = []
     for vector in vectors:
         raw = index.scores(vector)
-        best = [k for k, _ in sorted(raw.items(), key=lambda kv: -kv[1])
-                if k in keyed and k not in seen][:PER_PART]
+        best: list[tuple[str, str]] = []
+        on_page: dict[str, int] = {}
+        for k, _ in sorted(raw.items(), key=lambda kv: -kv[1]):
+            if k not in keyed or k in seen or on_page.get(k[0], 0) >= PER_PAGE:
+                continue
+            on_page[k[0]] = on_page.get(k[0], 0) + 1
+            best.append(k)
+            if len(best) >= PER_PART:
+                break
         per_part.append(best)
         for k in best:
             chosen[k] = max(chosen.get(k, -9.0), raw[k])
