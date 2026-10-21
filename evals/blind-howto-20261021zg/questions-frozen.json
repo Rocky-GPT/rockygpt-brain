@@ -1,0 +1,297 @@
+[
+ {
+  "id": "zg1-01",
+  "question": "how do i get my student ID card? i just got here and dont have one yet",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg1-02",
+  "question": "I lost my ID card already (first month, ugh). how do I get a replacement and does it cost anything? also who do I contact",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg1-03",
+  "question": "can i change my meal plan after the semester started",
+  "topic": "policy"
+ },
+ {
+  "id": "zg1-04",
+  "question": "my parents sent me a package, where do I pick it up and what do i need to bring",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg1-05",
+  "question": "how do i get free tutoring for chem? whos the person to email",
+  "topic": "contact"
+ },
+ {
+  "id": "zg1-06",
+  "question": "How do I find out who my academic advisor is and make an appointment with them? I'm a freshman and I'm not sure I'm even registered for the right classes.",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg1-08",
+  "question": "how to apply for a campus job on campus (work study?)",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg1-09",
+  "question": "is there a shuttle to the train station and how do I ride it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg1-10",
+  "question": "i dont have a car, can freshmen bring one on campus and how do i get a parking permit if so",
+  "topic": "policy"
+ },
+ {
+  "id": "zg1-11",
+  "question": "what do i do if my roommate and i are not getting along, can i switch rooms",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg1-12",
+  "question": "how much money is left on my meal plan right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zg1-13",
+  "question": "whats my advisor going to say if I drop a class, will I lose my financial aid??",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zg1-14",
+  "question": "how do i do laundry in the dorms, do I need quarters or does my id work",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg1-15",
+  "question": "Which is better for a freshman, working at the library or the dining hall?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zg2-01",
+  "question": "How do I get my credits from my old community college transferred to Ramapo? I finished my associate's 6 years ago",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg2-02",
+  "question": "who do i talk to about whether my transfer credits count toward my major",
+  "topic": "contact"
+ },
+ {
+  "id": "zg2-03",
+  "question": "Do you offer fully online classes or evening classes for part time students? I work till 5 and can't make daytime stuff",
+  "topic": "policy"
+ },
+ {
+  "id": "zg2-04",
+  "question": "how do i apply for graduation and what's the deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg2-05",
+  "question": "I'm coming back after being away for like 8 years, I stopped attending in 2016. what do I have to do to re-enroll? and who handles that",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg2-06",
+  "question": "can i get an official transcript sent to another school? how long does it take",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg2-07",
+  "question": "Whats the policy on commuter parking permits for night students",
+  "topic": "policy"
+ },
+ {
+  "id": "zg2-08",
+  "question": "how do i get a degree audit or see what requirements I still need to graduate",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg2-09",
+  "question": "is there a limit on how many credits i can transfer in from another college??",
+  "topic": "policy"
+ },
+ {
+  "id": "zg2-10",
+  "question": "I'm a part-time student, do i still qualify for financial aid and how do I file the FAFSA paperwork? who should I email if the forms confuse me",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg2-11",
+  "question": "which of my classes will transfer and how many credits will i have left to take?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zg2-12",
+  "question": "how to petition to waive a graduation requirement bc i took an equivalent course somewhere else",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg2-13",
+  "question": "Is the library or advising office open on weekends? I can only come Saturdays",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zg2-14",
+  "question": "how do i switch from full time to part time status, does it affect anything",
+  "topic": "policy"
+ },
+ {
+  "id": "zg2-15",
+  "question": "Should I take my remaining gen eds online or in person, which is easier for someone who works full time?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zg3-01",
+  "question": "how do i apply for financial aid at ramapo and who do i talk to if the fafsa isnt going through",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg3-02",
+  "question": "Is there a payment plan for tuition? How do I sign up for it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg3-03",
+  "question": "my daughter is a freshman and we're trying to figure out how to pay the bill. where do we go to see what's due and how to pay it online?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg3-04",
+  "question": "how do I get a refund if my aid is more than my bill",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg3-05",
+  "question": "work study how does it work, how do I find a job",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg3-06",
+  "question": "what's the deadline to submit scholarship applications",
+  "topic": "policy"
+ },
+ {
+  "id": "zg3-07",
+  "question": "If I drop a class after the semester starts do I still owe the full tuition? What's the refund policy?",
+  "topic": "policy"
+ },
+ {
+  "id": "zg3-08",
+  "question": "who do I contact in the bursar office about a hold on my account, i cant register bc of it",
+  "topic": "contact"
+ },
+ {
+  "id": "zg3-09",
+  "question": "how do i appeal my financial aid package, my family's income dropped this year bc my dad lost his job",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg3-10",
+  "question": "can i use my 529 plan to pay ramapo directly or do i have to pay it myself first",
+  "topic": "policy"
+ },
+ {
+  "id": "zg3-11",
+  "question": "what is satisfactory academic progress for fin aid and what happens if i fail it",
+  "topic": "policy"
+ },
+ {
+  "id": "zg3-12",
+  "question": "how do I set up my parent to be able to pay my bill and see it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg3-13",
+  "question": "whats my current balance",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zg3-14",
+  "question": "How much is tuition going to be next year and will it go up? Also should I take out a loan or just work more hours?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zg3-15",
+  "question": "did my financial aid come in yet? i submitted everything last week",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zg4-01",
+  "question": "how do i make an appointment with a counselor at ramapo",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg4-02",
+  "question": "i woke up with a fever the morning of my chem final. what do i have to do to get it rescheduled and who do i tell?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg4-03",
+  "question": "is the health center free for students or do i need insurance",
+  "topic": "policy"
+ },
+ {
+  "id": "zg4-04",
+  "question": "got written up by my RA for having a candle in my room, what happens now and can i appeal it",
+  "topic": "policy"
+ },
+ {
+  "id": "zg4-05",
+  "question": "how do i report something that happened to me off campus to the college? i dont know who to talk to",
+  "topic": "contact"
+ },
+ {
+  "id": "zg4-06",
+  "question": "how do i take a medical leave of absence",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg4-07",
+  "question": "whats the alcohol policy in the dorms if im 21",
+  "topic": "policy"
+ },
+ {
+  "id": "zg4-08",
+  "question": "do i need to get vaccines before i can live on campus? where do i send my records",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg4-09",
+  "question": "Title IX office phone number and how to file a complaint",
+  "topic": "contact"
+ },
+ {
+  "id": "zg4-10",
+  "question": "can campus safety see my friend's ID logs if someone broke in? asking bc my laptop got stolen from my room, what do i do",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg4-11",
+  "question": "can i bring my emotional support animal to my dorm, how do i get approved",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg4-12",
+  "question": "what time is the nurse open today",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zg4-13",
+  "question": "I think my roommate is struggling with depression and I'm worried about her. is there a way to anonymously tell someone at the college so they can check on her",
+  "topic": "procedure"
+ },
+ {
+  "id": "zg4-14",
+  "question": "should i go on antidepressants? my counselor at ramapo hasnt said anything yet",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zg4-15",
+  "question": "what's my conduct record say, do i have any holds from the dean of students",
+  "topic": "out_of_scope"
+ }
+]
