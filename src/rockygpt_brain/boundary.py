@@ -189,6 +189,16 @@ _NO_ONE_TO_TALK_TO = re.compile(
     r"(?:anyone|anybody|someone|somebody|no ?one|nobody)\b")
 
 
+# A message that, beside the emergency, asks what the college's process or rule is for it ("what
+# are my options for moving rooms", "will we get in trouble, medical amnesty?"). Dan 10-20: the
+# emergency text comes first, then what the college's own pages say. Self-harm stays the floor's
+# reply alone, sent at once.
+_ASKS_A_PROCESS = re.compile(
+    r"\b(?:how (?:do|can|would|should) (?:i|we)|what (?:are|is) (?:my|our|the) options?|"
+    r"what happens|(?:get|be) in trouble|polic(?:y|ies)|amnesty|(?:move|moving|switch|change) "
+    r"(?:my )?rooms?|room change|(?:report|file) (?:a |an |it|this|him|her|them))\b")
+
+
 def plain(text: str) -> str:
     """Lower case, no accents, apostrophes or invisible characters, punctuation as spaces."""
     text = re.sub(r"['`´ʹʻʼˈ’‘′‛＇]", "", text)
@@ -217,4 +227,5 @@ def check(turn: Turn) -> BoundaryResult:
     if not kinds:
         return CONTINUE
     situation = kinds.pop() if len(kinds) == 1 else "other"
-    return BoundaryResult("safety", safety_text(situation), situation)
+    also = situation != "self_harm" and bool(_ASKS_A_PROCESS.search(text))
+    return BoundaryResult("safety", safety_text(situation), situation, also_answer=also)
