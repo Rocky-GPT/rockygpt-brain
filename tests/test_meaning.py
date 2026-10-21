@@ -225,3 +225,18 @@ def test_a_section_heading_naming_only_an_old_year_is_past() -> None:
     assert past_heading("April 1-30, 2014", today) == "2014"
     assert past_heading("Make an appointment", today) is None
     assert past_heading("Fall 2025 deadlines", today) is None
+
+
+def test_a_text_whose_every_deadline_date_has_passed_is_past() -> None:
+    from datetime import date
+
+    from rockygpt_brain.retrieval.entity_facts import past_dates
+    today = date(2026, 10, 21)
+    assert past_dates("1. Pay your Fall 2026 term bill by August 12, 2026.", today) == (
+        "August 12, 2026")
+    # A deadline still to come keeps the text current, beside one that passed.
+    assert past_dates("100% refund: September 1, 2026. 7-week session refund: October 21, 2026",
+                      today) is None
+    assert past_dates("The Spring 2027 payment deadline is December 16, 2026.", today) is None
+    # An effective or revision date is not a deadline.
+    assert past_dates("Effective date: July 1, 2019. Revised March 3, 2021.", today) is None

@@ -1382,6 +1382,31 @@ def past_page(url: str, today: date) -> str | None:
     return max(named)[1]
 
 
+_MONTHS = {m: n for n, m in enumerate(("january february march april may june july august "
+                                        "september october november december").split(), 1)}
+# A deadline's date: a full date said after a deadline word ("due", "by", "deadline", "refund",
+# "last day"), not an effective or revision date.
+_DEADLINE_DATE = re.compile(
+    r"\b(?:deadline|due|by|before|until|no later than|last day|refund|payment|pay|close[sd]?)\b"
+    r"[^.;|]{0,40}?\b(January|February|March|April|May|June|July|August|September|October|"
+    r"November|December)\s+(\d{1,2}),?\s+(20\d\d)", re.IGNORECASE)
+
+
+def past_dates(text: str, today: date) -> str | None:
+    """The latest deadline date a text names ("pay your term bill by August 12, 2026"), when every
+    deadline date it names is before today; else None. "When is my bill due" was answered with
+    August's deadline on October 21 while December's was published beside it."""
+    named = []
+    for month, day, year in _DEADLINE_DATE.findall(text):
+        try:
+            named.append(date(int(year), _MONTHS[month.casefold()], int(day)))
+        except ValueError:
+            continue
+    if not named or max(named) >= today:
+        return None
+    return f"{max(named):%B} {max(named).day}, {max(named).year}"
+
+
 def past_heading(heading: str, today: date) -> str | None:
     """The latest year a section heading names ("April 1-30, 2014"), when every year it names is
     two or more years before today's; else None. Only a heading: page text names old years for
@@ -1592,7 +1617,8 @@ def procedures_property(
         over = past_term(
             f"{unit.get('term', '')} {unit['heading']} {unit['text'][:600]} {row.get('url') or ''}",
             today) or past_page(str(row.get("url") or ""), today) or past_heading(
-            f"{unit['heading']} {unit.get('section', '')}", today)
+            f"{unit['heading']} {unit.get('section', '')}", today) or past_dates(
+            f"{unit['heading']} {unit['text'][:600]}", today)
         if meaning is not None:
             similarity = meaning.get((str(row["id"]), index))
             if similarity is None:
