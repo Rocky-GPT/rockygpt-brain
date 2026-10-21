@@ -9,7 +9,7 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Protocol
@@ -345,20 +345,28 @@ class Gateway:
     async def embed(self, text: str, *, dimensions: int, budget: TurnBudget) -> list[float]:
         """The embedding of one text, held and settled in the ledger like a model call. It is not
         a model decision, so it does not count toward the turn's model calls."""
+        return (await self.embed_many([text], dimensions=dimensions, budget=budget))[0]
+
+    async def embed_many(self, texts: Sequence[str], *, dimensions: int,
+                         budget: TurnBudget) -> list[list[float]]:
+        """The embeddings of a few texts in one request, held and settled once."""
         async with budget._lock:
             try:
-                return await self._embed(text, dimensions=dimensions, budget=budget)
+                return await self._embed(list(texts), dimensions=dimensions, budget=budget)
             except SpendingError as error:
                 raise GatewayError(error.code) from error
 
-    async def _embed(self, text: str, *, dimensions: int, budget: TurnBudget) -> list[float]:
+    async def _embed(self, texts: list[str], *, dimensions: int,
+                     budget: TurnBudget) -> list[list[float]]:
         prices = self.settings.embed_prices
         if prices is None or not prices.valid(self._now()):
             raise GatewayError("model_not_configured")
         if self._monotonic() >= budget.deadline:
             raise GatewayError("deadline_exceeded")
+        if not texts:
+            raise GatewayError("invalid_model_input")
         # One token per UTF-8 byte is a safe bound for text.
-        input_bound = len(text.encode("utf-8")) + 64
+        input_bound = sum(len(text.encode("utf-8")) + 64 for text in texts)
         reserve_cost = prices.cost(input_bound, 0)
         if budget.committed_nusd + reserve_cost > budget.max_cost_nusd:
             raise GatewayError("turn_budget_exhausted")
@@ -375,7 +383,8 @@ class Gateway:
             async with asyncio.timeout(max(remaining, 0.001)):
                 with measure("Provider request · embedding"):
                     response = await self.transport.embed(
-                        {"model": prices.model, "input": text, "dimensions": dimensions},
+                        {"model": prices.model, "input": texts if len(texts) > 1 else texts[0],
+                         "dimensions": dimensions},
                         remaining)
         except asyncio.CancelledError:
             raise
@@ -387,9 +396,12 @@ class Gateway:
             raise GatewayError("provider_unavailable", retryable=True) from error
         try:
             used = _integer((response.get("usage") or {}).get("prompt_tokens"))
-            vector = response["data"][0]["embedding"]
-            if (not isinstance(vector, list) or len(vector) != dimensions
-                    or not all(isinstance(x, (int, float)) for x in vector)):
+            data = sorted(response["data"], key=lambda item: item.get("index", 0))
+            vectors = [item["embedding"] for item in data]
+            if len(vectors) != len(texts) or any(
+                    not isinstance(vector, list) or len(vector) != dimensions
+                    or not all(isinstance(x, (int, float)) for x in vector)
+                    for vector in vectors):
                 raise GatewayError("provider_invalid_response")
         except (GatewayError, KeyError, IndexError, TypeError) as error:
             await self._uncertain(reservation, "invalid_usage")
@@ -411,4 +423,4 @@ class Gateway:
             with measure("Pause model spending"):
                 await self.ledger.pause()
             raise GatewayError("provider_usage_exceeded")
-        return [float(x) for x in vector]
+        return [[float(x) for x in vector] for vector in vectors]
