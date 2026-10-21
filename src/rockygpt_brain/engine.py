@@ -781,6 +781,13 @@ _DIET_REQUEST = frozenset({"medical", "special"})
 # A sentence that points back ("Students with such requests should ...") goes with the one before.
 _POINTS_BACK = re.compile(r"\b(such|these|those)\b", re.IGNORECASE)
 MAX_NOTE_SENTENCES = 3
+# Words of time, order or manner that say nothing of what a note is about: "who do I talk to
+# first" shared only "first" with "All sessions will be in ... the first floor of the Birch
+# Mansion", and that sentence was said in a grade-appeal answer.
+_NOTE_FILLER = frozenset(
+    "first last next then after before during until through without within online will also "
+    "more most only even still every each other same into over under make made take need "
+    "want going available sure able".split())
 
 
 def note_answer(results: dict[str, Any], message: str) -> list[str]:
@@ -796,7 +803,7 @@ def note_answer(results: dict[str, Any], message: str) -> list[str]:
             continue
         named = purpose_words(" ".join([str(r.part["office"].get("name") or ""),
                                         *r.part["office"].get("aliases", [])]))
-        about = asked - named
+        about = asked - named - _NOTE_FILLER
         if not about:
             continue
         notes = [str(value["value"])

@@ -1512,6 +1512,10 @@ def test_a_contact_note_sentence_that_speaks_to_the_question_is_said_in_its_own_
         "Services Office, across from the Atrium."]
     # A question that only names the office is answered by its fields, not the note.
     assert notes("dining services email") == []
+    # A word of order or time alone ("first") says nothing of what the note is about.
+    assert notes("my meal plan is wrong, who do i talk to first") == [
+        "To request a change to a meal plan, email mealplan@example.edu."]
+    assert notes("who should i ask first") == []
 
 
 def test_a_contact_note_line_is_said_alone_not_with_the_staff_lines_after_it() -> None:
