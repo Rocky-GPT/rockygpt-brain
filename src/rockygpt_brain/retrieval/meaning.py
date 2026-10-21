@@ -62,7 +62,11 @@ class MeaningIndex:
         # Where vector k's text starts in its unit's text: 0 the opening, a piece of a long
         # section further in, -1 a question written for the unit.
         self.offsets: list[int] = list(meta.get("offsets") or [0] * len(self.owner))
-        if len(vectors) != len(self.owner) * self.dimensions:
+        # Each office's card (its name, other names and contact titles), one vector each after the
+        # units' vectors: an office with no how-to sections (Athletics, a school's dean's office)
+        # is still found by what it handles. An index built before cards has none.
+        self.cards: list[str] = [str(c) for c in meta.get("cards") or []]
+        if len(vectors) != (len(self.owner) + len(self.cards)) * self.dimensions:
             raise ValueError("The meaning index vectors do not match its units.")
         self._vectors = memoryview(vectors)
 
@@ -97,6 +101,19 @@ class MeaningIndex:
         scores.at = {(self.units[u].record_id, self.units[u].index): where[u]
                      for u in order if where[u] > 0}
         return scores
+
+    def office_scores(self, query: Sequence[float]) -> list[tuple[str, float]]:
+        """Every office card's similarity to the query, best first."""
+        size = self.dimensions
+        if len(query) != size:
+            raise ValueError("The query embedding has the wrong size.")
+        norm = math.sqrt(dot(query, query)) or 1.0
+        unit_query = [value / norm for value in query]
+        first = len(self.owner)
+        found = [(entity_id, dot(unit_query, self._vectors[(first + k) * size:
+                                                           (first + k + 1) * size]))
+                 for k, entity_id in enumerate(self.cards)]
+        return sorted(found, key=lambda pair: pair[1], reverse=True)
 
     def offices(self, ranked: Mapping[tuple[str, str], float], *, exclude: Sequence[str] = (),
                 exclude_records: Sequence[str] = (), limit: int = 3) -> list[str]:
