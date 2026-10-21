@@ -1,0 +1,302 @@
+[
+ {
+  "id": "zj1-01",
+  "question": "How do I find out what the clinical placement requirements are for the nursing program and who do I email about them?",
+  "topic": "contact"
+ },
+ {
+  "id": "zj1-02",
+  "question": "what background checks do i need before starting my field placement for education major",
+  "topic": "policy"
+ },
+ {
+  "id": "zj1-03",
+  "question": "how do i apply for my NJ teaching certificate after i graduate",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj1-04",
+  "question": "Can I take Bio 2 lab and Orgo at the same time or do I have to finish one first? Who can tell me the right order",
+  "topic": "contact"
+ },
+ {
+  "id": "zj1-05",
+  "question": "how to get a course prerequisite waived",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj1-06",
+  "question": "Whats the policy on missing a lab? my prof said to ask the department but idk who",
+  "topic": "policy"
+ },
+ {
+  "id": "zj1-07",
+  "question": "i need to do student teaching next sem, how do i sign up and when is the deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj1-08",
+  "question": "how do I submit my immunization records for clinicals",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj1-09",
+  "question": "is there a limit on how many times you can retake a science class",
+  "topic": "policy"
+ },
+ {
+  "id": "zj1-10",
+  "question": "My fingerprinting appointment got cancelled. What do I do and who do I tell at the school?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj1-11",
+  "question": "how do I declare a nursing major or apply to the nursing program, do I need a certain GPA",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj1-12",
+  "question": "What is my GPA right now and am I on track to get into the nursing program?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zj1-13",
+  "question": "can i get lab fees refunded if i drop the class after the first week",
+  "topic": "policy"
+ },
+ {
+  "id": "zj1-14",
+  "question": "Which classes should I take next semester to finish my biology degree on time? I'm a sophomore",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zj1-15",
+  "question": "how do I get a letter from the college verifying I'm enrolled full time for my placement site, and how long does it take",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj2-01",
+  "question": "I just got put on academic probation, what does that actually mean and who do I talk to about it?",
+  "topic": "policy"
+ },
+ {
+  "id": "zj2-02",
+  "question": "how do i get a tutor for calc 2",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj2-03",
+  "question": "Is counseling free for students? How do I make an appointment, and do I need a referral or can I just walk in?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj2-04",
+  "question": "i think i need to take a leave of absence next semester bc of a family emergency. whats the process",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj2-05",
+  "question": "If I take a leave of absence will I lose my financial aid or my spot in housing? Who do I need to see about both?",
+  "topic": "policy"
+ },
+ {
+  "id": "zj2-06",
+  "question": "is there a food pantry on campus",
+  "topic": "contact"
+ },
+ {
+  "id": "zj2-07",
+  "question": "I can't afford to buy food this week and my meal plan ran out. Is there any emergency help for students and how do I ask for it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj2-08",
+  "question": "my dad is in the hospital out of state and i need to leave campus asap, how do i tell my professors and withdraw from classes without failing",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj2-09",
+  "question": "how do I appeal my financial aid being suspended for sap",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj2-10",
+  "question": "What is the minimum GPA I need to get off probation and how many semesters do I have before I get dismissed?",
+  "topic": "policy"
+ },
+ {
+  "id": "zj2-11",
+  "question": "who do i contact if im having a mental health crisis at 2am",
+  "topic": "contact"
+ },
+ {
+  "id": "zj2-12",
+  "question": "Is there an emergency fund or grant for students who can't pay their bill? I'm about to get a hold on my account.",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj2-13",
+  "question": "Do you think I should drop out or just push through this semester? I'm failing 3 classes",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zj2-14",
+  "question": "what is my current balance and will I be dropped from my classes if I don't pay by friday",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zj2-15",
+  "question": "can i get an incomplete or late withdrawal after the deadline because of a death in the family? who approves that",
+  "topic": "policy"
+ },
+ {
+  "id": "zj3-01",
+  "question": "how do i apply for a graduate assistantship at ramapo and who do i contact about it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj3-02",
+  "question": "What are the steps to submit my master's thesis? I'm planning to finish in May and don't know what paperwork or formatting rules there are.",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj3-03",
+  "question": "apply for grad??",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj3-04",
+  "question": "Is there graduate housing on campus or do grad students have to find their own apartment?",
+  "topic": "policy"
+ },
+ {
+  "id": "zj3-05",
+  "question": "im working full time so i'd only be taking one class a semester. whats the policy on part time grad students, and do i lose my spot if i skip a semester?",
+  "topic": "policy"
+ },
+ {
+  "id": "zj3-06",
+  "question": "how do I file for graduation as a grad student and when is the deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj3-07",
+  "question": "Who is the program director for the MBA program and how do I reach them?",
+  "topic": "contact"
+ },
+ {
+  "id": "zj3-08",
+  "question": "can i transfer credits from another university into my master's program? how many are allowed",
+  "topic": "policy"
+ },
+ {
+  "id": "zj3-09",
+  "question": "what GPA do i need to stay in good standing in a grad program, and what happens if i drop below it",
+  "topic": "policy"
+ },
+ {
+  "id": "zj3-10",
+  "question": "How do I request a leave of absence from my graduate program, and who has to approve it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj3-11",
+  "question": "whats the grad tuition per credit for this year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zj3-12",
+  "question": "Do I need to take the GRE to apply to the MSW or any of the other grad programs, and where do I send my transcripts and recommendation letters?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj3-13",
+  "question": "which grad program should I pick, data science or computer science? I want the best job prospects",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zj3-14",
+  "question": "how do i get an extension on my thesis if i cant finish this semester (incomplete grade rules for grad courses too pls)",
+  "topic": "policy"
+ },
+ {
+  "id": "zj3-15",
+  "question": "did my assistantship application get approved yet? i applied last week",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zj4-01",
+  "question": "I lost my wallet somewhere on campus, who do I tell and is there a lost and found?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj4-02",
+  "question": "my bike got stolen from the rack outside the library. how do i file a report with public safety and what happens after",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj4-03",
+  "question": "How do I report harassment from another student, and who do I contact to find out what my options are?",
+  "topic": "contact"
+ },
+ {
+  "id": "zj4-04",
+  "question": "my neighbors in the dorm are SO loud at 2am every night. how do i make a noise complaint",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj4-05",
+  "question": "theres a charge on my student account i dont recognize, how do i dispute it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj4-06",
+  "question": "how do i appeal a parking ticket",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj4-07",
+  "question": "I think my professor graded my final unfairly. Is there a formal grade appeal process and what are the deadlines?",
+  "topic": "policy"
+ },
+ {
+  "id": "zj4-08",
+  "question": "whats the policy if someone reports me for something, will i get a hearing? what does student conduct do",
+  "topic": "policy"
+ },
+ {
+  "id": "zj4-09",
+  "question": "who do i email about a broken heater in my room",
+  "topic": "contact"
+ },
+ {
+  "id": "zj4-10",
+  "question": "Someone hit my parked car in lot C. do I call campus police or the real police? how do I get a copy of the report",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj4-11",
+  "question": "can i file a complaint anonymously",
+  "topic": "policy"
+ },
+ {
+  "id": "zj4-12",
+  "question": "Why was my grade appeal denied and what are the chances it gets overturned?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zj4-13",
+  "question": "how much is my parking ticket for parking in a no parking zone",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zj4-14",
+  "question": "my roommate keeps taking my stuff and wont stop, what should i do, ra or res life? do they move you to another room?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zj4-15",
+  "question": "Is there someone confidential I can talk to about a sexual assault before deciding whether to report to Title IX?",
+  "topic": "contact"
+ }
+]
