@@ -140,7 +140,8 @@ def test_an_entry_carries_its_own_section_for_what_its_steps_leave_out() -> None
                                                    "GPA of 3.0"}]}]}
     prop, _ = procedures_property([page], NOW, "satisfactory academic progress gpa for aid")
     value = prop["values"][0]["value"]
-    assert value["text"] == "1. Graduate students must have a cumulative GPA of 3.0"
+    assert value["text"] == ("1. Graduate students need a 3.0 GPA. (page: \u201cGraduate students "
+                             "must have a cumulative GPA of 3.0\u201d)")
     assert "Undergraduate students must have a cumulative GPA of at least 2.0." in (
         value["section_words"])
 
@@ -161,7 +162,9 @@ def test_a_long_section_is_said_from_the_piece_that_matched_its_meaning() -> Non
             "sections": [{"heading": "Prohibited items", "text": listing}]}
     prop, _ = procedures_property([page], NOW, "can my kid keep a cat in the dorm", scores)
     value = prop["values"][0]["value"]
-    assert value["text"].startswith("Animals of any kind") and value["text_cut"]
+    # Said from a little before the piece that matched, so a rule keeps what comes before it.
+    assert "Animals of any kind" in value["text"] and value["text_cut"]
+    assert len(value["text"].split("Animals")[0]) <= 200
 
 
 

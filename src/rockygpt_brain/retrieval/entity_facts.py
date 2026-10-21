@@ -1444,6 +1444,10 @@ def _question_start(text: str, spans: list[tuple[int, int]], best: int) -> int:
     return spans[best][0]
 
 
+# How far before a meaning-matched piece a long section is said from.
+MATCH_LEAD_CHARS = 200
+
+
 def _cut(text: str, start: int, limit: int) -> str:
     """Up to `limit` characters of a text from `start`, never ending or starting inside a word: a
     link cut at "https://experience.ellu" was said as a broken address."""
@@ -1520,14 +1524,18 @@ def _procedure_units(row: dict[str, Any], *, sections_only: bool = False,
             if own:
                 extra["section_index"], extra["section_text"] = str(own[0]), own[1]
             text = " ".join(f"{n}. {step}" for n, step in enumerate(steps, start=1))
-            # Each step is said in the page's own words, its quote (checked to be on the page at
-            # publish): a step's rewording can turn a rule round ("can be scheduled up to one hour
-            # before" written as "no more than one hour before"). The rewording is still matched.
+            # Each step is said with the page's own words beside it, its quote (checked to be on
+            # the page at publish): a rewording can turn a rule round ("can be scheduled up to one
+            # hour before" written as "no more than one hour before"), and a quote alone loses
+            # what its row is for ("1st violation – Official Written Warning" is the empty
+            # containers row, not possession). The rewording alone is what is matched.
             quotes = [clean(step.get("quote")) for step in entry["steps"]
                       if isinstance(step, dict) and isinstance(clean(step.get("text")), str)
                       and clean(step.get("text"))]
             if len(quotes) == len(steps) and all(isinstance(q, str) and q for q in quotes):
-                extra["said"] = " ".join(f"{n}. {q}" for n, q in enumerate(quotes, start=1))
+                extra["said"] = " ".join(
+                    f"{n}. {step} (page: \u201c{quote}\u201d)"
+                    for n, (step, quote) in enumerate(zip(steps, quotes, strict=True), start=1))
             top, body = _section_words(row, f"{task} {extra.get('applies_to', '')}", text)
             units.append((f"e{index}", {"heading": task, "text": text, **extra}, top,
                           body | _procedure_words(extra.get("section", ""))))
@@ -1629,7 +1637,10 @@ def procedures_property(
         if section.get("said"):
             said = _cut(section["said"], 0, MAX_PROCEDURE_CHARS)
         elif at:
-            said = _cut(section["text"], at, MAX_PROCEDURE_CHARS)
+            # From a little before the matched piece: a rule's condition comes before its fine
+            # ("Setting off a fire alarm through the use of candles ... $150" said from "the use
+            # of candles" read as a candle's fine).
+            said = _cut(section["text"], max(0, at - MATCH_LEAD_CHARS), MAX_PROCEDURE_CHARS)
         else:
             said = _passage(section["text"], wanted, weight, MAX_PROCEDURE_CHARS)
         around = (_passage(section["source_text"], wanted, weight, MAX_PAGE_WORDS_CHARS)
@@ -1647,7 +1658,7 @@ def procedures_property(
                    if section.get("section_text") else None)
         # What a picker reads of it: the part that best matches what was asked, not its opening
         # (a policy's Procedure section opens with definitions; "Protests" comes later).
-        match = (_cut(section["text"], at, PICK_MATCH_CHARS) if at
+        match = (_cut(section["text"], max(0, at - MATCH_LEAD_CHARS), PICK_MATCH_CHARS) if at
                  else _passage(section["text"], wanted, weight, PICK_MATCH_CHARS))
         value = {"heading": section["heading"], "page": url, "text": said,
                  **({"text_cut": True} if said != section.get("said", section["text"]) else {}),

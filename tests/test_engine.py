@@ -1748,8 +1748,9 @@ def test_a_page_with_how_to_entries_offers_them_instead_of_its_sections() -> Non
     assert headings[0] == "Start a new student club"
     assert "Expressive Activity" not in headings and "Start a club" in headings
     first = prop["values"][0]["value"]
-    # Said in the page's own words (the step's quote), not the step's rewording.
-    assert first["text"] == "1. Stop by the Center for Student Involvement in SC-218"
+    # Each step with the page's own words (its quote) beside it.
+    assert first["text"] == ("1. Ask the Center for Student Involvement in SC-218. (page: "
+                             "\u201cStop by the Center for Student Involvement in SC-218\u201d)")
     # An entry carries its section's own words matching the question, for what its steps leave out.
     table = "First violation: $200 fine. Second violation: $300 fine."
     sanctions = {**listed, "sections": [{"heading": "Alcohol", "text": table}],

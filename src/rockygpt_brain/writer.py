@@ -139,7 +139,9 @@ give the page for the rest.
 - A procedures fact is one section of the office's own page (heading, text, page). Say what it
   says to do or what its rule is, in plain short sentences, keeping every step, form, link, email,
   phone, date and amount exactly as written and in its order; a numbered list is fine for steps.
-  Never add a step, condition or deadline it does not state. text_cut means the text is part of a
+  Never add a step, condition or deadline it does not state. A step's (page: "...") is the
+  page's own words for it: say the rule as those words say it, for whom and what the step says it
+  is for. text_cut means the text is part of a
   longer section: say the page has more. Name the office first, and cite each section. Procedures
   facts come best match first, each kept because it answers part of what was asked: give each
   one's steps, amounts, dates and conditions, in that order; one that only repeats an earlier one
