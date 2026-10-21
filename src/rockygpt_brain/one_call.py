@@ -3,8 +3,9 @@
 Four calls in a row (plan, pick sections, finish, write) took 28 s a question. Code now finds the
 evidence: each part of the question is searched by meaning, the best units of each part are read
 exactly as published (an entry's steps with the page's words, a section's text), grouped by an
-office that links them, with those offices' contacts. One call then lists the parts asked, the
-sections that answer each and their facts, and writes the reply from them. On the same 93
+office that links them, with those offices' contacts. One call then lists the parts asked and
+the sections that answer each, and writes the reply from them (a list of each part's facts as
+well was longer than the reply and said it twice; dropped 10-21). On the same 93
 untouched blind questions it matched the four-call answers (69% vs 72%, 0 serious) at 9 s and
 $0.0010 a question (10-21). Offices' contacts and hours, menus and the shuttle keep their own
 lookups: a question about them is not routed here.
@@ -44,26 +45,24 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
 - Write a phone number as (XXX) XXX-XXXX with its own digits.
 - Cite each statement with its section number like [3]. Short plain sentences; numbered steps are
   fine. Under 1,600 characters. No greeting.
-Work in this order: list each part the student asked (parts.asked); for each, the numbers of
-every section that speaks to it, read in full with its section_words (parts.sections), and the
-facts from them that answer it, each with its number (parts.facts). Then write the reply (text)
-from those facts. Answer only with the write_answer tool."""
+Work in this order: list each part the student asked (parts.asked) and, for each, the numbers of
+every section that answers it, read in full with its section_words (parts.sections; none when no
+section does). Then write the reply (text) from those sections. Answer only with the
+write_answer tool."""
 
 ONE_CALL_TOOL: dict[str, Any] = {
     "type": "function", "name": "write_answer", "strict": True,
-    "description": "The parts asked, what answers each, then the reply.",
+    "description": "The parts asked, the sections that answer each, then the reply.",
     "parameters": {"type": "object", "additionalProperties": False,
-                   "required": ["parts", "text", "used"],
+                   "required": ["parts", "text"],
                    "properties": {
                        "parts": {"type": "array", "items": {
                            "type": "object", "additionalProperties": False,
-                           "required": ["asked", "sections", "facts"],
+                           "required": ["asked", "sections"],
                            "properties": {
                                "asked": {"type": "string"},
-                               "sections": {"type": "array", "items": {"type": "integer"}},
-                               "facts": {"type": "array", "items": {"type": "string"}}}}},
-                       "text": {"type": "string", "maxLength": 4000},
-                       "used": {"type": "array", "items": {"type": "integer"}}}},
+                               "sections": {"type": "array", "items": {"type": "integer"}}}}},
+                       "text": {"type": "string", "maxLength": 4000}}},
 }
 
 # Questions with their own code-computed answers (menus, dining hours, the shuttle) and plain
@@ -217,11 +216,11 @@ _GAVE_UP = re.compile(r"don.t have verified")
 
 
 def gave_up(arguments: dict[str, Any], question: str) -> list[str]:
-    """The parts a reply found no facts for, for a second look with only their own search (at most
-    two); the whole question when the reply says it has no verified information but names no
-    such part; none when it answered every part."""
+    """The parts a reply found no section for, for a second look with only their own search (at
+    most two); the whole question when the reply says it has no verified information but names
+    no such part; none when it answered every part."""
     parts = [p for p in arguments.get("parts") or [] if isinstance(p, dict)]
-    empty = [str(p.get("asked") or "").strip() for p in parts if not p.get("facts")]
+    empty = [str(p.get("asked") or "").strip() for p in parts if not p.get("sections")]
     empty = [a for a in empty if a][:2]
     if empty:
         return empty
@@ -238,11 +237,9 @@ def messages(question: str, earlier_user: str | None, offices: list[dict[str, An
 
 def reply(arguments: dict[str, Any], sources: list[dict[str, Any]],
           ) -> tuple[str, list[dict[str, Any]]]:
-    """The reply with the sources it cited, and those as citations."""
+    """The reply with the sources it cited (its [n] marks), and those as citations."""
     text = str(arguments.get("text") or "").strip()
-    used = sorted({n for n in arguments.get("used") or [] if isinstance(n, int)
-                   and 1 <= n <= len(sources)}
-                  | {int(n) for n in re.findall(r"\[(\d+)\]", text) if 1 <= int(n) <= len(sources)})
+    used = sorted({int(n) for n in re.findall(r"\[(\d+)\]", text) if 1 <= int(n) <= len(sources)})
     cited = [sources[n - 1] for n in used if sources[n - 1].get("url")]
     if cited:
         text += "\n\nSources: " + " ".join(f"[{s['n']}]({s['url']})" for s in cited)

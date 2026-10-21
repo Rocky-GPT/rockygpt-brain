@@ -15,10 +15,9 @@ from test_meaning import index_of, meaning_service
 from test_writer import writing
 
 
-def one_reply(text: str, used: list[int], facts: list[str] | None = None) -> Completion:
-    found = ["Apply with the online form [1]"] if facts is None else facts
-    arguments = {"parts": [{"asked": "how to become a tutor", "sections": used, "facts": found}],
-                 "text": text, "used": used}
+def one_reply(text: str, sections: list[int]) -> Completion:
+    arguments = {"parts": [{"asked": "how to become a tutor", "sections": sections}],
+                 "text": text}
     return Completion("", (ToolCall("w", "write_answer", arguments),),
                       [{"type": "function_call", "call_id": "w", "name": "write_answer",
                         "arguments": json.dumps(arguments)}], Usage(10, 10, 0))
@@ -83,9 +82,9 @@ def test_a_reply_the_evidence_does_not_hold_goes_to_the_four_call_loop() -> None
     assert "tutors@example.com" not in result.body["answer"]
 
 
-def test_a_part_with_no_facts_gets_a_second_look_and_one_more_reply() -> None:
+def test_a_part_no_section_answers_gets_a_second_look_and_one_more_reply() -> None:
     gateway = PartsGateway(
-        one_reply("I don't have verified information about that.", [], facts=[]),
+        one_reply("I don't have verified information about that.", []),
         one_reply("Center for Reading and Writing: Apply with the online form by March 1. [2]",
                   [2]))
     result = ask(gateway, "how do i become a peer tutor")
