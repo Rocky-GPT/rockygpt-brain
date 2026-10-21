@@ -45,10 +45,11 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
 - Write a phone number as (XXX) XXX-XXXX with its own digits.
 - Cite each statement with its section number like [3]. Short plain sentences; numbered steps are
   fine. Under 1,600 characters. No greeting.
-Work in this order: list each part the student asked (parts.asked) and, for each, the numbers of
-every section that answers it, read in full with its section_words (parts.sections; none when no
-section does). Then write the reply (text) from those sections. Answer only with the
-write_answer tool."""
+Work in this order: list each part the student asked (parts.asked); for each, whether it asks for
+something no college page holds: the student's own records or status, something live right now,
+or an opinion (parts.not_on_pages), and the numbers of every section that answers it, read in full
+with its section_words (parts.sections; none when no section does). Then write the reply (text)
+from those sections. Answer only with the write_answer tool."""
 
 ONE_CALL_TOOL: dict[str, Any] = {
     "type": "function", "name": "write_answer", "strict": True,
@@ -58,9 +59,10 @@ ONE_CALL_TOOL: dict[str, Any] = {
                    "properties": {
                        "parts": {"type": "array", "items": {
                            "type": "object", "additionalProperties": False,
-                           "required": ["asked", "sections"],
+                           "required": ["asked", "not_on_pages", "sections"],
                            "properties": {
                                "asked": {"type": "string"},
+                               "not_on_pages": {"type": "boolean"},
                                "sections": {"type": "array", "items": {"type": "integer"}}}}},
                        "text": {"type": "string", "maxLength": 4000}}},
 }
@@ -218,9 +220,13 @@ _GAVE_UP = re.compile(r"don.t have verified")
 def gave_up(arguments: dict[str, Any], question: str) -> list[str]:
     """The parts a reply found no section for, for a second look with only their own search (at
     most two); the whole question when the reply says it has no verified information but names
-    no such part; none when it answered every part."""
+    no such part; none when it answered every part. A part no page can hold (the student's own
+    records, something live, an opinion) is never looked for again."""
     parts = [p for p in arguments.get("parts") or [] if isinstance(p, dict)]
-    empty = [str(p.get("asked") or "").strip() for p in parts if not p.get("sections")]
+    if parts and all(p.get("not_on_pages") for p in parts):
+        return []
+    empty = [str(p.get("asked") or "").strip() for p in parts
+             if not p.get("sections") and not p.get("not_on_pages")]
     empty = [a for a in empty if a][:2]
     if empty:
         return empty
