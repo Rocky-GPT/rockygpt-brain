@@ -1671,9 +1671,12 @@ class ChatEngine:
             try:
                 if index is not None and meaning is not None:
                     # By meaning: the offices whose own units are most like the question.
+                    # A few more than kept: an office whose pages another already offered
+                    # (Public Safety's emergency and non-emergency lines share one site) is
+                    # passed over for the next.
                     offices = [{"entity_id": entity_id, "name": index.names[entity_id]}
                                for entity_id in index.offices(meaning, exclude=sorted(named),
-                                                              limit=OTHER_OFFICES)
+                                                              limit=OTHER_OFFICES + 3)
                                if entity_id in index.names]
                 else:
                     offices = self.facts.offices_by_procedure(
@@ -1701,6 +1704,10 @@ class ChatEngine:
                 prop = procedures_of(other)
                 if (prop is not None and other.part
                         and other.part["office"]["id"] == office["entity_id"]):
+                    pages = {v["value"].get("page") for v in prop["values"]}
+                    if any(pages == {v["value"].get("page") for v in seen["values"]}
+                           for _, _, seen in found):
+                        continue
                     found.append((item.about, other, prop))
         return found
 
