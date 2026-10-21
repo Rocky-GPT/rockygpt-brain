@@ -1,0 +1,17 @@
+[
+{"id": "ac1-01", "question": "im a freshman and have no idea what i want to major in. what majors does ramapo even have?", "topic": "program"},
+{"id": "ac1-02", "question": "what classes do I need to take for the psychology major", "topic": "program"},
+{"id": "ac1-03", "question": "is there a major in cybersecurity or do i have to do computer science", "topic": "program"},
+{"id": "ac1-04", "question": "how many credits is a minor and can i double count courses with my major?", "topic": "program"},
+{"id": "ac1-05", "question": "what is cmps 147 about and what are the prereqs", "topic": "course"},
+{"id": "ac1-06", "question": "psych 101 how many credits? does it count for gen ed", "topic": "course"},
+{"id": "ac1-07", "question": "What general education requirements do I have to finish before I graduate, and how many credits is the whole gen ed thing?", "topic": "gen_ed"},
+{"id": "ac1-08", "question": "does bio 110 satisfy the natural science requirement or is that only for bio majors", "topic": "gen_ed"},
+{"id": "ac1-09", "question": "what should a freshman in business take first semester", "topic": "sequence"},
+{"id": "ac1-10", "question": "if I'm thinking about nursing or biology what intro courses should i start with so i can still switch later", "topic": "sequence"},
+{"id": "ac1-11", "question": "whats the difference between a major, a minor and a certificate at ramapo?", "topic": "program"},
+{"id": "ac1-12", "question": "do you have a major for communication arts and what does it require", "topic": "program"},
+{"id": "ac1-13", "question": "which majors are the easiest? I want something that gets me a good job", "topic": "out_of_scope"},
+{"id": "ac1-14", "question": "can you check my degree audit and tell me which gen ed classes I still need", "topic": "out_of_scope"},
+{"id": "ac1-15", "question": "are there open seats in intro to sociology this spring and who is teaching it", "topic": "out_of_scope"}
+]

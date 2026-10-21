@@ -1,0 +1,17 @@
+[
+{"id": "ac4-01", "question": "Is there an English major at Ramapo? What does it involve?", "topic": "program"},
+{"id": "ac4-02", "question": "what classes do i need to take for the psychology major and how many credits is it total", "topic": "program"},
+{"id": "ac4-03", "question": "I'm a parent looking at the social work program for my daughter. What are the degree requirements and does it include any field placement or internship?", "topic": "program"},
+{"id": "ac4-04", "question": "What does psych 101 cover and is it a prerequisite for other psych classes?", "topic": "course"},
+{"id": "ac4-05", "question": "How many credits is a minor in history?", "topic": "program"},
+{"id": "ac4-06", "question": "does Ramapo offer a masters in education? what are the courses like", "topic": "program"},
+{"id": "ac4-07", "question": "whats the prereq for soc 301?", "topic": "course"},
+{"id": "ac4-08", "question": "Does the Intro to Sociology course count toward any gen ed requirement?", "topic": "gen_ed"},
+{"id": "ac4-09", "question": "What are the general education requirements for all students? I'm trying to figure out how many gen ed classes I would have to take outside my major if I did communication arts.", "topic": "gen_ed"},
+{"id": "ac4-10", "question": "what should a freshman take first if theyre majoring in contemporary arts", "topic": "sequence"},
+{"id": "ac4-11", "question": "Is there a recommended course sequence for the elementary education certification track, like what to take each semester?", "topic": "sequence"},
+{"id": "ac4-12", "question": "Can I double major in political science and law and society, and is there a minor in either one?", "topic": "program"},
+{"id": "ac4-13", "question": "Which programs at Ramapo have a graduate degree option? Looking for something in the humanities or social sciences.", "topic": "program"},
+{"id": "ac4-14", "question": "Which sections of Intro to Psychology are open next semester and who teaches them?", "topic": "out_of_scope"},
+{"id": "ac4-15", "question": "Should I pick history or political science if I want to go to law school? Which one is easier?", "topic": "out_of_scope"}
+]
