@@ -7,7 +7,7 @@ from typing import Any
 
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
-from rockygpt_brain.one_call import parts_of, routes_here, search_text
+from rockygpt_brain.one_call import chosen_units, parts_of, routes_here, search_text
 from rockygpt_brain.provider import Completion, ToolCall, TurnBudget, Usage
 from rockygpt_brain.turn import intake
 from test_engine import NOW, ScriptedGateway, completion, finish
@@ -118,3 +118,12 @@ def test_the_offices_whose_cards_match_are_read_for_their_contacts() -> None:
     # The library has no section the search chose, but its card matches: its contacts are given.
     (library,) = [o for o in given if o["office"] == "Library"]
     assert library["sections"] == [] and library["email"]
+
+
+def test_one_page_gives_at_most_two_units_so_the_next_page_is_read() -> None:
+    index = index_of([("page-a", "0", ["advising"], [[1, 0, 0]]),
+                      ("page-a", "1", ["advising"], [[0.99, 0.01, 0]]),
+                      ("page-a", "2", ["advising"], [[0.98, 0.02, 0]]),
+                      ("page-b", "0", ["tutoring"], [[0.9, 0.1, 0]])])
+    _, order = chosen_units(index, [[1, 0, 0]])
+    assert order == [("page-a", "0"), ("page-a", "1"), ("page-b", "0")]
