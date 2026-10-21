@@ -2365,15 +2365,20 @@ class ChatEngine:
         reply = self._json(answered(turn, text, status, list(citations.values()), version),
                            parts, turn)
         if self.output == "written" and budget is not None:
-            reply = await self._written(reply, text, budget, trace, _plain_language(finish))
+            reply = await self._written(reply, text, budget, trace, _plain_language(finish),
+                                        lead="\n\n".join(emergency))
         return reply
 
     async def _written(self, result: ChatResult, code_text: str, budget: TurnBudget,
-                       trace: dict[str, Any], language: str | None = None) -> ChatResult:
+                       trace: dict[str, Any], language: str | None = None,
+                       lead: str = "") -> ChatResult:
         """Let a writer with only the writer view say the facts; keep the code's text if it slips.
 
-        An emergency, a question back and fixed wording stay the code's own words. The writer's
-        reply is used only when the verifier finds nothing in it that the view does not hold."""
+        An emergency, a question back and fixed wording stay the code's own words. An emergency
+        beside facts the student asked for (Dan 10-20: crisis first, then policy) keeps its text
+        and campus numbers (`lead`) first, in the code's words, and the writer says the facts
+        after it. The writer's reply is used only when the verifier finds nothing in it that the
+        view does not hold."""
         view = result.body.get("writerInput")
         packet = result.body.get("facts")
 
@@ -2386,7 +2391,8 @@ class ChatEngine:
 
         if not isinstance(view, dict) or not isinstance(packet, dict):
             return keep("no_view")
-        if packet.get("status") == "emergency" or not says_something(view):
+        emergency = packet.get("status") == "emergency"
+        if not says_something(view) or emergency and not lead:
             return keep("nothing_to_write")
         # The writer's one call is its own: lookups that used the turn's calls leave it one more
         # (the cost limit still holds), so a long how-to turn is still written, not the code's text.
@@ -2414,9 +2420,9 @@ class ChatEngine:
         fixed = [text for text in dict.fromkeys(
                      n["approved_text"] for n in view.get("notices", [])
                      if isinstance(n.get("approved_text"), str))
-                 if not already_said(text, said)]
+                 if not already_said(text, said) and not (emergency and text in lead)]
         sources = [f"[{s['n']}]({s['urls'][0]})" for s in view.get("sources", []) if s.get("urls")]
-        text = "\n\n".join([said.strip(), *fixed,
+        text = "\n\n".join([*([lead] if emergency else []), said.strip(), *fixed,
                             *([("Sources: " + " ".join(sources))] if sources else [])])
         trace["writer"] = {"used": True}
         return replace(result, body={**result.body, "answer": text})

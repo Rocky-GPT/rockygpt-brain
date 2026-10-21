@@ -231,3 +231,19 @@ def test_the_writer_is_told_what_the_student_wants_for_a_how_to() -> None:
                         output="json")  # type: ignore[arg-type]
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     assert result.body["writerInput"]["asked"]["wants"] == ["request a transcript"]
+
+
+def test_an_emergency_beside_asked_facts_keeps_its_text_first_and_writes_the_facts_after() -> None:
+    from rockygpt_brain.boundary import SAFETY_MESSAGE
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "registrar email, not 911 obviously lol"}]})
+    engine = ChatEngine(ScriptedGateway(  # type: ignore[arg-type]
+        LOOKUP, finish(), writing("The Registrar's email is published@example.edu [1].")),
+        facts(), output="written")
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request, floor_situation="other"))
+    text = result.body["answer"]
+    # Dan 10-20: crisis first, then the facts, in the writer's words, said once.
+    assert text.startswith(SAFETY_MESSAGE)
+    assert "The Registrar's email is published@example.edu [1]." in text
+    assert text.count(SAFETY_MESSAGE) == 1
+    assert result.trace is not None and result.trace["writer"] == {"used": True}
