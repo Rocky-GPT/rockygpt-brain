@@ -11,7 +11,7 @@ from rockygpt_brain.one_call import parts_of, routes_here, search_text
 from rockygpt_brain.provider import Completion, ToolCall, TurnBudget, Usage
 from rockygpt_brain.turn import intake
 from test_engine import NOW, ScriptedGateway, completion, finish
-from test_meaning import meaning_service
+from test_meaning import index_of, meaning_service
 from test_writer import writing
 
 
@@ -100,3 +100,21 @@ def test_a_part_with_no_facts_gets_a_second_look_and_one_more_reply() -> None:
     assert len({(s["page"], s["heading"], s["text"]) for o in second for s in o["sections"]}) == (
         len(numbers))
     assert "Sources: [2](" in result.body["answer"]
+
+
+def test_the_offices_whose_cards_match_are_read_for_their_contacts() -> None:
+    service = meaning_service()
+    units = [("page-advising", "0", ["advising"], [[0, 1, 0]]),
+             ("page-tutoring", "0", ["tutoring"], [[1, 0, 0]])]
+    service.index = index_of(units, service.index.names,
+                             cards=[("library", [1, 0, 0]), ("advising", [0, 1, 0])])
+    gateway = PartsGateway(one_reply("Apply with the online form by March 1. [1]", [1]))
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "how do i become a peer tutor"}]})
+    engine = ChatEngine(gateway, service, output="written",  # type: ignore[arg-type]
+                        howto_one_call=True)
+    asyncio.run(engine.answer(intake(request, now=NOW), request))
+    given = json.loads(gateway.inputs[0][1]["content"])["offices"]
+    # The library has no section the search chose, but its card matches: its contacts are given.
+    (library,) = [o for o in given if o["office"] == "Library"]
+    assert library["sections"] == [] and library["email"]

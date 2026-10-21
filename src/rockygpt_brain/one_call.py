@@ -32,6 +32,8 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   deadline, amount and condition the chosen sections give for it, exactly as written (a step's
   page words in quotes are the page's own). Never add, compute or guess anything the JSON does not
   say.
+- When sections disagree about the same date, amount or rule, give each with its section number
+  and say the pages differ; never pick one silently.
 - Name the office before its steps and contacts. Give contacts only of offices whose sections you
   used, or the right office when no section answers.
 - Answer every part of the question. Before saying a part is not covered, check every section
@@ -136,6 +138,20 @@ def chosen_units(index: MeaningIndex, vectors: Sequence[Sequence[float]], cap: i
     scores = MeaningScores({k: chosen[k] for k in order})
     scores.at = {k: at[k] for k in order if k in at}
     return scores, order
+
+
+CARD_OFFICES = 2  # Offices found by their cards, read for their contacts.
+
+
+def card_offices(index: MeaningIndex, vectors: Sequence[Sequence[float]],
+                 limit: int = CARD_OFFICES) -> list[str]:
+    """The offices whose cards (name, other names, contact titles) best match any part: who
+    handles it, even an office with no how-to sections."""
+    best: dict[str, float] = {}
+    for vector in vectors:
+        for entity_id, score in index.office_scores(vector)[:limit]:
+            best[entity_id] = max(best.get(entity_id, -2.0), score)
+    return sorted(best, key=best.__getitem__, reverse=True)[:limit]
 
 
 def gather(facts: Any, index: MeaningIndex, vectors: Sequence[Sequence[float]], question: str,

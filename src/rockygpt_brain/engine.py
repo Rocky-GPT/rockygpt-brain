@@ -1603,6 +1603,7 @@ class ChatEngine:
                 with measure("Embed the question's parts"):
                     vectors = await embed_many(one_call.parts_of(question),
                                                dimensions=index.dimensions, budget=budget)
+                named = list(dict.fromkeys([*named, *one_call.card_offices(index, vectors)]))
                 with measure("Read the evidence"):
                     offices, sources = await asyncio.to_thread(
                         one_call.gather, self.facts, index, vectors, latest,

@@ -120,6 +120,30 @@ def collect(facts: GraphOnlyFacts) -> tuple[str, str, list[dict[str, Any]], dict
     return version, identity, list(units.values()), names
 
 
+def office_cards(facts: GraphOnlyFacts, version: str,
+                 identity: str) -> list[tuple[str, str, str]]:
+    """Each office's card, read with the shared fact reader: its name, its other names and the
+    titles of its contact lines ("Director of Athletics, Intramurals and Recreation")."""
+    with facts.snapshot() as snapshot:
+        facts._pin(snapshot, version, identity)
+        offices = [(e["id"], e["name"], list(e.get("aliases") or []))
+                   for e in snapshot.entities if e.get("kind") == "office"]
+    cards = []
+    for entity_id, name, aliases in offices:
+        found = facts.get_office_facts(entity_id, ["phones"], version, identity_hash=identity)
+        titles = [str(line.get("type")) for prop in found["properties"]
+                  if prop["key"] == "phones" and prop["status"] == "known"
+                  for value in prop["values"] for line in value["value"]
+                  if isinstance(line, dict) and line.get("type") and line["type"] != "Fax"]
+        card = f"Ramapo College office: {name}"
+        if aliases:
+            card += f"\nAlso called: {', '.join(aliases)}"
+        if titles:
+            card += f"\nContacts: {'; '.join(dict.fromkeys(titles))}"
+        cards.append((entity_id, name, card))
+    return cards
+
+
 def write_questions(units: list[dict[str, Any]], cache: dict[str, list[str]]) -> int:
     """Three student questions per how-to entry not already in the cache, read 12 entries at a time
     per page. Returns how many entries were read."""
@@ -181,7 +205,10 @@ def main(argv: list[str] | None = None) -> int:
     started = time.monotonic()
     pointer = json.loads((args.dir / POINTER).read_text())
     release_file = args.dir / pointer["file"]
-    version, identity, units, names = collect(GraphOnlyFacts(args.dir))
+    facts = GraphOnlyFacts(args.dir)
+    version, identity, units, names = collect(facts)
+    cards = office_cards(facts, version, identity)
+    names.update({entity_id: name for entity_id, name, _ in cards})
     args.cache.mkdir(parents=True, exist_ok=True)
     questions_path = args.cache / "questions.json"
     vectors_path = args.cache / f"vectors-{EMBED_MODEL}-{DIMENSIONS}.json"
@@ -207,17 +234,19 @@ def main(argv: list[str] | None = None) -> int:
             offsets += [-1] * len(asked)
     cache: dict[str, list[float]] = (json.loads(vectors_path.read_text())
                                      if vectors_path.exists() else {})
-    embedded = embed_all([t for _, t in texts], cache)
+    embedded = embed_all([t for _, t in texts] + [card for _, _, card in cards], cache)
     vectors_path.write_text(json.dumps(cache))
     flat = array.array("f")
-    for _, text in texts:
+    # The office cards' vectors follow the units' vectors, in the order of "cards".
+    for text in [t for _, t in texts] + [card for _, _, card in cards]:
         vector = cache[_digest(EMBED_MODEL, str(DIMENSIONS), text)]
         norm = math.sqrt(sum(x * x for x in vector)) or 1.0
         flat.extend(x / norm for x in vector)
     meta = {"dataset_version": version, "identity_hash": identity, "model": EMBED_MODEL,
             "dimensions": DIMENSIONS, "entities": names,
             "units": [[u["record_id"], u["index"], u["entities"]] for u in units],
-            "owner": [n for n, _ in texts], "offsets": offsets}
+            "owner": [n for n, _ in texts], "offsets": offsets,
+            "cards": [entity_id for entity_id, _, _ in cards]}
     if (version, identity) != (pointer["dataset_version"], pointer["identity_hash"]):
         print("The active release changed while the index was built; run it again.",
               file=sys.stderr)
@@ -228,7 +257,8 @@ def main(argv: list[str] | None = None) -> int:
         temporary = release_file.with_suffix(suffix + ".tmp")
         temporary.write_bytes(data)
         os.replace(temporary, release_file.with_suffix(suffix))
-    print(f"meaning index for {version}: {len(units)} units, {len(texts)} vectors "
+    print(f"meaning index for {version}: {len(units)} units, {len(cards)} office cards, "
+          f"{len(texts)} vectors "
           f"({read} entries given questions, {embedded} texts embedded), "
           f"{time.monotonic() - started:.0f} s")
     return 0

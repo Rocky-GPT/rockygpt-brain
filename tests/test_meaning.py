@@ -1,5 +1,6 @@
 import array
 import math
+from collections.abc import Sequence
 from typing import Any
 
 from rockygpt_brain.engine import meaning_query
@@ -17,17 +18,23 @@ from test_engine import (
 
 
 def index_of(units: list[tuple[str, str, list[str], list[list[float]]]],
-             names: dict[str, str] | None = None) -> MeaningIndex:
-    """A small in-memory index: each unit (record, index, offices) with its vectors."""
+             names: dict[str, str] | None = None,
+             cards: Sequence[tuple[str, list[float]]] = ()) -> MeaningIndex:
+    """A small in-memory index: each unit (record, index, offices) with its vectors, then each
+    office card (office, vector)."""
     flat, owner = array.array("f"), []
     for n, (_, _, _, vectors) in enumerate(units):
         for vector in vectors:
             norm = math.sqrt(sum(x * x for x in vector))
             flat.extend(x / norm for x in vector)
             owner.append(n)
+    for _, vector in cards:
+        norm = math.sqrt(sum(x * x for x in vector))
+        flat.extend(x / norm for x in vector)
     meta = {"dataset_version": "release-1", "identity_hash": "identities-1", "model": "m",
             "dimensions": len(units[0][3][0]), "entities": names or {},
-            "units": [[r, i, e] for r, i, e, _ in units], "owner": owner}
+            "units": [[r, i, e] for r, i, e, _ in units], "owner": owner,
+            "cards": [entity_id for entity_id, _ in cards]}
     return MeaningIndex(meta, flat)
 
 
@@ -43,6 +50,15 @@ def test_a_unit_scores_its_best_vector_and_offices_count_by_their_best_unit() ->
     assert scores[("page-b", "e0")] > 0.9
     # The asked office is never another office; the next best are named in order.
     assert index.offices(scores, exclude=["advising"], limit=2) == ["tutoring", "library"]
+
+
+def test_an_office_is_found_by_its_card_and_units_are_scored_without_the_cards() -> None:
+    index = index_of([("page-a", "0", ["advising"], [[1, 0, 0]])], {"advising": "Advising"},
+                     cards=[("athletics", [0, 1, 0]), ("advising", [0.9, 0.1, 0])])
+    assert [e for e, _ in index.office_scores([0.1, 1, 0])] == ["athletics", "advising"]
+    assert list(index.scores([0.1, 1, 0])) == [("page-a", "0")]
+    # An index built before office cards has none.
+    assert index_of([("page-a", "0", ["advising"], [[1, 0, 0]])]).office_scores([1, 0, 0]) == []
 
 
 def test_by_meaning_a_section_sharing_no_word_with_the_question_is_offered() -> None:
