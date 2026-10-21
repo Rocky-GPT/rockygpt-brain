@@ -1364,6 +1364,24 @@ def past_term(text: str, today: date) -> str | None:
     return max(named)[1]
 
 
+_PAGE_TERM = re.compile(r"(winter|spring|summer|fall)[-_]?(20\d\d)(?!\d)")
+_PAGE_YEAR = re.compile(r"(?<!\d)(20\d\d)(?!\d)")
+
+
+def past_page(url: str, today: date) -> str | None:
+    """The latest term or year a page's own address names (/previous-deadlines-2021/,
+    /wellness-services-fall-2023/), when every one it names has ended by today; else None. A year
+    alone is read as the academic year it starts, ending August 31 of the next."""
+    path = urlsplit(url).path.casefold()
+    named = [(date(int(year), *_TERM_ENDS[season.title()]), f"{season.title()} {year}")
+             for season, year in _PAGE_TERM.findall(path)]
+    rest = _PAGE_TERM.sub(" ", path)
+    named += [(date(int(year) + 1, 8, 31), year) for year in _PAGE_YEAR.findall(rest)]
+    if not named or max(end for end, _ in named) >= today:
+        return None
+    return max(named)[1]
+
+
 def _stem(word: str) -> str:
     """A word without its common ending, then by its first six letters: fund, funds, funded and
     funding are one word, as are withdraw, withdrawing and withdrawal, and house and housing."""
@@ -1555,7 +1573,7 @@ def procedures_property(
         # the asked words.
         over = past_term(
             f"{unit.get('term', '')} {unit['heading']} {unit['text'][:600]} {row.get('url') or ''}",
-            today)
+            today) or past_page(str(row.get("url") or ""), today)
         if meaning is not None:
             similarity = meaning.get((str(row["id"]), index))
             if similarity is None:

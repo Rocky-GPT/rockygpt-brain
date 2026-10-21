@@ -196,3 +196,19 @@ def test_a_long_text_is_cut_between_words_never_inside_a_link() -> None:
     # A start inside a word moves to the next word.
     assert _cut(text, 2, 200).startswith("into RCNJ")
     assert _cut(text, 0, 500) == text
+
+
+def test_a_page_whose_address_names_only_ended_terms_or_years_is_past() -> None:
+    from datetime import date
+
+    from rockygpt_brain.retrieval.entity_facts import past_page
+    today = date(2026, 10, 20)
+    base = "https://www.ramapo.edu/student-accounts/"
+    assert past_page(base + "previous-deadlines/previous-deadlines-2021/", today) == "2021"
+    assert past_page("https://www.ramapo.edu/student-affairs/wellness-services-fall-2023/",
+                     today) == "Fall 2023"
+    # A year whose academic year is not over, or no year at all, is not past.
+    assert past_page("https://www.ramapo.edu/x/support-beyond-the-classroom-april-2026/",
+                     today) is None
+    assert past_page("https://www.ramapo.edu/x/catalog-2025-2026/", today) is None
+    assert past_page(base + "future-deadlines/", today) is None
