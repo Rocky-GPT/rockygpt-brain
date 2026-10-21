@@ -140,7 +140,7 @@ def test_an_entry_carries_its_own_section_for_what_its_steps_leave_out() -> None
                                                    "GPA of 3.0"}]}]}
     prop, _ = procedures_property([page], NOW, "satisfactory academic progress gpa for aid")
     value = prop["values"][0]["value"]
-    assert value["text"] == "1. Graduate students need a 3.0 GPA."
+    assert value["text"] == "1. Graduate students must have a cumulative GPA of 3.0"
     assert "Undergraduate students must have a cumulative GPA of at least 2.0." in (
         value["section_words"])
 

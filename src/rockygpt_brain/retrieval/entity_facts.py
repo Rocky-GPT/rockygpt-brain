@@ -1492,6 +1492,14 @@ def _procedure_units(row: dict[str, Any], *, sections_only: bool = False,
             if own:
                 extra["section_index"], extra["section_text"] = str(own[0]), own[1]
             text = " ".join(f"{n}. {step}" for n, step in enumerate(steps, start=1))
+            # Each step is said in the page's own words, its quote (checked to be on the page at
+            # publish): a step's rewording can turn a rule round ("can be scheduled up to one hour
+            # before" written as "no more than one hour before"). The rewording is still matched.
+            quotes = [clean(step.get("quote")) for step in entry["steps"]
+                      if isinstance(step, dict) and isinstance(clean(step.get("text")), str)
+                      and clean(step.get("text"))]
+            if len(quotes) == len(steps) and all(isinstance(q, str) and q for q in quotes):
+                extra["said"] = " ".join(f"{n}. {q}" for n, q in enumerate(quotes, start=1))
             top, body = _section_words(row, f"{task} {extra.get('applies_to', '')}", text)
             units.append((f"e{index}", {"heading": task, "text": text, **extra}, top,
                           body | _procedure_words(extra.get("section", ""))))
@@ -1589,7 +1597,9 @@ def procedures_property(
         # By meaning, a long section is said from the piece that matched (the prohibited-items
         # list's "Animals" for a question about a cat), which shares no word with the question.
         at = getattr(meaning, "at", {}).get((str(row["id"]), index), 0) if meaning else 0
-        if at:
+        if section.get("said"):
+            said = _cut(section["said"], 0, MAX_PROCEDURE_CHARS)
+        elif at:
             said = _cut(section["text"], at, MAX_PROCEDURE_CHARS)
         else:
             said = _passage(section["text"], wanted, weight, MAX_PROCEDURE_CHARS)
@@ -1611,7 +1621,7 @@ def procedures_property(
         match = (_cut(section["text"], at, PICK_MATCH_CHARS) if at
                  else _passage(section["text"], wanted, weight, PICK_MATCH_CHARS))
         value = {"heading": section["heading"], "page": url, "text": said,
-                 **({"text_cut": True} if said != section["text"] else {}),
+                 **({"text_cut": True} if said != section.get("said", section["text"]) else {}),
                  **({"section_words": own} if own else {}),
                  **({"page_words": around} if around and around != own else {}),
                  **({"match": match} if match and not section["text"].startswith(match) else {}),
