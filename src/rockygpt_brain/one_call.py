@@ -106,17 +106,21 @@ def search_text(latest: str, earlier_user: str | None) -> str:
     return latest
 
 
-def chosen_units(index: MeaningIndex, vectors: Sequence[Sequence[float]],
+def chosen_units(index: MeaningIndex, vectors: Sequence[Sequence[float]], cap: int = MAX_UNITS,
+                 seen: set[tuple[str, str]] | None = None,
                  ) -> tuple[MeaningScores, list[tuple[str, str]]]:
-    """Each part's own best units, interleaved so every part keeps its first few, at most
-    MAX_UNITS; their scores and match offsets."""
+    """Each part's own best units, interleaved so every part keeps its first few, at most `cap`;
+    their scores and match offsets. Units in `seen` were already given and are skipped; the
+    chosen ones are added to it."""
+    seen = set() if seen is None else seen
     keyed = {(u.record_id, u.index): u for u in index.units}
     chosen: dict[tuple[str, str], float] = {}
     at: dict[tuple[str, str], int] = {}
     per_part: list[list[tuple[str, str]]] = []
     for vector in vectors:
         raw = index.scores(vector)
-        best = [k for k, _ in sorted(raw.items(), key=lambda kv: -kv[1]) if k in keyed][:PER_PART]
+        best = [k for k, _ in sorted(raw.items(), key=lambda kv: -kv[1])
+                if k in keyed and k not in seen][:PER_PART]
         per_part.append(best)
         for k in best:
             chosen[k] = max(chosen.get(k, -9.0), raw[k])
@@ -127,7 +131,8 @@ def chosen_units(index: MeaningIndex, vectors: Sequence[Sequence[float]],
         for best in per_part:
             if n < len(best) and best[n] not in order:
                 order.append(best[n])
-    order = order[:MAX_UNITS]
+    order = order[:cap]
+    seen.update(order)
     scores = MeaningScores({k: chosen[k] for k in order})
     scores.at = {k: at[k] for k in order if k in at}
     return scores, order
@@ -135,11 +140,15 @@ def chosen_units(index: MeaningIndex, vectors: Sequence[Sequence[float]],
 
 def gather(facts: Any, index: MeaningIndex, vectors: Sequence[Sequence[float]], question: str,
            dataset_version: str, identity_hash: str | None,
-           named_offices: Sequence[str] = ()) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+           named_offices: Sequence[str] = (), *, cap: int = MAX_UNITS,
+           numbered_from: int = 0, seen: set[tuple[str, str]] | None = None,
+           ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """The evidence the call reads, by office (contacts and numbered sections), and the sources
-    the numbers stand for. Offices the student named are read for their contacts too."""
+    the numbers stand for. Offices the student named are read for their contacts too. A second
+    look numbers its sections after the first look's (`numbered_from`) and skips the units it
+    gave (`seen`)."""
     keyed = {(u.record_id, u.index): u for u in index.units}
-    scores, order = chosen_units(index, vectors)
+    scores, order = chosen_units(index, vectors, cap, seen)
     groups: dict[str, list[tuple[str, str]]] = {}
     for key in order:
         groups.setdefault(keyed[key].entity_ids[0], []).append(key)
@@ -162,10 +171,11 @@ def gather(facts: Any, index: MeaningIndex, vectors: Sequence[Sequence[float]], 
                     if prop.get("status") == "known" else [])
         sections = []
         for value in values("procedures"):
-            sources.append({"n": len(sources) + 1, "url": value.get("page"),
+            sources.append({"n": numbered_from + len(sources) + 1, "url": value.get("page"),
                             "title": value.get("heading")})
             sections.append({
-                "n": len(sources), "heading": value.get("heading"), "page": value.get("page"),
+                "n": numbered_from + len(sources), "heading": value.get("heading"),
+                "page": value.get("page"),
                 "text": value.get("text"),
                 **({"section_words": value["section_words"][:SECTION_WORDS_CHARS]}
                    if value.get("section_words") else {}),
@@ -175,6 +185,22 @@ def gather(facts: Any, index: MeaningIndex, vectors: Sequence[Sequence[float]], 
                         "email": values("email"), "phones": values("phones"),
                         "rooms": values("offices"), "sections": sections})
     return offices, sources
+
+
+SECOND_LOOK_UNITS = 12
+_GAVE_UP = re.compile(r"don.t have verified")
+
+
+def gave_up(arguments: dict[str, Any], question: str) -> list[str]:
+    """The parts a reply found no facts for, for a second look with only their own search (at most
+    two); the whole question when the reply says it has no verified information but names no
+    such part; none when it answered every part."""
+    parts = [p for p in arguments.get("parts") or [] if isinstance(p, dict)]
+    empty = [str(p.get("asked") or "").strip() for p in parts if not p.get("facts")]
+    empty = [a for a in empty if a][:2]
+    if empty:
+        return empty
+    return [question] if _GAVE_UP.search(str(arguments.get("text") or "")) else []
 
 
 def messages(question: str, earlier_user: str | None, offices: list[dict[str, Any]],
