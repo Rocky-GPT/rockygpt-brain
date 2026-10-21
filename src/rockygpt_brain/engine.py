@@ -1607,10 +1607,25 @@ class ChatEngine:
                     vectors = await embed_many(one_call.parts_of(question),
                                                dimensions=index.dimensions, budget=budget)
                 named = list(dict.fromkeys([*named, *one_call.card_offices(index, vectors)]))
+                chosen = None
+                if index.labels:
+                    pool_scores, pool = one_call.chosen_units(
+                        index, vectors, one_call.POOL, per_part=one_call.POOL_PER_PART,
+                        per_page=one_call.POOL_PER_PAGE)
+                    budget.max_calls = max(budget.max_calls, budget.calls + 1)
+                    with measure("Pick the sections to read by heading"):
+                        picking = await self.gateway.complete(
+                            input=one_call.pick_messages(question, index, pool),
+                            tools=[one_call.PICK_TOOL], budget=budget)
+                    pick = picking.tool_calls[0] if len(picking.tool_calls) == 1 else None
+                    chosen = one_call.with_picked(
+                        index, vectors, pool_scores, pool,
+                        pick.arguments if pick is not None and pick.name == "pick_units" else None)
                 with measure("Read the evidence"):
                     offices, sources = await asyncio.to_thread(
                         one_call.gather, self.facts, index, vectors, latest,
-                        index.dataset_version, index.identity_hash, named, seen=seen)
+                        index.dataset_version, index.identity_hash, named, seen=seen,
+                        chosen=chosen)
                 budget.max_calls = max(budget.max_calls, budget.calls + 1)
                 with measure("Write the answer from the evidence"):
                     completion = await self.gateway.complete(

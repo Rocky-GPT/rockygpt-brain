@@ -66,6 +66,10 @@ class MeaningIndex:
         # units' vectors: an office with no how-to sections (Athletics, a school's dean's office)
         # is still found by what it handles. An index built before cards has none.
         self.cards: list[str] = [str(c) for c in meta.get("cards") or []]
+        # Each unit's page address and heading, for picking units by heading (empty before 10-21).
+        self.labels: dict[tuple[str, str], tuple[str, str]] = {
+            (u.record_id, u.index): (str(label[0]), str(label[1]))
+            for u, label in zip(self.units, meta.get("labels") or [], strict=False)}
         if len(vectors) != (len(self.owner) + len(self.cards)) * self.dimensions:
             raise ValueError("The meaning index vectors do not match its units.")
         self._vectors = memoryview(vectors)
