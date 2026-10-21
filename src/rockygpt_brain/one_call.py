@@ -29,7 +29,8 @@ ONE_CALL_PROMPT = """You answer a Ramapo College student from the college's own 
 given as JSON. You know nothing beyond the JSON and cannot look anything up.
 - First decide which sections answer what the student asked; ignore the rest. A section for
   another group, program, place or term does not answer them; past_term means it is for a term or
-  deadline that is over: say so and never give its dates as coming up.
+  deadline that is over: say so and never give its dates as coming up. Never change a year,
+  class year or term to make a date current.
 - Answer what was asked directly and completely: every step, form, link, email, phone, date,
   deadline, amount and condition the chosen sections give for it, exactly as written (a step's
   page words in quotes are the page's own). Never add, compute or guess anything the JSON does not
@@ -154,6 +155,9 @@ def chosen_units(index: MeaningIndex, vectors: Sequence[Sequence[float]], cap: i
 # often ranked 11th to 60th by meaning, behind near-misses (on 37 graded misses of sets zf and zg
 # the answering page was read for 35 instead of 31, at ~1.4 s and $0.0001 a question, 10-21).
 POOL, POOL_PER_PART, POOL_PER_PAGE, PICKED = 60, 30, 3, 12
+# With a pick, only 12 units are read: on 7 zi misses whose fact was in the 24 units read, the reply
+# held it 11 of 14 times from 12 units and 9 of 14 from 24, from half the text (10-21).
+PICKED_READ = 12
 PICK_PROMPT = (
     "A Ramapo College student asked a question. Below are numbered sections of the college's "
     "pages, each by its page address and heading. Pick the sections whose full text most likely "
@@ -179,14 +183,14 @@ def pick_messages(question: str, index: MeaningIndex,
 def with_picked(index: MeaningIndex, vectors: Sequence[Sequence[float]],
                 pool_scores: MeaningScores, pool: Sequence[tuple[str, str]],
                 arguments: dict[str, Any] | None) -> tuple[MeaningScores, list[tuple[str, str]]]:
-    """The picked sections first, then the usual best of each part, at most MAX_UNITS; the usual
-    choice alone when nothing valid was picked."""
+    """The picked sections first, then the usual best of each part, at most PICKED_READ; the
+    usual choice alone when nothing valid was picked."""
     scores, order = chosen_units(index, vectors)
     picked = [pool[n - 1] for n in (arguments or {}).get("n") or []
               if isinstance(n, int) and 1 <= n <= len(pool)][:PICKED]
     if not picked:
         return scores, order
-    final = list(dict.fromkeys([*picked, *order]))[:MAX_UNITS]
+    final = list(dict.fromkeys([*picked, *order]))[:PICKED_READ]
     merged = MeaningScores({k: pool_scores.get(k, scores.get(k, 0.0)) for k in final})
     merged.at = {k: at for k in final
                  if (at := pool_scores.at.get(k, scores.at.get(k))) is not None}
