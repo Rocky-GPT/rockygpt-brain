@@ -1,0 +1,17 @@
+[
+{"id": "zi1-01", "question": "how do i find out if i have a registration hold and who do i call to get it removed", "topic": "contact"},
+{"id": "zi1-02", "question": "I work 25 hrs a week and cant make it to campus during the day. how do I withdraw from a class without going in person?", "topic": "procedure"},
+{"id": "zi1-03", "question": "whats the last day to withdraw from a class this semester", "topic": "policy"},
+{"id": "zi1-04", "question": "what grade do i get if i withdraw after the deadline? does a W hurt my gpa", "topic": "policy"},
+{"id": "zi1-05", "question": "how do I meet with my academic advisor, and how do I even find out who my advisor is", "topic": "procedure"},
+{"id": "zi1-06", "question": "can i register for classes before i meet with my advisor or do i need a pin", "topic": "policy"},
+{"id": "zi1-07", "question": "How do I appeal a grade I think was wrong? My professor won't respond to my emails and I work during his office hours.", "topic": "procedure"},
+{"id": "zi1-08", "question": "incomplete grade - how does that work and how long do I have to finish the work", "topic": "policy"},
+{"id": "zi1-09", "question": "how do i get a hold removed if its from the bursar", "topic": "procedure"},
+{"id": "zi1-10", "question": "is there an online or evening option for advising for commuters", "topic": "policy"},
+{"id": "zi1-11", "question": "whats my current gpa and do i have any holds right now", "topic": "out_of_scope"},
+{"id": "zi1-12", "question": "how do I add a class after the semester already started? is there a late add deadline", "topic": "procedure"},
+{"id": "zi1-13", "question": "Should I drop my 8am or my Tuesday night class? I'm struggling with both and my boss keeps changing my shifts", "topic": "out_of_scope"},
+{"id": "zi1-14", "question": "how do I retake a class to replace a bad grade and does the old grade still count", "topic": "policy"},
+{"id": "zi1-15", "question": "when does registration open for spring for sophomores", "topic": "out_of_scope"}
+]
