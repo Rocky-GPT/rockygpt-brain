@@ -1597,6 +1597,7 @@ class ChatEngine:
             LOG.warning("brain_one_call_fallback code=%s", code)
             trace["oneCall"] = {"fallback": code}
             return None
+        seen: set[tuple[str, str]] = set()
         try:
             async with asyncio.timeout(self.turn_seconds):
                 with measure("Embed the question's parts"):
@@ -1605,7 +1606,7 @@ class ChatEngine:
                 with measure("Read the evidence"):
                     offices, sources = await asyncio.to_thread(
                         one_call.gather, self.facts, index, vectors, latest,
-                        index.dataset_version, index.identity_hash, named)
+                        index.dataset_version, index.identity_hash, named, seen=seen)
                 budget.max_calls = max(budget.max_calls, budget.calls + 1)
                 with measure("Write the answer from the evidence"):
                     completion = await self.gateway.complete(
@@ -1621,7 +1622,39 @@ class ChatEngine:
         call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
         if call is None or call.name != "write_answer":
             return fallback("no_reply")
-        text, citations = one_call.reply(call.arguments, sources)
+        arguments = call.arguments
+        # A second look: the parts the reply found no facts for are searched on their own, and
+        # the reply is written again with what that finds beside the first evidence.
+        asks = one_call.gave_up(arguments, latest)
+        if asks:
+            try:
+                async with asyncio.timeout(max(budget.deadline - time.monotonic(), 0.001)):
+                    with measure("Second look for the parts not answered"):
+                        more_vectors = await embed_many(asks, dimensions=index.dimensions,
+                                                        budget=budget)
+                        more, more_sources = await asyncio.to_thread(
+                            one_call.gather, self.facts, index, more_vectors, " ".join(asks),
+                            index.dataset_version, index.identity_hash, (),
+                            cap=one_call.SECOND_LOOK_UNITS, numbered_from=len(sources),
+                            seen=seen)
+                    budget.max_calls = max(budget.max_calls, budget.calls + 1)
+                    with measure("Write the answer again"):
+                        again = await self.gateway.complete(
+                            input=one_call.messages(latest,
+                                                    earlier if question != latest else None,
+                                                    [*offices, *more], turn.campus_now.date()),
+                            tools=[one_call.ONE_CALL_TOOL], budget=budget)
+                second = again.tool_calls[0] if len(again.tool_calls) == 1 else None
+                if second is not None and second.name == "write_answer":
+                    arguments, offices, sources = (second.arguments, [*offices, *more],
+                                                   [*sources, *more_sources])
+                    trace["oneCallSecondLook"] = asks
+            except (GatewayError, TimeoutError, DatasetChanged, EvidenceUnavailable,
+                    InvalidFactRequest, UnknownEntity) as error:
+                # The first reply still stands; the second look only adds.
+                LOG.warning("brain_one_call_second_look_failed error=%s",
+                            getattr(error, "code", type(error).__name__))
+        text, citations = one_call.reply(arguments, sources)
         if not text:
             return fallback("no_text")
         view = {"today": turn.campus_now.date().isoformat(), "offices": offices,

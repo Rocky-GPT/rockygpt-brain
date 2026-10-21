@@ -15,8 +15,9 @@ from test_meaning import meaning_service
 from test_writer import writing
 
 
-def one_reply(text: str, used: list[int]) -> Completion:
-    arguments = {"parts": [{"asked": "how to become a tutor", "sections": used, "facts": []}],
+def one_reply(text: str, used: list[int], facts: list[str] | None = None) -> Completion:
+    found = ["Apply with the online form [1]"] if facts is None else facts
+    arguments = {"parts": [{"asked": "how to become a tutor", "sections": used, "facts": found}],
                  "text": text, "used": used}
     return Completion("", (ToolCall("w", "write_answer", arguments),),
                       [{"type": "function_call", "call_id": "w", "name": "write_answer",
@@ -80,3 +81,22 @@ def test_a_reply_the_evidence_does_not_hold_goes_to_the_four_call_loop() -> None
         "fallback": "not_in_the_evidence"}
     assert result.trace["decidedBy"] != "one_call"
     assert "tutors@example.com" not in result.body["answer"]
+
+
+def test_a_part_with_no_facts_gets_a_second_look_and_one_more_reply() -> None:
+    gateway = PartsGateway(
+        one_reply("I don't have verified information about that.", [], facts=[]),
+        one_reply("Center for Reading and Writing: Apply with the online form by March 1. [2]",
+                  [2]))
+    result = ask(gateway, "how do i become a peer tutor")
+    assert gateway.embedded == [["how do i become a peer tutor"], ["how to become a tutor"]]
+    assert len(gateway.inputs) == 2 and result.trace is not None
+    assert result.trace["decidedBy"] == "one_call"
+    assert result.trace["oneCallSecondLook"] == ["how to become a tutor"]
+    # The second look gives only sections the first did not, numbered after the first look's.
+    second = json.loads(gateway.inputs[1][1]["content"])["offices"]
+    numbers = [s["n"] for o in second for s in o["sections"]]
+    assert numbers == list(range(1, len(numbers) + 1))
+    assert len({(s["page"], s["heading"], s["text"]) for o in second for s in o["sections"]}) == (
+        len(numbers))
+    assert "Sources: [2](" in result.body["answer"]
