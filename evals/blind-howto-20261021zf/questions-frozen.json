@@ -1,0 +1,492 @@
+[
+ {
+  "id": "zf1-01",
+  "question": "how does housing selection work for rising juniors? when do we pick rooms",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf1-02",
+  "question": "How do I find out my registration time for next semester?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf1-03",
+  "question": "i have a hold on my account and cant register, how do i see what it is and get it removed",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf1-04",
+  "question": "can me and 3 friends request to live in the same apartment next year? how do we sign up as a group",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf1-05",
+  "question": "who do I contact about changing roommates mid year",
+  "topic": "contact"
+ },
+ {
+  "id": "zf1-06",
+  "question": "whats the max number of credits I can take in a semester without special permission",
+  "topic": "policy"
+ },
+ {
+  "id": "zf1-07",
+  "question": "how do I get permission to overload and take 19 credits, and who approves it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf1-08",
+  "question": "do sophomores have to live on campus or can we move off",
+  "topic": "policy"
+ },
+ {
+  "id": "zf1-09",
+  "question": "how do i meet with my advisor before registration",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf1-10",
+  "question": "I don't know who my academic advisor is. how do I find out and who do I email if I don't have one?",
+  "topic": "contact"
+ },
+ {
+  "id": "zf1-11",
+  "question": "how to take a summer class at another college and transfer the credits back",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf1-12",
+  "question": "are there summer housing options at ramapo? how do I apply",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf1-13",
+  "question": "what is the policy on guests overnight in the dorms",
+  "topic": "policy"
+ },
+ {
+  "id": "zf1-14",
+  "question": "how do i declare my major, im a sophmore and still undecided",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf1-15",
+  "question": "course I need is full, how do I get on the waitlist or get a permission override",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf1-16",
+  "question": "how do I drop a class after the add/drop deadline and will it show a W",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf1-17",
+  "question": "can I get a single room next year for medical reasons? how do i request housing accommodations and who handles it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf1-18",
+  "question": "what's the roommate conflict process, my roommate and i dont get along",
+  "topic": "policy"
+ },
+ {
+  "id": "zf1-19",
+  "question": "how do I sign up for a internship over the summer for credit",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf1-20",
+  "question": "who do i talk to about a housing deposit or room selection fee",
+  "topic": "contact"
+ },
+ {
+  "id": "zf1-21",
+  "question": "How do I study abroad next spring and does my financial aid apply?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf1-22",
+  "question": "what time does my registration open next week and what classes do I have left for my major",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zf1-23",
+  "question": "which dorm should I pick next year, which one is best for sophomores?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zf1-24",
+  "question": "how much will housing cost next year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zf1-25",
+  "question": "can i switch from a double to a different room after room selection is over? who do i email",
+  "topic": "contact"
+ },
+ {
+  "id": "zf2-02",
+  "question": "I got a parking ticket on campus last week, how do I appeal it and who do I talk to?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf2-03",
+  "question": "can commuters park in resident lots after 5pm",
+  "topic": "policy"
+ },
+ {
+  "id": "zf2-04",
+  "question": "whats the policy if my car gets towed on campus",
+  "topic": "policy"
+ },
+ {
+  "id": "zf2-05",
+  "question": "how do I find out if classes are cancelled bc of snow",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf2-06",
+  "question": "I need to get a job on campus. Where do I look for openings and how do I apply?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf2-07",
+  "question": "how do student workers get paid? direct deposit?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf2-08",
+  "question": "what forms do i need to fill out before my first day at my work study job",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf2-09",
+  "question": "is there a limit on how many hours a student can work on campus per week",
+  "topic": "policy"
+ },
+ {
+  "id": "zf2-10",
+  "question": "my paycheck from my campus job is wrong, who do i contact",
+  "topic": "contact"
+ },
+ {
+  "id": "zf2-11",
+  "question": "how do i change my schedule so all my classes are on 2 days, i work 4 days a week",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf2-12",
+  "question": "do you have night or online classes for people who work full time",
+  "topic": "policy"
+ },
+ {
+  "id": "zf2-13",
+  "question": "I lost my parking pass hangtag, how do I get a replacement",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf2-14",
+  "question": "Can I get a temporary parking pass if I'm borrowing my parents car for a week? Who issues it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf2-15",
+  "question": "is there a shuttle or bus from the train station to campus and how do i get a schedule",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf2-16",
+  "question": "what do i do if my car battery dies in the lot, does campus safety jump cars",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf2-17",
+  "question": "how do I drop a class without a W if I cant make it bc of work",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf2-18",
+  "question": "can i get an excused absence for being late bc of traffic",
+  "topic": "policy"
+ },
+ {
+  "id": "zf2-19",
+  "question": "how much is a commuter parking permit this year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zf2-20",
+  "question": "is the campus open today? snowing pretty bad",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zf2-21",
+  "question": "how many parking tickets do i have on my account",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zf2-22",
+  "question": "where do i park to attend an evening class and does it require a permit",
+  "topic": "policy"
+ },
+ {
+  "id": "zf2-23",
+  "question": "how do i register my vehicle with campus safety / public safety and what info do they need",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf2-24",
+  "question": "Who do I email about getting a handicap or accessible parking spot because of a temporary injury?",
+  "topic": "contact"
+ },
+ {
+  "id": "zf2-25",
+  "question": "Can I take time off from my campus job for finals, who do I ask, and does it affect my work-study award?",
+  "topic": "policy"
+ },
+ {
+  "id": "zf3-01",
+  "question": "how do i start a new club at ramapo",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf3-02",
+  "question": "What's the process to get a club officially recognized by SGA, and who do I email about it?",
+  "topic": "contact"
+ },
+ {
+  "id": "zf3-03",
+  "question": "how many members do you need to have to be a registered club",
+  "topic": "policy"
+ },
+ {
+  "id": "zf3-04",
+  "question": "my club wants to reserve a room in the student center for a weekly meeting. how do we book it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf3-05",
+  "question": "can clubs hold events off campus or does it have to be on campus",
+  "topic": "policy"
+ },
+ {
+  "id": "zf3-06",
+  "question": "how do i request funding from SGA for our club's event? is there a form or deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf3-07",
+  "question": "What are the academic eligibility requirements to play on a varsity team?",
+  "topic": "policy"
+ },
+ {
+  "id": "zf3-08",
+  "question": "how do I get cleared for athletics physical, who do i send my forms to",
+  "topic": "contact"
+ },
+ {
+  "id": "zf3-09",
+  "question": "we need to book a van for an away trip with our club. whats the process",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf3-10",
+  "question": "do i need a gpa minimum to be an officer in a club",
+  "topic": "policy"
+ },
+ {
+  "id": "zf3-11",
+  "question": "how do i reserve the theater or a performance space for our dance showcase",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf3-12",
+  "question": "Can I get a refund of club dues if I quit a sports club team?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zf3-13",
+  "question": "how do i get equipment checked out from the rec center for intramurals",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf3-14",
+  "question": "Our a cappella group wants to hold a ticketed concert on campus. What approvals do we need and who handles them?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf3-15",
+  "question": "club fair registration how",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf3-16",
+  "question": "is there a policy on serving food at club events? we want to order pizza for our meeting",
+  "topic": "policy"
+ },
+ {
+  "id": "zf3-17",
+  "question": "how to join a club sport team vs a varsity team, whats the difference and who do i contact",
+  "topic": "contact"
+ },
+ {
+  "id": "zf3-18",
+  "question": "What time does the next SGA budget hearing happen?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zf3-19",
+  "question": "how do i get reimbursed after buying supplies for a club event with my own money",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf3-20",
+  "question": "can transfer students play sports right away or is there a waiting period",
+  "topic": "policy"
+ },
+ {
+  "id": "zf3-21",
+  "question": "hi, im the treasurer of a club and need to know how to access our account and make a purchase. also who is our advisor contact in the office",
+  "topic": "contact"
+ },
+ {
+  "id": "zf3-22",
+  "question": "how do i post a flyer or hang posters on campus for my club's event",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf3-23",
+  "question": "do we need insurance or a waiver for club members going on an overnight trip",
+  "topic": "policy"
+ },
+ {
+  "id": "zf3-24",
+  "question": "how do I audition for the theatre productions or join a music ensemble if im not a major",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf3-25",
+  "question": "Should I quit my club to focus on my grades this semester?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zf4-01",
+  "question": "how do i appeal a grade i think my professor gave me unfairly",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf4-02",
+  "question": "What is the process to get an incomplete in a class, and who do I have to talk to to set it up?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf4-03",
+  "question": "is there an attendance policy for all classes or does each prof decide",
+  "topic": "policy"
+ },
+ {
+  "id": "zf4-04",
+  "question": "i got accused of plagarism on a paper. what happens now and what are my rights",
+  "topic": "policy"
+ },
+ {
+  "id": "zf4-05",
+  "question": "how do I request accomodations for my ADHD so I can get extra time on tests",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf4-06",
+  "question": "how to withdraw from one class after the drop deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf4-07",
+  "question": "I want to file a complaint about a professor who is rude and unprofessional in class. Where do I go and who do I contact?",
+  "topic": "contact"
+ },
+ {
+  "id": "zf4-09",
+  "question": "prof wont respond to my emails about my grade, what do i do",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf4-10",
+  "question": "can i take a W instead of failing? how does that work",
+  "topic": "policy"
+ },
+ {
+  "id": "zf4-11",
+  "question": "How long do I have to dispute a final grade after the semester ends?",
+  "topic": "policy"
+ },
+ {
+  "id": "zf4-12",
+  "question": "my professor changed the syllabus halfway thru the semester and now the grading is different, is that allowed",
+  "topic": "policy"
+ },
+ {
+  "id": "zf4-13",
+  "question": "who is the dean i should email if my dept chair isnt helping with a grade issue",
+  "topic": "contact"
+ },
+ {
+  "id": "zf4-14",
+  "question": "I missed a bunch of classes because of a family emergency and my professor is saying I'll fail for absences. Is there an official way to get excused absences, and do I need documentation?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf4-15",
+  "question": "how do i report a professor for discrimination",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf4-16",
+  "question": "do professors have to let you make up an exam if you're sick",
+  "topic": "policy"
+ },
+ {
+  "id": "zf4-17",
+  "question": "what happens if i get caught cheating on a test, will it go on my transcript",
+  "topic": "policy"
+ },
+ {
+  "id": "zf4-18",
+  "question": "Will my professor give me an A if I do extra credit? He said maybe",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zf4-19",
+  "question": "how do i get a grade changed if the prof made a mistake entering it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf4-20",
+  "question": "whats my current grade in Intro to Psych",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zf4-21",
+  "question": "disability services office hours and how to make an appt",
+  "topic": "contact"
+ },
+ {
+  "id": "zf4-22",
+  "question": "I think I should withdraw from the semester completely because I'm failing everything. What are the steps and what does it do to my financial aid?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zf4-23",
+  "question": "can i retake a class to replace my bad grade? does the old grade go away",
+  "topic": "policy"
+ },
+ {
+  "id": "zf4-24",
+  "question": "Should I just drop my chem class or try to tough it out? I have a 52 right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zf4-25",
+  "question": "is there an ombuds or someone neutral i can talk to about a conflict w a professor",
+  "topic": "contact"
+ }
+]
