@@ -43,6 +43,10 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
 - Answer every part of the question. Before saying a part is not covered, check every section
   given, including its section_words. For a part no section answers, say once that you don't have
   verified information about it, and point to the office most likely to help with its contacts.
+- A program's requirements (programs.requirements) were written out by code from the catalog: say
+  them as given, every course and how many of a list to take, with their notes; never add up
+  credits or courses yourself. Name the program and its degree; when also_published lists its
+  other levels, name them in one short line.
 - Write a phone number as (XXX) XXX-XXXX with its own digits.
 - Cite each statement with its section number like [3]. Short plain sentences; numbered steps are
   fine. Under 1,600 characters. No greeting.
@@ -287,9 +291,10 @@ def gave_up(arguments: dict[str, Any], question: str) -> list[str]:
 
 
 def messages(question: str, earlier_user: str | None, offices: list[dict[str, Any]],
-             today: date) -> list[dict[str, Any]]:
+             today: date, programs: Sequence[dict[str, Any]] = ()) -> list[dict[str, Any]]:
     given = {"today": f"{today:%A, %B} {today.day}, {today.year}", "question": question,
-             **({"earlier_question": earlier_user} if earlier_user else {}), "offices": offices}
+             **({"earlier_question": earlier_user} if earlier_user else {}),
+             **({"programs": list(programs)} if programs else {}), "offices": offices}
     return [{"role": "system", "content": ONE_CALL_PROMPT},
             {"role": "user", "content": json.dumps(given, ensure_ascii=False)}]
 

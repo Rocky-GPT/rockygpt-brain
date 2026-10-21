@@ -18,7 +18,7 @@ from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from rockygpt_brain import one_call
+from rockygpt_brain import academics, one_call
 from rockygpt_brain.answers import (
     Rendered,
     citation_url,
@@ -1580,20 +1580,45 @@ class ChatEngine:
         trace["procedureSearch"] = "meaning"
         return scores
 
+    def _programs_named(self, message: str) -> tuple[list[dict[str, Any]], list[str]]:
+        """The programs a message names (academics.py) and their other published levels."""
+        programs = self.facts.identities(("program",))
+        found = academics.find_programs(programs, message)
+        return found, academics.also_published(programs, found)
+
+    def _read_programs(self, programs: Sequence[dict[str, Any]], others: Sequence[str],
+                       ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
+        """Each named program's facts through the shared reader, as numbered evidence."""
+        version, identity_hash = self.facts.active_release()
+        evidence: list[dict[str, Any]] = []
+        sources: list[dict[str, Any]] = []
+        for program in programs:
+            facts = self.facts.get_program_facts(program["id"], version,
+                                                 identity_hash=identity_hash)
+            item = academics.program_evidence(facts, len(sources) + 1, others)
+            evidence.append(item)
+            sources.append({"n": item["n"], "url": item.get("catalog_url"),
+                            "title": item.get("program")})
+        return evidence, sources, version
+
     async def _one_call(self, turn: Turn, context: Context, budget: TurnBudget,
-                        trace: dict[str, Any]) -> ChatResult | None:
+                        trace: dict[str, Any],
+                        programs: tuple[list[dict[str, Any]], list[str]] | None = None,
+                        ) -> ChatResult | None:
         """One model call from code-found evidence (one_call.py); None leaves the question to
-        the four-call loop: no meaning index, a failed call, or a reply the evidence does not
-        hold."""
+        the four-call loop: no meaning index and no program named, a failed call, or a reply
+        the evidence does not hold. A named program's requirements are read first; the pages
+        are searched beside them when a meaning index is published."""
         embed_many = getattr(self.gateway, "embed_many", None)
         index = await asyncio.to_thread(self.facts.meaning_index)
-        if embed_many is None or index is None:
+        searchable = embed_many is not None and index is not None
+        if not searchable and not programs:
             return None
         latest = context.latest_message
         earlier = next((m.content for m in reversed(context.recent_messages)
                         if m.role == "user"), None)
         question = one_call.search_text(latest, earlier)
-        named = [entity_id for entity_id, name in index.names.items()
+        named = [entity_id for entity_id, name in (index.names.items() if index else ())
                  if name and len(name) > 3 and name.casefold() in latest.casefold()][:3]
 
         def fallback(code: str) -> ChatResult | None:
@@ -1601,14 +1626,25 @@ class ChatEngine:
             trace["oneCall"] = {"fallback": code}
             return None
         seen: set[tuple[str, str]] = set()
+        academic: list[dict[str, Any]] = []
+        vectors: list[list[float]] = []
+        offices: list[dict[str, Any]] = []
+        sources: list[dict[str, Any]] = []
+        dataset_version = index.dataset_version if index else ""
         try:
             async with asyncio.timeout(self.turn_seconds):
-                with measure("Embed the question's parts"):
-                    vectors = await embed_many(one_call.parts_of(question),
-                                               dimensions=index.dimensions, budget=budget)
-                named = list(dict.fromkeys([*named, *one_call.card_offices(index, vectors)]))
+                if programs:
+                    with measure("Read the programs named"):
+                        academic, sources, dataset_version = await asyncio.to_thread(
+                            self._read_programs, *programs)
+                if searchable:
+                    assert index is not None and embed_many is not None
+                    with measure("Embed the question's parts"):
+                        vectors = await embed_many(one_call.parts_of(question),
+                                                   dimensions=index.dimensions, budget=budget)
+                    named = list(dict.fromkeys([*named, *one_call.card_offices(index, vectors)]))
                 chosen = None
-                if index.labels:
+                if searchable and index is not None and index.labels:
                     pool_scores, pool = one_call.chosen_units(
                         index, vectors, one_call.POOL, per_part=one_call.POOL_PER_PART,
                         per_page=one_call.POOL_PER_PAGE)
@@ -1621,16 +1657,18 @@ class ChatEngine:
                     chosen = one_call.with_picked(
                         index, vectors, pool_scores, pool,
                         pick.arguments if pick is not None and pick.name == "pick_units" else None)
-                with measure("Read the evidence"):
-                    offices, sources = await asyncio.to_thread(
-                        one_call.gather, self.facts, index, vectors, latest,
-                        index.dataset_version, index.identity_hash, named, seen=seen,
-                        chosen=chosen)
+                if searchable and index is not None:
+                    with measure("Read the evidence"):
+                        offices, found = await asyncio.to_thread(
+                            one_call.gather, self.facts, index, vectors, latest,
+                            index.dataset_version, index.identity_hash, named, seen=seen,
+                            chosen=chosen, numbered_from=len(sources))
+                    sources = [*sources, *found]
                 budget.max_calls = max(budget.max_calls, budget.calls + 1)
                 with measure("Write the answer from the evidence"):
                     completion = await self.gateway.complete(
                         input=one_call.messages(latest, earlier if question != latest else None,
-                                                offices, turn.campus_now.date()),
+                                                offices, turn.campus_now.date(), academic),
                         tools=[one_call.ONE_CALL_TOOL], budget=budget)
         except GatewayError as error:
             return fallback(error.code)
@@ -1644,8 +1682,8 @@ class ChatEngine:
         arguments = call.arguments
         # A second look: the parts the reply found no section for are searched on their own, and
         # the reply is written again with what that finds beside the first evidence.
-        asks = one_call.gave_up(arguments, latest)
-        if asks:
+        asks = one_call.gave_up(arguments, latest) if searchable else []
+        if asks and index is not None and embed_many is not None:
             try:
                 async with asyncio.timeout(max(budget.deadline - time.monotonic(), 0.001)):
                     with measure("Second look for the parts not answered"):
@@ -1661,7 +1699,8 @@ class ChatEngine:
                         again = await self.gateway.complete(
                             input=one_call.messages(latest,
                                                     earlier if question != latest else None,
-                                                    [*offices, *more], turn.campus_now.date()),
+                                                    [*offices, *more], turn.campus_now.date(),
+                                                    academic),
                             tools=[one_call.ONE_CALL_TOOL], budget=budget)
                 second = again.tool_calls[0] if len(again.tool_calls) == 1 else None
                 if second is not None and second.name == "write_answer":
@@ -1677,6 +1716,7 @@ class ChatEngine:
         if not text:
             return fallback("no_text")
         view = {"today": turn.campus_now.date().isoformat(), "offices": offices,
+                "programs": academic,
                 "sources": [{"n": s["n"], "urls": [s["url"]]} for s in sources if s.get("url")]}
         problems = unsupported_by(text, view)
         if problems:
@@ -1685,8 +1725,10 @@ class ChatEngine:
         trace.update(decidedBy="one_call", modelCalls=budget.calls,
                      committedNusd=budget.committed_nusd, writer={"used": True},
                      oneCall={"parts": len(vectors), "sections": len(sources),
-                              "offices": [o["office"] for o in offices]})
-        return answered(turn, text, "answered", citations, index.dataset_version)
+                              "offices": [o["office"] for o in offices],
+                              **({"programs": [p["program"] for p in academic]}
+                                 if academic else {})})
+        return answered(turn, text, "answered", citations, dataset_version)
 
     async def _pick_procedures(self, looked_up: list[tuple[str, int, OfficeRequest]],
                                results: dict[str, OfficeResult], output: list[dict[str, Any]],
@@ -2086,7 +2128,16 @@ class ChatEngine:
             identity_hash: str | None = None
             graph = CampusGraph(self.facts)
             trace["root"] = graph.root()
-        if (self.howto_one_call and self.output == "written" and floor_situation is None
+        # A question naming a major, minor or certificate is answered from the catalog's own
+        # requirements, read through the program's identity (academics.py).
+        named_programs = (await asyncio.to_thread(self._programs_named, context.latest_message)
+                          if self.output == "written" and floor_situation is None
+                          else ([], []))
+        if named_programs[0]:
+            done = await self._one_call(turn, context, budget, trace, programs=named_programs)
+            if done is not None:
+                return done
+        elif (self.howto_one_call and self.output == "written" and floor_situation is None
                 and one_call.routes_here(context.latest_message)):
             done = await self._one_call(turn, context, budget, trace)
             if done is not None:

@@ -73,6 +73,11 @@ SELECT md5(concat_ws('|',
               concat_ws(',', s.source_key, s.canonical_url, s.freshness_sla_hours), ';'
               ORDER BY s.source_key))
             FROM rockygpt_v2.sources s), ''),
+  coalesce((SELECT md5(string_agg(to_jsonb(p)::text, ',' ORDER BY p.id))
+            FROM rockygpt_v2.programs p WHERE p.dataset_version_id = v.id), ''),
+  coalesce((SELECT string_agg(a.content_hash, ',' ORDER BY a.artifact_key)
+            FROM rockygpt_v2.release_artifacts a WHERE a.dataset_version_id = v.id
+              AND a.artifact_key IN ('programs', 'program-requirement-groups')), ''),
   coalesce(coverage.content_hash, ''), coalesce(capture.content_hash, ''))) AS fingerprint
 FROM rockygpt_v2.dataset_versions v
 LEFT JOIN rockygpt_v2.release_artifacts coverage ON coverage.dataset_version_id = v.id
@@ -268,7 +273,51 @@ ORDER BY o.source_record_key, o.id
 LIMIT %s
 """
 
-_RECORD_SQL = {"dining_hours": _DINING, "menu": _MENU, "shuttle_trips": _TRIPS,
+_PROGRAMS = """
+WITH links AS (
+  SELECT * FROM jsonb_to_recordset(%s::jsonb) AS link(source_key text, source_record_keys jsonb)
+)
+SELECT p.id::text AS id, p.source_record_key, p.name, p.degree, p.program_kind, p.school,
+       p.description, p.program_url, p.collected_at, p.content_hash, s.source_key,
+       s.freshness_sla_hours
+FROM rockygpt_v2.programs p
+JOIN rockygpt_v2.sources s ON s.id = p.source_id
+WHERE p.dataset_version_id = %s::uuid AND EXISTS (
+  SELECT 1 FROM links l WHERE l.source_key = s.source_key
+    AND l.source_record_keys ? p.source_record_key
+)
+ORDER BY p.source_record_key, p.id
+LIMIT %s
+"""
+
+# A requirement group is a record of the program-requirement-groups artifact, read in the order the
+# program's link lists it; it was compiled from the programs artifact, whose capture time it keeps.
+_REQUIREMENT_GROUPS = """
+WITH links AS (
+  SELECT * FROM jsonb_to_recordset(%s::jsonb) AS link(source_key text, source_record_keys jsonb)
+), wanted AS (
+  SELECT k.value AS key, k.ordinality AS ord
+  FROM links l, jsonb_array_elements_text(l.source_record_keys) WITH ORDINALITY AS k
+  WHERE l.source_key = 'program-requirement-groups'
+), release AS (SELECT %s::uuid AS id)
+SELECT g->>'id' AS id, g->>'id' AS source_record_key,
+       'program-requirement-groups' AS source_key, g AS requirement,
+       a.content_hash, (p.payload->>'generatedAt')::timestamptz AS collected_at,
+       s.freshness_sla_hours
+FROM release
+JOIN rockygpt_v2.release_artifacts a ON a.dataset_version_id = release.id
+  AND a.artifact_key = 'program-requirement-groups'
+JOIN rockygpt_v2.release_artifacts p ON p.dataset_version_id = release.id
+  AND p.artifact_key = 'programs'
+LEFT JOIN rockygpt_v2.sources s ON s.source_key = 'academic-programs'
+CROSS JOIN LATERAL jsonb_array_elements(a.payload->'groups') AS g
+JOIN wanted w ON w.key = g->>'id'
+ORDER BY w.ord
+LIMIT %s
+"""
+
+_RECORD_SQL = {"programs": _PROGRAMS, "requirement_groups": _REQUIREMENT_GROUPS,
+               "dining_hours": _DINING, "menu": _MENU, "shuttle_trips": _TRIPS,
                "menu_documents": _MENU_DOCUMENTS, "menu_listings": _MENU_LISTINGS,
                "shuttle_stops": _SHUTTLE_STOPS, "campus_topics": _CAMPUS_TOPICS,
                "office_sections": _OFFICE_SECTIONS}
