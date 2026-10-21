@@ -192,7 +192,9 @@ Always finish with the finish tool; never write an answer as free text. All grap
 results are automatically included by the server, including their limitations. The finish
 parts list is ONLY for additional parts of the request; use an empty list when the office
 results cover the request. Include account_limit ONLY for accessing private records or performing
-an action; explaining a public procedure or mentioning personal information is not access.
+an action; explaining a public procedure or mentioning personal information is not access. With
+account_limit, also read procedures of the office that keeps the record for how the student can
+find or do it themselves (where to check a balance or a mailbox combination).
 There are no tools for private student records, account changes, sending messages, or browsing.
 Use unsupported for a part the available tools cannot answer. Do not discard a supported
 public part because another part needs account access or is unsupported. A value a lookup
