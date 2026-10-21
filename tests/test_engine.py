@@ -1942,3 +1942,15 @@ def test_a_failed_pick_keeps_the_best_ranked_sections() -> None:
                     messages=[{"role": "user", "content": "how do i get my transcript"}])
     assert "Parchment" in result.body["answer"]
     assert result.trace is not None and result.trace["procedurePicks"] == "ranked"
+
+
+def test_a_situation_beside_a_contact_question_also_reads_the_offices_how_to() -> None:
+    from rockygpt_brain.engine import OfficeRequest, with_situation_procedures
+    ask = OfficeRequest(query="Housing & Residence Life", fields=["phones", "hours"])
+    message = "who do I contact about getting locked out of my room at 2am"
+    requests, added = with_situation_procedures([ask], message)
+    assert added == {0} and "procedures" in requests[0].fields and requests[0].about == message
+    # A contact question alone, or one with a word or two more, is read as asked.
+    for plain in ("registrar email", "Is the email you gave me still correct?"):
+        same, none = with_situation_procedures([ask], plain)
+        assert none == set() and same[0].fields == ["phones", "hours"]

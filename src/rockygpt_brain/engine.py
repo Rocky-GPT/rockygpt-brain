@@ -622,6 +622,40 @@ wants and the named office's sections do not, or answer only part. Pick none whe
 Answer only with the pick_sections tool."""
 
 
+# Contact fields: an office read only for these, beside a situation the student describes, also
+# reads the office's how-to sections for it.
+_CONTACT_FIELDS = frozenset({"email", "phones", "offices", "contact_note", "hours"})
+# "Is the email you gave me still correct" names two (gave, correct); a situation names more, or
+# two in a "who do I contact about / call if / talk to when ..." question.
+SITUATION_WORDS = 3
+_ASKS_WHOM_FOR = re.compile(
+    r"\b(?:who|whom|where|which office)\b.{0,40}\b(?:contact|call|talk|email|go|tell|report|"
+    r"ask|reach)\b.{0,20}\b(?:about|if|when|because|for|after)\b", re.IGNORECASE)
+
+
+def with_situation_procedures(requests: Sequence[Any], message: str) -> tuple[list[Any], set[int]]:
+    """"Who do I contact about getting locked out of my room at 2am" was read for contacts and
+    hours only, three blind sets running, though the residence guide says what to do. An office
+    read only for contact fields, in a message that also describes a situation (SITUATION_WORDS
+    or more words beyond the office's name and the contact words), also reads its how-to
+    sections for the message. Returns the requests and the indexes of those it added procedures
+    to; a pick that keeps none of them leaves no trace in the answer."""
+    asked = purpose_words(message) - _NOTE_FILLER
+    least = 2 if _ASKS_WHOM_FOR.search(message) else SITUATION_WORDS
+    out: list[Any] = []
+    added: set[int] = set()
+    for n, item in enumerate(requests):
+        if (isinstance(item, OfficeRequest) and "procedures" not in item.fields
+                and set(item.fields) <= _CONTACT_FIELDS
+                and len(asked - purpose_words(item.query)) >= least
+                and len(item.fields) < 10):
+            item = item.model_copy(update={"fields": [*item.fields, "procedures"],
+                                           "about": item.about or message.strip()[:160]})
+            added.add(n)
+        out.append(item)
+    return out, added
+
+
 def procedures_of(result: "OfficeResult") -> dict[str, Any] | None:
     """The how-to property of an office result, when it has candidate sections."""
     if not result.part or result.part.get("kind") != "office_facts":
@@ -659,9 +693,11 @@ def pick_messages(asked: list[tuple[str, str, dict[str, Any]]],
             {"role": "user", "content": json.dumps(said, ensure_ascii=False)}]
 
 
-def keep_procedures(result: "OfficeResult", keep: list[int]) -> "OfficeResult":
+def keep_procedures(result: "OfficeResult", keep: list[int],
+                    unasked: bool = False) -> "OfficeResult":
     """The result with only the chosen how-to sections, in the chosen order, and the page sources
-    they cite; none chosen leaves the property unknown. Its text is rendered again."""
+    they cite; none chosen leaves the property unknown, or drops it when the student did not ask
+    for it (`unasked`: read beside a described situation). Its text is rendered again."""
     assert result.part is not None
     facts = result.part["facts"]
     properties = []
@@ -680,8 +716,9 @@ def keep_procedures(result: "OfficeResult", keep: list[int]) -> "OfficeResult":
         assertions = [{**a, "value": {key: value for key, value in a["value"].items()
                                       if key != "match"}} if isinstance(a.get("value"), dict)
                       else a for a in prop["assertions"] if a["id"] in ids]
-        properties.append({**prop, "status": "known" if values else "unknown", "values": values,
-                           "assertions": assertions})
+        if values or not unasked:
+            properties.append({**prop, "status": "known" if values else "unknown",
+                               "values": values, "assertions": assertions})
     cited = {s for p in properties for v in p.get("values", []) for s in v.get("source_ids", [])}
     sources = [s for s in facts["sources"]
                if s.get("collection") != "office_sections" or s["id"] in cited]
@@ -1538,11 +1575,19 @@ class ChatEngine:
                                results: dict[str, OfficeResult], output: list[dict[str, Any]],
                                budget: TurnBudget, trace: dict[str, Any],
                                as_of: datetime,
-                               meaning: Mapping[tuple[str, str], float] | None = None) -> None:
+                               meaning: Mapping[tuple[str, str], float] | None = None,
+                               situational: set[int] | None = None) -> None:
         """Code ranks an office's sections by the words asked; a model then keeps the ones that
         answer, in one call for every office this round read. "How do I get a degree audit"
         shares words with Audit Grades, which does not answer it. If the call fails, the four
         best ranked are kept."""
+        # Read beside a situation but with no section to offer: nothing of it is said.
+        for rid, at, item in looked_up:
+            part = results[rid].part
+            if (id(item) in (situational or set()) and part is not None
+                    and part.get("kind") == "office_facts" and procedures_of(results[rid]) is None):
+                results[rid] = keep_procedures(results[rid], [], unasked=True)
+                output[at]["rendered"] = results[rid].rendered.text
         asked = [(rid, at, item, prop) for rid, at, item in looked_up
                  if (prop := procedures_of(results[rid])) is not None]
         with measure("Find other offices whose pages speak to it"):
@@ -1579,10 +1624,11 @@ class ChatEngine:
                  [v["value"].get("heading"), v["value"].get("page")]
                  for v in prop["values"][:OTHER_SECTIONS if k >= len(asked) else None]]}
             for k, (about, office, prop) in enumerate(offered))
-        for k, (rid, at, _, prop) in enumerate(asked):
+        for k, (rid, at, item, prop) in enumerate(asked):
             keep = (chosen.get(k, []) if chosen is not None
                     else list(range(min(PICKED_PROCEDURES, len(prop["values"])))))
-            results[rid] = keep_procedures(results[rid], keep)
+            results[rid] = keep_procedures(results[rid], keep,
+                                           unasked=id(item) in (situational or set()))
             output[at]["rendered"] = results[rid].rendered.text
         # Another office is said only for the sections picked from it, as its own lookup.
         for k, (about, result, _) in enumerate(others, start=len(asked)):
@@ -1961,6 +2007,8 @@ class ChatEngine:
                                                          context.latest_message)
                         requests = keep_named_day(requests, context.latest_message,
                                                   turn.campus_now.date())
+                        requests, situational = with_situation_procedures(
+                            requests, context.latest_message)
                         attempts += len(requests)
                         if (attempts > MAX_TOOL_ATTEMPTS
                                 or len(results) + len(requests) > MAX_RESULTS):
@@ -2052,7 +2100,8 @@ class ChatEngine:
                                        "error": result.error_code})
                         looked_up.append((rid, len(output) - 1, item))
                     await self._pick_procedures(looked_up, results, output, budget, trace,
-                                                turn.campus_now, meaning)
+                                                turn.campus_now, meaning,
+                                                {id(requests[n]) for n in situational})
                     with measure("Prepare lookup output for model"):
                         inputs.append({"type": "function_call_output", "call_id": call.call_id,
                                        "output": json.dumps(output, ensure_ascii=False)})
