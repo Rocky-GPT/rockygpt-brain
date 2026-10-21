@@ -7,7 +7,14 @@ from typing import Any
 
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
-from rockygpt_brain.one_call import chosen_units, parts_of, routes_here, search_text
+from rockygpt_brain.one_call import (
+    chosen_units,
+    parts_of,
+    pick_messages,
+    routes_here,
+    search_text,
+    with_picked,
+)
 from rockygpt_brain.provider import Completion, ToolCall, TurnBudget, Usage
 from rockygpt_brain.turn import intake
 from test_engine import NOW, ScriptedGateway, completion, finish
@@ -134,3 +141,34 @@ def test_a_part_no_page_can_hold_gets_no_second_look() -> None:
     result = ask(gateway, "how do i become a peer tutor")
     assert len(gateway.inputs) == 1 and result.trace is not None
     assert "oneCallSecondLook" not in result.trace
+
+
+def test_the_sections_picked_by_heading_are_read_first() -> None:
+    index = index_of([("page-a", "0", ["advising"], [[1, 0, 0]]),
+                      ("page-b", "0", ["advising"], [[0.9, 0.1, 0]]),
+                      ("page-c", "0", ["tutoring"], [[0, 1, 0]])], labels=True)
+    pool_scores, pool = chosen_units(index, [[1, 0, 0]], 60, per_part=30, per_page=3)
+    asked = pick_messages("how do i become a peer tutor", index, pool)[1]["content"]
+    assert "3. page-c | heading page-c 0" in asked
+    _, order = with_picked(index, [[1, 0, 0]], pool_scores, pool, {"n": [3, 99]})
+    assert order[0] == ("page-c", "0") and len(order) == 3
+    # Nothing valid picked: the usual choice.
+    assert with_picked(index, [[1, 0, 0]], pool_scores, pool, {"n": []})[1][0] == ("page-a", "0")
+
+
+def test_with_headings_published_the_pick_comes_before_the_answer() -> None:
+    service = meaning_service()
+    service.index = index_of([("page-advising", "0", ["advising"], [[0, 1, 0]]),
+                              ("page-tutoring", "0", ["tutoring"], [[1, 0, 0]])],
+                             service.index.names, labels=True)
+    picked = Completion("", (ToolCall("p", "pick_units", {"n": [1]}),),
+                        [{"type": "function_call", "call_id": "p", "name": "pick_units",
+                          "arguments": json.dumps({"n": [1]})}], Usage(10, 2, 0))
+    gateway = PartsGateway(picked, one_reply("Apply with the online form by March 1. [1]", [1]))
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "how do i become a peer tutor"}]})
+    engine = ChatEngine(gateway, service, output="written",  # type: ignore[arg-type]
+                        howto_one_call=True)
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    assert gateway.inputs[0][1]["content"].startswith("Question: how do i become a peer tutor")
+    assert result.trace is not None and result.trace["decidedBy"] == "one_call"

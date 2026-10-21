@@ -251,6 +251,8 @@ class Gateway:
         }
         if settings.decide_effort and names in (["write_answer"], ["pick_sections"]):
             request["reasoning"] = {"effort": settings.decide_effort}
+        if names == ["pick_units"]:  # Numbers from a list of headings need little thought.
+            request["reasoning"] = {"effort": "low"}
         if tools:
             request.update(tool_choice="required", parallel_tool_calls=False)
         try:

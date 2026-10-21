@@ -19,7 +19,7 @@ from test_engine import (
 
 def index_of(units: list[tuple[str, str, list[str], list[list[float]]]],
              names: dict[str, str] | None = None,
-             cards: Sequence[tuple[str, list[float]]] = ()) -> MeaningIndex:
+             cards: Sequence[tuple[str, list[float]]] = (), labels: bool = False) -> MeaningIndex:
     """A small in-memory index: each unit (record, index, offices) with its vectors, then each
     office card (office, vector)."""
     flat, owner = array.array("f"), []
@@ -34,7 +34,8 @@ def index_of(units: list[tuple[str, str, list[str], list[list[float]]]],
     meta = {"dataset_version": "release-1", "identity_hash": "identities-1", "model": "m",
             "dimensions": len(units[0][3][0]), "entities": names or {},
             "units": [[r, i, e] for r, i, e, _ in units], "owner": owner,
-            "cards": [entity_id for entity_id, _ in cards]}
+            "cards": [entity_id for entity_id, _ in cards],
+            "labels": [[r, f"heading {r} {i}"] for r, i, _, _ in units] if labels else []}
     return MeaningIndex(meta, flat)
 
 

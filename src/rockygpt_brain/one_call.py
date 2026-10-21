@@ -112,8 +112,8 @@ def search_text(latest: str, earlier_user: str | None) -> str:
 
 
 def chosen_units(index: MeaningIndex, vectors: Sequence[Sequence[float]], cap: int = MAX_UNITS,
-                 seen: set[tuple[str, str]] | None = None,
-                 ) -> tuple[MeaningScores, list[tuple[str, str]]]:
+                 seen: set[tuple[str, str]] | None = None, *, per_part: int = PER_PART,
+                 per_page: int = PER_PAGE) -> tuple[MeaningScores, list[tuple[str, str]]]:
     """Each part's own best units (at most PER_PAGE from one page record), interleaved so every
     part keeps its first few, at most `cap`; their scores and match offsets. Units in `seen` were
     already given and are skipped; the chosen ones are added to it."""
@@ -121,26 +121,26 @@ def chosen_units(index: MeaningIndex, vectors: Sequence[Sequence[float]], cap: i
     keyed = {(u.record_id, u.index): u for u in index.units}
     chosen: dict[tuple[str, str], float] = {}
     at: dict[tuple[str, str], int] = {}
-    per_part: list[list[tuple[str, str]]] = []
+    by_part: list[list[tuple[str, str]]] = []
     for vector in vectors:
         raw = index.scores(vector)
         best: list[tuple[str, str]] = []
         on_page: dict[str, int] = {}
         for k, _ in sorted(raw.items(), key=lambda kv: -kv[1]):
-            if k not in keyed or k in seen or on_page.get(k[0], 0) >= PER_PAGE:
+            if k not in keyed or k in seen or on_page.get(k[0], 0) >= per_page:
                 continue
             on_page[k[0]] = on_page.get(k[0], 0) + 1
             best.append(k)
-            if len(best) >= PER_PART:
+            if len(best) >= per_part:
                 break
-        per_part.append(best)
+        by_part.append(best)
         for k in best:
             chosen[k] = max(chosen.get(k, -9.0), raw[k])
             if k in raw.at:
                 at[k] = raw.at[k]
     order: list[tuple[str, str]] = []
-    for n in range(PER_PART):
-        for best in per_part:
+    for n in range(per_part):
+        for best in by_part:
             if n < len(best) and best[n] not in order:
                 order.append(best[n])
     order = order[:cap]
@@ -148,6 +148,49 @@ def chosen_units(index: MeaningIndex, vectors: Sequence[Sequence[float]], cap: i
     scores = MeaningScores({k: chosen[k] for k in order})
     scores.at = {k: at[k] for k in order if k in at}
     return scores, order
+
+
+# Before reading, the call can pick from a wider pool by heading: the section that answers is
+# often ranked 11th to 60th by meaning, behind near-misses (on 37 graded misses of sets zf and zg
+# the answering page was read for 35 instead of 31, at ~1.4 s and $0.0001 a question, 10-21).
+POOL, POOL_PER_PART, POOL_PER_PAGE, PICKED = 60, 30, 3, 12
+PICK_PROMPT = (
+    "A Ramapo College student asked a question. Below are numbered sections of the college's "
+    "pages, each by its page address and heading. Pick the sections whose full text most likely "
+    "answers what the student asked (every part of it), best first, at most 12. Answer only with "
+    "the pick_units tool.")
+PICK_TOOL: dict[str, Any] = {
+    "type": "function", "name": "pick_units", "strict": True,
+    "description": "The sections to read, best first.",
+    "parameters": {"type": "object", "additionalProperties": False, "required": ["n"],
+                   "properties": {"n": {"type": "array", "items": {"type": "integer"}}}},
+}
+
+
+def pick_messages(question: str, index: MeaningIndex,
+                  pool: Sequence[tuple[str, str]]) -> list[dict[str, Any]]:
+    """The question and the pool's sections by page address and heading, numbered from 1."""
+    lines = [f"{n}. {' | '.join(index.labels.get(key, ('', '')))}"
+             for n, key in enumerate(pool, start=1)]
+    return [{"role": "system", "content": PICK_PROMPT},
+            {"role": "user", "content": f"Question: {question}\n\n" + "\n".join(lines)}]
+
+
+def with_picked(index: MeaningIndex, vectors: Sequence[Sequence[float]],
+                pool_scores: MeaningScores, pool: Sequence[tuple[str, str]],
+                arguments: dict[str, Any] | None) -> tuple[MeaningScores, list[tuple[str, str]]]:
+    """The picked sections first, then the usual best of each part, at most MAX_UNITS; the usual
+    choice alone when nothing valid was picked."""
+    scores, order = chosen_units(index, vectors)
+    picked = [pool[n - 1] for n in (arguments or {}).get("n") or []
+              if isinstance(n, int) and 1 <= n <= len(pool)][:PICKED]
+    if not picked:
+        return scores, order
+    final = list(dict.fromkeys([*picked, *order]))[:MAX_UNITS]
+    merged = MeaningScores({k: pool_scores.get(k, scores.get(k, 0.0)) for k in final})
+    merged.at = {k: at for k in final
+                 if (at := pool_scores.at.get(k, scores.at.get(k))) is not None}
+    return merged, final
 
 
 CARD_OFFICES = 2  # Offices found by their cards, read for their contacts.
@@ -168,13 +211,19 @@ def gather(facts: Any, index: MeaningIndex, vectors: Sequence[Sequence[float]], 
            dataset_version: str, identity_hash: str | None,
            named_offices: Sequence[str] = (), *, cap: int = MAX_UNITS,
            numbered_from: int = 0, seen: set[tuple[str, str]] | None = None,
+           chosen: tuple[MeaningScores, list[tuple[str, str]]] | None = None,
            ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """The evidence the call reads, by office (contacts and numbered sections), and the sources
     the numbers stand for. Offices the student named are read for their contacts too. A second
     look numbers its sections after the first look's (`numbered_from`) and skips the units it
     gave (`seen`)."""
     keyed = {(u.record_id, u.index): u for u in index.units}
-    scores, order = chosen_units(index, vectors, cap, seen)
+    if chosen is None:
+        scores, order = chosen_units(index, vectors, cap, seen)
+    else:
+        scores, order = chosen
+        if seen is not None:
+            seen.update(order)
     groups: dict[str, list[tuple[str, str]]] = {}
     for key in order:
         groups.setdefault(keyed[key].entity_ids[0], []).append(key)

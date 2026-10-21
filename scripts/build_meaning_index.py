@@ -257,7 +257,8 @@ def main(argv: list[str] | None = None) -> int:
             "dimensions": DIMENSIONS, "entities": names,
             "units": [[u["record_id"], u["index"], u["entities"]] for u in units],
             "owner": [n for n, _ in texts], "offsets": offsets,
-            "cards": [entity_id for entity_id, _, _ in cards]}
+            "cards": [entity_id for entity_id, _, _ in cards],
+            "labels": [[_where(u["page"]), u["heading"]] for u in units]}
     if (version, identity) != (pointer["dataset_version"], pointer["identity_hash"]):
         print("The active release changed while the index was built; run it again.",
               file=sys.stderr)
