@@ -1,0 +1,199 @@
+"""One model call for a how-to or policy question.
+
+Four calls in a row (plan, pick sections, finish, write) took 28 s a question. Code now finds the
+evidence: each part of the question is searched by meaning, the best units of each part are read
+exactly as published (an entry's steps with the page's words, a section's text), grouped by an
+office that links them, with those offices' contacts. One call then lists the parts asked, the
+sections that answer each and their facts, and writes the reply from them. On the same 93
+untouched blind questions it matched the four-call answers (69% vs 72%, 0 serious) at 9 s and
+$0.0010 a question (10-21). Offices' contacts and hours, menus and the shuttle keep their own
+lookups: a question about them is not routed here.
+"""
+
+import json
+import re
+from collections.abc import Sequence
+from datetime import date
+from typing import Any
+
+from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
+
+PER_PART = 8  # Each part's own best units: a "how do I apply" part keeps its application section.
+MAX_UNITS = 24
+MAX_PARTS = 3
+SECTION_WORDS_CHARS = 2000
+
+ONE_CALL_PROMPT = """You answer a Ramapo College student from the college's own published pages,
+given as JSON. You know nothing beyond the JSON and cannot look anything up.
+- First decide which sections answer what the student asked; ignore the rest. A section for
+  another group, program, place or term does not answer them; past_term means it is for a term or
+  deadline that is over: say so and never give its dates as coming up.
+- Answer what was asked directly and completely: every step, form, link, email, phone, date,
+  deadline, amount and condition the chosen sections give for it, exactly as written (a step's
+  page words in quotes are the page's own). Never add, compute or guess anything the JSON does not
+  say.
+- Name the office before its steps and contacts. Give contacts only of offices whose sections you
+  used, or the right office when no section answers.
+- Answer every part of the question. Before saying a part is not covered, check every section
+  given, including its section_words. For a part no section answers, say once that you don't have
+  verified information about it, and point to the office most likely to help with its contacts.
+- Write a phone number as (XXX) XXX-XXXX with its own digits.
+- Cite each statement with its section number like [3]. Short plain sentences; numbered steps are
+  fine. Under 1,600 characters. No greeting.
+Work in this order: list each part the student asked (parts.asked); for each, the numbers of
+every section that speaks to it, read in full with its section_words (parts.sections), and the
+facts from them that answer it, each with its number (parts.facts). Then write the reply (text)
+from those facts. Answer only with the write_answer tool."""
+
+ONE_CALL_TOOL: dict[str, Any] = {
+    "type": "function", "name": "write_answer", "strict": True,
+    "description": "The parts asked, what answers each, then the reply.",
+    "parameters": {"type": "object", "additionalProperties": False,
+                   "required": ["parts", "text", "used"],
+                   "properties": {
+                       "parts": {"type": "array", "items": {
+                           "type": "object", "additionalProperties": False,
+                           "required": ["asked", "sections", "facts"],
+                           "properties": {
+                               "asked": {"type": "string"},
+                               "sections": {"type": "array", "items": {"type": "integer"}},
+                               "facts": {"type": "array", "items": {"type": "string"}}}}},
+                       "text": {"type": "string", "maxLength": 4000},
+                       "used": {"type": "array", "items": {"type": "integer"}}}},
+}
+
+# Questions with their own code-computed answers (menus, dining hours, the shuttle) and plain
+# contact or hours questions keep the lookups that read them; everything else is a how-to.
+_SERVICES = re.compile(
+    r"\b(menu|menus|eat|food|lunch|dinner|breakfast|brunch|vegan|vegetarian|allerg\w*|gluten|"
+    r"dining hall|cafe|caf|atrium|dunkin|starbucks|common grounds|birch tree|shuttle|bus|buses|"
+    r"train|route|stop)\b")
+_MEAL_PLAN = re.compile(r"\bmeal ?plans?\b|\bflex\b|\bdining dollars\b")
+_HOURS = re.compile(r"\b(hours|open|opens|close|closes|closing|closed)\b")
+_CONTACT = re.compile(r"\b(email|e-mail|phone|number|call|fax|where is|located|location|room|"
+                      r"office)\b")
+_HOWTO = re.compile(
+    r"\b(how (do|can|would|should|to)|can i|could i|may i|am i|allowed|policy|policies|rules?|"
+    r"deadline|due|what happens|what if|appeal|apply|application|request|refund|fee|fees|fine|"
+    r"form|process|steps?|requirements?|eligib\w*|register|registration|drop|withdraw\w*|"
+    r"transfer|declare|change|replace|lost|report|reserve|book|get|need|happens)\b")
+
+
+def routes_here(message: str) -> bool:
+    """Whether a message is a how-to or policy question for the one-call path."""
+    text = message.casefold()
+    if _SERVICES.search(text) and not _MEAL_PLAN.search(text):
+        return False
+    howto = _HOWTO.search(text)
+    if (_HOURS.search(text) or _CONTACT.search(text)) and not howto:
+        return False
+    return True
+
+
+def parts_of(question: str) -> list[str]:
+    """The texts searched: the whole question, then its sentences and its clauses joined by "and
+    what/how/who/...", up to MAX_PARTS of them."""
+    bits = [b.strip() for b in re.split(
+        r"(?<=[?.!])\s+|\s+(?:and|also|plus)\s+(?=(?:what|how|who|when|where|can|do|does|will|is|"
+        r"are|should)\b)", question, flags=re.IGNORECASE) if len(b.strip()) > 12]
+    return [question, *[b for b in bits if b != question][:MAX_PARTS]]
+
+
+def search_text(latest: str, earlier_user: str | None) -> str:
+    """A short follow-up ("and for grad students?") is searched with the question before it."""
+    if earlier_user and len(latest.split()) <= 6:
+        return f"{earlier_user}\n{latest}"
+    return latest
+
+
+def chosen_units(index: MeaningIndex, vectors: Sequence[Sequence[float]],
+                 ) -> tuple[MeaningScores, list[tuple[str, str]]]:
+    """Each part's own best units, interleaved so every part keeps its first few, at most
+    MAX_UNITS; their scores and match offsets."""
+    keyed = {(u.record_id, u.index): u for u in index.units}
+    chosen: dict[tuple[str, str], float] = {}
+    at: dict[tuple[str, str], int] = {}
+    per_part: list[list[tuple[str, str]]] = []
+    for vector in vectors:
+        raw = index.scores(vector)
+        best = [k for k, _ in sorted(raw.items(), key=lambda kv: -kv[1]) if k in keyed][:PER_PART]
+        per_part.append(best)
+        for k in best:
+            chosen[k] = max(chosen.get(k, -9.0), raw[k])
+            if k in raw.at:
+                at[k] = raw.at[k]
+    order: list[tuple[str, str]] = []
+    for n in range(PER_PART):
+        for best in per_part:
+            if n < len(best) and best[n] not in order:
+                order.append(best[n])
+    order = order[:MAX_UNITS]
+    scores = MeaningScores({k: chosen[k] for k in order})
+    scores.at = {k: at[k] for k in order if k in at}
+    return scores, order
+
+
+def gather(facts: Any, index: MeaningIndex, vectors: Sequence[Sequence[float]], question: str,
+           dataset_version: str, identity_hash: str | None,
+           named_offices: Sequence[str] = ()) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The evidence the call reads, by office (contacts and numbered sections), and the sources
+    the numbers stand for. Offices the student named are read for their contacts too."""
+    keyed = {(u.record_id, u.index): u for u in index.units}
+    scores, order = chosen_units(index, vectors)
+    groups: dict[str, list[tuple[str, str]]] = {}
+    for key in order:
+        groups.setdefault(keyed[key].entity_ids[0], []).append(key)
+    for entity_id in named_offices:
+        groups.setdefault(entity_id, [])
+    offices: list[dict[str, Any]] = []
+    sources: list[dict[str, Any]] = []
+    for entity_id, keys in groups.items():
+        only = MeaningScores({k: scores[k] for k in keys})
+        only.at = {k: scores.at[k] for k in keys if k in scores.at}
+        fields = ["email", "phones", "offices", *(["procedures"] if keys else [])]
+        found = facts.get_office_facts(entity_id, fields, dataset_version,
+                                       identity_hash=identity_hash, about=question,
+                                       meaning=only if keys else None)
+        props = {p["key"]: p for p in found["properties"]}
+
+        def values(key: str, props: dict[str, Any] = props) -> list[Any]:
+            prop = props.get(key) or {}
+            return ([v["value"] for v in prop.get("values", [])]
+                    if prop.get("status") == "known" else [])
+        sections = []
+        for value in values("procedures"):
+            sources.append({"n": len(sources) + 1, "url": value.get("page"),
+                            "title": value.get("heading")})
+            sections.append({
+                "n": len(sources), "heading": value.get("heading"), "page": value.get("page"),
+                "text": value.get("text"),
+                **({"section_words": value["section_words"][:SECTION_WORDS_CHARS]}
+                   if value.get("section_words") else {}),
+                **{k: value[k] for k in ("applies_to", "handled_by", "term", "past_term")
+                   if value.get(k)}})
+        offices.append({"office": (found.get("entity") or {}).get("name") or entity_id,
+                        "email": values("email"), "phones": values("phones"),
+                        "rooms": values("offices"), "sections": sections})
+    return offices, sources
+
+
+def messages(question: str, earlier_user: str | None, offices: list[dict[str, Any]],
+             today: date) -> list[dict[str, Any]]:
+    given = {"today": f"{today:%A, %B} {today.day}, {today.year}", "question": question,
+             **({"earlier_question": earlier_user} if earlier_user else {}), "offices": offices}
+    return [{"role": "system", "content": ONE_CALL_PROMPT},
+            {"role": "user", "content": json.dumps(given, ensure_ascii=False)}]
+
+
+def reply(arguments: dict[str, Any], sources: list[dict[str, Any]],
+          ) -> tuple[str, list[dict[str, Any]]]:
+    """The reply with the sources it cited, and those as citations."""
+    text = str(arguments.get("text") or "").strip()
+    used = sorted({n for n in arguments.get("used") or [] if isinstance(n, int)
+                   and 1 <= n <= len(sources)}
+                  | {int(n) for n in re.findall(r"\[(\d+)\]", text) if 1 <= int(n) <= len(sources)})
+    cited = [sources[n - 1] for n in used if sources[n - 1].get("url")]
+    if cited:
+        text += "\n\nSources: " + " ".join(f"[{s['n']}]({s['url']})" for s in cited)
+    return text, [{"id": f"section-{s['n']}", "title": str(s.get("title") or ""),
+                   "url": s["url"]} for s in cited]

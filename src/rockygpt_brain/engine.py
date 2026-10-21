@@ -18,6 +18,7 @@ from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from rockygpt_brain import one_call
 from rockygpt_brain.answers import (
     Rendered,
     citation_url,
@@ -1201,8 +1202,13 @@ def _lookup_status(result: OfficeResult) -> str:
 class ChatEngine:
     def __init__(self, gateway: ModelGateway, facts: EntityFacts, *,
                  turn_seconds: float = TURN_SECONDS, max_turn_nusd: int = 25_000_000,
-                 output: Literal["text", "json", "written"] = "text") -> None:
+                 output: Literal["text", "json", "written"] = "text",
+                 howto_one_call: bool | None = None) -> None:
         self.gateway, self.facts = gateway, facts
+        # A how-to or policy question answered by one model call from code-found evidence
+        # (one_call.py) instead of the four-call loop; off unless BRAIN_HOWTO_ONE_CALL=1.
+        self.howto_one_call = (os.environ.get("BRAIN_HOWTO_ONE_CALL") == "1"
+                               if howto_one_call is None else howto_one_call)
         self.turn_seconds, self.max_turn_nusd = turn_seconds, max_turn_nusd
         # "json": the response carries the facts as typed JSON parts and no written answer.
         # "written": the same, and a writer with only the writer view says them; a reply the
@@ -1570,6 +1576,65 @@ class ChatEngine:
             scores = await asyncio.to_thread(index.scores, vector)
         trace["procedureSearch"] = "meaning"
         return scores
+
+    async def _one_call(self, turn: Turn, context: Context, budget: TurnBudget,
+                        trace: dict[str, Any]) -> ChatResult | None:
+        """One model call from code-found evidence (one_call.py); None leaves the question to
+        the four-call loop: no meaning index, a failed call, or a reply the evidence does not
+        hold."""
+        embed_many = getattr(self.gateway, "embed_many", None)
+        index = await asyncio.to_thread(self.facts.meaning_index)
+        if embed_many is None or index is None:
+            return None
+        latest = context.latest_message
+        earlier = next((m.content for m in reversed(context.recent_messages)
+                        if m.role == "user"), None)
+        question = one_call.search_text(latest, earlier)
+        named = [entity_id for entity_id, name in index.names.items()
+                 if name and len(name) > 3 and name.casefold() in latest.casefold()][:3]
+
+        def fallback(code: str) -> ChatResult | None:
+            LOG.warning("brain_one_call_fallback code=%s", code)
+            trace["oneCall"] = {"fallback": code}
+            return None
+        try:
+            async with asyncio.timeout(self.turn_seconds):
+                with measure("Embed the question's parts"):
+                    vectors = await embed_many(one_call.parts_of(question),
+                                               dimensions=index.dimensions, budget=budget)
+                with measure("Read the evidence"):
+                    offices, sources = await asyncio.to_thread(
+                        one_call.gather, self.facts, index, vectors, latest,
+                        index.dataset_version, index.identity_hash, named)
+                budget.max_calls = max(budget.max_calls, budget.calls + 1)
+                with measure("Write the answer from the evidence"):
+                    completion = await self.gateway.complete(
+                        input=one_call.messages(latest, earlier if question != latest else None,
+                                                offices, turn.campus_now.date()),
+                        tools=[one_call.ONE_CALL_TOOL], budget=budget)
+        except GatewayError as error:
+            return fallback(error.code)
+        except TimeoutError:
+            return fallback("timeout")
+        except (DatasetChanged, EvidenceUnavailable, InvalidFactRequest, UnknownEntity) as error:
+            return fallback(type(error).__name__)
+        call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
+        if call is None or call.name != "write_answer":
+            return fallback("no_reply")
+        text, citations = one_call.reply(call.arguments, sources)
+        if not text:
+            return fallback("no_text")
+        view = {"today": turn.campus_now.date().isoformat(), "offices": offices,
+                "sources": [{"n": s["n"], "urls": [s["url"]]} for s in sources if s.get("url")]}
+        problems = unsupported_by(text, view)
+        if problems:
+            trace["oneCallProblems"] = problems[:5]
+            return fallback("not_in_the_evidence")
+        trace.update(decidedBy="one_call", modelCalls=budget.calls,
+                     committedNusd=budget.committed_nusd, writer={"used": True},
+                     oneCall={"parts": len(vectors), "sections": len(sources),
+                              "offices": [o["office"] for o in offices]})
+        return answered(turn, text, "answered", citations, index.dataset_version)
 
     async def _pick_procedures(self, looked_up: list[tuple[str, int, OfficeRequest]],
                                results: dict[str, OfficeResult], output: list[dict[str, Any]],
@@ -1969,6 +2034,11 @@ class ChatEngine:
             identity_hash: str | None = None
             graph = CampusGraph(self.facts)
             trace["root"] = graph.root()
+        if (self.howto_one_call and self.output == "written" and floor_situation is None
+                and one_call.routes_here(context.latest_message)):
+            done = await self._one_call(turn, context, budget, trace)
+            if done is not None:
+                return done
         listing: dict[str, Any] | None = None
         try:
             async with asyncio.timeout(OFFICE_LIST_SECONDS):

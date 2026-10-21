@@ -1,0 +1,82 @@
+"""A how-to question answered by one model call from code-found evidence (one_call.py)."""
+
+import asyncio
+import json
+from collections.abc import Sequence
+from typing import Any
+
+from rockygpt_brain.contract import ChatRequest
+from rockygpt_brain.engine import ChatEngine
+from rockygpt_brain.one_call import parts_of, routes_here, search_text
+from rockygpt_brain.provider import Completion, ToolCall, TurnBudget, Usage
+from rockygpt_brain.turn import intake
+from test_engine import NOW, ScriptedGateway, completion, finish
+from test_meaning import meaning_service
+from test_writer import writing
+
+
+def one_reply(text: str, used: list[int]) -> Completion:
+    arguments = {"parts": [{"asked": "how to become a tutor", "sections": used, "facts": []}],
+                 "text": text, "used": used}
+    return Completion("", (ToolCall("w", "write_answer", arguments),),
+                      [{"type": "function_call", "call_id": "w", "name": "write_answer",
+                        "arguments": json.dumps(arguments)}], Usage(10, 10, 0))
+
+
+class PartsGateway(ScriptedGateway):
+    def __init__(self, *steps: Any) -> None:
+        super().__init__(*steps)
+        self.embedded: list[list[str]] = []
+
+    async def embed_many(self, texts: Sequence[str], *, dimensions: int,
+                         budget: TurnBudget) -> list[list[float]]:
+        self.embedded.append(list(texts))
+        return [[1.0, 0.0, 0.0] for _ in texts]
+
+
+def ask(gateway: Any, question: str) -> Any:
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
+    engine = ChatEngine(gateway, meaning_service(), output="written",  # type: ignore[arg-type]
+                        howto_one_call=True)
+    return asyncio.run(engine.answer(intake(request, now=NOW), request))
+
+
+def test_a_how_to_is_routed_here_and_menus_shuttles_and_plain_contacts_are_not() -> None:
+    assert routes_here("how do i become a peer tutor")
+    assert routes_here("can i get a refund on my meal plan if i withdraw")
+    assert not routes_here("what's for lunch at the atrium")
+    assert not routes_here("when is the next shuttle to the train station")
+    assert not routes_here("registrar email")
+    assert not routes_here("library hours")
+    # A question's parts are searched apart, and a short follow-up with the question before it.
+    assert parts_of("how do I apply for summer housing? and what does it cost") == [
+        "how do I apply for summer housing? and what does it cost",
+        "how do I apply for summer housing?", "and what does it cost"]
+    assert search_text("and for grad students?", "how do i apply for graduation") == (
+        "how do i apply for graduation\nand for grad students?")
+
+
+def test_one_call_says_the_sections_code_found_with_their_sources() -> None:
+    gateway = PartsGateway(one_reply(
+        "Center for Reading and Writing: Apply to become a peer tutor with the online form by "
+        "March 1. [1]", [1]))
+    result = ask(gateway, "how do i become a peer tutor")
+    text = result.body["answer"]
+    assert "March 1. [1]" in text and "Sources: [1](https://www.ramapo.edu/crw/tutor/)" in text
+    assert result.body["citations"][0]["url"] == "https://www.ramapo.edu/crw/tutor/"
+    assert result.trace is not None and result.trace["decidedBy"] == "one_call"
+    assert len(gateway.inputs) == 1 and gateway.embedded == [["how do i become a peer tutor"]]
+
+
+def test_a_reply_the_evidence_does_not_hold_goes_to_the_four_call_loop() -> None:
+    lookup = completion("graph_lookup", {"requests": [
+        {"query": "Center for Reading and Writing", "fields": ["procedures"],
+         "about": "become a peer tutor"}]})
+    pick = completion("pick_sections", {"picks": [{"lookup": 0, "sections": [0]}]})
+    gateway = PartsGateway(one_reply("Email tutors@example.com by March 1. [1]", [1]),
+                           lookup, pick, finish(), writing("Apply by March 1 [1]."))
+    result = ask(gateway, "how do i become a peer tutor")
+    assert result.trace is not None and result.trace["oneCall"] == {
+        "fallback": "not_in_the_evidence"}
+    assert result.trace["decidedBy"] != "one_call"
+    assert "tutors@example.com" not in result.body["answer"]
