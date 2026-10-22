@@ -1,0 +1,167 @@
+[
+ {
+  "id": "ac2-01",
+  "question": "what are the prereqs for cmps 147? im a business major thinking about adding a computing minor",
+  "answer": "The catalog entry for CMPS 147 says “Prerequisite Course or Placement Test:” but does not name a course or test [1]. The Registrar’s page says to select Computer Science to view class prerequisites; the information provided here does not show the resulting CMPS 147 requirements [4][5].\n\nFor adding a minor: an undergraduate degree may include a minor [7]. A minor must include between 16 and 24 credits, including non-General Education prerequisites and excluding lab science course credits; major courses may overlap, but no more than half of the minor credits may overlap [8]. These are general minor rules; I don’t have verified information about Computing minor-specific requirements.\n\nCenter for Student Success (Academic Advising): complete the online major/minor declaration form; the Registrar updates your record in 5–7 days after submission [9]. Registrar: if you need more fields for a minor, select “Add Another Section” [6].\n\nFor advice about the minor requirements, contact Center for Student Success (Academic Advising) at success@ramapo.edu or (201) 684-7441 [9]. Registrar: reg@ramapo.edu, (201) 684-7695 [6].\n\nSources: [1](https://catalog.ramapo.edu/courses/CMPS147) [4](https://www.ramapo.edu/registrar/course-prerequisites/) [5](https://www.ramapo.edu/registrar/course-prerequisites/) [6](https://www.ramapo.edu/registrar/declare-major-minor-certificate/) [7](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [8](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [9](https://www.ramapo.edu/myadvisor/)",
+  "answered_at": null,
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/CMPS147",
+   "https://www.ramapo.edu/registrar/course-prerequisites/",
+   "https://www.ramapo.edu/registrar/course-prerequisites/",
+   "https://www.ramapo.edu/registrar/declare-major-minor-certificate/",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://www.ramapo.edu/myadvisor/"
+  ]
+ },
+ {
+  "id": "ac2-02",
+  "question": "How many credits is the computer science minor and which courses does it require?",
+  "answer": "The Computer Science Minor (Minor) requires between 16 and 24 credits, including non-General Education prerequisites and excluding lab science course credits [2].\n\nIts listed requirements are [1]:\n- Group 1: Select 3 courses, at least 3 of: CMPS 130 SCI PROBLEM SOLVING-PYTHON; CMPS 147 COMPUTER SCIENCE I; CMPS 148 COMPUTER SCIENCE II; CMPS 220 ASSEMBLY LANGUAGE PROGRAMMING; CMPS 231 DATA STRUCTURES; CMPS 240 DATA ANALYTICS IN PYTHON; CMPS 285 MOBILE DEVELOPMENT; CMPS 305 CYBER SECURITY; CMPS 310 BIG DATA PROGRAMMING; CMPS 311 OPERATING SYSTEMS; CMPS 315 THE LINUX ENVIRONMENT; CMPS 320 MACHINE LEARNING; CMPS 327 NETWORK PROGRAMMING; CMPS 331 ARTIFICIAL INTELLIGENCE; an unnamed catalog entry; CMPS 337 COMPUTER VISION; CMPS 342 COMPUTER GRAPHICS; CMPS 345 ANALYSIS OF ALGORITHMS; CMPS 350 FINANCIAL MODELING; CMPS 357 THE .NET ENVIRONMENT; CMPS 361 SOFTWARE DESIGN; CMPS 364 DATABASE DESIGN; CMPS 366 ORGANIZATION OF PROGRAMMING LANGUAGES; CMPS 369 WEB APPLICATION DEVELOPMENT; CMPS 370 CYBER AND NETWORK DEFENSE; CMPS 373 OBJECT ORIENTED PROGRAMMING; CMPS 450 SENIOR PROJECT.\n- Group 2: Select 2 courses, at least 2 of: CMPS 305 CYBER SECURITY; CMPS 310 BIG DATA PROGRAMMING; CMPS 311 OPERATING SYSTEMS; CMPS 315 THE LINUX ENVIRONMENT; CMPS 320 MACHINE LEARNING; CMPS 327 NETWORK PROGRAMMING; CMPS 331 ARTIFICIAL INTELLIGENCE; an unnamed catalog entry; CMPS 337 COMPUTER VISION; CMPS 342 COMPUTER GRAPHICS; CMPS 345 ANALYSIS OF ALGORITHMS; CMPS 350 FINANCIAL MODELING; CMPS 357 THE .NET ENVIRONMENT; CMPS 361 SOFTWARE DESIGN; CMPS 364 DATABASE DESIGN; CMPS 366 ORGANIZATION OF PROGRAMMING LANGUAGES; CMPS 369 WEB APPLICATION DEVELOPMENT; CMPS 370 CYBER AND NETWORK DEFENSE; CMPS 373 OBJECT ORIENTED PROGRAMMING; CMPS 450 SENIOR PROJECT.\nNote: all 300-level courses have prerequisites. Two possible prerequisite sequences are Sequence 1: CMPS 147 + CMPS 148 + CMPS 231; Sequence 2: CMPS 130 + CMPS 240. All 300-level courses are available to students completing Sequence 1; a subset are available to students taking Sequence 2 [1].\nAlso published: Computer Science 4+1, Computer Science BS, and Computer Science MS.\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-MN-CMPS) [2](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1)",
+  "answered_at": null,
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-MN-CMPS",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1"
+  ]
+ },
+ {
+  "id": "ac2-03",
+  "question": "nursing major: what science classes do i need to take before the clinical courses start",
+  "answer": "For the Nursing Generic BSN, the program says students complete all general education and science requirements in the first two years before entering the two-year nursing sequence. The listed science courses are: BIOL 212 Microbiology for Health Science Lecture and BIOL 212L Microbiology for Health Science Laboratory; BIOL 214 Anatomy and Physiology I Lecture and BIOL 214L Anatomy & Physiology I Lab; BIOL 216 Anatomy & Physiology II Lecture and BIOL 216L Anatomy & Physiology II Lab; CHEM 111 Principles of Chemistry Lecture and CHEM 111L Principles of Chem Lab/Recitat; and PSYC 101 Introduction to Psychology. [2]\n\nSources: [2](https://catalog.ramapo.edu/programs/SN-BSN-NURG)",
+  "answered_at": null,
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BSN-NURG"
+  ]
+ },
+ {
+  "id": "ac2-04",
+  "question": "does bio 110 count for a gen ed natural science requirement or only for the bio major?",
+  "answer": "The pages provided don’t confirm whether BIO 110 counts for General Education or for a biology major. General Education includes a Scientific Reasoning category [8]; the approved courses are listed in the College Catalog [7]: https://catalog.ramapo.edu/college-wide-programs/gened#general-education-categories-and-courses. For confirmation, contact the Office of the Provost at provost@ramapo.edu or (201) 684-7330. [7]\n\nSources: [7](https://www.ramapo.edu/provost/curriculum-and-assessment/) [8](https://www.ramapo.edu/provost/curriculum-and-assessment/)",
+  "answered_at": null,
+  "cited_urls": [
+   "https://www.ramapo.edu/provost/curriculum-and-assessment/",
+   "https://www.ramapo.edu/provost/curriculum-and-assessment/"
+  ]
+ },
+ {
+  "id": "ac2-05",
+  "question": "what does acct 201 cover and is it required for all business majors",
+  "answer": "I don’t have verified information about what ACCT 201 covers or whether it is required for all business majors. The Accounting BS requirements list ACCT 221 and ACCT 222 as required courses, but do not list ACCT 201. [1] For clarification, contact the Anisfield School of Business at asb@ramapo.edu or (201) 684-7379. [1]\n\nSources: [1](https://catalog.ramapo.edu/programs/SB-BS-ACCT)",
+  "answered_at": null,
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SB-BS-ACCT"
+  ]
+ },
+ {
+  "id": "ac2-06",
+  "question": "I'm a junior in the data science major. Is there a recommended order for the upper level electives, and do I need calc 2 before the stats courses?",
+  "answer": "The Data Science BS plan is for students admitted during 2026–2027; it places DATA 301 and DATA 225 in third-year fall, MATH 370 (Applied Statistics) in third-year spring, CMPS 320 and a DATA Elective in fourth-year fall, and DATA 450 in fourth-year spring. It gives no recommended order among elective choices. The plan’s semester totals are: first-year fall 16, spring 16; second-year fall 16, spring 16; third-year fall 16, spring 16; fourth-year fall 16, spring 16. [1]\nThe major requires one 4-credit elective, chosen from CMPS 310, CMPS 331, CMPS 369, ECON 310, INFO 320, MATH 253, MATH 305, or MATH 390. [1] The pages don’t say whether Calc 2 is required before the statistics courses. [1–3]\nFor prerequisites, the Registrar says to “review the prerequisite requirements in Web Self Service” and check course descriptions there. [2] The course-prerequisite page says to select a subject to see prerequisites. [3] Registrar: reg@ramapo.edu; (201) 684-7695. [2]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-DSCI) [2](https://www.ramapo.edu/registrar/registrationinfo/) [3](https://www.ramapo.edu/registrar/course-prerequisites/)",
+  "answered_at": null,
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-DSCI",
+   "https://www.ramapo.edu/registrar/registrationinfo/",
+   "https://www.ramapo.edu/registrar/course-prerequisites/"
+  ]
+ },
+ {
+  "id": "ac2-07",
+  "question": "chem 125 credits?",
+  "answer": "**Registrar**\n\nHow-to and policies: Search course descriptions: 1. Select “Course Descriptions” and search by term. \\(page: “Select the link to “Course Descriptions,” search by term \\(i.e. Winter 2014\\).”\\) 2. Narrow the search by subject, course number range, title, schedule type, or college. \\(page: “The page yielded by the request allows you to search by: Subject \\(i.e. accounting to marketing\\) Course number range \\(one course number to another number\\) Title Sched… (see https://www.ramapo.edu/registrar/instructions-how-to-use-class-schedule-course-description-search/) [office-pages](https://www.ramapo.edu/registrar/instructions-how-to-use-class-schedule-course-description-search/)\n\nI found these details, but couldn't complete the rest of your request.\n\nIf you or someone else is in danger right now, call 911. If you are thinking about hurting yourself, call or text 988 (Suicide & Crisis Lifeline) to talk with someone right away. RockyGPT can't send help or stay with you, so please reach out to them now.",
+  "answered_at": "2026-10-21T22:58:03-04:00",
+  "cited_urls": [
+   "https://www.ramapo.edu/registrar/instructions-how-to-use-class-schedule-course-description-search/"
+  ]
+ },
+ {
+  "id": "ac2-08",
+  "question": "can I double major in finance and information systems, and how many total credits would the two together need",
+  "answer": "Yes. Ramapo says undergraduates may pursue a second major [5]. With two majors, no more than half the courses may count toward both, and you must complete all writing-intensive courses required for the second major [4].\n\nThe Finance BS plan for students admitted during 2026-2027 lists 128 credits [1]. That is not a stated combined total for Finance and Information Systems: undergraduates must complete at least 128 credits, and specific degree programs may exceed that minimum [7]. The supplied pages do not give Information Systems requirements or a combined credit total, so I can’t verify how many credits the two together require.\n\nFor help confirming the combined requirements, contact the Center for Student Success (Academic Advising) at success@ramapo.edu or (201) 684-7441, or the Anisfield School of Business at asb@ramapo.edu or (201) 684-7379.\n\nSources: [1](https://catalog.ramapo.edu/programs/SB-BS-FNCE) [4](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [5](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [7](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#graduation-requirements)",
+  "answered_at": null,
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SB-BS-FNCE",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#graduation-requirements"
+  ]
+ },
+ {
+  "id": "ac2-09",
+  "question": "Which classes do I still need to graduate? I'm a sophomore in biology with 58 credits",
+  "answer": "Center for Student Success (Academic Advising): To find which classes your major requires, generate a degree evaluation: visit web.ramapo.edu (https://web.ramapo.edu/), click “Web for Students,” then “Web Registration.” Enter the Secure Area with your Ramapo login and password. Click “Student and Financial Aid,” “Student Records,” then “Degree Evaluation.” Select the current term and click enter, then “Generate New Evaluation.” Click the circle next to your major and “Generate Request,” then select detail requirements and click “Submit.” [3]\nRegistrar: Review your degree audit and meet with your adviser to ensure you have met all graduation requirements. [4]\nOffice of the Provost: Review your Degree Audit (https://web.ramapo.edu/degree-audit-tools/) and make an appointment with your faculty academic advisor about completing the remaining courses required for graduation. If you need help finding your faculty advisor, review https://www.ramapo.edu/myadvisor/wp-content/uploads/sites/133/2026/02/How-to-Schedule-an-Appointment.pdf. [5]\nOffice of Specialized Services: Choose courses based on how you learn best and which instructional formats work for you. You need to complete the necessary courses yourself or seek advice from academic or department advisers. [6]\nOrientation Programs: Advisors are available by appointment to review course plans, major requirements, degree evaluations and graduation requirements. You can also discuss studying off-campus, repeating courses or applying for course overloads. [7]\n\nI can't see or change your personal student information, and I can't take actions for you, like registering for a class, dropping one or making a payment. Please use your own student account, or ask the campus office that handles it.\n\nSources: [1](https://www.ramapo.edu/studentsuccess/) [2](https://www.ramapo.edu/studentsuccess/policies/) [3](https://www.ramapo.edu/studentsuccess/faq/) [4](https://www.ramapo.edu/registrar/faq/) [5](https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/) [6](https://www.ramapo.edu/oss/resources-for-parents/) [7](https://www.ramapo.edu/orientation/staff/)",
+  "answered_at": "2026-10-21T22:58:16-04:00",
+  "cited_urls": [
+   "https://www.ramapo.edu/studentsuccess/faq/",
+   "https://www.ramapo.edu/studentsuccess/policies/",
+   "https://www.ramapo.edu/studentsuccess/",
+   "https://www.ramapo.edu/registrar/faq/",
+   "https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/",
+   "https://www.ramapo.edu/oss/resources-for-parents/",
+   "https://www.ramapo.edu/orientation/staff/"
+  ]
+ },
+ {
+  "id": "ac2-10",
+  "question": "are there any open sections of cmps 231 this spring and who teaches it",
+  "answer": "The Registrar’s Schedule of Classes is available for Spring 2027 [4], but the pages provided don’t show whether CMPS 231 has open sections or who teaches them. The Registrar says to “Select the link to ‘Class Schedules,’ search by term or date range,” then narrow by subject and course number; it also allows filtering by course level, attribute, and start and end times [5]. Contact the Registrar at reg@ramapo.edu or (201) 684-7695 [4].\n\nSources: [4](https://www.ramapo.edu/registrar/) [5](https://www.ramapo.edu/registrar/instructions-how-to-use-class-schedule-course-description-search/)",
+  "answered_at": null,
+  "cited_urls": [
+   "https://www.ramapo.edu/registrar/",
+   "https://www.ramapo.edu/registrar/instructions-how-to-use-class-schedule-course-description-search/"
+  ]
+ },
+ {
+  "id": "ac2-11",
+  "question": "does a statistics course like math 110 satisfy the quantitative reasoning gen ed, or do business majors need a different one",
+  "answer": "MATH 110 PRECALCULUS is listed as 4 credits and has the attribute “Gen Ed 18-Quantitative Rsng (GEQR),” so it is identified as a Quantitative Reasoning course. Its prerequisite is listed as “Prerequisite Course or Placement Test:” [2] Quantitative Reasoning is a General Education requirement; the Provost page says to take one course in that category within the first 64 credits. [3] See approved General Education courses in the College Catalog: https://catalog.ramapo.edu/college-wide-programs/gened#general-education-categories-and-courses [8]\n\nThe pages don’t specify that business majors need a different Quantitative Reasoning course. For confirmation, contact the Office of the Provost at provost@ramapo.edu or (201) 684-7330. [3]\n\nSources: [2](https://catalog.ramapo.edu/courses/MATH110) [3](https://www.ramapo.edu/provost/curriculum-and-assessment/) [8](https://www.ramapo.edu/provost/curriculum-and-assessment/)",
+  "answered_at": null,
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/MATH110",
+   "https://www.ramapo.edu/provost/curriculum-and-assessment/",
+   "https://www.ramapo.edu/provost/curriculum-and-assessment/"
+  ]
+ },
+ {
+  "id": "ac2-12",
+  "question": "is there a certificate in cybersecurity or anything like that for computing students",
+  "answer": "The pages provided don’t identify a cybersecurity certificate. They do list a Cybersecurity minor, open to students in any major [2]: https://catalog.ramapo.edu/programs/SN-MN-CYBR\n\nMinor requirements [2]: choose 1 Cybersecurity Core course: CMPS 305 Cyber Security, CMPS 370 Cyber and Network Defense, or INFO 340 Cybersecurity; choose 1 Ethics/Policy/Law course: DATA 225 Ethics of Technology or INFO 315 Computer Law and Ethics; take INFO 224 Principles of Information Technology; choose 2 electives: DATA 301 Data Analysis & Visualization, CMPS 285 Mobile Development, CMPS 315 The Linux Environment, CMPS 327 Network Programming, CMPS 364 Database Design, CMPS 369 Web Application Development, INFO 316 Introduction to Digital Forensics, INFO 320 Tools for Analytics and AI, INFO 333 Data Visualization, INFO 335 Networks and Distributed Processing, INFO 342 Systems Analysis and Design, INFO 441 Information Technology Management, or MATH 240 Cryptography.\n\nRamapo describes certificates as packages of credit-bearing courses (Academic Certificates) or non-credit learning experiences (Professional Certificates) [17]. For information about whether a cybersecurity certificate is available, contact the Office of the Provost: provost@ramapo.edu, (201) 684-7330 [3].\n\nSources: [2](https://catalog.ramapo.edu/programs/SN-MN-CYBR) [3](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#certificate-programs1) [17](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#certificate-programs1)",
+  "answered_at": null,
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-MN-CYBR",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#certificate-programs1",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#certificate-programs1"
+  ]
+ },
+ {
+  "id": "ac2-13",
+  "question": "what's the difference between the BS and BA in biology, which classes are different",
+  "answer": "The pages provided list Biology as a B.S. [3] The B.S. requirements include core biology, chemistry, physics, math, ecology, electives, and Career Pathways courses. [1] They do not give Biology B.A. requirements, so I can’t verify the difference or identify which classes differ. For a comparison, contact the Center for Student Success (Academic Advising) at success@ramapo.edu or (201) 684-7441. [12]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-BIOL) [3](https://www.ramapo.edu/undergraduate/agenda/) [12](https://www.ramapo.edu/studentsuccess/major/)",
+  "answered_at": null,
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-BIOL",
+   "https://www.ramapo.edu/undergraduate/agenda/",
+   "https://www.ramapo.edu/studentsuccess/major/"
+  ]
+ },
+ {
+  "id": "ac2-14",
+  "question": "Should I take organic chemistry or anatomy first if I want to apply to nursing, which one is easier",
+  "answer": "For the Nursing Generic BSN, the recommended plan for students admitted in 2026–2027 places Principles of Chemistry (CHEM 111) in first-year fall and Anatomy & Physiology I (BIOL 214) in second-year fall, followed by Anatomy & Physiology II in second-year spring [3]. That is not organic chemistry: the listed pre-nursing science requirements include CHEM 111 and anatomy and physiology, not organic chemistry [3]. The Accelerated BSN bridge prerequisites likewise list CHEM 111 and Anatomy & Physiology I and II, but specify no order [2].\n\nThe pages don’t say which course is easier. For advice on your course sequence, contact the Center for Student Success, the College’s primary resource for academic advisement: https://www.ramapo.edu/studentsuccess/ [6].\n\nSources: [2](https://catalog.ramapo.edu/programs/SN-BSN-NURA) [3](https://catalog.ramapo.edu/programs/SN-BSN-NURG) [6](https://www.ramapo.edu/adult-students/services/)",
+  "answered_at": null,
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BSN-NURA",
+   "https://catalog.ramapo.edu/programs/SN-BSN-NURG",
+   "https://www.ramapo.edu/adult-students/services/"
+  ]
+ },
+ {
+  "id": "ac2-15",
+  "question": "what is the prerequisite chain for upper level marketing courses like mktg 301 and do I need junior standing",
+  "answer": "The Registrar’s prerequisite page says to “Select a subject to see class prerequisites” and lists Marketing. [2] Its registration guidance says to “review the prerequisite requirements in Web Self Service” and check “Course/Catalog Description” there. [3] The provided pages don’t give the prerequisite chain for MKTG 301 or say whether junior standing is required for it. [2][3]\n\nRamapo defines junior standing as having completed 64 credits, but that does not establish it as a MKTG 301 prerequisite. [12]\n\nFor the lookup, Registrar: https://www.ramapo.edu/registrar/course-prerequisites/; reg@ramapo.edu; (201) 684-7695. [2][3] For course-specific clarification, contact the Anisfield School of Business: asb@ramapo.edu; (201) 684-7379, (201) 684-7380, or (201) 684-7378.\n\nSources: [2](https://www.ramapo.edu/registrar/course-prerequisites/) [3](https://www.ramapo.edu/registrar/registrationinfo/) [12](https://www.ramapo.edu/myadvisor/advisement-by-year/)",
+  "answered_at": null,
+  "cited_urls": [
+   "https://www.ramapo.edu/registrar/course-prerequisites/",
+   "https://www.ramapo.edu/registrar/registrationinfo/",
+   "https://www.ramapo.edu/myadvisor/advisement-by-year/"
+  ]
+ }
+]
