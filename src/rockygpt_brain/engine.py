@@ -1594,13 +1594,14 @@ class ChatEngine:
 
     def _academics_by_meaning(self, index: MeaningIndex, vector: Sequence[float], message: str,
                               ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        """The programs (at most two) and course (at most one) whose cards best match the
-        question's meaning, above academics.py's floors."""
+        """The programs (at most two) and courses (at most three, near-tied: CMPS 320 and the
+        graduate CMPS 620 both teach machine learning) whose cards best match the question's
+        meaning, above academics.py's floors."""
         names = {e["id"]: str(e["name"]) for e in self.facts.identities(("program", "course"))}
         programs = academics.by_meaning(index.academic_scores(vector, "program"), names, message,
                                         academics.PROGRAM_FLOOR, 2)
         courses = academics.by_meaning(index.academic_scores(vector, "course"), names, message,
-                                       academics.COURSE_FLOOR, 1)
+                                       academics.COURSE_FLOOR, 3)
         return programs, courses
 
     def _read_programs(self, programs: Sequence[dict[str, Any]], others: Sequence[str],
