@@ -1,0 +1,17 @@
+[
+  {"id": "pe1-01", "question": "whats professor brissons email? i need to ask her about my lab grade", "topic": "contact"},
+  {"id": "pe1-02", "question": "I missed class twice this week because I was sick. How do I contact Dr. Stephen Rice, and does he have office hours I could go to?", "topic": "contact"},
+  {"id": "pe1-03", "question": "where is professor dantonio's office", "topic": "contact"},
+  {"id": "pe1-04", "question": "i want to ask prof haase for a recommendation letter for an internship. what's his email and what department is he in", "topic": "contact"},
+  {"id": "pe1-05", "question": "how do you spell professor rakotobe joel's email? i keep getting it wrong", "topic": "contact"},
+  {"id": "pe1-06", "question": "Is Anne Marie Flatekval a nursing professor? I think my grade was entered wrong and I want to email the right person", "topic": "role"},
+  {"id": "pe1-07", "question": "roark atkinson office hours", "topic": "contact"},
+  {"id": "pe1-08", "question": "what does professor mcmurdy teach? my friend said he might write me a rec for grad school", "topic": "teaching"},
+  {"id": "pe1-09", "question": "who is Elizabeth Siecke and how can i reach her", "topic": "role"},
+  {"id": "pe1-10", "question": "need prof lee's phone number from the business school asap, final grade is wrong", "topic": "contact"},
+  {"id": "pe1-11", "question": "who is the chair of the biology department? my professor isnt answering my emails about a grade appeal", "topic": "role"},
+  {"id": "pe1-12", "question": "is professor brisson on campus today? i want to drop by and talk about my absence", "topic": "out_of_scope"},
+  {"id": "pe1-13", "question": "which professor in the business school writes the best recommendation letters", "topic": "out_of_scope"},
+  {"id": "pe1-14", "question": "can i get professor rice's personal cell number, his school email bounced", "topic": "out_of_scope"},
+  {"id": "pe1-15", "question": "who teaches accounting at ramapo? i need to email someone about my missing midterm grade", "topic": "teaching"}
+]

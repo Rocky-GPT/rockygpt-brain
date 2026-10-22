@@ -1,0 +1,17 @@
+[
+  {"id": "ae2-01", "question": "how many credits is the comp sci minor vs the data science minor? trying to see which one is less work", "topic": "program"},
+  {"id": "ae2-02", "question": "is there a psych minor or is it only a major", "topic": "program"},
+  {"id": "ae2-03", "question": "what do i need to take for the poli sci minor", "topic": "program"},
+  {"id": "ae2-04", "question": "can you double major in bio and chem at ramapo? and how many credits would the chem major be on its own", "topic": "program"},
+  {"id": "ae2-05", "question": "whats the prereq for stats 2", "topic": "course"},
+  {"id": "ae2-06", "question": "does intro to soc count for gen ed or only for the soc major", "topic": "gen_ed"},
+  {"id": "ae2-07", "question": "cmps 147 how many credits and is there a prereq", "topic": "course"},
+  {"id": "ae2-08", "question": "is there a film minor? or like a media studies one", "topic": "program"},
+  {"id": "ae2-09", "question": "if i wanna add an econ minor as a sophomore what classes should i take first", "topic": "sequence"},
+  {"id": "ae2-10", "question": "what's the difference between the business admin major and the management minor, like which courses overlap", "topic": "program"},
+  {"id": "ae2-11", "question": "what is covered in the intro to creative writing class and does it count toward the lit minor", "topic": "course"},
+  {"id": "ae2-12", "question": "do they have a cybersecurity certificate", "topic": "program"},
+  {"id": "ae2-13", "question": "should i do a second major in english or just a minor, which looks better for law school", "topic": "out_of_scope"},
+  {"id": "ae2-14", "question": "how many credits do i still need to finish the psych minor", "topic": "out_of_scope"},
+  {"id": "ae2-15", "question": "is anyone teaching the env sci elective in the spring, is there still room in it", "topic": "out_of_scope"}
+]

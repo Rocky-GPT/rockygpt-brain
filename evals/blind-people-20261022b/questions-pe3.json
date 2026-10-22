@@ -1,0 +1,17 @@
+[
+  {"id": "pe3-01", "question": "who is the dean of the anisfield school of business", "topic": "role"},
+  {"id": "pe3-02", "question": "Hi, I just started working in the School of Social Sciences and Social Work. Who is the dean there and what's their email?", "topic": "contact"},
+  {"id": "pe3-03", "question": "can you list the faculty who teach history at ramapo", "topic": "teaching"},
+  {"id": "pe3-04", "question": "whats Stacie Tarranto's email and office", "topic": "contact"},
+  {"id": "pe3-05", "question": "Who is the chair of the psychology department? Is it Sandra Gonsalves Domond?", "topic": "role"},
+  {"id": "pe3-06", "question": "phone number for professor ellsworth in social sciences", "topic": "contact"},
+  {"id": "pe3-07", "question": "I'm visiting campus next week and want to meet with Rebecca Root. What is her title and where is her office located?", "topic": "contact"},
+  {"id": "pe3-08", "question": "what does christian reich research", "topic": "teaching"},
+  {"id": "pe3-09", "question": "who handles faculty questions in the school of science nursing and health, like an assistant dean or office contact", "topic": "role"},
+  {"id": "pe3-10", "question": "Is Dr. Dasgupta in her office today? I need to drop off some paperwork", "topic": "out_of_scope"},
+  {"id": "pe3-11", "question": "list of nursing faculty", "topic": "teaching"},
+  {"id": "pe3-12", "question": "what department is cort engelken in and what does he teach", "topic": "role"},
+  {"id": "pe3-13", "question": "Who's the best professor in the business school to take for marketing? I heard Renee Cornell is good", "topic": "out_of_scope"},
+  {"id": "pe3-14", "question": "email for julie norflus good and her office hours", "topic": "contact"},
+  {"id": "pe3-15", "question": "can i get joan richards' home phone number, its kind of urgent", "topic": "out_of_scope"}
+]

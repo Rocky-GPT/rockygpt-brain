@@ -1,0 +1,297 @@
+[
+ {
+  "id": "ef1-01",
+  "question": "anything going on on campus today between like 11 and 2? i have a long gap between classes",
+  "topic": "event"
+ },
+ {
+  "id": "ef1-02",
+  "question": "is there free food anywhere today",
+  "topic": "event"
+ },
+ {
+  "id": "ef1-03",
+  "question": "Are there any events during common hour this week? I commute so I can't stay late at night",
+  "topic": "event"
+ },
+ {
+  "id": "ef1-04",
+  "question": "is there a commuter student club or org? how do i join",
+  "topic": "club"
+ },
+ {
+  "id": "ef1-05",
+  "question": "whats happening next tuesday afternoon",
+  "topic": "event"
+ },
+ {
+  "id": "ef1-06",
+  "question": "any career fair or resume workshop coming up? where is it and do i need to register",
+  "topic": "event"
+ },
+ {
+  "id": "ef1-07",
+  "question": "list of cultural clubs at ramapo",
+  "topic": "club"
+ },
+ {
+  "id": "ef1-08",
+  "question": "is there a gaming or esports club",
+  "topic": "club"
+ },
+ {
+  "id": "ef1-09",
+  "question": "when does the photography club meet? i only have time on mon/wed mornings",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ef1-10",
+  "question": "any home games this weekend? is it free for students",
+  "topic": "event"
+ },
+ {
+  "id": "ef1-11",
+  "question": "Is the event in the student center today crowded right now? Trying to decide if its worth walking over",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ef1-12",
+  "question": "who's hosting the thing in the Friends Hall tomorrow and what time does it start",
+  "topic": "event"
+ },
+ {
+  "id": "ef1-13",
+  "question": "i'm a business major and dont live on campus, which club should i join to actually meet people",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ef1-14",
+  "question": "are there any service or volunteer clubs? link to their page pls",
+  "topic": "club"
+ },
+ {
+  "id": "ef1-15",
+  "question": "any workshops or study skills type events thursday before 3pm",
+  "topic": "event"
+ },
+ {
+  "id": "ef2-01",
+  "question": "whats going on on campus tonight",
+  "topic": "event"
+ },
+ {
+  "id": "ef2-02",
+  "question": "anything fun happening this weekend? i live in the dorms and dont have a car so it has to be on campus",
+  "topic": "event"
+ },
+ {
+  "id": "ef2-04",
+  "question": "when is the next home basketball game and do students get in free?",
+  "topic": "event"
+ },
+ {
+  "id": "ef2-05",
+  "question": "are there any movie nights or trivia nights coming up next week",
+  "topic": "event"
+ },
+ {
+  "id": "ef2-06",
+  "question": "whats happening next friday night after like 7",
+  "topic": "event"
+ },
+ {
+  "id": "ef2-07",
+  "question": "is there an anime club",
+  "topic": "club"
+ },
+ {
+  "id": "ef2-08",
+  "question": "what cultural clubs are there? im filipino and want to meet other filipino students",
+  "topic": "club"
+ },
+ {
+  "id": "ef2-09",
+  "question": "how do i join a club here, do i just show up or do i have to sign up somewhere",
+  "topic": "club"
+ },
+ {
+  "id": "ef2-10",
+  "question": "does ramapo have greek life and how does rushing work for freshmen",
+  "topic": "club"
+ },
+ {
+  "id": "ef2-11",
+  "question": "is there a hiking or outdoors club and where can i find their page",
+  "topic": "club"
+ },
+ {
+  "id": "ef2-12",
+  "question": "any concerts or comedy shows this sat or sun? and where are they",
+  "topic": "event"
+ },
+ {
+  "id": "ef2-13",
+  "question": "what time does the gaming club meet and whos the president",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ef2-14",
+  "question": "im kinda shy and want to make friends, which club should i join",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ef2-15",
+  "question": "is the halloween party on saturday gonna be packed? how many ppl usually go",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ef3-01",
+  "question": "is there a mens soccer home game this weekend?",
+  "topic": "event"
+ },
+ {
+  "id": "ef3-02",
+  "question": "My parents are visiting campus next saturday. Are there any games or shows going on that day we could all go to, and do they cost anything?",
+  "topic": "event"
+ },
+ {
+  "id": "ef3-03",
+  "question": "when's the next womens basketball game and where do they play",
+  "topic": "event"
+ },
+ {
+  "id": "ef3-04",
+  "question": "any theater or dance performances coming up in the next couple weeks?",
+  "topic": "event"
+ },
+ {
+  "id": "ef3-05",
+  "question": "how do i sign up for intramurals",
+  "topic": "club"
+ },
+ {
+  "id": "ef3-06",
+  "question": "is there a club for ultimate frisbee or some kind of club sports team i can join?",
+  "topic": "club"
+ },
+ {
+  "id": "ef3-07",
+  "question": "Hi, I'm a parent of a Ramapo student. What time does the concert in the Berrie Center start tonight and is there parking for visitors nearby?",
+  "topic": "event"
+ },
+ {
+  "id": "ef3-08",
+  "question": "whats happening on campus tonight",
+  "topic": "event"
+ },
+ {
+  "id": "ef3-09",
+  "question": "who won the volleyball game last night and what was the score",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ef3-10",
+  "question": "is there an a capella group or a choir club?? also when do they perform",
+  "topic": "club"
+ },
+ {
+  "id": "ef3-11",
+  "question": "what arts clubs are there at ramapo",
+  "topic": "club"
+ },
+ {
+  "id": "ef3-12",
+  "question": "Is family weekend this year and what events are planned for it?",
+  "topic": "event"
+ },
+ {
+  "id": "ef3-13",
+  "question": "is the basketball game friday gonna be packed? should we get there early to get seats",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ef3-14",
+  "question": "who is the president of the dance team and when do they practice",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ef3-15",
+  "question": "any free events next week? like an art gallery opening or a student film screening",
+  "topic": "event"
+ },
+ {
+  "id": "ef4-01",
+  "question": "are there any career fairs or networking events coming up this month?",
+  "topic": "event"
+ },
+ {
+  "id": "ef4-02",
+  "question": "Is there a guest speaker or panel happening this week? Ideally something business or finance related",
+  "topic": "event"
+ },
+ {
+  "id": "ef4-03",
+  "question": "resume workshop tmrw?",
+  "topic": "event"
+ },
+ {
+  "id": "ef4-04",
+  "question": "is there a pre-law club or society at ramapo",
+  "topic": "club"
+ },
+ {
+  "id": "ef4-05",
+  "question": "What professional or pre-professional student orgs are there? I'm an accounting major junior and want something that looks good on a resume",
+  "topic": "club"
+ },
+ {
+  "id": "ef4-06",
+  "question": "any events next friday? where is it and do i need to register",
+  "topic": "event"
+ },
+ {
+  "id": "ef4-07",
+  "question": "Does Ramapo have a Black Student Union or other cultural orgs? how do i join one",
+  "topic": "club"
+ },
+ {
+  "id": "ef4-08",
+  "question": "whos hosting the internship info session and is it free",
+  "topic": "event"
+ },
+ {
+  "id": "ef4-09",
+  "question": "is ther a marketing club or AMA chapter",
+  "topic": "club"
+ },
+ {
+  "id": "ef4-10",
+  "question": "anything happening tonight thats actually useful for my career, like linkedin headshots or mock interviews",
+  "topic": "event"
+ },
+ {
+  "id": "ef4-11",
+  "question": "Can you send me the link to the Society for Human Resource Management club page?",
+  "topic": "club"
+ },
+ {
+  "id": "ef4-12",
+  "question": "what cultural events are on this weekend and do any have free food",
+  "topic": "event"
+ },
+ {
+  "id": "ef4-13",
+  "question": "when does the finance club meet and who's the president",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ef4-14",
+  "question": "which club should I join if I want to get into consulting after graduation?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ef4-15",
+  "question": "how many people usually show up to the career fair, is it worth going?",
+  "topic": "out_of_scope"
+ }
+]

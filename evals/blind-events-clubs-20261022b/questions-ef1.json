@@ -1,0 +1,17 @@
+[
+  {"id": "ef1-01", "question": "anything going on on campus today between like 11 and 2? i have a long gap between classes", "topic": "event"},
+  {"id": "ef1-02", "question": "is there free food anywhere today", "topic": "event"},
+  {"id": "ef1-03", "question": "Are there any events during common hour this week? I commute so I can't stay late at night", "topic": "event"},
+  {"id": "ef1-04", "question": "is there a commuter student club or org? how do i join", "topic": "club"},
+  {"id": "ef1-05", "question": "whats happening next tuesday afternoon", "topic": "event"},
+  {"id": "ef1-06", "question": "any career fair or resume workshop coming up? where is it and do i need to register", "topic": "event"},
+  {"id": "ef1-07", "question": "list of cultural clubs at ramapo", "topic": "club"},
+  {"id": "ef1-08", "question": "is there a gaming or esports club", "topic": "club"},
+  {"id": "ef1-09", "question": "when does the photography club meet? i only have time on mon/wed mornings", "topic": "out_of_scope"},
+  {"id": "ef1-10", "question": "any home games this weekend? is it free for students", "topic": "event"},
+  {"id": "ef1-11", "question": "Is the event in the student center today crowded right now? Trying to decide if its worth walking over", "topic": "out_of_scope"},
+  {"id": "ef1-12", "question": "who's hosting the thing in the Friends Hall tomorrow and what time does it start", "topic": "event"},
+  {"id": "ef1-13", "question": "i'm a business major and dont live on campus, which club should i join to actually meet people", "topic": "out_of_scope"},
+  {"id": "ef1-14", "question": "are there any service or volunteer clubs? link to their page pls", "topic": "club"},
+  {"id": "ef1-15", "question": "any workshops or study skills type events thursday before 3pm", "topic": "event"}
+]
