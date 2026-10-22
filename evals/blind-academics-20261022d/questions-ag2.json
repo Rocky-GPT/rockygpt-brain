@@ -1,0 +1,17 @@
+[
+  {"id": "ag2-01", "question": "how many credits is orgo 1 and does it have a lab with it", "topic": "course"},
+  {"id": "ag2-02", "question": "what are the prereqs for calc 3", "topic": "course"},
+  {"id": "ag2-03", "question": "Does Physics 1 count for a gen ed? I'm a bio major and trying to figure out if I can double dip it with my major requirements.", "topic": "gen_ed"},
+  {"id": "ag2-04", "question": "is biochem a separate lab or is the lab built into the course", "topic": "course"},
+  {"id": "ag2-05", "question": "what does linear algebra actually cover at ramapo? like is it proof heavy or more computational", "topic": "course"},
+  {"id": "ag2-06", "question": "can i take discrete math and data structures at the same time or is one a prereq for the other", "topic": "course"},
+  {"id": "ag2-07", "question": "how many credits do i still need to graduate as a chem major", "topic": "out_of_scope"},
+  {"id": "ag2-08", "question": "whats the difference between gen chem 1 and the intro chem class for non majors, and which one counts for the bio major", "topic": "course"},
+  {"id": "ag2-09", "question": "is there a minor in statistics or data science? how many credits would it be", "topic": "program"},
+  {"id": "ag2-10", "question": "who's teaching cell bio next semester and are there still seats in the morning section", "topic": "out_of_scope"},
+  {"id": "ag2-11", "question": "what upper level electives are required for the math major, and do i need to take abstract algebra or real analysis or both", "topic": "program"},
+  {"id": "ag2-12", "question": "prereq for genetics?", "topic": "course"},
+  {"id": "ag2-13", "question": "I'm a junior in environmental science. What courses are supposed to be taken junior and senior year in the recommended sequence, and when is the capstone?", "topic": "sequence"},
+  {"id": "ag2-14", "question": "should i take p chem or organic 2 next fall, which is easier", "topic": "out_of_scope"},
+  {"id": "ag2-15", "question": "does stats for the sciences fill the quantitative reasoning gen ed or do i need a separate math course for that", "topic": "gen_ed"}
+]
