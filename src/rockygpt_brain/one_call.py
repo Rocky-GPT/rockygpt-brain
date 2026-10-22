@@ -46,6 +46,10 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
 - Answer every part of the question. Before saying a part is not covered, check every section
   given, including its section_words. For a part no section answers, say once that you don't have
   verified information about it, and point to the office most likely to help with its contacts.
+- computed are facts code worked out from the catalog (whether a program is published at the
+  level asked, credits and their sums, Gen Ed attributes, catalog credit totals): state every one
+  that answers the question, exactly as given, with its number. They override any page section:
+  a page that disagrees with the catalog is out of date, and is not repeated.
 - A program's requirements (programs.requirements) were written out by code from the catalog: say
   them as given, every course and how many of a list to take, with their notes; never add up
   credits or courses yourself. Name the program and its degree; when also_published lists its
@@ -322,9 +326,11 @@ def messages(question: str, earlier_user: str | None, offices: list[dict[str, An
              today: date, programs: Sequence[dict[str, Any]] = (),
              calendar: dict[str, Any] | None = None,
              clubs: Sequence[dict[str, Any]] = (),
-             people: Sequence[dict[str, Any]] = ()) -> list[dict[str, Any]]:
+             people: Sequence[dict[str, Any]] = (),
+             computed: Sequence[dict[str, Any]] = ()) -> list[dict[str, Any]]:
     given = {"today": f"{today:%A, %B} {today.day}, {today.year}", "question": question,
              **({"earlier_question": earlier_user} if earlier_user else {}),
+             **({"computed": list(computed)} if computed else {}),
              **({"programs": list(programs)} if programs else {}),
              **({"calendar": calendar} if calendar else {}),
              **({"clubs": list(clubs)} if clubs else {}),
