@@ -1,1261 +1,364 @@
-"""Stateless HTTP boundary for the student assistant."""
+"""HTTP admission and the single bounded chat path."""
 
 import asyncio
-import hmac
 import json
 import logging
 import os
-from datetime import UTC, datetime
-from importlib.resources import files
-from threading import BoundedSemaphore, Event, Lock
-from time import monotonic, thread_time
-from typing import Any, cast
-from uuid import UUID, uuid4
-from zoneinfo import ZoneInfo
+import secrets
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
+from dataclasses import replace
+from datetime import datetime
+from pathlib import Path
+from typing import Annotated, Literal
 
-from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from fastapi import FastAPI, Header, Query, Request
+from fastapi.exception_handlers import http_exception_handler
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.datastructures import Headers
+from starlette.exceptions import HTTPException
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from rockygpt_brain.api.campus import router as campus_router
-from rockygpt_brain.api.directory import router as directory_router
-from rockygpt_brain.api.graph import router as graph_router
-from rockygpt_brain.api.identities import _require_development
-from rockygpt_brain.api.identities import router as identities_router
-from rockygpt_brain.api.stream import stream_turn
-from rockygpt_brain.campus.formats import failure_help
-from rockygpt_brain.campus.progress import (
-    ProgressCallback,
-    ProgressUpdate,
-    TurnCancelled,
-    WorkLog,
+from rockygpt_brain.api.dev import add_dev_routes
+from rockygpt_brain.boundary import check
+from rockygpt_brain.contract import CONVERSATION_ID_HEADER, CONVERSATION_ID_PATTERN, ChatRequest
+from rockygpt_brain.engine import HELP_SECONDS, ChatEngine, ChatResult, answered, failed
+from rockygpt_brain.failures import failure
+from rockygpt_brain.provider import Gateway, GatewayError
+from rockygpt_brain.retrieval import (
+    DatasetChanged,
+    EntityFacts,
+    EvidenceUnavailable,
+    InvalidFactRequest,
+    PostgresEntityFacts,
+    UnknownEntity,
 )
-from rockygpt_brain.config import RELEASE, ConfigurationError, configuration_hash, load_deployment
-from rockygpt_brain.contracts import ChatRequest
-from rockygpt_brain.core import InvalidAnswer, PaidGateway, open_gateway, run_turn
-from rockygpt_brain.core.engine import safety_facts
-from rockygpt_brain.core.templates import template_catalog
-from rockygpt_brain.governance import BodyLimitMiddleware, PaidCallError, PostgresLedger
-from rockygpt_brain.governance.redaction import redact
-from rockygpt_brain.retrieval import CampusData
-
-load_dotenv()
-# The API schema and the operator routes below (turn logs, stored feedback, eval
-# runs, prompts, answer templates, raw records) are for the Dev control room, which
-# only talks to a development Brain. The public production host answers 404 for all
-# of them.
-app = FastAPI(
-    title="RockyGPT Brain",
-    version="1.0.0",
-    openapi_url="/openapi.json" if os.getenv("BRAIN_ENVIRONMENT") == "development" else None,
-)
-DEVELOPMENT_ONLY = [Depends(_require_development)]
-app.add_middleware(BodyLimitMiddleware)
-app.include_router(identities_router)
-app.include_router(graph_router)
-app.include_router(directory_router)
-app.include_router(campus_router)
-CAMPUS_TIMEZONE = ZoneInfo("America/New_York")
-TURN_SLOTS = BoundedSemaphore(RELEASE.active_turns)
-HTTP_TURN_SECONDS = RELEASE.http_turn_seconds
-
-
-def _iso_text(value: Any) -> str:
-    # Datetimes render as ISO 8601; anything else, including None, uses str().
-    if hasattr(value, "isoformat"):
-        text: str = value.isoformat()
-        return text
-    return str(value)
-WORKERS: set[asyncio.Task[dict[str, object] | JSONResponse]] = set()
-
-
-@app.get("/health", response_model=None)
-@app.head("/health", include_in_schema=False, response_model=None)
-def health() -> dict[str, str] | JSONResponse:
-    # Render switches traffic to a deploy once this answers. A Brain that cannot
-    # load its settings reports unhealthy, so the previous instance keeps serving.
-    # Settings only: a database or model outage must not restart the process.
-    try:
-        load_deployment()
-    except ConfigurationError as error:
-        logging.getLogger(__name__).warning("Brain is not configured: %s", error)
-        return JSONResponse(status_code=503, content={"status": "misconfigured"})
-    return {"status": "ok"}
-
-
-@app.get("/readiness", response_model=None)
-def readiness() -> dict[str, object] | JSONResponse:
-    if not os.getenv("DATABASE_URL"):
-        return JSONResponse(status_code=503, content={"status": "unavailable"})
-    data = CampusData(os.environ["DATABASE_URL"], datetime.now(CAMPUS_TIMEZONE))
-    try:
-        deployment = load_deployment()
-        PostgresLedger(deployment.ledger_url, deployment.environment).readiness()
-        if (
-            not RELEASE.price.valid_from
-            <= datetime.now(CAMPUS_TIMEZONE).date()
-            < (RELEASE.price.valid_until)
-        ):
-            raise ConfigurationError("Price configuration expired")
-        result: dict[str, object] = {"status": "ready", "campus_data": data.readiness()}
-        if deployment.environment == "development":
-            result["development"] = {
-                "release_version": RELEASE.version,
-                "revision": brain_revision(),
-                "configurationHash": configuration_hash(),
-                "identities": data.identity_readiness(),
-            }
-        return result
-    except ConfigurationError as error:
-        logging.getLogger(__name__).warning("Brain is not ready: %s", error)
-        return JSONResponse(status_code=503, content={"status": "unavailable"})
-    except Exception as error:
-        # The class only: a connection error can carry a host and login name.
-        logging.getLogger(__name__).warning("Brain is not ready: %s", type(error).__name__)
-        return JSONResponse(status_code=503, content={"status": "unavailable"})
-    finally:
-        data.close()
-
-
-# One measurement serves every storage request for a minute: counting passages reads
-# the whole passage table, and this route is public in production.
-STORAGE_SECONDS = 60.0
-_storage_lock = Lock()
-_storage_summary: tuple[float, dict[str, Any]] | None = None
-
-
-@app.get("/v1/storage", response_model=None)
-def storage() -> dict[str, Any] | JSONResponse:
-    """How big the campus database is and what uses it: sizes and counts, never content.
-
-    Production serves it too, so the local Dev control room can watch the hosted
-    database's free-plan storage limit.
-    """
-    global _storage_summary
-    if not os.getenv("DATABASE_URL"):
-        return JSONResponse(status_code=503, content={"error": "storage_unavailable"})
-    with _storage_lock:
-        if _storage_summary is None or monotonic() - _storage_summary[0] >= STORAGE_SECONDS:
-            data = CampusData(os.environ["DATABASE_URL"], datetime.now(CAMPUS_TIMEZONE))
-            try:
-                summary = data.storage()
-            except Exception as error:
-                # The class only: a connection error can carry a host and login name.
-                logging.getLogger(__name__).warning(
-                    "Storage summary failed: %s", type(error).__name__
-                )
-                return JSONResponse(status_code=503, content={"error": "storage_unavailable"})
-            finally:
-                data.close()
-            _storage_summary = (
-                monotonic(),
-                {
-                    **summary,
-                    "environment": os.getenv("BRAIN_ENVIRONMENT", "development"),
-                    "measuredAt": datetime.now(UTC).isoformat(),
-                },
-            )
-        return _storage_summary[1]
-
-
-@app.get("/v1/logs", response_model=None, dependencies=DEVELOPMENT_ONLY)
-def get_logs(limit: int = 50) -> dict[str, Any] | JSONResponse:
-    ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
-    env = os.getenv("BRAIN_ENVIRONMENT", "development")
-    if ledger_url:
-        try:
-            import certifi
-            import psycopg
-            from psycopg import sql
-            from psycopg.rows import dict_row
-
-            conn_opts: dict[str, Any] = {"autocommit": True, "connect_timeout": 2}
-            if "sslrootcert" not in ledger_url and not os.getenv("PGSSLROOTCERT"):
-                conn_opts["sslrootcert"] = certifi.where()
-
-            with psycopg.connect(ledger_url, **conn_opts) as conn:
-                with conn.cursor(row_factory=dict_row) as cur:
-                    cur.execute(sql.SQL("SET ROLE {}").format(sql.Identifier(f"brain_{env}")))
-                    # Turn summaries stopped carrying student text, so filtering on
-                    # a question hid every turn after 2026-09-21. List them all;
-                    # text-free turns still show status, timing and tools.
-                    cur.execute(
-                        "SELECT request_id, created_at, summary FROM brain_ops.turns "
-                        "ORDER BY created_at DESC LIMIT %s",
-                        (limit,),
-                    )
-                    rows = cur.fetchall()
-                    cur.execute("SELECT count(*) as total FROM brain_ops.turns")
-                    total_row = cur.fetchone()
-                    total = total_row["total"] if total_row else len(rows)
-
-            entries = []
-            for r in rows:
-                s = r["summary"] if isinstance(r["summary"], dict) else json.loads(r["summary"])
-                tools = [
-                    str(result.get("tool")) for result in s.get("toolResults") or []
-                    if isinstance(result, dict) and result.get("tool")
-                ]
-                entries.append({
-                    "timestamp": _iso_text(r["created_at"]),
-                    "requestId": str(r["request_id"]),
-                    "question": s.get("question", ""),
-                    "messages": s.get("messages", []),
-                    "answer": s.get("answer"),
-                    "textStored": bool(s.get("question")),
-                    "status": s.get("status", "answered"),
-                    "elapsedMs": s.get("elapsedMs", 0),
-                    "citations": s.get("citations", []),
-                    "tools": tools,
-                    "fallbackReason": s.get("fallbackReason"),
-                    "validationFailures": s.get("validationFailures", []),
-                    "datasetVersion": s.get("datasetVersion"),
-                })
-            return {"logs": entries, "total": total}
-        except Exception as err:
-            logging.getLogger(__name__).warning("Database turns query failed: %s", err)
-            # A 200 with an error field read as "no logs" in every dashboard.
-            return JSONResponse(
-                status_code=503, content={"logs": [], "total": 0, "error": str(err)}
-            )
-
-    return {"logs": [], "total": 0}
-
-
-class FeedbackPayload(BaseModel):
-    # Bounded like the chat itself: a question is at most 2,000 characters in
-    # the UI and 16,000 here, an answer at most 12,000. The ID is the turn's
-    # UUID, so a malformed one is a 422, not a database error.
-    requestId: UUID
-    rating: int
-    category: str | None = Field(default=None, max_length=64)
-    comments: str | None = Field(default=None, max_length=2000)
-    question: str | None = Field(default=None, max_length=16000)
-    answer: str | None = Field(default=None, max_length=12000)
-
-
-@app.post("/v1/feedback")
-def submit_feedback(payload: FeedbackPayload) -> dict[str, Any]:
-    ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
-    env = os.getenv("BRAIN_ENVIRONMENT", "development")
-    if not ledger_url:
-        return {"success": False, "error": "Database ledger URL not configured"}
-    try:
-        import certifi
-        import psycopg
-        from psycopg import sql
-        from psycopg.rows import dict_row
-
-        conn_opts: dict[str, Any] = {"autocommit": True, "connect_timeout": 5}
-        if "sslrootcert" not in ledger_url and not os.getenv("PGSSLROOTCERT"):
-            conn_opts["sslrootcert"] = certifi.where()
-
-        rating = 1 if payload.rating > 0 else -1
-        # The question and comment are the student's own words; the answer is
-        # generated from published data and keeps its public contact details.
-        question = redact(payload.question) or ""
-        answer = payload.answer or ""
-        comments = redact(payload.comments)
-
-        with psycopg.connect(ledger_url, **conn_opts) as conn:
-            with conn.cursor(row_factory=dict_row) as cur:
-                if not question or not answer:
-                    try:
-                        cur.execute(sql.SQL("SET ROLE {}").format(sql.Identifier(f"brain_{env}")))
-                        cur.execute(
-                            "SELECT summary FROM brain_ops.turns WHERE request_id = %s",
-                            (payload.requestId,),
-                        )
-                        row = cur.fetchone()
-                        if row and row.get("summary"):
-                            summary = row["summary"]
-                            s = summary if isinstance(summary, dict) else json.loads(summary)
-                            question = question or s.get("question", "")
-                            answer = answer or s.get("answer", "")
-                    except Exception:  # noqa: S110 - best effort; feedback is stored regardless
-                        pass
-
-                cur.execute(sql.SQL("RESET ROLE"))
-                # A follow-up carrying only the rating (the first tap before a
-                # reason, or a retry) keeps the reason and comment already
-                # given, and "N/A" never replaces a real question or answer.
-                # An operator review never replaces what a student said.
-                cur.execute(
-                    """
-                    INSERT INTO rockygpt_v2.feedback
-                        (request_id, question, answer, rating, category, comments)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (request_id) DO UPDATE SET
-                        rating = EXCLUDED.rating,
-                        category = CASE WHEN EXCLUDED.rating = rockygpt_v2.feedback.rating
-                            THEN COALESCE(EXCLUDED.category, rockygpt_v2.feedback.category)
-                            ELSE EXCLUDED.category END,
-                        comments = CASE WHEN EXCLUDED.rating = rockygpt_v2.feedback.rating
-                            THEN COALESCE(EXCLUDED.comments, rockygpt_v2.feedback.comments)
-                            ELSE EXCLUDED.comments END,
-                        question = CASE WHEN EXCLUDED.question NOT IN ('', 'N/A')
-                            THEN EXCLUDED.question ELSE rockygpt_v2.feedback.question END,
-                        answer = CASE WHEN EXCLUDED.answer NOT IN ('', 'N/A')
-                            THEN EXCLUDED.answer ELSE rockygpt_v2.feedback.answer END
-                    WHERE EXCLUDED.category IS DISTINCT FROM 'operator_review'
-                       OR rockygpt_v2.feedback.category IS NOT DISTINCT FROM 'operator_review'
-                    RETURNING id
-                    """,
-                    (
-                        payload.requestId, question or "N/A", answer or "N/A", rating,
-                        payload.category, comments,
-                    ),
-                )
-                stored = cur.fetchone()
-        if stored is None:
-            return {
-                "success": False,
-                "error": "student_feedback_exists",
-                "message": "A student already rated this answer; an operator review does not "
-                "replace it.",
-            }
-        return {"success": True}
-    except Exception as err:
-        logging.getLogger(__name__).warning("Failed to submit feedback: %s", err)
-        # The student UI hands this body to the browser, so no database detail.
-        return {"success": False, "error": "feedback_unavailable"}
-
-
-@app.get("/v1/feedback", response_model=None, dependencies=DEVELOPMENT_ONLY)
-def get_feedback(limit: int = 50) -> dict[str, Any] | JSONResponse:
-    ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
-    if not ledger_url:
-        return {"feedback": [], "total": 0}
-    try:
-        import certifi
-        import psycopg
-        from psycopg.rows import dict_row
-
-        conn_opts: dict[str, Any] = {"autocommit": True, "connect_timeout": 5}
-        if "sslrootcert" not in ledger_url and not os.getenv("PGSSLROOTCERT"):
-            conn_opts["sslrootcert"] = certifi.where()
-
-        with psycopg.connect(ledger_url, **conn_opts) as conn:
-            with conn.cursor(row_factory=dict_row) as cur:
-                cur.execute(
-                    """
-                    SELECT id, request_id, question, answer, rating, category, comments, created_at
-                    FROM rockygpt_v2.feedback
-                    ORDER BY created_at DESC
-                    LIMIT %s
-                    """,
-                    (limit,),
-                )
-                rows = cur.fetchall()
-                cur.execute("SELECT count(*) as total FROM rockygpt_v2.feedback")
-                total_row = cur.fetchone()
-                total = total_row["total"] if total_row else len(rows)
-
-        entries = []
-        for r in rows:
-            entries.append({
-                "id": str(r["id"]),
-                "requestId": str(r["request_id"]),
-                "question": r["question"],
-                "answer": r["answer"],
-                "rating": r["rating"],
-                "category": r["category"],
-                "comments": r["comments"],
-                "createdAt": _iso_text(r["created_at"]),
-            })
-        return {"feedback": entries, "total": total}
-    except Exception as err:
-        logging.getLogger(__name__).warning("Failed to fetch feedback: %s", err)
-        return JSONResponse(
-            status_code=503, content={"feedback": [], "total": 0, "error": str(err)}
-        )
-
-
-class EvalRunPayload(BaseModel):
-    runId: str
-    suite: str
-    totalTests: int
-    passed: int
-    failed: int
-    durationMs: int
-    summary: dict[str, Any] = Field(default_factory=dict)
-
-
-@app.post("/v1/evals/runs", dependencies=DEVELOPMENT_ONLY)
-def record_eval_run(payload: EvalRunPayload) -> dict[str, Any]:
-    ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
-    if not ledger_url:
-        return {"success": False, "error": "Database ledger URL not configured"}
-    try:
-        import certifi
-        import psycopg
-        from psycopg.types.json import Jsonb
-
-        conn_opts: dict[str, Any] = {"autocommit": True, "connect_timeout": 5}
-        if "sslrootcert" not in ledger_url and not os.getenv("PGSSLROOTCERT"):
-            conn_opts["sslrootcert"] = certifi.where()
-
-        with psycopg.connect(ledger_url, **conn_opts) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO brain_ops.eval_runs
-                        (run_id, suite, total_tests, passed, failed, duration_ms, summary)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (run_id) DO UPDATE SET
-                        total_tests = EXCLUDED.total_tests,
-                        passed = EXCLUDED.passed,
-                        failed = EXCLUDED.failed,
-                        duration_ms = EXCLUDED.duration_ms,
-                        summary = EXCLUDED.summary
-                    """,
-                    (
-                        payload.runId,
-                        payload.suite,
-                        payload.totalTests,
-                        payload.passed,
-                        payload.failed,
-                        payload.durationMs,
-                        Jsonb(payload.summary),
-                    ),
-                )
-        return {"success": True}
-    except Exception as err:
-        logging.getLogger(__name__).warning("Failed to record eval run: %s", err)
-        return {"success": False, "error": str(err)}
-
-
-@app.get("/v1/evals/runs", response_model=None, dependencies=DEVELOPMENT_ONLY)
-def get_eval_runs(limit: int = 50) -> dict[str, Any] | JSONResponse:
-    ledger_url = os.getenv("BRAIN_LEDGER_DATABASE_URL")
-    if not ledger_url:
-        return {"runs": [], "total": 0}
-    try:
-        import certifi
-        import psycopg
-        from psycopg.rows import dict_row
-
-        conn_opts: dict[str, Any] = {"autocommit": True, "connect_timeout": 5}
-        if "sslrootcert" not in ledger_url and not os.getenv("PGSSLROOTCERT"):
-            conn_opts["sslrootcert"] = certifi.where()
-
-        with psycopg.connect(ledger_url, **conn_opts) as conn:
-            with conn.cursor(row_factory=dict_row) as cur:
-                cur.execute(
-                    """
-                    SELECT id, run_id, suite, total_tests, passed, failed, duration_ms, summary,
-                        created_at
-                    FROM brain_ops.eval_runs
-                    ORDER BY created_at DESC
-                    LIMIT %s
-                    """,
-                    (limit,),
-                )
-                rows = cur.fetchall()
-                cur.execute("SELECT count(*) as total FROM brain_ops.eval_runs")
-                total_row = cur.fetchone()
-                total = total_row["total"] if total_row else len(rows)
-
-        entries = []
-        for r in rows:
-            entries.append({
-                "id": str(r["id"]),
-                "runId": r["run_id"],
-                "suite": r["suite"],
-                "totalTests": r["total_tests"],
-                "passed": r["passed"],
-                "failed": r["failed"],
-                "durationMs": r["duration_ms"],
-                "summary": (
-                    r["summary"] if isinstance(r["summary"], dict) else json.loads(r["summary"])
-                ),
-                "createdAt": _iso_text(r["created_at"]),
-            })
-        return {"runs": entries, "total": total}
-    except Exception as err:
-        logging.getLogger(__name__).warning("Failed to fetch eval runs: %s", err)
-        return JSONResponse(status_code=503, content={"runs": [], "total": 0, "error": str(err)})
-
-
-@app.get("/v1/prompts", dependencies=DEVELOPMENT_ONLY)
-def get_prompts() -> dict[str, Any]:
-    prompt_md = files("rockygpt_brain").joinpath("prompt.md").read_text(encoding="utf-8")
-    review_md = files("rockygpt_brain").joinpath("review.md").read_text(encoding="utf-8")
-    return {
-        "model": RELEASE.model,
-        "prompt": prompt_md,
-        "review": review_md,
-        "draftReasoning": RELEASE.draft_reasoning,
-        "reviewReasoning": RELEASE.review_reasoning,
-    }
-
-
-@app.get("/v1/templates", dependencies=DEVELOPMENT_ONLY)
-def get_templates() -> dict[str, Any]:
-    """Every answer code writes itself: what picks it, what it checks, and an example."""
-    return template_catalog()
-
-
-@app.get("/v1/config", dependencies=DEVELOPMENT_ONLY)
-def get_config() -> dict[str, Any]:
-    from rockygpt_brain.config import MONTHLY_CAP_NUSD
-    return {
-        **RELEASE.model_dump(mode="json"),
-        "monthlyCapNusd": MONTHLY_CAP_NUSD,
-        "environment": os.getenv("BRAIN_ENVIRONMENT", "development"),
-        "timezone": "America/New_York",
-    }
-
-
-@app.get("/v1/releases", dependencies=DEVELOPMENT_ONLY)
-def get_releases() -> Any:
-    release_json = files("rockygpt_brain").joinpath("release.json").read_text(encoding="utf-8")
-    config_release = json.loads(release_json)
-    database_url = os.getenv("DATABASE_URL", "")
-    dataset_info = None
-    if database_url:
-        try:
-            data = CampusData(database_url, datetime.now(ZoneInfo("America/New_York")))
-            data._ensure_loaded()
-            activated = data.dataset.get("activated_at")
-            dataset_info = {
-                "id": data.dataset.get("id"),
-                "version": data.dataset.get("version"),
-                "activatedAt": _iso_text(activated),
-                "sourcesCount": len(data.sources),
-                "sources": [
-                    {
-                        "id": s.get("id"),
-                        "source_key": s.get("source_key"),
-                        "title": s.get("title"),
-                        "canonical_url": s.get("canonical_url"),
-                        "trust_tier": s.get("trust_tier"),
-                        "provenance_status": s.get("provenance_status"),
-                    }
-                    for s in list(data.sources.values())[:50]
-                ],
-            }
-            data.close()
-        except Exception as e:
-            dataset_info = {"error": str(e)}
-    return {
-        "brainRelease": config_release,
-        "dataset": dataset_info,
-    }
-
-
-CAPABILITIES_CATALOG = [
-    {
-        "capability": "critical_facts",
-        "describes": (
-            "Concise verified campus facts, emergency contacts, action links, and key dates."
-        ),
-        "filters": [
-            {"field": "name", "type": "string", "description": "Fact key or topic"},
-        ],
-        "fields": ["fact_key", "fact_value", "verified_at"],
-    },
-    {
-        "capability": "contacts",
-        "describes": "Campus directories, staff, offices, phone numbers, and email addresses.",
-        "filters": [
-            {"field": "name", "type": "string", "description": "Person or office name"},
-            {"field": "department", "type": "string", "description": "Campus department"},
-        ],
-        "fields": [
-            "type",
-            "name",
-            "title",
-            "department",
-            "phones",
-            "email",
-            "offices",
-            "status",
-            "preferred_contact",
-        ],
-    },
-    {
-        "capability": "campus_hours",
-        "describes": (
-            "Operational opening and closing hours for campus buildings and administrative "
-            "offices."
-        ),
-        "filters": [
-            {"field": "venue", "type": "string", "description": "Building or facility"},
-            {"field": "date", "type": "iso-date", "description": "Date of interest"},
-        ],
-        "fields": ["name", "day", "hours"],
-    },
-    {
-        "capability": "dining_hours",
-        "describes": "Operating hours and meal periods for campus dining facilities.",
-        "filters": [
-            {"field": "venue", "type": "string", "description": "Dining location"},
-        ],
-        "fields": ["venue", "meal_period", "open_time", "close_time"],
-    },
-    {
-        "capability": "menu",
-        "describes": (
-            "Daily campus dining menu offerings, ingredients, allergens, and nutritional info."
-        ),
-        "filters": [
-            {"field": "date", "type": "iso-date", "description": "Menu date"},
-            {"field": "venue", "type": "string", "description": "Dining location"},
-        ],
-        "fields": ["venue", "date", "station", "item_name", "calories", "allergens"],
-    },
-    {
-        "capability": "events",
-        "describes": "Campus events, activities, student programming, and workshops from Archway.",
-        "filters": [
-            {"field": "date_from", "type": "iso-date", "description": "Start date"},
-            {"field": "category", "type": "string", "description": "Event category"},
-        ],
-        "fields": ["title", "starts_at", "ends_at", "location", "organization"],
-    },
-    {
-        "capability": "shuttle",
-        "describes": "Roadrunner Express shuttle routes, stops, schedules, and transit loops.",
-        "filters": [
-            {"field": "route", "type": "string", "description": "Shuttle route name"},
-        ],
-        "fields": ["route", "stop_name", "departure_time", "direction"],
-    },
-    {
-        "capability": "calendar",
-        "describes": "Official Ramapo academic calendar milestones, deadlines, and semester dates.",
-        "filters": [
-            {"field": "term", "type": "string", "description": "Semester term"},
-        ],
-        "fields": ["event", "date", "term"],
-    },
-    {
-        "capability": "clubs",
-        "describes": "Student clubs, greek life, and cultural organizations recognized by SGA.",
-        "filters": [
-            {"field": "category", "type": "string", "description": "Club category"},
-        ],
-        "fields": ["name", "category", "email", "description"],
-    },
-    {
-        "capability": "programs",
-        "describes": "Academic degree programs, majors, minors, concentrations, and schools.",
-        "filters": [
-            {"field": "name", "type": "string", "description": "Program name or major"},
-        ],
-        "fields": ["name", "degree", "program_kind", "school", "description", "program_url"],
-    },
-    {
-        "capability": "program_requirements",
-        "describes": (
-            "Degree requirements, graduation rules, and required course sequences for academic "
-            "programs."
-        ),
-        "filters": [
-            {"field": "program", "type": "string", "description": "Degree program name"},
-        ],
-        "fields": ["program", "section", "rule"],
-    },
-    {
-        "capability": "courses",
-        "describes": (
-            "Course catalog offerings, prerequisites, credit hours, and subject descriptions."
-        ),
-        "filters": [
-            {"field": "subject", "type": "string", "description": "Academic discipline"},
-        ],
-        "fields": ["course_code", "title", "credits", "prerequisites", "description"],
-    },
-    {
-        "capability": "faculty",
-        "describes": (
-            "Faculty directory profiles, schools, teaching fields, and research interests."
-        ),
-        "filters": [
-            {"field": "name", "type": "string", "description": "Professor or instructor name"},
-            {"field": "school", "type": "string", "description": "Academic school"},
-        ],
-        "fields": ["name", "title", "school", "email", "phone", "office"],
-    },
-    {
-        "capability": "documents",
-        "describes": "Official campus policies, student handbook regulations, and college bylaws.",
-        "filters": [
-            {"field": "query", "type": "string", "description": "Keyword search query"},
-        ],
-        "fields": ["title", "url", "category", "snippet"],
-    },
-]
-
-
-@app.get("/v1/capabilities", dependencies=DEVELOPMENT_ONLY)
-def get_capabilities() -> dict[str, Any]:
-    return {"capabilities": CAPABILITIES_CATALOG}
-
-
-@app.get(
-    "/v1/capabilities/{name}/records", response_model=None, dependencies=DEVELOPMENT_ONLY
-)
-def get_capability_records(name: str, limit: int = 5000) -> dict[str, Any] | JSONResponse:
-    from rockygpt_brain.retrieval.models import COLLECTIONS, SearchQuery
-
-    if name not in COLLECTIONS:
-        return JSONResponse(status_code=404, content={"error": f"Unknown collection: {name}"})
-    database_url = os.getenv("DATABASE_URL", "")
-    if not database_url:
-        return JSONResponse(
-            status_code=503, content={"error": "Campus database is not configured."}
-        )
-    data = None
-    try:
-        data = CampusData(database_url, datetime.now(ZoneInfo("America/New_York")))
-        data._ensure_loaded()
-        if name == "documents":
-            records, _ = data._documents(
-                SearchQuery(collection="documents", query="", limit=min(limit, 100))
-            )
-        else:
-            records = data._load(name)
-            if limit:
-                records = records[:limit]
-
-        formatted: list[dict[str, Any]] = []
-        for r in records:
-            if name == "contacts":
-                f = r.get("fields", {})
-                item: dict[str, Any] = {"id": r.get("id")}
-                for field in (
-                    "type", "name", "title", "department", "phones", "email",
-                    "offices", "status", "preferred_contact",
-                ):
-                    if f.get(field):
-                        item[field] = f[field]
-                item.setdefault("name", r.get("title", ""))
-                formatted.append(item)
-            elif name == "campus_hours":
-                f = r.get("fields", {})
-                item = {"id": r.get("id"), "name": f.get("name"), "day": f.get("day")}
-                # [] is a published closure. An absent/NULL value is unknown.
-                if f.get("hours") is not None:
-                    item["hours"] = f["hours"]
-                if f.get("notes"):
-                    item["notes"] = f["notes"]
-                formatted.append(item)
-            elif name == "menu":
-                item = {"id": r.get("id"), **r.get("fields", {}), "date": r.get("valid_from")}
-                # Keep unknown distinct from a source-published false/empty value.
-                for label in ("vegan", "vegetarian", "allergens"):
-                    item.setdefault(label, None)
-                if r.get("venue_entity_id"):
-                    item["venue_entity_id"] = r["venue_entity_id"]
-                formatted.append(item)
-            else:
-                item = {"id": r.get("id"), **r.get("fields", {})}
-                if name == "dining_hours":
-                    item = {"id": r.get("id"), "title": r.get("title", ""), **r.get("fields", {})}
-                if not any(
-                    key in item for key in ("name", "title", "code", "fact_key", "route", "program")
-                ):
-                    item["title"] = r.get("title", "")
-                if name == "faculty" and "phone" in item:
-                    from rockygpt_brain.retrieval.normalization import faculty_phone_display
-
-                    item["phone"] = faculty_phone_display(item["phone"])
-                if name == "programs":
-                    item["record_kind"] = (
-                        "catalog_convener" if "field_meaning" in item else "program"
-                    )
-                if r.get("url") and name not in ("dining_hours", "documents"):
-                    item["source_url"] = r["url"]
-                if r.get("valid_from"):
-                    item["date"] = r.get("valid_from")
-                if r.get("valid_until") and r.get("valid_until") != r.get("valid_from"):
-                    item["valid_until"] = r.get("valid_until")
-                if name == "documents":
-                    item["url"] = r.get("url", "")
-                    item["snippet"] = r.get("content", "")
-                formatted.append(item)
-        return {"returned": len(formatted), "records": formatted}
-    except Exception:
-        logging.getLogger(__name__).exception("Capability records lookup failed: %s", name)
-        return JSONResponse(
-            status_code=503,
-            content={
-                "error": "Campus records could not be loaded. Check the Brain logs for details."
-            },
-        )
-    finally:
-        if data is not None:
-            data.close()
-
-
-@app.get("/v1/documents", response_model=None, dependencies=DEVELOPMENT_ONLY)
-def get_documents() -> dict[str, Any] | JSONResponse:
-    database_url = os.getenv("DATABASE_URL", "")
-    if not database_url:
-        return {"documents": [], "total": 0}
-    data = None
-    try:
-        data = CampusData(database_url, datetime.now(ZoneInfo("America/New_York")))
-        data._ensure_loaded()
-        rows = data._fetch(
-            """
-            SELECT d.id::text, d.title, length(d.content) as content_length, 
-                   d.collected_at, d.metadata,
-                   s.canonical_url, s.source_key, s.trust_tier,
-                   count(c.id) as chunk_count
-            FROM rockygpt_v2.documents d
-            JOIN rockygpt_v2.sources s ON s.id = d.source_id
-            LEFT JOIN rockygpt_v2.document_chunks c ON c.document_id = d.id
-            WHERE d.dataset_version_id = %s::uuid
-            GROUP BY d.id, d.title, d.content, d.collected_at, d.metadata, s.canonical_url,
-                s.source_key, s.trust_tier
-            ORDER BY d.title
-            """,
-            (data.dataset["id"],),
-        )
-        documents = []
-        for r in rows:
-            collected = r.get("collected_at")
-            documents.append({
-                "id": r["id"],
-                "title": r["title"],
-                "contentLength": r["content_length"],
-                "chunkCount": r["chunk_count"],
-                "canonicalUrl": r["canonical_url"],
-                "sourceKey": r["source_key"],
-                "trustTier": r["trust_tier"],
-                "collectedAt": _iso_text(collected),
-                "metadata": r.get("metadata") or {},
-            })
-        return {"documents": documents, "total": len(documents)}
-    except Exception as e:
-        return JSONResponse(
-            status_code=503, content={"documents": [], "total": 0, "error": str(e)}
-        )
-    finally:
-        if data is not None:
-            data.close()
-
-
-@app.get(
-    "/v1/documents/{document_id}", response_model=None, dependencies=DEVELOPMENT_ONLY
-)
-def get_document(document_id: str) -> dict[str, Any] | JSONResponse:
-    database_url = os.getenv("DATABASE_URL", "")
-    if not database_url:
-        return JSONResponse(status_code=503, content={"error": "Database not configured"})
-    data = None
-    try:
-        data = CampusData(database_url, datetime.now(ZoneInfo("America/New_York")))
-        data._ensure_loaded()
-        doc_rows = data._fetch(
-            """
-            SELECT d.id::text, d.title, d.content, d.collected_at, d.metadata,
-                   s.canonical_url, s.source_key, s.trust_tier
-            FROM rockygpt_v2.documents d
-            JOIN rockygpt_v2.sources s ON s.id = d.source_id
-            WHERE d.id = %s::uuid AND d.dataset_version_id = %s::uuid
-            LIMIT 1
-            """,
-            (document_id, data.dataset["id"]),
-        )
-        if not doc_rows:
-            # A 200 carrying an error became the selected document in the Dev
-            # document browser, which then crashed reading its missing id.
-            return JSONResponse(
-                status_code=404, content={"error": f"Document not found: {document_id}"}
-            )
-
-        doc = doc_rows[0]
-        chunks_rows = data._fetch(
-            """
-            SELECT c.id::text, c.chunk_index, c.content, c.metadata
-            FROM rockygpt_v2.document_chunks c
-            WHERE c.document_id = %s::uuid
-            ORDER BY c.chunk_index ASC
-            """,
-            (document_id,),
-        )
-        collected = doc.get("collected_at")
-        chunks = [
-            {
-                "id": c["id"],
-                "chunkIndex": c["chunk_index"],
-                "content": c["content"],
-                "headingPath": (c.get("metadata") or {}).get("headingPath", ""),
-                "metadata": c.get("metadata") or {},
-            }
-            for c in chunks_rows
-        ]
-        return {
-            "id": doc["id"],
-            "title": doc["title"],
-            "content": doc["content"],
-            "contentLength": len(doc["content"]) if doc.get("content") else 0,
-            "canonicalUrl": doc["canonical_url"],
-            "sourceKey": doc["source_key"],
-            "trustTier": doc["trust_tier"],
-            "collectedAt": _iso_text(collected),
-            "metadata": doc.get("metadata") or {},
-            "chunkCount": len(chunks),
-            "chunks": chunks,
-        }
-    except Exception as e:
-        return JSONResponse(status_code=503, content={"error": str(e)})
-    finally:
-        if data is not None:
-            data.close()
-
-
-
-def brain_revision() -> str | None:
-    """The commit this Brain runs: the local deploy script sets BRAIN_REVISION, Render
-    sets RENDER_GIT_COMMIT. A working-tree Brain from run-local.sh has neither."""
-    return os.getenv("BRAIN_REVISION") or os.getenv("RENDER_GIT_COMMIT") or None
-
-
-def brain_identity() -> dict[str, str | None]:
-    """Which Brain answered, for diagnostics."""
-    return {"revision": brain_revision(), "release": RELEASE.version,
-            "configurationHash": configuration_hash()}
-
-
-def diagnostics_body(diagnostics: dict[str, Any]) -> dict[str, Any]:
-    """A JSON-ready copy: records carry datetimes, and a timed-out worker may still be
-    adding to the original."""
-    try:
-        snapshot = dict(diagnostics)
-        if isinstance(snapshot.get("work"), WorkLog):
-            snapshot["work"] = snapshot["work"].report()
-        if isinstance(snapshot.get("evidence"), dict):
-            snapshot["evidence"] = list(snapshot["evidence"].values())
-        body: dict[str, Any] = json.loads(json.dumps(snapshot, default=str))
-        return body
-    except RuntimeError:  # Changed while being copied.
-        return {key: diagnostics[key] for key in ("brain", "startedAt") if key in diagnostics}
-
-
-@app.post("/v1/chat", response_model=None)
-async def chat(
-    request: ChatRequest,
-    x_rockygpt_environment_token: str | None = Header(default=None),
-    x_rockygpt_diagnostics: str | None = Header(default=None),
-    accept: str | None = Header(default=None),
-) -> dict[str, object] | JSONResponse | StreamingResponse:
-    expected_token = os.getenv("STAGING_SERVICE_TOKEN", "").strip()
-    if expected_token and not hmac.compare_digest(
-        expected_token, x_rockygpt_environment_token or ""
-    ):
-        raise HTTPException(status_code=401, detail="Environment access token required")
-    request_id = str(uuid4())
-    try:
-        deployment = load_deployment()
-    except ConfigurationError as error:
-        logging.getLogger(__name__).warning("Brain is not configured: %s", error)
-        return failure(503, "model_not_configured", request_id)
-    slots = TURN_SLOTS
-    if not slots.acquire(blocking=False):
-        return failure(429, "busy", request_id)
-    now = datetime.now(CAMPUS_TIMEZONE)
-    # Development only, when the Dev control room asks: which Brain answered, the
-    # evidence and drafts behind the answer, and who did the work in each step. Students'
-    # requests never ask, production never answers, and the saved turn summary never
-    # stores any of it.
-    diagnostics: dict[str, Any] | None = (
-        {"brain": brain_identity(), "startedAt": now.isoformat(), "work": WorkLog(monotonic())}
-        if deployment.environment == "development" and x_rockygpt_diagnostics == "1"
-        else None
-    )
-    updates: asyncio.Queue[ProgressUpdate] = asyncio.Queue(maxsize=32)
-    stopped = Event()
-    loop = asyncio.get_running_loop()
-
-    def enqueue(stage: ProgressUpdate) -> None:
-        if stopped.is_set():
+from rockygpt_brain.retrieval.graph_store import GraphOnlyFacts, GraphUnavailable, ReleaseGraphFacts
+from rockygpt_brain.settings import ConfigurationError, ProviderSettings
+from rockygpt_brain.spending import SpendingError
+from rockygpt_brain.timing import measure, request_timing
+from rockygpt_brain.turn import Turn, intake, new_id
+
+MAX_BODY_BYTES = 64 * 1_024
+BODY_SECONDS = 10
+LOG = logging.getLogger(__name__)
+INVALID = "The request isn't in the shape RockyGPT expects."
+# The dev UI asks for the turn's trace and metrics with this header. Never honored in production.
+DEBUG_HEADER = "x-rockygpt-diagnostics"
+
+
+class Admission:
+    """Authenticate server ingress and bound bytes before JSON decoding or paid work."""
+
+    def __init__(self, app: ASGIApp, *, token: str | None, environment: str) -> None:
+        self.app, self.token, self.environment = app, token, environment
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        diagnostic = (scope["type"] == "http" and scope["path"] == "/v1/chat"
+                      and scope["method"] == "POST" and self.environment == "development"
+                      and Headers(scope=scope).get(DEBUG_HEADER) == "1")
+        if not diagnostic:
+            await self._admit(scope, receive, send)
             return
-        if updates.full():
-            updates.get_nowait()
-        updates.put_nowait(stage)
+        # Chat returns one JSON document. Record the whole admission/engine path,
+        # including early refusals, before attaching diagnostics to that document.
+        with request_timing() as timeline:
+            start: Message | None = None
+            chunks: list[bytes] = []
 
-    def progress(stage: ProgressUpdate) -> None:
-        if stopped.is_set():
-            raise TurnCancelled()
-        loop.call_soon_threadsafe(enqueue, stage)
+            async def timed_send(event: Message) -> None:
+                nonlocal start
+                if event["type"] == "http.response.start":
+                    start = event
+                    return
+                if event["type"] != "http.response.body" or start is None:
+                    await send(event)
+                    return
+                chunks.append(event.get("body", b""))
+                if event.get("more_body", False):
+                    return
+                body = json.loads(b"".join(chunks))
+                body["metrics"] = {**body.get("metrics", {}), "timing": timeline.report()}
+                encoded = JSONResponse(body).body
+                headers = [(key, value) for key, value in start["headers"]
+                           if key.lower() not in (b"content-length", b"x-rockygpt-brain-total-us")]
+                headers.extend([
+                    (b"content-length", str(len(encoded)).encode()),
+                    # Includes diagnostic assembly and final JSON encoding. The UI
+                    # accounts for that tail separately from the recorded spans.
+                    (b"x-rockygpt-brain-total-us", str(timeline.elapsed_us()).encode()),
+                ])
+                await send({**start, "headers": headers})
+                await send({"type": "http.response.body", "body": encoded})
 
-    streaming = bool(accept and "text/event-stream" in accept.lower())
-    worker = asyncio.create_task(
-        asyncio.to_thread(
-            chat_worker, request, request_id, now, slots, progress if streaming else None,
-            diagnostics,
-        )
-    )
-    WORKERS.add(worker)
+            await self._admit(scope, receive, timed_send)
 
-    def finished(task: asyncio.Task[dict[str, object] | JSONResponse]) -> None:
-        WORKERS.discard(task)
-        if not task.cancelled():
-            task.exception()  # Observe exceptions even after an HTTP disconnect.
-
-    worker.add_done_callback(finished)
-    if streaming:
-        return StreamingResponse(
-            stream_turn(
-                worker,
-                updates,
-                stopped,
-                HTTP_TURN_SECONDS,
-                lambda status, reason: failure(status, reason, request_id,
-                                               diagnostics=diagnostics),
-            ),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache, no-transform",
-                "X-Accel-Buffering": "no",
-                "X-Request-Id": request_id,
-            },
-        )
-    try:
-        # A timed-out worker retains its slot until its bounded I/O and cleanup
-        # finish. Shielding also prevents cancelling a worker queued to start.
-        return await asyncio.wait_for(asyncio.shield(worker), timeout=HTTP_TURN_SECONDS)
-    except TimeoutError:
-        return failure(504, "model_timeout", request_id, diagnostics=diagnostics)
-
-
-
-
-def chat_worker(
-    request: ChatRequest,
-    request_id: str,
-    now: datetime,
-    slots: BoundedSemaphore,
-    progress: ProgressCallback | None = None,
-    diagnostics: dict[str, Any] | None = None,
-) -> dict[str, object] | JSONResponse:
-    data: CampusData | None = None
-    gateway: PaidGateway | None = None
-    started = monotonic()
-    # This thread's own CPU time, to tell a slow host apart from slow services.
-    cpu_started = thread_time()
-    outcome = "unavailable"
-    dataset_version: str | None = None
-    operational: dict[str, object] = {}
-    result: dict[str, object] | JSONResponse | None = None
-    deployment = None
-    work = diagnostics.get("work") if diagnostics is not None else None
-    if isinstance(work, WorkLog):
-        progress = work.watch(progress)
-    try:
-        deployment = load_deployment()
-        data = CampusData(os.getenv("DATABASE_URL", ""), now)
-        with open_gateway(deployment, request_id) as gateway:
-            if isinstance(work, WorkLog):
-                gateway.on_call = work.call
-            turn_result = run_turn(
-                request.messages,
-                client=gateway,
-                data=data,
-                model=RELEASE.model,
-                now=now,
-                metrics=operational,
-                progress=progress,
-                routing_mode=deployment.routing_mode,
-                routing_client=gateway if deployment.routing_mode != "off" else None,
-                explain_rejections=deployment.environment == "development",
-                diagnostics=diagnostics,
-            )
-            result = turn_result
-        outcome = cast(str, result["status"])
-        dataset_version = cast(str | None, result.get("datasetVersion"))
-        operational = cast(dict[str, object], result["metrics"])
-        usage = gateway.usage.report()
-        # Billing details remain in the operational ledger/log, not student answers.
-        operational.update(
-            {key: value for key, value in usage.items() if key not in {"costNusd", "unsettledNusd"}}
-        )
-        operational["cpuMs"] = round((thread_time() - cpu_started) * 1000)
-        if diagnostics is not None:
-            return {**result, "requestId": request_id,
-                    "diagnostics": diagnostics_body(diagnostics)}
-        return {**result, "requestId": request_id}
-    except TurnCancelled:
-        outcome = "request_cancelled"
-        return failure(499, "request_cancelled", request_id)
-    except ConfigurationError as error:
-        logging.getLogger(__name__).warning("Brain is not configured: %s", error)
-        return failure(503, "model_not_configured", request_id, diagnostics=diagnostics)
-    except PaidCallError as error:
-        outcome = error.code
-        status = {
-            "budget_exhausted": 429,
-            "model_quota_exhausted": 429,
-            "rate_limited": 429,
-            "model_timeout": 504,
-            "model_provider_error": 502,
-            "context_limit": 422,
-            "retrieval_context_limit": 422,
-            "turn_cost_limit": 422,
-            "model_call_limit": 422,
-        }.get(error.code, 503)
-        resources: list[dict[str, str]] = []
-        if error.code == "budget_exhausted" and data is not None:
-            try:
-                data.deadline = min(data.deadline or started + 3.0, monotonic() + 3.0)
-                resources = data.resources()
-            except Exception:
-                resources = []  # Budget responses also work without campus data.
-        return failure(status, error.code, request_id, reset_at=error.reset_at,
-                       resources=resources, data=data, diagnostics=diagnostics)
-    except TimeoutError:
-        outcome = "model_timeout"
-        return failure(504, "model_timeout", request_id, data=data, diagnostics=diagnostics)
-    except InvalidAnswer as error:
-        outcome = "invalid_model_output"
-        # Fixed reason codes only: no student text, raw model output, or provider secrets.
-        logging.getLogger(__name__).warning(
-            "Brain answer rejected request_id=%s reason=%s", request_id, error.code
-        )
-        return failure(502, "invalid_model_output", request_id, data=data,
-                       diagnostics=diagnostics)
-    finally:
+    async def _admit(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or not scope["path"].startswith("/v1/"):
+            await self.app(scope, receive, send)
+            return
+        if self.environment == "production" and not self.token:
+            await failure(503, "service_not_configured", "RockyGPT isn't configured to serve.",
+                          new_id())(scope, receive, send)
+            return
+        if self.token and not secrets.compare_digest(
+            Headers(scope=scope).get("x-rockygpt-environment-token", "").encode(),
+            self.token.encode(),
+        ):
+            await failure(401, "unauthorized", "This request isn't authorized.", new_id())(
+                scope, receive, send)
+            return
+        if scope["path"] != "/v1/chat" or scope["method"] != "POST":
+            await self.app(scope, receive, send)
+            return
+        body = bytearray()
         try:
-            summary = {
-                "requestId": request_id,
-                "status": outcome,
-                "datasetVersion": dataset_version or operational.get("datasetVersion"),
-                "toolResults": operational.get("toolResults", []),
-                "responseMode": operational.get("responseMode"),
-                "elapsedMs": round((monotonic() - started) * 1000),
-                "cpuMs": round((thread_time() - cpu_started) * 1000),
-                "fallbackUsed": operational.get("fallbackUsed", False)
-                or outcome in {"unavailable", "budget_exhausted"},
-                "fallbackReason": operational.get("fallbackReason"),
-                "validationFailures": operational.get("validationFailures", []),
-                "retrievalMs": operational.get("retrievalMs", 0),
-                "routing": operational.get("routing"),
-                "graphFirst": operational.get("graphFirst", False),
-                **(gateway.usage.report() if gateway is not None else {}),
-            }
+            async with asyncio.timeout(BODY_SECONDS):
+                while True:
+                    with measure("Read request body"):
+                        event = await receive()
+                    if event["type"] == "http.disconnect":
+                        return
+                    body.extend(event.get("body", b""))
+                    if len(body) > MAX_BODY_BYTES:
+                        await failure(413, "request_too_large", "This request is too large.",
+                                      new_id())(scope, receive, send)
+                        return
+                    if not event.get("more_body", False):
+                        break
+        except TimeoutError:
+            await failure(408, "request_timeout", "The request body arrived too slowly.",
+                          new_id())(scope, receive, send)
+            return
+        delivered = False
 
-            # 1. Log to console / uvicorn logger
-            logging.getLogger("uvicorn.error").info("brain_turn %s", json.dumps(summary))
+        async def replay() -> Message:
+            nonlocal delivered
+            if not delivered:
+                delivered = True
+                return {"type": "http.request", "body": bytes(body), "more_body": False}
+            return await receive()
 
-            # 2. Save to PostgreSQL ledger (brain_ops.turns table)
-            if gateway is not None:
-                try:
-                    gateway.finish(summary)
-                except PaidCallError:
-                    logging.getLogger(__name__).warning(
-                        "Brain telemetry unavailable request_id=%s", request_id
-                    )
-            elif deployment is not None:
-                try:
-                    from rockygpt_brain.governance.accounting import PostgresLedger
-                    ledger = PostgresLedger(deployment.ledger_url, deployment.environment)
-                    ledger.record_turn(request_id, summary)
-                except Exception as db_err:
-                    logging.getLogger(__name__).warning(
-                        "Brain turn fallback record failed request_id=%s: %s", request_id, db_err
-                    )
-            if data is not None:
-                data.close()
+        await self.app(scope, replay, send)
+
+
+def _configured_engine() -> ChatEngine:
+    settings = ProviderSettings.from_env()
+    # BRAIN_OUTPUT=json: answers carry the facts as typed JSON parts and no written text.
+    # BRAIN_OUTPUT=written: the same, and a writer with only the writer view says them.
+    mode = os.getenv("BRAIN_OUTPUT", "").strip().lower()
+    output: Literal["text", "json", "written"] = (
+        "written" if mode == "written" else "json" if mode == "json" else "text")
+    facts: EntityFacts
+    only_directory = os.getenv("BRAIN_GRAPH_ONLY_DIR", "").strip()
+    if only_directory:
+        # Graph only: the Brain never connects to the campus database. A publisher builds the
+        # graph (scripts/build_graph.py); any graph problem is an error, never a fallback.
+        try:
+            facts = GraphOnlyFacts(Path(only_directory))
+        except GraphUnavailable as error:
+            LOG.error("brain_graph_store_not_installed")
+            raise ConfigurationError("BRAIN_GRAPH_ONLY_DIR is set but LadybugDB is missing") \
+                from error
+        return ChatEngine(Gateway(settings), facts, max_turn_nusd=settings.max_turn_nusd,
+                      output=output)
+    database_url = os.getenv("DATABASE_URL", "").strip()
+    if not database_url:
+        raise ConfigurationError("Missing DATABASE_URL")
+    facts = PostgresEntityFacts(database_url)
+    # Off unless set: the graph is a derived copy of the active release that Postgres still owns.
+    # Without LadybugDB installed the Brain keeps answering from Postgres, not going down for it.
+    graph_directory = os.getenv("BRAIN_GRAPH_DIR", "").strip()
+    if graph_directory:
+        try:
+            facts = ReleaseGraphFacts(facts, Path(graph_directory))
+        except GraphUnavailable:
+            LOG.error("brain_graph_store_not_installed")
+    return ChatEngine(Gateway(settings), facts, max_turn_nusd=settings.max_turn_nusd,
+                      output=output)
+
+
+def create_app(engine: ChatEngine | None = None, *, service_token: str | None = None,
+               environment: str | None = None, max_concurrent: int = 8,
+               clock: Callable[[], datetime] | None = None) -> FastAPI:
+    if max_concurrent < 1:
+        raise ValueError("max_concurrent must be positive")
+    active_environment = environment or os.getenv("BRAIN_ENVIRONMENT", "development")
+    if active_environment not in ("development", "production"):
+        raise ValueError("Invalid Brain environment")
+    token = service_token if service_token is not None else os.getenv("STAGING_SERVICE_TOKEN")
+    token = token.strip() if token else None
+
+    @asynccontextmanager
+    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+        active = engine
+        try:
+            if active is None:
+                active = _configured_engine()
+            application.state.engine = active
+            if isinstance(active.gateway, Gateway):
+                await active.gateway.open()
+        except ConfigurationError:
+            application.state.startup_error = "model_not_configured"
+        except SpendingError:
+            application.state.startup_error = "ledger_unavailable"
+        try:
+            yield
         finally:
-            slots.release()
+            if active is not None and isinstance(active.gateway, Gateway):
+                await active.gateway.close()
 
+    application = FastAPI(title="RockyGPT Brain", lifespan=lifespan)
+    application.state.engine = engine
+    application.state.startup_error = None
+    application.state.capacity = asyncio.Semaphore(max_concurrent)
+    application.add_middleware(Admission, token=token, environment=active_environment)
 
+    @application.exception_handler(RequestValidationError)
+    async def invalid_request(_: Request, exc: RequestValidationError) -> JSONResponse:
+        # User-controlled extra field names can contain secrets too; don't echo those keys.
+        known = {"body", "header", "query", "path", "messages", "role", "content",
+                 "omittedMessages", "dataset_version", "identity_hash", "entity_id",
+                 CONVERSATION_ID_HEADER}
+        detail = [{"type": e["type"],
+                   "loc": [p if isinstance(p, int) or p in known else "unknown_field"
+                           for p in e["loc"]],
+                   "msg": "The request field is invalid."} for e in exc.errors()]
+        return failure(422, "invalid_request", INVALID, new_id(), detail=detail)
 
-SAFETY_CACHE_SECONDS = 600.0
-_safety_cache: tuple[float, list[dict[str, Any]]] | None = None
+    @application.exception_handler(HTTPException)
+    async def http_error(request: Request, exc: HTTPException) -> JSONResponse:
+        if exc.status_code == 400:
+            detail = [{"type": "body_unreadable", "loc": ["body"], "msg": "Unreadable body."}]
+            return failure(422, "invalid_request", INVALID, new_id(), detail=detail)
+        return await http_exception_handler(request, exc)  # type: ignore[return-value]
 
+    @application.api_route("/health", methods=["GET", "HEAD"])
+    async def health() -> dict[str, str]:
+        return {"status": "ok"}
 
-def emergency_help(data: CampusData | None = None) -> dict[str, Any]:
-    """The emergency guidance every failure carries (campus/formats.py FAILURE_HELP), with
-    Public Safety's numbers when their records were read recently or `data` can read them
-    now (worker threads only). A student asking what to do for someone unconscious while
-    the budget was spent got only "monthly AI allowance exhausted" (09-28)."""
-    global _safety_cache
-    records = (_safety_cache[1] if _safety_cache is not None
-               and monotonic() - _safety_cache[0] < SAFETY_CACHE_SECONDS else [])
-    if not records and data is not None:
+    @application.api_route("/readiness", methods=["GET", "HEAD"])
+    async def readiness() -> JSONResponse:
+        active = application.state.engine
+        ready = (not application.state.startup_error and active is not None
+                 and (active_environment != "production" or bool(token))
+                 and await active.readiness())
+        return JSONResponse({"status": "ready" if ready else "not_ready"},
+                            status_code=200 if ready else 503)
+
+    @application.post("/v1/chat")
+    async def chat(
+        request: ChatRequest, transport: Request,
+        conversation_id: Annotated[
+            str | None, Header(alias=CONVERSATION_ID_HEADER, pattern=CONVERSATION_ID_PATTERN)
+        ] = None,
+    ) -> JSONResponse:
+        with measure("Prepare turn and check safety boundary"):
+            turn = (intake(request, conversation_id, now=clock()) if clock
+                    else intake(request, conversation_id))
+            boundary = check(turn)
+        if boundary.kind == "safety":
+            floor = application.state.engine
+            if floor is None or application.state.startup_error:
+                result = replace(answered(turn, boundary.message, "partial"), trace={
+                    "decidedBy": "phrase_floor", "modelCalls": 0, "situation": boundary.situation})
+            else:  # The emergency text, then the campus numbers if they can be read in time.
+                result = await floor.safety_reply(turn, boundary.situation)
+                if boundary.also_answer and not application.state.capacity.locked():
+                    # Only a "not 911" tripped the floor: answer the question beside the same
+                    # emergency text. Any failure leaves the floor's own reply, which is complete.
+                    try:
+                        async with application.state.capacity:
+                            fuller = await _connected_answer(
+                                floor, turn, request, transport,
+                                floor_situation=boundary.situation)
+                        if fuller.status_code == 200:
+                            result = fuller
+                    except Exception:  # noqa: BLE001 - the floor's reply stands
+                        LOG.warning("brain_floor_answer_failed")
+        elif application.state.engine is None or application.state.startup_error:
+            result = failed(turn, application.state.startup_error or "model_not_configured")
+        else:
+            capacity = application.state.capacity
+            if capacity.locked():
+                return failure(429, "busy", "RockyGPT is busy. Please try again shortly.",
+                               turn.request_id, retryable=True)
+            async with capacity:
+                result = await _connected_answer(application.state.engine, turn, request, transport)
+        body = result.body
+        if active_environment == "development" and transport.headers.get(DEBUG_HEADER) == "1":
+            if result.trace is None:  # The turn failed outside the engine, so nothing was kept.
+                body = {**body, "metrics": {"decidedBy": "error"}}
+            else:
+                trace = result.trace
+                body = {**body, "trace": trace.get("lookups", []),
+                        "metrics": {k: v for k, v in trace.items() if k != "lookups"}}
+        return JSONResponse(body, status_code=result.status_code,
+                            headers={"X-Request-Id": turn.request_id, "Cache-Control": "no-store"})
+
+    @application.get("/v1/entities/{entity_id}/facts")
+    async def entity_facts(
+        entity_id: str,
+        dataset_version: Annotated[str, Query(min_length=1, max_length=256)],
+        identity_hash: Annotated[str, Query(min_length=1, max_length=128)],
+    ) -> JSONResponse:
+        active = application.state.engine
+        if active is None:
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id())
         try:
-            data.deadline = monotonic() + 2.0
-            records, _ = safety_facts(data)
-        except Exception:
-            records = []  # The 911 and 988 guidance stands without the campus numbers.
-        if records:
-            _safety_cache = (monotonic(), records)
-    return failure_help(records)
+            async with asyncio.timeout(5):
+                facts = await asyncio.to_thread(
+                    active.facts.get_office_facts, entity_id, None, dataset_version,
+                    identity_hash=identity_hash)
+            return JSONResponse(facts, headers={"Cache-Control": "no-store"})
+        except DatasetChanged:
+            return failure(409, "dataset_changed", "Published data changed. Reload it.", new_id())
+        except UnknownEntity:
+            return failure(404, "unknown_entity", "Office not found in this publication.", new_id())
+        except InvalidFactRequest:
+            return failure(422, "invalid_request", INVALID, new_id())
+        except (EvidenceUnavailable, TimeoutError):
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
+                           retryable=True)
+
+    if active_environment == "development":
+        add_dev_routes(application)
+
+    return application
 
 
-def failure(
-    status: int,
-    reason: str,
-    request_id: str,
-    *,
-    reset_at: str | None = None,
-    resources: list[dict[str, str]] | None = None,
-    data: CampusData | None = None,
-    diagnostics: dict[str, Any] | None = None,
-) -> JSONResponse:
-    message = (
-        "RockyGPT is currently unavailable. Please use Ramapo's official resources "
-        "for campus information."
-        if reason in {"model_quota_exhausted", "budget_exhausted"}
-        else "Rocky couldn't produce a reliable answer just now. Please try again."
-    )
-    if reason == "budget_exhausted":
-        message = "RockyGPT's monthly AI allowance is exhausted. Use the official campus resources."
-    elif reason == "context_limit":
-        message = "This conversation exceeds the supported context limit. Start a shorter chat."
-    elif reason == "retrieval_context_limit":
-        message = (
-            "The information needed for this answer exceeds RockyGPT's processing limit. "
-            "Try narrowing the request to one topic, place, or date."
-        )
-    elif reason in {"turn_cost_limit", "model_call_limit"}:
-        message = (
-            "This request exceeds RockyGPT's per-answer processing allowance. "
-            "Please ask a more focused question."
-        )
-    elif reason not in {
-        "busy",
-        "rate_limited",
-        "model_timeout",
-        "model_unreachable",
-        "model_provider_error",
-        "invalid_model_output",
-        "model_quota_exhausted",
-    }:
-        message = "RockyGPT is unavailable until its service configuration is restored."
-    details: dict[str, object] = {}
-    if reset_at is not None:
-        details["resetAt"] = reset_at
-    if resources:
-        details["resources"] = resources
-    if reason != "request_cancelled":
-        details["emergency"] = emergency_help(data)
-    return JSONResponse(
-        status_code=status,
-        content={
-            "error": {
-                "code": reason,
-                "message": message,
-                "retryable": reason
-                in {
-                    "busy",
-                    "rate_limited",
-                    "model_timeout",
-                    "model_unreachable",
-                    "model_provider_error",
-                    "invalid_model_output",
-                },
-                **details,
-            },
-            "reason": reason,
-            "requestId": request_id,
-            **({"diagnostics": diagnostics_body(diagnostics)} if diagnostics is not None else {}),
-        },
-    )
+async def _connected_answer(engine: ChatEngine, turn: Turn, request: ChatRequest,
+                            transport: Request, *,
+                            floor_situation: str | None = None) -> ChatResult:
+    async def disconnected() -> None:
+        while True:
+            if (await transport.receive())["type"] == "http.disconnect":
+                return
+
+    work = asyncio.create_task(engine.answer(turn, request, floor_situation=floor_situation))
+    gone = asyncio.create_task(disconnected())
+    try:
+        async with asyncio.timeout(engine.turn_seconds + HELP_SECONDS + 2):
+            done, _ = await asyncio.wait((work, gone), return_when=asyncio.FIRST_COMPLETED)
+            if gone in done:
+                return ChatResult(499, {"requestId": turn.request_id, "reason": "cancelled"})
+            return await work
+    except TimeoutError:
+        return failed(turn, "model_timeout")
+    except GatewayError as error:
+        return failed(turn, error.code)
+    except EvidenceUnavailable:
+        return failed(turn, "data_unavailable")
+    except Exception as error:
+        # Exception messages can contain provider payloads or student data.
+        LOG.error("brain_failure request_id=%s exception_type=%s",
+                  turn.request_id, type(error).__name__)
+        return failed(turn, "internal_error")
+    finally:
+        for task in (work, gone):
+            task.cancel()
+        await asyncio.gather(work, gone, return_exceptions=True)
+
+
+app = create_app()

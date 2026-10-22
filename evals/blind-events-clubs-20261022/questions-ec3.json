@@ -1,0 +1,17 @@
+[
+{"id": "ec3-01", "question": "when is the next home game", "topic": "event"},
+{"id": "ec3-02", "question": "Are there any athletics events this weekend and are they free to get into?", "topic": "event"},
+{"id": "ec3-03", "question": "is there an intramural basketball league? how do i sign up", "topic": "club"},
+{"id": "ec3-04", "question": "what club sports does ramapo have", "topic": "club"},
+{"id": "ec3-05", "question": "any games tonight at the bsc?", "topic": "event"},
+{"id": "ec3-06", "question": "where is the womens soccer game next friday and what time does it start", "topic": "event"},
+{"id": "ec3-07", "question": "is there a club for ultimate frisbee", "topic": "club"},
+{"id": "ec3-08", "question": "Im a transfer student and played club rugby at my old school. does ramapo have a rugby team and how do i find the page for it", "topic": "club"},
+{"id": "ec3-09", "question": "what sports events are happening next week", "topic": "event"},
+{"id": "ec3-10", "question": "do students get into home games for free or do I need to show my ID", "topic": "event"},
+{"id": "ec3-11", "question": "whos hosting the volleyball tournament on campus this sat?", "topic": "event"},
+{"id": "ec3-12", "question": "list of sports clubs + intramural stuff pls", "topic": "club"},
+{"id": "ec3-13", "question": "what time does the club lacrosse team practice", "topic": "out_of_scope"},
+{"id": "ec3-14", "question": "how many people are going to the football game on saturday", "topic": "out_of_scope"},
+{"id": "ec3-15", "question": "I'm good at baseball and tennis, which club sport should I join?", "topic": "out_of_scope"}
+]

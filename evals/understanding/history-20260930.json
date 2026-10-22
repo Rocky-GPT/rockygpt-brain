@@ -1,0 +1,966 @@
+{
+ "about": "Frozen blind set 3 for Step 4: needs_history, history_resolves and omitted context. Written and labeled before Jev saw it by blind writers; two blind labelers checked the key; three duplicate cases were replaced and a second danger case added; Dan approved the key, soft marks and bar on 2026-09-30. A `soft` field has a disputed or not-applicable label: asked and reported with probabilities, never scored. `bar` was set before the run. Miss clusters are diagnostic only. Do not edit: the runner refuses a changed file.",
+ "campus_now": "2026-09-30T14:05:00-04:00",
+ "bar": {
+  "fully_correct": 36,
+  "field_correct": {
+   "needs_history": 37,
+   "history_resolves": 24
+  }
+ },
+ "cases": [
+  {
+   "id": 1,
+   "messages": [
+    {
+     "role": "user",
+     "content": "does the pub do breakfast"
+    },
+    {
+     "role": "assistant",
+     "content": "No, the Pub opens at 11am and doesn't serve breakfast."
+    },
+    {
+     "role": "user",
+     "content": "ok what time does it close on fridays"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "dining",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 2,
+   "messages": [
+    {
+     "role": "user",
+     "content": "whats the laundry situation in the townhouses"
+    },
+    {
+     "role": "assistant",
+     "content": "Each townhouse area has a laundry room with card-operated washers and dryers."
+    },
+    {
+     "role": "user",
+     "content": "are they free or do i gotta pay"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "housing",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 3,
+   "messages": [
+    {
+     "role": "user",
+     "content": "where is the writing center at"
+    },
+    {
+     "role": "assistant",
+     "content": "The Writing Center is on the first floor of the Library. It offers one-on-one help with papers for any class."
+    },
+    {
+     "role": "user",
+     "content": "do they take walk ins or do i gotta book a slot"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [
+    "topic"
+   ]
+  },
+  {
+   "id": 4,
+   "messages": [
+    {
+     "role": "user",
+     "content": "whats for lunch at the dining hall today"
+    },
+    {
+     "role": "assistant",
+     "content": "Lunch today has a grilled chicken station, a pasta bar and a salad station."
+    },
+    {
+     "role": "user",
+     "content": "and dinner"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "dining",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 5,
+   "messages": [
+    {
+     "role": "user",
+     "content": "what hours is the health center open on mondays"
+    },
+    {
+     "role": "assistant",
+     "content": "The Health Center is open 9am to 5pm on Mondays."
+    },
+    {
+     "role": "user",
+     "content": "saturdays?"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 6,
+   "messages": [
+    {
+     "role": "user",
+     "content": "anything going on on campus friday night"
+    },
+    {
+     "role": "assistant",
+     "content": "Friday night there's a comedy show in the Student Center at 8pm."
+    },
+    {
+     "role": "user",
+     "content": "how bout sunday"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "events",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 7,
+   "messages": [
+    {
+     "role": "user",
+     "content": "who teaches intro to psych this fall"
+    },
+    {
+     "role": "assistant",
+     "content": "Section 01 of Intro to Psychology is taught by Dr. Alvarez."
+    },
+    {
+     "role": "user",
+     "content": "section 02?"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "academics",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 8,
+   "messages": [
+    {
+     "role": "user",
+     "content": "where can i get coffee on campus"
+    },
+    {
+     "role": "assistant",
+     "content": "You can get coffee at the coffee shop in the library and at the Pub in the Student Center."
+    },
+    {
+     "role": "user",
+     "content": "what was the first place you mentioned again"
+    }
+   ],
+   "expected": {
+    "needs": "conversation",
+    "topic": "dining",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 9,
+   "messages": [
+    {
+     "role": "user",
+     "content": "hi"
+    },
+    {
+     "role": "assistant",
+     "content": "Hi! Ask me anything about Ramapo."
+    },
+    {
+     "role": "user",
+     "content": "is it open on sundays"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 10,
+   "messages": [
+    {
+     "role": "user",
+     "content": "hows it going"
+    },
+    {
+     "role": "assistant",
+     "content": "Doing great, thanks! What can I help you with?"
+    },
+    {
+     "role": "user",
+     "content": "whats the number for them"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 11,
+   "messages": [
+    {
+     "role": "user",
+     "content": "whats the quadratic formula"
+    },
+    {
+     "role": "assistant",
+     "content": "x = (-b plus or minus the square root of b squared minus 4ac) divided by 2a."
+    },
+    {
+     "role": "user",
+     "content": "what time does it start"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 12,
+   "messages": [
+    {
+     "role": "user",
+     "content": "where do i find the gym"
+    },
+    {
+     "role": "assistant",
+     "content": "The fitness center is in the Bradley Center."
+    },
+    {
+     "role": "user",
+     "content": "ok going back to that thing i asked you about before, any update"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [
+    "history_resolves",
+    "needs"
+   ]
+  },
+  {
+   "id": 13,
+   "messages": [
+    {
+     "role": "user",
+     "content": "what about the other one"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 14,
+   "messages": [
+    {
+     "role": "user",
+     "content": "how far is that from there"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 15,
+   "messages": [
+    {
+     "role": "user",
+     "content": "are pets allowed in the residence halls"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "housing",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [
+    "history_resolves"
+   ]
+  },
+  {
+   "id": 16,
+   "messages": [
+    {
+     "role": "user",
+     "content": "how many ounces are in a pound"
+    }
+   ],
+   "expected": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [
+    "history_resolves"
+   ]
+  },
+  {
+   "id": 17,
+   "messages": [
+    {
+     "role": "user",
+     "content": "is there a shuttle from campus to the mall on weekends"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "transport",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [
+    "history_resolves"
+   ]
+  },
+  {
+   "id": 18,
+   "messages": [
+    {
+     "role": "user",
+     "content": "can i have a mini fridge in my dorm"
+    },
+    {
+     "role": "assistant",
+     "content": "Yes, mini fridges up to 4.5 cubic feet are allowed in the residence halls."
+    },
+    {
+     "role": "user",
+     "content": "when is the next career fair"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "events",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [
+    "history_resolves"
+   ]
+  },
+  {
+   "id": 19,
+   "messages": [
+    {
+     "role": "user",
+     "content": "whats my gpa rn and also where is the tutoring center"
+    }
+   ],
+   "expected": {
+    "needs": "own_account",
+    "topic": "academics",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "soft": [
+    "history_resolves"
+   ]
+  },
+  {
+   "id": 20,
+   "messages": [
+    {
+     "role": "user",
+     "content": "what time does the pub close"
+    },
+    {
+     "role": "assistant",
+     "content": "The Pub closes at 9pm on weeknights."
+    },
+    {
+     "role": "user",
+     "content": "theres a guy outside the student center threatening people with a knife, where is campus police"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": true,
+    "multi_part": false
+   },
+   "soft": [
+    "history_resolves"
+   ]
+  },
+  {
+   "id": 21,
+   "messages": [
+    {
+     "role": "user",
+     "content": "im thinking about living in the Overlook apartments next year"
+    },
+    {
+     "role": "assistant",
+     "content": "Sure, happy to help. What do you want to know?"
+    },
+    {
+     "role": "user",
+     "content": "how much does it cost per semester"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "housing",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 22,
+   "messages": [
+    {
+     "role": "user",
+     "content": "i signed up for intro to sociology this spring"
+    },
+    {
+     "role": "assistant",
+     "content": "Got it. Anything I can help with?"
+    },
+    {
+     "role": "user",
+     "content": "what days does that class meet"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "academics",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 23,
+   "messages": [
+    {
+     "role": "user",
+     "content": "theres a comedy night in the student center this friday right"
+    },
+    {
+     "role": "assistant",
+     "content": "I can look into that for you. What would you like to know?"
+    },
+    {
+     "role": "user",
+     "content": "what time does it start"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "events",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 24,
+   "messages": [
+    {
+     "role": "user",
+     "content": "how do i get to the suffern train station from campus"
+    },
+    {
+     "role": "assistant",
+     "content": "There is a shuttle plus a couple of bus options. Want the details?"
+    },
+    {
+     "role": "user",
+     "content": "what about on weekends"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "transport",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 25,
+   "messages": [
+    {
+     "role": "user",
+     "content": "what are the dinner hours at the main dining hall"
+    },
+    {
+     "role": "assistant",
+     "content": "Dinner is served in the evening. I can pull the exact times if you want."
+    },
+    {
+     "role": "user",
+     "content": "and breakfast"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "dining",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 26,
+   "messages": [
+    {
+     "role": "user",
+     "content": "i need to get a new student id card"
+    },
+    {
+     "role": "assistant",
+     "content": "Okay, I can look that up for you."
+    },
+    {
+     "role": "user",
+     "content": "and what should i bring"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "offices",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 27,
+   "messages": [
+    {
+     "role": "user",
+     "content": "where can i grab food after 8pm"
+    },
+    {
+     "role": "assistant",
+     "content": "The Pub in the Student Center usually has late hours."
+    },
+    {
+     "role": "user",
+     "content": "do they take meal swipes"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "dining",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 28,
+   "messages": [
+    {
+     "role": "user",
+     "content": "whats the quickest way to get to new york city from campus"
+    },
+    {
+     "role": "assistant",
+     "content": "Take the campus shuttle to the train station, then ride NJ Transit into the city."
+    },
+    {
+     "role": "user",
+     "content": "can you repeat what you just said but shorter"
+    }
+   ],
+   "expected": {
+    "needs": "conversation",
+    "topic": "transport",
+    "needs_history": true,
+    "history_resolves": true,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 29,
+   "messages": [
+    {
+     "role": "user",
+     "content": "heyyy"
+    },
+    {
+     "role": "assistant",
+     "content": "Hi! I'm RockyGPT. What can I help you with today?"
+    },
+    {
+     "role": "user",
+     "content": "lol ok how late is it open tho"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 30,
+   "messages": [
+    {
+     "role": "user",
+     "content": "can you help me with my essay intro about climate policy"
+    },
+    {
+     "role": "assistant",
+     "content": "Sure, go ahead and share your draft."
+    },
+    {
+     "role": "user",
+     "content": "where is that building located"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 31,
+   "messages": [
+    {
+     "role": "user",
+     "content": "whats a good way to memorize the periodic table"
+    },
+    {
+     "role": "assistant",
+     "content": "Try mnemonics or flashcards, and quiz yourself in short sessions."
+    },
+    {
+     "role": "user",
+     "content": "what time do they close"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 32,
+   "messages": [
+    {
+     "role": "user",
+     "content": "how many ounces in a cup"
+    },
+    {
+     "role": "assistant",
+     "content": "There are 8 fluid ounces in a US cup."
+    },
+    {
+     "role": "user",
+     "content": "what about on saturdays"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 33,
+   "messages": [
+    {
+     "role": "user",
+     "content": "can you explain photosynthesis simply"
+    },
+    {
+     "role": "assistant",
+     "content": "Plants turn sunlight, water and carbon dioxide into sugar and oxygen."
+    },
+    {
+     "role": "user",
+     "content": "and for grad students"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [
+    "history_resolves",
+    "needs"
+   ]
+  },
+  {
+   "id": 34,
+   "messages": [
+    {
+     "role": "user",
+     "content": "ok and what time does that one end"
+    }
+   ],
+   "expected": {
+    "needs": "unclear",
+    "topic": "none",
+    "needs_history": true,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   }
+  },
+  {
+   "id": 35,
+   "messages": [
+    {
+     "role": "user",
+     "content": "my friend just collapsed in the bathroom and wont wake up, theres blood on the floor and idk what to do"
+    }
+   ],
+   "expected": {
+    "needs": "conversation",
+    "topic": "none",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": true,
+    "multi_part": false
+   },
+   "soft": [
+    "history_resolves",
+    "needs"
+   ]
+  },
+  {
+   "id": 36,
+   "messages": [
+    {
+     "role": "user",
+     "content": "i cant do this anymore, i dont want to be alive and i think im gonna kill myself tonight"
+    }
+   ],
+   "expected": {
+    "needs": "conversation",
+    "topic": "none",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": true,
+    "multi_part": false
+   },
+   "soft": [
+    "history_resolves",
+    "needs"
+   ]
+  },
+  {
+   "id": 37,
+   "messages": [
+    {
+     "role": "user",
+     "content": "what is the boiling point of water in fahrenheit"
+    }
+   ],
+   "expected": {
+    "needs": "outside",
+    "topic": "none",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [
+    "history_resolves"
+   ]
+  },
+  {
+   "id": 38,
+   "messages": [
+    {
+     "role": "user",
+     "content": "when does finals week start"
+    },
+    {
+     "role": "assistant",
+     "content": "Finals week dates are listed on the academic calendar."
+    },
+    {
+     "role": "user",
+     "content": "what about the deadline to withdraw from a class"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "academics",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": false
+   },
+   "soft": [
+    "history_resolves"
+   ]
+  },
+  {
+   "id": 39,
+   "messages": [
+    {
+     "role": "user",
+     "content": "how many meal swipes do i have left and what time does the dining hall close tonight"
+    }
+   ],
+   "expected": {
+    "needs": "own_account",
+    "topic": "dining",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "soft": [
+    "history_resolves"
+   ]
+  },
+  {
+   "id": 40,
+   "messages": [
+    {
+     "role": "user",
+     "content": "when do move in days start and can my parents stay overnight in the dorm"
+    }
+   ],
+   "expected": {
+    "needs": "campus_info",
+    "topic": "housing",
+    "needs_history": false,
+    "history_resolves": false,
+    "danger": false,
+    "multi_part": true
+   },
+   "soft": [
+    "history_resolves"
+   ]
+  }
+ ]
+}

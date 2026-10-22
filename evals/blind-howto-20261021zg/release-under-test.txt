@@ -1,0 +1,3 @@
+brain d290f65 (code-d290f65 export, all calls gpt-6-luna, written mode on :8013, BRAIN_HOWTO_ONE_CALL=1)
+data 147c596
+release dev-campus-daily-20261021-1217 (release-9e7a3fc879806828.lbug + meaning index with 103 office cards, rebuilt 10-21)

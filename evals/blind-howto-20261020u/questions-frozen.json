@@ -1,0 +1,497 @@
+[
+ {
+  "id": "u1-01",
+  "question": "order transcript",
+  "topic": "procedure"
+ },
+ {
+  "id": "u1-02",
+  "question": "parking ticket appeal",
+  "topic": "procedure"
+ },
+ {
+  "id": "u1-03",
+  "question": "change major form",
+  "topic": "procedure"
+ },
+ {
+  "id": "u1-04",
+  "question": "overnight guest policy",
+  "topic": "policy"
+ },
+ {
+  "id": "u1-05",
+  "question": "replace lost id card",
+  "topic": "procedure"
+ },
+ {
+  "id": "u1-06",
+  "question": "drop class deadline",
+  "topic": "policy"
+ },
+ {
+  "id": "u1-07",
+  "question": "housing accomodations request",
+  "topic": "procedure"
+ },
+ {
+  "id": "u1-08",
+  "question": "lost and found where",
+  "topic": "contact"
+ },
+ {
+  "id": "u1-09",
+  "question": "reserve room on campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "u1-10",
+  "question": "withdraw from college",
+  "topic": "procedure"
+ },
+ {
+  "id": "u1-11",
+  "question": "parking permit how",
+  "topic": "procedure"
+ },
+ {
+  "id": "u1-12",
+  "question": "fafsa help contact",
+  "topic": "contact"
+ },
+ {
+  "id": "u1-13",
+  "question": "pets in dorms?",
+  "topic": "policy"
+ },
+ {
+  "id": "u1-14",
+  "question": "get letter enrollment verification",
+  "topic": "procedure"
+ },
+ {
+  "id": "u1-15",
+  "question": "disability services register + email",
+  "topic": "contact"
+ },
+ {
+  "id": "u1-16",
+  "question": "late add class permission",
+  "topic": "procedure"
+ },
+ {
+  "id": "u1-17",
+  "question": "tuition refund policy",
+  "topic": "policy"
+ },
+ {
+  "id": "u1-18",
+  "question": "report broken heater dorm",
+  "topic": "procedure"
+ },
+ {
+  "id": "u1-19",
+  "question": "transfer credits apply",
+  "topic": "procedure"
+ },
+ {
+  "id": "u1-20",
+  "question": "intership for credit how",
+  "topic": "procedure"
+ },
+ {
+  "id": "u1-21",
+  "question": "graduation application",
+  "topic": "procedure"
+ },
+ {
+  "id": "u1-22",
+  "question": "what is my gpa",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "u1-23",
+  "question": "is the library open now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "u1-24",
+  "question": "best professor for bio 101",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "u1-25",
+  "question": "request roommate change who to call",
+  "topic": "contact"
+ },
+ {
+  "id": "u2-01",
+  "question": "can my girlfriend stay overnight in my dorm",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-02",
+  "question": "What's the policy on guests in the residence halls? How many nights in a row can someone stay and who do I have to tell?",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-03",
+  "question": "are candles allowed in dorm rooms",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-04",
+  "question": "whats the penalty if i get caught with alcohol in my room and im under 21",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-05",
+  "question": "Can I bring a pet to campus? I have a small fish tank and maybe a cat later.",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-06",
+  "question": "what happens if i get a conduct violation, does it go on my transcript?",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-07",
+  "question": "how do i appeal a student conduct decision and who do i contact",
+  "topic": "procedure"
+ },
+ {
+  "id": "u2-08",
+  "question": "is it ok to have a car on campus as a freshman?",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-09",
+  "question": "i parked in the wrong lot and got a ticket. what happens if i just dont pay it",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-11",
+  "question": "My professor says I plagiarized on a paper. What are my rights and how do I contest it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "u2-12",
+  "question": "how many times can i miss class before its a problem, is there a college attendance policy",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-13",
+  "question": "can i use my ESA in the dorms? how do i ask for permission",
+  "topic": "procedure"
+ },
+ {
+  "id": "u2-14",
+  "question": "Are e-cigarettes or vaping allowed anywhere on campus, and is there a fine?",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-15",
+  "question": "what is the policy on retaking a class to replace a bad grade",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-16",
+  "question": "can i get kicked out of housing for noise complaints",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-17",
+  "question": "what's the quiet hours rule in the apartments",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-18",
+  "question": "if i withdraw from a class after the deadline do i get a W or an F",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-19",
+  "question": "Can I put up a poster or flyers around campus for my club? Who approves it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "u2-20",
+  "question": "are drones allowed on campus? wanna film some footage for a class project",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-21",
+  "question": "how do i report a roommate who keeps breaking the rules, who do i call",
+  "topic": "contact"
+ },
+ {
+  "id": "u2-22",
+  "question": "will I get in trouble if I get caught with weed in my dorm, even though its legal in NJ",
+  "topic": "policy"
+ },
+ {
+  "id": "u2-23",
+  "question": "am i going to be put on academic probation this semester? my gpa is a 1.9",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "u2-24",
+  "question": "do i have a hold on my account for the fine i got last year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "u2-25",
+  "question": "is it worth fighting my parking ticket or should i just pay it?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "u3-01",
+  "question": "i lost my wallet somewhere on campus, who do i go to and what do i do",
+  "topic": "contact"
+ },
+ {
+  "id": "u3-02",
+  "question": "Where is the lost and found and how long do they hold stuff before getting rid of it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "u3-03",
+  "question": "my dorm room's heater is broken and its been 3 days. how do i put in a maintenance request",
+  "topic": "procedure"
+ },
+ {
+  "id": "u3-04",
+  "question": "who do i email about a billing error on my account? I got charged twice for the same fee",
+  "topic": "contact"
+ },
+ {
+  "id": "u3-05",
+  "question": "my roommate and i are not getting along at all, is there a way to switch rooms or talk to someone about it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "u3-06",
+  "question": "what do i do if a professor gave me a grade i think is wrong",
+  "topic": "procedure"
+ },
+ {
+  "id": "u3-07",
+  "question": "how do i file a grade appeal",
+  "topic": "procedure"
+ },
+ {
+  "id": "u3-08",
+  "question": "someone stole my bike from the bike rack. do i call campus police or is there a form",
+  "topic": "contact"
+ },
+ {
+  "id": "u3-09",
+  "question": "wifi in my room keeps dropping, who fixes that?",
+  "topic": "contact"
+ },
+ {
+  "id": "u3-10",
+  "question": "Im being charged for a meal plan i dont think i signed up for, how do i dispute it",
+  "topic": "procedure"
+ },
+ {
+  "id": "u3-11",
+  "question": "can my roommate's boyfriend stay over in our room for a week",
+  "topic": "policy"
+ },
+ {
+  "id": "u3-12",
+  "question": "i got locked out of my room at 2am what should i do",
+  "topic": "procedure"
+ },
+ {
+  "id": "u3-13",
+  "question": "what happens if i break something in my dorm, do i have to pay for it",
+  "topic": "policy"
+ },
+ {
+  "id": "u3-14",
+  "question": "my class got canceled bc prof is out and nobody told us. who do i talk to about it, the dept chair?",
+  "topic": "contact"
+ },
+ {
+  "id": "u3-15",
+  "question": "how do i report a roommate who is smoking weed in the room",
+  "topic": "procedure"
+ },
+ {
+  "id": "u3-16",
+  "question": "got a bill from the bursar for a library fine i already paid, how do i get it fixed",
+  "topic": "procedure"
+ },
+ {
+  "id": "u3-17",
+  "question": "lost my id card, how do i get a new one and does it cost money",
+  "topic": "procedure"
+ },
+ {
+  "id": "u3-18",
+  "question": "I think a TA is being unfair to me in lab. is there someone besides the professor i can complain to?",
+  "topic": "contact"
+ },
+ {
+  "id": "u3-19",
+  "question": "mold in the bathroom of my apt, how do i report it",
+  "topic": "procedure"
+ },
+ {
+  "id": "u3-20",
+  "question": "found a package notice but the mailroom says they dont have my package?? what now",
+  "topic": "procedure"
+ },
+ {
+  "id": "u3-21",
+  "question": "Who is my RA and how do I reach them?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "u3-22",
+  "question": "how much is the replacement fee for a lost room key",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "u3-23",
+  "question": "is the lost and found open right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "u3-24",
+  "question": "if i dont get along w/ my roommate can i move into a single, and what is the process for requesting a room change?",
+  "topic": "procedure"
+ },
+ {
+  "id": "u3-25",
+  "question": "someone hit my car in the parking lot and left. what should i do and who do i report it to",
+  "topic": "contact"
+ },
+ {
+  "id": "u4-01",
+  "question": "How does housing selection work for next year? Like when do I sign up and who do I contact if I want to live with my friends?",
+  "topic": "procedure"
+ },
+ {
+  "id": "u4-02",
+  "question": "when is registration for spring",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "u4-03",
+  "question": "How do I renew my financial aid for next academic year? Is there a deadline for the FAFSA?",
+  "topic": "procedure"
+ },
+ {
+  "id": "u4-04",
+  "question": "Can I take a summer class at another college and transfer the credits back to Ramapo? what's the process",
+  "topic": "policy"
+ },
+ {
+  "id": "u4-05",
+  "question": "how do i find out who my advisor is and set up a meeting to plan my schedule for next sem",
+  "topic": "procedure"
+ },
+ {
+  "id": "u4-06",
+  "question": "What is the policy on taking winter session classes? Is there a max number of credits?",
+  "topic": "policy"
+ },
+ {
+  "id": "u4-07",
+  "question": "I'm a sophomore and want to change my major to business before registering. What do I need to do and who handles it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "u4-08",
+  "question": "how do i apply for on campus housing for fall if i'm currently a commuter",
+  "topic": "procedure"
+ },
+ {
+  "id": "u4-09",
+  "question": "Whats the process to request a housing accomodation for next year because of a medical condition?",
+  "topic": "procedure"
+ },
+ {
+  "id": "u4-10",
+  "question": "Do I need to pay a deposit to keep my room for next year, and how much is it?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "u4-11",
+  "question": "how to get a registration hold removed",
+  "topic": "procedure"
+ },
+ {
+  "id": "u4-12",
+  "question": "What is the deadline to apply for graduation if I plan to finish next May? Who do I send the form to?",
+  "topic": "contact"
+ },
+ {
+  "id": "u4-13",
+  "question": "can i study abroad next semester? how do i start",
+  "topic": "procedure"
+ },
+ {
+  "id": "u4-14",
+  "question": "I want to do a degree audit to see what classes I still need. Where do I find that?",
+  "topic": "procedure"
+ },
+ {
+  "id": "u4-15",
+  "question": "Is there a policy about overloading, like taking more than 18 credits in a semester? How do I get permission?",
+  "topic": "policy"
+ },
+ {
+  "id": "u4-16",
+  "question": "how do I apply for a scholarship for next year",
+  "topic": "procedure"
+ },
+ {
+  "id": "u4-17",
+  "question": "What happens to my financial aid if I take summer classes? Who do I talk to about summer aid",
+  "topic": "contact"
+ },
+ {
+  "id": "u4-18",
+  "question": "Can you tell me what my aid package will be for next year?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "u4-19",
+  "question": "how do i get a prerequisite waived so i can register for a class",
+  "topic": "procedure"
+ },
+ {
+  "id": "u4-20",
+  "question": "Are there any policies about staying on campus over winter break? My family lives far away and I'd need housing between semesters.",
+  "topic": "policy"
+ },
+ {
+  "id": "u4-21",
+  "question": "how do i add a minor or double major, and does it have to be done before registration opens",
+  "topic": "procedure"
+ },
+ {
+  "id": "u4-22",
+  "question": "Whats the policy for taking a leave of absence for a semester and coming back? Who do i contact",
+  "topic": "contact"
+ },
+ {
+  "id": "u4-23",
+  "question": "how do i join the waitlist for a full class",
+  "topic": "procedure"
+ },
+ {
+  "id": "u4-24",
+  "question": "Do I have to meet with my advisor before I can register? I've heard some students get a PIN or something",
+  "topic": "policy"
+ },
+ {
+  "id": "u4-25",
+  "question": "How do I apply for an internship for credit next semester and who has to sign off on it?",
+  "topic": "procedure"
+ }
+]

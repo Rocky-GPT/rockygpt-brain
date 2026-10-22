@@ -1,0 +1,17 @@
+[
+{"id": "zh1-01", "question": "How do I apply for graduation and what's the deadline to do it for May commencement?", "topic": "procedure"},
+{"id": "zh1-02", "question": "do seniors have to buy their own cap and gown or does the school give it to you", "topic": "policy"},
+{"id": "zh1-03", "question": "I'm a junior and want to start looking for internships. Where do I go for help with my resume and who should I email to set up an appointment?", "topic": "contact"},
+{"id": "zh1-04", "question": "can I get academic credit for an internship? how does that work", "topic": "procedure"},
+{"id": "zh1-05", "question": "how to study abroad for a semester", "topic": "procedure"},
+{"id": "zh1-06", "question": "Will my financial aid transfer if I study abroad in the spring, and who do I talk to about it?", "topic": "contact"},
+{"id": "zh1-07", "question": "whats the gpa requirement for honors program and how do i apply", "topic": "policy"},
+{"id": "zh1-08", "question": "How do I declare a minor? Do I need my advisor to sign off?", "topic": "procedure"},
+{"id": "zh1-09", "question": "are there certificate programs i can do alongside my major, like data analytics or something", "topic": "policy"},
+{"id": "zh1-10", "question": "How many tickets does each graduate get for commencement and can I request extra for family?", "topic": "policy"},
+{"id": "zh1-11", "question": "I think I'm short a credit for graduating in December. How do I find out exactly what I still need?", "topic": "procedure"},
+{"id": "zh1-12", "question": "when is the next career fair", "topic": "out_of_scope"},
+{"id": "zh1-13", "question": "Can you tell me if I'm on track to graduate with honors based on my current GPA of 3.6?", "topic": "out_of_scope"},
+{"id": "zh1-14", "question": "do you think a minor in business or a certificate in project management would look better to employers?", "topic": "out_of_scope"},
+{"id": "zh1-15", "question": "How do I get my diploma mailed to me if I can't pick it up after graduating, and what if my name is wrong on it?", "topic": "procedure"}
+]

@@ -1,0 +1,3 @@
+brain under test: f5f0384 (code b59a609 "Close the 968075e rerun's misses: food phrases, nutrients, one-venue guesses, allergy safety" plus this set's freeze commit)
+(a clean git archive export, run as a written-mode Brain on :8016; uncommitted edits in the checkout are not in it)
+release: dev-campus-daily-20261016-1202 (published 2026-10-16 16:05Z; the 06:00 daily run had failed on a menu fetch timeout and was rerun)

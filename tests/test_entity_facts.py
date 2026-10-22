@@ -1,545 +1,649 @@
-"""Canonical facts are shared semantics, not destructive source-row deduplication."""
+"""Canonical office evidence contract, independent of any paid model."""
 
-from __future__ import annotations
-
-import copy
+from copy import deepcopy
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
-from uuid import UUID
 
+import psycopg
 import pytest
-from fastapi import HTTPException
 
-import test_projection
-from rockygpt_brain.retrieval.entity_facts import (
-    EntityFactProjection,
-    EntityFacts,
-    FactProperty,
-    _lineage,
-    canonical_properties,
-    reviewed_names,
+from rockygpt_brain.retrieval import (
+    DatasetChanged,
+    EvidenceUnavailable,
+    InvalidFactRequest,
+    MemoryEntityFacts,
+    PostgresEntityFacts,
+    UnknownEntity,
 )
-from rockygpt_brain.retrieval.projection import Projection, valid_value
-from rockygpt_brain.retrieval.projection_models import Assertion, Entity, Property, SourceRecord
-from test_projection import ENTITY_ID, Fixture
+from rockygpt_brain.retrieval.campus_graph import lookup_choice
+from rockygpt_brain.retrieval.entity_facts import canonical_properties
 
-fixture = test_projection.fixture
-
-
-def source(identifier: str, **kwargs: Any) -> SourceRecord:
-    return SourceRecord(
-        id=identifier,
-        collection="contacts",
-        row_id=identifier,
-        source_key="directory",
-        source_record_key=identifier,
-        source_url="https://example.edu",
-        collected_at=None,
-        valid_from=None,
-        valid_until=None,
-        freshness="unknown",
-        limitations=[],
-        **kwargs,
-    )
+NOW = datetime(2026, 10, 1, 12, tzinfo=UTC)
 
 
-def prop(key: str, value: Any, source_id: str) -> Property:
-    return Property(
-        key=key,
-        label=key,
-        value_type="text",
-        assertions=[
-            Assertion(
-                id=f"{source_id}#{key}",
-                source_id=source_id,
-                value=value,
-                field_path=[key],
-                limitations=[],
-            )
+def office(
+    entity_id: str = "registrar",
+    name: str = "Registrar",
+    keys: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": entity_id,
+        "kind": "office",
+        "name": name,
+        "aliases": [],
+        "links": [
+            {
+                "collection": "contacts",
+                "source_key": "campus-directory",
+                "source_record_keys": keys or [f"office:{entity_id}"],
+            }
         ],
+    }
+
+
+def contact(record_id: str = "r1", **changes: Any) -> dict[str, Any]:
+    return {
+        "id": record_id,
+        "source_key": "campus-directory",
+        "source_record_key": "office:registrar",
+        "name": "Registrar",
+        "phone": "(201) 555-0100",
+        "email": "Registrar@example.edu",
+        "office": "D224",
+        "collected_at": NOW,
+        "freshness_sla_hours": 24,
+        "canonical_url": "https://example.edu/directory",
+        "content_hash": "record-hash",
+        **changes,
+    }
+
+
+def reader(
+    contacts: list[dict[str, Any]] | None = None,
+    entities: list[dict[str, Any]] | None = None,
+    aliases: list[dict[str, Any]] | None = None,
+) -> MemoryEntityFacts:
+    return MemoryEntityFacts(
+        dataset_version="test-release",
+        identity_hash="identity-hash",
+        entities=entities if entities is not None else [office()],
+        contacts=contacts if contacts is not None else [contact()],
+        alias_sources=aliases,
+        now=lambda: NOW,
     )
 
 
-def test_same_fact_one_value_many_evidence_records_no_independence_claim() -> None:
-    properties = [prop("email", "person@example.edu", s) for s in ["a", "b"]]
-    before = copy.deepcopy(properties)
-    (fact,) = canonical_properties(properties, [source("a"), source("b")])
-    assert fact.status == "known"
-    assert len(fact.values) == 1
-    assert fact.values[0].supporting_evidence_ids == ["a", "b"]
-    assert fact.values[0].evidence_count == 2
-    assert fact.values[0].assertion_ids == ["a#email", "b#email"]
-    assert "source_count" not in fact.model_dump()
-    assert properties == before
+def prop(result: dict[str, Any], key: str) -> dict[str, Any]:
+    return next(item for item in result["properties"] if item["key"] == key)
 
 
-def test_phone_office_aliases_preserve_raw_evidence_and_extensions() -> None:
-    fields = [
-        prop("phone", "(201) 684-7392", "a"),
-        prop("phones", [{"number": "201-684-7392"}], "a"),
-        prop("phone", "201.684.7392", "b"),
-        prop("office", "ASB-107", "a"),
-        prop("offices", ["ASB-107"], "b"),
-    ]
-    facts = {f.key: f for f in canonical_properties(fields, [source("a"), source("b")])}
-    assert set(facts) == {"phones", "offices"}
-    assert facts["phones"].status == "known" and len(facts["phones"].values) == 1
-    assert facts["phones"].values[0].value == [{"number": "201-684-7392"}]
-    assert facts["phones"].values[0].evidence_count == 2
-    assert facts["phones"].assertions[0].value == "(201) 684-7392"
-    assert facts["offices"].values[0].value == ["ASB-107"]
-    extension = prop("phone", "201-684-7392 ext. 123", "c")
-    (fact,) = canonical_properties([fields[0], extension], [source("a"), source("c")])
-    assert fact.status == "conflicting"  # different complete phone values, never discard extension
-    assert fact.values[1].value == [{"number": "201-684-7392", "extension": "123"}]
+def test_search_keeps_shared_alias_ambiguous_and_pins_release() -> None:
+    entities = [office("a", "First Office"), office("b", "Second Office")]
+    for entity in entities:
+        entity["aliases"] = ["Student Services"]
+    result = reader(entities=entities).search_offices(" student   services ")
+    assert [candidate["entity_id"] for candidate in result["candidates"]] == ["a", "b"]
+    assert all(candidate["match"] == "exact" for candidate in result["candidates"])
+    assert result["dataset_version"] == "test-release"
+    assert result["identity_hash"] == "identity-hash"
+    assert "phone" not in result["candidates"][0]
 
 
-def test_missing_values_do_not_contradict_known_and_false_zero_are_not_missing() -> None:
-    (fact,) = canonical_properties(
-        [prop("email", None, "a"), prop("email", "x", "b")], [source("a"), source("b")]
-    )
-    assert fact.status == "known" and len(fact.values) == 2
-    (fact,) = canonical_properties(
-        [prop("flag", False, "a"), prop("flag", 0, "b")], [source("a"), source("b")]
-    )
-    assert fact.status == "conflicting" and len(fact.values) == 2
-    (preference,) = canonical_properties([prop("prefers_email", False, "a")], [source("a")])
-    assert preference.status == "unknown" and preference.values[0].value is None
-    assert preference.assertions[0].value is False
-
-
-def test_extension_only_and_labeled_multiple_phones_have_one_canonical_path() -> None:
-    assert valid_value([{"extension": "7609"}], "phone_list")
-    assert not valid_value([{"type": "office"}], "phone_list")
-    for display, structured in [
-        ("Ext. 7609", [{"extension": "7609"}]),
-        (
-            "(201) 684-7392 (Office) / (201) 684-7393 (Cell)",
-            [
-                {"number": "201-684-7392", "type": "office"},
-                {"number": "201-684-7393", "type": "cell"},
-            ],
-        ),
-    ]:
-        (fact,) = canonical_properties(
-            [prop("phone", display, "a"), prop("phones", structured, "a")], [source("a")]
-        )
-        assert fact.status == "known" and len(fact.values) == 1
-        assert fact.values[0].value == structured
-        assert fact.values[0].evidence_count == 1
-
-
-def test_conflicts_are_explicit_but_disjoint_date_claims_are_not_conflicts() -> None:
-    properties = [prop("email", "a@example.edu", "a"), prop("email", "b@example.edu", "b")]
-    sources = [source("a"), source("b")]
-    assert canonical_properties(properties, sources)[0].status == "conflicting"
-    sources[0].valid_until = "2026-09-01"
-    sources[1].valid_from = "2026-09-02"
-    assert canonical_properties(properties, sources)[0].status == "multiple"
-    sources[1].valid_from = "2026-09-01"
-    assert canonical_properties(properties, sources)[0].status == "conflicting"
+def test_search_reports_truncation_and_never_fuzzy_merges() -> None:
+    service = reader(entities=[office(str(i), f"Student {i}") for i in range(3)])
+    result = service.search_offices("Student", limit=2)
+    assert len(result["candidates"]) == 2
+    assert result["truncated"] is True
+    assert service.search_offices("Studant")["candidates"] == []
 
 
 @pytest.mark.parametrize(
-    ("raw", "number", "note"),
+    "published,query",
     [
-        ("(201) 684-7293 (use email instead)", "201-684-7293", "use email instead"),
-        ("(201) 684-7852 (best to use e-mail)", "201-684-7852", "best to use e-mail"),
+        ("Registrar", "Registrar office"),
+        ("Office of the Registrar", "the Registrar’s office"),
+        ("Office of Financial Aid", "Financial-Aid office"),
+        ("Office of Financial Aid", "Aid, Financial"),
+        ("Health & Counseling", "Counseling and Health office"),
+        ("Center for Student Involvement", "Student Involvement Center"),
+        ("Women's Center", "the Women’s Center office"),
     ],
 )
-def test_phone_email_notes_qualify_same_number_without_false_conflict(
-    raw: str,
-    number: str,
-    note: str,
+def test_discovery_matches_name_words_despite_order_punctuation_and_office_filler(
+    published: str,
+    query: str,
 ) -> None:
-    properties = [prop("phone", raw, "a"), prop("phones", [{"number": number}], "b")]
-    (fact,) = canonical_properties(properties, [source("a"), source("b")])
-    assert fact.status == "known" and len(fact.values) == 1
-    assert fact.values[0].value == [{"number": number}]
-    assert fact.assertions[0].value == raw
-    assert fact.assertions[0].limitations == [f"Source phone note: {note}"]
+    result = reader(entities=[office("target", published)]).search_offices(query)
+    assert [candidate["entity_id"] for candidate in result["candidates"]] == ["target"]
+    # The same words are the published name, however they are ordered or punctuated.
+    assert result["candidates"][0]["match"] == "exact"
 
 
-def test_json_equality_is_conservative() -> None:
-    sources = [source("a"), source("b")]
-    (fact,) = canonical_properties(
-        [prop("x", {"a": 1, "b": 2}, "a"), prop("x", {"b": 2, "a": 1}, "b")], sources
+def test_discovery_keeps_exact_priority_and_all_token_collisions() -> None:
+    service = reader(
+        entities=[
+            office("main", "Financial Aid"),
+            office("graduate", "Graduate Financial Aid Office"),
+            office("other", "Office of Aid for Financial Services"),
+        ]
     )
-    assert len(fact.values) == 1
-    for left, right in [([1, 2], [2, 1]), ("x", "X"), ("1", 1), ("dept", "Dept")]:
-        assert (
-            canonical_properties([prop("x", left, "a"), prop("x", right, "b")], sources)[0].status
-            == "conflicting"
-        )
+    exact = service.search_offices("Financial Aid")["candidates"]
+    assert exact[0]["entity_id"] == "main"
+    assert exact[0]["match"] == "exact"
+    assert {candidate["entity_id"] for candidate in exact} == {"main", "graduate", "other"}
+    unordered = service.search_offices("Aid Financial office")["candidates"]
+    # Every office that shares the words stays a candidate; only the one with exactly the query's
+    # words is exact, and the others (a longer name containing them) stay partial.
+    assert {candidate["entity_id"] for candidate in unordered} == {"main", "graduate", "other"}
+    assert [(c["entity_id"], c["match"]) for c in unordered] == [
+        ("main", "exact"), ("graduate", "partial"), ("other", "partial")]
+    limited = service.search_offices("Aid Financial office", limit=1)
+    assert limited["truncated"] is True
 
 
-def test_support_contract_rejects_lost_or_fabricated_evidence() -> None:
-    (fact,) = canonical_properties([prop("email", "x", "a")], [source("a")])
-    payload = fact.model_dump()
-    payload["values"][0]["supporting_evidence_ids"] = ["fabricated"]
-    with pytest.raises(ValueError, match="support"):
-        FactProperty.model_validate(payload)
-    payload = fact.model_dump()
-    payload["values"][0]["assertion_ids"] = []
-    with pytest.raises(ValueError, match="Every assertion"):
-        FactProperty.model_validate(payload)
+def test_a_query_with_one_offices_words_is_that_office_and_a_shared_alias_stays_ambiguous() -> None:
+    entities = [office("emergency", "Public Safety (Emergency)"),
+                office("general", "Public Safety (Non-Emergency)")]
+    for entity in entities:
+        entity["aliases"] = ["Public Safety"]
+    service = reader(entities=entities)
+    result = service.search_offices("public safety non-emergency")["candidates"]
+    assert [(c["entity_id"], c["match"]) for c in result] == [
+        ("general", "exact"), ("emergency", "partial")]
+    # The emergency office's words are a subset of the query's: still only a partial match.
+    emergency = service.search_offices("public safety emergency")["candidates"]
+    assert [c["match"] for c in emergency] == ["exact", "partial"]
+    # The student named neither: both published aliases are exact, so the Brain still asks.
+    both = service.search_offices("Public Safety")["candidates"]
+    assert {c["entity_id"] for c in both} == {"emergency", "general"}
+    assert all(c["match"] == "exact" for c in both)
 
 
-def test_exact_faculty_derivation_is_not_independent_corroboration() -> None:
-    sources = [source("contact"), source("faculty")]
-    sources[0].source_key = "faculty"
-    sources[0].source_record_key = "faculty:rikki-abzug:business"
-    sources[1].collection = "faculty"
-    properties = [
-        prop("name", "Rikki Abzug", "faculty"),
-        prop("school", "Business", "faculty"),
-        prop("email", "rabzug@example.edu", "faculty"),
-        prop("email", "rabzug@example.edu", "contact"),
-    ]
-    annotated = _lineage(properties, sources)
-    assert annotated[0].derived_from_source_id == "faculty"
-    assert sources[0].derived_from_source_id is None
-    properties[-1].assertions[0].value = "different@example.edu"
-    assert _lineage(properties, sources)[0].derived_from_source_id is None
+def resolved(service: MemoryEntityFacts, query: str) -> list[str]:
+    """The office ids a lookup would answer for, or [] when it would ask or find none."""
+    found = service.search_offices(query)
+    outcome, chosen = lookup_choice(found["candidates"], found["truncated"])
+    return [c["entity_id"] for c in chosen] if outcome == "answers" else []
 
 
-def test_projection_v3_reuses_exact_readers_and_preserves_contexts(fixture: Fixture) -> None:
-    data, snapshot, records = fixture
-    before = copy.deepcopy(records)
-    reader = EntityFacts(data, snapshot)
-    result = reader.build(ENTITY_ID, include_records=True, limit=2)
-    assert result.schema_version == 3 and result.projection_version == "entity-facts-1"
-    assert {p.key: p for p in result.properties}["email"].status == "conflicting"
-    menu = result.record_groups[0]
-    assert menu.returned == 2 and menu.total == 3
-    assert len({r.id for r in menu.records}) == 2
-    assert menu.records[0].properties[3].key == "vegan"
-    vegan = next(p for p in menu.records[0].properties if p.key == "vegan")
-    assert vegan.values[0].value is False and vegan.status == "known"
-    allergens = next(p for p in menu.records[0].properties if p.key == "allergens")
-    assert allergens.values[0].value is None and allergens.assertions[0].value == []
-    hours = next(g for g in result.record_groups if g.key == "dining_hours")
-    assert [r.label for r in hours.records] == ["Monday", "Monday"]
-    assert [r.sections[0].window for r in hours.records] == ["undated", "current"]
-    assert (hours.title_field, hours.summary_field) == ("weekday", "schedule")
-    assert records == before
-    assert set(reader.source_records) == {s.id for s in result.sources}
-    EntityFactProjection.model_validate_json(result.model_dump_json())
-    second = EntityFacts(data, snapshot).build(
-        ENTITY_ID, include_records=True, group=menu.key, cursor=menu.next_cursor, limit=2
-    )
-    assert second.properties == [] and len(second.record_groups[0].records) == 1
-    with pytest.raises(HTTPException) as caught:
-        Projection(data, snapshot).build(UUID(ENTITY_ID), menu.key, {}, 2, menu.next_cursor)
-    assert caught.value.status_code == 409
+def public_safety() -> MemoryEntityFacts:
+    entities = [office("emergency", "Public Safety (Emergency)"),
+                office("general", "Public Safety (Non-Emergency)")]
+    for entity in entities:
+        entity["aliases"] = ["Public Safety", "Campus Police"]
+    return reader(entities=entities)
 
 
-def test_property_only_lookup_does_not_read_context_collections(fixture: Fixture) -> None:
-    data, snapshot, _ = fixture
-    reader = EntityFacts(data, snapshot)
-    result = reader.build(ENTITY_ID)
-    assert result.record_groups == []
-    assert {s.collection for s in result.sources} == {"contacts"}
-
-
-def test_explicit_retirement_is_status_not_a_competing_title() -> None:
-    a, b = source("a"), source("b")
-    b.collection = "faculty"
-    properties = [
-        prop("title", "Professor of History", "a"),
-        prop("status", "retired", "a"),
-        prop("title", "Professor of History - Retired", "b"),
-    ]
-    facts = {p.key: p for p in canonical_properties(properties, [a, b])}
-    assert facts["title"].status == "known"
-    assert facts["title"].values[0].value == "Professor of History"
-    assert facts["status"].values[0].value == "retired"
-    assert facts["status"].values[0].supporting_evidence_ids == ["a", "b"]
-    assert facts["status"].assertions[1].field_path == ["title"]
-    assert facts["status"].assertions[1].value == "Professor of History - Retired"
-    for title in ["Professor Emeritus", "Professor of Retirement Studies"]:
-        listed = canonical_properties([prop("title", title, "b")], [b])
-        assert [p.key for p in listed] == ["title"]
-    facts = {p.key: p for p in canonical_properties([prop("title", "Retired", "b")], [b])}
-    assert facts["title"].status == "unknown" and facts["status"].values[0].value == "retired"
-
-
-def test_a_reviewed_alias_is_the_entitys_name_not_a_competing_name() -> None:
-    a, b = source("a"), source("b")
-    b.collection = "clubs"
-    library = Entity(id=ENTITY_ID, kind="office", name="Library",
-                     aliases=["Potter Library", "Research Help Desk"])
-    reviewed = frozenset({"Potter Library"})
-    names = [prop("name", "Library", "a"), prop("name", "Potter  Library", "b")]
-    (fact,) = canonical_properties(names, [a, b], library, reviewed)
-    assert (fact.status, [value.value for value in fact.values]) == ("known", ["Library"])
-    assert fact.values[0].supporting_evidence_ids == ["a", "b"]
-    # The published text stays in the evidence, and says which reviewed name it was.
-    assert fact.assertions[1].value == "Potter  Library"
-    assert fact.assertions[1].limitations == [
-        "Published as 'Potter Library', one of this entity's reviewed names."]
-    assert names[1].assertions[0].limitations == []
-    # An alias no review backs, a case variant, or no entity: still a disagreement.
-    for other, backed in (("Research Help Desk", reviewed), ("potter library", reviewed),
-                          ("Potter Library", frozenset[str]())):
-        listed = [prop("name", "Library", "a"), prop("name", other, "b")]
-        assert canonical_properties(listed, [a, b], library, backed)[0].status == "conflicting"
-    assert canonical_properties(names, [a, b])[0].status == "conflicting"
-    # A name no source disputes stays exactly as published, with no caveat.
-    (alone,) = canonical_properties([prop("name", "Potter Library", "b")], [b], library,
-                                    reviewed)
-    assert ([value.value for value in alone.values], alone.assertions[0].limitations) == (
-        ["Potter Library"], [])
-    # Only the name: another field with an alias's text keeps its own value.
-    (department,) = canonical_properties([prop("department", "Potter Library", "a")], [a],
-                                         library, reviewed)
-    assert department.values[0].value == "Potter Library"
-    # Whitespace in the registry name is not a different name.
-    spaced = Entity(id=ENTITY_ID, kind="person", name="Yolanda del\xa0Amo",
-                    aliases=["Yolanda del Amo"])
-    (person,) = canonical_properties([prop("name", "Yolanda del Amo", "a")], [a], spaced,
-                                     frozenset({"Yolanda del Amo"}))
-    assert ([value.value for value in person.values], person.assertions[0].limitations) == (
-        ["Yolanda del Amo"], [])
-
-
-def test_only_aliases_a_person_or_the_directory_gave_can_settle_names() -> None:
-    library = Entity(id=ENTITY_ID, kind="office", name="Library",
-                     aliases=["Potter Library", "Research Help Desk", "Library West"])
-
-    class Release:
-        reads = 0
-
-        def _artifact(self, key: str) -> Any:
-            assert key == "campus-identity-coverage"
-            self.reads += 1
-            return {"alias_sources": [
-                {"entity_id": ENTITY_ID, "alias": alias, "sources": [{"basis": basis}]}
-                for alias, basis in (("Potter Library", "department"),
-                                     ("Research Help Desk", "record_name"),
-                                     ("Library West", "human_reviewed"))
-            ] + [{"entity_id": "another", "alias": "Library West",
-                  "sources": [{"basis": "identity_map"}]}]}
-
-    release = Release()
-    published = [prop("name", name, "a") for name in
-                 ("Library", "Potter Library", "Research Help Desk", "Library West")]
-    assert reviewed_names(release, library, published) == {"Potter Library", "Library West"}
-    # With only one published name, or without the entity's own name, nothing is read.
-    for names in (["Potter Library"], ["Potter Library", "Research Help Desk"]):
-        assert reviewed_names(release, library, [prop("name", n, "a") for n in names]) == set()
-    # An alias that is the entity's own name apart from whitespace needs no read either.
-    spaced = Entity(id=ENTITY_ID, kind="person", name="Yolanda del\xa0Amo",
-                    aliases=["Yolanda del Amo"])
-    assert reviewed_names(release, spaced, [prop("name", "Yolanda del Amo", "a")]) == set()
-    assert release.reads == 1
-
-
-def test_source_cleanup_and_date_only_events_are_shared_semantics() -> None:
-    a, b = source("a"), source("b")
-    b.collection = "faculty"
-    (fact,) = canonical_properties(
-        [prop("name", "Yolanda del Amo", "a"), prop("name", "Yolanda del\u00a0Amo", "b")], [a, b]
-    )
-    assert len(fact.values) == 1 and fact.assertions[1].value.endswith("del\u00a0Amo")
-    a.collection = "events"
-    facts = {
-        p.key: p
-        for p in canonical_properties(
-            [prop("starts_at", "2026-10-01T00:00:00", "a"), prop("start_time", None, "a")], [a]
-        )
-    }
-    assert facts["starts_at"].value_type == "date_or_datetime"
-    assert facts["starts_at"].values[0].value == "2026-10-01"
-    assert facts["starts_at"].assertions[0].value == "2026-10-01T00:00:00"
-    assert "start time is unavailable" in facts["starts_at"].assertions[0].limitations[0]
-
-
-def test_office_codes_are_formatted_but_named_locations_keep_their_meaning() -> None:
-    a, b = source("a"), source("b")
-    (fact,) = canonical_properties(
-        [prop("office", "ASB312 / ASB 314", "a"), prop("offices", ["ASB-312", "ASB-314"], "b")],
-        [a, b],
-    )
-    assert fact.status == "known" and len(fact.values) == 1
-    (fact,) = canonical_properties([prop("office", "Library / Service Desk", "a")], [a])
-    assert fact.values[0].value == ["Library / Service Desk"]
-
-
-def test_an_email_mention_does_not_become_a_preference() -> None:
-    fields = [
-        prop("prefers_email", True, "a"),
-        prop("preferred_contact", "email", "a"),
-        prop("contact_note", "email unavailable", "a"),
-    ]
-    facts = {p.key: p for p in canonical_properties(fields, [source("a")])}
-    assert facts["prefers_email"].status == facts["preferred_contact"].status == "unknown"
-    fields[-1].assertions[0].value = "use email instead"
-    facts = {p.key: p for p in canonical_properties(fields, [source("a")])}
-    assert facts["prefers_email"].values[0].value is True
-    assert facts["preferred_contact"].values[0].value == "email"
-
-
-@pytest.mark.parametrize("collection,kind,url_field,artifact_url,extra,expected", [
-    ("clubs", "club", "website_url", "websiteUrl", {
-        "email": "club@example.edu", "mission": "Our mission.",
-        "memberBenefits": "A community.", "groupmeGroups": [{"name": "Club", "url": "https://groupme.example/join"}],
-    }, {"email", "mission", "member_benefits", "groupme_groups"}),
-    ("events", "event", "event_url", "url", {
-        "location": "Hall 101", "tags": ["Meeting"], "ticketStatus": "FREE",
-        "offersFreeFood": True, "imageUrl": "https://example.edu/event.png",
-    }, {"location", "tags", "ticket_status", "offers_free_food", "image_url"}),
+@pytest.mark.parametrize("query,expected", [
+    ("public safety non-emergency number", ["general"]),
+    ("what's the phone number for Public Safety's non-emergency line", ["general"]),
+    ("public safety emergency number", ["emergency"]),
+    ("Public Safety (Non-Emergency) hours", ["general"]),
+    # The student named neither office, or only the alias both share: still a question.
+    ("public safety number", []),
+    ("campus police phone", []),
 ])
-def test_exact_artifact_fields_reach_entity_lookup_and_keep_original_row(
-    fixture: Fixture, collection: str, kind: str, url_field: str, artifact_url: str,
-    extra: dict[str, Any], expected: set[str],
+def test_a_question_with_one_offices_whole_name_and_more_words_is_that_office(
+    query: str, expected: list[str],
 ) -> None:
-    from rockygpt_brain.retrieval.graph import GraphData
-    from rockygpt_brain.retrieval.models import EntityQuery
-
-    data, snapshot, records = fixture
-    entity = data._artifacts["campus-identities"]["entities"][0]
-    entity.update(kind=kind, links=[{"collection": collection, "source_key": "directory",
-                                     "source_record_keys": ["one"]}])
-    url = "https://example.edu/one"
-    data._artifacts[collection] = [{artifact_url: url, **extra}]
-    raw = {"id": "one", "source_id": "directory", "source_record_key": "one",
-           "collected_at": test_projection.NOW.isoformat(), "name": "Example", url_field: url}
-    if collection == "events":
-        raw.update(title="Example", date_label="Sep 21, 2026",
-                   starts_at="2026-09-21T17:00:00-04:00", start_time="5 PM")
-    original = copy.deepcopy(raw)
-    row = GraphData(data)._record(collection, {"record": raw, "source": data.sources["directory"]})
-    records[collection] = [row]
-    projection = EntityFacts(data, snapshot).build(UUID(ENTITY_ID))
-    props = {prop.key: prop for prop in projection.properties}
-    assert expected <= props.keys()
-    assert row["raw_record"] == raw == original
-    assert projection.sources[0].artifact_key == collection
-    assert projection.sources[0].artifact_path == ["0"]
-    output = data.lookup_entity(EntityQuery(entity_id=UUID(ENTITY_ID)))
-    assert expected <= {prop["key"] for prop in output["entity_facts"]["properties"]}
-    evidence = output["records"][0]
-    for key, value in extra.items():
-        assert evidence["fields"][key] == value
-    assert row["raw_record"] == original
+    assert resolved(public_safety(), query) == expected
 
 
-@pytest.mark.parametrize("failure", ["missing_url", "wrong_url", "duplicate_url"])
-def test_graph_artifact_enrichment_never_uses_names_or_landing_urls(failure: str) -> None:
-    from rockygpt_brain.retrieval.graph import GraphData
-    from test_club_event_profiles import CLUB_URL, campus
-
-    data = campus()
-    raw = {"id": "one", "name": "Example Club", "website_url": CLUB_URL}
-    if failure == "missing_url":
-        raw.pop("website_url")
-    elif failure == "wrong_url":
-        raw["website_url"] = "https://example.edu/other"
-    else:
-        data._artifacts["clubs"].append(dict(data._artifacts["clubs"][0]))
-    record = GraphData(data)._record("clubs", {"record": raw, "source": {
-        **data.sources["archway-clubs"], "canonical_url": CLUB_URL}})
-    assert "email" not in record["fields"]
-    assert "artifact_path" not in record
+def test_an_offices_own_name_outranks_another_offices_alias() -> None:
+    # The directory lists one desk under a department, so the department's name became that
+    # desk's alias. A student who says the department's name means the department.
+    entities = [office("csi", "Center for Student Involvement"),
+                office("desk", "Roadrunner Central")]
+    entities[1]["aliases"] = ["Center for Student Involvement", "Shortline Bus Tickets"]
+    service = reader(entities=entities)
+    assert resolved(service, "Center for Student Involvement") == ["csi"]
+    assert resolved(service, "Center for Student Involvement hours") == ["csi"]
+    assert resolved(service, "Roadrunner Central hours") == ["desk"]
+    assert resolved(service, "shortline bus tickets") == ["desk"]
+    # Both offices named in one question: the alias must not hide the second office.
+    assert resolved(service, "Center for Student Involvement and Roadrunner Central") == []
 
 
-CATALOG_ENTRY = {
-    "catalogCode": "SN-BS-CMPS", "name": "Computer Science BS",
-    "learningGoalsAndOutcomes": "Graduates will:\n- Program well.",
-    "sampleGraduationPlan": "See the My Graduation Plan page.",
-    "programLevel": "UG - Undergraduate", "degreeDesignations": ["BS - Bachelor of Science"],
-    "conveningGroups": ["Computer Science (CMPS)"], "catalogConcentrations": "Robotics",
-    # Not a displayed program fact; an entry's other fields are never copied.
-    "catalogSections": [{"title": "Details", "fields": []}], "careers": "Excerpt.",
-}
+def test_an_alias_two_offices_share_stays_a_question_even_when_one_is_named_by_it() -> None:
+    entities = [office("a", "First Office"), office("b", "Second Office")]
+    for entity in entities:
+        entity["aliases"] = ["Student Services"]
+    service = reader(entities=entities)
+    assert resolved(service, "Student Services") == []
+    assert resolved(service, "Student Services hours") == []
 
 
-@pytest.mark.parametrize("failure", [None, "other_code", "duplicate_code", "name_only"])
-def test_catalog_program_fields_come_only_from_the_exact_catalog_code(
-    fixture: Fixture, failure: str | None,
+def test_a_name_inside_a_longer_question_waits_when_another_office_has_all_the_words() -> None:
+    service = reader(entities=[office("aid", "Financial Aid"),
+                               office("forms", "Financial Aid Forms and Deadlines")])
+    # "financial aid forms" is part of the longer office's name; the shorter name is only some
+    # of what the student said, so the Brain asks instead of choosing.
+    assert resolved(service, "financial aid forms") == []
+    assert resolved(service, "financial aid hours") == ["aid"]
+
+
+def test_discovery_does_not_invent_synonyms_or_match_generic_words_alone() -> None:
+    service = reader(entities=[office("registrar", "Registrar"), office("aid", "Financial Aid")])
+    assert service.search_offices("registration office")["candidates"] == []
+    assert service.search_offices("pay tuition")["candidates"] == []
+    assert service.search_offices("Graduate scholarships")["candidates"] == []
+    assert service.search_offices("the office")["candidates"] == []
+
+
+@pytest.mark.parametrize(
+    "published,query",
+    [
+        ("Registrar", "Registrar office at Example College"),
+        ("Financial Aid", "the Financial Aid office on campus"),
+        ("Health & Counseling", "contact Health and Counseling for appointments"),
+    ],
+)
+def test_discovery_accepts_published_names_inside_added_context(
+    published: str,
+    query: str,
 ) -> None:
-    from rockygpt_brain.retrieval.graph import GraphData
-
-    data, snapshot, records = fixture
-    entity = data._artifacts["campus-identities"]["entities"][0]
-    entity.update(kind="program", links=[{"collection": "programs", "source_key": "directory",
-                                          "source_record_keys": ["catalog:SN-BS-CMPS"]}])
-    majors = [dict(CATALOG_ENTRY)]
-    if failure == "other_code":
-        majors[0]["catalogCode"] = "SN-MN-CMPS"
-    elif failure == "duplicate_code":
-        majors.append(dict(CATALOG_ENTRY))
-    data._artifacts["programs"] = {"schools": [{"school": "Science", "majors": majors}]}
-    raw = {"id": "one", "source_id": "directory", "collected_at": test_projection.NOW.isoformat(),
-           "source_record_key": "name:Computer Science BS" if failure == "name_only"
-           else "catalog:SN-BS-CMPS", "name": "Computer Science BS",
-           "program_url": "https://catalog.ramapo.edu/programs/SN-BS-CMPS"}
-    original = copy.deepcopy(raw)
-    row = GraphData(data)._record("programs", {"record": raw, "source": data.sources["directory"]})
-    if failure == "name_only":
-        entity["links"][0]["source_record_keys"] = ["name:Computer Science BS"]
-    records["programs"] = [row]
-    facts = EntityFacts(data, snapshot).build(UUID(ENTITY_ID))
-    props = {prop.key: prop for prop in facts.properties}
-    assert row["raw_record"] == raw == original
-    catalog = {"learning_goals_and_outcomes", "sample_graduation_plan", "program_level",
-               "degree_designations", "convening_groups", "concentrations"}
-    if failure:
-        assert not catalog & props.keys()
-        assert "artifact_path" not in row
-        return
-    assert catalog <= props.keys()
-    assert props["degree_designations"].values[0].value == ["BS - Bachelor of Science"]
-    assert props["learning_goals_and_outcomes"].category == "academic"
-    assert row["artifact_path"] == ["schools", "0", "majors", "0"]
-    assert set(row["supplemental_fields"]) == {
-        "learningGoalsAndOutcomes", "sampleGraduationPlan", "programLevel", "degreeDesignations",
-        "conveningGroups", "catalogConcentrations", "requirementsText"}
-    # Listed sections without a requirements listing: the fact is known to be unpublished.
-    assert props["requirements"].status == "unknown"
+    result = reader(entities=[office("target", published)]).search_offices(query)
+    assert [candidate["entity_id"] for candidate in result["candidates"]] == ["target"]
+    assert result["candidates"][0]["match"] == "partial"
 
 
-@pytest.mark.parametrize("listed", [True, False])
-def test_a_catalog_entry_that_lists_its_sections_shows_a_missing_field_is_unpublished(
-    fixture: Fixture, listed: bool,
+def test_discovery_retains_every_named_office_in_multi_intent_query() -> None:
+    service = reader(entities=[office(), office("admissions", "Admissions")])
+    result = service.search_offices("Registrar and Admissions offices at Example College")
+    assert {candidate["entity_id"] for candidate in result["candidates"]} == {
+        "registrar",
+        "admissions",
+    }
+    assert all(candidate["match"] == "partial" for candidate in result["candidates"])
+
+
+def test_empty_normalized_name_or_query_tokens_cannot_match_everything() -> None:
+    generic = office("generic", "Office")
+    generic["aliases"] = ["the office"]
+    service = reader(entities=[generic, office()])
+    assert service.search_offices("Campus counseling service")["candidates"] == []
+    generic_result = service.search_offices("the office")
+    assert [candidate["entity_id"] for candidate in generic_result["candidates"]] == ["generic"]
+    assert generic_result["candidates"][0]["match"] == "exact"
+
+
+@pytest.mark.parametrize("version,identity_hash", [("old", None), ("test-release", "old")])
+def test_stale_pin_fails_before_returning_facts(version: str, identity_hash: str | None) -> None:
+    service = reader()
+    with pytest.raises(DatasetChanged):
+        service.get_office_facts("registrar", ["email"], version, identity_hash=identity_hash)
+    with pytest.raises(DatasetChanged):
+        service.search_offices("Registrar", dataset_version=version, identity_hash=identity_hash)
+
+
+def test_equal_values_preserve_every_record_and_missing_observations() -> None:
+    result = reader([contact("r1"), contact("r2"), contact("r3", email=None)]).get_office_facts(
+        "registrar",
+        ["email"],
+        "test-release",
+    )
+    email = prop(result, "email")
+    assert email["status"] == "known"
+    assert email["values"] == [
+        {
+            "value": "Registrar@example.edu",
+            "assertion_ids": ["r1:email", "r2:email"],
+            "source_ids": ["r1", "r2"],
+        }
+    ]
+    assert len(email["assertions"]) == 3
+    assert email["assertions"][2]["raw_value"] is None
+    assert result["evidence_count"] == 3  # Records, never votes/confidence.
+
+
+def test_conflicting_values_are_not_voted_down_or_case_folded() -> None:
+    result = reader([contact("r1"), contact("r2"), contact("r3", email="registrar@example.edu")])
+    email = prop(result.get_office_facts("registrar", ["email"], "test-release"), "email")
+    assert email["status"] == "conflicting"
+    assert [value["value"] for value in email["values"]] == [
+        "Registrar@example.edu",
+        "registrar@example.edu",
+    ]
+
+
+@pytest.mark.parametrize(
+    "start,status",
+    [("2026-09-02", "multiple"), ("2026-09-01", "conflicting"), (None, "conflicting")],
+)
+def test_distinct_dates_only_separate_explicit_disjoint_records(
+    start: str | None,
+    status: str,
 ) -> None:
-    from rockygpt_brain.retrieval.graph import GraphData
-
-    data, snapshot, records = fixture
-    entity = data._artifacts["campus-identities"]["entities"][0]
-    entity.update(kind="program", links=[{"collection": "programs", "source_key": "directory",
-                                          "source_record_keys": ["catalog:SN-BS-CMPS"]}])
-    entry = {key: value for key, value in CATALOG_ENTRY.items() if key != "catalogConcentrations"}
-    if not listed:
-        entry.pop("catalogSections")
-    data._artifacts["programs"] = {"schools": [{"school": "Science", "majors": [entry]}]}
-    raw = {"id": "one", "source_id": "directory", "collected_at": test_projection.NOW.isoformat(),
-           "source_record_key": "catalog:SN-BS-CMPS", "name": "Computer Science BS"}
-    records["programs"] = [GraphData(data)._record(
-        "programs", {"record": raw, "source": data.sources["directory"]})]
-    facts = EntityFacts(data, snapshot).build(UUID(ENTITY_ID))
-    props = {prop.key: prop for prop in facts.properties}
-    missing = [issue for issue in facts.coverage if "catalogConcentrations" in issue.fields]
-    # Listed sections: not displayed, so unknown. An older capture: unavailable, not unknown.
-    concentrations = props.get("concentrations")
-    assert (concentrations is not None and concentrations.status == "unknown") is listed
-    assert bool(missing) is not listed
+    result = reader(
+        [
+            contact(
+                "old", email="old@example.edu", valid_from="2026-01-01", valid_until="2026-09-01"
+            ),
+            contact("new", email="new@example.edu", valid_from=start, valid_until="2026-12-31"),
+        ]
+    ).get_office_facts("registrar", ["email"], "test-release")
+    assert prop(result, "email")["status"] == status
+    assert result["sources"][0]["validity"] == "expired"
 
 
-def test_a_course_fact_shows_the_credits_its_catalog_page_displays(fixture: Fixture) -> None:
-    from rockygpt_brain.retrieval.knowledge import course_id
+def test_source_boundaries_and_verified_page_urls_are_retained() -> None:
+    result = reader(
+        [
+            contact(
+                collected_at="2026-09-01T12:00:00Z",
+                valid_from="2026-11-01",
+                valid_until="2026-11-30",
+                normalization_metadata={
+                    "evidence": {
+                        "source_urls": ["https://example.edu/registrar", "javascript:alert(1)"],
+                        "withheld": [
+                            {"field": "office", "value": "D224", "reason": "not observed"}
+                        ],
+                    }
+                },
+            )
+        ]
+    ).get_office_facts("registrar", ["email", "website"], "test-release")
+    source = result["sources"][0]
+    assert source["freshness"] == "stale"
+    assert source["validity"] == "future"
+    assert source["citation_urls"] == ["https://example.edu/registrar"]
+    assert prop(result, "website")["status"] == "unknown"
+    assert source["normalization_metadata"]["evidence"]["withheld"]
 
-    data, snapshot, _ = fixture
-    data.sources["academic-programs"] = {**data.sources["directory"], "id": "academic-programs",
-                                         "source_key": "academic-programs"}
-    hours = {"min": 0, "max": 4, "operator": "TO"}
-    data._artifacts["courses"] = {"CMPS 147": {
-        "code": "CMPS 147", "name": "COMPUTER SCIENCE I", "description": "Intro",
-        "credits": 4, "creditHours": hours, "attributes": [], "requisites": [],
-        "requisitesText": None, "conveningGroups": [], "school": None}}
-    facts = EntityFacts(data, snapshot).build(UUID(course_id("academic-programs", "CMPS 147")))
-    credits = next(prop for prop in facts.properties if prop.key == "credits")
-    # The page's displayed credits are the fact; the stored hours are evidence, not a gap.
-    assert [value.value for value in credits.values] == [4]
-    assert "credit_hours" not in {prop.key for prop in facts.properties}
-    assert not facts.coverage
+
+def site_row(url: Any, **extra: Any) -> dict[str, Any]:
+    claim = {"url": url, "checked_at": "2026-10-07T00:00:00+00:00", **extra}
+    return contact(normalization_metadata={"evidence": {
+        "source_urls": ["https://example.edu/registrar"], "website": claim}})
+
+
+def test_a_reviewed_ramapo_page_is_the_offices_website_and_a_provenance_url_is_not() -> None:
+    known = prop(reader([site_row("https://www.ramapo.edu/registrar/")]).get_office_facts(
+        "registrar", ["website"], "test-release"), "website")
+    assert known["status"] == "known"
+    assert [v["value"] for v in known["values"]] == ["https://www.ramapo.edu/registrar/"]
+    # What the publisher published is shown beside the value, not rewritten.
+    assert known["assertions"][0]["raw_value"]["url"] == "https://www.ramapo.edu/registrar/"
+    bare = prop(reader([contact()]).get_office_facts("registrar", ["website"], "test-release"),
+                "website")
+    assert bare["status"] == "unknown"  # The page a fact was copied from is not the website.
+
+
+@pytest.mark.parametrize("url", [
+    "https://ramapoathletics.com/", "https://www.ramapo.edu.evil.example/x/",
+    "http://www.ramapo.edu/x/", "https://web.ramapo.edu/x/", "https://user@www.ramapo.edu/x/",
+    "https://www.ramapo.edu:8443/x/", "https://www.ramapo.edu/x/?q=1",
+    "https://www.ramapo.edu/x/#top", "javascript:alert(1)", "ramapo.edu",
+    " https://www.ramapo.edu/x/", "https://www.ramapo.edu/x y/", None, 7,
+    ["https://www.ramapo.edu/x/"],
+])
+def test_only_a_plain_ramapo_page_can_be_stated_as_a_website(url: Any) -> None:
+    result = reader([site_row(url)]).get_office_facts("registrar", ["website"], "test-release")
+    assert prop(result, "website")["status"] == "unknown"
+    assert prop(result, "website")["values"] == []
+
+
+def test_phone_and_office_aliases_normalize_without_inventing_values() -> None:
+    result = reader(
+        [
+            contact("a", phones=[{"number": "201-555-0100", "extension": "123", "type": "fax"}]),
+            contact(
+                "b",
+                phones=[{"number": "+12015550100", "extension": "123", "type": "fax"}],
+                office="D-224",
+            ),
+        ]
+    ).get_office_facts("registrar", ["phone", "office"], "test-release")
+    assert prop(result, "phones")["status"] == "known"
+    assert prop(result, "phones")["values"][0]["value"] == [
+        {"number": "+12015550100", "extension": "123", "type": "fax"},
+    ]
+    assert prop(result, "offices")["values"][0]["value"] == ["D-224"]
+    extension = reader([contact(phone="Ext. 1234")]).get_office_facts(
+        "registrar",
+        ["phones"],
+        "test-release",
+    )
+    assert prop(extension, "phones")["values"][0]["value"] == [{"extension": "1234"}]
+    unparsed = reader([contact(phone="Call the desk")]).get_office_facts(
+        "registrar",
+        ["phones"],
+        "test-release",
+    )
+    assert prop(unparsed, "phones")["values"][0]["value"] == [{"text": "Call the desk"}]
+
+
+def test_unknown_is_not_false_and_primitive_types_are_distinct() -> None:
+    result = reader([contact(prefers_email=False)]).get_office_facts(
+        "registrar",
+        ["prefers_email"],
+        "test-release",
+    )
+    preference = prop(result, "prefers_email")
+    assert preference["status"] == "unknown"
+    assert preference["assertions"][0]["raw_value"] is False
+    rows = [contact(str(i), department=value) for i, value in enumerate([False, 0, "0"])]
+    properties = canonical_properties(rows, ["department"], [{"id": row["id"]} for row in rows])
+    assert properties[0]["status"] == "conflicting"
+    assert len(properties[0]["values"]) == 3
+
+
+def test_reviewed_name_alias_requires_registry_name_in_original_evidence() -> None:
+    entity = office(name="Potter Library")
+    entity["aliases"] = ["Library"]
+    aliases: list[dict[str, Any]] = [
+        {"entity_id": "registrar", "alias": "Library", "sources": [{"basis": "department"}]}
+    ]
+    rows = [contact("a", name="Potter Library"), contact("b", name="Library")]
+    resolved = reader(rows, [entity], aliases).get_office_facts(
+        "registrar", ["name"], "test-release"
+    )
+    assert prop(resolved, "name")["status"] == "known"
+    assert prop(resolved, "name")["assertions"][1]["raw_value"] == "Library"
+    aliases[0]["sources"][0]["basis"] = "record_name"
+    unresolved = reader(rows, [entity], aliases).get_office_facts(
+        "registrar", ["name"], "test-release"
+    )
+    assert prop(unresolved, "name")["status"] == "conflicting"
+    single = reader([rows[1]], [entity], aliases).get_office_facts(
+        "registrar",
+        ["name"],
+        "test-release",
+    )
+    assert prop(single, "name")["values"][0]["value"] == "Library"
+
+
+def test_exact_identity_link_excludes_similar_named_unlinked_records() -> None:
+    entity = office()
+    entity["links"][0]["source_record_ids"] = ["r1"]
+    result = reader(
+        [
+            contact("r1"),
+            contact("r2", email="wrong@example.edu"),
+            contact("r3", source_record_key="different-office", email="wrong@example.edu"),
+        ],
+        [entity],
+    ).get_office_facts("registrar", ["email"], "test-release")
+    assert result["evidence_count"] == 1
+    assert result["sources"][0]["id"] == "r1"
+
+
+def test_missing_linked_records_are_explicit_and_fabricated_support_rejected() -> None:
+    result = reader([], [office(keys=["missing"])]).get_office_facts(
+        "registrar",
+        ["email"],
+        "test-release",
+    )
+    assert result["complete"] is False
+    assert result["caveats"]
+    assert prop(result, "email")["status"] == "unknown"
+    with pytest.raises(EvidenceUnavailable, match="original evidence"):
+        canonical_properties([contact()], ["email"], [])
+
+
+def test_duplicate_canonical_ownership_fails_closed() -> None:
+    with pytest.raises(EvidenceUnavailable, match="multiple canonical owners"):
+        reader(entities=[office(), office("other", keys=["office:registrar"])])
+
+
+def test_contact_budget_never_silently_hides_conflicts() -> None:
+    with pytest.raises(EvidenceUnavailable, match="bounded read"):
+        reader([contact(str(i)) for i in range(129)]).get_office_facts(
+            "registrar",
+            ["email"],
+            "test-release",
+        )
+
+
+@pytest.mark.parametrize("fields", [[], ["password"], "email", [1]])
+def test_bad_fields_are_rejected(fields: Any) -> None:
+    with pytest.raises(InvalidFactRequest):
+        reader().get_office_facts("registrar", fields, "test-release")
+
+
+def test_unknown_entity_and_missing_evidence_do_not_report_ready() -> None:
+    with pytest.raises(UnknownEntity):
+        reader().get_office_facts("not-an-office", ["email"], "test-release")
+    assert reader([]).readiness() == {"ready": False}
+    assert reader().readiness() == {
+        "ready": True,
+        "dataset_version": "test-release",
+        "identity_hash": "identity-hash",
+    }
+
+
+def test_date_validity_uses_the_campus_calendar_day() -> None:
+    service = reader([contact(valid_from="2026-10-01", valid_until="2026-10-01")])
+    service.now = lambda: datetime(2026, 10, 2, 1, tzinfo=UTC)  # Still Oct 1 in New Jersey.
+    facts = service.get_office_facts("registrar", ["email"], "test-release")
+    assert facts["sources"][0]["validity"] == "current"
+
+
+def test_facts_accept_all_fields_and_one_frozen_turn_clock() -> None:
+    service = reader()
+    service.now = lambda: datetime(2027, 1, 1, tzinfo=UTC)
+    facts = service.get_office_facts("registrar", None, "test-release", as_of=NOW)
+    assert {p["key"] for p in facts["properties"]} >= {"email", "phones", "offices"}
+    assert facts["sources"][0]["freshness"] == "fresh"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"email": float("nan")},
+        {"valid_from": "2026-11-01", "valid_until": "2026-10-01"},
+        {"valid_until": "not-a-date"},
+        {"normalization_metadata": {"evidence": {"source_urls": "not-a-list"}}},
+    ],
+)
+def test_malformed_published_evidence_fails_closed(changes: dict[str, Any]) -> None:
+    with pytest.raises(EvidenceUnavailable):
+        reader([contact(**changes)]).get_office_facts("registrar", ["email"], "test-release")
+
+
+def test_postgres_read_is_parameterized_read_only_and_deadline_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, Any]] = []
+    kwargs_seen: dict[str, Any] = {}
+    malicious_key = "office:'; DROP TABLE contacts; --"
+    entity = office(keys=[malicious_key])
+
+    class Cursor:
+        def __init__(self, result: list[dict[str, Any]]) -> None:
+            self.result = result
+
+        def fetchall(self) -> list[dict[str, Any]]:
+            return deepcopy(self.result)
+
+    class Connection:
+        def __enter__(self) -> "Connection":
+            return self
+
+        def __exit__(self, *args: Any) -> None:
+            pass
+
+        def execute(self, query: str, params: Any = None) -> Cursor:
+            calls.append((query, params))
+            if "dataset_versions v" in query:
+                return Cursor(
+                    [
+                        {
+                            "dataset_id": "dataset-uuid",
+                            "dataset_version": "test-release",
+                            "identity_hash": "identity-hash",
+                            "registry": {
+                                "schema_version": 1,
+                                "entities": [entity],
+                            },
+                            "alias_sources": [],
+                        }
+                    ]
+                )
+            if "campus_contacts c" in query:
+                return Cursor([contact(source_record_key=malicious_key)])
+            return Cursor([])
+
+    def connect(*args: Any, **kwargs: Any) -> Connection:
+        kwargs_seen.update(kwargs)
+        return Connection()
+
+    monkeypatch.setattr(psycopg, "connect", connect)
+    result = PostgresEntityFacts("postgresql://example.invalid/test").get_office_facts(
+        "registrar",
+        ["email"],
+        "test-release",
+    )
+    assert result["evidence_count"] == 1
+    assert kwargs_seen["connect_timeout"] == 3
+    assert "statement_timeout=2000" in kwargs_seen["options"]
+    assert "default_transaction_read_only=on" in kwargs_seen["options"]
+    assert calls[0][0] == "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"
+    contact_query, params = next(call for call in calls if "campus_contacts c" in call[0])
+    assert "contact_capture.dataset_version_id = c.dataset_version_id" in contact_query
+    assert "contact_capture.content_hash AS contact_observation_artifact_hash" in contact_query
+    assert "contact_capture.payload" not in contact_query  # Never load the large page artifact.
+    assert malicious_key not in contact_query
+    assert malicious_key in params[0]
+    assert params[2] == 129
+    assert kwargs_seen["tcp_user_timeout"] == 4_000
+    statement_limits = [int(params[0][:-2]) for query, params in calls if "set_config" in query]
+    assert len(statement_limits) == 2
+    assert all(0 < timeout <= 2_000 for timeout in statement_limits)
+    ticks = iter([0.0, 5.0])
+    monkeypatch.setattr(
+        "rockygpt_brain.retrieval.postgres.time",
+        SimpleNamespace(monotonic=lambda: next(ticks)),
+    )
+    calls.clear()
+    with pytest.raises(EvidenceUnavailable, match="read deadline"):
+        PostgresEntityFacts("postgresql://example.invalid/test").search_offices("Registrar")
+    assert len(calls) == 1  # No release/contact query starts after time is exhausted.
+
+
+def test_database_failure_is_sanitized_and_readiness_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable(*args: Any, **kwargs: Any) -> Any:
+        raise psycopg.OperationalError("password=private database details")
+
+    monkeypatch.setattr(psycopg, "connect", unavailable)
+    service = PostgresEntityFacts("postgresql://example.invalid/test")
+    with pytest.raises(EvidenceUnavailable, match="temporarily unavailable") as exc:
+        service.search_offices("Registrar")
+    assert "private" not in str(exc.value)
+    assert service.readiness() == {"ready": False}
+
+
+def test_a_group_or_facility_with_a_reviewed_contact_is_read_like_an_office() -> None:
+    hall = {**office("pine", "Pine Hall", ["office:pine-hall"]), "kind": "organization"}
+    pool = {"id": "pool", "kind": "facility", "name": "Swimming Pool", "aliases": [], "links": []}
+    club = {"id": "chess", "kind": "club", "name": "Chess Club", "aliases": [], "links": []}
+    facts = reader(contacts=[contact(source_record_key="office:pine-hall", name="Pine Hall")],
+                   entities=[hall, pool, club])
+    listed = facts.list_offices(with_ids=True)["offices"]
+    assert [entry["name"] for entry in listed] == ["Pine Hall"]
+    read = facts.get_office_facts("pine", ["email"], "test-release", as_of=NOW)
+    assert read["entity"]["kind"] == "office" and prop(read, "email")["status"] == "known"

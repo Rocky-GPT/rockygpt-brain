@@ -1,0 +1,17 @@
+[
+  {"id": "ag1-01", "question": "does ramapo have a major in environmental science or is it just a minor", "topic": "program"},
+  {"id": "ag1-02", "question": "im undecided and trying to compare psychology and sociology majors. how many credits does each one need and do they overlap at all?", "topic": "program"},
+  {"id": "ag1-03", "question": "how many credits is the minor in data science", "topic": "program"},
+  {"id": "ag1-04", "question": "Is there a nursing major for freshmen or do you have to apply separately after first year? and how long does it take to finish", "topic": "program"},
+  {"id": "ag1-05", "question": "what are the prereqs for cmps 147", "topic": "course"},
+  {"id": "ag1-06", "question": "what do comp sci majors usually take first semester freshman year", "topic": "sequence"},
+  {"id": "ag1-07", "question": "can you finish a business major in 4 years if you declare in sophmore year", "topic": "sequence"},
+  {"id": "ag1-08", "question": "what's the difference between the communication arts major and the journalism minor, like what classes are in each", "topic": "program"},
+  {"id": "ag1-09", "question": "does psych 101 count toward gen ed", "topic": "gen_ed"},
+  {"id": "ag1-10", "question": "how many gen ed credits do i need total and which categories are there", "topic": "gen_ed"},
+  {"id": "ag1-11", "question": "is there a certificate program in anything related to film or video production?", "topic": "program"},
+  {"id": "ag1-12", "question": "What does the Intro to Biology course cover and how many credits is it? thinking about bio vs chem", "topic": "course"},
+  {"id": "ag1-13", "question": "what minors pair well with a history major", "topic": "out_of_scope"},
+  {"id": "ag1-14", "question": "can you check how many credits i have so far and tell me which major im closest to finishing", "topic": "out_of_scope"},
+  {"id": "ag1-15", "question": "is intro to economics still open this semester and who teaches it", "topic": "out_of_scope"}
+]

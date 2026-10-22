@@ -1,120 +1,407 @@
 # Entity facts: the shared read contract
 
-Normal fact retrieval starts with a canonical entity ID. Source tables and
-artifacts remain the immutable evidence layer. Applications must not choose a
-contact row instead of a faculty row to decide a person's email, or implement
-value reconciliation in a browser.
+Normal application and Brain fact reads resolve a canonical identity and use
+`src/rockygpt_brain/retrieval/entity_facts.py`. Source collections provide discovery
+and original evidence; they are not competing attribute authorities. A browser
+must not reconcile raw rows or infer its own fact values.
 
-The rule applies to every mapped entity kind: people, offices, venues, programs,
-clubs, events, buildings, schools, subjects and catalog courses. Discovery still
-uses collection-specific indexes. Repeated menus and schedules retain individual
-record IDs and context; this contract does not make an undated schedule current.
+## Current implementation: offices
 
-## Implementation
+The current rebuild reads **office contact facts and office schedules**, dining venues'
+hours and menus, shuttle routes' trips, topics' site pages, and **programs** (majors,
+minors, certificates: their catalog row and requirement groups, `get_program_facts`). It
+**courses** (`get_course_facts`), and **calendar events and clubs** (`get_event_facts`,
+`get_club_facts`). It does not yet implement fact projections for people, buildings, schools, or
+subjects. The
+development graph-node inspector exposes the Offices, Dining (venues) and Shuttle
+(routes) branches. It does not yet implement broad developer graph projections,
+profiles, paginated context groups, or versioned cursors.
 
-`retrieval/entity_facts.py` owns `canonical_properties` and `EntityFacts`.
-`retrieval/projection.py` supplies the existing explicit field mappings and exact
-identity-bound readers. No persistent facts table or second identity registry is
-introduced. The read model applies immediately to existing published releases.
+The active consumers are:
 
-Consumers use schema 3, mapping `entity-facts-1`:
+- The chat `graph_lookup` tool (one root/category/office traversal in code), which
+  discovers a canonical office and reads only the requested supported fields.
+  Code renders every retrieved office result;
+  the model does not select which published values or conflicts survive the answer.
+- `GET /v1/entities/{entity_id}/facts`, which returns the same office facts for
+  applications. It requires `dataset_version` and `identity_hash` query parameters.
+- Development-only `GET /v1/dev/graph/node`, which reconstructs the selected node's
+  root path and uses the same fact reader for its records.
 
-- `GET /v1/entities/{entity_id}/facts`: published entity details for applications.
-- `GET /v1/dev/graph/projection/v3`: the same facts plus paginated contextual
-  records for the developer explorer.
-- Brain entity/contact/profile retrieval: the same resolver, with original records
-  retained for evidence verification and citations. Targeted profile requests
-  resolve only their requested evidence, without fetching all entity collections.
-- Student directory: canonical entity discovery, with fact details loaded when
-  selected. Listing the directory does not run one detail query per person.
+`list_offices` returns published office names with their aliases, sorted by name, from
+the same pinned publication, so a caller can choose a published name. It returns at most 200
+offices by default (500 at most) and sets `truncated` when more exist; the chat engine does
+not yet handle a truncated listing, so a directory larger than 200 offices needs a design
+change first. It adds no synonyms and does not change how `search_offices` matches.
 
-HTTP readers require `dataset_version` and `identity_hash`. A changed pin returns
-409. Context cursors also bind the fact version, entity, group, filter and page
-size. Version 2 and raw-record developer APIs remain diagnostic/compatibility
-surfaces; they are not the normal fact access contract.
+Adapters supply the same snapshot to the one shared reader: Postgres (the source of truth), an
+in-memory fixture for tests, and optional graph-file adapters (`retrieval/graph_store.py`). One
+follows Postgres and builds its own copy (`ReleaseGraphFacts`, which falls back to Postgres). The
+other serves a release a publisher built (`GraphOnlyFacts`, `scripts/build_graph.py`) and never
+connects to Postgres. A graph only stores and returns what the source adapter returned; it never
+chooses, merges or normalizes a value, and it is never an authority: the self-building copy sends
+any doubt to the source, and the graph-only adapter reports it as an error.
 
-## A fact and its evidence
+The reader exposes schema version `4`, mapping version `entity-facts-6`. Those
+identifiers describe the response envelope, not support for every entity type.
+The [previous broader contract](historical/entity-facts-pre-office-slice.md) is a
+historical record of an earlier implementation and must not be used as a current
+capability list.
 
-Each property has one key, a label, category, status, canonical `values`, and the
-original `assertions`. A value names every supporting assertion and evidence
-record. `sources` gives original row/artifact location, capture time, validity,
-freshness and caveats. Validation rejects missing or fabricated support.
+## Identity, publication, and evidence
 
-Statuses describe the observations, not official authority or freshness:
+`EntityFacts.search_offices` discovers office candidates from the published
+canonical names and aliases. Discovery text cannot establish a phone number,
+room, or other attribute. An ambiguous search remains ambiguous; no search match
+is treated as proof that a campus entity does or does not exist.
 
-- `known`: one distinct nonempty value, possibly accompanied by missing values.
-- `unknown`: no nonempty value is available.
+A candidate is `exact` when the query has the same words as one of its published
+names or aliases: the same words in any order, ignoring case, punctuation,
+possessives and the filler words (a, an, the, of, for, and, office, offices). It is
+`partial` when the query's words contain, or are contained in, a name's words. Each
+candidate also says `basis` (`name`, `alias`, `contains_name`, `contains_alias` or
+`part`) and, for the `contains_*` bases, the `covers` words of the name found inside
+the question. A lookup answers one office in these cases, and only these:
+
+- It is the only candidate.
+- It is the only exact candidate, so "public safety non-emergency" is "Public Safety
+  (Non-Emergency)" while "Public Safety (Emergency)", whose words are a subset of the
+  query's, stays partial.
+- Several offices are exact and only one has the words as its own name. An office's
+  name outranks another office's alias, so "Center for Student Involvement" is the
+  Center and not the desk that lists the Center as its department.
+- None is exact, every candidate has a whole name inside the question, and one name's
+  words include all of the others' ("public safety non-emergency number" is "Public
+  Safety (Non-Emergency)"). Two offices that are not parts of each other stay two:
+  "registrar and financial aid" asks. An office's own name is the one compared, not an
+  alias it shares with another office's name.
+
+Offices that share an exact alias, such as "Public Safety", are all exact and the
+Brain asks which one is meant, unless the conversation breaks the tie. The chat
+engine passes the latest message and the two messages before it to the lookup;
+when exactly one of the tied offices lists a name (an alias no other tied office
+lists) that those messages use, that office is the answer and the trace says
+`resolvedBy: conversation`. "Parking citations go through Public Safety" is
+the Non-Emergency office. Office names never break a tie this way, because
+"not an emergency" contains the word "emergency". An emergency route, which reads
+an exact name, is never moved by the conversation.
+
+`EntityFacts.get_office_facts` selects original contact records through exact
+published identity links: source key, source-record key, and optional original-row
+ID pins. It never joins records by a convenient matching name or email. Duplicate
+evidence IDs, inconsistent ownership, and unsupported publication structures are
+rejected. A missing linked record produces an explicit incomplete result.
+
+`PostgresEntityFacts` reads the active dataset's `campus-identities` publication,
+its alias provenance when present, and the linked contact records. Reads use a
+bounded, read-only repeatable-read transaction. They do not modify the registry,
+sources, or publication. No second facts table or identity registry is created.
+
+Readers pin the dataset version and identity hash. A changed publication cannot
+silently mix two versions: the HTTP fact endpoint returns 409, and chat abandons
+the old turn's fact set. The office read is bounded to 128 original records and
+128,000 serialized evidence bytes; an oversized read fails instead of silently
+truncating supporting evidence. Search results separately expose truncation.
+
+`MemoryEntityFacts` runs the same resolver over explicit fixtures. It is for
+tests and offline regressions, never a fallback when production data is absent.
+
+## Properties and boundaries
+
+Supported fields are `name`, `department`, `email`, `phones`, `offices`,
+`prefers_email`, `preferred_contact`, `contact_note`, `website`, and `hours`. The first
+nine come from the office's linked contact records. `hours` comes from its linked schedule
+records (see "Hours" below). An empty value stays empty, with status `unknown`. A placeholder
+such as "N/A" is never a value.
+
+Each property carries a key, label, category, status, canonical `values`, and
+original `assertions`. Values retain every supporting assertion ID and source ID.
+Sources retain original record identity, source key, capture time, citation URLs,
+validity dates, freshness, normalization metadata, and caveats.
+
+Statuses describe observations, not official authority or confidence:
+
+The publisher's checked `normalization_metadata.evidence.contact_conflicts` retains
+same-purpose alternate phone, email or room assertions with their published label,
+URL, section and capture time. These remain assertions of the original contact record,
+with its original provenance, rather than invented independent records. A different
+same-purpose value contributes to the usual conflicting status; the reader does not
+select the office page or directory as a winner. Role-specific contacts belong in
+typed additions and contact notes instead.
+
+- `known`: one distinct nonempty value, possibly alongside empty observations.
+- `unknown`: no nonempty value is published, and nobody confirmed whether the office publishes one.
+- `not_published`: no value is published, and the publisher confirmed that the reviewed pages state none within the specified scope. The property carries `absence` (`source_ids`, `checks` of page section and capture time, the oldest `checked_at`, and optional `scope` and `reason`). A check retains an optional exact-section `text_sha256`. It is read only when there is no value, for `email`, `phones`, `offices`, `hours`, `department`, `contact_note`, `prefers_email` and `preferred_contact`. A malformed confirmation confirms nothing (the field stays `unknown`). It is an answer, not a gap; absence of a ranked contact preference never means `prefers_email: false`.
 - `conflicting`: different values have overlapping or unspecified validity.
-- `multiple`: different values have disjoint explicit validity intervals.
+- `multiple`: different values have fully specified, disjoint validity intervals.
 
-The resolver chooses no winner. Empty observations remain visible in provenance;
-they do not overwrite a populated value. Actual false and zero remain distinct
-values. Unpublished dietary flags remain unknown even if storage holds false or
-an empty list; the original assertion and caveat remain available.
+The resolver chooses no winner. Empty observations remain visible without erasing
+a populated value. Primitive types, text case, and array order remain significant;
+JSON object key order does not. Source freshness is separate from value agreement.
+`evidence_count` counts original records, not independent confirmations or votes.
 
-Equality is deliberately conservative: JSON object key order does not matter,
-but primitive types, text case and array order do. Declared source cleanup still
-applies: HTML entities/whitespace, catalog credit representation and event date
-precision reuse the existing normalization rules. No fuzzy joins or string-based
-entity merging take place here. Email text is not rewritten.
+Date-only validity uses the campus calendar in `America/New_York`. Capture-time
+freshness uses elapsed time and the source's published freshness allowance. Chat
+passes its single turn clock into the reader. Missing dates, unknown freshness,
+expired or future records, and absent citation URLs remain explicit.
 
-Declared representation aliases are shared backend rules:
+The fact API exposes the original observations and these boundaries. The chat
+renderer presents current values only with fresh, usable HTTPS evidence. It shows
+conflicts and unknowns, and does not promote stale values or prior conversation
+claims into current facts. A provenance URL alone does not establish an office's
+own website.
 
-- `phone` and `phones` become `phones`, a structured list. Unambiguous North
-  American formatting is normalized; extensions and types remain significant.
-  Unparsed text is retained rather than guessing missing digits or domains.
-- `office` and `offices` become `offices`, a list. A joined display string is split
-  only when its components are explicit room codes; ASB312 and ASB-312 share one
-  canonical room code.
-- Historical contact `prefers_email: false` means no observed preference, hence
-  canonical unknown. The raw flag is retained. Email mentions only establish
-  preference when an explicit supported preference phrase appears in the source
-  note. New data publications use nullable preference.
-- Explicit retirement suffixes become a clean title plus a `retired` status, both
-  retaining the original title assertion. No suffix does not mean active.
-- Event dates without a published clock remain date-only values with a caveat;
-  parser-generated midnight is never exposed as an established start time.
-- When a source publishes the entity's own registry name, another source's name
-  that is exactly one of its reviewed aliases, apart from whitespace, is the same
-  name: that assertion keeps its published text with a caveat naming it. An
-  office's directory entry "Library" and its Archway page "Potter Library" are one
-  name, since the directory publishes Potter Library as its department. An alias
-  counts only if a person wrote it or the entity's directory entry publishes it as
-  its department (`identity_map`, `human_reviewed` and `department` in the identity
-  report's `alias_sources`). An alias copied from a linked record's own name can't
-  settle a disagreement among those records, and family, former-name, code and
-  title aliases name something else. A name no source disputes stays as published,
-  case still matters, and every other name still conflicts. The rule covers only
-  the entity's own `name`; a record inside it, such as a schedule, keeps its title.
+An office's website is a reviewed claim, not a source URL. A reviewer names the page in
+`src/reference/directory-contacts.json` (`website`); the publisher checks the run's page capture
+before keeping `normalization_metadata.evidence.website`. The reader ordinarily accepts only
+a plain HTTPS page of `ramapo.edu` or `www.ramapo.edu`, without ports, queries or fragments.
+There is one external exception, for `office:athletics`: the root of `ramapoathletics.com`
+(optionally `www`). Its claim must include a timezone-aware `checked_at` and an `official_link`
+with `url`, nonempty bounded `section`, and timezone-aware `checked_at`; the link must be the
+college's `https://catalog.ramapo.edu/quicklinks/studentservices` page (optional trailing slash).
+The publisher must verify the captured college page actually links to the captured destination.
+This exception grants no other office or external host website authority.
 
-Department and school are separate concepts; source contact type is not entity
-kind. Other property mappings retain their existing meanings.
+## Hours
 
-## Evidence is not a vote
+The graph already links an office to its schedule records: the `campus_hours` collection,
+one record per weekday, with a name, the published hours text, the official sentence it was
+read from (`notes`), the page it came from (`source_url`), its capture time, and an optional
+validity window. The identity registry links them by exact `source_key` and
+`source_record_keys`, like contacts. The reader reads them only when `hours` is requested,
+bounded to 128 records, and a record that is not linked to the office fails the read.
 
-`evidence_count` counts original records, not independent sources or confidence.
-A faculty contact may be generated from the same original faculty profile.
-Where the publisher's exact derivation key and compatible email identify one
-linked original, `derived_from_source_id` records that relationship and its caveat.
-Ambiguous lineage remains unspecified. Two representations do not create two
-independent confirmations.
+The `hours` property has category `schedule`. One **value** is one named schedule for one
+validity window: `{schedule, days: [{day, hours}], notes: [...], season?}`. The weekdays are published
+text, never parsed, expanded or merged by the reader, and they are not values of their own
+(Monday and Tuesday do not disagree). One **source** backs one value: its `record_ids` are the
+weekday records, its validity window is theirs, its capture time is the oldest of them, and its
+citation is the record's own `source_url`, else the source's page.
 
-The release's original source records, identity links and relationships are not
-deduplicated or overwritten. Citation URLs and capture histories remain attached
-to each record. One convenient access path does not erase the evidence chain.
+Statuses follow the contact rules, but are decided per schedule name and published season. Schedules with different
+names (a library's circulation desk and its research desk) are separate answers and never
+conflict. The same name with overlapping validity and different content is `conflicting`. The
+same name with fully specified, disjoint windows is `multiple`. Two different texts for one
+weekday inside one window are a conflict too, and each reading is kept. An office with no
+schedule link has `unknown` hours, which is not missing evidence. A linked record that cannot
+be found is a caveat, but only on a read that asked for `hours`.
 
-## Extension and validation
+Hours are dated, not current by default. A window that has ended is `expired`, one that has
+not begun is `future`, and an old capture is `stale`. The chat renderer shows each of those as
+a dated observation, shows runs of weekdays with identical text as one span ("Monday to
+Friday"), and shows the official sentence as a published note. The reader never decides that an
+office is open now, and it adds no summer, holiday or walk-in rule that the records do not hold.
 
-Add fields through the explicit projection mapping, then add any necessary
-semantic aliases here with regression cases. A new browser must consume the
-resolved values and statuses; it must not rebuild fact identity from raw rows.
-Discovery/list endpoints may return snippets, but canonical IDs lead to the fact
-reader for answers. Raw evidence remains available for audits and source review.
+The legacy collector marker `Hours unavailable`, an empty string, or null becomes canonical
+`hours: null`. Its raw text remains in the assertion. A partially observed week retains these
+unknown days unless a source-bound review explicitly confirms their omission; they never mean closed. An entirely unavailable schedule contributes no canonical
+value and cannot make `hours` known. The assertion, source records, notes, and explanation remain
+visible. `issues` carries each unavailable or withheld schedule's `schedule`, optional `season`,
+`status` (`unknown` or `conflicting`), `reason`, `days`, `source_statements`, and `source_ids`.
 
-Regression coverage includes equal multi-record values, differing values, unknown
-observations, type-sensitive equality, phone extensions, validity intervals,
-exact derivation, missing evidence, contextual record boundaries, release pins,
-versioned cursors and evidence-budget truncation. Source-record reads for an
-entity are reused by citation hydration; property-only requests skip menu/hours
-queries. Publication and source-quality issues remain separate from read-model
-correctness.
+The optional schedule-row `normalization_metadata.evidence.schedule` has only `season`, `status`,
+`reason`, `source_statements`, and `not_published`. A status must be `unknown` or `conflicting` and have a reason.
+Season is the source's actual seasonal heading, not an inferred semester; it is bounded to 300
+characters, reasons/statements to 2,000 characters each, and statements to 16. Malformed supplied
+metadata fails the read. Source statements may retain line breaks and tabs from their page section;
+other control characters are rejected. The metadata and all raw assertions remain in the response. Missing
+validity dates remain missing. A seasonal schedule without both published interval boundaries is
+a dated observation whose current applicability is unverified, even with a fresh capture.
+
+`not_published` is an optional list of at most three reviewed omissions. Each has `field`
+(`weekday_hours`, `valid_from`, or `valid_until`), nonempty `scope`, `reason`, and `checks`.
+A weekday claim also has a nonempty, unique `days` list naming only the seven weekdays. Each check
+has exactly `url`, `section`, timezone-aware `checked_at`, and a lowercase SHA256 `html_sha256`.
+The publisher must review the precise schedule section against that captured HTML; merely finding
+an empty normalized slot is not proof. The reader requires an HTTPS page, bounded text, a valid
+hash, no future checks, and a check matching the record's exact `source_url` and `collected_at`.
+A supplied claim contradicting an actual weekday value or date fails the read. The publisher
+must never describe conflict-withheld hours as absent from the source.
+
+For a reading with published hours, an explicitly reviewed missing weekday retains `hours: null`
+and gains `status: not_published` and `absence` with the source IDs, checks, oldest capture,
+freshness, scope and reason. It no longer creates an unknown-weekday issue. Actual schedule
+conflicts remain separate issues. An entirely withheld reading still contributes no known value.
+Reviewed missing boundaries appear in `value.validity_absence` keyed by `valid_from`/`valid_until`,
+and on the source and any withheld-schedule issue. These are source-scoped findings, not dates:
+they do not make a seasonal schedule apply to a requested day. Equal opening-time readings merge
+their review proofs without treating different hashes or capture times as different hours.
+
+The Fact Packet retains schedule issues as cited `missing` entries, so the writer receives their
+reasons and original source statements instead of a fabricated opening time. A date-specific
+lookup of a seasonal schedule without complete dates returns `applies: false`, `current: false`,
+`applicability: unverified`, and an `applicability_reason`; this differs from a known out-of-window
+date. The derived value contains null hours and `listed_hours`: what that schedule itself lists for
+the asked weekday (null when it lists none). It is a statement about the schedule, to be said as
+listed and unconfirmed for the date, never as the office's opening time; a known out-of-window date
+carries the window and no `listed_hours`. A reviewed omission of the weekday (`status: not_published`
+with its `absence`) is kept on an unverified date too, because it describes the schedule and not the
+date. Derived facts retain conflict/multiple status from
+their full schedule. Unknown weekday hours likewise never become a current derived opening time.
+When the schedule applies, a reviewed weekday omission propagates as `value.status: not_published`
+with its `value.absence`; a fresh omission is a current answer about missing publication, never an
+opening time. Ordinary unknown nulls retain their unknown wording. Verified missing validity
+boundaries and their scope remain in the derived value even when applicability is unverified.
+
+Two statements of one schedule (same name and season, different hours) are two readings. Each
+reading is one captured statement's own week: its weekday rows are matched by the page, capture
+time, sentence and metadata they share, never by their unrelated row ids.
+
+Runs of weekdays are drawn only over days that follow each other in the week and have the same
+text. A weekday with no record is never inside a span. A schedule's own name is shown when there
+are several schedules or when the name says more than the office's name (a trailing abbreviation
+such as "(CSI)" says nothing more).
+
+## Field observations and freshness
+
+A publisher can attach a fresh observation of the complete raw `email`, `phones`,
+or `offices` projection without changing the contact row's `collected_at`. It
+cannot refresh names, departments, preferences, notes, or other fields this way.
+An absent observation leaves the original source and freshness behavior unchanged.
+
+The optional `normalization_metadata.contact_observations` object has exactly:
+
+- `schema_version: 1`, `artifact_key: development-office-contact-evidence`, the
+  artifact's SHA256 `artifact_hash`, a nonempty `base_version`, and `fields`.
+- `fields` maps only the supported contact field names to `captured_at`,
+  `value_sha256`, and a nonempty `pages` list.
+- Each page has `url`, `section`, `fetched_at`, and `html_sha256`, with optional
+  `near` text. URLs must be safe HTTPS URLs. Capture/fetch timestamps must include
+  a timezone, not lie in the future, and the field capture must equal its oldest
+  supporting page time. There are at most 16 pages per field; section and nearby
+  text are bounded to 1,000 and 2,000 characters respectively.
+
+The raw projection is `row.email`, `{phone: row.phone, phones: row.phones}`, or
+`{office: row.office, offices: row.offices}`. Its hash uses compact UTF-8 JSON with
+recursively sorted object keys, unescaped Unicode, and preserved array order.
+Only strings, nulls, arrays, and objects are accepted in observed projections;
+no cleaned or partial value substitutes for the complete raw hash.
+
+The Postgres adapter obtains the observation artifact hash through a hash-only
+join to `release_artifacts` in the **same dataset version** as the contact row.
+It does not load the artifact's full page payload. The metadata hash must match
+that trusted join, and the raw projection hash must match the current row. Invalid,
+unsupported, or incomplete supplied observation metadata fails the read, even if
+that field was not requested; it never silently falls back to stale evidence.
+
+The reader also requires 64-character lowercase hex hashes, a nonempty `base_version` of
+at most 256 characters, a nonempty `fields` map, no control characters in `section`, `near`
+or `base_version`, a nonempty raw projection of at most 12 nesting levels, and it fails the
+whole read, not just one field, when any observation metadata on a row is invalid. An
+observation whose capture is not newer than the record's own `collected_at` is validated
+and then ignored for that field.
+
+The publisher is responsible for proving that the cited pages support the complete
+projection. The reader checks the publication binding and metadata, without fetching
+pages or independently interpreting their text. A hash alone is not semantic proof.
+
+For each valid observation the reader retains the original source and adds
+`<original-record-id>:contact_observation:<field>`. Assertions and canonical values
+use this derived source only for that field. It carries `original_record_id`,
+`observation_field`, the unchanged `original_collected_at`, original freshness and
+caveats, plus the field's capture/page provenance. Chat citations expose the
+original record ID, field, and original capture too.
+
+The field capture and the source's existing freshness allowance determine that
+derived source's freshness. Original validity dates still apply. Reobserving a
+phone does not make its office name fresh, resolve a disagreement, extend a dated
+record, or refresh the full row. `evidence_count` still counts original contact
+rows; derived sources are not additional independent records or votes.
+
+## Implemented representation normalization
+
+The shared backend applies only the following source-format rules:
+
+- HTML-entity decoding and whitespace cleanup preserve text case and original
+  assertions. Email text receives the same cleanup; no address is inferred.
+- `phone` and `phones` map to `phones`. Unambiguous ten-digit North American
+  numbers normalize to `+1...`. Structured extension/type fields remain distinct.
+  An explicit extension-only value such as `ext. 1234` becomes an extension field;
+  other unparsed text remains visible without guessed digits.
+- `office` and `offices` map to a list of rooms. Explicit room-code variants such
+  as `ASB312` and `ASB-312` normalize alike. Slash-separated text is split only
+  when every component is an explicit room code. A scoped location may be
+  `{location, label}`; only its location spelling is normalized, and the label
+  remains part of the value and answer. Structured phone `type`/`label` scopes
+  likewise remain visible, so different services or staff contacts are not merged.
+- Historical `prefers_email: false` means no observed preference and becomes
+  canonical unknown. Its original flag and caveat remain. No preference is
+  inferred from an email address or ordinary contact-note text.
+- For the entity's own `name`, a published alias can normalize to the registry
+  name only when another linked record publishes that registry name and alias
+  provenance identifies an `identity_map`, `human_reviewed`, or `department`
+  basis. Other names remain distinct. Original alias assertions keep a caveat.
+
+There are no current catalog-credit, retirement-title, event-time, dietary-flag,
+or derived-profile normalization rules in this office projection.
+
+## Extension rule
+
+Future fact capabilities must extend this shared reader and explicit projection
+mapping. All normal application and Brain reads must consume those resolved values,
+statuses, source evidence, and dated boundaries. Source-specific discovery may
+remain separate, but no UI or separate answering route may independently choose
+an authority, merge identities, reconcile conflicts, or infer missing values.
+
+Add a field or entity kind only with a concrete use case, exact published identity
+links, provenance-preserving mappings, and regression coverage for agreement,
+conflict, unknowns, missing evidence, and date boundaries. Source publication
+quality and model interpretation must be evaluated separately from reader behavior.
+
+## Programs (entity-facts-7)
+
+A `program` identity links one `programs` row (key `catalog:<code>`) and the requirement
+groups the catalog lists for it (`requirement_groups`, from the program-requirement-groups
+artifact), in the catalog's section order; one group may be listed by several programs.
+`get_program_facts` returns the row (`program`) and each group exactly as published
+(`requirements`: label, shape, note, choose, rule, course_list), cited to the program's
+catalog page with the programs artifact's capture time, and its recommended graduation plans
+(`plans`, from the graduation-plans artifact: one per admission cohort and variant, as
+published; `multiple` when cohorts differ, a dated boundary). No group is a `not_published` claim:
+a program with none linked is `unknown`; a linked group the release lacks is a caveat.
+
+Discovery (`academics.find_programs`) names a program by its catalog name without its level
+("Computer Science" of "Computer Science BS"); the question's level words (minor,
+certificate, master's, 4+1, major) choose the level, and with none the undergraduate major is
+read while its other published levels are named beside it. Naming a program establishes none
+of its facts. Requirements are written out by code (`academics.render_requirements`), never
+summed or interpreted beyond the catalog's own `choose`. The reader chooses no plan: code
+(`academics.choose_plan`) takes the cohort the student names, else the one whose academic year
+holds today (Fall 2026 from August 2026), and within it the plan named as the program itself;
+only the plan's published totals are said, never a sum of its semesters.
+
+## Courses (entity-facts-7)
+
+A `course` identity (named by its catalog code, no aliases) links its record in the `courses`
+artifact by that code. `get_course_facts` reads up to twelve in one snapshot: code, title,
+school, description, attributes (Gen Ed categories among them), structured requisites and
+convening groups exactly as published, cited to the course's own catalog page
+(`https://catalog.ramapo.edu/courses/<CODE>`, published in catalog-course-identities) with the
+academic-programs capture time. Mapping rules: credits that are not one number (26 Career
+Pathways modules publish an object) are unknown, and the credit-hour range is not read (its
+minimum is always 0). Discovery (`academics.course_codes`) takes a typed code ("cmps147",
+"CMPS-147") only when it is exactly a published catalog code.
+
+## Events and clubs (entity-facts-7)
+
+An `event` identity links its `campus_events` row (key "date:title", pinned by row id where two
+events share one); `get_event_facts` reads up to forty: title, date, start, end, organizer and
+description from the row, and location, tags and ticket status from its Archway listing entry
+(the events artifact, keyed alike), cited to its own event page. A `club` or `organization` links
+its `clubs` row; `get_club_facts` reads up to twelve: name, category and page, with the listing's
+membership note. Discovery (`events.py`) is by the question's words: its time words become a
+window on the campus clock and the calendar events dated in it (their identity names end in the
+date) are read; a club is named by every word of its directory name, or found by its card's
+meaning (name and category). Naming an event or club establishes none of its facts.
+
+## People (entity-facts-7)
+
+A `person` identity links its faculty `contacts` row (directory name, title, department, email,
+phone, office) and, when one exists, its `faculty` profile record. `get_person_facts` reads up to
+six: the directory fields cited to the directory page, and from the profile its page, research
+interests, courses and the profile's own "Office Hours" lines exactly as written (code never
+derives office hours). Discovery (`people.py`) is by name: every word of a directory name, or a
+last name that is exactly one person's (title words such as "professor" or "dr" ignored). A
+question asking who teaches or researches a topic finds people by their card's meaning (name,
+title, school, interests, courses) above a floor; a name no one in the directory has is never
+answered by meaning. Naming a person establishes none of their facts.

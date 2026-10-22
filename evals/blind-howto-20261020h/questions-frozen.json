@@ -1,0 +1,502 @@
+[
+ {
+  "id": "h1-01",
+  "question": "what is add/drop and how do i do it",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-02",
+  "question": "I got an email saying I have a hold on my account?? what does that mean and who do I talk to to get it removed",
+  "topic": "contact"
+ },
+ {
+  "id": "h1-03",
+  "question": "im a first gen student and have no idea how to apply for financial aid. where do i start",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-04",
+  "question": "whats the FAFSA deadline for ramapo",
+  "topic": "policy"
+ },
+ {
+  "id": "h1-05",
+  "question": "how do i pick classes for next semster, my parents never went to college so idk what im doing",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-06",
+  "question": "who is my advisor and how do i make an appointment with them",
+  "topic": "contact"
+ },
+ {
+  "id": "h1-07",
+  "question": "what does EOF mean and how do I get in touch with the EOF office",
+  "topic": "contact"
+ },
+ {
+  "id": "h1-08",
+  "question": "can i drop a class after the deadline? will it hurt my gpa",
+  "topic": "policy"
+ },
+ {
+  "id": "h1-09",
+  "question": "how do I get my transcript",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-10",
+  "question": "what is a prerequisite and how do i know if i can register for a class",
+  "topic": "policy"
+ },
+ {
+  "id": "h1-11",
+  "question": "i cant register bc it says Im blocked. how do i fix this",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-12",
+  "question": "Where do I go if I need help paying for books? I dont have money for them",
+  "topic": "contact"
+ },
+ {
+  "id": "h1-13",
+  "question": "how do i get a student id card",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-14",
+  "question": "what is office hours and am i allowed to just show up at a professors office",
+  "topic": "policy"
+ },
+ {
+  "id": "h1-15",
+  "question": "how do i switch my major from bio to nursing? who do i email",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-16",
+  "question": "is there tutoring and how do I sign up, I am failing calc",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-17",
+  "question": "how do i withdraw from the whole semester if something happens with my family",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-18",
+  "question": "what is a bursar? do i pay them in person",
+  "topic": "contact"
+ },
+ {
+  "id": "h1-19",
+  "question": "can I live off campus as a sophomore or do I have to stay in the dorms",
+  "topic": "policy"
+ },
+ {
+  "id": "h1-20",
+  "question": "whats my financial aid balance and when will my refund come",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h1-21",
+  "question": "how do I get a parking pass for commuting, and where do i pick it up",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-22",
+  "question": "i dont understand my degree audit. what is it and where do I find it",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-23",
+  "question": "which professor should I take for intro to psych, who is the easiest",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h1-24",
+  "question": "Is there food help on campus for students who cant afford meals? how do i ask for it",
+  "topic": "contact"
+ },
+ {
+  "id": "h1-25",
+  "question": "am i going to graduate on time? i have 62 credits",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h2-01",
+  "question": "I'm a veteran using my GI Bill, how do I get my enrollment certified at Ramapo each semester?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-02",
+  "question": "who do i contact for veterans benefits",
+  "topic": "contact"
+ },
+ {
+  "id": "h2-03",
+  "question": "Do student veterans get priority registration? How does that work and who sets it up?",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-04",
+  "question": "I got called up for active duty mid semester. What do I do about my classes and will I get my tuition back?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-05",
+  "question": "is there a veterans lounge or center on campus",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-06",
+  "question": "My dad is a retired Marine and I want to use his Chapter 33 benefits transferred to me. How do I get that started at Ramapo?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-07",
+  "question": "how do i get military credit for my training transfered in",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-08",
+  "question": "Is there childcare on campus for students with kids?",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-09",
+  "question": "im a single mom and my kid is sick on exam day. what is the policy for missing an exam and who do i tell",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-10",
+  "question": "Can my child stay with me in the dorms? I'm a student parent and wondering about housing options for families",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-11",
+  "question": "how do I get a parking permit if I need to drop my kid off before class",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-12",
+  "question": "Are there any scholarships or financial aid specifically for student parents or veterans?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-13",
+  "question": "I'm pregnant and due in the middle of the semester. How do I take a leave of absence or get accommodations, and who do I talk to?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-14",
+  "question": "whats the process to withdraw from a class after the deadline for a family emergency",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-15",
+  "question": "does ramapo have evening or online classes so I can work around my kids schedule",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-16",
+  "question": "my spouse is active duty and we are getting stationed out of state. can i finish my degree online from there?",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-17",
+  "question": "how do i get a vet tuition waiver/ Yellow Ribbon? whos the office",
+  "topic": "contact"
+ },
+ {
+  "id": "h2-18",
+  "question": "Can I bring my baby to class or to the library?",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-19",
+  "question": "I need to take a medical leave because my mom is deployed and I have to care for my siblings. How do I request a leave and will I lose my financial aid?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-20",
+  "question": "is there a lactation room anywhere on campus",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-21",
+  "question": "How do I get my DD-214 or military transcript (JST) sent to the school?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-22",
+  "question": "how many credits do i need to be full time for my GI bill housing allowance",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-23",
+  "question": "Will the VA pay my tuition on time this semester? Mine hasn't shown up yet and I owe a balance.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h2-24",
+  "question": "What is the best major for a veteran who wants to go into law enforcement and make good money?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h2-25",
+  "question": "can you tell me what my priority registration time is and what classes I should take next semester",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h3-01",
+  "question": "how do i take a medical leave of absence mid semester",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-02",
+  "question": "I got diagnosed with mono and my doctor says I need 2 weeks off. who do I tell and what do I have to do about my classes?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-03",
+  "question": "how do I come back after a leave of absence for mental health reasons",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-04",
+  "question": "someone in my dorm has been harassing me and I want to report it, who do I contact",
+  "topic": "contact"
+ },
+ {
+  "id": "h3-05",
+  "question": "what's the process for reporting sexual harassment or assault to the college? is it confidential?",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-06",
+  "question": "missed my final bc i was in the hospital. how do i get a makeup exam",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-07",
+  "question": "do I need a doctors note if I miss class for being sick",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-08",
+  "question": "I just broke my leg and cant do stairs, how do I get accommodations for classes and housing mid-semester",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-09",
+  "question": "how do i register with disability services for ADHD accommodations",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-10",
+  "question": "what is the withdrawal policy if I have to drop all my classes for health reasons, will I get a refund",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-11",
+  "question": "Is there free counseling on campus and how do I make an appointment?",
+  "topic": "contact"
+ },
+ {
+  "id": "h3-12",
+  "question": "what do i do if my roommate is having a mental health crisis at night",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-13",
+  "question": "can i get an incomplete in a class bc of a family emergency + illness",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-14",
+  "question": "How do I file a Title IX complaint and who is the Title IX coordinator?",
+  "topic": "contact"
+ },
+ {
+  "id": "h3-15",
+  "question": "does the health center give out vaccine exemption forms / what immunization records do i need to submit",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-16",
+  "question": "i have to go home for 3 weeks for surgery. how do i tell my professors and make up work",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-17",
+  "question": "will a medical leave affect my financial aid or scholarship",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-18",
+  "question": "how to get a note excusing absences from the health center",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-19",
+  "question": "i need a single room because of anxiety/sleep issues. how do I request that and who approves it",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-20",
+  "question": "can I bring an emotional support animal to live in the dorms",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-21",
+  "question": "how do I report a professor who made inappropriate comments to me",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-22",
+  "question": "what happens to my on campus job if i go on medical leave",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-23",
+  "question": "am I allowed to get extra time on exams if I have a diagnosed learning disability but never registered before?",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-24",
+  "question": "do you think I should take a leave of absence or push through this semester? im really burnt out",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h3-25",
+  "question": "is the health center open right now and how long is the wait",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h4-01",
+  "question": "How do I apply for the honors program as a sophomore, and who do I email about it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-02",
+  "question": "how do i declare a double major",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-03",
+  "question": "Is there a limit on how many credits I can take in one semester? I want to take 21 and I'm not sure if I need permission",
+  "topic": "policy"
+ },
+ {
+  "id": "h4-04",
+  "question": "what form do I need to add a minor and where do I turn it in",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-05",
+  "question": "Can I get credit for an internship? How do I register for it and who has to sign off on it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-06",
+  "question": "how do i set up an independent study with a professor",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-07",
+  "question": "I want to graduate a semester early. What's the process to apply for graduation and do I need to meet with someone first?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-08",
+  "question": "What is the policy on taking a course at another college over the summer and transferring it back?",
+  "topic": "policy"
+ },
+ {
+  "id": "h4-09",
+  "question": "already have a bachelors from another school, how do i apply to get a second degree at Ramapo",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-10",
+  "question": "Who do I contact about doing undergraduate research with a faculty member? Is there funding for it?",
+  "topic": "contact"
+ },
+ {
+  "id": "h4-11",
+  "question": "do I need a minimum GPA to stay in honors",
+  "topic": "policy"
+ },
+ {
+  "id": "h4-12",
+  "question": "How do I overload credits? My advisor said I need an overload form but I can't find it",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-13",
+  "question": "can i count the same class for both of my majors?",
+  "topic": "policy"
+ },
+ {
+  "id": "h4-14",
+  "question": "how do i apply for the graduation audit / degree audit before senior year",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-15",
+  "question": "What's the deadline to apply for graduation for a May commencement?",
+  "topic": "policy"
+ },
+ {
+  "id": "h4-16",
+  "question": "Do AP and dual enrollment credits count toward finishing early? How do I send my scores in?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-17",
+  "question": "How do I get my internship approved for credit if it's out of state, and who is the contact in career services?",
+  "topic": "contact"
+ },
+ {
+  "id": "h4-18",
+  "question": "whats the process for a senior thesis or honors thesis? who picks the advisor",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-19",
+  "question": "I'm a transfer student with a second major in progress, how do I get my prior credits evaluated?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-20",
+  "question": "can I take a grad class as an undergrad and how do I sign up",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-21",
+  "question": "How do I apply for a study abroad semester without falling behind on my double major?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-22",
+  "question": "what is my GPA right now and am I on track for honors at graduation?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h4-23",
+  "question": "Which minor should I pick to get a job in finance?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h4-24",
+  "question": "is the 21 credit overload form approved yet? i submitted it yesterday",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h4-25",
+  "question": "How do I get a scholarship or funding for a summer research project and who reviews the applications?",
+  "topic": "contact"
+ }
+]

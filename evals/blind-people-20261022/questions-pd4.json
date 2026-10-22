@@ -1,0 +1,17 @@
+[
+{"id":"pd4-01","question":"what are professor Gillespie's office hours? I have a question about my last exam","topic":"contact"},
+{"id":"pd4-02","question":"Hi, I'm in Dr. Kumar's class and I'm totally lost. What room is his office in and what's his email?","topic":"contact"},
+{"id":"pd4-03","question":"does anyone know how to reach prof shapiro skrobe? need her phone number or email","topic":"contact"},
+{"id":"pd4-04","question":"Who is Rebecca Leung and what does she teach","topic":"teaching"},
+{"id":"pd4-05","question":"office hours for professor Pefer?","topic":"contact"},
+{"id":"pd4-06","question":"I'm failing my class with Professor Bagga and want to talk to someone. Who is the chair of the department and where can I find them?","topic":"role"},
+{"id":"pd4-07","question":"what school is Yan Xu in and what's their title","topic":"role"},
+{"id":"pd4-08","question":"can I get a list of everyone in the nursing faculty with their emails","topic":"role"},
+{"id":"pd4-09","question":"is Professor Ogens in her office right now? i'm standing outside and the door is locked","topic":"out_of_scope"},
+{"id":"pd4-10","question":"professor Jackson's office location and what does she research?","topic":"teaching"},
+{"id":"pd4-11","question":"Who's the best professor for intro to psychology? I don't want a hard grader","topic":"out_of_scope"},
+{"id":"pd4-12","question":"need the office hours and email for Dr. Harold Brenneman in the history dept","topic":"contact"},
+{"id":"pd4-13","question":"whos Victoria Sciancalepore? is she a librarian","topic":"role"},
+{"id":"pd4-14","question":"what's Professor Smith's home phone number, I need to ask about an extension and he's not answering email","topic":"out_of_scope"},
+{"id":"pd4-15","question":"who teaches data structures and what are their office hours","topic":"teaching"}
+]

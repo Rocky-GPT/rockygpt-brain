@@ -20,6 +20,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Optional: the derived release graph (BRAIN_GRAPH_DIR). Pinned because the project is young.
+graph = [
+  "ladybug==0.21.2",
+]
 dev = [
   "ruff>=0.6,<1.0",
   "mypy>=1.11,<2.0",
@@ -34,6 +38,8 @@ packages = ["src/rockygpt_brain"]
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
+# Frozen one-run eval harnesses (dated sets): copied per set and kept as run, not maintained code.
+extend-exclude = ["evals/blind-*", "evals/*-2026*"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "S", "ASYNC"]

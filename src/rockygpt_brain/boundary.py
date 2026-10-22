@@ -1,0 +1,231 @@
+"""Immediate, model-independent danger help.
+
+This phrase floor is not a semantic safety classifier. The primary assistant also reads the
+bounded context. Account access is absent from the tool set; phrases about "my" records must
+not discard answerable public parts of a request.
+"""
+
+import re
+import unicodedata
+from dataclasses import dataclass
+from typing import Literal
+
+from rockygpt_brain.turn import Turn
+
+# What kind of emergency it is decides which help comes first. "other" is the general text, used
+# when the kind is unknown, when several kinds apply, and for every failure.
+SITUATIONS = ("self_harm", "medical", "danger", "fire", "other")
+SAFETY_TEXTS = {
+    "self_harm": (
+        "You don't have to go through this alone. Call or text 988 (Suicide & Crisis Lifeline) "
+        "right now to talk with someone, any time of day. You can also call it if you are "
+        "worried about someone else. If you or someone else is in danger right now, call 911. "
+        "RockyGPT can't send help or stay with you, so please reach out to them now."
+    ),
+    "medical": (
+        "Call 911 right now and tell them where you are and what happened. They can tell you "
+        "what to do until help arrives. If it's safe, stay with the person. "
+        "RockyGPT can't send help or stay with you, so please make that call first."
+    ),
+    "danger": (
+        "If you are in danger right now, call 911. If you can do it safely, get away from the "
+        "danger and tell them where you are. "
+        "RockyGPT can't send help or stay with you, so please call now."
+    ),
+    "fire": (
+        "If you can, get out and away from the fire, smoke or gas right now, and don't go back "
+        "in for anything. Then call 911 from a safe place. If you can't get out, call 911 right "
+        "now and tell them where you are. "
+        "RockyGPT can't send help or stay with you, so please call as soon as you can."
+    ),
+    "other": (
+        "If you or someone else is in danger right now, call 911. "
+        "If you are thinking about hurting yourself, call or text 988 (Suicide & Crisis Lifeline) "
+        "to talk with someone right away. "
+        "RockyGPT can't send help or stay with you, so please reach out to them now."
+    ),
+}
+SAFETY_MESSAGE = SAFETY_TEXTS["other"]
+
+
+def safety_text(situation: str | None) -> str:
+    return SAFETY_TEXTS.get(situation or "other", SAFETY_MESSAGE)
+
+
+def situation_of(text: str) -> str | None:
+    """Which emergency text a reply starts with, or None when it starts with none of them."""
+    return next((name for name, known in SAFETY_TEXTS.items() if text.startswith(known)), None)
+
+
+_CAPABILITY_LIMIT = (
+    "I can't see or change your personal student information, and I can't take actions for "
+    "you, like registering for a class, dropping one or making a payment. Please use your own "
+    "student account, "
+)
+CAPABILITY_MESSAGE = _CAPABILITY_LIMIT + "or ask the campus office that handles it."
+# Used when an office's published details are already shown above it.
+CAPABILITY_AFTER_LOOKUP_MESSAGE = _CAPABILITY_LIMIT + "or ask the office above if it handles that."
+
+
+@dataclass(frozen=True, slots=True)
+class BoundaryResult:
+    kind: Literal["continue", "safety"]
+    message: str = ""
+    situation: str | None = None
+    # The floor fired only on the number 911 in a message that says it is not one ("not 911
+    # obviously lol"). The emergency text still comes first, but the question gets its answer too.
+    also_answer: bool = False
+
+
+CONTINUE = BoundaryResult("continue")
+
+# A hazard word followed by one of these is a question about a program or a rule, not a hazard.
+_NOT_A_HAZARD = (
+    r"(?! (?:\w+ )?(?:drills?|training|policy|policies|protocol|procedures?|plans?|prevention|"
+    r"awareness|safety|clubs?|workshops?|classes|class|courses?|programs?|rules?|alarms?|"
+    r"extinguishers?|exits?|inspections?|evacuations?|regulations?|detectors?|meetings?))"
+)
+_SELF = r"(my ?self|him ?self|her ?self|them ?selves|themselves)"
+_DANGER: dict[str, list[re.Pattern[str]]] = {
+    situation: [re.compile(p) for p in patterns]
+    for situation, patterns in {
+        "self_harm": (
+            rf"\b(kill|hurt|harm|cut|injur|stab|shoot|hang)\w* {_SELF}\b",
+            r"\b(end|take) my (own )?life\b",
+            rf"\bsuicid\w*\b{_NOT_A_HAZARD}",
+            r"\b(want|wanna|going|plan|planning) to die\b",
+            r"\b(dont|do not) (want to|wanna) (live|be alive|exist|be here|go on|keep going)",
+            r"\b(end it all|better off dead|not worth living|no reason to live)\b",
+            # "to just not wake up" is a wish, where "she wont wake up" is an unconscious person
+            # (the medical pattern below): both matching gives the general text with 911 and 988.
+            r"\b(to|just|wish|hope|rather|wanna) (just )?(not|never) (wake|waking) up\b",
+            r"\bhow many (pills|tablets|advil|tylenol|ibuprofen|aspirin|acetaminophen|benadryl|"
+            r"xanax|melatonin|sleeping pills|meds|painkillers|percocet) "
+            r"(would|will|does|do|to) (it )?(take|kill)\b",
+            r"\bjump(ing)? (off|from) (the |a |my )?"
+            r"(roof|bridge|building|garage|parking garage|balcony)\b",
+        ),
+        "medical": (
+            r"\b(not|isnt|arent|stopped|stop|cant|cannot|wont|hardly|barely) breath(e|ing)\b",
+            r"\b(trouble|difficulty) breathing\b|\bunable to breathe\b",
+            # Not answering messages ("won't respond to my emails") is not a person who can't.
+            r"\b(wont|cant|couldnt|cannot|not|isnt|barely) (wake|waking|respond|responding|moving|"
+            r"responsive|conscious)\b(?! to (my|our|any|the|his|her|their)? ?(emails?|e mails?|"
+            r"texts?|messages?|calls?|dms?|voicemails?)\b)",
+            r"\b(unconscious|unresponsive|passed out|blacked out|collapsed|fainted|choking|"
+            r"heart attack|having a stroke|chest pain)\b",
+            rf"\bseizure{_NOT_A_HAZARD}",
+            r"\b(turning|turned|lips are) blue\b",
+            r"\bbleeding (from|out|badly|a lot|heavily|profusely|through)\b|"
+            r"\b(cant|cannot|wont|will not) stop bleeding\b|"
+            r"\bblood (everywhere|all over|pouring)\b",
+        ),
+        "danger": (
+            rf"\b(active shooter|shooter|gunman|bomb threat){_NOT_A_HAZARD}",
+            r"\b(gunshots?|shots fired|hostage)\b",
+            r"\bshoot(ing)? up\b|\bthreaten\w* to (shoot|kill|stab|bomb|hurt|attack)\b",
+            r"\b(has|have|with|holding|pulled|pointed) (a |an )?(gun|knife|weapon)\b",
+            r"\b(gonna|going to|will|wants to|want to) (hurt|kill|hit|beat|attack|stab|shoot|rape) "
+            r"(me|us|him|her|them|people|everyone)\b",
+            r"\b(being|getting|got|been|was) (just )?(attacked|assaulted|robbed|stalked|followed|"
+            r"chased|threatened|jumped|mugged|beaten|kidnapped|stabbed|shot|choked)\b",
+            # A thing doing it ("without it hurting me", "will this hurt me") is not a person.
+            r"(?<!\bit )(?<!\bthis )(?<!\bthat )"
+            r"\b(attacking|hurting|threatening|stalking|following|chasing|shooting|hitting|"
+            r"beating|hit|punched|slapped|choked|grabbed|dragged|pinned|trapped|locked|cornered|"
+            r"kidnapped) me\b",
+            r"\b(intruder|stranger|someone|somebody) (is |was |got |broke )?"
+            r"(in|into|inside|breaking into) (my|our|the) (room|dorm|apartment|house|townhouse)\b|"
+            r"\bbroke into my\b",
+        ),
+        "fire": (
+            r"\b(on fire|caught fire|flames|smoke (everywhere|coming|pouring|filling)|gas leak)\b",
+            rf"\bfire in (the|my|our)\b{_NOT_A_HAZARD}|\bcarbon monoxide\b",
+            rf"\b(there is|theres|i see|i smell|we smell) (a )?(fire|smoke|gas)\b{_NOT_A_HAZARD}",
+            r"\bsmell (smoke|gas)\b",
+        ),
+        # Taking too much could be an accident or on purpose, and a spiked drink is both a
+        # danger and a medical problem, so these get the general text.
+        "other": (
+            # A completed assault, or a stalker or abuser, needs more than "get away": the general
+            # text is used until a separate survivor text is written and reviewed.
+            r"\b(was|been|got)( just| recently| again)? (raped|sexually assaulted|molested)\b",
+            r"\b(my )?(stalker|abuser|attacker)\b",
+            r"\boverdos",
+            r"\b(took|taken|swallowed|popped|downed) (a |an |the |my )?"
+            r"(whole bottle|bottle of|handful of|too many|too much|a lot of)\b",
+            r"\b(spiked|drugged|roofied)\b|\bput something in my (drink|water|cup)\b",
+        ),
+    }.items()
+}
+# Words that name an emergency without saying which kind. They count only when nothing more
+# specific matched, so "there is a fire, call 911" keeps the fire text.
+_GENERIC = [re.compile(p) for p in (
+    r"\b(911|ambulance)\b",
+    r"\b(this is|its|it is|there is|theres) an emergency\b",
+    r"\b(im|i am|we are|were|he is|hes|she is|shes|they are) in "
+    r"(immediate |serious |real )?danger\b",
+)]
+
+
+# A mention of 911 that says the matter is not one. Only used to let the question be answered
+# beside the emergency text, never to take the emergency text away.
+_NEGATED_911 = re.compile(
+    r"\b(?:not|non|isnt|arent|wasnt|no need for|dont need)(?: an?| the)? 911\b")
+
+
+# A student who says they feel low AND that they have no one to talk to. Not an emergency, but the
+# prompt already sends "asks for someone to talk to" to the emergency text (988 and the campus
+# lines), and left to the model that choice came and went on this very message. Both halves are
+# needed, so "the portal is down, who can I talk to?" and "someone to talk to about tutoring" are
+# not caught.
+_LOW_STATE = re.compile(
+    r"\b(?:feel|feeling|felt|been|am|im|so|really|kinda|very)\s+(?:\w+\s+)?"
+    r"(?:down|empty|lonely|alone|isolated|depressed|hopeless|worthless|numb|sad|miserable)\b")
+_NO_ONE_TO_TALK_TO = re.compile(
+    r"\b(?:no ?one|nobody|anyone|anybody|someone|somebody)\s+(?:here\s+|on campus\s+|around\s+|"
+    r"left\s+)?to\s+(?:talk|reach out|vent|open up)\b"
+    r"|\b(?:talk|reach out|vent|open up)\s+to\s+"
+    r"(?:anyone|anybody|someone|somebody|no ?one|nobody)\b")
+
+
+# A message that, beside the emergency, asks what the college's process or rule is for it ("what
+# are my options for moving rooms", "will we get in trouble, medical amnesty?"). Dan 10-20: the
+# emergency text comes first, then what the college's own pages say. Self-harm stays the floor's
+# reply alone, sent at once.
+_ASKS_A_PROCESS = re.compile(
+    r"\b(?:how (?:do|can|would|should) (?:i|we)|what (?:are|is) (?:my|our|the) options?|"
+    r"what happens|(?:get|be) in trouble|polic(?:y|ies)|amnesty|(?:move|moving|switch|change) "
+    r"(?:my )?rooms?|room change|(?:report|file) (?:a |an |it|this|him|her|them))\b")
+
+
+def plain(text: str) -> str:
+    """Lower case, no accents, apostrophes or invisible characters, punctuation as spaces."""
+    text = re.sub(r"['`´ʹʻʼˈ’‘′‛＇]", "", text)
+    text = unicodedata.normalize("NFKD", text).casefold()
+    text = "".join(c for c in text if unicodedata.category(c) not in ("Mn", "Cf"))
+    return re.sub(r"[\W_]+", " ", text).strip()
+
+
+def names_a_danger(message: str) -> bool:
+    """Whether a message, on its own, is one the phrase floor would answer with emergency text."""
+    text = plain(message)
+    return any(p.search(text) for patterns in _DANGER.values() for p in patterns)
+
+
+def check(turn: Turn) -> BoundaryResult:
+    """Read the Turn's message. Only the latest message counts, not earlier ones."""
+    text = plain(turn.message)
+    kinds = {name for name, patterns in _DANGER.items() if any(p.search(text) for p in patterns)}
+    if not kinds and _LOW_STATE.search(text) and _NO_ONE_TO_TALK_TO.search(text):
+        return BoundaryResult("safety", safety_text("other"), "other", also_answer=True)
+    if not kinds and any(p.search(text) for p in _GENERIC):
+        kinds = {"other"}
+        stripped = _NEGATED_911.sub(" ", text)
+        if not any(p.search(stripped) for p in _GENERIC):
+            return BoundaryResult("safety", safety_text("other"), "other", also_answer=True)
+    if not kinds:
+        return CONTINUE
+    situation = kinds.pop() if len(kinds) == 1 else "other"
+    also = situation != "self_harm" and bool(_ASKS_A_PROCESS.search(text))
+    return BoundaryResult("safety", safety_text(situation), situation, also_answer=also)

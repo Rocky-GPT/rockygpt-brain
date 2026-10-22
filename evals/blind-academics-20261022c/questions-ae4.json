@@ -1,0 +1,17 @@
+[
+  {"id": "ae4-01", "question": "Does Ramapo have a nursing program, and is there an accelerated option for people who already have a bachelor's degree?", "topic": "program"},
+  {"id": "ae4-02", "question": "how many credits do you need to graduate with a bachelors at ramapo", "topic": "program"},
+  {"id": "ae4-03", "question": "I work full time and I'm thinking about going back for a masters. What graduate programs does Ramapo offer and how many credits is the MBA?", "topic": "program"},
+  {"id": "ae4-04", "question": "is there a computer science major? my son is a senior in high school and wants to do CS", "topic": "program"},
+  {"id": "ae4-05", "question": "How long does the Master of Science in Educational Leadership take to finish if you go part time?", "topic": "program"},
+  {"id": "ae4-06", "question": "My daughter wants to do psychology. What courses would she take freshman year and is there a recommended 4 year plan?", "topic": "sequence"},
+  {"id": "ae4-07", "question": "what are the gen ed requirements at ramapo? like how many credits are general education vs the major", "topic": "gen_ed"},
+  {"id": "ae4-08", "question": "Do you have any certificate programs for adults that dont require a full degree? something in data analytics or business", "topic": "program"},
+  {"id": "ae4-09", "question": "how many credits is a minor and can you do a minor in business if your major is biology", "topic": "program"},
+  {"id": "ae4-10", "question": "what does ACCT 221 cover and are there any prerequisites", "topic": "course"},
+  {"id": "ae4-11", "question": "Is there a 5 year combined bachelors and masters program? Which majors have it?", "topic": "program"},
+  {"id": "ae4-12", "question": "Would my 18 credits from community college count toward a ramapo degree, I took english comp and intro to psych about 10 yrs ago", "topic": "out_of_scope"},
+  {"id": "ae4-13", "question": "Are any of the evening MBA classes still open for spring and who teaches them?", "topic": "out_of_scope"},
+  {"id": "ae4-14", "question": "Should my kid major in nursing or biology if she wants to be a PA eventually? which one is better at ramapo", "topic": "out_of_scope"},
+  {"id": "ae4-15", "question": "does the social work major have an MSW too, and how many credits is the MSW program", "topic": "program"}
+]

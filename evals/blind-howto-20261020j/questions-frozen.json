@@ -1,0 +1,502 @@
+[
+ {
+  "id": "j1-01",
+  "question": "How do I submit my master's thesis proposal and who has to approve it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "j1-02",
+  "question": "whats the deadline to apply for graduation as a grad student",
+  "topic": "procedure"
+ },
+ {
+  "id": "j1-03",
+  "question": "Can I access the library databases from home? I'm in the online MSN program and never come to campus.",
+  "topic": "policy"
+ },
+ {
+  "id": "j1-04",
+  "question": "how do i apply for a graduate assistantship and who do i email about it",
+  "topic": "contact"
+ },
+ {
+  "id": "j1-05",
+  "question": "What counts as part-time status for a graduate student? I'm only taking 1 class this semester.",
+  "topic": "policy"
+ },
+ {
+  "id": "j1-06",
+  "question": "capstone project requirements MBA",
+  "topic": "policy"
+ },
+ {
+  "id": "j1-07",
+  "question": "I work full time and take night classes. Where do I pay my tuition bill and is there a payment plan?",
+  "topic": "procedure"
+ },
+ {
+  "id": "j1-08",
+  "question": "how do I get a parking permit for evening classes",
+  "topic": "procedure"
+ },
+ {
+  "id": "j1-09",
+  "question": "Is there an attendance policy for online classes? My professor says we have to log in every week.",
+  "topic": "policy"
+ },
+ {
+  "id": "j1-10",
+  "question": "How do I request an extension on my thesis if I can't finish by the end of the semester?",
+  "topic": "procedure"
+ },
+ {
+  "id": "j1-11",
+  "question": "whats the grad tuition per credit this year?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "j1-12",
+  "question": "How do I get my student ID card if I'm an online student and live out of state?",
+  "topic": "procedure"
+ },
+ {
+  "id": "j1-13",
+  "question": "can grad students take a leave of absence? how do i do it",
+  "topic": "procedure"
+ },
+ {
+  "id": "j1-14",
+  "question": "Who do I contact about transferring graduate credits from another university into my program?",
+  "topic": "contact"
+ },
+ {
+  "id": "j1-15",
+  "question": "does the library have extended hours for evening students, and how do I get a research librarian to help with my lit review",
+  "topic": "contact"
+ },
+ {
+  "id": "j1-16",
+  "question": "how many credits can i take as a grad student before i need permission to overload",
+  "topic": "policy"
+ },
+ {
+  "id": "j1-17",
+  "question": "How do I drop an online class and will I get a refund?",
+  "topic": "procedure"
+ },
+ {
+  "id": "j1-18",
+  "question": "what is the maximum time allowed to finish a master's degree",
+  "topic": "policy"
+ },
+ {
+  "id": "j1-19",
+  "question": "Do I need to be enrolled in a course during the semester I defend my thesis? I'm done with all my credits except thesis.",
+  "topic": "policy"
+ },
+ {
+  "id": "j1-20",
+  "question": "Am I eligible for financial aid if I'm only enrolled half time in grad school? How do I check my aid status?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "j1-21",
+  "question": "how do i get proctoring set up for an exam in my online course since I live 3 hours away",
+  "topic": "procedure"
+ },
+ {
+  "id": "j1-22",
+  "question": "Which professor should I ask to be my capstone advisor? I'm in the MSW program.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "j1-23",
+  "question": "How do i request an official transcript to send to a PhD program, and how long does it take",
+  "topic": "procedure"
+ },
+ {
+  "id": "j1-24",
+  "question": "Where do I go for tech help if Moodle or Canvas won't load for my online class at night when offices are closed?",
+  "topic": "contact"
+ },
+ {
+  "id": "j1-25",
+  "question": "is there a grad student orientation and do i have to go? I start in spring",
+  "topic": "policy"
+ },
+ {
+  "id": "j2-01",
+  "question": "how do I pay my enrollment deposit and what happens if I miss the May 1 deadline?",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-02",
+  "question": "I just got accepted!! what are the next steps before orientation",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-03",
+  "question": "how do i sign up for orientation",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-04",
+  "question": "Do I have to take a placement test for math or english, and how do I schedule it? Who do I email if I have problems with it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-05",
+  "question": "what immunizations does ramapo require for incoming freshmen",
+  "topic": "policy"
+ },
+ {
+  "id": "j2-06",
+  "question": "How do I submit my immunization records and who do I contact at health services if my doctor's form is missing something?",
+  "topic": "contact"
+ },
+ {
+  "id": "j2-07",
+  "question": "how do i get my student ID card, do I need to upload a photo first",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-08",
+  "question": "I never got my ramapo email login. how do I set up my account and password",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-09",
+  "question": "how do I set up my Ramapo account if i forgot the activation code",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-10",
+  "question": "when is my first tuition bill due and how do i set up a payment plan",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-11",
+  "question": "can my parents see my bill or pay it for me? is there a proxy thing",
+  "topic": "policy"
+ },
+ {
+  "id": "j2-12",
+  "question": "how do I register for classes as a new freshman, do I pick them myself or at orientation",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-13",
+  "question": "I have AP credits from high school, how do I send my scores so they count",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-14",
+  "question": "can freshmen bring a car to campus? how do I get a parking permit and who handles that",
+  "topic": "policy"
+ },
+ {
+  "id": "j2-15",
+  "question": "parking permit for commuters - where do i apply",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-16",
+  "question": "how do I find out my housing assignment and roommate, and how do I request a change",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-17",
+  "question": "I have a disability and need accommodations starting my first semester. how do I register and who do I talk to",
+  "topic": "contact"
+ },
+ {
+  "id": "j2-18",
+  "question": "fafsa deadline for ramapo and how do I accept my financial aid package",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-19",
+  "question": "what's the meal plan policy for first year residents, can i opt out",
+  "topic": "policy"
+ },
+ {
+  "id": "j2-20",
+  "question": "i decided to go somewhere else, how do i withdraw my acceptance and do I get my deposit back",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-21",
+  "question": "can I defer my admission for a year? who do I contact",
+  "topic": "policy"
+ },
+ {
+  "id": "j2-22",
+  "question": "how do i send my final high school transcript",
+  "topic": "procedure"
+ },
+ {
+  "id": "j2-23",
+  "question": "What is my deposit balance and has my immunization form been received yet?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "j2-24",
+  "question": "which classes should I take my first semester to stay on track for nursing, and which professors are the easiest?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "j2-25",
+  "question": "is the shuttle running right now and how much is a parking permit this year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "j3-01",
+  "question": "where can i get free tutoring at ramapo",
+  "topic": "procedure"
+ },
+ {
+  "id": "j3-02",
+  "question": "How do I sign up for a tutor for calculus and who do I contact if there isn't one listed?",
+  "topic": "contact"
+ },
+ {
+  "id": "j3-03",
+  "question": "is there a writing center and do i need an appointment",
+  "topic": "policy"
+ },
+ {
+  "id": "j3-04",
+  "question": "I'm on academic probation. What does that mean and what do I have to do to get off it?",
+  "topic": "policy"
+ },
+ {
+  "id": "j3-05",
+  "question": "what gpa do i need to avoid being dismissed",
+  "topic": "policy"
+ },
+ {
+  "id": "j3-06",
+  "question": "I got academically dismissed, how do I appeal and who do I send it to?",
+  "topic": "procedure"
+ },
+ {
+  "id": "j3-07",
+  "question": "can i retake a class i failed and will the old grade go away",
+  "topic": "policy"
+ },
+ {
+  "id": "j3-08",
+  "question": "How does grade replacement work? Is there a limit on how many courses I can repeat?",
+  "topic": "policy"
+ },
+ {
+  "id": "j3-09",
+  "question": "how do i retake a course i got a D in",
+  "topic": "procedure"
+ },
+ {
+  "id": "j3-10",
+  "question": "can I take a class pass/fail",
+  "topic": "policy"
+ },
+ {
+  "id": "j3-11",
+  "question": "how do i switch a class to pass fail and whats the deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "j3-12",
+  "question": "I couldn't finish my final paper because of a family emergency. How do I get an incomplete?",
+  "topic": "procedure"
+ },
+ {
+  "id": "j3-13",
+  "question": "how long do i have to finish an incomplete before it turns into an F",
+  "topic": "policy"
+ },
+ {
+  "id": "j3-14",
+  "question": "My professor won't respond to my emails. What should I do?",
+  "topic": "procedure"
+ },
+ {
+  "id": "j3-15",
+  "question": "how do i find my professors office hours",
+  "topic": "procedure"
+ },
+ {
+  "id": "j3-16",
+  "question": "Is it okay to just show up at a professor's office or do I need to make an appointment? Not sure how this works",
+  "topic": "policy"
+ },
+ {
+  "id": "j3-17",
+  "question": "how do i withdraw from a class w/o failing it",
+  "topic": "procedure"
+ },
+ {
+  "id": "j3-18",
+  "question": "i think my final grade is wrong. how do i dispute it",
+  "topic": "procedure"
+ },
+ {
+  "id": "j3-19",
+  "question": "Who is my academic advisor and how do I meet with them about my grades?",
+  "topic": "contact"
+ },
+ {
+  "id": "j3-20",
+  "question": "does academic probation affect my financial aid",
+  "topic": "policy"
+ },
+ {
+  "id": "j3-21",
+  "question": "are there study skills workshops or academic coaching on campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "j3-22",
+  "question": "what is my current gpa",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "j3-23",
+  "question": "Will I pass my chem class if I get a 60 on the final? Should I drop it?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "j3-24",
+  "question": "is professor Smith an easy grader",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "j3-25",
+  "question": "What accommodations can I get for test anxiety, and how do I register for them?",
+  "topic": "procedure"
+ },
+ {
+  "id": "j4-01",
+  "question": "how do i print something on campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "j4-02",
+  "question": "Where can I find the library hours during finals week and can I reserve a group study room?",
+  "topic": "procedure"
+ },
+ {
+  "id": "j4-03",
+  "question": "how do i waive the student health insurance, i already have coverage thru my parents",
+  "topic": "procedure"
+ },
+ {
+  "id": "j4-04",
+  "question": "what's the deadline for the health insurance waiver and who do i contact if i missed it?",
+  "topic": "contact"
+ },
+ {
+  "id": "j4-05",
+  "question": "Do I need a student ID to get into the gym, and what happens if I lost my card?",
+  "topic": "policy"
+ },
+ {
+  "id": "j4-06",
+  "question": "is there a notary on campus? i need a form notarized for my internship",
+  "topic": "procedure"
+ },
+ {
+  "id": "j4-07",
+  "question": "how do i get a package from the mail room",
+  "topic": "procedure"
+ },
+ {
+  "id": "j4-08",
+  "question": "can alumni or guests use the fitness center",
+  "topic": "policy"
+ },
+ {
+  "id": "j4-09",
+  "question": "I need to get a letter verifying I'm enrolled at Ramapo for my car insurance. How do I get that and who handles it?",
+  "topic": "contact"
+ },
+ {
+  "id": "j4-10",
+  "question": "how do i rent or buy textbooks from the bookstore online",
+  "topic": "procedure"
+ },
+ {
+  "id": "j4-11",
+  "question": "what is the bookstore return policy for books",
+  "topic": "policy"
+ },
+ {
+  "id": "j4-12",
+  "question": "computer lab hours??",
+  "topic": "procedure"
+ },
+ {
+  "id": "j4-13",
+  "question": "how can i borrow a laptop or charger from the library",
+  "topic": "procedure"
+ },
+ {
+  "id": "j4-14",
+  "question": "My mailbox key doesnt work / I cant find my mailbox number, what do i do",
+  "topic": "procedure"
+ },
+ {
+  "id": "j4-15",
+  "question": "are there late fees for overdue library books and how do i renew them online?",
+  "topic": "policy"
+ },
+ {
+  "id": "j4-16",
+  "question": "how do I get an official transcript apostilled or verified for a study abroad program?",
+  "topic": "procedure"
+ },
+ {
+  "id": "j4-17",
+  "question": "can I bring a guest to the rec center and do they need to sign a waiver",
+  "topic": "policy"
+ },
+ {
+  "id": "j4-18",
+  "question": "who do i email about getting a printing quota refunded when the printer ate my pages",
+  "topic": "contact"
+ },
+ {
+  "id": "j4-19",
+  "question": "How do I sign up for an intramural team or a fitness class?",
+  "topic": "procedure"
+ },
+ {
+  "id": "j4-20",
+  "question": "what's my current print balance",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "j4-21",
+  "question": "Is the gym crowded right now? Want to go lift",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "j4-22",
+  "question": "which health insurance plan should i pick, is the school one worth the money",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "j4-23",
+  "question": "how do I get interlibrary loan for a book Ramapo's library doesnt have",
+  "topic": "procedure"
+ },
+ {
+  "id": "j4-24",
+  "question": "Can I send mail or ship a package from campus, and how do I get stamps? Also who runs the mail center?",
+  "topic": "contact"
+ },
+ {
+  "id": "j4-25",
+  "question": "do you need an appointment to use the 3D printer or the media/computer labs and are there rules about food in them",
+  "topic": "policy"
+ }
+]

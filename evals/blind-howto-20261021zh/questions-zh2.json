@@ -1,0 +1,17 @@
+[
+{"id": "zh2-01", "question": "My daughter is moving in to her dorm in August. How do we find out our move-in time and what are we allowed to bring? Who do we call if we have questions?", "topic": "procedure"},
+{"id": "zh2-02", "question": "can parents help carry stuff up on move in day or is there a limit on how many people can come", "topic": "policy"},
+{"id": "zh2-03", "question": "How do I pay my son's tuition bill? I'm the one paying but he is the one with the account. Does he have to add me somehow?", "topic": "procedure"},
+{"id": "zh2-04", "question": "Can I see my daughter's grades? She is 19 and I pay for everything but she says the school won't tell me anything. Is that true?", "topic": "policy"},
+{"id": "zh2-05", "question": "what is ramapo's FERPA policy and how does my son give us permission to see his records", "topic": "policy"},
+{"id": "zh2-06", "question": "Is there campus police on all night? I want to know my kid is safe walking back from the library late. Whats the number for emergencies and the non emergency number?", "topic": "contact"},
+{"id": "zh2-07", "question": "How do we visit our son on a weekend, can we stay overnight in his room or do we need to get a hotel nearby?", "topic": "policy"},
+{"id": "zh2-08", "question": "My daughter has a severe food allergy and anxiety. Where do we go to set up accommodations for housing and dining before she starts in the fall, and what paperwork do we need from her doctor?", "topic": "procedure"},
+{"id": "zh2-09", "question": "if my son loses his student ID how does he get a new one and does it cost anything", "topic": "procedure"},
+{"id": "zh2-10", "question": "We got a bill with a late fee but I thought the payment plan covered it. How do I set up a payment plan and who in billing can I talk to?", "topic": "contact"},
+{"id": "zh2-11", "question": "What should my child do if she feels unsafe or someone is bothering her on campus? Is there somewhere confidential she can go for help or someone to talk to about stress?", "topic": "procedure"},
+{"id": "zh2-12", "question": "Does my freshman need to bring a car? Can freshmen have cars on campus and how does she get a parking permit", "topic": "policy"},
+{"id": "zh2-13", "question": "What is my son's current balance and has his financial aid disbursed yet? He's in Mahwah residence hall.", "topic": "out_of_scope"},
+{"id": "zh2-14", "question": "Which dorm is safest and should I choose a single or a double for my anxious daughter? What would you recommend?", "topic": "out_of_scope"},
+{"id": "zh2-15", "question": "my daughter is sick and in the health center right now, can you tell me if shes been seen and whether theyve released her", "topic": "out_of_scope"}
+]

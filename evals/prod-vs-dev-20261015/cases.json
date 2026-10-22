@@ -1,0 +1,962 @@
+[
+ {
+  "id": "q001",
+  "message": "Teacher Education and Certification Program: Do I need to obtain my NJ Substitute Certificate before starting the program?",
+  "question": "Do I need to obtain my NJ Substitute Certificate before starting the program?",
+  "official_answer": "No, but if you start in Fall ’27, it must be obtained before enrolling in the Fall ‘28 term.",
+  "url": "https://www.ramapo.edu/te/ta-to-teacher-faqs/",
+  "site": "te"
+ },
+ {
+  "id": "q002",
+  "message": "ResNET: How can I find out where wireless access is available on campus?",
+  "question": "How can I find out where wireless access is available on campus?",
+  "official_answer": "Visit the Ramapo campus map (https://map.ramapo.edu/?id=2292#!ct/99549,99550,99551).",
+  "url": "https://www.ramapo.edu/resnet/faq/",
+  "site": "resnet"
+ },
+ {
+  "id": "q003",
+  "message": "Information Technology Services (ITS): Why is our existing phone system being replaced?",
+  "question": "Why is our existing phone system being replaced?",
+  "official_answer": "The existing phone system is based on outdated, on-premises Cisco hardware that is no longer supported. By transitioning to GoTo Connect, Ramapo will benefit from the scalability and flexibility offered by a modern, cloud-based solution.",
+  "url": "https://www.ramapo.edu/its/telecomm/goto-connect-phone-system/",
+  "site": "its"
+ },
+ {
+  "id": "q004",
+  "message": "Center for Student Success: When/How can I drop/add a course?",
+  "question": "When/How can I drop/add a course?",
+  "official_answer": "You can add or drop courses before or within the first week of classes each semester. After the add/drop period ends, you can no longer add classes to your schedule. If you need to drop a course, you can withdraw up until a certain point or apply for an incomplete with your professor in which you would finish the course over time. For deadlines regarding add/drop, withdraw, or incomplete, please refer to the academic calendar (https://www.ramapo.edu/academic-calendars/).",
+  "url": "https://www.ramapo.edu/studentsuccess/faq/",
+  "site": "studentsuccess"
+ },
+ {
+  "id": "q005",
+  "message": "Prestigious Fellowships and Scholarships: How do I get my college transcripts?",
+  "question": "How do I get my college transcripts?",
+  "official_answer": "An official transcript of all colleges attended, certified by the registrar’s office, is almost always required. In some cases for scholarships, high school transcripts may be required as well. Be sure to order transcripts well in advance of the deadline. Be sure to verify whether a form is required to be sent with the transcript or whether a form is needed to request the transcript. Visit our Registrar’s Office: https://www.ramapo.edu/registrar/forms-transcripts/",
+  "url": "https://www.ramapo.edu/prestigious-fellowships-and-scholarships/",
+  "site": "prestigious-fellowships-and-scholarships"
+ },
+ {
+  "id": "q006",
+  "message": "ENHANCE: Does ENHANCE help with employment?",
+  "question": "Does ENHANCE help with employment?",
+  "official_answer": "ENHANCE helps students prepare for employment through individualized career coaching and professional development with our career coach, Roger Jans. Students receive career coaching and career development workshops designed to build professional skills and workforce readiness. The ENHANCE career coach helps students identify career goals, develop practical skills, and take steps toward internships and employment.",
+  "url": "https://www.ramapo.edu/enhance/information-for-parents-and-guardians/",
+  "site": "enhance"
+ },
+ {
+  "id": "q007",
+  "message": "Financial Aid: What is the difference between a Federal Direct Subsidized and an Unsubsidized Loan?",
+  "question": "What is the difference between a Federal Direct Subsidized and an Unsubsidized Loan?",
+  "official_answer": "The difference between a Subsidized and Unsubsidized Federal Direct Loan is as follows: A subsidized loan is based on need; an unsubsidized loan is not need-based. Also, a student with a subsidized loan does not pay interest on that loan while in school. A student with an unsubsidized loan will be charged interest from the time the loan is disbursed. If you allow the interest to accumulate, it will be capitalized, that is, it will be added to the principal amount and additional interest will be based on the higher amount. The borrowing limits for both subsidized and unsubsidized loans are the same.",
+  "url": "https://www.ramapo.edu/finaid/faqs/",
+  "site": "finaid"
+ },
+ {
+  "id": "q008",
+  "message": "Substance Use Disorder (SUD) Services: Why “Date Rape Drug”?",
+  "question": "Why “Date Rape Drug”?",
+  "official_answer": "Like alcohol, the drug is considered a date rape drug of choice; attackers slip the drug into victims’ drinks to promote disinhibition. The drug is given to unwary victims (male or female) without their consent. The victim is physically incapacitated and has impaired judgment. This makes victims more vulnerable to assault and rape. Because of the memory loss and confusion under the influence of this drug, rape cases are difficult to prosecute. Recently, screening for Rohypnol has improved.",
+  "url": "https://www.ramapo.edu/sud/date-rape-drugs-xtc-rohypnol-ketamine/",
+  "site": "sud"
+ },
+ {
+  "id": "q009",
+  "message": "Doctor of Nursing Practice (DNP): Do I need to have my MSN before applying?",
+  "question": "Do I need to have my MSN before applying?",
+  "official_answer": "Yes, the DNP is a post master’s program and requires that students have earned their MSN",
+  "url": "https://www.ramapo.edu/dnp/faqs/",
+  "site": "dnp"
+ },
+ {
+  "id": "q010",
+  "message": "Scholarships: When do I need to upload my supporting documents?",
+  "question": "When do I need to upload my supporting documents?",
+  "official_answer": "All supporting documents must be uploaded by the application deadline. Requests for letters of recommendation can be emailed to your references directly from your general application, so be sure to request it in enough time for your references to complete them.",
+  "url": "https://www.ramapo.edu/scholarships/faqs/",
+  "site": "scholarships"
+ },
+ {
+  "id": "q011",
+  "message": "FAQs Adult Students: Can I speak with someone before I apply?",
+  "question": "Can I speak with someone before I apply?",
+  "official_answer": "A. Yes! All students in the Degree Completion Program’s accelerated majors have an advisor who acts as your first point of contact for questions about the curriculum, campus services, your individualized path to degree or any other questions you might have. Contact Patricia Laprey, Director of the Degree Completion Program at (201) 684-7388 or plaprey@ramapo.edu (mailto:plaprey@ramapo.edu).",
+  "url": "https://www.ramapo.edu/adult-students/faqs/",
+  "site": "adult-students"
+ },
+ {
+  "id": "q012",
+  "message": "Title IX: Who is the College’s Director of Title IX/Title IX Coordinator?",
+  "question": "Who is the College’s Director of Title IX/Title IX Coordinator?",
+  "official_answer": "Kat McGee, J.D. Director of Title IX and Institutional Compliance Office: D 104 (201) 684-7220 kmcgee@ramapo.edu (mailto:kmcgee@ramapo.edu)",
+  "url": "https://www.ramapo.edu/titleix/",
+  "site": "titleix"
+ },
+ {
+  "id": "q013",
+  "message": "Controller: If an item hasn’t been paid for, can I see when a check is scheduled to be cut?",
+  "question": "If an item hasn’t been paid for, can I see when a check is scheduled to be cut?",
+  "official_answer": "Go to FOIDOCH. Type in the document type (PO or REQ). Tab to Doc. Code field, enter the PO number, and select “Next Block”. If an invoice has been entered, the number will show in the Invoice block. If no invoice number shows, an invoice hasn’t been entered by AP and you cannot tell when a check will be cut. If an invoice number shows, click to select the Invoice number, then click on the Document Inquiry button to go to the Invoice Query Form (FAIINVE). Select “Next Block”. The vendor’s invoice date shows in the Invoice Date: field. The date the invoice was entered into the system shows in the Transaction Date: field. The date the check will be cut shows in the Payment Due: field.",
+  "url": "https://www.ramapo.edu/controller/banner/",
+  "site": "controller"
+ },
+ {
+  "id": "q014",
+  "message": "School of Social Sciences and Social Work (SSSW): What should I know about taking Fieldwork?",
+  "question": "What should I know about taking Fieldwork?",
+  "official_answer": "All Psychology students have the unique opportunity to gain direct applied experience through Category 7: Fieldwork/Independent Research. Students have had a variety of placements such in an elementary school, outpatient clinic, day care center, a hospice for seniors, day programs for adults, in the court system etc. The courses emphasize the application of concepts, theories, and research findings to students’ experiences in their fieldwork placements. Students should contact instructors of the fieldwork courses they are interested in before registering because each course follows different procedures. Some instructors will contact students before the start of the class to find a placement and begin the application process. Students should expect to set aside 1 or 2 days each week for their placements. You will be expected to devote 60 hours of time over the semester at your placement. Student must also attend classes and complete assignments such as a research-based term paper. Many agencies require that students complete a training session before the start of the semester. Most agencies require that students pass a criminal background check in order to be placed in an agency. Research Methods and Data Analysis courses are prerequisites for all Category 7 courses and some Fieldwork courses have additional requirements.",
+  "url": "https://www.ramapo.edu/sssw/psychology/faqs/",
+  "site": "sssw"
+ },
+ {
+  "id": "q015",
+  "message": "ENHANCE: Can I visit or schedule a tour to see ENHANCE?",
+  "question": "Can I visit or schedule a tour to see ENHANCE?",
+  "official_answer": "The best way to visit ENHANCE is to attend one of the Ramapo College Open Houses (https://www.ramapo.edu/visit/), which take place every Fall and Spring semester. At the Open House, you will meet ENHANCE staff, take a college tour, and see what the college has to offer.",
+  "url": "https://www.ramapo.edu/enhance/information-for-parents-and-guardians/",
+  "site": "enhance"
+ },
+ {
+  "id": "q016",
+  "message": "Nursing Programs at Ramapo College: Is financial aid available?",
+  "question": "Is financial aid available?",
+  "official_answer": "Financial aid is available through the FAFSA and students are encouraged to speak with the Office of Financial Aid for assistance. View ABSN-16 month and Bridge to ABSN-24 month program cost (https://www.ramapo.edu/nursing/accelerated-bsn/tuition-and-financial-aid/).",
+  "url": "https://www.ramapo.edu/nursing/accelerated-bsn/faqs/",
+  "site": "nursing"
+ },
+ {
+  "id": "q017",
+  "message": "Controller: How can I find out what invoices were paid on a check?",
+  "question": "How can I find out what invoices were paid on a check?",
+  "official_answer": "Go to FAICHKH. Type in the check number. Type TS (most of the time) in the Bank field. Select “Next Block”. Our internal invoice number shows in the Document Number: field. The vendor’s invoice number shows in the Vendor’s Invoice Code: field.",
+  "url": "https://www.ramapo.edu/controller/banner/",
+  "site": "controller"
+ },
+ {
+  "id": "q018",
+  "message": "On-Campus Employment for Students: How do I apply for student employment?",
+  "question": "How do I apply for student employment?",
+  "official_answer": "All students should search open positions through the Career Center job bank on Handshake and apply to the hiring units. Students who feel they might be eligible for Federal Work-Study should file a Free Application for Federal Student Aid (FAFSA) by the March 1st deadline. They will be notified by the Financial Aid Office if awarded Federal Work-Study.",
+  "url": "https://www.ramapo.edu/on-campus-employment/faqs/",
+  "site": "on-campus-employment"
+ },
+ {
+  "id": "q019",
+  "message": "Connect: Can I raise progress items about other students in my course that do not show up in my Academic Progress Surveys?",
+  "question": "Can I raise progress items about other students in my course that do not show up in my Academic Progress Surveys?",
+  "official_answer": "Yes, you can raise progress items at any point in the semester for any of your students. The Academic Progress Surveys are designed to coincide with the Academic Calendar but we support sharing feedback at any time. To raise feedback for a student in your course select the Students tab from the main menu. Then open that student’s folder by clicking on their hyperlinked name. In the student folder you will see a button to raise a flag, referral or kudos. Select which item you wish to raise and type any optional comments you wish to share then Submit.",
+  "url": "https://www.ramapo.edu/connect/faculty/frequently-asked-questions/",
+  "site": "connect"
+ },
+ {
+  "id": "q020",
+  "message": "Information Technology Services (ITS): I know how to access Jabber but now I’m getting errors and can’t log in. What do I do?",
+  "question": "I know how to access Jabber but now I’m getting errors and can’t log in. What do I do?",
+  "official_answer": "At the login screen you will see a link to ‘Reset Jabber’. Click on it and click ‘Reset’ on the notification that pops up. You will lose all chat messages and your call history however your contacts and voicemails will remain. Sign back into Jabber using your full Ramapo credentials. This should clear out any errors you may have witnessed. If you are still encountering problems, please email us at telecomm@ramapo.edu (mailto:telecomm@ramapo.edu) with the specific error message so we can assist you.",
+  "url": "https://www.ramapo.edu/its/telecomm/faq/",
+  "site": "its"
+ },
+ {
+  "id": "q021",
+  "message": "Teacher Education and Certification Program: What is the GPA requirement for the program?",
+  "question": "What is the GPA requirement for the program?",
+  "official_answer": "Fall 2026 applicants must have a minimum of a 2.75 college/university GPA. However, Applicants with a GPA between 2.74 and 2.5 may still be considered. Admissions requirements for the Fall 2027 cohort will be posted shortly.",
+  "url": "https://www.ramapo.edu/te/ta-to-teacher-faqs/",
+  "site": "te"
+ },
+ {
+  "id": "q022",
+  "message": "Testing Center: What is the ATI TEAS Test?",
+  "question": "What is the ATI TEAS Test?",
+  "official_answer": "The ATI TEAS (Test of Essential Academic Skills) is designed to assess a student’s preparedness entering the health science fields. The TEAS is often part of your the admissions requirements for nursing or allied health schools. Studies show a link between a student’s performance on the TEAS and academic success in these fields. If you are a Ramapo College Nursing Student please refer to the following page in order to sign up to take the ATI TEAS Test. Ramapo College Nursing Students (https://www.ramapo.edu/testing/teas-test/)",
+  "url": "https://www.ramapo.edu/testing/home/teas/",
+  "site": "testing"
+ },
+ {
+  "id": "q023",
+  "message": "George T. Potter Library: How long may I keep the borrowed material?",
+  "question": "How long may I keep the borrowed material?",
+  "official_answer": "The loan period is determined by the lending library. It is typically two-three weeks. The due date will be indicated on the band or sticker attached to the ILL item, and it will be listed on your online account.",
+  "url": "https://www.ramapo.edu/library/interlibrary-loan/",
+  "site": "library"
+ },
+ {
+  "id": "q024",
+  "message": "Provisional Teacher Program: What are the requirements for mentoring?",
+  "question": "Q. What are the requirements for mentoring?",
+  "official_answer": "A. The mentoring requirement information can be obtained from the New Jersey Department of Education website. INFORMATION SHEET Dr. Marylu Coviello (201) 684-7086 or e-mail marylu949@optonline.net (mailto:marylu949@optonline.net) FOR INFORMATION CONTACT Ms. Joanne Caselli (201) 684-7626 or e-mail jcaselli@ramapo.edu (mailto:jcaselli@ramapo.edu)",
+  "url": "https://www.ramapo.edu/ptp/faq/",
+  "site": "ptp"
+ },
+ {
+  "id": "q025",
+  "message": "Payroll: How do I view my current Tax information including my current W-4 withholding?",
+  "question": "How do I view my current Tax information including my current W-4 withholding?",
+  "official_answer": "To view and print pay and withholding information, log onto Banner Web Self Service (https://experience.elluciancloud.com/rconj/?name=homepage&accessibility=true) using your user name and password. Once in Banner Web Self Service (https://experience.elluciancloud.com/rconj/?name=homepage&accessibility=true) , follow the steps below: To view and print Tax Information including current W-4 Click on the Employee tab. Click on the Taxes link Click on “W-4 Employee’s Withholding Allowance Certificate” to view your current W-4 To view and print Pay Information including view Pay Stubs and Earnings History Click on the Employee Tab Click on the Pay Information link. Click on the “All Pay Stubs” link to view pays stubs. Click on the “Earnings” link to view cumulative earnings history Click on the “Deductions History” link to view deductions including taxes withheld",
+  "url": "https://www.ramapo.edu/payroll/",
+  "site": "payroll"
+ },
+ {
+  "id": "q026",
+  "message": "School of Science, Nursing, and Health (SNH): What do you do once you get inducted to Pi Mu Epsilon?",
+  "question": "What do you do once you get inducted to Pi Mu Epsilon?",
+  "official_answer": "The purpose of Pi Mu Epsilon is to promote scholarly activity in mathematics. The inducted Ramapo College students need to fulfill a few fun chapter activities during each academic year. Such activities will be organized by the chapter advisor. The inducted students are also encouraged to present their undergraduate mathematics research at local, regional, and national conferences. Here are some examples of such conferences: Scholars Day (https://www.ramapo.edu/scholarsday/); held at Ramapo College every spring semester (local level) Garden State Undergraduate Mathematics Conference (http://sections.maa.org/newjersey/GSUMC/) (see disclaimer below); held at one of the New Jersey colleges every spring semester (regional level) Math Fest (http://www.pme-math.org/) (see disclaimer below); held annually by Pi Mu Epsilon in early August, locations vary (national level)",
+  "url": "https://www.ramapo.edu/snh/math/honor-society/",
+  "site": "snh"
+ },
+ {
+  "id": "q027",
+  "message": "Provisional Teacher Program: How do I qualify for the provisional teacher program?",
+  "question": "Q. How do I qualify for the provisional teacher program?",
+  "official_answer": "A. In order to qualify you must have a bachelor’s degree and at least a 2.75 grade point average (GPA). (It may be possible to qualify with a 2.5 GPA and a higher Praxis II score. See ‘Praxis Testing/GPA Flexibility at the link below. You then must obtain a Certificate of Eligibility from the NJ State Department of Education. Information on the Provisional Teacher Program is available at the following web-site: http://www.state.nj.us/education/educators/license/(see disclaimer below).",
+  "url": "https://www.ramapo.edu/ptp/faq/",
+  "site": "ptp"
+ },
+ {
+  "id": "q028",
+  "message": "Center for Student Success: Need a virtual or in-person walk-in meeting?",
+  "question": "Need a virtual or in-person walk-in meeting?",
+  "official_answer": "CLICK HERE (https://ramapo.starfishsolutions.com/starfish-ops/virtual-kiosk/launch.html?kioskId=3) to sign in for a virtual or in-person walk-in appointment with a Student Success Advisor using our Virtual Kiosk on Connect. You must have an activated Ramapo email address to access this kiosk. If your meeting is in person, you can check in using the kiosk located in our main office located in D207. Should you have any questions, feel free to email success@ramapo.edu (mailto:success@ramapo.edu). Faculty Academic Advisement: Please email your faculty academic advisor (contact info found in your Connect – My Success Network) for info on how to meet with them for virtual advisement. If your your faculty advisor is unavailable, please email the School Secretary to find another faculty member in your respective school who can advise you: ASB: Dean Edward Petkus; epetkus@ramapo.edu (mailto:epetkus@ramapo.edu) School Secretary: Deirdre Lynch; dlynch@ramapo.edu (mailto:dlynch@ramapo.edu); (201)684-7379 CA: Dean Peter Campbell; pcampbel@ramapo.edu (mailto:pcampbel@ramapo.edu)School Secretary: Irene Grskovic: igrskovi@ramapo.edu (mailto:igrskovi@ramapo.edu);(201)684-7365 HGS: Dean Susan Hangen, shangen@ramapo.edu (mailto:shangen@ramapo.edu)School Secretary: Bill Russo (wrusso@ramapo.edu (mailto:wrusso@ramapo.edu)); (201)684-7407 SSHS: Dean Aaron Lorenz, alorenz@ramapo.edu (mailto:alorenz@ramapo.edu)School Secretary: Nancy Bernet, nbernet@ramapo.edu (mailto:nbernet@ramapo.edu); (201)684-7625 TAS: Dean Edward Saiff, esaiff@ramapo.edu (mailto:esaiff@ramapo.edu)School Secretary:Ginny Bonnett, vbonnett@ramapo.edu (mailto:vbonnett@ramapo.edu); (201)684-7797 Many of our advising resources can be accessed online now. Please go to www.ramapo.edu/myadvisor (https://www.ramapo.edu/myadvisor) for information about advisement and helpful tutorials.",
+  "url": "https://www.ramapo.edu/studentsuccess/home/",
+  "site": "studentsuccess"
+ },
+ {
+  "id": "q029",
+  "message": "Title IX: What Do I Need to Know?",
+  "question": "What Do I Need to Know?",
+  "official_answer": "If your friend or family member is undergoing the serious and painful effects of dating abuse, they may have a very different point of view than you. They may have heard the abuse was their fault and feel responsible. Even after realizing that there’s abuse, they may choose to stay in the relationship. As a friend, try to be there for them because although they may not show it, they need you more than ever. If they do choose to leave, they may feel sad and lonely when it’s over, even though the relationship was abusive. They may get back together with their ex many times, even though you want them to stay apart. Remember that it may be difficult for your friend to even bring up a conversation about the abuse they’re experiencing.",
+  "url": "https://www.ramapo.edu/titleix/dating-violence-resources/",
+  "site": "titleix"
+ },
+ {
+  "id": "q030",
+  "message": "Berrie Center for Performing and Visual Arts: How to I purchase tickets in an accessible seating section?",
+  "question": "How to I purchase tickets in an accessible seating section?",
+  "official_answer": "In the Sharp Theater, we have removable seats in the last two rows of the theater, allowing for flexibility. Those seats are not available to purchase online. To purchase those seats, please contact our Box Office (https://www.ramapo.edu/berriecenter/tickets-seating/) for assistance. In the Adler Theater, the seating is general admission and we always ensure we have accessible seating. Please let us know what accommodations you need and we are happy to assist.",
+  "url": "https://www.ramapo.edu/berriecenter/plan-your-visit/",
+  "site": "berriecenter"
+ },
+ {
+  "id": "q031",
+  "message": "Undergraduate: What are the academic requirements for first year students applying to EOF?",
+  "question": "What are the academic requirements for first year students applying to EOF?",
+  "official_answer": "First Year applicants need to meet the academic requirements (https://www.ramapo.edu/undergraduate/educational-opportunity-fund/admission-requirements/) below to be considered for admission to Ramapo College through the EOF Program. Those applicants who fall on the lower end of the academic requirements may need to participate in an interview to determine eligibility for EOF before a decision is issued. GPA: 2.5 or higher (on 4.0 scale) Class Rank: Top one-third of graduating class (if rank reported) First Year applicants applying to the Nursing Program, Biology major or one of the medical programs listed under the Biology major should meet the admissions criteria listed below to be considered for admission. Applicants must apply directly into these programs and submit all required documents (https://www.ramapo.edu/undergraduate/educational-opportunity-fund/admission-requirements/) prior to December 15. GPA: 3.0 or higher (on 4.0 scale) 4 years of math and science courses Strong grades in math and science courses",
+  "url": "https://www.ramapo.edu/undergraduate/educational-opportunity-fund/faqs/",
+  "site": "undergraduate"
+ },
+ {
+  "id": "q032",
+  "message": "School of Social Sciences and Social Work (SSSW): How do I declare myself as a Psychology major or minor?",
+  "question": "How do I declare myself as a Psychology major or minor?",
+  "official_answer": "If you are interested in declaring a major or minor in Psychology please make an appointment with the convener of Psychology to discuss the program and complete a Major/Minor Declaration form (https://www.ramapo.edu/registrar/declare-major-minor-certificate/). The current convener is Dr. Naseem Choudhury and her email address is nchoudhu@ramapo.edu (mailto:nchoudhu@ramapo.edu) or visit her office in G273.",
+  "url": "https://www.ramapo.edu/sssw/psychology/faqs/",
+  "site": "sssw"
+ },
+ {
+  "id": "q033",
+  "message": "Graduate Program FAQs: What is the application fee?",
+  "question": "What is the application fee?",
+  "official_answer": "The non-refundable application fee is $65. The application fee is payable by credit card and is submitted through the online application. Applications submitted without payment will be considered incomplete and will not be reviewed.",
+  "url": "https://www.ramapo.edu/graduate/faqs/",
+  "site": "graduate"
+ },
+ {
+  "id": "q034",
+  "message": "Master of Business Administration (MBA): Can I concentrate on a particular area (finance, marketing, business analytics, etc.)?",
+  "question": "Can I concentrate on a particular area (finance, marketing, business analytics, etc.)?",
+  "official_answer": "A. Yes. Students complete three electives across a variety of topics. Those concentrating their elective choices within a specific business discipline can create an area of specialization. Specializations are dependent on course offerings which may change based on market demand. Currently, we offer the following concentrations: Accounting, AI Leadership, Business Analytics, Finance, Management, and Marketing.",
+  "url": "https://www.ramapo.edu/mba/faqs/",
+  "site": "mba"
+ },
+ {
+  "id": "q035",
+  "message": "Scholarships: My reference request has not been fulfilled, what should I do?",
+  "question": "My reference request has not been fulfilled, what should I do?",
+  "official_answer": "First, check to see if you entered the correct email address for your reference. Second, you can “Add a New Reference” to resend the request. Finally, you can also send a new request to a different reference. Be sure to do this in enough time to meet the deadline.",
+  "url": "https://www.ramapo.edu/scholarships/faqs/",
+  "site": "scholarships"
+ },
+ {
+  "id": "q036",
+  "message": "Graduate Program FAQs: Are there Graduate Assistant positions available?",
+  "question": "Are there Graduate Assistant positions available?",
+  "official_answer": "Every year, there are a few Graduate Assistant positions available. Available positions are posted here – https://www.schooljobs.com/careers/ramapo/",
+  "url": "https://www.ramapo.edu/graduate/faqs/",
+  "site": "graduate"
+ },
+ {
+  "id": "q037",
+  "message": "Undergraduate: If I don't get EOF when I'm admitted, can I apply after enrolling at Ramapo?",
+  "question": "If I don't get EOF when I'm admitted, can I apply after enrolling at Ramapo?",
+  "official_answer": "Students admitted to Ramapo College but not awarded EOF can contact the EOF Office at Ramapo College (https://www.ramapo.edu/eof-program/) to learn about how they can possibly apply for EOF after starting at Ramapo College.",
+  "url": "https://www.ramapo.edu/undergraduate/educational-opportunity-fund/faqs/",
+  "site": "undergraduate"
+ },
+ {
+  "id": "q038",
+  "message": "Parents, Guardians & Families: Why Join the PPC?",
+  "question": "Why Join the PPC?",
+  "official_answer": "Champion Student Success Your voice as a Roadrunner parent helps shape programs and initiatives that enhance learning, campus life, and student well-being. Create Opportunities Through Philanthropy Your membership supports The Fund for Ramapo College and the Parents Council Endowed Scholarship, expanding access and opening doors for current students and future leaders. Connect With a Community Engage with College leaders and fellow parents who share your commitment to Ramapo’s mission, values, and future.",
+  "url": "https://www.ramapo.edu/parents/council/",
+  "site": "parents"
+ },
+ {
+  "id": "q039",
+  "message": "Provost: Where can I go for help?",
+  "question": "Where can I go for help?",
+  "official_answer": "Come to a Q&A with a Dean to learn more about these changes and how they impact you.",
+  "url": "https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/",
+  "site": "provost"
+ },
+ {
+  "id": "q040",
+  "message": "Orientation Programs: Who is my advisor?",
+  "question": "Who is my advisor?",
+  "official_answer": "First year students and any undeclared transfer students will be assigned to an advisor in the Center for Student Success. Transfer students with a declared major will be assigned a faculty advisor by your school office early in your first semester on campus. You will need to meet with them before registering for your next semester courses.",
+  "url": "https://www.ramapo.edu/orientation/faq-2/",
+  "site": "orientation"
+ },
+ {
+  "id": "q041",
+  "message": "Master of Science in Accounting (MSAC): Does the M.S. in Accounting Program satisfy the 150 credit requirement for CPA licensure?",
+  "question": "Does the M.S. in Accounting Program satisfy the 150 credit requirement for CPA licensure?",
+  "official_answer": "Yes, the program consists of 30 credits and is designed to build upon an undergraduate degree in accounting to meet the 150 credit requirement for New Jersey CPA certification.",
+  "url": "https://www.ramapo.edu/msac/faqs/",
+  "site": "msac"
+ },
+ {
+  "id": "q042",
+  "message": "Office of Student Conduct: What is the College Disciplinary Review Board?",
+  "question": "What is the College Disciplinary Review Board?",
+  "official_answer": "The Code of Conduct at Ramapo College is based upon the application of policy and procedure and impartial due process. The College Disciplinary Review Board is responsible for hearing cases if an alleged violation of the Code of Conduct may result in a student’s suspension or expulsion of the college. Board members play an active role in listening to all testimony and evidence presented, and they have an opportunity to question all witnesses to gain a better understanding of the issues related to the allegations. If members of the College Disciplinary Review Board decide, through deliberation, that the student(s) is responsible for the allegation(s), they then determine an appropriate sanction. Each board is comprised of five members (three faculty/staff and two students) and a Board Advisor. All members of the Board must agree to keep all case information in strict confidence.",
+  "url": "https://www.ramapo.edu/student-conduct/home/the-college-disciplinary-review-board/",
+  "site": "student-conduct"
+ },
+ {
+  "id": "q043",
+  "message": "College Honors: What are Faculty Sponsors and Readers?",
+  "question": "What are Faculty Sponsors and Readers?",
+  "official_answer": "For completion of the Senior Project in the Major, one Sponsor and one Reader are required to assist in mentoring the work of each student. The Reader is selected by the Faculty Sponsor and student in consultation. Often these Readers provide competence in disciplines outside the field of the Faculty Sponsor but related to the work of the student, especially in the case of double majors or minors. More information on the Senior Thesis Project can be found here. (https://www.ramapo.edu/honors/projects/)",
+  "url": "https://www.ramapo.edu/honors/faq/",
+  "site": "honors"
+ },
+ {
+  "id": "q044",
+  "message": "Master of Science in Nursing (MSN): How long will it take me to get my MSN?",
+  "question": "How long will it take me to get my MSN?",
+  "official_answer": "Family Nurse Practitioner Track (51 credits) – 3 years, part time Adult Gerontology Nurse Practitioner Track (48 credits) – 2.5 years, part time Nursing Administration Track (34 credits) – 2 years, part time Nursing Education Track (34 credits) – 2 years, part time",
+  "url": "https://www.ramapo.edu/msn/faqs/",
+  "site": "msn"
+ },
+ {
+  "id": "q045",
+  "message": "Orientation Programs: How many credits can my student take during the semester?",
+  "question": "How many credits can my student take during the semester?",
+  "official_answer": "To be considered a full time, students must take at least 12 credits. Tuition and tuition related fees are calculated on a flat rate between 12 and 18 credits. Ramapo courses are four credits and most students take 4 courses a semester, so students average 16 credits a semester. Taking 16 credits a semester, for eight semesters, will allow students to achieve the 128-credit requirement for graduation.",
+  "url": "https://www.ramapo.edu/orientation/families/faq/",
+  "site": "orientation"
+ },
+ {
+  "id": "q046",
+  "message": "People Operations and Employee Resources Department (POERD): When can eligible employees start accruing sick leave?",
+  "question": "When can eligible employees start accruing sick leave?",
+  "official_answer": "Eligible employees will begin to accrue earned sick leave on October 29, 2018, or on their first day of employment, whichever is later.",
+  "url": "https://www.ramapo.edu/poerd/forms/",
+  "site": "poerd"
+ },
+ {
+  "id": "q047",
+  "message": "Nursing Programs at Ramapo College: I was once a part of the Ramapo generic nursing program but did not complete my BSN degree. Am I eligible for this program?",
+  "question": "I was once a part of the Ramapo generic nursing program but did not complete my BSN degree. Am I eligible for this program?",
+  "official_answer": "No. Students who were once part of the Ramapo generic nursing program are not eligible for the ABSN program. These students will need to speak with the Assistant Dean in charge of Nursing about the possibility of being readmitted into the generic nursing program.",
+  "url": "https://www.ramapo.edu/nursing/accelerated-bsn/faqs/",
+  "site": "nursing"
+ },
+ {
+  "id": "q048",
+  "message": "Master of Business Administration (MBA): Will pursuing an MBA be worth it economically – will it pay back more than it costs me?",
+  "question": "Will pursuing an MBA be worth it economically – will it pay back more than it costs me?",
+  "official_answer": "A. Numerous studies have shown that earning an MBA is a financially rewarding investment when measured over the course of your professional career.",
+  "url": "https://www.ramapo.edu/mba/faqs/",
+  "site": "mba"
+ },
+ {
+  "id": "q049",
+  "message": "Financial Aid: When do I have to start repaying the Federal Direct Loan?",
+  "question": "When do I have to start repaying the Federal Direct Loan?",
+  "official_answer": "Repayment of your Federal Direct loans begins after you graduate, leave school or drop below half-time enrollment. You have 6 months to begin repayment. For unsubsidized loan recipients, you may wish to pay interest as it accrues.",
+  "url": "https://www.ramapo.edu/finaid/faqs/",
+  "site": "finaid"
+ },
+ {
+  "id": "q050",
+  "message": "Office of Student Conduct: Who can serve on the Board?",
+  "question": "Who can serve on the Board?",
+  "official_answer": "The Board is comprised of Ramapo College faculty, staff and student volunteers. Students must be currently enrolled and have a cumulative GPA above a 2.5 and be in good social standing with the College as determined by the Office of Student Conduct to be eligible. Residence Life Resident Assistant and Student Assistant Residence Directors may not serve on the Board because of the role these positions have in policy enforcement and documentation.",
+  "url": "https://www.ramapo.edu/student-conduct/home/the-college-disciplinary-review-board/",
+  "site": "student-conduct"
+ },
+ {
+  "id": "q051",
+  "message": "Cahill Career Development Center: How is NACE involved in the Survey?",
+  "question": "How is NACE involved in the Survey?",
+  "official_answer": "NACE is responsible for developing and distributing standards and practices for higher education institutions to consider when conducting the Survey. They also maintain a clearinghouse for national trends and other data related to the Survey.",
+  "url": "https://www.ramapo.edu/careercenter/rcnj-first-destination-survey/",
+  "site": "careercenter"
+ },
+ {
+  "id": "q052",
+  "message": "Center for Data, Mathematical and Computational Sciences: Who is eligible to apply?",
+  "question": "Who is eligible to apply?",
+  "official_answer": "All ROADS recipients must meet the following criteria to maintain their award: Declared as a major in a ROADS discipline at Ramapo College of New Jersey: Computer Science Data Science Mathematics Bioinformatics Cybersecurity Demonstrate academic talent: Sophomore entrants (Cohort A and B) – minimum 2.5 GPA as a matriculated Ramapo College student or from previous institution (if transferring to Ramapo College) First-Time Freshman entrants (Cohort C and D) – minimum high school GPA of 3.0 Maintenance of a minimum of 2.5 GPA while matriculated at RCNJ at all times Demonstrate unmet financial need as defined below, determined by completion of FAFSA (required). Be citizens of the US, nationals of the US (as defined in section 101(a) of the Immigration and Nationality Act), aliens admitted as refugees under section 207 of the Immigration and Nationality Act, or aliens lawfully admitted to the US for permanent residence.",
+  "url": "https://www.ramapo.edu/dmc/nsf-s-stem-roads-scholarships/",
+  "site": "dmc"
+ },
+ {
+  "id": "q053",
+  "message": "My Advisor: How do I declare my major, minor, and/or certificate?",
+  "question": "How do I declare my major, minor, and/or certificate?",
+  "official_answer": "You can complete the online major/minor declaration form (https://www.ramapo.edu/registrar/declare-major-minor-certificate/) and the Registrar’s Office will update the record in 5-7 days after form submission.",
+  "url": "https://www.ramapo.edu/myadvisor/",
+  "site": "myadvisor"
+ },
+ {
+  "id": "q054",
+  "message": "Social Work: Can I be employed by my agency?",
+  "question": "Can I be employed by my agency?",
+  "official_answer": "Some students may be eligible for an Employment Based Placement. There are specific criteria that must be met in order for this type of placement to be successful. Students who may be interested in an Employment Based Placement will be required to fill out a request form to be reviewed during an individual practicum placement interview.",
+  "url": "https://www.ramapo.edu/social-work/bsw/practicum-education/agencies-communities/",
+  "site": "social-work"
+ },
+ {
+  "id": "q055",
+  "message": "FAQs Adult Students: Can I take courses at my own pace?",
+  "question": "Can I take courses at my own pace?",
+  "official_answer": "A. Yes, our flexible structure allows students to create a course schedule that suits their personal and professional needs.",
+  "url": "https://www.ramapo.edu/adult-students/faqs/",
+  "site": "adult-students"
+ },
+ {
+  "id": "q056",
+  "message": "First-Year Seminar: How do Grades and Class Standing Factor in?",
+  "question": "How do Grades and Class Standing Factor in?",
+  "official_answer": "Students admitted to Ramapo College generally rank in the top 20% of their graduating class with a Grade Point Average of 3.45 or a B+ average. If the high school does not rank, Ramapo College will utilize the grade point average and overall high school record to determine if the student qualifies for admission.",
+  "url": "https://www.ramapo.edu/first-year/faq/",
+  "site": "first-year"
+ },
+ {
+  "id": "q057",
+  "message": "Office of Student Accounts: What happens if the student waives the insurance plan and then loses coverage?",
+  "question": "What happens if the student waives the insurance plan and then loses coverage?",
+  "official_answer": "Students may be able to enroll in the policy if they experience a Qualifying Life Event. Students should contact University Health Plans at 833-251-1149 within 31 days of their loss of coverage to verify eligibility",
+  "url": "https://www.ramapo.edu/student-accounts/student-health-insurance/faqs/",
+  "site": "student-accounts"
+ },
+ {
+  "id": "q058",
+  "message": "Public Safety: WHY SHOULD I HAVE A SPECIALIZED MEDICAL EXAMINATION FOLLOWING A SEXUAL ASSAULT?",
+  "question": "WHY SHOULD I HAVE A SPECIALIZED MEDICAL EXAMINATION FOLLOWING A SEXUAL ASSAULT?",
+  "official_answer": "You should have a thorough medical examination immediately after a sexual assault, even if you have no apparent injuries. You may be in shock and have internal injuries. You may also have minor injuries, such as scratches or other marks on your skin. A Forensic Nurse Examiner (FNE) can give you a thorough physical examination and, if indicated, can provide treatment for injuries that are related to the sexual assault. The examiner can also document any injuries that you have so that if you decide to take any legal action, you will have a record of what happened to you. Physical evidence can be identified and collected during a sexual assault medical examination. Even if you are undecided about whether you want to make a police report and unsure whether you want your assailant prosecuted, you should have evidence collected as soon as possible after a sexual assault. This is the best way to keep your options open for the future. A sexual assault can place you at risk for contracting a sexually transmitted infection (STI). A health care provider can help you evaluate your risk of getting various STIs and advise you about ways to protect yourself from these risks. One of the benefits of obtaining medical care as soon as possible after a sexual assault is that immediate evaluation and medication can prevent some STIs. If you are a female victim, the FNE can help you determine the likelihood that you could become pregnant as a result of the sexual assault and advise you about the alternatives available to you.",
+  "url": "https://www.ramapo.edu/publicsafety/get-support/",
+  "site": "publicsafety"
+ },
+ {
+  "id": "q059",
+  "message": "Public Safety: How can I help a friend who has been assaulted?",
+  "question": "How can I help a friend who has been assaulted?",
+  "official_answer": "If a friend discloses to you that they have been assaulted, the first thing to do is believe them. Often a victim’s worst fear is that the person they tell will not believe them. Ask them if they need medical help, and if they do, offer them options for medical treatment detailed under the “What are my options for medical treatment” section of this website. If he or she does not want to go to a hospital, do not insist unless it is a true medical emergency. When a person is assaulted, they can feel a loss of control over their body and their life. If you push them to tell you more than they volunteer, to report the assault, or to submit to a medical exam, you can unintentionally perpetuate that loss of control. Perpetrators violate victims at a very deep and personal level during an act of interpersonal violence and abuse. Oftentimes, survivors must then come to terms with their own vulnerability and begin to establish a new sense of normalcy. As a friend, you might notice the survivor experiencing a wide range of emotional, physical, and behavioral reactions. While there is no “typical” response, some reactions may include: anger, anxiety, depression, fear, self-blame, numbness, increased vigilance, low self-esteem, appetite changes, suicidal thoughts, withdrawn social behaviors, lack of trust, and/or increased alcohol or drug consumption. If you notice any of these behaviors, or hear that your friend has experienced an act of interpersonal violence, you have the opportunity to be a key player in your friend’s healing process. Supportive Acts Believe your friend. Listen to your friend. Let your friend know that you are available to listen when they are ready to talk. Use active listening skills to let your friend tell the story in his/her own way at a comfortable pace. Give your friend your patience and undivided attention. Be non-judgmental and supportive. Make sure your friend knows how much you support him/her. Assure your friend that the act of violence was not ",
+  "url": "https://www.ramapo.edu/publicsafety/get-support/",
+  "site": "publicsafety"
+ },
+ {
+  "id": "q060",
+  "message": "Women’s Center & LGBTQ+ Services: What if someone who requested to take part in GIH decides to leave the program?",
+  "question": "What if someone who requested to take part in GIH decides to leave the program?",
+  "official_answer": "Students may request room changes by following published room change procedures. Students who do not fulfill their commitment to live in GIH for a full academic year may be ineligible to take part in GIH in the future.",
+  "url": "https://www.ramapo.edu/womenscenter/gender-inclusive-housing/",
+  "site": "womenscenter"
+ },
+ {
+  "id": "q061",
+  "message": "Center for Data, Mathematical and Computational Sciences: Do I need to have a Computer Science or Informational Technology background to apply to MSDS?",
+  "question": "Do I need to have a Computer Science or Informational Technology background to apply to MSDS?",
+  "official_answer": "No, however students who do not have previous coursework in computer programming, statistics, and linear algebra may be recommended to complete transitional coursework prior to enrollment. Applicants will be advised of this recommendation after their applications have been reviewed, and should not hesitate to apply if they do not yet meet the previous coursework requirements.",
+  "url": "https://www.ramapo.edu/dmc/faq/",
+  "site": "dmc"
+ },
+ {
+  "id": "q062",
+  "message": "On-Campus Employment for Students: May I change jobs if I don’t like mine after a few weeks?",
+  "question": "May I change jobs if I don’t like mine after a few weeks?",
+  "official_answer": "No. When a position is accepted, the student makes a commitment to the hiring unit and supervisor for a full semester. At the end of the semester, a student who wishes to change jobs may check Handshake to see if other positions are available on campus.",
+  "url": "https://www.ramapo.edu/on-campus-employment/faqs/",
+  "site": "on-campus-employment"
+ },
+ {
+  "id": "q063",
+  "message": "A Celebration of Student Creativity and Scholarship: Project Title: What Makes a House Historically Significant in Northern New Jersey?",
+  "question": "Project Title: What Makes a House Historically Significant in Northern New Jersey?",
+  "official_answer": "Student Presenter: Kathleen Bishop Major: Business Management Faculty Mentor: Rikki Abzug School: Anisfield School of Business Abstract: Northern New Jersey’s historic landscape tells a story far larger than any single building or county. From seventeenth-century Dutch stone farmhouses to Revolutionary War headquarters and homes tied to influential families, the region’s built environment reflects a deeply interconnected historical identity. This research was conducted in partnership with the Northern Heritage Area (NHA) to evaluate the region’s eligibility for designation as a National Heritage Area. I was tasked with researching nationally significant historic locations across six counties—Bergen, Passaic, Morris, Essex, Hudson, and Union—to identify patterns that define Northern New Jersey’s shared heritage. I began by surveying publicly available sources to identify notable sites and cross-matched that information with the National Register of Historic Places. I also incorporated insights from a journal published in 1902, which provided valuable historical context. Through this review, I noticed a notable concentration of residential structures and identified three major themes explaining their significance. First is architecture and the way it reflects early settlement patterns and regional identity. Dutch Colonial stone houses are especially prominent in Bergen and Passaic, while Federal and Victorian styles appear more frequently in later-developing counties such as Union and Hudson. Second is family ties and the generational influence of prominent families whose homes reflect lasting social, political, and economic impact. Tracing ownership patterns reveals networks of influence that shaped the region. Third is the connection to the Revolutionary War and the role these homes played in military strategy, occupation, and the broader fight for independence. Together, these themes demonstrate that Northern New Jersey’s historic homes form a cohesive cultural lan",
+  "url": "https://www.ramapo.edu/scholarsday/",
+  "site": "scholarsday"
+ },
+ {
+  "id": "q064",
+  "message": "Study & Intern Abroad: How does studying abroad in a Sustainability Program benefit students?",
+  "question": "How does studying abroad in a Sustainability Program benefit students?",
+  "official_answer": "Sustainability, broadly defined as the Triple Bottom Line (People, Planet, Prosperity), touches every aspect of the human condition. And thus it is that a sustainability thread can be found running through every Major offered at Ramapo College. As such, we would argue that every student benefits immensely from participation in a Sustainability-oriented Study Abroad Program. Of course, travel really does broaden the mind. But more significantly than that, a Sustainability-oriented Study Abroad experience gives us the ability to switch contexts, to be able to see the world through a lens that is entirely different than the one we are accustomed to using. The ability to switch perspectives, to view things from a point-of-view other than our own, to change the frames we make in how we take the world, this is probably the most extraordinary gift that such a Study Abroad experience can give. We become transformed, in the process of stepping into someone else’s worldview. And our capacity for empathy is hugely enhanced. Experiencing life in other countries and cultures, developing foreign language skills, broadening our views of the world, and making lifelong friends while earning college credits are just some of the ways students benefit from their time abroad. For many students, the Study Abroad opportunity triggers the move to graduate school, or opens entirely new prospects for future employment. Over the years, we have found that students remember and value their Sustainability-oriented study abroad experiences for the rest of their lives. It is, in a word, transformative.",
+  "url": "https://www.ramapo.edu/study-abroad/academic-search/sustainability/",
+  "site": "study-abroad"
+ },
+ {
+  "id": "q065",
+  "message": "Social Work: What will I do there?",
+  "question": "What will I do there?",
+  "official_answer": "Students will complete tasks designed to develop your advocacy and organizational skills, as well as increase your understanding of the power structure of the organization and of the community. You may work behind the scenes to sustain the organization and/or participate in direct outreach activities. Your tasks will vary according to the agency’s purposes and needs. Review Macro Practicum Tasks (https://www.ramapo.edu/social-work/wp-content/uploads/sites/368/2024/08/Macro-Practicum-Tasks.pdf) for more information.",
+  "url": "https://www.ramapo.edu/social-work/bsw/practicum-education/agencies-communities/",
+  "site": "social-work"
+ },
+ {
+  "id": "q066",
+  "message": "Berrie Center for Performing and Visual Arts: Are food and beverages allowed in the theater?",
+  "question": "Are food and beverages allowed in the theater?",
+  "official_answer": "It is dependent on the performance and will be communicated ahead of time. Bottled water is always allowed inside our theaters.",
+  "url": "https://www.ramapo.edu/berriecenter/plan-your-visit/",
+  "site": "berriecenter"
+ },
+ {
+  "id": "q067",
+  "message": "ResNET: Can I use a router to plug my devices into?",
+  "question": "Can I use a router to plug my devices into?",
+  "official_answer": "No, routers are not supported. You will need to use a switch if you wish to connect more than one device to the Ramapo network.",
+  "url": "https://www.ramapo.edu/resnet/faq/",
+  "site": "resnet"
+ },
+ {
+  "id": "q068",
+  "message": "STEM Center at Ramapo College: What is a high-needs school district?",
+  "question": "What is a high-needs school district?",
+  "official_answer": "The term “high-need local educational agency (or high-need LEA)”, as defined in section 201 of the Higher Education Act of 1965 (20 U.S.C. 1021), means a U.S. local educational agency (e.g., school district) that has at least one school that: meets at least one of the following criteria: not less than 20% of the children served by the agency are from low income families; serves at least 10,000 children from low-income families; is eligible for funding under the Small, Rural School Achievement Program under 20 U.S.C. 7345(b); or is eligible for funding under the Rural and Low-Income School Program under 20 U.S.C. 7351(b); And meets at least one of the following criteria: has a high percentage of teachers not teaching in the academic subject areas or grade levels in which the teachers were trained to teach; or has a high teacher turnover rate or a high percentage of teachers with emergency, provisional, or temporary certification or licensure. A list of high needs school districts is available at: https://studentaid.gov/tcli/directory-search",
+  "url": "https://www.ramapo.edu/stem-center/programs-grants/run2stem-scholars-program/student-information-run2stem-scholars-program/",
+  "site": "stem-center"
+ },
+ {
+  "id": "q069",
+  "message": "Educational Opportunity Fund Program: Can I have a car on campus during the summer program?",
+  "question": "Can I have a car on campus during the summer program?",
+  "official_answer": "Please note that parking is free during the summer. However, parking permits during the fall and spring semesters require a fee.",
+  "url": "https://www.ramapo.edu/eof-program/freshman/",
+  "site": "eof-program"
+ },
+ {
+  "id": "q070",
+  "message": "Women’s Center & LGBTQ+ Services: What is the duration of the GIH program contract?",
+  "question": "What is the duration of the GIH program contract?",
+  "official_answer": "Participants commit to living in GIH for one full academic year. If they meet housing eligibility standards, students may re-apply for GIH for the following year.",
+  "url": "https://www.ramapo.edu/womenscenter/gender-inclusive-housing/",
+  "site": "womenscenter"
+ },
+ {
+  "id": "q071",
+  "message": "Provost: Who are the Deans of the new schools and how can I reach them if I have specific questions?",
+  "question": "Who are the Deans of the new schools and how can I reach them if I have specific questions?",
+  "official_answer": "School of Arts, Humanities, and Education (AHE) Dean Ken Goldstein, AHEoffice@ramapo.edu (mailto:AHEoffice@ramapo.edu) Anisfield School of Business (ASB) Dean Ed Petkus, ASB@ramapo.edu (mailto:ASB@ramapo.edu) School of Science, Nursing, and Health (SNH) Dean Benny Chan, SNHoffice@ramapo.edu (mailto:SNHoffice@ramapo.edu) School of Social Sciences and Social Work (SSSW) Interim Dean Kathleen Ray, SSSWoffice@ramapo.edu (mailto:SSSWoffice@ramapo.edu) Effective July 1, 2026 – Dean Susan Hangen",
+  "url": "https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/",
+  "site": "provost"
+ },
+ {
+  "id": "q072",
+  "message": "Testing Center: Did you score lower than a 258 on your Math Placement Test? Do you want to strengthen your skills and retest?",
+  "question": "Did you score lower than a 258 on your Math Placement Test? Do you want to strengthen your skills and retest?",
+  "official_answer": "Registration for Reclaim My Math 2026 is currently closed Reclaim My Math is a targeted review that allows students to sharpen their skills and at the end of the program, retake their math placement test. Over the last few years of the program, 80% of the students who complete the program test up into the 100 level. Over 95% of students who complete RMM, successfully complete their first Math 100-level course at Ramapo. This number exceeds Ramapo’s own excellent course success rates.",
+  "url": "https://www.ramapo.edu/testing/reclaim-my-math/",
+  "site": "testing"
+ },
+ {
+  "id": "q073",
+  "message": "Office of Student Accounts: Can you show me an example of how my decision to accept or decline the authorization can affect my account?",
+  "question": "Can you show me an example of how my decision to accept or decline the authorization can affect my account?",
+  "official_answer": "Tuition $8,388 Course Fees: $375 Parking $100 Health Insurance Fee – $1,467 Total Charges: $10,330 Federal Sub Loan – $5,500 Federal Unsub Loan – $2,000 Federal Pell Grant – $3,173 Federal SEOG Grant – $500 Total Title IV Aid – $11,173 Student would get a refund of $843 (10,330 – 11,173) Student’s balance after refund would be $0. Course Fees $375 Total Institutional Charges $8,763 Health Insurance Fee $1,467 Total “Other Allowable Educationally Related Charges” $1,567 Student would get a refund of $2,410 (8,763 – 11,173) Student’s balance after refund would be $1,567 and due immediately. Students who decline will be subject to late fees and/or financial holds preventing registration placed on their accounts until their other allowable educationally related charges are paid.",
+  "url": "https://www.ramapo.edu/student-accounts/title-iv-authorization/",
+  "site": "student-accounts"
+ },
+ {
+  "id": "q074",
+  "message": "Study & Intern Abroad: How does studying abroad fit with this major?",
+  "question": "How does studying abroad fit with this major?",
+  "official_answer": "Accounting is of major importance to organizations in today’s business environment. It is used to provide quantitative information, primarily financial in nature, about economic entities that are intended to be useful in making business decisions. The Accounting Program at Ramapo College is flexibly designed to meet the needs of students who wish to prepare for the CPA Exam (150 credit requirement) and those who wish to pursue other career paths. Students are prepared for graduate studies in accounting, finance, management, public administration, international business, and law. A global perspective and intercultural understanding is essential for accounting students who want to succeed in today’s business environment; especially since the world is becoming more globalized, and markets are becoming increasingly dependent on international collaboration and commerce. Studying accounting abroad will expand students’ academic and professional horizons. Understanding another culture and being able to communicate effectively is the key to successfully building bridges, both within the business world and outside of it. Taking accounting courses abroad teaches firsthand, the inner workings of global markets and international trade. It also shows that you are capable of thriving in a challenging and multicultural environment. If you are hoping to pursue an international career in accounting, or even if you are simply looking to develop your professional experience before entering the workforce, studying accounting abroad is an excellent way to become a well-rounded student and acquire a skillset applicable to today’s increasingly diverse workplace.",
+  "url": "https://www.ramapo.edu/study-abroad/academic-search/accounting/",
+  "site": "study-abroad"
+ },
+ {
+  "id": "q075",
+  "message": "Bookstore: My course includes the course materials (ACCESS PROGRAM), how do I access them?",
+  "question": "My course includes the course materials (ACCESS PROGRAM), how do I access them?",
+  "official_answer": "If you are enrolled in a Follett ACCESS course that includes your textbooks, you will receive an email a week prior to the start of classes or one day after you register for the class (for late registration only), welcoming you to Follett ACCESS. The customer portal email is sent to your Ramapo email or the email listed with the school as primary contact. Please follow the instructions to create your account with RedShelf or Kortext. If you do not receive an email or delete the email by mistake, log into RedShelf.com or Kortext.com with the primary email account and click on “forgot password” to re-set and gain access to the materials. All faculty teaching a Follett ACCESS course will have the information listed on their syllabus.",
+  "url": "https://www.ramapo.edu/bookstore/",
+  "site": "bookstore"
+ },
+ {
+  "id": "q076",
+  "message": "Residence Life: Planning to return next year?",
+  "question": "Planning to return next year?",
+  "official_answer": "New this year: If you are requesting to return for next year, you must also submit a 2–3 minute video reflection by Wednesday, January 20, 2027. In your video, please highlight your experience, growth, and what you will bring to the team if selected to return as a RAM. This is your opportunity to showcase your journey as an RA, what you’ve learned, your leadership development, and how you plan to continue making an impact in our residential communities. For more information and to submit your video, please view: RAM Reappointment Video Submission (https://forms.gle/bY65LULYUicTRYAJ6).",
+  "url": "https://www.ramapo.edu/reslife/reappointment/",
+  "site": "reslife"
+ },
+ {
+  "id": "q077",
+  "message": "STEM Center at Ramapo College: Who is eligible to become a RUN2STEM scholar?",
+  "question": "Who is eligible to become a RUN2STEM scholar?",
+  "official_answer": "Be at least junior status as a science or math major (at least 64 credits), or hold a B.S. degree in a STEM discipline (post-baccalaureate (https://www.ramapo.edu/te/post-baccalaureate-programs/)) Be accepted into the Teacher Education Certification program (https://www.ramapo.edu/te/) at Ramapo College. Submit a Free Application for Federal Student Aid (FAFSA) (https://www.ramapo.edu/finaid/fafsa/) by the annual deadline. Verifies eligibility and scholarship amount Be a full-time student at Ramapo College (at least 12 credits per semester) Have a cumulative GPA of 2.75 or above",
+  "url": "https://www.ramapo.edu/stem-center/programs-grants/run2stem-scholars-program/student-information-run2stem-scholars-program/",
+  "site": "stem-center"
+ },
+ {
+  "id": "q078",
+  "message": "About / Information: Where can I Get Soup / Sandwiches / Bagels?",
+  "question": "Where can I Get Soup / Sandwiches / Bagels?",
+  "official_answer": "Allendale Eats: 101 W Allendale Ave, Allendale, NJ (201) 825-0110 Bagel Express of Mahwah: 75 Franklin Turnpike, Mahwah, NJ (201) 995-1800 Buono Bagels-Deli Inc: 885 New Jersey 17, Ramsey, NJ (201) 825-8020 Dunkin Donuts: 1001 MacArthur Blvd, Mahwah, NJ 07430 (201) 529-5559 Ike’s Big Mouth Subs and Wings: 24 W Prospect St, Waldwick, NJ (201) 670-4415 Lotito’s Deli: 81 Interstate Shopping Center, Ramsey, NJÂ (201) 327-6066 Morano’s Gourmet Market: 1 E Main St, Ramsey, NJ (201) 825-8020 Panera Bread: 1300 New Jersey 17, Ramsey, NJ (201) 236-6300 Subway: 296 5 Route 59, Tallman, NY 10982 (201) 995-0300, Waldwick, NJ (201) 670-4415",
+  "url": "https://www.ramapo.edu/about/communityinfo/",
+  "site": "about"
+ },
+ {
+  "id": "q079",
+  "message": "Substance Use Disorder (SUD) Services: Can I be allergic to alcohol?",
+  "question": "Can I be allergic to alcohol?",
+  "official_answer": "Although a true alcohol allergy is rare, and the reaction can be severe, most allergic reactions to alcohol are due to an ingredient in alcohol. Every person’s body chemistry and make-up is different, so a person’s response to alcohol can vary greatly. A true alcohol allergy tends to be inherited. Often, a true alcohol allergy is termed alcohol intolerance. Although research is limited, people with a true allergy to alcohol should avoid drinking. Research indicates that the enzyme, aldehyde dehydrongenase, metabolizes alcohol in the liver into acetic acid (vinegar). A person who has an allergy to vinegar can then have a severe reaction to the alcohol. Others can have a polymorphism in the ALDH gene, which renders aldehyde dehydrongenase inactive and makes it impossible to convert alcohol to acetic acid. The second type of intolerance or allergy is more common among the Asian population, and symptoms may include flushing, nausea, and rapid heartbeat.",
+  "url": "https://www.ramapo.edu/sud/alcohol-allergies-exist/",
+  "site": "sud"
+ },
+ {
+  "id": "q080",
+  "message": "Educational Opportunity Fund Program: When will I receive my class schedule?",
+  "question": "When will I receive my class schedule?",
+  "official_answer": "Summer schedules will be shared during New Student Orientation on one of the following dates: June 23 June 24 June 25 June 30 July 1 July 2 During orientation, students will also register for their First-Year Seminar and review their Fall 2026 class schedule.",
+  "url": "https://www.ramapo.edu/eof-program/freshman/",
+  "site": "eof-program"
+ },
+ {
+  "id": "q081",
+  "message": "Bookstore: When should I order my Spring textbooks?",
+  "question": "When should I order my Spring textbooks?",
+  "official_answer": "Place your order as soon as possible, for ship to home option. This ensures a contact free delivery of your course materials. Whenever possible order digital books for instant access to the materials. No wait time for delivery! Order as early as possible to ensure you get USED copies to help save you money! Rent your textbooks to save up to 80% off the price of a new book! Last Day to return Spring textbooks for full refund is January 30, 2026. A 48 hr. return policy in effect after this date (if returning by mail, package must be postmarked by the return date above) Last Day to check-in RENTED textbooks for Spring books is 05/12/26.",
+  "url": "https://www.ramapo.edu/bookstore/",
+  "site": "bookstore"
+ },
+ {
+  "id": "q082",
+  "message": "Learn, Engage and Explore: Are You Ready To Take The Next Step?",
+  "question": "Are You Ready To Take The Next Step?",
+  "official_answer": "Apply today using our online Ramapo College Application. Our Graduate Admissions team is here to help you every step of the way. Apply Now (https://apply.ramapo.edu/apply/) https://www.ramapo.edu/admissions/ Learn (https://www.ramapo.edu/learn/academics/). Interact (https://www.ramapo.edu/learn/interact/). Explore (https://www.ramapo.edu/learn/explore/). Follow (https://www.facebook.com/RCNJAdmissions/) Follow (https://www.instagram.com/rcnjadmissions/)",
+  "url": "https://www.ramapo.edu/learn/graduate/",
+  "site": "learn"
+ },
+ {
+  "id": "q083",
+  "message": "Digital Humanities: What are the Digital Humanities​?",
+  "question": "What are the Digital Humanities​?",
+  "official_answer": "The Digital Humanities bring together the humanities and technology in exciting ways. By using digital tools, it opens up how you explore, analyze, and share history, literature, and culture—making these fields more accessible and engaging for everyone. At Ramapo College, the digital humanities involves the digitization of texts, cultural artifacts, and historical documents. It also includes computational text analysis, data mining, and visualization. Ramapo students develop proficiency in research, critical analysis, and storytelling while also learning sought-after technical skills like data design, visualization, oral histories, podcasting, digital storytelling, GIS, and educational technologies. Digital Humanities encourages collaboration across disciplines. It often brings together scholars from history, literature, computer science, and more. Together, they create innovative projects that push the boundaries of research. For example, you might build virtual exhibits in Fortnite (https://www.ramapo.edu/holocaust/eighty-years-after-auschwitz-virtual-reality-exhibit/) to explore history and culture in creative ways. While the Jane Addams Papers Project (https://digital.janeaddams.ramapo.edu/) gives students the chance to digitize, annotate, and publish historic documents online—a great experience in editing and research. You may also work with faculty on community projects like “Mapping the Ramapough Munsee Lenape Nation (https://storymaps.arcgis.com/stories/a7c4f97e0ab94e8fa1ed415c98ed50d5)” or “Englewood Makes History (https://englewoodmakeshistory.org/),” which involve building interactive maps, digital exhibits, and online archives that preserve local stories and present narratives in a more engaging and interactive way. In essence, the digital humanities represents a new way of engaging with cultural and historical content. By integrating technology into humanities scholarship, it facilitates new insights and forms of expression. As technology evolves, so to",
+  "url": "https://www.ramapo.edu/dh/about/",
+  "site": "dh"
+ },
+ {
+  "id": "q084",
+  "message": "Learn, Engage and Explore: Ready To Complete Your Degree With Us?",
+  "question": "Ready To Complete Your Degree With Us?",
+  "official_answer": "We are ready to learn more about you! Submit a Ramapo application, today! Our admissions team is eager to assist you with any questions you have, so do not hesitate to let us help you complete the application process smoothly. Apply Now (https://apply.ramapo.edu/apply/) https://www.ramapo.edu/admissions/ Learn (https://www.ramapo.edu/learn/academics/). Interact (https://www.ramapo.edu/learn/interact/). Explore (https://www.ramapo.edu/learn/explore/). Follow (https://www.facebook.com/RCNJAdmissions/) Follow (https://www.instagram.com/rcnjadmissions/)",
+  "url": "https://www.ramapo.edu/learn/adult/",
+  "site": "learn"
+ },
+ {
+  "id": "q085",
+  "message": "People Operations and Employee Resources Department (POERD): Is advance notice required before I take a Sick Leave?",
+  "question": "Is advance notice required before I take a Sick Leave?",
+  "official_answer": "If your need for earned sick leave is foreseeable (can be planned in advance), you should as possible provide up to 7 days advance notice of your intention to use earned sick leave to your supervisor. If your need for earned sick leave is unforeseeable (cannot be planned in advance), provide notice as soon as it is practical to your supervisor.",
+  "url": "https://www.ramapo.edu/poerd/forms/",
+  "site": "poerd"
+ },
+ {
+  "id": "q086",
+  "message": "Anisfield School of Business (ASB): Is the Graduate Certificate in Business Foundations eligible for financial aid?",
+  "question": "Is the Graduate Certificate in Business Foundations eligible for financial aid?",
+  "official_answer": "If you are a current Ramapo College student receiving aid, the required classes are part of your normal course schedule, therefore are paid through your college account. Please contact the Office of Financial Aid at (201) 684-7549 to see how many credits you are covered for through financial aid. If you are not a matriculated Ramapo College student, this program is not eligible for financial aid because it is a non-degree program.",
+  "url": "https://www.ramapo.edu/asb/graduate-certificate-in-business-foundations/",
+  "site": "asb"
+ },
+ {
+  "id": "q087",
+  "message": "About / Information: Where Can I Get Fast Food?",
+  "question": "Where Can I Get Fast Food?",
+  "official_answer": "Badlands Tacos: 102 E Main St, Ramsey, NJ (201) 818-2446 Baskin-Robbins: 1001 Macarthur Blvd, Mahwah, NJ (201) 236-8099 Burger King: 385 Rt 17, Mahwah, NJ (201) 529-9851 Chicken and Rib Crib: 72 Franklin Turnpike, Mahwah, NJ (201) 529-0090 Dairy Queen: 117 Franklin Turnpike, Mahwah, NJ (201) 529-4446 Mahwah Deli: 11 Miller Rd, Mahwah, NJ 07430 (201) 529-3007 Five Guys Burgers and Fries: 1300 Rt 17, Ramsey, NJ (201) 962-7722 IHOP: 475 New Jersey 17, Ramsey, NJ (201) 236-2401 KFC: 1246 New Jersey 17, Ramsey, NJ (201) 825-9827 McDonald’s: 150 New Jersey 17, Mahwah, NJ (201) 529-1247 Rita’s: 3 Miller Rd, Mahwah, NJ (201) 529-4237 Wendy’s: 1358 State Rt 17, Ramsey, NJ 07446",
+  "url": "https://www.ramapo.edu/about/communityinfo/",
+  "site": "about"
+ },
+ {
+  "id": "q088",
+  "message": "Master of Arts in Special Education (MASE): How much does the program cost?",
+  "question": "How much does the program cost?",
+  "official_answer": "Tuition is approximately $895 per credit. Estimated total cost for the MASE program = $32,199 *There is no additional cost for out-of-state students",
+  "url": "https://www.ramapo.edu/mase/faqs/",
+  "site": "mase"
+ },
+ {
+  "id": "q089",
+  "message": "Connect: What is a Student Success Network?",
+  "question": "What is a Student Success Network?",
+  "official_answer": "The Student Success Network is a list of all faculty, staff and resources that a student has a relationship with on campus. For instance, a student that is a part of the EOF program and plays Varsity Tennis as a first-year student would have their EOF Advisor, Athletics Advisor, Tennis Coach, Center for Student Success Advisor and Peer Facilitator listed in their Success Network.",
+  "url": "https://www.ramapo.edu/connect/faculty/frequently-asked-questions/",
+  "site": "connect"
+ },
+ {
+  "id": "q090",
+  "message": "School of Arts, Humanities, and Education (AHE): Is a PhD program right for me?",
+  "question": "Is a PhD program right for me?",
+  "official_answer": "We can’t tell you whether a PhD program is right for you (Only you can know, maybe, and if so, only on your deathbed); however, we can help you understand what getting a graduate education entails. You will inevitably encounter critics and enthusiasts of graduate education. Here are two editorials from the The Chronicle of Higher Education (http://chronicle.com/section/Home/5) (an invaluable resource), one (http://chronicle.com/article/If-You-Must-Go-to-Grad-School/45269/) more cynical, the other (http://chronicle.com/article/Graduate-School-Is-Art-School/131441/) more optimistic. Also, we encourage you to schedule a meeting with a professor to discuss graduate school. Professor Barnes would be happy to discuss graduate school with students interested in entering a PhD program. You can email him at toddbarnes@ramapo.edu (mailto:toddbarnes@ramapo.edu).",
+  "url": "https://www.ramapo.edu/ahe/convening-group-webs/english-literary-studies-major/career-opportunities/grad-school/",
+  "site": "ahe"
+ },
+ {
+  "id": "q091",
+  "message": "Cahill Career Development Center: How is the Survey promoted to the Ramapo community?",
+  "question": "How is the Survey promoted to the Ramapo community?",
+  "official_answer": "Graduating Ramapo students can expect to receive an email from Handshake a few weeks prior to their graduation date. Additional follow-up emails will be sent to students’ Ramapo email addresses. Additional outreach will be done by the Cahill Center team in collaboration with other campus partners in person (tabling, classroom visits, etc.) and through a social media campaign. Any additional outreach provided by Ramapo campus partners is greatly appreciated. Please contact the Cahill Center for more information on how to help!",
+  "url": "https://www.ramapo.edu/careercenter/rcnj-first-destination-survey/",
+  "site": "careercenter"
+ },
+ {
+  "id": "q092",
+  "message": "School of Science, Nursing, and Health (SNH): How can someone get inducted?",
+  "question": "How can someone get inducted?",
+  "official_answer": "Each mathematics major at Ramapo College receives an email every fall semester in which he or she is being asked whether they wish to be considered for the induction to the society. Any mathematics majors who responds to that email by the deadline designated in the email will be considered for induction and will be inducted as long as he or she satisfies the 5 requirements listed above. Any Ramapo College student who is not a mathematics major (for instance, a student who is a mathematics minor, or a history major) who wishes to be inducted, should contact the chapter advisor, Dr. Katarzyna Kowal, directly at kkowal@ramapo.edu (mailto:kkowal@ramapo.edu) early in the fall semester that immediately precedes the spring semester in which the student wishes to be inducted. Any such non-mathematics major will be inducted as long as he or she satisfies the 5 requirements listed above. Graduate students may contact the chapter advisor to get more information on how to be inducted. Any non-Ramapo College student or an individual, or any faculty member wishing to be inducted to the society by an exceptional action should contact the chapter advisor directly at kkowal@ramapo.edu (mailto:kkowal@ramapo.edu) early in the fall semester preceding the spring semester in which they wish to be inducted.",
+  "url": "https://www.ramapo.edu/snh/math/honor-society/",
+  "site": "snh"
+ },
+ {
+  "id": "q093",
+  "message": "Faith and Spirituality Services: Are you interested in forming a religious organization?",
+  "question": "Are you interested in forming a religious organization?",
+  "official_answer": "Persons desiring to form a religiously oriented student organization are invited to contact the Center for Student Involvement in the Student Center. Registered students desiring to have a representative on campus from a specific religious denomination may contact the Center for Student Involvement to arrange for office time and the allocation of space for services according to established college guidelines.",
+  "url": "https://www.ramapo.edu/ministries/starting-a-group/",
+  "site": "ministries"
+ },
+ {
+  "id": "q094",
+  "message": "School of Arts, Humanities, and Education (AHE): Will I receive a transcript after completing this program?",
+  "question": "Will I receive a transcript after completing this program?",
+  "official_answer": "Yes, all required courses taken as part of the Applied Ethics certificate program are recorded on your Ramapo College official transcript. Once completed, your certificate is noted as earned on your Ramapo transcript. Transcripts may be requested online on the Registrar’s website at www.ramapo.edu/registrar/ (https://www.ramapo.edu/registrar/).",
+  "url": "https://www.ramapo.edu/ahe/applied-ethics-certificate/",
+  "site": "ahe"
+ },
+ {
+  "id": "q095",
+  "message": "My Advisor: Are you a student with a declared major in your second year or beyond?",
+  "question": "Are you a student with a declared major in your second year or beyond?",
+  "official_answer": "Declared students are students who have officially identified their major or course of study with the Registrar. Students who declared a major and earned 32 or more credits are assigned to a faculty academic advisor within their specific schools at the beginning of their second year. Contact information for each School is listed below:",
+  "url": "https://www.ramapo.edu/myadvisor/",
+  "site": "myadvisor"
+ },
+ {
+  "id": "q096",
+  "message": "George T. Potter Library: What are the skills necessary to achieve information literacy?",
+  "question": "What are the skills necessary to achieve information literacy?",
+  "official_answer": "“Information literacy forms the basis for lifelong learning. It is common to all disciplines, to all learning environments, and to all levels of education. It enables learners to master content and extend their investigations, become more self-directed, and assume greater control over their own learning.” (ACRL Information Literacy Competency Standards for Higher Education (http://www.ala.org/ala/mgrps/divs/acrl/standards/informationliteracycompetency.cfm) The Three Core Information Literacy Competencies for all Ramapo students are: C1. Determines the information needed C2. Finds and obtains the information C3. Evaluates and incorporates the appropriate information",
+  "url": "https://www.ramapo.edu/library/information-literacy-faq/",
+  "site": "library"
+ },
+ {
+  "id": "q097",
+  "message": "Institutional Effectiveness & Planning (IEP): I have other questions, who can I contact?",
+  "question": "I have other questions, who can I contact?",
+  "official_answer": "Contact the Office of Institutional Effectiveness and Planning (https://www.ramapo.edu/iep/). return to top",
+  "url": "https://www.ramapo.edu/iep/strategic-resources-allocations-committee/",
+  "site": "iep"
+ },
+ {
+  "id": "q098",
+  "message": "Residence Life: What is an Early Arrival Group?",
+  "question": "What is an Early Arrival Group?",
+  "official_answer": "An Early Arrival group is for resident students who are required to reside in on-campus housing prior to their scheduled check-in date in order to participate in a mandatory training with a previously approved Ramapo student department or group. Early arrival requests may be considered during both the fall and spring semesters. Please refer to the Residence Life Important Dates website (https://www.ramapo.edu/reslife/critical-housing-dates-deadlines-calendar/) for the housing check-in schedule. Supervisors—defined as college administrators, faculty, and professional staff who serve as employers, coaches, or training coordinators—are responsible for submitting Early Arrival Check-In requests on behalf of their students. Students who are approved for early arrival may move into their assigned campus housing at their designated check-in time, prior to the regular housing check-in schedule.",
+  "url": "https://www.ramapo.edu/reslife/earlyarrival/",
+  "site": "reslife"
+ },
+ {
+  "id": "q099",
+  "message": "Digital Accessibility at Ramapo College: What does accessibility and compliance actually mean?",
+  "question": "What does accessibility and compliance actually mean?",
+  "official_answer": "Per the updated federal mandate, organizations should aim for WCAG 2.1 Level AA (https://www.w3.org/TR/WCAG21/) compliance for legal and regulatory accessibility standards. Continuous Maintenance. Compliance isn’t a “set it and forget it” task. It demands frequent audits and monitoring since each new content addition or code modification might compromise accessibility.",
+  "url": "https://www.ramapo.edu/digital-accessibility/faqs/",
+  "site": "digital-accessibility"
+ },
+ {
+  "id": "q100",
+  "message": "Digital Accessibility at Ramapo College: Who does digital accessibility impact?",
+  "question": "Who does digital accessibility impact?",
+  "official_answer": "Digital accessibility benefits everyone, enabling all users, including those with disabilities, to effectively use digital products. It ensures that individuals with permanent, temporary, or situational disabilities can navigate, understand, and use digital products. It is essential for people with visual, auditory, motor, or cognitive impairments—such as those using screen readers, screen magnifiers, or voice navigation. Beyond disabilities, it improves usability for older adults, users with slow internet, or those in distracting environments. “More than 55 million Americans –18% of our population–have disabilities, and they, like all Americans, participate in a variety of programs, services, and activities provided by their State and local governments. This includes many people who became disabled while serving in the military. And, by the year 2030, approximately 71.5 million baby boomers will be over age 65 and will need services and surroundings that meet their age-related physical needs.” (https://www.ada.gov/resources/title-ii-primer/).",
+  "url": "https://www.ramapo.edu/digital-accessibility/faqs/",
+  "site": "digital-accessibility"
+ },
+ {
+  "id": "q101",
+  "message": "Master of Public Policy: Is the MPP program full time or part time?",
+  "question": "Is the MPP program full time or part time?",
+  "official_answer": "The MPP program can be taken full time or part time but all courses must be completed within 5 years",
+  "url": "https://www.ramapo.edu/mpp/faqs/",
+  "site": "mpp"
+ },
+ {
+  "id": "q102",
+  "message": "Prestigious Fellowships and Scholarships: How do I get strong letters of recommendation?",
+  "question": "How do I get strong letters of recommendation?",
+  "official_answer": "Strong letters of recommendation will have a significant influence on whether you will get the scholarship or admittance into the graduate school. The strong letter shows that the recommender knows you well, with detail. When you choose a recommender, choose those who know you well and with whom you have established a relationship. Ask professors whom you have taken multiple classes with, worked on a project with, or participated in a small seminar. Letters from people who know you well are far more valuable than letter from well-known people who know you less and may write a form letter. Approach letter writers as soon as possible. If you know you will need a letter in October, you may ask them months in advance and give them deadlines as the date approaches. Depending on the letter writer, a good letter may take weeks to write. When you approach the recommender, discuss your plans of study and why you want to apply. Provide them with a written description of the program or scholarship, your essay, transcript (if they ask for it), and honors list. This article (http://chronicle.com/article/How-to-Ask-for-a/235968?cid=at&utm_source=at&utm_medium=en&elqTrackId=fe67c8996e9847148ed65a364f86176f&elq=e912c8683c8e4693ae4af0fa20ccd9ca&elqaid=8539&elqat=1&elqCampaignId=2831) in the Chronicle of Higher Education provides a very useful overview of the rationale for the process.",
+  "url": "https://www.ramapo.edu/prestigious-fellowships-and-scholarships/",
+  "site": "prestigious-fellowships-and-scholarships"
+ },
+ {
+  "id": "q103",
+  "message": "Center for Holocaust and Genocide Studies (CHGS): Are you a child of a Holocaust or genocide survivor?",
+  "question": "Are you a child of a Holocaust or genocide survivor?",
+  "official_answer": "In summer 2025, the Center for Holocaust and Genocide Studies (CHGS) at Ramapo College convened two roundtable meetings for the children of Holocaust survivors. We sought insight into the needs of this important and underserved cohort and advice regarding the types of programs they desire most. This work increases in significance daily, as the survivor generation sadly, if inevitably diminishes in numbers. We gladly welcome new members to join our growing group, including the children of parents who survived genocides other than the Holocaust. We look forward to your participation in our events and workshops, and to benefitting from your advice and suggestions. For more information or to join, please email Jacob Labendz at holgen@ramapo.edu. Last year, we provided training to individuals interested in being trained to present in middle and high schools. The training is also available through the NJ Commission on Holocaust Education (https://www.nj.gov/education/holocaust/). Events and Programs, 2026 – 2027 All times provided in eastern time. See below for workshop information. Artist-led tour of The Landscape of our Memory (http://www.ramapo.edu/holocaust/landscape) Thu., Sep. 16 / 10:00 – 12:00 / Kresge Gallery Let’s Talk: Objects that Remind (via Zoom) Tue., Oct. 13 / 10:00 – 12:00 / Email holgen@ramapo.edu for link All participants should select an object to present to the group, through which they can say something about their experience as a child of Holocaust survivors. We will keep to a strict 4-minute speaking limit, to ensure that everyone has a turn. If a sufficient number of people join, we may use break-out groups to facilitate more natural conversations. Kristallnacht Commemoration Tue., Nov. 11 / 10:00 – 12:00 / Special Collections Reading Room (LC-215), Ramapo College Let’s Talk: TBD Tue., Dec. 15 / 10:00 – 12:00 / TBD",
+  "url": "https://www.ramapo.edu/holocaust/special-programs/children-of-the-holocaust/",
+  "site": "holocaust"
+ },
+ {
+  "id": "q104",
+  "message": "Investigative Genetic Genealogy Center (IGG): Why Did We Reach Out to You?",
+  "question": "Why Did We Reach Out to You?",
+  "official_answer": "We are reaching out because you may be able to help us move closer to identifying an individual whose identity remains unknown. Progress may have been challenging due to factors such as limited or distant DNA matches, recent immigration, or gaps in representation within available databases. Specifically, we are hoping you could assist us by: Sharing information about your family tree and history: Any details you may be willing to share about your family’s ancestry, relationships, or history could provide valuable context and help clarify connections that are not always evident from records alone. Sharing DNA data, if available: If you have taken a personal autosomal DNA test through a consumer genealogy or ancestry testing website, uploading your raw DNA data to GEDmatch would be incredibly helpful for our research. Unidentified remains cases are the answers to missing persons cases across the country. With your assistance, we can help bring answers to a family who are missing their loved one. If you’re comfortable taking the next step, you’ll find instructions below that explain how you can help. We truly appreciate anything you’re willing to share. Below are instructions for uploading your DNA data to GEDmatch, should you choose to do so.",
+  "url": "https://www.ramapo.edu/igg/outreach/",
+  "site": "igg"
+ },
+ {
+  "id": "q105",
+  "message": "Master of Arts in Special Education (MASE): What are the qualifications to apply to the program?",
+  "question": "What are the qualifications to apply to the program?",
+  "official_answer": "A baccalaureate degree with a minimum GPA of 3.0 and a provisional or standard state issued teaching certification.",
+  "url": "https://www.ramapo.edu/mase/faqs/",
+  "site": "mase"
+ },
+ {
+  "id": "q106",
+  "message": "First-Year Seminar: What do I need before I apply for Financial Aid?",
+  "question": "What do I need before I apply for Financial Aid?",
+  "official_answer": "Ramapo College offers a number of scholarships for incoming freshmen based on academic achievement. All freshmen admits are reviewed for scholarship eligibility.",
+  "url": "https://www.ramapo.edu/first-year/faq/",
+  "site": "first-year"
+ },
+ {
+  "id": "q107",
+  "message": "Civic & Community Engagement Center (CCEC): What should I know about LIS?",
+  "question": "What should I know about LIS?",
+  "official_answer": "First-year students and transfer students are eligible to apply for LIS. Applications will open on Monday, June 1st. This application closes on Wednesday, July 22nd. Applicants can expect to hear back regarding the status of their application after the closing date, and no later than Monday, July 27th. Leaders in Service 2026 will begin at 5:00 PM on Tuesday, August 18th, and conclude on Sunday, August 23rd, at noon. The fee for Leaders in Service is $75. This fee covers the opening reception/dinner on the first evening for you and 2 guests, all of the activities during the program, all meals, your LIS t-shirt, and water bottle, and monthly activities. Payment should be sent by check after you are notified of acceptance and should arrive at campus by August 7th. If this fee is a barrier to your participation, please reach out to ccec@ramapo.edu Although Leaders in Service is limited in the number of students we can accept, there are ample opportunities for every member of the first-year class and transfer students to learn more about and exercise leadership and engage meaningfully with our college and the wider community. Students who are not accepted or are not able to apply should email ccec@ramapo.edu (mailto:ccec@ramapo.edu) or visit the Civic & Community Engagement Center in SC-213 to get involved in these additional opportunities.",
+  "url": "https://www.ramapo.edu/ccec/leadership/",
+  "site": "ccec"
+ },
+ {
+  "id": "q108",
+  "message": "Budget and Fiscal Planning: Who should I email to request a budget transfer or journal entry?",
+  "question": "Who should I email to request a budget transfer or journal entry?",
+  "official_answer": "For budget transfers, please email budget@ramapo.edu (mailto:budget@ramapo.edu) with a from and to FOAP and include a detailed description, up to 35 characters. For journal entries, please email accounting@ramapo.edu (mailto:accounting@ramapo.edu) with a from and to FOAP and include a detailed description, up to 35 characters.",
+  "url": "https://www.ramapo.edu/budget/transfers-journal-entries/",
+  "site": "budget"
+ },
+ {
+  "id": "q109",
+  "message": "Military: What is the New Jersey state law regarding military re-deployment?",
+  "question": "What is the New Jersey state law regarding military re-deployment?",
+  "official_answer": "You can find the New Jersey Legislation at http://law.onecle.com/new-jersey/18a-education/62-4.2.html. If you have any questions please call the Office of Veteran Affairs at 609-652-4315.",
+  "url": "https://www.ramapo.edu/military/veteran-aid-program/",
+  "site": "military"
+ },
+ {
+  "id": "q110",
+  "message": "Center for Student Wellness: What is Ask Listen Refer?",
+  "question": "What is Ask Listen Refer?",
+  "official_answer": "Ask.Listen.Refer is a free training available for faculty, staff, and students. This training helps users: Three yellow smiley faces labeled ask, listen, and refer. The first has a raised hand, the second has a large ear, and the third points to the right, each illustrating their respective action. (https://www.ramapo.edu/chcs/wp-content/uploads/sites/163/2024/10/Ask-Listen-Refer-Logo.png) Identify people at risk for suicide Recognize the risk factors, protective factors, and warning signs of suicide Respond to and get help for people at risk This program takes about 20 minutes to complete. It is intended to be educational rather than therapeutic, and it must be completed in one sitting. Logging in and out of the program may cancel your progress and prevent you from obtaining your certificate of completion. TAKE ACTION AND COMPLETE THE TRAINING HERE (https://asklistenrefer.org/ramapo-college-of-new-jersey/)",
+  "url": "https://www.ramapo.edu/csw/ask/",
+  "site": "csw"
+ },
+ {
+  "id": "q111",
+  "message": "Civic & Community Engagement Center (CCEC): What is Leaders in Service (LIS)?",
+  "question": "What is Leaders in Service (LIS)?",
+  "official_answer": "The Civic and Community Engagement Center’s Leaders in Service program allows incoming first-year and transfer students the opportunity to get involved with service projects, political engagement, and leadership opportunities at Ramapo before their first semester begins.",
+  "url": "https://www.ramapo.edu/ccec/leadership/",
+  "site": "ccec"
+ },
+ {
+  "id": "q112",
+  "message": "Office of the President: How did Ramapo Arrive at the Strategic Posture Statement?",
+  "question": "How did Ramapo Arrive at the Strategic Posture Statement?",
+  "official_answer": "Ramapo College’s Strategic Posture Statement (https://www.ramapo.edu/president/wp-content/uploads/sites/41/2022/06/Final-2022-Strategic-Posture-Statement.pdf) was largely informed by our community’s contributions to The Future Series summits delivered during Academic Year 2021-2022, survey input, data, and roundtable discussions. The posture statement identifies what we have learned about ourselves and where we are headed– our story, strengths, context, opportunity, and trajectory. The posture statement served as foundational to the Strategic Plan Writing Team’s efforts.",
+  "url": "https://www.ramapo.edu/president/stratplanprep/",
+  "site": "president"
+ },
+ {
+  "id": "q113",
+  "message": "Ramapo Green: What are Bottle-Filling Stations?",
+  "question": "What are Bottle-Filling Stations?",
+  "official_answer": "Water bottle-filling stations provide you with filtered water from local sources. Carbon-based filters are changed out regularly.",
+  "url": "https://www.ramapo.edu/ramapo-green/drink-local/",
+  "site": "ramapo-green"
+ },
+ {
+  "id": "q114",
+  "message": "Institutional Effectiveness & Planning (IEP): What is Program Review?",
+  "question": "What is Program Review?",
+  "official_answer": "Program review is the process by which instructional and non-instructional programs systematically assess themselves to ensure currency, relevance, appropriateness, and achievement of stated goals and outcomes related to student learning and institutional effectiveness. The Administrative Program Review Committee will be responsible for evaluating program reviews. Program review addresses five core areas, with a final section for administrator comments and their reflections about the next steps: Data and trend analysis Outcomes assessment Program goals and rationale Program resources and support Program strengths/opportunities for improvement Administrator’s comments/reflection/next steps",
+  "url": "https://www.ramapo.edu/iep/program-review/",
+  "site": "iep"
+ },
+ {
+  "id": "q115",
+  "message": "Doctor of Nursing Practice (DNP): How much does the DNP program cost?",
+  "question": "How much does the DNP program cost?",
+  "official_answer": "Per credit = $1,293.65 36 credits total = $46,571.40 *There is no additional cost for out-of-state students",
+  "url": "https://www.ramapo.edu/dnp/faqs/",
+  "site": "dnp"
+ },
+ {
+  "id": "q116",
+  "message": "Anisfield School of Business (ASB): Who can take the Graduate Certificate in Business Foundations program?",
+  "question": "Who can take the Graduate Certificate in Business Foundations program?",
+  "official_answer": "Undergraduate students who are non-business majors, adult learners, college graduates with a non-business degree and those preparing for an MBA program; Ramapo College undergraduate students can complete eight of the twelve credits at the undergraduate tuition rate.",
+  "url": "https://www.ramapo.edu/asb/graduate-certificate-in-business-foundations/",
+  "site": "asb"
+ },
+ {
+  "id": "q117",
+  "message": "Payroll: I have more questions, where can I get more information?",
+  "question": "I have more questions, where can I get more information?",
+  "official_answer": "The IRS has made the following resource available: IRS Tax Withholding Estimator (https://www.irs.gov/individuals/tax-withholding-estimator)",
+  "url": "https://www.ramapo.edu/payroll/",
+  "site": "payroll"
+ },
+ {
+  "id": "q118",
+  "message": "Giving: Why should I give?",
+  "question": "Why should I give?",
+  "official_answer": "There are many reasons to give. Here are two big ones: To join my classmates in honoring what we love about Ramapo College. Now is my chance to pay tribute to that professor, that coach, that class, that student activity that changed my life forever. To lead the way for future Roadrunners. I can help ensure that their experiences at the ‘Po will be just as great as mine.",
+  "url": "https://www.ramapo.edu/giving/senior-legacy-drive/",
+  "site": "giving"
+ },
+ {
+  "id": "q119",
+  "message": "Degree Completion Program: You have a career, so why earn your bachelor’s degree?",
+  "question": "You have a career, so why earn your bachelor’s degree?",
+  "official_answer": "The knowledge you’ll gain through courses in sociology, psychology, social work and other social science areas can help you better understand the motivations behind behavior so that you can apply the best approach for a variety of situations. Even the experience of earning a college degree can help you gain a broader perspective in your day-to-day work as a police officer. In turn, that perspective may enable you to be more effective in serving your communities. And earning a bachelor’s degree prepares you for a career after policing, whether in other areas of public service or in a different field altogether. Apply Now (https://www.ramapo.edu/admissions/apply/#adult) Request Information (https://apply.ramapo.edu/register/?id=11d341fc-3e3e-47b5-a594-a5e398a714a7) Schedule a Visit (https://www.ramapo.edu/visit/) Are you a military veteran? Our Financial Aid Office has a designated veterans contact to assist you with navigating your educational benefits. Ramapo College Veterans Aid Program (https://www.ramapo.edu/finaid/vet-prog/) Transfer credits needed for program enrollment: 60 credits recommended; 48 credits minimum Format: online / hybrid Full-time/Part Time Option: FT or PT available 2026-2027 In-State Tuition: Per credit = $572.50 Per 4-credit course: $2,290.00 (cost details (https://www.ramapo.edu/student-accounts/costinfo/#grad)) Start Term: Fall, Spring, Summer See Admissions Requirements (https://www.ramapo.edu/adult-students/admissions-requirements/) View Curriculum (https://www.ramapo.edu/dcp/curriculum/) Are you a former Ramapo student with less-than-stellar grades? Don’t let the student you were hold back the student you could be now. Our Fresh Start policy enables students who return to Ramapo after 24 consecutive months away to re-set their GPA as a first step towards achieving academic success. Complete the Fresh Start Inquiry form to speak with an advisor who can help determine if Fresh Start is right for you. Fresh Start inquiry form (https://ramap",
+  "url": "https://www.ramapo.edu/dcp/badges/",
+  "site": "dcp"
+ },
+ {
+  "id": "q120",
+  "message": "Parents, Guardians & Families: Want to Learn More?",
+  "question": "Want to Learn More?",
+  "official_answer": "Complete our short form, and a member of our team will reach out. I would like more information on the President’s Parents Council (PPC) (https://www.ramapo.edu/parents/more-info-form/)",
+  "url": "https://www.ramapo.edu/parents/council/",
+  "site": "parents"
+ }
+]

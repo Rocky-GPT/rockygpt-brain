@@ -1,0 +1,17 @@
+[
+  {"id": "ef4-01", "question": "are there any career fairs or networking events coming up this month?", "topic": "event"},
+  {"id": "ef4-02", "question": "Is there a guest speaker or panel happening this week? Ideally something business or finance related", "topic": "event"},
+  {"id": "ef4-03", "question": "resume workshop tmrw?", "topic": "event"},
+  {"id": "ef4-04", "question": "is there a pre-law club or society at ramapo", "topic": "club"},
+  {"id": "ef4-05", "question": "What professional or pre-professional student orgs are there? I'm an accounting major junior and want something that looks good on a resume", "topic": "club"},
+  {"id": "ef4-06", "question": "any events next friday? where is it and do i need to register", "topic": "event"},
+  {"id": "ef4-07", "question": "Does Ramapo have a Black Student Union or other cultural orgs? how do i join one", "topic": "club"},
+  {"id": "ef4-08", "question": "whos hosting the internship info session and is it free", "topic": "event"},
+  {"id": "ef4-09", "question": "is ther a marketing club or AMA chapter", "topic": "club"},
+  {"id": "ef4-10", "question": "anything happening tonight thats actually useful for my career, like linkedin headshots or mock interviews", "topic": "event"},
+  {"id": "ef4-11", "question": "Can you send me the link to the Society for Human Resource Management club page?", "topic": "club"},
+  {"id": "ef4-12", "question": "what cultural events are on this weekend and do any have free food", "topic": "event"},
+  {"id": "ef4-13", "question": "when does the finance club meet and who's the president", "topic": "out_of_scope"},
+  {"id": "ef4-14", "question": "which club should I join if I want to get into consulting after graduation?", "topic": "out_of_scope"},
+  {"id": "ef4-15", "question": "how many people usually show up to the career fair, is it worth going?", "topic": "out_of_scope"}
+]

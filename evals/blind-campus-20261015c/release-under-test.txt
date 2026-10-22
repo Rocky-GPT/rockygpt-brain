@@ -1,0 +1,3 @@
+brain under test: 30bdf05 Read a food's own allergens, name the student's word's labels, keep the rest of the meal
+(a clean git archive export, run as a written-mode Brain on :8014; uncommitted edits in the checkout are not in it)
+release: dev-campus-daily-20261015-1322

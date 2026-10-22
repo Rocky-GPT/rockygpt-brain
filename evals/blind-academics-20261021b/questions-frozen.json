@@ -1,0 +1,302 @@
+[
+ {
+  "id": "ad1-01",
+  "question": "im a freshman and kinda lost. whats the difference between a major, gen eds, and electives? do they all count toward the 128 credits",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ad1-02",
+  "question": "what classes should i take first if i want to major in biology?",
+  "topic": "sequence"
+ },
+ {
+  "id": "ad1-03",
+  "question": "do I have to declare a major right away or can I stay undecided for a bit",
+  "topic": "program"
+ },
+ {
+  "id": "ad1-04",
+  "question": "psych 101 prereqs? and does it count for gen ed",
+  "topic": "course"
+ },
+ {
+  "id": "ad1-05",
+  "question": "how many credits is a minor and can i use classes from my major toward it",
+  "topic": "program"
+ },
+ {
+  "id": "ad1-06",
+  "question": "what are the gen ed requirements at ramapo? like how many classes in each category",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ad1-07",
+  "question": "cmps 147 - is that a good first class for computer science or should i start with something else",
+  "topic": "course"
+ },
+ {
+  "id": "ad1-08",
+  "question": "Is there a major in nursing, and what do I need to take my first year to get in?",
+  "topic": "program"
+ },
+ {
+  "id": "ad1-09",
+  "question": "what is a free elective",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ad1-10",
+  "question": "Can you tell me what the Critical Reading and Writing course is and whether everyone has to take it?",
+  "topic": "course"
+ },
+ {
+  "id": "ad1-11",
+  "question": "whats the suggested 4 year plan for business admin majors",
+  "topic": "sequence"
+ },
+ {
+  "id": "ad1-12",
+  "question": "can I double major in sociology and social work? how many extra classes would that be",
+  "topic": "program"
+ },
+ {
+  "id": "ad1-13",
+  "question": "what's my degree audit say I still need for gen ed",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ad1-14",
+  "question": "are there any open seats in math 110 this fall and who is teaching it?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ad1-15",
+  "question": "which major should i pick if i like art and science but want a job after graduating",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ad2-01",
+  "question": "what classes do I need to finish the communication arts major? im a junior and trying to plan senior year",
+  "topic": "program"
+ },
+ {
+  "id": "ad2-02",
+  "question": "is there a capstone or senior project for the social work BSW and how many credits is it",
+  "topic": "program"
+ },
+ {
+  "id": "ad2-03",
+  "question": "prereqs for swrk 301?",
+  "topic": "course"
+ },
+ {
+  "id": "ad2-04",
+  "question": "does comm 210 count as an elective for the media production concentration or only the core",
+  "topic": "course"
+ },
+ {
+  "id": "ad2-05",
+  "question": "I want to go into teaching. What do I need to take to get certified to teach elementary school at Ramapo, and do I have to major in something specific alongside it?",
+  "topic": "program"
+ },
+ {
+  "id": "ad2-06",
+  "question": "how many credits is the art history minor",
+  "topic": "program"
+ },
+ {
+  "id": "ad2-07",
+  "question": "what is the field placement requirement for social work and when do you start it",
+  "topic": "sequence"
+ },
+ {
+  "id": "ad2-08",
+  "question": "do I need to take stats before research methods in the communications major or can I do them same semester",
+  "topic": "sequence"
+ },
+ {
+  "id": "ad2-09",
+  "question": "Does theatre 101 count for gen ed arts and humanities?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ad2-10",
+  "question": "what are the required courses for the music major and are there any that need an audition to get into",
+  "topic": "program"
+ },
+ {
+  "id": "ad2-11",
+  "question": "can i double count a gen ed course toward my visual arts major electives",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ad2-12",
+  "question": "which professor is teaching the senior seminar in communication next spring and is it still open?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ad2-13",
+  "question": "based on my transcript, how many credits do I still need in my education major before student teaching?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ad2-14",
+  "question": "Should I minor in creative writing or journalism if I want to work in publishing? which one is better",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ad2-15",
+  "question": "what's the course sequence for the graphic design track, like which studio courses come first and what has to be done before the capstone/portfolio class",
+  "topic": "sequence"
+ },
+ {
+  "id": "ad3-01",
+  "question": "what are the prereqs for orgo 1 at ramapo? is gen chem 2 enough or do i need something else",
+  "topic": "course"
+ },
+ {
+  "id": "ad3-02",
+  "question": "cmps 147 prerequisites?",
+  "topic": "course"
+ },
+ {
+  "id": "ad3-03",
+  "question": "I'm a biology major and I'm thinking about a chemistry minor. How many credits is the chem minor and which courses would overlap with my bio requirements?",
+  "topic": "program"
+ },
+ {
+  "id": "ad3-04",
+  "question": "Does Ramapo have a 4+1 program where I can get a masters in 5 years in a STEM field? which ones?",
+  "topic": "program"
+ },
+ {
+  "id": "ad3-05",
+  "question": "what classes do i need for the cybersecurity major",
+  "topic": "program"
+ },
+ {
+  "id": "ad3-06",
+  "question": "do the bio labs count as natural science gen ed or only the lecture",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ad3-07",
+  "question": "What should a freshman math major take first semester? calc 1 right away or something else",
+  "topic": "sequence"
+ },
+ {
+  "id": "ad3-08",
+  "question": "is there an engineering physics major and how is it different from just physics",
+  "topic": "program"
+ },
+ {
+  "id": "ad3-09",
+  "question": "what minors go well with environmental science",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ad3-10",
+  "question": "how many credits is calc 2 and what do i need before taking it",
+  "topic": "course"
+ },
+ {
+  "id": "ad3-11",
+  "question": "can you check my degree audit and tell me if i still need physics 2 for my major",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ad3-12",
+  "question": "bio 2nd year sequence - when do you take genetics vs cell bio and are there prereqs for each",
+  "topic": "sequence"
+ },
+ {
+  "id": "ad3-13",
+  "question": "Is there a data science or statistics minor I could pair with a math major, and does it require any programming courses?",
+  "topic": "program"
+ },
+ {
+  "id": "ad3-14",
+  "question": "which sections of CHEM 231 have seats open this fall and who teaches them",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ad3-15",
+  "question": "does a lab course like chem 125 lab fulfill any gen ed requirement, and how many credits is it?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ad4-01",
+  "question": "What master's degrees does Ramapo offer and how many credits is each one?",
+  "topic": "program"
+ },
+ {
+  "id": "ad4-02",
+  "question": "im a working nurse with a BSN, what graduate nursing programs do you have and what courses are in the MSN",
+  "topic": "program"
+ },
+ {
+  "id": "ad4-03",
+  "question": "How many credits is the MBA and what are the required courses?",
+  "topic": "program"
+ },
+ {
+  "id": "ad4-04",
+  "question": "do you have grad certificates? like what ones and how many credits does a certificate take",
+  "topic": "program"
+ },
+ {
+  "id": "ad4-05",
+  "question": "I'm applying for the master's in data science (if that exists). What courses are required and how long does it take part time?",
+  "topic": "program"
+ },
+ {
+  "id": "ad4-06",
+  "question": "What is the difference in credits between the MSN and a post-master's nursing certificate?",
+  "topic": "program"
+ },
+ {
+  "id": "ad4-07",
+  "question": "mba core courses list pls",
+  "topic": "program"
+ },
+ {
+  "id": "ad4-08",
+  "question": "What does the course ACCT 601 cover and how many credits is it?",
+  "topic": "course"
+ },
+ {
+  "id": "ad4-09",
+  "question": "prereqs for nrsg 600?? and is it a required class for the msn",
+  "topic": "course"
+ },
+ {
+  "id": "ad4-10",
+  "question": "Can credits from a graduate certificate be applied toward the master's degree later, and how many transfer?",
+  "topic": "program"
+ },
+ {
+  "id": "ad4-11",
+  "question": "For the Master of Science in Educational Leadership, what is the recommended order to take the courses if I'm working full time and only taking two classes a semester?",
+  "topic": "sequence"
+ },
+ {
+  "id": "ad4-12",
+  "question": "Is there a master's in social work or counseling, and what are the course requirements for each?",
+  "topic": "program"
+ },
+ {
+  "id": "ad4-13",
+  "question": "Which MBA class sections are open this fall and who is teaching them?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ad4-14",
+  "question": "I have 30 credits from my previous master's at another school. Will you accept them, and how many credits would I still need for the MBA?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ad4-15",
+  "question": "Should I do the MBA or the MSN if I want to move into hospital management? Which one pays more?",
+  "topic": "out_of_scope"
+ }
+]

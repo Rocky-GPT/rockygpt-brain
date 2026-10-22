@@ -1,0 +1,1073 @@
+[
+ {
+  "id": "s001",
+  "message": "Where is the Financial Aid office located on campus?",
+  "kind": "office",
+  "entity": "Financial Aid",
+  "ask": "room",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "E-210"
+  ],
+  "expected": "The Office of Financial Aid is in E-210 in the Academic Building.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s002",
+  "message": "How can I get in touch with the on-campus student employment office?",
+  "kind": "office",
+  "entity": "On-Campus Employment for Students",
+  "ask": "how_to_reach",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "201-684-7654",
+   "SAP@ramapo.edu"
+  ],
+  "expected": "Reach On-Campus Employment (Student Assistant Program, Christine Meakem) at SAP@ramapo.edu or 201-684-7654; the office is in D-119.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s003",
+  "message": "contact alumni relations",
+  "kind": "office",
+  "entity": "Office of Alumni Relations",
+  "ask": "how_to_reach",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "(201) 684-7627",
+   "alumni@ramapo.edu"
+  ],
+  "expected": "Contact the Office of Alumni Relations at alumni@ramapo.edu or (201) 684-7627.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s004",
+  "message": "contact controller's office",
+  "kind": "office",
+  "entity": "Controller",
+  "ask": "how_to_reach",
+  "published": true,
+  "soft": true,
+  "accept": [
+   "(201) 684-7117",
+   "fdipenti@ramapo.edu"
+  ],
+  "expected": "The Controller (Frank Di Pentima, Assistant Vice President / Controller, Office of Business Services) can be reached at fdipenti@ramapo.edu or (201) 684-7117.",
+  "notes": [
+   "The controller page lists only staff contacts under Business Services, with no office-wide email or main phone; I used the Controller's own listed phone and email. Others could also count the Assistant Controller ((201) 684-7176, ghodgins@ramapo.edu) or accounting@ramapo.edu (named on the Banner page only for training questions).",
+   "The controller pages publish no office-wide email or phone, only staff lines; the Controller's own line and email are the closest to a main contact. The Banner page also gives accounting@ramapo.edu for the Accounting department, so other answers are arguable."
+  ]
+ },
+ {
+  "id": "s005",
+  "message": "What's the fax number for Environmental Health and Safety?",
+  "kind": "office",
+  "entity": "Environmental Health and Safety",
+  "ask": "fax",
+  "published": false,
+  "soft": false,
+  "accept": [],
+  "expected": "The pages do not publish a fax number for Environmental Health and Safety.",
+  "notes": [
+   "Checked the EHS home page, the fire safety page, the watershed page and the phone directory. They list phones ((201) 684-7531 and staff lines) and emails (ehs@ramapo.edu and staff), but no fax.",
+   "Checked the EHS home, fire safety and watershed pages and the general phone listing: they give phones ((201) 684-7531) and emails (ehs@ramapo.edu, staff) but no fax."
+  ]
+ },
+ {
+  "id": "s006",
+  "message": "whats the phone # for the IT help dekk",
+  "kind": "office",
+  "entity": "IT Help Desk",
+  "ask": "phone",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "201-684-7777"
+  ],
+  "expected": "The IT Help Desk phone number is 201-684-7777.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s007",
+  "message": "Can you give me the phone number for the Peer Facilitators?",
+  "kind": "office",
+  "entity": "Peer Facilitators",
+  "ask": "phone",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "(201) 684-7441"
+  ],
+  "expected": "The Peer Facilitators' phone number is (201) 684-7441.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s008",
+  "message": "internal audit phone",
+  "kind": "office",
+  "entity": "Office of Internal Audit",
+  "ask": "phone",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "(201) 684-7622"
+  ],
+  "expected": "The Office of Internal Audit (Patricia C. Chavez, Director) phone number is (201) 684-7622.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s009",
+  "message": "grants and sponsored programs office location",
+  "kind": "office",
+  "entity": "Office of Grants & Sponsored Programs",
+  "ask": "room",
+  "published": true,
+  "soft": true,
+  "accept": [
+   "C 106",
+   "C105"
+  ],
+  "expected": "The Office of Grants & Sponsored Programs is in C-wing: Director Bernadette Connors is in C105 and Grants Manager Julie Kossoy is in C 106.",
+  "notes": [
+   "The grants page gives no room for the office itself, only staff offices (Director in C105, Grants Manager in C 106). I treated the Director's C105 as the main answer and also accept C 106. Others could reasonably mark this as not published.",
+   "The grants page lists no office location as such, only staff offices: the Director in C105 and the Grants Manager in C 106; C105 is the natural office location but it is inferred from the staff listing."
+  ]
+ },
+ {
+  "id": "s010",
+  "message": "where's the womens center & lgbtq+ servcies office at",
+  "kind": "office",
+  "entity": "Women's Center & LGBTQ+ Services",
+  "ask": "room",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "C-220"
+  ],
+  "expected": "The Women's Center & LGBTQ+ Services is in Room C-220, near The Fishbowl.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s011",
+  "message": "health promotion hours friday",
+  "kind": "office",
+  "entity": "Health Promotion",
+  "ask": "hours_on_day",
+  "day": "Friday",
+  "published": false,
+  "soft": false,
+  "accept": [],
+  "expected": "The pages do not publish hours for Health Promotion, on Friday or any other day.",
+  "notes": [
+   "Checked the Center for Student Wellness page and the Health Promotion mindfulness and peer-education pages. They give the location (E-Wing; the WIN office is E-211A) and emails (studentwellness@ramapo.edu, win@ramapo.edu), but no office hours.",
+   "Checked the Center for Student Wellness page and both Health Promotion pages: they give a location (E-Wing, WIN office E-211A) and emails but no office hours for any day."
+  ]
+ },
+ {
+  "id": "s012",
+  "message": "Is the Office of Specialized Services open on Sundays, and if so what are the hours?",
+  "kind": "office",
+  "entity": "Office of Specialized Services",
+  "ask": "hours_on_day",
+  "day": "Sunday",
+  "published": false,
+  "soft": false,
+  "accept": [],
+  "expected": "The page lists Office of Specialized Services hours Monday-Friday only (typically 8:30 AM-4:30 PM); it does not publish Sunday hours.",
+  "notes": [
+   "",
+   ""
+  ],
+  "ruled": "Dan 2026-10-15, after the run: a Mon-Fri listing does not say closed on Sunday, so 'not published' is right (was published true, accept ['Closed'])"
+ },
+ {
+  "id": "s013",
+  "message": "What's the non-emergency phone number for Public Safety?",
+  "kind": "office",
+  "entity": "Public Safety (Non-Emergency)",
+  "ask": "phone",
+  "published": true,
+  "soft": true,
+  "accept": [
+   "(201) 684-6666",
+   "(201) 684-7432"
+  ],
+  "expected": "The phone directory lists Public Safety at (201) 684-7432; (201) 684-6666 is the on-campus emergency line.",
+  "notes": [
+   "No page labels a Public Safety number as 'non-emergency'. The phone directory lists Public Safety at (201) 684-7432 and lists 6666 as the On-Campus Emergency line. The Public Safety pages themselves give only (201) 684-6666 as the general contact, including for questions. The only number labeled 'non-emergency' is Mahwah Police, (201) 529-1000, which is not Public Safety. Some would accept (201) 684-6666.",
+   "No page labels a Public Safety number as non-emergency. The college phone listing gives Public Safety (201) 684-7432, while the Public Safety pages list only (201) 684-6666, also the on-campus emergency number, and use it for general questions (e.g. the crime log). The pages conflict on which line to give."
+  ]
+ },
+ {
+  "id": "s014",
+  "message": "Where is the Center for Student Involvement located on campus?",
+  "kind": "office",
+  "entity": "Center for Student Involvement",
+  "ask": "room",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "SC-202"
+  ],
+  "expected": "The Center for Student Involvement main office is in the Student Center, room SC-202.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s015",
+  "message": "title ix email",
+  "kind": "office",
+  "entity": "Title IX",
+  "ask": "email",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "kmcgee@ramapo.edu",
+   "titleix@ramapo.edu"
+  ],
+  "expected": "Title IX can be emailed at titleix@ramapo.edu, or through Title IX Coordinator Kat McGee at kmcgee@ramapo.edu.",
+  "notes": [
+   "The Title IX page itself gives only the Director/Coordinator's email (kmcgee@ramapo.edu). The OABC complaint page gives titleix@ramapo.edu as a contact email. The pages differ on which email is the office's, so I accept both.",
+   ""
+  ],
+  "ruled": "Dan 2026-10-15: scored"
+ },
+ {
+  "id": "s016",
+  "message": "wheres pine hal located",
+  "kind": "office",
+  "entity": "Pine Hall",
+  "ask": "room",
+  "published": true,
+  "soft": true,
+  "accept": [
+   "Atrium",
+   "Birch Tree Inn",
+   "Learning Commons",
+   "Scott Student Center",
+   "first floor"
+  ],
+  "expected": "Pine Hall is next to the Learning Commons, the Scott Student Center, the Birch Tree Inn and the Atrium.",
+  "notes": [
+   "The ask is 'room', but the student wants the building's location. The Pine Hall page gives no address or room, only the buildings it is next to (Learning Commons, Scott Student Center, Birch Tree Inn, Atrium). The hall office is on the first floor (Guide to Community Living). Some could mark this as not published.",
+   "The student asks where the Pine Hall building is, while ask is room; the pages give no room or building code, only that Pine Hall is adjacent to the Learning Commons, Scott Student Center, Birch Tree Inn and the Atrium, and that its hall office is on the first floor."
+  ]
+ },
+ {
+  "id": "s017",
+  "message": "What email should I use to reach the Open Public Records Act office?",
+  "kind": "office",
+  "entity": "Open Public Records Act",
+  "ask": "email",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "records@ramapo.edu"
+  ],
+  "expected": "Send OPRA requests by email to records@ramapo.edu.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s018",
+  "message": "What's the email address for the Dean of Students office?",
+  "kind": "office",
+  "entity": "Dean of Students",
+  "ask": "email",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "deanofstudents@ramapo.edu"
+  ],
+  "expected": "The Dean of Students office email is deanofstudents@ramapo.edu.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s019",
+  "message": "is laptop upcyle open thurs? what r the hours",
+  "kind": "office",
+  "entity": "Laptop Upcycle @ Ramapo",
+  "ask": "hours_on_day",
+  "day": "Thursday",
+  "published": false,
+  "soft": false,
+  "accept": [],
+  "expected": "The pages do not publish hours for Laptop Upcycle @ Ramapo, on Thursday or any other day.",
+  "notes": [
+   "Checked the Laptop Upcycle contact and donate pages. They give only laptopupcycle@ramapo.edu and say donations can be dropped off at the CSI Main Office. No hours are given for the program, and CSI's hours are not in these sources.",
+   "Checked the Laptop Upcycle contact and donate pages: they give laptopupcycle@ramapo.edu and say laptops can be dropped off at the CSI Main Office, but publish no Laptop Upcycle hours for Thursday or any day."
+  ]
+ },
+ {
+  "id": "s020",
+  "message": "where is the genetic geneology center (the investigative one)?",
+  "kind": "office",
+  "entity": "Investigative Genetic Genealogy Center",
+  "ask": "room",
+  "published": false,
+  "soft": false,
+  "accept": [],
+  "expected": "The pages do not publish where the Investigative Genetic Genealogy Center is on campus (building or room).",
+  "notes": [
+   "Checked the IGG home, bootcamp, certificate-program and outreach pages. They give only the college's mailing address (505 Ramapo Valley Road, Mahwah) and say bootcamp is held in the IGG Lab. No building or room is given.",
+   "Checked the IGG home, bootcamp, certificate and outreach pages: only the college mailing address (505 Ramapo Valley Road) and a mention of an IGG Lab on campus, with no room or building."
+  ]
+ },
+ {
+  "id": "s021",
+  "message": "Does the Center for Reading and Writing have an email address I can use?",
+  "kind": "office",
+  "entity": "Center for Reading and Writing",
+  "ask": "email",
+  "published": true,
+  "soft": true,
+  "accept": [
+   "crw@ramapo.edu",
+   "ptovey@ramapo.edu",
+   "rreyes@ramapo.edu",
+   "sauger@ramapo.edu"
+  ],
+  "expected": "Yes: the CRW can be emailed at crw@ramapo.edu, and its contact page also directs CRW questions to Susan Auger (sauger@ramapo.edu), Ramon Reyes (rreyes@ramapo.edu) or Priscilla Tovey (ptovey@ramapo.edu).",
+  "notes": [
+   "The CRW's own pages (home and Contact Us) give only staff emails (sauger, rreyes, ptovey) for CRW questions; the general address crw@ramapo.edu appears only on the Faculty Assembly college-wide policies page. Both kinds are accepted, but reasonable people could disagree on which is 'the' CRW email.",
+   "The CRW's own pages (home, contact us) list only individual staff emails (Auger, Reyes, Tovey) for CRW questions; a general crw@ramapo.edu address appears only on the faculty college-wide policies page. Reasonable people could disagree whether the office email is crw@ or one of the staff addresses, so all four are accepted."
+  ]
+ },
+ {
+  "id": "s022",
+  "message": "student leadership hours monday",
+  "kind": "office",
+  "entity": "Student Leadership Programs",
+  "ask": "hours_on_day",
+  "day": "Monday",
+  "published": false,
+  "soft": false,
+  "accept": [],
+  "expected": "The pages do not publish office hours for Student Leadership Programs on Monday (or any day); they give only the email leaders@ramapo.edu.",
+  "notes": [
+   "Checked the SAIL page and the Student Leadership Awards page (campus directory text empty): only emails leaders@ramapo.edu and jnesmith@ramapo.edu, no office hours.",
+   "Checked the SAIL and Student Leadership Awards pages: they give leaders@ramapo.edu and jnesmith@ramapo.edu but no office hours; the campus directory capture is empty."
+  ]
+ },
+ {
+  "id": "s023",
+  "message": "I need to email the Testing Center, what's their address?",
+  "kind": "office",
+  "entity": "Testing Center",
+  "ask": "email",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "testing@ramapo.edu"
+  ],
+  "expected": "The Testing Center's email is testing@ramapo.edu.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s024",
+  "message": "What are the College Park Apartments office hours on Tuesday?",
+  "kind": "office",
+  "entity": "College Park Apartments",
+  "ask": "hours_on_day",
+  "day": "Tuesday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "12 PM – 12 Midnight",
+   "12 PM – Midnight"
+  ],
+  "expected": "During the fall and spring semesters the College Park Apartments hall office (in the Lodge) is open 12 PM – Midnight on Tuesday.",
+  "notes": [
+   "The CPA page lists Fall & Spring Monday – Friday 12 PM – Midnight (Summer Monday – Thursday 8 AM – 5:15 PM); the GTCL page agrees for fall/spring (its summer hours say 9 AM). The capture date 2026-10-15 falls in the fall semester, so the fall hours apply.",
+   "CPA page: Fall & Spring Monday–Friday 12 PM – Midnight; Summer Monday–Thursday 8 AM – 5:15 PM (the community-living guide says 9 AM – 5:15 PM for summer). Pages were captured 2026-10-15, inside the fall semester, so the fall/spring hours apply; the guide's hall-office hours agree (12 PM – 12 Midnight)."
+  ]
+ },
+ {
+  "id": "s025",
+  "message": "What are the Ramapo College Foundation's hours on Saturday?",
+  "kind": "office",
+  "entity": "Ramapo College Foundation",
+  "ask": "hours_on_day",
+  "day": "Saturday",
+  "published": false,
+  "soft": false,
+  "accept": [],
+  "expected": "The pages do not publish Saturday hours (or any office hours) for the Ramapo College Foundation.",
+  "notes": [
+   "Checked the Foundation, Friends of Ramapo, audit-a-course, matching gifts and how-to-give pages: they give contacts, phone numbers and a mailing address but no office hours.",
+   "Checked the Foundation, Friends of Ramapo, audit-a-course, matching gifts and how-to-give pages: contacts, phone, fax and mailing address only, no hours."
+  ]
+ },
+ {
+  "id": "s026",
+  "message": "does the nursing programs ofice have a fax #?",
+  "kind": "office",
+  "entity": "Nursing Programs Office",
+  "ask": "fax",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "(201) 684-7954"
+  ],
+  "expected": "Yes, the Nursing Programs office fax number is (201) 684-7954.",
+  "notes": [
+   "The fax (201) 684-7964 in the McBride House header of the nursing page belongs to the Admissions block, not the Nursing Programs office.",
+   "The nursing page header also shows f: (201) 684-7964, but that block is McBride House/Admissions, not the Nursing Programs office."
+  ]
+ },
+ {
+  "id": "s027",
+  "message": "library phone number",
+  "kind": "office",
+  "entity": "Library",
+  "ask": "phone",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "201-684-7574",
+   "201.684.7575"
+  ],
+  "expected": "The library can be called at 201.684.7575 (circulation/general questions); the Ask a Librarian research help line is 201-684-7574.",
+  "notes": [
+   "The library pages give 201.684.7575 for general questions and 201-684-7574 under Ask a Librarian; both are accepted.",
+   "The library home page gives 201.684.7575 for questions and 201-684-7574 under Ask a Librarian; both are library phone lines on the page."
+  ]
+ },
+ {
+  "id": "s028",
+  "message": "Can you give me the phone number for Orientation Programs?",
+  "kind": "office",
+  "entity": "Orientation Programs",
+  "ask": "phone",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "(201) 684-7441"
+  ],
+  "expected": "Orientation (Center for Student Success – New Student Experience) can be reached by phone at (201) 684-7441.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s029",
+  "message": "whats the yearbok email",
+  "kind": "office",
+  "entity": "Yearbook",
+  "ask": "email",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "yearbook@ramapo.edu"
+  ],
+  "expected": "The yearbook's email is yearbook@ramapo.edu.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s030",
+  "message": "I need to email the Office of the General Counsel and Institutional Compliance, what's their email address?",
+  "kind": "office",
+  "entity": "Office of the General Counsel & Institutional Compliance",
+  "ask": "email",
+  "published": false,
+  "soft": false,
+  "accept": [],
+  "expected": "The pages do not publish an email address for the Office of the General Counsel & Institutional Compliance.",
+  "notes": [
+   "Checked the phone directory (General Counsel - (201) 684-6975, no email) and the General Counsel complaint resources page (only the phone 201-684-6693 and forms); campus directory text is empty. No email is given.",
+   "Checked the phone directory (General Counsel (201) 684-6975, no email) and the complaint-resources page (phone 201-684-6693 and forms, no email); the campus directory capture is empty."
+  ]
+ },
+ {
+  "id": "s031",
+  "message": "how do i get in tuch w commuter affairs",
+  "kind": "office",
+  "entity": "Commuter Affairs",
+  "ask": "how_to_reach",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "(201) 684-7553",
+   "commuters@ramapo.edu"
+  ],
+  "expected": "Commuter Affairs can be reached at commuters@ramapo.edu or (201) 684-7553, in the Center for Student Involvement, SC-202.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s032",
+  "message": "What is the fax number for Housing and Residence Life?",
+  "kind": "office",
+  "entity": "Housing & Residence Life",
+  "ask": "fax",
+  "published": false,
+  "soft": false,
+  "accept": [],
+  "expected": "The pages do not publish a fax number for Housing & Residence Life.",
+  "notes": [
+   "Checked the Residence Life home, early arrival, Guide to Community Living (text cut off at 20,000 characters) and mailroom pages: only phone numbers and emails (central office (201) 684-7461, reslife@ramapo.edu), no fax.",
+   "Checked the Residence Life home, early arrival, community-living guide and mailroom pages: phone numbers and emails only, no fax."
+  ]
+ },
+ {
+  "id": "s033",
+  "message": "How can I get in touch with the First Generation Student Center?",
+  "kind": "office",
+  "entity": "First Generation Student Center",
+  "ask": "how_to_reach",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "201-684-7439",
+   "FirstGen@ramapo.edu",
+   "mahalinu@ramapo.edu"
+  ],
+  "expected": "The First-Generation Student Center (D-208) can be reached at 201-684-7439 or by email at mahalinu@ramapo.edu (the EOF page lists FirstGen@ramapo.edu).",
+  "notes": [
+   "The pages conflict on the email: the First-Gen page gives mahalinu@ramapo.edu for the Assistant Director, while the EOF staff page gives FirstGen@ramapo.edu for the same role. Both phone listings agree on 201-684-7439. All three accepted.",
+   "The center's own page lists the assistant director's email mahalinu@ramapo.edu and phone 201-684-7439; the EOF page lists FirstGen@ramapo.edu with the same phone. Either email or the phone is enough."
+  ],
+  "ruled": "Dan 2026-10-15: scored"
+ },
+ {
+  "id": "s034",
+  "message": "veterans success office sunday hours",
+  "kind": "office",
+  "entity": "Military and Veterans Success",
+  "ask": "hours_on_day",
+  "day": "Sunday",
+  "published": true,
+  "soft": true,
+  "accept": [
+   "8:30 a.m. – 4:30 p.m."
+  ],
+  "expected": "The Veterans Lounge & Transfer Center (E211) lists its hours as daily, 8:30 a.m. – 4:30 p.m., which would include Sunday.",
+  "notes": [
+   "No page gives hours for the Veterans Success Team as an office. The Veterans Lounge & Transfer Center page says 'Hours of Operation: Daily, 8:30 a.m. – 4:30 p.m.', which some would read as the answer (open Sunday 8:30 a.m. – 4:30 p.m.), but that is the lounge, not the office.",
+   "No page gives hours for a 'Military and Veterans Success' office as such; the only hours are for the Veterans Lounge & Transfer Center: 'Daily, 8:30 a.m. – 4:30 p.m.' Taken literally that covers Sunday, but it is unclear whether the lounge is the office the student means and whether 'daily' really includes weekends; one could instead say Sunday hours are not published."
+  ],
+  "ruled": "Dan 2026-10-15: soft"
+ },
+ {
+  "id": "s035",
+  "message": "I'd like to call the Counseling Center, what's their phone number?",
+  "kind": "office",
+  "entity": "Counseling Center",
+  "ask": "phone",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "(201) 684-7522"
+  ],
+  "expected": "Counseling Services' phone number is (201) 684-7522.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s036",
+  "message": "wat are the board of trustees office hrs on wednesday",
+  "kind": "office",
+  "entity": "Board of Trustees",
+  "ask": "hours_on_day",
+  "day": "Wednesday",
+  "published": false,
+  "soft": false,
+  "accept": [],
+  "expected": "The pages do not publish office hours for the Board of Trustees on Wednesday (or any day).",
+  "notes": [
+   "Checked the Board of Trustees page: meeting schedule and contacts (bwillia1@ramapo.edu, trustee@ramapo.edu) only, no office hours; campus directory text is empty.",
+   "Checked the Board of Trustees page: meeting schedule and contacts (bwillia1@ramapo.edu, trustee@ramapo.edu) only, no office hours; the campus directory capture is empty."
+  ]
+ },
+ {
+  "id": "s037",
+  "message": "What time does the Starbucks at Common Grounds close on Wednesday?",
+  "kind": "dining",
+  "entity": "We Proudly Serve Starbucks at Common Grounds",
+  "ask": "closing_time_on_day",
+  "day": "Wednesday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "08:00 PM"
+  ],
+  "expected": "Starbucks at Common Grounds closes at 8:00 PM on Wednesday.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s038",
+  "message": "What time does the Birch Tree Inn close on Monday?",
+  "kind": "dining",
+  "entity": "Birch Tree Inn",
+  "ask": "closing_time_on_day",
+  "day": "Monday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "11:00 PM"
+  ],
+  "expected": "Birch Tree Inn closes at 11:00 PM on Monday, after Late Night (9:00 PM - 11:00 PM).",
+  "notes": [
+   "Monday - Friday service ends with Late Night 09:00 PM - 11:00 PM; there is a break between Dinner (ends 08:00 PM) and Late Night.",
+   "Monday hours run through Dinner 05:00 PM - 08:00 PM, then a gap, then Late Night 09:00 PM - 11:00 PM. The final close is 11:00 PM, but someone could read the 8:00 PM end of dinner as closing time."
+  ],
+  "ruled": "Dan 2026-10-15: scored"
+ },
+ {
+  "id": "s039",
+  "message": "starbucks common grounds closing time friday",
+  "kind": "dining",
+  "entity": "We Proudly Serve Starbucks at Common Grounds",
+  "ask": "closing_time_on_day",
+  "day": "Friday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "05:00 PM"
+  ],
+  "expected": "Starbucks at Common Grounds closes at 5:00 PM on Friday.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s040",
+  "message": "When is the Starbucks in Common Grounds open on Mondays?",
+  "kind": "dining",
+  "entity": "We Proudly Serve Starbucks at Common Grounds",
+  "ask": "open_hours_on_day",
+  "day": "Monday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "10:00 AM - 08:00 PM"
+  ],
+  "expected": "Starbucks at Common Grounds is open 10:00 AM - 8:00 PM on Mondays.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s041",
+  "message": "What are the Birch Tree Inn's hours on Friday?",
+  "kind": "dining",
+  "entity": "Birch Tree Inn",
+  "ask": "open_hours_on_day",
+  "day": "Friday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "02:00 PM - 05:00 PM",
+   "05:00 PM - 08:00 PM",
+   "08:00 AM - 10:30 AM",
+   "09:00 PM - 11:00 PM",
+   "10:30 AM - 11:00 AM",
+   "11:00 AM - 02:00 PM"
+  ],
+  "expected": "On Friday (Monday - Friday hours) Birch Tree Inn serves Breakfast 08:00 AM - 10:30 AM, Continental 10:30 AM - 11:00 AM, Lunch 11:00 AM - 02:00 PM, Lite Lunch 02:00 PM - 05:00 PM, Dinner 05:00 PM - 08:00 PM, and Late Night 09:00 PM - 11:00 PM.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s042",
+  "message": "birch tree inn hours tuesday",
+  "kind": "dining",
+  "entity": "Birch Tree Inn",
+  "ask": "open_hours_on_day",
+  "day": "Tuesday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "02:00 PM - 05:00 PM",
+   "05:00 PM - 08:00 PM",
+   "08:00 AM - 10:30 AM",
+   "09:00 PM - 11:00 PM",
+   "10:30 AM - 11:00 AM",
+   "11:00 AM - 02:00 PM"
+  ],
+  "expected": "On Tuesday (Monday - Friday hours) Birch Tree Inn serves Breakfast 08:00 AM - 10:30 AM, Continental 10:30 AM - 11:00 AM, Lunch 11:00 AM - 02:00 PM, Lite Lunch 02:00 PM - 05:00 PM, Dinner 05:00 PM - 08:00 PM, and Late Night 09:00 PM - 11:00 PM.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s043",
+  "message": "When does Dunkin' close on Sundays?",
+  "kind": "dining",
+  "entity": "Dunkin'",
+  "ask": "closing_time_on_day",
+  "day": "Sunday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "Closed"
+  ],
+  "expected": "Dunkin' is closed all day on Sundays (Saturday - Sunday: Closed All Day).",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s044",
+  "message": "What are the Atrium's hours on Friday?",
+  "kind": "dining",
+  "entity": "The Atrium",
+  "ask": "open_hours_on_day",
+  "day": "Friday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "07:30 AM - 07:00 PM"
+  ],
+  "expected": "The Atrium is open 07:30 AM - 07:00 PM on Friday.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s045",
+  "message": "How late is the Atrium open on Wednesday?",
+  "kind": "dining",
+  "entity": "The Atrium",
+  "ask": "closing_time_on_day",
+  "day": "Wednesday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "07:00 PM"
+  ],
+  "expected": "The Atrium is open until 07:00 PM on Wednesday (07:30 AM - 07:00 PM).",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s046",
+  "message": "starbux at common grounds hrs saturday?",
+  "kind": "dining",
+  "entity": "We Proudly Serve Starbucks at Common Grounds",
+  "ask": "open_hours_on_day",
+  "day": "Saturday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "Closed"
+  ],
+  "expected": "We Proudly Serve Starbucks at Common Grounds is closed all day on Saturday.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s047",
+  "message": "When's the next Saturday Roadrunner Express leaving campus after 10:15 AM on Saturday?",
+  "kind": "shuttle",
+  "entity": "Saturday Roadrunner Express",
+  "ask": "next_from_campus_after",
+  "day": "Saturday",
+  "time": "10:15 AM",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "11:00 AM"
+  ],
+  "expected": "The next Saturday Roadrunner Express leaving Ramapo after 10:15 AM departs at 11:00 AM.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s048",
+  "message": "When does the last Mid-Day Weekday Express Train shuttle leave campus on Friday?",
+  "kind": "shuttle",
+  "entity": "Mid-Day Weekday Express Train",
+  "ask": "last_from_campus",
+  "day": "Friday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "5:30 PM"
+  ],
+  "expected": "The last Mid-Day Weekday Express Train shuttle leaves Ramapo at 5:30 PM on Friday.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s049",
+  "message": "On Wednesday, what's the next Weekday Roadrunner Express shuttle leaving campus after 9:00 AM?",
+  "kind": "shuttle",
+  "entity": "Weekday Roadrunner Express",
+  "ask": "next_from_campus_after",
+  "day": "Wednesday",
+  "time": "9:00 AM",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "10:15 AM"
+  ],
+  "expected": "The next Weekday Roadrunner Express leaving Ramapo after 9:00 AM on Wednesday departs at 10:15 AM.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s050",
+  "message": "What time does the last Saturday Roadrunner Express leave campus on Saturday?",
+  "kind": "shuttle",
+  "entity": "Saturday Roadrunner Express",
+  "ask": "last_from_campus",
+  "day": "Saturday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "9:55 PM"
+  ],
+  "expected": "The last Saturday Roadrunner Express leaves Ramapo at 9:55 PM.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s051",
+  "message": "What time does the last Sunday Roadrunner Express shuttle leave campus on Sunday?",
+  "kind": "shuttle",
+  "entity": "Sunday Roadrunner Express",
+  "ask": "last_from_campus",
+  "day": "Sunday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "6:55 PM"
+  ],
+  "expected": "The last Sunday Roadrunner Express leaves Ramapo at 6:55 PM.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s052",
+  "message": "first weekday roadrunner out of campus thursday",
+  "kind": "shuttle",
+  "entity": "Weekday Roadrunner Express",
+  "ask": "first_from_campus",
+  "day": "Thursday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "7:00 AM"
+  ],
+  "expected": "The first Weekday Roadrunner Express leaves Ramapo at 7:00 AM on Thursday.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s053",
+  "message": "When does the first Sunday Roadrunner Express leave campus on Sundays?",
+  "kind": "shuttle",
+  "entity": "Sunday Roadrunner Express",
+  "ask": "first_from_campus",
+  "day": "Sunday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "10:00 AM"
+  ],
+  "expected": "The first Sunday Roadrunner Express leaves Ramapo at 10:00 AM.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s054",
+  "message": "last midday train shuttle back to campus friday",
+  "kind": "shuttle",
+  "entity": "Mid-Day Weekday Express Train",
+  "ask": "last_arrival_on_campus",
+  "day": "Friday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "5:27 PM"
+  ],
+  "expected": "The last Mid-Day Weekday Express Train shuttle arrives back on campus at 5:27 PM on Friday (the 5:30 PM run shows N/A for its return).",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s055",
+  "message": "It's Monday, when is the next Mid-Day Express Train shuttle leaving campus after 12:15 PM?",
+  "kind": "shuttle",
+  "entity": "Mid-Day Weekday Express Train",
+  "ask": "next_from_campus_after",
+  "day": "Monday",
+  "time": "12:15 PM",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "12:45 PM"
+  ],
+  "expected": "The next Mid-Day Weekday Express Train shuttle leaving Ramapo after 12:15 PM on Monday departs at 12:45 PM.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s056",
+  "message": "whens the next midday express train shuttle leavin campus after 11am monday",
+  "kind": "shuttle",
+  "entity": "Mid-Day Weekday Express Train",
+  "ask": "next_from_campus_after",
+  "day": "Monday",
+  "time": "11:00 AM",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "11:45 AM"
+  ],
+  "expected": "The next Mid-Day Weekday Express Train shuttle leaving Ramapo after 11:00 AM on Monday departs at 11:45 AM.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s057",
+  "message": "first midday express train shuttle wednesday",
+  "kind": "shuttle",
+  "entity": "Mid-Day Weekday Express Train",
+  "ask": "first_from_campus",
+  "day": "Wednesday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "7:00 AM"
+  ],
+  "expected": "The first Mid-Day Weekday Express Train shuttle leaves Ramapo at 7:00 AM on Wednesday.",
+  "notes": [
+   "",
+   "The message ('first midday express train shuttle wednesday') does not say which direction; the ask is first departure from campus (Leave Ramapo 7:00 AM), but it could be read as the first arrival on campus (7:20 AM)."
+  ],
+  "ruled": "Dan 2026-10-15: scored"
+ },
+ {
+  "id": "s058",
+  "message": "last weekday roadrunner leaving campus monday",
+  "kind": "shuttle",
+  "entity": "Weekday Roadrunner Express",
+  "ask": "last_from_campus",
+  "day": "Monday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "9:40 PM"
+  ],
+  "expected": "The last Weekday Roadrunner Express leaves Ramapo at 9:40 PM on Monday.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s059",
+  "message": "What's the next Mid-Day Weekday Express Train shuttle leaving campus after 10:00 AM on Wednesday?",
+  "kind": "shuttle",
+  "entity": "Mid-Day Weekday Express Train",
+  "ask": "next_from_campus_after",
+  "day": "Wednesday",
+  "time": "10:00 AM",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "10:40 AM"
+  ],
+  "expected": "The next Mid-Day Weekday Express Train shuttle leaving Ramapo after 10:00 AM on Wednesday departs at 10:40 AM.",
+  "notes": [
+   "",
+   ""
+  ]
+ },
+ {
+  "id": "s060",
+  "message": "wats the last sat roadrunner express that gets back to campus on saturday",
+  "kind": "shuttle",
+  "entity": "Saturday Roadrunner Express",
+  "ask": "last_arrival_on_campus",
+  "day": "Saturday",
+  "published": true,
+  "soft": false,
+  "accept": [
+   "11:00 PM"
+  ],
+  "expected": "The last Saturday Roadrunner Express arrives back on campus at 11:00 PM.",
+  "notes": [
+   "",
+   ""
+  ]
+ }
+]

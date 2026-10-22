@@ -1,0 +1,502 @@
+[
+ {
+  "id": "h1-01",
+  "question": "how do i get a new ID card if i lost mine",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-02",
+  "question": "I got a parking ticket in the commuter lot even though I have a permit, how do I appeal it and who do I talk to?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-03",
+  "question": "can my boyfriend stay over in my dorm on the weekend or is there a rule about guests",
+  "topic": "policy"
+ },
+ {
+  "id": "h1-04",
+  "question": "how do i drop a class after add/drop ends",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-05",
+  "question": "wifi keeps disconnecting in my room in the village, how do i report it",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-06",
+  "question": "whats the process to change my major from psych to nursing? do i need to talk to someone first",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-07",
+  "question": "how do I request a housing accommodation for a medical condition, and what documentation do they need",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-08",
+  "question": "who do i email about my fafsa verification",
+  "topic": "contact"
+ },
+ {
+  "id": "h1-09",
+  "question": "how much do i still owe for this semester",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h1-10",
+  "question": "commuter here - how do i get a parking permit and is there a deadline?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-11",
+  "question": "I think I left my laptop in the library yesterday. is there a lost and found and where is it",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-12",
+  "question": "how do i make an appointment at the health center",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-13",
+  "question": "can i have a microwave or mini fridge in my dorm",
+  "topic": "policy"
+ },
+ {
+  "id": "h1-14",
+  "question": "how to order an official transcript to send to a summer program",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-15",
+  "question": "forgot my password and cant log into my email or canvas. how do i reset it",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-16",
+  "question": "is it possible to switch roommates mid semester? how do i start that",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-17",
+  "question": "what happens if I withdraw from all my classes, will it affect my financial aid?",
+  "topic": "policy"
+ },
+ {
+  "id": "h1-18",
+  "question": "how do i get counseling, is it free for students",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-19",
+  "question": "should i take orgo and physics in the same semester",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h1-20",
+  "question": "How do I get a registration hold removed? It says I have a hold and I cant sign up for spring classes. Who do I contact?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-21",
+  "question": "do i need to be vaccinated to live on campus or what immunization forms do i have to submit",
+  "topic": "policy"
+ },
+ {
+  "id": "h1-22",
+  "question": "how do i reserve a study room or a room for my club meeting",
+  "topic": "procedure"
+ },
+ {
+  "id": "h1-23",
+  "question": "is my financial aid refund in yet",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h1-24",
+  "question": "how do i take a class pass/fail",
+  "topic": "policy"
+ },
+ {
+  "id": "h1-25",
+  "question": "whats the phone number for the registrar and when are they open",
+  "topic": "contact"
+ },
+ {
+  "id": "h2-01",
+  "question": "I'm a new hire starting next month. How do I get set up for direct deposit for my paycheck?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-02",
+  "question": "how do i submit a travel reimbursement after a conference and who do i send the receipts to",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-03",
+  "question": "What's the deadline to enroll in health benefits as a new employee?",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-04",
+  "question": "how to reserve a classroom for a guest lecture in the spring",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-05",
+  "question": "I'm worried about a student in my class who seems really withdrawn and mentioned not wanting to be here anymore. Who do I report this to and what's the process?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-06",
+  "question": "who do I contact if my office heater isnt working",
+  "topic": "contact"
+ },
+ {
+  "id": "h2-07",
+  "question": "How do I get a purchase order for a vendor? Do I need quotes for anything over a certain amount?",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-08",
+  "question": "forgot my ramapo email password, how do i reset it",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-09",
+  "question": "Can faculty use a college P-card for food at a department event or does that have to be reimbursed?",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-10",
+  "question": "How much PTO do I have left this year?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h2-11",
+  "question": "whats the process for booking the student center for an event with outside guests and do i need to arrange security",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-12",
+  "question": "How do I get my faculty ID card and a parking permit as a new adjunct?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-13",
+  "question": "where do i submit a work order for facilities",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-14",
+  "question": "Is there a policy on how often adjuncts get paid? When is payday?",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-15",
+  "question": "how do I report academic dishonesty / plagiarism by a student, is there a form",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-16",
+  "question": "Who do I talk to about tuition remission for my kid? Am I eligible as staff?",
+  "topic": "contact"
+ },
+ {
+  "id": "h2-17",
+  "question": "need to get software installed on my work laptop, how do i request that from IT",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-18",
+  "question": "What's the procedure if a student discloses a sexual assault to me? Am I a mandatory reporter?",
+  "topic": "policy"
+ },
+ {
+  "id": "h2-19",
+  "question": "How do I change my W-4 withholding?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-20",
+  "question": "can you check if my reimbursement from september was approved yet",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h2-21",
+  "question": "How do I add a dependent to my dental plan after having a baby, and how long do I have to do it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-22",
+  "question": "who handles accomodations for students with disabilities in my course? a student gave me a letter and im not sure what to do",
+  "topic": "contact"
+ },
+ {
+  "id": "h2-23",
+  "question": "how do i get access to canvas/moodle shell for a course im teaching next semester",
+  "topic": "procedure"
+ },
+ {
+  "id": "h2-24",
+  "question": "Should I take the state pension or the ACP retirement plan? Which one is better for me?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h2-25",
+  "question": "Is there a rule about using personal vehicles for college business, and how do I get reimbursed for mileage?",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-01",
+  "question": "How does my son request his official transcript be sent to another college? He's transferring after this semester.",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-02",
+  "question": "im an alum (class of 2014) how do i get a copy of my diploma, i lost the original in a move",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-03",
+  "question": "Can my daughter's boyfriend stay overnight in her dorm room when he visits on the weekend? What are the guest rules?",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-04",
+  "question": "How do I schedule a campus tour for a prospective student and who do I call if I need to reschedule?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-05",
+  "question": "where do visitors park when coming to campus? do i need a pass",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-06",
+  "question": "How can I pay my child's tuition bill as a parent? Can I get my own login or does she have to give me access?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-07",
+  "question": "Ive been accepted for fall, how do I pay the enrollment deposit and when is it due?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-08",
+  "question": "what is the deadline to apply as a transfer student for spring",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-09",
+  "question": "How much do we still owe on my son's account for this semester?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h3-10",
+  "question": "Is there a payment plan option so we can split the semester bill into monthly payments? who do i contact to set it up",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-11",
+  "question": "Do alumni get access to the library or the gym? How do I sign up for that?",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-12",
+  "question": "how do i verify my degree for a new employer background check",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-13",
+  "question": "My daughter is under 18 and I want to talk to someone about her grades. Will the college share that info with me or does she need to sign a FERPA form?",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-14",
+  "question": "who do I contact in admissions about my application status? I submitted everything 3 weeks ago",
+  "topic": "contact"
+ },
+ {
+  "id": "h3-15",
+  "question": "Did my application get accepted yet? my name is Jordan Ellis",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h3-16",
+  "question": "How do I send my high school transcripts and test scores to Ramapo, and is the SAT required?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-17",
+  "question": "What's the process for getting a refund if my student withdraws from the college mid semester?",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-18",
+  "question": "how do admitted students sign up for orientation",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-19",
+  "question": "Are pets allowed on campus if I'm just visiting for the day? we'd be bringing our dog",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-20",
+  "question": "Which is a better school for nursing, Ramapo or Montclair State? Should my daughter go to Ramapo?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h3-21",
+  "question": "how do i update my mailing address and email as an alumnus so i get the alumni newsletter",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-22",
+  "question": "Can a parent move their student into the residence hall early, and what's the move in procedure for first year students?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h3-23",
+  "question": "who handles 1098-T tax forms? i need it for my taxes and cant find it",
+  "topic": "contact"
+ },
+ {
+  "id": "h3-24",
+  "question": "My grandson graduates in May. How many guests can attend commencement and do we need tickets?",
+  "topic": "policy"
+ },
+ {
+  "id": "h3-25",
+  "question": "How do I apply for financial aid as an incoming freshman, and whats the Ramapo school code for the FAFSA?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-01",
+  "question": "how do i get my credits from my community college transferred to ramapo",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-02",
+  "question": "I'm an F-1 student going home over winter break. How do I get a travel signature on my I-20 and who do I see for it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-03",
+  "question": "whats the process to use my GI bill at ramapo? do i need to send my COE somewhere",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-04",
+  "question": "how do I apply for graduation",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-05",
+  "question": "Is there a deadline to apply to graduate if I want to walk in May? And what happens if I miss it",
+  "topic": "policy"
+ },
+ {
+  "id": "h4-06",
+  "question": "i need to take a leave of absence next semester for family reasons, how does that work and will i lose my spot",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-07",
+  "question": "How do I withdraw from Ramapo completely? Not just one class, the whole college.",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-08",
+  "question": "how do i appeal a grade i think is unfair",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-09",
+  "question": "I was academically dismissed after spring. Can I appeal and who do I send the appeal to?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-10",
+  "question": "Will my 300 level course from my old school count toward my major here? It was Intro to Microeconomics at Bergen CC",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h4-11",
+  "question": "is there a max number of transfer credits ramapo accepts",
+  "topic": "policy"
+ },
+ {
+  "id": "h4-12",
+  "question": "can international students work on campus? how many hours a week",
+  "topic": "policy"
+ },
+ {
+  "id": "h4-13",
+  "question": "How do I apply for OPT after I graduate and who in the international office handles it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-14",
+  "question": "who's the VA certifying official at ramapo and whats their email",
+  "topic": "contact"
+ },
+ {
+  "id": "h4-15",
+  "question": "Does Ramapo give academic credit for military training or my JST?",
+  "topic": "policy"
+ },
+ {
+  "id": "h4-16",
+  "question": "grad student here, how do i request an extension on my thesis deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-17",
+  "question": "If I withdraw from a class after the add/drop period do I get any money back? and does it show as a W",
+  "topic": "policy"
+ },
+ {
+  "id": "h4-18",
+  "question": "how do i get an official AP score / IB credit evaluated as a transfer student",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-19",
+  "question": "Has my VA benefits certification gone through for this semester yet?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h4-20",
+  "question": "is there a veterans lounge or office on campus and where is it",
+  "topic": "contact"
+ },
+ {
+  "id": "h4-21",
+  "question": "Can I take classes at another college over the summer and transfer them back? What form do I need?",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-22",
+  "question": "my I-20 expires soon but i still have one more semester, how do i get it extended",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-23",
+  "question": "Should I take a leave of absence or just drop to part time? Which is better for my visa status?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "h4-24",
+  "question": "how do i come back to ramapo after being withdrawn for a year, is there a readmission application",
+  "topic": "procedure"
+ },
+ {
+  "id": "h4-25",
+  "question": "What's the policy on academic integrity violations and how do I appeal a finding? Who handles it",
+  "topic": "policy"
+ }
+]

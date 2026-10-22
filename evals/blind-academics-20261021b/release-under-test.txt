@@ -1,0 +1,4 @@
+brain 93c8fec (code-93c8fec export, all calls gpt-6-luna, written mode on :8013, BRAIN_HOWTO_ONE_CALL=1)
+data 6c25e20 (plan summer-term parser fix committed but plans not re-collected in this release)
+release dev-campus-daily-20261022-0600 (graph release-20d87e3176d26839 + its meaning index), run 2026-10-22
+first attempt 10-21 discarded unread: 13 of 60 refused by the October dev spending cap (429)

@@ -1,39 +1,28 @@
 # RockyGPT Brain
 
-A student assistant for Ramapo College, grounded in the currently published
-campus dataset. One model-driven conversation loop searches and reads official
-campus evidence. Eligible single contact questions are rendered from validated
-fields and citations in code after one tool-request call. Generated prose is
-checked by a separate evidence review before it is returned. Optional Jev routing
-can select tools and directly execute resolved contact/profile lookups; it defaults
-to off. There is no vector service, process conversation memory, or generated SQL.
-See [Jev routing setup and evaluation](docs/routing/README.md).
+The service behind RockyGPT, the Ramapo College student assistant.
 
-Combined contact/hours requests can use `lookup_profile`, which resolves a
-published `campus-identities` release artifact and retrieves its exact linked
-record keys from that same dataset. Persistent UUIDs identify entities; source
-record IDs, sources, collection times, and freshness remain separate. No name
-similarity establishes a link. Missing components and conflicting fields remain
-explicit without discarding independent facts. Operating schedules with unknown
-availability scope never establish phone-answering or staff hours. Profiles use
-the ordinary generated-answer evidence review; they have no exact-answer bypass.
-Older releases without the artifact report that profile linking is unavailable.
+The current rebuild implements a small complete answering path: one bounded
+assistant traverses Ramapo → Offices → office and reads its published records, and code
+renders the published facts and citations. Code also handles account limitations, safety
+help, missing context, provider failures, deadlines, and spending. Jev and the
+classification-to-planner pipeline are retired from the active runtime.
 
-Profile sections include `club` and `event`. Clubs retain the directory's published
-category and contact/social links; a listing does not establish current meetings
-or membership. Events represent individual RSVP instances, not academic programs
-or operating schedules. A null profile date retains an event's published occurrence;
-an explicit date filters in `America/New_York`. Repeated titles require a date or
-persistent identity, and missing times/locations remain unknown. Exact row IDs
-qualify colliding legacy event keys while preserving the original keys. An
-`organized_by` relationship requires explicit event-page group identity evidence;
-organizer or venue name similarity is insufficient. Separate page captures keep
-their own timestamps, and conflicting organizer assertions are not resolved by recency.
-The club `event` section follows incoming approved organizer links and rechecks
-their evidence, retaining each event's identity. It inspects at most 20 candidate
-events and reports unexamined candidates; this is not a complete event calendar.
-Date disambiguation likewise checks at most 20 identically named instances and
-otherwise retains ambiguity. Existing event search remains available for broader queries.
+## What this slice can do
+
+- Answer canonical office contact and room questions, including normal follow-ups.
+- Preserve supported public facts in requests that also ask for private accounts.
+- Show conflicting published records, unknown fields, and ambiguous office names.
+- Quote available conversation history with an explicit distinction from verified facts.
+- Return useful limitations when a requested capability is not available.
+
+The model cannot author arbitrary campus facts: code renders every office result
+retrieved during the current turn, and the model can add only bounded nonfactual
+response parts such as account limitations or clarification. There are no
+private-account read or write tools. Dining, shuttles, events, policies, general advice,
+and generated explanations
+are not implemented by this first slice. This is not yet a broadly capable student
+assistant or a production-quality certification.
 
 ## Run
 
@@ -41,128 +30,186 @@ otherwise retains ambiguity. Existing event search remains available for broader
 python -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
-cp .env.example .env
+# Supply trusted server settings from .env.example through the launch environment.
 uvicorn rockygpt_brain.api.app:app --host 127.0.0.1 --port 8000
 ```
 
-`.env` loads from the working directory without overriding exported variables.
-Set the environment-owned credentials in `.env.example` and apply the separate
-operational migrations using the [Phase 1 setup guide](docs/phase1.md). `DATABASE_URL`
-retains read-only SELECT access to published `rockygpt_v2` tables. The operational
-connection receives only its matching `brain_development` or `brain_production`
-role. Missing accounting configuration stops paid calls.
+The service needs a published campus dataset and its canonical identity registry,
+the environment-isolated accounting database, and the environment's OpenAI project.
+Missing configuration or dependencies make `/readiness` fail. `/health` only
+establishes that the process is running. Neither probe calls a paid model.
 
-The bundled `release.json` fixes the shared baseline at `gpt-6-luna`, `medium` draft
-and review reasoning. No model comparison or selection
-is part of Phase 1. Legacy API-key fallback is removed; a conflicting
-`OPENAI_CHAT_MODEL` override is rejected. Each environment has an independent
-$10 default monthly allowance. Explicit administrator-recorded development
-supplements expire at the end of their approved month; see [Phase 3](docs/phase3.md).
-`python -m rockygpt_brain.config` prints the release hash.
-If `STAGING_SERVICE_TOKEN` is set, chat requires the matching
-`x-rockygpt-environment-token` header. Keep it identical in UI and Dev.
+All model calls go through the same gateway. It reserves against the durable
+environment allowance before sending, accounts for returned usage, and keeps a
+reservation charged when delivery or usage is uncertain. No automated retries are
+made. Operators must reconcile uncertain reservations; waiting for a new month
+does not erase them.
 
-Production runs the `Dockerfile` on Render (`render.yaml` lists the settings it
-needs), started with `uvicorn rockygpt_brain.api.app:app --host 0.0.0.0 --port $PORT`.
-Operator routes (turn logs, stored feedback, eval runs, prompts, config, releases,
-raw records and documents) and `/openapi.json` answer 404 unless
-`BRAIN_ENVIRONMENT=development`.
+The bundled [provider release](src/rockygpt_brain/provider-release.json) records the
+model, pricing evidence, and expiry. Expired pricing blocks readiness and provider
+calls. An override must provide the model, input rate, output rate, and expiry
+together; changing only the model is rejected. There is no automatic deployed-price
+monitor: CI checks the configuration contract, and operators must renew the release
+before its expiry. The obsolete workflow reading a missing `prices.json` is removed.
 
-## HTTP contract
-
-- `GET /health` and `HEAD /health`: liveness plus the deployment settings (503 when they do
-  not load, so Render keeps the previous deploy); no database or model call.
-- `GET /readiness`: checks deployment configuration, price validity, the operational ledger,
-  and a read-only campus connection with an active release. This does not call the model or prove every
-  source is fresh; freshness is checked when records are retrieved.
-- `POST /v1/chat`: one JSON response, with the complete conversation supplied
-  on every request. A development Brain serves the generated schema at `/openapi.json`.
-
-```json
-{"messages":[{"role":"user","content":"How do I contact Financial Aid?"}]}
-```
-
-The response has `answer` (Markdown with validated source links), `status`
-(`answered`, `partial`, `clarification`, or `unavailable`), `citations`, `model`,
-`requestId`, `datasetVersion`, `elapsedMs`, `trace`, and `metrics`. Each citation includes
-its evidence ID, title, URL, collection, collection timestamp, freshness, trust,
-validity, and limitations. Trace exposes only tool names, arguments, result
-counts, search coverage, statuses, duration, and, for shuttle searches, the
-code-computed next/last departures the reviewer checks against; it does not
-contain model reasoning. Metrics distinguish draft and review model calls,
-requested and executed tools, and fixed validation-failure codes. Rejected answer
-text is not returned. A development Brain also returns the reviewer's reasons in
-`metrics.reviewRejections` so a false rejection can be diagnosed; production never
-does, and the saved turn summary never stores them. Invalid-output logs contain
-only the request ID and reason code.
-
-A development Brain asked with `X-RockyGPT-Diagnostics: 1` (the Dev control room
-asks; the student app never does) also returns `diagnostics`, on answers and
-failures alike: which Brain answered (`brain.revision` from `BRAIN_REVISION` or
-Render's `RENDER_GIT_COMMIT`, `brain.release`, `brain.configurationHash`), the
-campus time it started (`startedAt`), every record the writer and reviewer were
-given (`evidence`), and each draft as written with the reviewer's verdict on every
-paragraph (`drafts`). Production ignores the header, and the saved turn summary
-never stores any of it. `datasetVersion` is the release the turn read, including
-turns that made no lookup.
-
-Clients append the returned answer as an assistant message before the next user
-message. Prior assistant text resolves references but is not authoritative;
-campus evidence is retrieved anew on each turn. Failed requests are not appended.
-No student text or conversations are persisted by Brain. The operational ledger
-persists request IDs, release identity, token/cost metadata, and turn summaries. Model calls use
-`store=false`; this does not alter the provider's account-level retention policy.
-
-Requests are capped at 64 KiB, 80 messages, 16,000 characters per message, and
-48,000 total content characters. Oversized histories are rejected explicitly.
-Answers are capped at 12,000 characters so they fit in a subsequent request.
-There are at most four active turns per process, eight model calls in total
-(at most six draft/tool calls, with capacity reserved for review), twelve admitted tool attempts, a
-50-second execution budget, and a 52-second HTTP deadline. Retrieval has a
-30-second deadline, leaving time for synthesis and review. Exhausting retrieval
-does not disable answer repair. Provider connection attempts are capped at two
-seconds per address; model reads share the remaining turn budget. Timed-out
-workers retain their slot until provider and database cleanup finish. Validation errors use HTTP 422; upstream
-errors use 429/502/503/504 with a safe structured error and a request ID.
-
-The student app's campus panels read the active release through read-only routes:
-`GET /v1/menu`, `/v1/menu/browse?date=`, `/v1/dining-hours?date=`, `/v1/shuttle`,
-`/v1/map`, `/v1/directory`, `/v1/entities/{id}/facts`, and
-`/v1/data/{events|clubs|calendar|programs|courses}`. Menus, dining hours and shuttle
-trips come from the same tables chat retrieval reads, so a panel cannot contradict an
-answer; the rest are published release artifacts, served as released with an ETag.
-Classifier endpoints are not part of this Brain. The student and Dev chat interfaces
-use the contract above. Campus retrieval remains read-only. The separate operational
-schema records reservations, settlements, uncertain usage, and text-free turn metrics.
-
-Budget exhaustion returns HTTP 429 with `error.code=budget_exhausted`,
-`retryable=false`, the next New York month boundary in `resetAt`, and published
-source-catalog resources when available. Unknown usage retains its reservation
-across restarts and month changes. Expired prices or an unavailable ledger stop
-paid work. A conservative input ceiling returns `context_limit` without silently
-truncating conversation history.
-
-## Verification
+## Check
 
 ```sh
 ruff check .
-mypy src tests
+mypy src tests scripts
 pytest -q
-# Also required for accounting changes (disposable localhost database only):
-BRAIN_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55439/brain_accounting_test pytest -q
+python scripts/check_chat.py --out /tmp/chat-regression.json
 ```
 
-Run realistic live conversations from the sibling eval repository:
+The last command exercises `/v1/chat`, the real gateway, and the shared fact reader
+with scripted provider responses and synthetic facts. It makes no network or paid
+model calls. Its conversations are repeatable regressions, not blind evaluations.
+Use a new output path per run so saved evidence is not overwritten.
 
-```sh
-python ../rockygpt-evals/brain-reset/run.py --base-url http://127.0.0.1:8000 \
-  --output ../rockygpt-evals/brain-reset/results/checkpoint.json
-```
+The saved October 1 offline run passes 16/16 regression turns. A separate final
+live smoke run handled three requests, including a follow-up and mixed account
+question, but all had `status: unavailable` because the real source capture was
+stale. Dated observations and the account limitation remained visible. Earlier
+live failures are preserved. These checks establish integration behavior, not
+broad student-answer quality; [verification](docs/verification.md) records the
+outcomes, costs, and remaining limits.
 
-The harness checks contracts and replays actual generated conversation history.
-Review answers against retrieved facts as well: citation presence does not prove
-that a source supports every assertion. See [architecture](spec/system-boundaries.md)
-and [checkpoint verification](docs/verification.md).
+Read the [current contract](docs/contract.md), [verification scope](docs/verification.md),
+and [evaluation notes](evals/README.md). Earlier modules, runners, and reports remain
+as [historical evidence](docs/historical/README.md); they do not describe the active
+answering path.
 
-Phase 2 implementation, frozen retrieval measurements, browser checks, and the
-remaining live-configuration blocker are recorded in [Phase 2](docs/phase2.md).
+## Release graph (optional, off by default)
+
+Postgres is where the campus data is published. A release can also be published as a read-only
+graph-database file (LadybugDB, `retrieval/graph_store.py`), joined by edges, which the shared
+reader reads exactly as it reads Postgres: the graph hands over the same entities and the same
+linked evidence rows, and the reader still resolves every value, conflict, unknown and date
+boundary. Install the extra first: `pip install -e '.[graph]'`. There are two ways to use it.
+
+### Graph only: the Brain never connects to the campus database
+
+1. **Publish** (the one step that reads the campus database; run it wherever it can be reached,
+   after every data release): `python scripts/build_graph.py --out DIR [--dbname NAME]`. It builds
+   the active release into one file, then writes `DIR/active.json` (last, renamed into place), and
+   keeps the newest three releases.
+2. **Serve**: start the Brain with `BRAIN_GRAPH_ONLY_DIR=DIR`. It needs no `DATABASE_URL`, never
+   opens a Postgres connection for campus data, and serves whatever release `active.json` names. A
+   newly published release is served from the next question on. (The AI spending ledger is a
+   separate database and is still used.)
+3. **No fallback**: no published release, a damaged file, a pointer that disagrees with its file,
+   or a failed read is an error for the question, `/readiness` fails, and the log says why. A
+   graph that failed a read is opened afresh for the next question.
+
+### Self-building copy: the Brain follows Postgres
+
+With `BRAIN_GRAPH_DIR=DIR` the Brain keeps a copy of the active release itself, reading Postgres to
+learn the release and to build it.
+
+- **Built in the background.** The first question after a new release (or a wake-up) is answered
+  straight from Postgres while one background thread builds the graph, so no student waits for
+  it. The build reads the whole release in one transaction with its own 60-second limit.
+- **Never costs an answer.** If the graph cannot be built, opened or read, questions are answered
+  from Postgres and the graph is put aside for 60 seconds. A missing LadybugDB install is logged
+  at startup and the Brain keeps using Postgres.
+- **Follows the data.** Each question first asks Postgres which release is active (a cheap
+  probe); every 30 seconds the graph is also checked against a digest of the release's evidence
+  rows, so an in-place edit shows up within about 30 seconds.
+
+### Both modes
+
+- **Small.** The engine runs with a 64 MB buffer pool, one thread and a 1 GB file limit. In a test
+  against the development release the graph file was about 6 MB, built in about half a second,
+  and the whole process peaked near 160 MB.
+- **Visible.** `GET /v1/dev/runtime` reports `factsBackend` (what is serving now) and
+  `factsGraph` (counters, the release served, the last error).
+- **Safe to share.** Each build writes its own temporary file and removes every side-file the
+  engine leaves; an unfinished build file is only deleted once it is an hour old.
+
+On Render's free tier the disk is erased on every sleep, so a graph-only Brain there needs the
+published directory delivered to it (nothing does that yet); the self-building copy simply
+rebuilds after each wake.
+
+## Fact Packet output (optional, off by default)
+
+The design is two steps with a hard wall between them: the Brain understands the question,
+resolves entities, reads the graph, applies dates and rules, and ends with a validated **Fact
+Packet**; a writer (a template first, a model later) turns the packet into words and sees nothing
+else. The writer has zero context, so the packet stands alone, and it may not discover, infer,
+calculate or retrieve a fact. No factual answer reaches a writer until a packet has passed
+`validate_packet`; if it fails, the turn is a `503 invalid_fact_packet` error, never a guess.
+
+With `BRAIN_OUTPUT=json` a turn returns that packet and writes no answer text (no template and no
+writing model yet). `answer` is `""`; `status`, `citations`, `datasetVersion` and `requestId` are
+as in text mode, and the body gains `facts` (the packet). Errors are unchanged, and text mode stays
+the default, so the student UI is unaffected. `GET /v1/dev/runtime` reports `output`.
+
+With `BRAIN_OUTPUT=written` the same packet is said by a writer (`src/rockygpt_brain/writer.py`):
+one model call that is handed only `writerInput` (no tools, no conversation, not even the
+question) and returns text. A verifier then holds the text to the view: every email and web
+address must be in it, every phone number must be one it holds (in any punctuation), and every
+other number must be a number it holds. A reply that fails, a writer that errors and a packet
+with nothing to say (a question back, an emergency, fixed wording) leave the code-written text as
+the answer; `metrics.writer` says `used` or why not. The verifier is the floor, not the whole:
+what a number check cannot see (a wrong day, a reversed meaning) is audited by reading the
+answers against their views (a 71-answer audit on 2026-10-13 found no invented fact).
+
+A writer is never handed the full packet. The packet is the Brain's record (ids, hashes, the pages
+that were read); a template or a model with no other context only needs what it can say.
+`writer_view(packet)` (`src/rockygpt_brain/writer_view.py`) derives that: values, which are not
+current or conflict, what is unknown and what is confirmed not published, what to ask, the fixed
+wording to repeat, and numbered sources to cite. It drops the ids, the dataset and its hash, and
+leaves out whatever holds the usual value (`status` "known", `current` true, `freshness` "fresh",
+empty lists), so a missing key means the usual. Inside a schedule, the proof that a weekday or a
+validity date is not published (`absence`, `validity_absence`) is cut to when it was checked and which
+pages were read; the scope, reason sentence, section and page hash stay in the packet. It adds and
+infers nothing, and a packet field it does not know is carried through. In JSON output the body
+carries it as `writerInput` beside `facts` (60-90% smaller; a seasonal office such as the Testing
+Center goes from about 7 KB to under 2 KB). A test fails if a packet value is neither in the view nor on the list of
+what is dropped on purpose.
+
+Packet version `"1.0"` (`src/rockygpt_brain/fact_packet.py`):
+
+| key | what it holds |
+|---|---|
+| `request` | `intent` (`contact`, `hours`, `contact_and_hours`, `office_facts`, `office_lookup`, `safety`, `recall`, `clock`...), `entities [{id, name, kind, query}]`, `fields`, `asOf` (the campus time every freshness check used), `dataset {version, identityHash}` |
+| `status` | `complete`, `partial` (something missing, stale, conflicting or unanswerable), `insufficient`, `ambiguous` (the Brain needs a follow-up answered: an office name matched several offices, or the message named no office), `not_found`, `emergency`, `no_facts_needed` |
+| `facts` | `[{id, subject {id, name, kind}, predicate, value, status, current, source_ids}]`. `value` is exactly what the shared reader returned; `status` is `known`, `conflicting` or `multiple` (conflicts are listed side by side, none is chosen); `current` is false when no source is fresh and inside its published validity. Campus numbers sent for an emergency carry `purpose: "emergency_contact"`; an office's contact note read because a requested email or phone is not published carries `purpose: "also_published"`. Neither is a requested field or changes `status` |
+| `derived_facts` | what the Brain works out so a writer never computes: the hours of the one weekday the student asked about (`hours_on`: `day`, `date`, `value`, `applies`, `current`, `from`, `source_ids`). The model sets `day` (today, tomorrow or a weekday) on an hours lookup; code turns it into a campus date, reads that weekday from each schedule valid on it (`src/rockygpt_brain/hours_on.py`), and `applies` is false when the date falls outside the schedule's published window. A seasonal schedule whose page publishes no complete date range gets `applicability: "unverified"` and `applicability_reason` instead, with `hours: null` and `listed_hours` (what the schedule lists for that weekday, to be said as listed and unconfirmed for the date): the Brain does not guess which dates a season covers. The writer input carries the day and leaves out the full-week fact it came from. Time of day ("open at 8 pm", "open now") is not worked out yet. |
+| `missing` | `[{subject, predicate, reason}]`: a requested fact we hold no information about (reason `unknown`: nobody confirmed whether the office publishes it) |
+| `not_published` | `[{subject, predicate, checked_at, current, checks [{url, section, checked_at}], source_ids}]`: a requested fact the office's own pages were read for and do not state. It is an answer with its proof, so it does not make the packet `partial` unless the check is no longer current |
+| `ambiguities` | `[{query, candidates [{id, name, match}], truncated}]` |
+| `unresolved` | `[{query, reason}]`: a name that matched no office |
+| `notices` | replies that carry no facts, each with a `type`: `greeting`, `thanks`, `okay`, `about`, `unsupported`, `account_limit`, `clarification`, `clock` (`campusNow`), `recall` (the quoted message), `safety` (`situation`, `contacts`), `incomplete` (`code`: a provider failure cut the turn short; the facts found are kept), `emergency_reminder` (the standing reminder on a cut-short reply; not an emergency) |
+| `sources` | `[{id, title, collection, urls, captured_at, freshness, validity, valid_from, valid_until, current, limitations}]`; only `https` links are listed |
+
+A notice that stands for words the Brain used to write itself carries them as `approved_text`
+(the emergency guidance, "I can't see your student record", the greeting). The writer states them
+and never composes them; a `safety` notice without its `approved_text` is refused.
+
+## Root-first traversal
+
+Each chat turn receives the Ramapo navigation root. One `graph_lookup` request
+supplies an office name, nickname or service query and the requested fields. Code
+walks Ramapo → Offices → matched office and reads its published records, without a model
+call between nodes. Independent queries can be batched. A normal answer uses one model
+call to request the traversal and another to finish; the existing four-call and
+spending ceilings remain in place. Every query, including a follow-up, starts at
+the root. Unknown or ambiguous matches stay explicit.
+
+Root/category edges organize navigation; linked published records supply facts.
+Only the office branch is implemented. All reads use the shared reader and the
+turn's dataset/identity pins. Emergency contacts use the same path in code, require
+an exact office name, and retain their separate time limit.
+
+Development traces record full paths, pins, the lookup time, answer contributions
+and citations. `GET /v1/dev/graph/node` lets the developer UI inspect a reached node
+through the same root path, without model calls. Trace links carry the publication,
+fields and lookup time; a publication change returns 409 instead of mixing releases.
+
+Development diagnostics also partition request time into non-overlapping measured
+steps, with a total header that includes response encoding. See [the timing
+contract](docs/contract.md#developer-diagnostics).
+
+The single-request traversal, graph inspector and request timing have not been tested or built at
+the user's request. Earlier saved results do not verify these changes.

@@ -1,0 +1,17 @@
+[
+{"id": "ec4-01", "question": "when is the next career fair and is it open to all majors", "topic": "event"},
+{"id": "ec4-02", "question": "any career events or employer info sessions happening this week?", "topic": "event"},
+{"id": "ec4-03", "question": "Is there a resume workshop coming up? I commute so I need to know the day and time to plan around my classes", "topic": "event"},
+{"id": "ec4-04", "question": "guest speakers next week", "topic": "event"},
+{"id": "ec4-05", "question": "what arts performances are on campus this month, like theater or music concerts at the Sharp Theater or Berrie Center", "topic": "event"},
+{"id": "ec4-06", "question": "is there anything the School of Business is hosting this semester? lectures, networking, whatever", "topic": "event"},
+{"id": "ec4-07", "question": "Are there any events next friday and are they free for students?", "topic": "event"},
+{"id": "ec4-08", "question": "whats the Career Development office running this month, workshops or mock interviews?", "topic": "event"},
+{"id": "ec4-09", "question": "Is there a dance or music performance this weekend and where do I get tickets", "topic": "event"},
+{"id": "ec4-10", "question": "what events are the school of theoretical and applied science doing, like a seminar or speaker series", "topic": "event"},
+{"id": "ec4-11", "question": "is there a pre-law or business professional club for upperclassmen, and where can I see their page", "topic": "club"},
+{"id": "ec4-12", "question": "how do I find a list of all the academic clubs/honor societies", "topic": "club"},
+{"id": "ec4-13", "question": "how many people are going to the career fair this year", "topic": "out_of_scope"},
+{"id": "ec4-14", "question": "im a junior commuter who works part time, which club should i join to help me get an internship", "topic": "out_of_scope"},
+{"id": "ec4-15", "question": "will the keynote speaker at the next lecture be good and what time does the pre-event dinner start? not sure its on the calendar", "topic": "out_of_scope"}
+]

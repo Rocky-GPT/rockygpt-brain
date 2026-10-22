@@ -1,0 +1,487 @@
+[
+ {
+  "id": "p1-01",
+  "question": "how do i register for classes next semester",
+  "topic": "procedure"
+ },
+ {
+  "id": "p1-02",
+  "question": "I have a hold on my account and cant register. how do I find out what its for and who do I talk to to get it removed?",
+  "topic": "contact"
+ },
+ {
+  "id": "p1-04",
+  "question": "whats the process to drop a class after the add/drop period ends",
+  "topic": "procedure"
+ },
+ {
+  "id": "p1-05",
+  "question": "how do i change my major? im a sophmore and want to switch from bio to psych",
+  "topic": "procedure"
+ },
+ {
+  "id": "p1-06",
+  "question": "lost my student ID, how do I get a new one and does it cost anything",
+  "topic": "procedure"
+ },
+ {
+  "id": "p1-07",
+  "question": "how do I apply for FAFSA / financial aid for next year and who do I contact if I have questions",
+  "topic": "contact"
+ },
+ {
+  "id": "p1-08",
+  "question": "when is tuition due and what happens if i pay late",
+  "topic": "policy"
+ },
+ {
+  "id": "p1-09",
+  "question": "can I set up a payment plan for my bill? where do i do that",
+  "topic": "procedure"
+ },
+ {
+  "id": "p1-10",
+  "question": "how do i withdraw from the college completely",
+  "topic": "procedure"
+ },
+ {
+  "id": "p1-11",
+  "question": "whats the policy on taking a class pass/fail",
+  "topic": "policy"
+ },
+ {
+  "id": "p1-12",
+  "question": "how do I get a parking permit and where can freshmen/commuters park",
+  "topic": "procedure"
+ },
+ {
+  "id": "p1-13",
+  "question": "i got a parking ticket, how do i appeal it",
+  "topic": "procedure"
+ },
+ {
+  "id": "p1-14",
+  "question": "How do I request a schedule change in my dorm or get a different roommate?",
+  "topic": "procedure"
+ },
+ {
+  "id": "p1-15",
+  "question": "can my friend from home stay overnight in my room",
+  "topic": "policy"
+ },
+ {
+  "id": "p1-16",
+  "question": "how do i get my immunization records submitted? health center",
+  "topic": "procedure"
+ },
+ {
+  "id": "p1-17",
+  "question": "what do I do if I lost something on campus, like my airpods",
+  "topic": "procedure"
+ },
+ {
+  "id": "p1-18",
+  "question": "how do i get a letter proving im enrolled full time for my insurance",
+  "topic": "procedure"
+ },
+ {
+  "id": "p1-19",
+  "question": "who do i email about a problem with my financial aid package",
+  "topic": "contact"
+ },
+ {
+  "id": "p1-20",
+  "question": "how do I get a refund if I overpaid or dropped classes",
+  "topic": "procedure"
+ },
+ {
+  "id": "p1-21",
+  "question": "how many credits do I need to graduate and how do I apply for graduation",
+  "topic": "procedure"
+ },
+ {
+  "id": "p1-23",
+  "question": "what's my current balance on my student account?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "p1-24",
+  "question": "what classes should I take next semester to graduate on time, im a junior in business",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "p1-25",
+  "question": "did my transcript request go through yet",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "p2-01",
+  "question": "Can my roommate's boyfriend sleep over in our room? What's the guest policy in the dorms",
+  "topic": "policy"
+ },
+ {
+  "id": "p2-02",
+  "question": "how do i sign up for a move out time at the end of the semester",
+  "topic": "procedure"
+ },
+ {
+  "id": "p2-03",
+  "question": "My daughter is a freshman moving in this fall. What can and can't she bring to her residence hall room (microwave, mini fridge, candles, etc.)?",
+  "topic": "policy"
+ },
+ {
+  "id": "p2-04",
+  "question": "whats the rule on alcohol in the residence halls if ur 21",
+  "topic": "policy"
+ },
+ {
+  "id": "p2-05",
+  "question": "how do I request a room change and who do I talk to about a bad roommate situation",
+  "topic": "procedure"
+ },
+ {
+  "id": "p2-06",
+  "question": "I locked myself out of my room at 2am. What do I do and who do I call?",
+  "topic": "contact"
+ },
+ {
+  "id": "p2-07",
+  "question": "How do I get a meal plan changed or dropped after the semester has started?",
+  "topic": "procedure"
+ },
+ {
+  "id": "p2-08",
+  "question": "i have celiac, how do i get dining accommodations for food allergies",
+  "topic": "procedure"
+ },
+ {
+  "id": "p2-09",
+  "question": "can I have an emotional support animal in my dorm and how do I apply for it",
+  "topic": "procedure"
+ },
+ {
+  "id": "p2-10",
+  "question": "Are pets allowed in campus housing? Even a fish or something small",
+  "topic": "policy"
+ },
+ {
+  "id": "p2-11",
+  "question": "how do I submit a maintenance request for a broken heater in my room",
+  "topic": "procedure"
+ },
+ {
+  "id": "p2-12",
+  "question": "What happens to my stuff if I leave it in my room after move out day? Is there a fee?",
+  "topic": "policy"
+ },
+ {
+  "id": "p2-13",
+  "question": "As a parent, when is the earliest my son can move in, and how do we schedule a move-in time?",
+  "topic": "procedure"
+ },
+ {
+  "id": "p2-14",
+  "question": "I got sick and need to see someone on campus, how do i make an appt with health services and do I need insurance",
+  "topic": "procedure"
+ },
+ {
+  "id": "p2-15",
+  "question": "whats the quiet hours policy in the halls and who do i report noise to",
+  "topic": "policy"
+ },
+ {
+  "id": "p2-16",
+  "question": "how do I get the meningitis vaccine form / immunization records submitted before I can live on campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "p2-17",
+  "question": "is smoking or vaping allowed anywhere near the dorms",
+  "topic": "policy"
+ },
+ {
+  "id": "p2-18",
+  "question": "What should I do if I feel unsafe in my residence hall or someone is harassing me? Who is the contact for campus safety",
+  "topic": "contact"
+ },
+ {
+  "id": "p2-19",
+  "question": "can i stay on campus over winter break or thanksgiving break, how do i apply for break housing",
+  "topic": "procedure"
+ },
+ {
+  "id": "p2-20",
+  "question": "how do I get a mailbox key or pick up a package at the dorm",
+  "topic": "procedure"
+ },
+ {
+  "id": "p2-21",
+  "question": "Can I cook in my room? like a hot plate or air fryer",
+  "topic": "policy"
+ },
+ {
+  "id": "p2-22",
+  "question": "how do I cancel my housing contract if I decide to commute instead, will I get my deposit back",
+  "topic": "procedure"
+ },
+ {
+  "id": "p2-23",
+  "question": "What's my current housing assignment and who is my roommate this semester?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "p2-24",
+  "question": "Is the food in the dining hall actually any good and which meal plan is the best deal for a freshman?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "p2-25",
+  "question": "is the laundry room in my building busy right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "p3-01",
+  "question": "How do I appeal a grade I think was unfair? Who do I talk to first?",
+  "topic": "procedure"
+ },
+ {
+  "id": "p3-02",
+  "question": "whats the academic integrity policy",
+  "topic": "policy"
+ },
+ {
+  "id": "p3-03",
+  "question": "I got accused of plagiarism on a paper. What happens now and what are my rights?",
+  "topic": "procedure"
+ },
+ {
+  "id": "p3-04",
+  "question": "how do i take a leave of absence for a semester",
+  "topic": "procedure"
+ },
+ {
+  "id": "p3-05",
+  "question": "Is there an attendance policy or can professors set their own? I missed 4 classes bc of a family emergency",
+  "topic": "policy"
+ },
+ {
+  "id": "p3-06",
+  "question": "how do I register for accomodations with disability services and who do I email",
+  "topic": "contact"
+ },
+ {
+  "id": "p3-07",
+  "question": "How do I file a complaint against a professor?",
+  "topic": "procedure"
+ },
+ {
+  "id": "p3-08",
+  "question": "what happens if I get written up by my RA for noise",
+  "topic": "policy"
+ },
+ {
+  "id": "p3-09",
+  "question": "Can I withdraw from a class after the deadline for a medical reason?",
+  "topic": "policy"
+ },
+ {
+  "id": "p3-10",
+  "question": "student conduct hearing process",
+  "topic": "procedure"
+ },
+ {
+  "id": "p3-11",
+  "question": "Who do I contact about Title IX if I want to report something?",
+  "topic": "contact"
+ },
+ {
+  "id": "p3-12",
+  "question": "I need extra time on exams. What paperwork do I need and how long does approval take?",
+  "topic": "procedure"
+ },
+ {
+  "id": "p3-13",
+  "question": "how do I come back after a leave of absence/ withdrawl",
+  "topic": "procedure"
+ },
+ {
+  "id": "p3-14",
+  "question": "Does the school have a policy on using ChatGPT for assignments?",
+  "topic": "policy"
+ },
+ {
+  "id": "p3-15",
+  "question": "can i bring an emotional support animal in the dorms",
+  "topic": "policy"
+ },
+ {
+  "id": "p3-16",
+  "question": "What is the process to appeal a suspension or dismissal from the college?",
+  "topic": "procedure"
+ },
+ {
+  "id": "p3-17",
+  "question": "how many absences are allowed before i fail a class",
+  "topic": "policy"
+ },
+ {
+  "id": "p3-18",
+  "question": "I want to file a complaint about how my financial aid office treated me. Where do I send it?",
+  "topic": "contact"
+ },
+ {
+  "id": "p3-19",
+  "question": "how do I get an incomplete grade instead of failing?",
+  "topic": "procedure"
+ },
+ {
+  "id": "p3-20",
+  "question": "What is the policy on alcohol and drugs on campus, and what are the consequences?",
+  "topic": "policy"
+ },
+ {
+  "id": "p3-21",
+  "question": "Will my professor be told I have a disability accommodation without my permission?",
+  "topic": "policy"
+ },
+ {
+  "id": "p3-22",
+  "question": "what's my GPA right now and will I be put on academic probation",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "p3-23",
+  "question": "Should I appeal my grade or just retake the class? I got a C- and need a B for my major",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "p3-24",
+  "question": "Is my conduct case still open? I got an email last week",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "p3-25",
+  "question": "how do i request a bereavement excused absence and who needs to approve it, dean or my prof?",
+  "topic": "procedure"
+ },
+ {
+  "id": "p4-02",
+  "question": "I want to host an event with my club in the student center. Who do I talk to and what forms do I need to fill out to reserve the space?",
+  "topic": "procedure"
+ },
+ {
+  "id": "p4-03",
+  "question": "how do i reset my ramapo password if i got locked out",
+  "topic": "procedure"
+ },
+ {
+  "id": "p4-04",
+  "question": "whats the wifi setup for my xbox in the dorms? do i have to register it",
+  "topic": "policy"
+ },
+ {
+  "id": "p4-05",
+  "question": "How do I get set up with multi-factor authentication on my college account, and who do I call if my phone broke?",
+  "topic": "contact"
+ },
+ {
+  "id": "p4-06",
+  "question": "can i borrow a laptop from the library",
+  "topic": "policy"
+ },
+ {
+  "id": "p4-07",
+  "question": "how do I request a book through interlibrary loan",
+  "topic": "procedure"
+ },
+ {
+  "id": "p4-08",
+  "question": "how many books can a student check out at once and how long can I keep them",
+  "topic": "policy"
+ },
+ {
+  "id": "p4-09",
+  "question": "how do i get a parking permit as a commuter",
+  "topic": "procedure"
+ },
+ {
+  "id": "p4-10",
+  "question": "i got a parking tikcet how do i appeal it",
+  "topic": "procedure"
+ },
+ {
+  "id": "p4-11",
+  "question": "Can freshmen who live on campus have a car? And if so where do they have to park?",
+  "topic": "policy"
+ },
+ {
+  "id": "p4-12",
+  "question": "how do i find a work study job on campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "p4-13",
+  "question": "what paperwork do i need to bring on my first day at an on campus job",
+  "topic": "procedure"
+ },
+ {
+  "id": "p4-14",
+  "question": "how do i get my resume reviewed by career services",
+  "topic": "procedure"
+ },
+ {
+  "id": "p4-15",
+  "question": "Is there a way to find internships through the college and who should I email about getting academic credit for one?",
+  "topic": "contact"
+ },
+ {
+  "id": "p4-16",
+  "question": "how do i sign up for study abroad",
+  "topic": "procedure"
+ },
+ {
+  "id": "p4-17",
+  "question": "will my financial aid cover a semester abroad? who do i ask",
+  "topic": "contact"
+ },
+ {
+  "id": "p4-18",
+  "question": "do study abroad credits transfer back automatically or do I need approval first",
+  "topic": "policy"
+ },
+ {
+  "id": "p4-19",
+  "question": "how can I get my club funded by SGA",
+  "topic": "procedure"
+ },
+ {
+  "id": "p4-20",
+  "question": "can clubs post flyers around campus or is there a rule on that",
+  "topic": "policy"
+ },
+ {
+  "id": "p4-21",
+  "question": "my student email isnt syncing on my phone what do i do",
+  "topic": "procedure"
+ },
+ {
+  "id": "p4-22",
+  "question": "How do I print from my laptop in the library or labs?",
+  "topic": "procedure"
+ },
+ {
+  "id": "p4-23",
+  "question": "is the career fair happening this semester and what time does it start",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "p4-24",
+  "question": "how much does a parking permit cost this year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "p4-25",
+  "question": "which club should i join if i like gaming and want to make friends fast",
+  "topic": "out_of_scope"
+ }
+]

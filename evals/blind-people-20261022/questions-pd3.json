@@ -1,0 +1,17 @@
+[
+{"id": "pd3-01", "question": "Hi, my daughter is a sophomore and has a class with Professor Gilad Cohen. What is his email so I can reach him?", "topic": "contact"},
+{"id": "pd3-02", "question": "where is prof Sexton's office? i'm visiting the library tomorrow", "topic": "contact"},
+{"id": "pd3-03", "question": "What's the phone number and office room for Mark Howenstien in social sciences?", "topic": "contact"},
+{"id": "pd3-04", "question": "Is there a professor Miller in the business school? Which Miller is it and what is the email?", "topic": "contact"},
+{"id": "pd3-05", "question": "Looking for Kathleen Ray, what is her title and what department is she in", "topic": "role"},
+{"id": "pd3-06", "question": "who is Renata Gangemi", "topic": "role"},
+{"id": "pd3-07", "question": "I'm coming to campus next week with my son. Can you tell me where Dr. Yongbum Kim's office is and what his office hours are?", "topic": "contact"},
+{"id": "pd3-08", "question": "Who is the chair of the nursing department?", "topic": "role"},
+{"id": "pd3-09", "question": "what does Carrie Miller teach in the science school? and does she do research", "topic": "teaching"},
+{"id": "pd3-10", "question": "Looking for a prof named Dean Chen, I think he teaches social work? How do I contact him", "topic": "contact"},
+{"id": "pd3-11", "question": "Can you give me the email for Professor Zbigniew Hartwell? My nephew said he's in the history department.", "topic": "contact"},
+{"id": "pd3-12", "question": "Is Professor Daly Martinez in her office today? I'm driving up from Philly and don't want to make the trip for nothing.", "topic": "out_of_scope"},
+{"id": "pd3-13", "question": "Is Mark Miller a good professor? My daughter is thinking of taking his class", "topic": "out_of_scope"},
+{"id": "pd3-14", "question": "who teaches music at ramapo, i heard Cohen is a composer", "topic": "teaching"},
+{"id": "pd3-15", "question": "Can you give me Professor Gangemi's home address? I want to send a thank you card to her house.", "topic": "out_of_scope"}
+]
