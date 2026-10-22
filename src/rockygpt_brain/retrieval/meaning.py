@@ -74,6 +74,10 @@ class MeaningIndex:
         # named only in part is found by its meaning. Never office cards: they are read as offices.
         self.academic: list[tuple[str, str]] = [(str(a[0]), str(a[1]))
                                                 for a in meta.get("academic") or []]
+        # The catalog courses whose published prerequisites name each course, by code.
+        self.required_by: dict[str, list[str]] = {
+            str(code): [str(c) for c in later]
+            for code, later in (meta.get("required_by") or {}).items()}
         if len(vectors) != (len(self.owner) + len(self.cards)
                             + len(self.academic)) * self.dimensions:
             raise ValueError("The meaning index vectors do not match its units.")

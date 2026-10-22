@@ -12,13 +12,16 @@ from rockygpt_brain.academics import (
     also_published,
     asks_academics,
     by_meaning,
+    catalog_listing,
     choose_plan,
     course_codes,
+    course_evidence,
     find_programs,
     program_level,
     render_plan,
     render_requirements,
     render_requisites,
+    requisite_codes,
 )
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
@@ -294,3 +297,41 @@ def test_a_program_or_course_named_in_part_is_found_by_meaning_above_its_floor()
     # "Food" names a dining question unless the message asks about a program or course.
     assert routes_here("what is the food studies minor")
     assert not routes_here("where can i get food right now")
+
+
+def test_a_short_subject_names_the_one_course_with_its_number() -> None:
+    known = {"SOCI 301", "PSYC 101", "SOCI 101", "SOWK 301"}
+    assert course_codes("whats the prereq for soc 301", known) == ["SOCI 301"]
+    assert course_codes("what does psych 101 cover", known) == ["PSYC 101"]
+    # "SO 301" is too short to be a subject, and two subjects with 301 would be a guess.
+    assert course_codes("so 301", known) == []
+    assert course_codes("sow 301 or soc 301", known) == ["SOWK 301", "SOCI 301"]
+
+
+def test_a_class_year_or_a_plans_own_name_chooses_the_plan() -> None:
+    plans = [plan("Visual Arts", "Fall 2026"), plan("Contemporary Arts", "Fall 2026"),
+             plan("Visual Arts", "Fall 2024")]
+    chosen = choose_plan(plans, "Visual Arts BA", "im a junior in visual arts", date(2026, 10, 21))
+    assert chosen is not None and chosen["cohort"] == "Fall 2024"
+    chosen = choose_plan(plans, "Visual Arts BA", "freshman in contemporary arts",
+                         date(2026, 10, 21))
+    assert chosen is not None and chosen["name"] == "Contemporary Arts"
+
+
+def test_the_catalog_lists_programs_by_the_levels_asked() -> None:
+    listing = catalog_listing(PROGRAMS, "is there a minor in law and society")
+    assert listing == {"minors": ["Computer Science Minor", "Psychology Minor"]}
+    assert set(catalog_listing(PROGRAMS, "what can i study")) == {
+        "majors", "minors", "graduate programs", "certificates", "4+1 programs"}
+
+
+def test_a_course_is_said_with_the_courses_whose_prerequisites_name_it() -> None:
+    assert requisite_codes([{"section": "Prerequisite", "rule": {"subRules": [
+        {"items": [{"codes": [{"code": "PSYC 101"}]}]}], "items": [
+        {"codes": [{"code": "CRWT 102"}]}]}}]) == {"PSYC 101", "CRWT 102"}
+    facts = {"properties": [{"values": [{"value": {
+        "code": "PSYC 101", "name": "INTRO", "credits": 4, "requisites": [],
+        "catalog_url": "https://catalog.ramapo.edu/courses/PSYC101"}}]}]}
+    item = course_evidence(facts, 1, [f"PSYC {n}" for n in range(200, 225)])
+    assert item["prerequisites"] == "none published"
+    assert len(item["is_a_prerequisite_for"]) == 20 and item["more_courses_list_it"] == 5
