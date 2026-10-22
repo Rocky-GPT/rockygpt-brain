@@ -111,6 +111,23 @@ def asks_academics(message: str) -> bool:
     return bool(_ACADEMIC.search(message.casefold()))
 
 
+_LISTING_LEVELS = {"major": "majors", "minor": "minors", "graduate": "graduate programs",
+                   "certificate": "certificates", "special": "4+1 programs"}
+
+
+def catalog_listing(programs: Sequence[dict[str, Any]], message: str) -> dict[str, list[str]]:
+    """Every published program's name by level (the levels the message asks about, else all),
+    so "what majors are there" is answered and a program the catalog does not list is said to
+    be missing rather than guessed at."""
+    levels = asked_levels(message) or set(_LISTING_LEVELS)
+    listing: dict[str, list[str]] = {}
+    for program in programs:
+        level = program_level(str(program["name"]))
+        if level in levels:
+            listing.setdefault(_LISTING_LEVELS[level], []).append(str(program["name"]))
+    return {key: sorted(names) for key, names in listing.items()}
+
+
 def also_published(programs: Sequence[dict[str, Any]],
                    chosen: Sequence[dict[str, Any]]) -> list[str]:
     """The other levels of the chosen programs' core names ("Computer Science Minor, MS")."""
@@ -132,6 +149,11 @@ def _course(course: dict[str, Any]) -> str:
 
 
 _YEAR = re.compile(r"\b(20\d\d)\b")
+# A student's class names how many years ago they were admitted: a junior's plan is the one for
+# students admitted two academic years before this one.
+_CLASS_YEARS = ((re.compile(r"\bsenior|\bfourth[- ]year"), 3),
+                (re.compile(r"\bjunior|\bthird[- ]year"), 2),
+                (re.compile(r"\bsophomore|\bsecond[- ]year"), 1))
 
 
 def current_cohort(today: date) -> str:
@@ -146,13 +168,20 @@ def choose_plan(plans: Sequence[dict[str, Any]], program: str, message: str,
     the plan named as the program itself rather than a variant of it."""
     cohorts = {str(p.get("cohort")) for p in plans}
     asked = [f"Fall {year}" for year in _YEAR.findall(message) if f"Fall {year}" in cohorts]
-    cohort = asked[0] if asked else current_cohort(today)
+    current = int(current_cohort(today)[-4:])
+    standing = next((years for word, years in _CLASS_YEARS if word.search(message.casefold())), 0)
+    cohort = asked[0] if asked else f"Fall {current - standing}"
     if cohort not in cohorts:
         cohort = max(cohorts, key=lambda c: c[-4:], default="")
     pool = [p for p in plans if str(p.get("cohort")) == cohort]
+    # A plan the message names by its own name (a concentration: "Contemporary Arts" of Visual
+    # Arts) before the plan named as the program itself.
+    words = discovery_tokens(message)
     core = program_core(program).casefold()
+    asked_plan = [p for p in pool if (name := discovery_tokens(str(p.get("name") or "")))
+                  and name <= words and str(p.get("name") or "").casefold() != core]
     named = [p for p in pool if str(p.get("name") or "").casefold() == core]
-    chosen = named or pool
+    chosen = asked_plan or named or pool
     return chosen[0] if chosen else None
 
 
@@ -260,10 +289,21 @@ MAX_COURSES = 6
 
 def course_codes(message: str, known: set[str]) -> list[str]:
     """The catalog course codes a message names, in its order: a typed code counts only when it
-    is exactly a published catalog code, so "ASB 312" (a room) and "room 147" are not courses."""
+    is exactly a published catalog code, or when its subject is a short form of exactly one
+    catalog code's subject with the same number ("soc 301" is SOCI 301, "psych 101" PSYC 101),
+    so "ASB 312" (a room) and "room 147" are not courses."""
+    by_number: dict[str, list[str]] = {}
+    for code in known:
+        by_number.setdefault(code.rsplit(" ", 1)[-1], []).append(code)
     found: list[str] = []
     for subject, number in _TYPED_CODE.findall(message):
-        code = f"{subject.upper()} {number.upper()}"
+        typed, number = subject.upper(), number.upper()
+        code = f"{typed} {number}"
+        if code not in known and len(typed) >= 3:
+            short = [c for c in by_number.get(number, [])
+                     if (catalog := c.rsplit(" ", 1)[0]).startswith(typed)
+                     or typed.startswith(catalog)]
+            code = short[0] if len(short) == 1 else code
         if code in known and code not in found:
             found.append(code)
     return found[:MAX_COURSES]
@@ -305,6 +345,23 @@ def _requisite_rule(rule: dict[str, Any], depth: int) -> list[str]:
     return lines
 
 
+def requisite_codes(requisites: Sequence[dict[str, Any]]) -> set[str]:
+    """Every course code a course's published requisites name, in any rule or sub-rule."""
+    found: set[str] = set()
+
+    def walk(rule: dict[str, Any]) -> None:
+        for item in rule.get("items") or []:
+            found.update(str(c.get("code")) for c in item.get("codes") or []
+                         if isinstance(c, dict) and c.get("code"))
+        for sub in rule.get("subRules") or rule.get("sub_rules") or []:
+            if isinstance(sub, dict):
+                walk(sub)
+    for section in requisites:
+        if isinstance(section, dict) and isinstance(section.get("rule"), dict):
+            walk(section["rule"])
+    return found
+
+
 def render_requisites(requisites: Sequence[dict[str, Any]]) -> str:
     """A course's published prerequisites and corequisites as lines: each section, then its rule
     tree as published (sub-rules, conditions, minimum grades, placement tests, notes)."""
@@ -319,13 +376,22 @@ def render_requisites(requisites: Sequence[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def course_evidence(facts: dict[str, Any], n: int) -> dict[str, Any]:
-    """What the reply is given for one course, from its catalog record."""
+MAX_REQUIRED_BY = 20
+
+
+def course_evidence(facts: dict[str, Any], n: int,
+                    required_by: Sequence[str] = ()) -> dict[str, Any]:
+    """What the reply is given for one course, from its catalog record, and the catalog courses
+    whose published prerequisites name it (from the meaning index's reverse index)."""
     course = facts["properties"][0]["values"][0]["value"]
     requisites = course.get("requisites") or []
+    later = list(required_by)[:MAX_REQUIRED_BY]
     return {"n": n, "course": f"{course.get('code')} {course.get('name') or ''}".strip(),
             "credits": course.get("credits"), "school": course.get("school"),
             "description": course.get("description") or None,
             "attributes": course.get("attributes") or [],
-            "prerequisites": render_requisites(requisites) if requisites else None,
+            "prerequisites": render_requisites(requisites) if requisites else "none published",
+            **({"is_a_prerequisite_for": later,
+                **({"more_courses_list_it": len(required_by) - len(later)}
+                   if len(required_by) > len(later) else {})} if later else {}),
             "catalog_url": course.get("catalog_url")}

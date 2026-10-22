@@ -1606,7 +1606,7 @@ class ChatEngine:
 
     def _read_programs(self, programs: Sequence[dict[str, Any]], others: Sequence[str],
                        courses: Sequence[dict[str, Any]] = (), message: str = "",
-                       today: date | None = None,
+                       today: date | None = None, listing: bool = False,
                        ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
         """Each named program's and course's facts through the shared reader, as numbered
         evidence."""
@@ -1621,12 +1621,25 @@ class ChatEngine:
             sources.append({"n": item["n"], "url": item.get("catalog_url"),
                             "title": item.get("program")})
         if courses:
+            index = self.facts.meaning_index()
             for facts in self.facts.get_course_facts([c["id"] for c in courses], version,
                                                      identity_hash=identity_hash):
-                item = academics.course_evidence(facts, len(sources) + 1)
+                code = str(facts["entity"]["name"])
+                item = academics.course_evidence(
+                    facts, len(sources) + 1, index.required_by.get(code, []) if index else [])
                 evidence.append(item)
                 sources.append({"n": item["n"], "url": item.get("catalog_url"),
                                 "title": item.get("course")})
+        if listing:
+            # Every published program by level, so "what majors are there" is answered and a
+            # program the catalog does not list is said to be missing.
+            programs = self.facts.identities(("program",))
+            item = {"n": len(sources) + 1,
+                    "catalog_programs": academics.catalog_listing(programs, message),
+                    "catalog_url": "https://catalog.ramapo.edu/programs"}
+            evidence.append(item)
+            sources.append({"n": item["n"], "url": item["catalog_url"],
+                            "title": "Programs in the college catalog"})
         return evidence, sources, version
 
     async def _one_call(self, turn: Turn, context: Context, budget: TurnBudget,
@@ -1677,11 +1690,10 @@ class ChatEngine:
                     if not programs and index.academic and academics.asks_academics(latest):
                         found_programs, found_courses = self._academics_by_meaning(
                             index, vectors[0], latest)
-                        if found_programs or found_courses:
-                            with measure("Read the programs found by meaning"):
-                                academic, sources, dataset_version = await asyncio.to_thread(
-                                    self._read_programs, found_programs, [], found_courses,
-                                    latest, turn.campus_now.date())
+                        with measure("Read the programs found by meaning"):
+                            academic, sources, dataset_version = await asyncio.to_thread(
+                                self._read_programs, found_programs, [], found_courses,
+                                latest, turn.campus_now.date(), True)
                 chosen = None
                 if searchable and index is not None and index.labels:
                     pool_scores, pool = one_call.chosen_units(
