@@ -1,0 +1,302 @@
+[
+ {
+  "id": "ae1-01",
+  "question": "im transferring from bergen community college with an associates in liberal arts, do i still have to do all the gen eds at ramapo or does the AA cover them?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ae1-02",
+  "question": "how many credits do i need total to graduate from ramapo and how many of those have to be taken at ramapo itself",
+  "topic": "program"
+ },
+ {
+  "id": "ae1-03",
+  "question": "what are the prerequisites for cmps 231",
+  "topic": "course"
+ },
+ {
+  "id": "ae1-04",
+  "question": "I took intro to psych and statistics at my community college. For the psychology major, which required courses would I still have left after those two?",
+  "topic": "program"
+ },
+ {
+  "id": "ae1-05",
+  "question": "does ramapo have a nursing program for transfer students or is it only freshmen",
+  "topic": "program"
+ },
+ {
+  "id": "ae1-06",
+  "question": "is there a business administration major with a concentration in marketing? and what are the upper level courses for it",
+  "topic": "program"
+ },
+ {
+  "id": "ae1-07",
+  "question": "how many credits is the minor in data science and which courses are in it",
+  "topic": "program"
+ },
+ {
+  "id": "ae1-08",
+  "question": "Do the transfer seminar or first year seminar requirements apply to me if I'm coming in as a junior?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ae1-09",
+  "question": "what does ACCT 221 cover and is it 4 credits",
+  "topic": "course"
+ },
+ {
+  "id": "ae1-10",
+  "question": "can you check if my ENG 101 from passaic county cc transferred in as ramapo's writing requirement",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ae1-11",
+  "question": "im a transfer starting the computer science major in the fall with my math done, whats the recommended order of the cs courses for the next 2 years",
+  "topic": "sequence"
+ },
+ {
+  "id": "ae1-12",
+  "question": "Is there a writing intensive requirement for graduation and how many WI courses do you need?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ae1-13",
+  "question": "which section of bio 211 has open seats this spring and who teaches it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ae1-14",
+  "question": "does a 3 credit course from community college count the same as a ramapo 4 credit course toward a major requirement?",
+  "topic": "program"
+ },
+ {
+  "id": "ae1-15",
+  "question": "should i switch to a criminal justice major or stay with sociology, which one will get me done faster with my transfer credits",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ae2-01",
+  "question": "how many credits is the comp sci minor vs the data science minor? trying to see which one is less work",
+  "topic": "program"
+ },
+ {
+  "id": "ae2-02",
+  "question": "is there a psych minor or is it only a major",
+  "topic": "program"
+ },
+ {
+  "id": "ae2-03",
+  "question": "what do i need to take for the poli sci minor",
+  "topic": "program"
+ },
+ {
+  "id": "ae2-04",
+  "question": "can you double major in bio and chem at ramapo? and how many credits would the chem major be on its own",
+  "topic": "program"
+ },
+ {
+  "id": "ae2-05",
+  "question": "whats the prereq for stats 2",
+  "topic": "course"
+ },
+ {
+  "id": "ae2-06",
+  "question": "does intro to soc count for gen ed or only for the soc major",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ae2-07",
+  "question": "cmps 147 how many credits and is there a prereq",
+  "topic": "course"
+ },
+ {
+  "id": "ae2-08",
+  "question": "is there a film minor? or like a media studies one",
+  "topic": "program"
+ },
+ {
+  "id": "ae2-09",
+  "question": "if i wanna add an econ minor as a sophomore what classes should i take first",
+  "topic": "sequence"
+ },
+ {
+  "id": "ae2-10",
+  "question": "what's the difference between the business admin major and the management minor, like which courses overlap",
+  "topic": "program"
+ },
+ {
+  "id": "ae2-11",
+  "question": "what is covered in the intro to creative writing class and does it count toward the lit minor",
+  "topic": "course"
+ },
+ {
+  "id": "ae2-12",
+  "question": "do they have a cybersecurity certificate",
+  "topic": "program"
+ },
+ {
+  "id": "ae2-13",
+  "question": "should i do a second major in english or just a minor, which looks better for law school",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ae2-14",
+  "question": "how many credits do i still need to finish the psych minor",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ae2-15",
+  "question": "is anyone teaching the env sci elective in the spring, is there still room in it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ae3-01",
+  "question": "what are the prereqs for organic chemistry 1 and does it have a seperate lab I have to sign up for",
+  "topic": "course"
+ },
+ {
+  "id": "ae3-02",
+  "question": "Is there a pre-med major at Ramapo or do pre-health students just pick biology?",
+  "topic": "program"
+ },
+ {
+  "id": "ae3-03",
+  "question": "how many credits is bio 1 lecture plus lab",
+  "topic": "course"
+ },
+ {
+  "id": "ae3-04",
+  "question": "I'm a sophomore biology major planning on applying to PA school. What's the recommended order for gen chem, orgo, and physics over the next two years?",
+  "topic": "sequence"
+ },
+ {
+  "id": "ae3-05",
+  "question": "does biochemistry need orgo 2 first or just orgo 1?",
+  "topic": "course"
+ },
+ {
+  "id": "ae3-06",
+  "question": "is there a chemistry minor and how many credits would it be on top of a bio major",
+  "topic": "program"
+ },
+ {
+  "id": "ae3-07",
+  "question": "what's covered in microbiology and is it required for the biology major or just an elective",
+  "topic": "course"
+ },
+ {
+  "id": "ae3-08",
+  "question": "does statistics count toward my gen ed math requirement or do i need calc",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ae3-09",
+  "question": "which physics sequence should pre-health students take, the algebra-based one or calculus-based? and what's the prereq for physics 1",
+  "topic": "sequence"
+ },
+ {
+  "id": "ae3-10",
+  "question": "can you check if i already finished my gen ed science requirement? i took ap bio in high school",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ae3-11",
+  "question": "anatomy and physiology 1 prerequisites",
+  "topic": "course"
+ },
+ {
+  "id": "ae3-12",
+  "question": "what courses do i need for the biochemistry major vs the biology major, like which upper level classes are different",
+  "topic": "program"
+ },
+ {
+  "id": "ae3-13",
+  "question": "are there any open seats in orgo lab for spring and who teaches it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ae3-14",
+  "question": "Do I need to take a writing intensive course for gen ed, and do any science courses count as one?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ae3-15",
+  "question": "should i do the nursing major or bio if i want to eventually go to med school",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ae4-01",
+  "question": "Does Ramapo have a nursing program, and is there an accelerated option for people who already have a bachelor's degree?",
+  "topic": "program"
+ },
+ {
+  "id": "ae4-02",
+  "question": "how many credits do you need to graduate with a bachelors at ramapo",
+  "topic": "program"
+ },
+ {
+  "id": "ae4-03",
+  "question": "I work full time and I'm thinking about going back for a masters. What graduate programs does Ramapo offer and how many credits is the MBA?",
+  "topic": "program"
+ },
+ {
+  "id": "ae4-04",
+  "question": "is there a computer science major? my son is a senior in high school and wants to do CS",
+  "topic": "program"
+ },
+ {
+  "id": "ae4-05",
+  "question": "How long does the Master of Science in Educational Leadership take to finish if you go part time?",
+  "topic": "program"
+ },
+ {
+  "id": "ae4-06",
+  "question": "My daughter wants to do psychology. What courses would she take freshman year and is there a recommended 4 year plan?",
+  "topic": "sequence"
+ },
+ {
+  "id": "ae4-07",
+  "question": "what are the gen ed requirements at ramapo? like how many credits are general education vs the major",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ae4-08",
+  "question": "Do you have any certificate programs for adults that dont require a full degree? something in data analytics or business",
+  "topic": "program"
+ },
+ {
+  "id": "ae4-09",
+  "question": "how many credits is a minor and can you do a minor in business if your major is biology",
+  "topic": "program"
+ },
+ {
+  "id": "ae4-10",
+  "question": "what does ACCT 221 cover and are there any prerequisites",
+  "topic": "course"
+ },
+ {
+  "id": "ae4-11",
+  "question": "Is there a 5 year combined bachelors and masters program? Which majors have it?",
+  "topic": "program"
+ },
+ {
+  "id": "ae4-12",
+  "question": "Would my 18 credits from community college count toward a ramapo degree, I took english comp and intro to psych about 10 yrs ago",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ae4-13",
+  "question": "Are any of the evening MBA classes still open for spring and who teaches them?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ae4-14",
+  "question": "Should my kid major in nursing or biology if she wants to be a PA eventually? which one is better at ramapo",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ae4-15",
+  "question": "does the social work major have an MSW too, and how many credits is the MSW program",
+  "topic": "program"
+ }
+]

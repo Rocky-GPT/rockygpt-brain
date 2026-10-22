@@ -1,0 +1,17 @@
+[
+  {"id": "ae3-01", "question": "what are the prereqs for organic chemistry 1 and does it have a seperate lab I have to sign up for", "topic": "course"},
+  {"id": "ae3-02", "question": "Is there a pre-med major at Ramapo or do pre-health students just pick biology?", "topic": "program"},
+  {"id": "ae3-03", "question": "how many credits is bio 1 lecture plus lab", "topic": "course"},
+  {"id": "ae3-04", "question": "I'm a sophomore biology major planning on applying to PA school. What's the recommended order for gen chem, orgo, and physics over the next two years?", "topic": "sequence"},
+  {"id": "ae3-05", "question": "does biochemistry need orgo 2 first or just orgo 1?", "topic": "course"},
+  {"id": "ae3-06", "question": "is there a chemistry minor and how many credits would it be on top of a bio major", "topic": "program"},
+  {"id": "ae3-07", "question": "what's covered in microbiology and is it required for the biology major or just an elective", "topic": "course"},
+  {"id": "ae3-08", "question": "does statistics count toward my gen ed math requirement or do i need calc", "topic": "gen_ed"},
+  {"id": "ae3-09", "question": "which physics sequence should pre-health students take, the algebra-based one or calculus-based? and what's the prereq for physics 1", "topic": "sequence"},
+  {"id": "ae3-10", "question": "can you check if i already finished my gen ed science requirement? i took ap bio in high school", "topic": "out_of_scope"},
+  {"id": "ae3-11", "question": "anatomy and physiology 1 prerequisites", "topic": "course"},
+  {"id": "ae3-12", "question": "what courses do i need for the biochemistry major vs the biology major, like which upper level classes are different", "topic": "program"},
+  {"id": "ae3-13", "question": "are there any open seats in orgo lab for spring and who teaches it", "topic": "out_of_scope"},
+  {"id": "ae3-14", "question": "Do I need to take a writing intensive course for gen ed, and do any science courses count as one?", "topic": "gen_ed"},
+  {"id": "ae3-15", "question": "should i do the nursing major or bio if i want to eventually go to med school", "topic": "out_of_scope"}
+]

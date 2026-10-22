@@ -1,0 +1,17 @@
+[
+  {"id": "ef2-01", "question": "whats going on on campus tonight", "topic": "event"},
+  {"id": "ef2-02", "question": "anything fun happening this weekend? i live in the dorms and dont have a car so it has to be on campus", "topic": "event"},
+  {"id": "ef2-03", "question": "is there free food anywhere today", "topic": "event"},
+  {"id": "ef2-04", "question": "when is the next home basketball game and do students get in free?", "topic": "event"},
+  {"id": "ef2-05", "question": "are there any movie nights or trivia nights coming up next week", "topic": "event"},
+  {"id": "ef2-06", "question": "whats happening next friday night after like 7", "topic": "event"},
+  {"id": "ef2-07", "question": "is there an anime club", "topic": "club"},
+  {"id": "ef2-08", "question": "what cultural clubs are there? im filipino and want to meet other filipino students", "topic": "club"},
+  {"id": "ef2-09", "question": "how do i join a club here, do i just show up or do i have to sign up somewhere", "topic": "club"},
+  {"id": "ef2-10", "question": "does ramapo have greek life and how does rushing work for freshmen", "topic": "club"},
+  {"id": "ef2-11", "question": "is there a hiking or outdoors club and where can i find their page", "topic": "club"},
+  {"id": "ef2-12", "question": "any concerts or comedy shows this sat or sun? and where are they", "topic": "event"},
+  {"id": "ef2-13", "question": "what time does the gaming club meet and whos the president", "topic": "out_of_scope"},
+  {"id": "ef2-14", "question": "im kinda shy and want to make friends, which club should i join", "topic": "out_of_scope"},
+  {"id": "ef2-15", "question": "is the halloween party on saturday gonna be packed? how many ppl usually go", "topic": "out_of_scope"}
+]

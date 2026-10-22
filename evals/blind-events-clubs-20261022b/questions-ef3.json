@@ -1,0 +1,17 @@
+[
+  {"id": "ef3-01", "question": "is there a mens soccer home game this weekend?", "topic": "event"},
+  {"id": "ef3-02", "question": "My parents are visiting campus next saturday. Are there any games or shows going on that day we could all go to, and do they cost anything?", "topic": "event"},
+  {"id": "ef3-03", "question": "when's the next womens basketball game and where do they play", "topic": "event"},
+  {"id": "ef3-04", "question": "any theater or dance performances coming up in the next couple weeks?", "topic": "event"},
+  {"id": "ef3-05", "question": "how do i sign up for intramurals", "topic": "club"},
+  {"id": "ef3-06", "question": "is there a club for ultimate frisbee or some kind of club sports team i can join?", "topic": "club"},
+  {"id": "ef3-07", "question": "Hi, I'm a parent of a Ramapo student. What time does the concert in the Berrie Center start tonight and is there parking for visitors nearby?", "topic": "event"},
+  {"id": "ef3-08", "question": "whats happening on campus tonight", "topic": "event"},
+  {"id": "ef3-09", "question": "who won the volleyball game last night and what was the score", "topic": "out_of_scope"},
+  {"id": "ef3-10", "question": "is there an a capella group or a choir club?? also when do they perform", "topic": "club"},
+  {"id": "ef3-11", "question": "what arts clubs are there at ramapo", "topic": "club"},
+  {"id": "ef3-12", "question": "Is family weekend this year and what events are planned for it?", "topic": "event"},
+  {"id": "ef3-13", "question": "is the basketball game friday gonna be packed? should we get there early to get seats", "topic": "out_of_scope"},
+  {"id": "ef3-14", "question": "who is the president of the dance team and when do they practice", "topic": "out_of_scope"},
+  {"id": "ef3-15", "question": "any free events next week? like an art gallery opening or a student film screening", "topic": "event"}
+]

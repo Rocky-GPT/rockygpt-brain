@@ -1,0 +1,17 @@
+[
+  {"id": "pe2-01", "question": "whats dr tweneboah's email? i want to ask him about doing research with him next semester", "topic": "contact"},
+  {"id": "pe2-02", "question": "Who is Osei Tweneboah and what does he research? Is it data science or more pure math?", "topic": "teaching"},
+  {"id": "pe2-03", "question": "is there a history professor who does digital humanities stuff? i think her name is cathy hajo or something", "topic": "teaching"},
+  {"id": "pe2-04", "question": "where is professor sheehy's office and when are his office hours", "topic": "contact"},
+  {"id": "pe2-05", "question": "I'm an English major hoping to do an independent study in creative writing. Who teaches fiction writing here, and how do I reach them?", "topic": "teaching"},
+  {"id": "pe2-06", "question": "prof gao business school phone number", "topic": "contact"},
+  {"id": "pe2-07", "question": "What does Yuan Gao teach and what's her title? Thinking of asking her to supervise a finance research project", "topic": "teaching"},
+  {"id": "pe2-08", "question": "who is gardan speights? is he a professor or staff in social sciences", "topic": "role"},
+  {"id": "pe2-09", "question": "Can you give me the email and office room for Natalia Santamaria? She teaches Spanish I think", "topic": "contact"},
+  {"id": "pe2-10", "question": "who's the chair of the psychology department? i need someone to sign off on an independent study", "topic": "role"},
+  {"id": "pe2-11", "question": "is professor vandergaw a good mentor? would she be a better pick for my thesis than prof mascia", "topic": "out_of_scope"},
+  {"id": "pe2-12", "question": "what department is lawrence mascia in and what's his email", "topic": "role"},
+  {"id": "pe2-13", "question": "is there a librarian who helps with research for honors projects? i heard shirley knight is one, how do i contact her", "topic": "contact"},
+  {"id": "pe2-14", "question": "is dr rowlett scott on campus today? i wanted to stop by and ask about research", "topic": "out_of_scope"},
+  {"id": "pe2-15", "question": "which biology professors take undergrads in their labs and have any of them got open spots right now", "topic": "out_of_scope"}
+]
