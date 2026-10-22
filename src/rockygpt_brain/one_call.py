@@ -18,6 +18,7 @@ from datetime import date
 from typing import Any
 
 from rockygpt_brain.academics import asks_academics
+from rockygpt_brain.events import asks_clubs, asks_events
 from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 
 PER_PART = 10  # Each part's own best units: a "how do I apply" part keeps its application section.
@@ -52,6 +53,12 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   recommended sequence for the admission year it names: say which year it is for, and give its
   semesters and totals as written. catalog_programs lists every published program by level: a
   major, minor or program it does not list is not offered in the catalog; say so plainly.
+- calendar.events are the college calendar's events in the window code chose (calendar.window):
+  give each one's title, day and time, place and host as written, with its number. When
+  calendar.topic_matched is false, first say the calendar lists nothing for what was asked in
+  that window, then offer the window's other events; with no events, say so and give
+  calendar_url. clubs are directory entries:
+  give each club's name, category and page as written. Never add events, times or clubs.
 - Write a phone number as (XXX) XXX-XXXX with its own digits.
 - Cite each statement with its section number like [3]. Short plain sentences; numbered steps are
   fine. Under 1,600 characters. No greeting.
@@ -97,7 +104,8 @@ _HOWTO = re.compile(
 def routes_here(message: str) -> bool:
     """Whether a message is a how-to or policy question for the one-call path."""
     text = message.casefold()
-    if _SERVICES.search(text) and not _MEAL_PLAN.search(text) and not asks_academics(text):
+    if _SERVICES.search(text) and not _MEAL_PLAN.search(text) and not asks_academics(text) \
+            and not asks_events(text) and not asks_clubs(text):
         return False
     howto = _HOWTO.search(text)
     if (_HOURS.search(text) or _CONTACT.search(text)) and not howto:
@@ -296,10 +304,14 @@ def gave_up(arguments: dict[str, Any], question: str) -> list[str]:
 
 
 def messages(question: str, earlier_user: str | None, offices: list[dict[str, Any]],
-             today: date, programs: Sequence[dict[str, Any]] = ()) -> list[dict[str, Any]]:
+             today: date, programs: Sequence[dict[str, Any]] = (),
+             calendar: dict[str, Any] | None = None,
+             clubs: Sequence[dict[str, Any]] = ()) -> list[dict[str, Any]]:
     given = {"today": f"{today:%A, %B} {today.day}, {today.year}", "question": question,
              **({"earlier_question": earlier_user} if earlier_user else {}),
-             **({"programs": list(programs)} if programs else {}), "offices": offices}
+             **({"programs": list(programs)} if programs else {}),
+             **({"calendar": calendar} if calendar else {}),
+             **({"clubs": list(clubs)} if clubs else {}), "offices": offices}
     return [{"role": "system", "content": ONE_CALL_PROMPT},
             {"role": "user", "content": json.dumps(given, ensure_ascii=False)}]
 
