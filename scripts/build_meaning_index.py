@@ -218,6 +218,24 @@ def academic_cards(facts: GraphOnlyFacts, version: str,
             if interests:
                 card += f"\nInterests and courses: {'; '.join(interests)[:500]}"
             cards.append((found["entity"]["id"], "person", card))
+    # Each calendar event's title, tags, host, place, admission and the start of its
+    # description ("free food this week", "the next home game", "guest speakers").
+    events = [e["id"] for e in facts.identities(("event",))]
+    for start in range(0, len(events), 40):
+        for found in facts.get_event_facts(events[start:start + 40], version,
+                                           identity_hash=identity):
+            prop = found["properties"][0]
+            event = prop["values"][0]["value"] if prop["values"] else {}
+            card = f"Ramapo College campus event: {event.get('title') or found['entity']['name']}"
+            if event.get("tags"):
+                card += f" ({', '.join(event['tags'])})"
+            for label, key in (("Hosted by", "organizer"), ("At", "location"),
+                               ("Admission", "ticket_status")):
+                if event.get(key):
+                    card += f"\n{label}: {event[key]}"
+            if event.get("description"):
+                card += f"\n{str(event['description'])[:400]}"
+            cards.append((found["entity"]["id"], "event", card))
     return cards, {code: sorted(set(later)) for code, later in required_by.items()}
 
 

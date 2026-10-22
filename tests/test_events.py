@@ -12,9 +12,11 @@ from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.events import (
     asks_clubs,
     asks_events,
+    club_category,
     clubs_by_meaning,
     events_in,
     find_clubs,
+    interests,
     rank_events,
     window,
 )
@@ -78,6 +80,19 @@ def test_events_in_the_window_come_by_date_and_by_the_questions_topic() -> None:
     # A topic nothing in the window matches: the whole window, flagged as not matched.
     ranked, matched = rank_events(values, "any lacrosse", start, end)
     assert len(ranked) == 2 and matched is False
+    # A description's words count, and an event whose card's meaning is near the window's best
+    # above the floor matches a question that shares no word with it ("home game").
+    fed = [{**event("Pizza Time", "24", 18, ["Social"]), "description": "Free pizza for all"},
+           {**event("Women's Volleyball vs. Lehman", "24", 19, ["Athletics"]), "_id": "v"},
+           {**event("Book Club", "24", 20, ["Social"]), "_id": "b"}]
+    ranked, matched = rank_events(fed, "is there pizza this weekend", start, end)
+    assert [v["title"] for v in ranked] == ["Pizza Time"] and matched is True
+    ranked, matched = rank_events(fed, "when is the next home game", start, end,
+                                  {"v": 0.47, "b": 0.31})
+    assert [v["title"] for v in ranked] == ["Women's Volleyball vs. Lehman"]
+    ranked, matched = rank_events(fed, "when is the next home game", start, end,
+                                  {"v": 0.40, "b": 0.31})
+    assert matched is False
 
 
 def test_a_club_is_named_by_every_word_of_its_directory_name() -> None:
@@ -147,3 +162,18 @@ def test_clubs_found_by_meaning_are_the_near_best_above_the_floor() -> None:
     assert [c["name"] for c in clubs_by_meaning(scores, names)] == [
         "Club 0", "Club 1", "Club 2", "Club 3", "Club 4"]
     assert clubs_by_meaning([("c0", 0.31)], names) == []
+
+
+def test_a_kind_of_club_lists_its_whole_category_and_each_interest_is_searched() -> None:
+    greek = [{"id": f"g{n}", "name": f"Greek {n}", "category": "Greek Life"} for n in range(5)]
+    other = [{"id": "s", "name": "Chess Club", "category": "Student Organization"}]
+    directory = [*greek, *other,
+                 {"id": "g9", "name": "Delta", "category": "Greek Life - Greek Letter "
+                                                         "Fraternities and Sororities"}]
+    # Most of the clubs found are Greek Life: all of Greek Life is given.
+    assert len(club_category(greek[:3], directory)) == 6
+    # A generic category, or no leading one, gives only the clubs found.
+    assert club_category([*other, *other, *other], directory) == []
+    assert interests("I like anime and community service, which club should I join?") == [
+        "anime", "community service"]
+

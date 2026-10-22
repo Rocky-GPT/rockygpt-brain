@@ -57,8 +57,11 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
 - calendar.events are the college calendar's events in the window code chose (calendar.window):
   give each one's title, day and time, place and host as written, with its number. When
   calendar.topic_matched is false, first say the calendar lists nothing for what was asked in
-  that window, then offer the window's other events; with no events, say so and give
-  calendar_url. clubs are directory entries:
+  that window, then give what the sections say about it (a fair's season, a series' next
+  date), then offer the window's other events; with no events, say so and give
+  calendar_url. When topic_matched is true the events are those about the topic, among
+  calendar.events_on_the_calendar_in_it: never call one the only event in the window. tickets
+  FREE means free admission. clubs are directory entries:
   give each club's name, category and page as written. Never add events, times or clubs.
 - people are directory and faculty-profile entries: give the asked facts (email, phone, office
   room, title, school, office hours as written, courses, interests) exactly as given, with the
