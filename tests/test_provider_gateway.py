@@ -75,6 +75,9 @@ class FakeTransport:
             raise self.error
         return self.response
 
+    async def embed(self, request: dict[str, Any], remaining_seconds: float) -> dict[str, Any]:
+        raise AssertionError("these gateway tests make no embedding calls")
+
     async def close(self) -> None:
         pass
 
