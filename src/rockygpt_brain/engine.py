@@ -1216,8 +1216,9 @@ class ChatEngine:
         # "written": the same, and a writer with only the writer view says them; a reply the
         # verifier cannot hold to the view is replaced by the code-written text.
         self.output = output
-        # Every person's directory entry for list questions, read once per release.
+        # Every person's and club's directory entry for list questions, read once per release.
         self._directory_cache: tuple[str, list[dict[str, Any]]] | None = None
+        self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
 
     def _json(self, result: ChatResult, parts: list[dict[str, Any]], turn: Turn) -> ChatResult:
         """In JSON output the written answer is dropped and the facts go out as they are: the full
@@ -1646,10 +1647,12 @@ class ChatEngine:
         return evidence, sources, version
 
     def _read_calendar(self, message: str, now: datetime, numbered_from: int,
+                       scores: Mapping[str, float] | None = None,
                        ) -> tuple[dict[str, Any] | None, list[dict[str, Any]],
                                   list[dict[str, Any]]]:
         """The calendar events in the question's window and the clubs it names, read through the
-        shared reader (events.py), numbered after the evidence before them."""
+        shared reader (events.py), numbered after the evidence before them; scores are the
+        event cards' meaning, when the index has them."""
         version, identity_hash = self.facts.active_release()
         named = self.facts.identities(("event", "club", "organization"))
         sources: list[dict[str, Any]] = []
@@ -1657,13 +1660,13 @@ class ChatEngine:
         if events.asks_events(message):
             start, end, label = events.window(message, now)
             dated = events.events_in([e for e in named if e["kind"] == "event"], start, end)
-            values = [f["properties"][0]["values"][0]["value"]
+            values = [{**f["properties"][0]["values"][0]["value"], "_id": f["entity"]["id"]}
                       for at in range(0, len(dated), 40)
                       for f in self.facts.get_event_facts(
                           [e["id"] for e in dated[at:at + 40]], version,
                           identity_hash=identity_hash, as_of=now)]
             chosen = []
-            ranked, matched = events.rank_events(values, message, start, end)
+            ranked, matched = events.rank_events(values, message, start, end, scores)
             for value in ranked:
                 line = {"n": numbered_from + len(sources) + 1, **events.event_line(value)}
                 chosen.append(line)
@@ -1741,23 +1744,37 @@ class ChatEngine:
                             "title": item.get("name")})
         return found, sources
 
-    def _clubs_by_meaning(self, index: MeaningIndex, vector: Sequence[float], numbered_from: int,
+    def _club_directory(self) -> list[dict[str, Any]]:
+        """Every club's directory entry with its id, read once per release."""
+        version, identity_hash = self.facts.active_release()
+        if self._club_cache is None or self._club_cache[0] != version:
+            ids = [e["id"] for e in self.facts.identities(("club", "organization"))]
+            entries = [{"id": facts["entity"]["id"], **facts["properties"][0]["values"][0]["value"]}
+                       for start in range(0, len(ids), 12)
+                       for facts in self.facts.get_club_facts(ids[start:start + 12], version,
+                                                              identity_hash=identity_hash)]
+            self._club_cache = (version, entries)
+        return self._club_cache[1]
+
+    def _clubs_by_meaning(self, index: MeaningIndex, vectors: Sequence[Sequence[float]],
+                          numbered_from: int,
                           ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        """The clubs whose cards best match the question's meaning, read through the reader."""
+        """The clubs whose cards best match each searched text's meaning (the question, and each
+        interest it lists), and every club of the category most of them share ("frats and
+        sororities" is all of Greek Life), read through the reader (events.club_category)."""
         names = {e["id"]: str(e["name"]) for e in self.facts.identities(("club", "organization"))}
-        found = events.clubs_by_meaning(index.academic_scores(vector, "club"), names)
+        found: dict[str, dict[str, Any]] = {}
+        for vector in vectors:
+            for club in events.clubs_by_meaning(index.academic_scores(vector, "club"), names):
+                found.setdefault(club["id"], club)
         if not found:
             return [], []
-        version, identity_hash = self.facts.active_release()
-        clubs: list[dict[str, Any]] = []
-        sources: list[dict[str, Any]] = []
-        for facts in self.facts.get_club_facts([c["id"] for c in found], version,
-                                               identity_hash=identity_hash):
-            value = facts["properties"][0]["values"][0]["value"]
-            item = {"n": numbered_from + len(sources) + 1, **value}
-            clubs.append(item)
-            sources.append({"n": item["n"], "url": value.get("url"), "title": value["name"]})
-        return clubs, sources
+        directory = self._club_directory()
+        entries = [e for e in directory if e["id"] in found]
+        chosen = events.club_category(entries, directory) or entries
+        clubs = [{"n": numbered_from + k + 1, **{x: y for x, y in entry.items() if x != "id"}}
+                 for k, entry in enumerate(chosen[:events.MAX_CATEGORY_CLUBS])]
+        return clubs, [{"n": c["n"], "url": c.get("url"), "title": c.get("name")} for c in clubs]
 
     async def _one_call(self, turn: Turn, context: Context, budget: TurnBudget,
                         trace: dict[str, Any],
@@ -1808,17 +1825,22 @@ class ChatEngine:
                             self._read_people, named_people, len(sources))
                     sources = [*sources, *found_people]
                     dataset_version = dataset_version or self.facts.active_release()[0]
-                if calendar_asked:
-                    with measure("Read the calendar and clubs"):
-                        calendar, clubs, found_sources = await asyncio.to_thread(
-                            self._read_calendar, latest, turn.campus_now, len(sources))
-                    sources = [*sources, *found_sources]
-                    dataset_version = dataset_version or self.facts.active_release()[0]
                 if searchable:
                     assert index is not None and embed_many is not None
                     with measure("Embed the question's parts"):
                         vectors = await embed_many(one_call.parts_of(question),
                                                    dimensions=index.dimensions, budget=budget)
+                if calendar_asked:
+                    event_scores = (dict(index.academic_scores(vectors[0], "event"))
+                                    if vectors and index is not None else None)
+                    with measure("Read the calendar and clubs"):
+                        calendar, clubs, found_sources = await asyncio.to_thread(
+                            self._read_calendar, latest, turn.campus_now, len(sources),
+                            event_scores)
+                    sources = [*sources, *found_sources]
+                    dataset_version = dataset_version or self.facts.active_release()[0]
+                if searchable:
+                    assert index is not None
                     named = list(dict.fromkeys([*named, *one_call.card_offices(index, vectors)]))
                     # A program or course named only in part ("the english major") is found by
                     # its card's meaning when the question asks about programs or courses.
@@ -1847,8 +1869,15 @@ class ChatEngine:
                             self._read_people, found, len(sources))
                         sources = [*sources, *found_people]
                     if calendar_asked and not clubs and events.asks_clubs(latest):
+                        # Each interest a question lists ("anime and community service") is
+                        # searched on its own as well as the whole question.
+                        interests = events.interests(latest)
+                        assert embed_many is not None
+                        club_vectors = [vectors[0], *(await embed_many(
+                            interests, dimensions=index.dimensions, budget=budget)
+                            if len(interests) > 1 else [])]
                         clubs, club_sources = await asyncio.to_thread(
-                            self._clubs_by_meaning, index, vectors[0], len(sources))
+                            self._clubs_by_meaning, index, club_vectors, len(sources))
                         sources = [*sources, *club_sources]
                 # The school offices of the people and programs given come first among the
                 # offices read, so "who do I talk to" reaches the right school.

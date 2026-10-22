@@ -8,7 +8,7 @@ events and clubs are then read through the shared reader; the model only words t
 """
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
@@ -143,12 +143,22 @@ def topic_words(message: str) -> set[str]:
     return set(discovery_tokens(message)) - _NOT_TOPIC
 
 
+# An event found by its card's meaning (title, tags, host, place, admission, description). On
+# 13 sample questions (10-22) a topic's best event scored 0.47-0.58 ("free food", "volleyball
+# games", "halloween", "arts performances"), questions about no event at most 0.43; events
+# within EVENT_NEAR of the window's best count as matching.
+EVENT_FLOOR, EVENT_NEAR = 0.44, 0.06
+
+
 def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
-                end: datetime) -> tuple[list[dict[str, Any]], bool | None]:
+                end: datetime, scores: Mapping[str, float] | None = None,
+                ) -> tuple[list[dict[str, Any]], bool | None]:
     """The events in the window that have not ended, in time order, at most MAX_EVENTS: those
-    sharing the question's topic words with their title, tags, organizer or location when any
-    do. Also whether the topic matched: None with no topic words, False when none matched (the
-    whole window is then given, and the reply says the calendar lists nothing for the topic)."""
+    sharing the question's topic words with their title, tags, organizer, location or
+    description, and those whose card's meaning (scores, by each value's "_id") is near the
+    window's best above EVENT_FLOOR, when any are. Also whether the topic matched: None with no
+    topic words, False when none matched (the whole window is then given, and the reply says
+    the calendar lists nothing for the topic)."""
     def starts(value: dict[str, Any]) -> datetime | None:
         try:
             return datetime.fromisoformat(str(value.get("starts_at")))
@@ -161,9 +171,13 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
     if words:
         def about(value: dict[str, Any]) -> set[str]:
             text = " ".join([str(value.get("title") or ""), " ".join(value.get("tags") or []),
-                             str(value.get("organizer") or ""), str(value.get("location") or "")])
+                             str(value.get("organizer") or ""), str(value.get("location") or ""),
+                             str(value.get("description") or "")])
             return set(discovery_tokens(text))
-        matching = [v for v in timed if words & about(v)]
+        meaning = {id(v): (scores or {}).get(str(v.get("_id")), 0.0) for v in timed}
+        best = max(meaning.values(), default=0.0)
+        matching = [v for v in timed if words & about(v)
+                    or meaning[id(v)] >= max(EVENT_FLOOR, best - EVENT_NEAR)]
         if matching:
             return matching[:MAX_EVENTS], True
         return timed[:MAX_EVENTS], False
@@ -211,3 +225,33 @@ def clubs_by_meaning(scores: Sequence[tuple[str, float]],
     return [{"id": entity_id, "name": names[entity_id]} for entity_id, score in scores
             if score >= max(CLUB_FLOOR, scores[0][1] - CLUB_NEAR) and entity_id in names
             ][:MAX_CLUBS]
+
+
+MAX_CATEGORY_CLUBS = 25
+_GENERIC_CATEGORY = {"student organization", "department", "office sponsored organization"}
+
+
+def club_category(found: Sequence[dict[str, Any]],
+                  directory: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Every club of the category most of the clubs found share, when it is a specific one
+    ("Greek Life", "Honor Society": not "Student Organization"): a question about a kind of
+    club wants the kind, not the few nearest. Empty when no such category leads."""
+    def head(entry: dict[str, Any]) -> str:
+        return str(entry.get("category") or "").split(" - ")[0].strip().casefold()
+    heads = [head(e) for e in found if head(e)]
+    if len(heads) < 3:
+        return []
+    top = max(set(heads), key=heads.count)
+    if top in _GENERIC_CATEGORY or heads.count(top) * 2 < len(found):
+        return []
+    return [e for e in directory if head(e) == top]
+
+
+def interests(message: str) -> list[str]:
+    """The interests a club question lists, each on its own ("anime and community service"):
+    the question's clauses split at "and", "or" and commas, keeping those with a topic word."""
+    text = re.sub(r"\b(?:which|what|club|clubs|should|could|would|join|i|like|love|into|"
+                  r"interested in|am|im|i'm|do|you|have|are|there|any)\b", " ", message.casefold())
+    bits = [b.strip(" ?.!") for b in re.split(r",|\band\b|\bor\b|&|/", text)]
+    return [b for b in bits if topic_words(b)][:4]
+
