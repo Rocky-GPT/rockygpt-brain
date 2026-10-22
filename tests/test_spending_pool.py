@@ -73,7 +73,22 @@ def test_a_connection_the_server_closed_does_not_fail_the_next_request() -> None
     params = conninfo_to_dict(url)
     assert params.get("host") in {"localhost", "127.0.0.1"}
     assert str(params.get("dbname", "")).startswith("brain_gateway_test")
-    asyncio.run(_closed_by_the_server(url))
+    asyncio.run(_in_own_database(url))
+
+
+async def _in_own_database(url: str) -> None:
+    # The ledger test in test_spending_postgres.py needs the given database empty and runs the
+    # same migrations, whose roles belong to the whole server. So this test works in a database
+    # of its own and afterwards removes it and the roles it made.
+    own = str(conninfo_to_dict(url)["dbname"]) + "_pool"
+    async with await psycopg.AsyncConnection.connect(url, autocommit=True) as server:
+        await server.execute(f'CREATE DATABASE "{own}"')
+        try:
+            await _closed_by_the_server(make_conninfo(url, dbname=own))
+        finally:
+            await server.execute(f'DROP DATABASE "{own}" WITH (FORCE)')
+            for role in ("gateway_pool_dev", "brain_development", "brain_production"):
+                await server.execute(f"DROP ROLE IF EXISTS {role}")
 
 
 async def _closed_by_the_server(url: str) -> None:
