@@ -19,22 +19,24 @@ from test_engine import (
 
 def index_of(units: list[tuple[str, str, list[str], list[list[float]]]],
              names: dict[str, str] | None = None,
-             cards: Sequence[tuple[str, list[float]]] = (), labels: bool = False) -> MeaningIndex:
+             cards: Sequence[tuple[str, list[float]]] = (), labels: bool = False,
+             academic: Sequence[tuple[str, str, list[float]]] = ()) -> MeaningIndex:
     """A small in-memory index: each unit (record, index, offices) with its vectors, then each
-    office card (office, vector)."""
+    office card (office, vector), then each program or course card (id, kind, vector)."""
     flat, owner = array.array("f"), []
     for n, (_, _, _, vectors) in enumerate(units):
         for vector in vectors:
             norm = math.sqrt(sum(x * x for x in vector))
             flat.extend(x / norm for x in vector)
             owner.append(n)
-    for _, vector in cards:
+    for vector in [v for _, v in cards] + [v for _, _, v in academic]:
         norm = math.sqrt(sum(x * x for x in vector))
         flat.extend(x / norm for x in vector)
     meta = {"dataset_version": "release-1", "identity_hash": "identities-1", "model": "m",
             "dimensions": len(units[0][3][0]), "entities": names or {},
             "units": [[r, i, e] for r, i, e, _ in units], "owner": owner,
             "cards": [entity_id for entity_id, _ in cards],
+            "academic": [[entity_id, kind] for entity_id, kind, _ in academic],
             "labels": [[r, f"heading {r} {i}"] for r, i, _, _ in units] if labels else []}
     return MeaningIndex(meta, flat)
 

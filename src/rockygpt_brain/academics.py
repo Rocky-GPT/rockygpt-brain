@@ -80,6 +80,37 @@ def find_programs(programs: Sequence[dict[str, Any]], message: str) -> list[dict
     return sorted(chosen, key=lambda p: str(p["name"]))[:MAX_PROGRAMS]
 
 
+# A program or course found by its card's meaning (the meaning index), not its exact name. On
+# 14 sample questions (10-21) academic ones scored 0.47-0.73 against their program and others at
+# most 0.30; courses 0.58-0.71 against at most 0.47 for questions about no course.
+PROGRAM_FLOOR, COURSE_FLOOR, NEAR = 0.42, 0.55, 0.03
+
+
+def by_meaning(scores: Sequence[tuple[str, float]], names: dict[str, str], message: str,
+               floor: float, limit: int) -> list[dict[str, Any]]:
+    """The best scored programs or courses at or above the floor and within NEAR of the best;
+    for programs, the question's level words choose among them as they do for a named one."""
+    if not scores or scores[0][1] < floor:
+        return []
+    near = [{"id": entity_id, "name": names[entity_id]} for entity_id, score in scores[:8]
+            if score >= max(floor, scores[0][1] - NEAR) and entity_id in names]
+    if limit == 1 or not near or program_level(str(near[0]["name"])) == "":
+        return near[:limit]
+    levels = asked_levels(message)
+    chosen = ([p for p in near if program_level(str(p["name"])) in levels] if levels
+              else [p for p in near if program_level(str(p["name"])) == "major"])
+    return (chosen or near)[:limit]
+
+
+_ACADEMIC = re.compile(r"\b(?:majors?|minors?|degrees?|programs?|certificates?|courses?|"
+                       r"class(?:es)?|credits?|prereq\w*|gen ?eds?|concentrations?)\b")
+
+
+def asks_academics(message: str) -> bool:
+    """Whether a message asks about programs or courses at all (its words, not its meaning)."""
+    return bool(_ACADEMIC.search(message.casefold()))
+
+
 def also_published(programs: Sequence[dict[str, Any]],
                    chosen: Sequence[dict[str, Any]]) -> list[str]:
     """The other levels of the chosen programs' core names ("Computer Science Minor, MS")."""
