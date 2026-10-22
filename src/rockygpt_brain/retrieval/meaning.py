@@ -78,6 +78,9 @@ class MeaningIndex:
         self.required_by: dict[str, list[str]] = {
             str(code): [str(c) for c in later]
             for code, later in (meta.get("required_by") or {}).items()}
+        # Each course's catalog title by entity id ("Calculus II"), for everyday names.
+        self.course_titles: dict[str, str] = {str(k): str(v) for k, v in
+                                              (meta.get("course_titles") or {}).items()}
         if len(vectors) != (len(self.owner) + len(self.cards)
                             + len(self.academic)) * self.dimensions:
             raise ValueError("The meaning index vectors do not match its units.")
