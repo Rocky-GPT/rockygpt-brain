@@ -455,7 +455,8 @@ _COURSE_TALK = re.compile(r"\b(?:class|classes|course|courses|take|taking|prereq
                           r"lab|labs|cover|covers|semester|before|after)\b")
 
 
-def courses_by_title(titles: dict[str, str], message: str) -> list[str]:
+def courses_by_title(titles: dict[str, str], message: str,
+                     codes: dict[str, str] | None = None) -> list[str]:
     """The courses a question names by an everyday form of their catalog title ("calc 2" is
     Calculus II, "gen chem 2" General Chemistry II, "orgo 1" Organic Chemistry I): every title
     word matched, or two of three with the title's number, at least one being a word. The
@@ -493,6 +494,14 @@ def courses_by_title(titles: dict[str, str], message: str) -> list[str]:
             scored.append((share, entity_id))
     if not scored:
         return []
+    # A course whose subject code the question's word names ("bio" for BIOL, "psych" for PSYC)
+    # comes before one named only by its title ("bio" also starts Biochemistry, a CHEM course).
+    def subject_named(entity_id: str) -> bool:
+        subject = str((codes or {}).get(entity_id, "")).split(" ")[0].casefold()
+        return bool(subject) and any(len(w) >= 3 and not w.isdigit() and (
+            subject.startswith(w) or w.startswith(subject)) for w in words)
+    by_subject = [(score, i) for score, i in scored if subject_named(i)]
+    scored = by_subject or scored
     best = max(score for score, _ in scored)
     return [entity_id for score, entity_id in scored if score == best][:3]
 
@@ -552,13 +561,15 @@ def published_in(programs: Sequence[dict[str, Any]], level: str,
 
 
 def computed_answers(evidence: Sequence[dict[str, Any]], programs: Sequence[dict[str, Any]],
-                     message: str, catalog_n: int | None) -> list[dict[str, Any]]:
+                     message: str, catalog_n: int | None,
+                     gen_ed_lines: Sequence[str] = ()) -> list[dict[str, Any]]:
     """What code works out from the catalog for the reply to state as it is, the way the
     shuttle's next departure is: whether each subject asked about is published at the level
     asked (and at which others), each course's credits and a lecture and its lab together, its
     prerequisites (or that it has none), its description when asked what it covers, its Gen Ed
     attributes, and the credit totals a program's requirement groups state."""
-    facts: list[dict[str, Any]] = []
+    facts: list[dict[str, Any]] = [
+        {"fact": f"In the catalog, {line}", "n": catalog_n} for line in gen_ed_lines]
     for level, words in asked_subjects(message):
         found = published_in(programs, level, words)
         label = _LEVEL_NAMES[level]
@@ -615,4 +626,36 @@ def computed_answers(evidence: Sequence[dict[str, Any]], programs: Sequence[dict
             facts.append({"fact": f"The catalog gives {track.strip()} as {credits} credits.",
                           "n": item["n"]})
     return facts
+
+
+_GEN_ED_WORDS = {"gen", "ed", "eds", "general", "education", "count", "counts", "requirement",
+                 "requirements", "my", "for", "does", "do", "fulfill", "satisfy", "category"}
+
+
+def gen_ed_courses(titles: dict[str, str], gen_ed: dict[str, str], codes: dict[str, str],
+                   message: str) -> list[str]:
+    """For a Gen Ed question naming a subject ("does stats count for gen ed math"), the catalog
+    courses whose title a question word names that carry a Gen Ed attribute, as "CODE Title:
+    attribute" lines, at most six."""
+    if not re.search(r"\bgen ?eds?\b|general education", message.casefold()):
+        return []
+    words = [w for w in re.findall(r"[a-z0-9]+", message.casefold())
+             if len(w) >= 3 and w not in _ASKING and w not in _GEN_ED_WORDS]
+    scored = []
+    for entity_id, attributes in gen_ed.items():
+        title = titles.get(entity_id, "")
+        subject = str(codes.get(entity_id, "")).split(" ")[0].casefold()
+        naming = [w for w in words if subject and (subject.startswith(w) or w.startswith(subject))]
+        named = bool(naming)
+        # The word that names the subject ("math") does not also count as a title word.
+        others = [w for w in words if w not in naming]
+        hits = sum(1 for t in _title_words(title) if not t.isdigit()
+                   and any(_abbreviates(w, t) for w in others))
+        if named or hits:
+            scored.append((not named, -hits, f"{codes.get(entity_id, '')} {title}: {attributes}"))
+    # Courses of the subject the question names first ("bio" is BIOL), then the most title
+    # words matched ("stats" is Probability and Statistics).
+    if any(not first for first, _, _ in scored):
+        scored = [row for row in scored if not row[0]]
+    return [line.strip() for _, _, line in sorted(scored)][:6]
 
