@@ -1,0 +1,302 @@
+[
+ {
+  "id": "ag1-01",
+  "question": "does ramapo have a major in environmental science or is it just a minor",
+  "topic": "program"
+ },
+ {
+  "id": "ag1-02",
+  "question": "im undecided and trying to compare psychology and sociology majors. how many credits does each one need and do they overlap at all?",
+  "topic": "program"
+ },
+ {
+  "id": "ag1-03",
+  "question": "how many credits is the minor in data science",
+  "topic": "program"
+ },
+ {
+  "id": "ag1-04",
+  "question": "Is there a nursing major for freshmen or do you have to apply separately after first year? and how long does it take to finish",
+  "topic": "program"
+ },
+ {
+  "id": "ag1-05",
+  "question": "what are the prereqs for cmps 147",
+  "topic": "course"
+ },
+ {
+  "id": "ag1-06",
+  "question": "what do comp sci majors usually take first semester freshman year",
+  "topic": "sequence"
+ },
+ {
+  "id": "ag1-07",
+  "question": "can you finish a business major in 4 years if you declare in sophmore year",
+  "topic": "sequence"
+ },
+ {
+  "id": "ag1-08",
+  "question": "what's the difference between the communication arts major and the journalism minor, like what classes are in each",
+  "topic": "program"
+ },
+ {
+  "id": "ag1-09",
+  "question": "does psych 101 count toward gen ed",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ag1-10",
+  "question": "how many gen ed credits do i need total and which categories are there",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ag1-11",
+  "question": "is there a certificate program in anything related to film or video production?",
+  "topic": "program"
+ },
+ {
+  "id": "ag1-12",
+  "question": "What does the Intro to Biology course cover and how many credits is it? thinking about bio vs chem",
+  "topic": "course"
+ },
+ {
+  "id": "ag1-13",
+  "question": "what minors pair well with a history major",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ag1-14",
+  "question": "can you check how many credits i have so far and tell me which major im closest to finishing",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ag1-15",
+  "question": "is intro to economics still open this semester and who teaches it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ag2-01",
+  "question": "how many credits is orgo 1 and does it have a lab with it",
+  "topic": "course"
+ },
+ {
+  "id": "ag2-02",
+  "question": "what are the prereqs for calc 3",
+  "topic": "course"
+ },
+ {
+  "id": "ag2-03",
+  "question": "Does Physics 1 count for a gen ed? I'm a bio major and trying to figure out if I can double dip it with my major requirements.",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ag2-04",
+  "question": "is biochem a separate lab or is the lab built into the course",
+  "topic": "course"
+ },
+ {
+  "id": "ag2-05",
+  "question": "what does linear algebra actually cover at ramapo? like is it proof heavy or more computational",
+  "topic": "course"
+ },
+ {
+  "id": "ag2-06",
+  "question": "can i take discrete math and data structures at the same time or is one a prereq for the other",
+  "topic": "course"
+ },
+ {
+  "id": "ag2-07",
+  "question": "how many credits do i still need to graduate as a chem major",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ag2-08",
+  "question": "whats the difference between gen chem 1 and the intro chem class for non majors, and which one counts for the bio major",
+  "topic": "course"
+ },
+ {
+  "id": "ag2-09",
+  "question": "is there a minor in statistics or data science? how many credits would it be",
+  "topic": "program"
+ },
+ {
+  "id": "ag2-10",
+  "question": "who's teaching cell bio next semester and are there still seats in the morning section",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ag2-11",
+  "question": "what upper level electives are required for the math major, and do i need to take abstract algebra or real analysis or both",
+  "topic": "program"
+ },
+ {
+  "id": "ag2-12",
+  "question": "prereq for genetics?",
+  "topic": "course"
+ },
+ {
+  "id": "ag2-13",
+  "question": "I'm a junior in environmental science. What courses are supposed to be taken junior and senior year in the recommended sequence, and when is the capstone?",
+  "topic": "sequence"
+ },
+ {
+  "id": "ag2-14",
+  "question": "should i take p chem or organic 2 next fall, which is easier",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ag2-15",
+  "question": "does stats for the sciences fill the quantitative reasoning gen ed or do i need a separate math course for that",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ag3-01",
+  "question": "what are the requirements for the history major",
+  "topic": "program"
+ },
+ {
+  "id": "ag3-02",
+  "question": "is there a creative writing concentration in the literature major or is it a separate thing? and how many credits would it be",
+  "topic": "program"
+ },
+ {
+  "id": "ag3-03",
+  "question": "can you double major in political science and communication arts? how many credits total would i need to graduate",
+  "topic": "program"
+ },
+ {
+  "id": "ag3-04",
+  "question": "how many credits is the art history minor",
+  "topic": "program"
+ },
+ {
+  "id": "ag3-05",
+  "question": "does sociology have concentrations? like criminology or something",
+  "topic": "program"
+ },
+ {
+  "id": "ag3-06",
+  "question": "whats the prereq for soc 301 and is it offered every semester",
+  "topic": "course"
+ },
+ {
+  "id": "ag3-07",
+  "question": "Does Intro to Philosophy count as a gen ed or only as a major elective for philosophy?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ag3-08",
+  "question": "how many gen ed credits do i need total and do my major courses count toward any of them",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ag3-09",
+  "question": "what does the senior seminar in history cover and how many credits is it",
+  "topic": "course"
+ },
+ {
+  "id": "ag3-10",
+  "question": "im a sophomore in psych, whats the recommended order of classes so i can graduate in 4 yrs? like what should i be taking junior year",
+  "topic": "sequence"
+ },
+ {
+  "id": "ag3-11",
+  "question": "Is there a film or cinema studies major at Ramapo, or just a minor?",
+  "topic": "program"
+ },
+ {
+  "id": "ag3-12",
+  "question": "do i need a foreign language to graduate with a BA in a humanities major? how many semesters",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ag3-13",
+  "question": "can you check if im on track to graduate in may? i switched from english to journalism last year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ag3-14",
+  "question": "who is teaching the shakespeare class next spring and does it still have seats",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ag3-15",
+  "question": "should i add a minor in women and gender studies or just take more electives, which looks better for law school",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ag4-01",
+  "question": "does ramapo have an MBA program",
+  "topic": "program"
+ },
+ {
+  "id": "ag4-02",
+  "question": "How many credits is the Master of Science in Accounting and can it be done part time while working?",
+  "topic": "program"
+ },
+ {
+  "id": "ag4-03",
+  "question": "what is the 4+1 program and which majors offer it",
+  "topic": "program"
+ },
+ {
+  "id": "ag4-04",
+  "question": "Im a junior in business admin. if I do the accelerated bachelors/masters how many grad credits count toward both degrees?",
+  "topic": "program"
+ },
+ {
+  "id": "ag4-05",
+  "question": "are there any graduate certificates? I already have a bachelors and dont want a full masters",
+  "topic": "program"
+ },
+ {
+  "id": "ag4-06",
+  "question": "how many total credits do you need to graduate with a bachelor's degree at Ramapo",
+  "topic": "program"
+ },
+ {
+  "id": "ag4-07",
+  "question": "What courses are required for the business administration major, and is there a concentration in finance?",
+  "topic": "program"
+ },
+ {
+  "id": "ag4-08",
+  "question": "prereqs for ACCT 222?",
+  "topic": "course"
+ },
+ {
+  "id": "ag4-09",
+  "question": "what does BADM 471 cover and how many credits is it",
+  "topic": "course"
+ },
+ {
+  "id": "ag4-10",
+  "question": "Is there a minor in business for non business majors and how many credits would it be",
+  "topic": "program"
+ },
+ {
+  "id": "ag4-11",
+  "question": "I'm going back to school at 34 to finish my degree in business. What should I take my first semester in the major?",
+  "topic": "sequence"
+ },
+ {
+  "id": "ag4-12",
+  "question": "does econ 101 count for gen ed or just for the business major",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ag4-13",
+  "question": "Can you check how many of my transfer credits from community college were accepted?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ag4-14",
+  "question": "who's teaching the MBA data analytics class this spring and does it still have open seats",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ag4-15",
+  "question": "should I do the MS in data science or the MBA if I want to get into management? which one is better",
+  "topic": "out_of_scope"
+ }
+]
