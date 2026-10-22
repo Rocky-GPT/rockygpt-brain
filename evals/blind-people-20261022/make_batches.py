@@ -6,6 +6,10 @@ import json, sys
 from pathlib import Path
 
 rows = json.loads(Path(sys.argv[1]).read_text())
+# The replies carry no clock: the run's campus time is when the answers file was written.
+from datetime import datetime
+from zoneinfo import ZoneInfo
+ran_at = datetime.fromtimestamp(Path(sys.argv[1]).stat().st_mtime, ZoneInfo("America/New_York")).isoformat(timespec="minutes")
 out = Path(sys.argv[2])
 items = []
 for r in rows:
@@ -13,7 +17,7 @@ for r in rows:
     answer = body.get("answer") or f"[error, no answer: {json.dumps(body.get('error') or body)[:200]}]"
     items.append({"id": r["id"], "question": r["question"], "answer": answer,
                   "answered_at": (body.get("facts") or {}).get("request", {}).get("asOf")
-                  or (body.get("metrics") or {}).get("answeredAt") or r.get("asked_at"),
+                  or (body.get("metrics") or {}).get("answeredAt") or r.get("asked_at") or ran_at,
                   "cited_urls": [c.get("url") for c in body.get("citations") or []]})
 for k in range(4):
     (out / f"batch-{k + 1}.json").write_text(
