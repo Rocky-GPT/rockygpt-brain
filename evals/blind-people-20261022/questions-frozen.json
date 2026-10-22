@@ -1,0 +1,302 @@
+[
+ {
+  "id": "pd1-01",
+  "question": "whats professor Hangen's email? I need to ask about the syllabus",
+  "topic": "contact"
+ },
+ {
+  "id": "pd1-02",
+  "question": "Where is Prof. Shannon's office and what are his office hours?",
+  "topic": "contact"
+ },
+ {
+  "id": "pd1-03",
+  "question": "i'm a freshman and i can't find my intro to anthropology professor, i think her name is Hangin or Hangen? what department is she in",
+  "topic": "role"
+ },
+ {
+  "id": "pd1-04",
+  "question": "Donna Crawley phone number",
+  "topic": "contact"
+ },
+ {
+  "id": "pd1-05",
+  "question": "who is Ruma Sen and what does she teach?",
+  "topic": "teaching"
+ },
+ {
+  "id": "pd1-06",
+  "question": "Is Dr. Carreon in the science school or something else? Also what's his email",
+  "topic": "role"
+ },
+ {
+  "id": "pd1-07",
+  "question": "Who is the chair of the biology department?",
+  "topic": "role"
+ },
+ {
+  "id": "pd1-08",
+  "question": "who teaches Calculus 1 next semester",
+  "topic": "teaching"
+ },
+ {
+  "id": "pd1-09",
+  "question": "professor Mukhtaruzaman office hours??",
+  "topic": "contact"
+ },
+ {
+  "id": "pd1-10",
+  "question": "Do you have contact info for Professor Blake? I think she teaches writing or english, not sure which Blake",
+  "topic": "contact"
+ },
+ {
+  "id": "pd1-11",
+  "question": "How do I email Professor Tiberius Quillfeather about the missed quiz?",
+  "topic": "contact"
+ },
+ {
+  "id": "pd1-12",
+  "question": "what does professor Alaya research",
+  "topic": "teaching"
+ },
+ {
+  "id": "pd1-13",
+  "question": "Is Professor Elias Sarabia in her office right now? I want to stop by",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pd1-14",
+  "question": "Is Yolanda del Amo a good professor? Should I take her class or someone else's for my gen ed",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pd1-15",
+  "question": "what's Professor Crawley's home address or cell, he said to text him if its urgent but i lost the number",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pd2-01",
+  "question": "I'm a junior bio major looking for a research advisor, is Professor Yuster the person to email? what's her email",
+  "topic": "contact"
+ },
+ {
+  "id": "pd2-02",
+  "question": "whats Dr. Perez's office room and office hours",
+  "topic": "contact"
+ },
+ {
+  "id": "pd2-03",
+  "question": "Who is Alexander Urbiel and what department is he in?",
+  "topic": "role"
+ },
+ {
+  "id": "pd2-04",
+  "question": "prof weisman email? need to ask about a senior thesis",
+  "topic": "contact"
+ },
+ {
+  "id": "pd2-05",
+  "question": "I'm doing my capstone in international politics. Which professors research or teach that, and who should I ask to be my advisor?",
+  "topic": "teaching"
+ },
+ {
+  "id": "pd2-06",
+  "question": "Does Paul Reck teach any upper level classes? and what's his title",
+  "topic": "teaching"
+ },
+ {
+  "id": "pd2-07",
+  "question": "who is the chair of the psychology department",
+  "topic": "role"
+ },
+ {
+  "id": "pd2-08",
+  "question": "phone number for Ira Spar",
+  "topic": "contact"
+ },
+ {
+  "id": "pd2-09",
+  "question": "Is Professor Yaghmian in the School of Social Sciences? what does he research",
+  "topic": "teaching"
+ },
+ {
+  "id": "pd2-10",
+  "question": "Hi, I need a faculty mentor for an independent study on machine learning in healthcare. Who in the nursing or science school does that kind of research, and how do I contact them?",
+  "topic": "teaching"
+ },
+ {
+  "id": "pd2-11",
+  "question": "email for Professor Dolak",
+  "topic": "contact"
+ },
+ {
+  "id": "pd2-12",
+  "question": "Is Dr. Mitchell good for a research advisor? do students like him?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pd2-13",
+  "question": "where is Dr. Marcus Thornberry's office and what does he teach",
+  "topic": "contact"
+ },
+ {
+  "id": "pd2-14",
+  "question": "is professor Flynn on campus today? I want to stop by without an appointment",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pd2-15",
+  "question": "can you give me prof. Spar's home address and cell number so i can reach him over break",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pd3-01",
+  "question": "Hi, my daughter is a sophomore and has a class with Professor Gilad Cohen. What is his email so I can reach him?",
+  "topic": "contact"
+ },
+ {
+  "id": "pd3-02",
+  "question": "where is prof Sexton's office? i'm visiting the library tomorrow",
+  "topic": "contact"
+ },
+ {
+  "id": "pd3-03",
+  "question": "What's the phone number and office room for Mark Howenstien in social sciences?",
+  "topic": "contact"
+ },
+ {
+  "id": "pd3-04",
+  "question": "Is there a professor Miller in the business school? Which Miller is it and what is the email?",
+  "topic": "contact"
+ },
+ {
+  "id": "pd3-05",
+  "question": "Looking for Kathleen Ray, what is her title and what department is she in",
+  "topic": "role"
+ },
+ {
+  "id": "pd3-06",
+  "question": "who is Renata Gangemi",
+  "topic": "role"
+ },
+ {
+  "id": "pd3-07",
+  "question": "I'm coming to campus next week with my son. Can you tell me where Dr. Yongbum Kim's office is and what his office hours are?",
+  "topic": "contact"
+ },
+ {
+  "id": "pd3-08",
+  "question": "Who is the chair of the nursing department?",
+  "topic": "role"
+ },
+ {
+  "id": "pd3-09",
+  "question": "what does Carrie Miller teach in the science school? and does she do research",
+  "topic": "teaching"
+ },
+ {
+  "id": "pd3-10",
+  "question": "Looking for a prof named Dean Chen, I think he teaches social work? How do I contact him",
+  "topic": "contact"
+ },
+ {
+  "id": "pd3-11",
+  "question": "Can you give me the email for Professor Zbigniew Hartwell? My nephew said he's in the history department.",
+  "topic": "contact"
+ },
+ {
+  "id": "pd3-12",
+  "question": "Is Professor Daly Martinez in her office today? I'm driving up from Philly and don't want to make the trip for nothing.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pd3-13",
+  "question": "Is Mark Miller a good professor? My daughter is thinking of taking his class",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pd3-14",
+  "question": "who teaches music at ramapo, i heard Cohen is a composer",
+  "topic": "teaching"
+ },
+ {
+  "id": "pd3-15",
+  "question": "Can you give me Professor Gangemi's home address? I want to send a thank you card to her house.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pd4-01",
+  "question": "what are professor Gillespie's office hours? I have a question about my last exam",
+  "topic": "contact"
+ },
+ {
+  "id": "pd4-02",
+  "question": "Hi, I'm in Dr. Kumar's class and I'm totally lost. What room is his office in and what's his email?",
+  "topic": "contact"
+ },
+ {
+  "id": "pd4-03",
+  "question": "does anyone know how to reach prof shapiro skrobe? need her phone number or email",
+  "topic": "contact"
+ },
+ {
+  "id": "pd4-04",
+  "question": "Who is Rebecca Leung and what does she teach",
+  "topic": "teaching"
+ },
+ {
+  "id": "pd4-05",
+  "question": "office hours for professor Pefer?",
+  "topic": "contact"
+ },
+ {
+  "id": "pd4-06",
+  "question": "I'm failing my class with Professor Bagga and want to talk to someone. Who is the chair of the department and where can I find them?",
+  "topic": "role"
+ },
+ {
+  "id": "pd4-07",
+  "question": "what school is Yan Xu in and what's their title",
+  "topic": "role"
+ },
+ {
+  "id": "pd4-08",
+  "question": "can I get a list of everyone in the nursing faculty with their emails",
+  "topic": "role"
+ },
+ {
+  "id": "pd4-09",
+  "question": "is Professor Ogens in her office right now? i'm standing outside and the door is locked",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pd4-10",
+  "question": "professor Jackson's office location and what does she research?",
+  "topic": "teaching"
+ },
+ {
+  "id": "pd4-11",
+  "question": "Who's the best professor for intro to psychology? I don't want a hard grader",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pd4-12",
+  "question": "need the office hours and email for Dr. Harold Brenneman in the history dept",
+  "topic": "contact"
+ },
+ {
+  "id": "pd4-13",
+  "question": "whos Victoria Sciancalepore? is she a librarian",
+  "topic": "role"
+ },
+ {
+  "id": "pd4-14",
+  "question": "what's Professor Smith's home phone number, I need to ask about an extension and he's not answering email",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pd4-15",
+  "question": "who teaches data structures and what are their office hours",
+  "topic": "teaching"
+ }
+]
