@@ -62,22 +62,45 @@ def asked_levels(message: str) -> set[str]:
 def find_programs(programs: Sequence[dict[str, Any]], message: str) -> list[dict[str, Any]]:
     """The programs (identities: {"id", "name", …}) a message names, best first, at most
     MAX_PROGRAMS. A program is named when every word of its core name is a word of the message
-    (the longest such core wins: "Data Science" over "Science"). Among its levels the asked ones
-    are kept; with none asked, the undergraduate major."""
-    words = discovery_tokens(message)
-    named = [(program, core) for program in programs
-             if (core := discovery_tokens(program_core(str(program["name"]))))
-             and core <= words]
+    or a short form of it ("math" for Mathematics, "chem" for Chemistry); one whose words all
+    belong to a longer program also named is dropped ("Data Science", not "Science"). Each
+    subject's level comes from the words beside it ("a biology major and a chem minor"), else
+    from the whole message, else the undergraduate major."""
+    tokens = re.findall(r"[a-z0-9+]+", message.casefold())
+    named: list[tuple[dict[str, Any], frozenset[str], list[int], set[int]]] = []
+    for program in programs:
+        core = discovery_tokens(program_core(str(program["name"])))
+        if not core:
+            continue
+        places: list[int] = []
+        every: set[int] = set()
+        for word in core:
+            at = [k for k, w in enumerate(tokens) if w == word or (
+                w not in _ASKING and _abbreviates(w, word) and len(w) >= 3)]
+            if not at:
+                break
+            places.append(min(at))
+            every.update(at)
+        else:
+            named.append((program, core, places, every))
     if not named:
         return []
-    widest = max(len(core) for _, core in named)
-    found = [program for program, core in named if len(core) == widest]
-    levels = asked_levels(message)
-    if levels:
-        chosen = [p for p in found if program_level(str(p["name"])) in levels] or found
-    else:
-        chosen = [p for p in found if program_level(str(p["name"])) == "major"] or found
-    return sorted(chosen, key=lambda p: str(p["name"]))[:MAX_PROGRAMS]
+    # A shorter name is dropped only when every mention of it is inside the longer one ("just
+    # physics" still names Physics beside Engineering Physics).
+    kept = [(p, core, places) for p, core, places, every in named
+            if not any(core < other and every <= set(o_places)
+                       for _, other, o_places, _ in named)]
+    whole = asked_levels(message)
+    chosen: list[dict[str, Any]] = []
+    for core in dict.fromkeys(core for _, core, _ in kept):
+        group = [(p, places) for p, c, places in kept if c == core]
+        start, end = min(group[0][1]), max(group[0][1])
+        beside = " ".join(tokens[max(0, start - 3):end + 4])
+        levels = asked_levels(beside) or whole
+        pick = ([p for p, _ in group if program_level(str(p["name"])) in levels] if levels
+                else [p for p, _ in group if program_level(str(p["name"])) == "major"])
+        chosen += pick or [p for p, _ in group]
+    return chosen[:MAX_PROGRAMS]
 
 
 # A program or course found by its card's meaning (the meaning index), not its exact name. On
@@ -395,3 +418,70 @@ def course_evidence(facts: dict[str, Any], n: int,
                 **({"more_courses_list_it": len(required_by) - len(later)}
                    if len(required_by) > len(later) else {})} if later else {}),
             "catalog_url": course.get("catalog_url")}
+
+
+_ROMAN = {"i": "1", "ii": "2", "iii": "3", "iv": "4"}
+_TITLE_FILLER = {"of", "and", "to", "the", "in", "for", "a", "an", "with", "on", "&", "lecture",
+                 "lab", "laboratory"}
+# Question words never read as the start of a title word ("for" is not Forensic).
+_ASKING = {"for", "the", "and", "can", "how", "what", "when", "who", "why", "does", "did",
+           "take", "taking", "need", "before", "after", "with", "without", "about", "class",
+           "classes", "course", "courses", "credits", "credit", "prereqs", "prereq", "prerequisite",
+           "prerequisites", "major", "minor", "year", "semester", "first", "next", "this", "that",
+           "there", "have", "has", "will", "should", "count", "counts", "enough", "into", "from",
+           "gen", "general", "education", "ed"}
+
+
+def _title_words(title: str) -> list[str]:
+    words = re.findall(r"[a-z0-9]+", title.casefold())
+    return [_ROMAN.get(w, w) for w in words if w not in _TITLE_FILLER]
+
+
+def _abbreviates(word: str, title_word: str) -> bool:
+    """A question's word for a title's word: the word itself, its start ("calc" for calculus,
+    "gen" for general), or its start once a trailing s or o is dropped ("stats", "orgo")."""
+    if word == title_word:
+        return True
+    if word.isdigit() or title_word.isdigit() or len(word) < 3:
+        return False
+    return title_word.startswith(word) or (
+        len(word) >= 4 and word[-1] in "so" and title_word.startswith(word[:-1]))
+
+
+def courses_by_title(titles: dict[str, str], message: str) -> list[str]:
+    """The courses a question names by an everyday form of their catalog title ("calc 2" is
+    Calculus II, "gen chem 2" General Chemistry II, "orgo 1" Organic Chemistry I): every title
+    word matched, or two of three with the title's number, at least one being a word. The
+    best-covered titles, at most three; a question naming none gives none."""
+    # A lone "i" is the speaker, not Roman one; "gen ed" is general education, so "gen" names a
+    # title word only beside another one ("gen chem").
+    tokens = re.findall(r"[a-z0-9]+", message.casefold())
+    words = [w if w == "i" else _ROMAN.get(w, w) for w in tokens]
+    scored: list[tuple[float, str]] = []
+    for entity_id, title in titles.items():
+        parts = _title_words(title)
+        # A one-word title ("Internship", "Seminar") is too common a word to be named by.
+        if len(parts) < 2:
+            continue
+        at = {p: [k for k, w in enumerate(words) if _abbreviates(w, p) and (
+            w not in _ASKING or w == p or (w == "gen" and k + 1 < len(words)
+                                           and words[k + 1] not in ("ed", "eds")))]
+              for p in parts}
+        hit = [p for p in parts if at[p]]
+        if not any(not p.isdigit() for p in hit):
+            continue
+        # The words used sit together in the question, not spread across it.
+        places = [min(at[p]) for p in hit]
+        if max(places) - min(places) > len(parts) + 2:
+            continue
+        numbers = [p for p in parts if p.isdigit()]
+        if numbers and not all(n in words for n in numbers):
+            continue
+        share = len(hit) / len(parts)
+        if share == 1 or (share >= 2 / 3 and numbers):
+            scored.append((share, entity_id))
+    if not scored:
+        return []
+    best = max(score for score, _ in scored)
+    return [entity_id for score, entity_id in scored if score == best][:3]
+

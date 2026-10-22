@@ -157,13 +157,15 @@ def office_cards(facts: GraphOnlyFacts, version: str, identity: str,
 
 
 def academic_cards(facts: GraphOnlyFacts, version: str,
-                   identity: str) -> tuple[list[tuple[str, str, str]], dict[str, list[str]]]:
+                   identity: str,
+                   ) -> tuple[list[tuple[str, str, str]], dict[str, list[str]], dict[str, str]]:
     """Each program's and course's card, read with the shared fact reader: a program's name,
     degree, the start of its description and its recommended plans' own names (concentrations:
     Contemporary Arts of Visual Arts); a course's code, title and the start of its description.
     They find a program or course a question names only in part ("the english major", "a class
     on machine learning"). Also the reverse of every course's published prerequisites: which
-    courses name each course."""
+    courses name each course; and each course's catalog title, for everyday names ("calc 2").
+    """
     entities = facts.identities(("program", "course"))
     cards: list[tuple[str, str, str]] = []
     for entity in entities:
@@ -182,6 +184,7 @@ def academic_cards(facts: GraphOnlyFacts, version: str,
         cards.append((entity["id"], "program", card))
     courses = [e["id"] for e in entities if e["kind"] == "course"]
     required_by: dict[str, list[str]] = {}
+    titles: dict[str, str] = {}
     for start in range(0, len(courses), 12):
         for found in facts.get_course_facts(courses[start:start + 12], version,
                                             identity_hash=identity):
@@ -189,6 +192,7 @@ def academic_cards(facts: GraphOnlyFacts, version: str,
             for code in requisite_codes(course.get("requisites") or []):
                 required_by.setdefault(code, []).append(str(course.get("code")))
             card = f"Ramapo College course: {course.get('code')} {course.get('name') or ''}"
+            titles[found["entity"]["id"]] = str(course.get("name") or "")
             if course.get("description"):
                 card += f"\n{str(course['description'])[:400]}"
             cards.append((found["entity"]["id"], "course", card))
@@ -236,7 +240,7 @@ def academic_cards(facts: GraphOnlyFacts, version: str,
             if event.get("description"):
                 card += f"\n{str(event['description'])[:400]}"
             cards.append((found["entity"]["id"], "event", card))
-    return cards, {code: sorted(set(later)) for code, later in required_by.items()}
+    return cards, {code: sorted(set(later)) for code, later in required_by.items()}, titles
 
 
 def write_questions(units: list[dict[str, Any]], cache: dict[str, list[str]]) -> int:
@@ -303,7 +307,7 @@ def main(argv: list[str] | None = None) -> int:
     facts = GraphOnlyFacts(args.dir)
     version, identity, units, names = collect(facts)
     cards = office_cards(facts, version, identity, units)
-    academic, required_by = academic_cards(facts, version, identity)
+    academic, required_by, course_titles = academic_cards(facts, version, identity)
     names.update({entity_id: name for entity_id, name, _ in cards})
     args.cache.mkdir(parents=True, exist_ok=True)
     questions_path = args.cache / "questions.json"
@@ -348,6 +352,7 @@ def main(argv: list[str] | None = None) -> int:
             "cards": [entity_id for entity_id, _, _ in cards],
             "academic": [[entity_id, kind] for entity_id, kind, _ in academic],
             "required_by": required_by,
+            "course_titles": course_titles,
             "labels": [[_where(u["page"]), u["heading"]] for u in units]}
     if (version, identity) != (pointer["dataset_version"], pointer["identity_hash"]):
         print("The active release changed while the index was built; run it again.",

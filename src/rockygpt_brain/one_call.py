@@ -96,7 +96,7 @@ ONE_CALL_TOOL: dict[str, Any] = {
                                "asked": {"type": "string"},
                                "not_on_pages": {"type": "boolean"},
                                "sections": {"type": "array", "items": {"type": "integer"}}}}},
-                       "text": {"type": "string", "maxLength": 4000}}},
+                       "text": {"type": "string", "maxLength": 8000}}},
 }
 
 # Questions with their own code-computed answers (menus, dining hours, the shuttle) and plain

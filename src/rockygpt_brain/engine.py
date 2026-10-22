@@ -1594,6 +1594,13 @@ class ChatEngine:
         codes = {str(e["name"]): e for e in named if e.get("kind") == "course"}
         found = academics.find_programs(programs, message)
         courses = [codes[code] for code in academics.course_codes(message, set(codes))]
+        # Courses named by an everyday form of their title ("calc 2"), from the meaning index's
+        # catalog titles when one is published.
+        index = self.facts.meaning_index()
+        if index is not None and index.course_titles:
+            by_id = {str(e["id"]): e for e in named if e.get("kind") == "course"}
+            courses += [by_id[i] for i in academics.courses_by_title(index.course_titles, message)
+                        if i in by_id and by_id[i] not in courses]
         return found, academics.also_published(programs, found), courses
 
     def _academics_by_meaning(self, index: MeaningIndex, vector: Sequence[float], message: str,

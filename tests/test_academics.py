@@ -335,3 +335,37 @@ def test_a_course_is_said_with_the_courses_whose_prerequisites_name_it() -> None
     item = course_evidence(facts, 1, [f"PSYC {n}" for n in range(200, 225)])
     assert item["prerequisites"] == "none published"
     assert len(item["is_a_prerequisite_for"]) == 20 and item["more_courses_list_it"] == 5
+
+
+def test_a_course_is_named_by_an_everyday_form_of_its_title() -> None:
+    from rockygpt_brain.academics import courses_by_title
+    titles = {"c1": "CALCULUS I", "c2": "CALCULUS II", "o1": "ORGANIC CHEMISTRY I LECTURE",
+              "g2": "GENERAL CHEMISTRY II LECTURE", "ge": "GENETICS LAB",
+              "fm": "FINANCIAL MANAGEMENT I", "fp": "FORENSIC PSYCHOLOGY",
+              "ip": "INTRODUCTION TO PSYCHOLOGY"}
+    assert courses_by_title(titles, "how many credits is calc 2 and what do i need") == ["c2"]
+    assert courses_by_title(titles, "what are the prereqs for orgo 1") == ["o1"]
+    assert courses_by_title(titles, "is gen chem 2 enough") == ["g2"]
+    assert courses_by_title(titles, "prereqs for intro to psych") == ["ip"]
+    # "gen ed" is not Genetics, the pronoun "I" is not Roman one, "for" is not Forensic.
+    assert courses_by_title(titles, "do the bio labs count as natural science gen ed") == []
+    assert courses_by_title(titles, "how do i apply for financial aid") == []
+
+
+def test_programs_are_named_by_short_forms_each_with_its_own_level() -> None:
+    from rockygpt_brain.academics import find_programs
+    programs = [{"id": n, "name": n} for n in (
+        "Biology BS", "Biology Minor", "Chemistry BS", "Chemistry Minor", "Mathematics BS",
+        "Sociology BA", "Social Work BSW", "Physics BS", "Engineering Physics BS",
+        "Data Science Minor", "Computer Science BS")]
+    def names(q: str) -> list[str]:
+        return [p["name"] for p in find_programs(programs, q)]
+    assert names("what should a freshman math major take first") == ["Mathematics BS"]
+    assert names("I'm a biology major thinking about a chem minor") == [
+        "Biology BS", "Chemistry Minor"]
+    assert names("can I double major in sociology and social work") == [
+        "Sociology BA", "Social Work BSW"]
+    assert names("how is engineering physics different from just physics") == [
+        "Physics BS", "Engineering Physics BS"]
+    assert names("is there a data science minor") == ["Data Science Minor"]
+
