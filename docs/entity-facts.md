@@ -393,3 +393,15 @@ membership note. Discovery (`events.py`) is by the question's words: its time wo
 window on the campus clock and the calendar events dated in it (their identity names end in the
 date) are read; a club is named by every word of its directory name, or found by its card's
 meaning (name and category). Naming an event or club establishes none of its facts.
+
+## People (entity-facts-7)
+
+A `person` identity links its faculty `contacts` row (directory name, title, department, email,
+phone, office) and, when one exists, its `faculty` profile record. `get_person_facts` reads up to
+six: the directory fields cited to the directory page, and from the profile its page, research
+interests, courses and the profile's own "Office Hours" lines exactly as written (code never
+derives office hours). Discovery (`people.py`) is by name: every word of a directory name, or a
+last name that is exactly one person's (title words such as "professor" or "dr" ignored). A
+question asking who teaches or researches a topic finds people by their card's meaning (name,
+title, school, interests, courses) above a floor; a name no one in the directory has is never
+answered by meaning. Naming a person establishes none of their facts.

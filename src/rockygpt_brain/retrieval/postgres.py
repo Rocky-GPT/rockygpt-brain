@@ -5,6 +5,7 @@ import time
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
+from urllib.parse import quote
 
 import psycopg
 from psycopg.rows import dict_row
@@ -404,6 +405,19 @@ ORDER BY c.source_record_key, c.id
 LIMIT %s
 """
 
+# The faculty profiles, with the faculty source's capture time (its directory rows') and freshness.
+_FACULTY = """
+SELECT a.payload, a.content_hash,
+       (SELECT max(c.collected_at) FROM rockygpt_v2.campus_contacts c
+        JOIN rockygpt_v2.sources s ON s.id = c.source_id
+        WHERE c.dataset_version_id = a.dataset_version_id AND s.source_key = 'faculty')
+         AS collected_at,
+       (SELECT s.freshness_sla_hours FROM rockygpt_v2.sources s
+        WHERE s.source_key = 'faculty') AS freshness_sla_hours
+FROM rockygpt_v2.release_artifacts a
+WHERE a.dataset_version_id = %s::uuid AND a.artifact_key = 'faculty'
+"""
+
 _RECORD_SQL = {"programs": _PROGRAMS, "events": _EVENTS, "clubs": _CLUBS,
                "requirement_groups": _REQUIREMENT_GROUPS,
                "dining_hours": _DINING, "menu": _MENU, "shuttle_trips": _TRIPS,
@@ -608,7 +622,40 @@ class PostgresEntityFacts(EntityFacts):
                             for key in keys[:RECORD_COLLECTIONS["graduation_plans"] + 1]
                             if key in plans_read["by_id"]]
 
+                # The faculty profiles are one payload, read once per snapshot; a profile is
+                # keyed by its page and email (or name, where none is published).
+                profiles: dict[str, Any] = {}
+
+                def faculty(entity: dict[str, Any]) -> list[dict[str, Any]]:
+                    keys = [key for link in entity["links"]
+                            if link.get("collection") == "faculty"
+                            and link.get("source_key") == "faculty"
+                            for key in link["source_record_keys"]]
+                    if not keys:
+                        return []
+                    if not profiles:
+                        rows = read(_FACULTY, (release["dataset_id"],))
+                        if len(rows) != 1 or not isinstance(rows[0]["payload"], list):
+                            raise EvidenceUnavailable("The faculty profiles are not published.")
+                        by_key: dict[str, Any] = {}
+                        for item in rows[0]["payload"]:
+                            page = str(item.get("profileUrl") or "").rstrip("/")
+                            if item.get("email"):
+                                by_key[f"{page}#email={item['email']}"] = item
+                            if item.get("name"):
+                                by_key[f"{page}#name={quote(str(item['name']))}"] = item
+                        profiles.update(rows[0], by_key=by_key)
+                    return [{"id": f"faculty:{key}", "source_key": "faculty",
+                             "source_record_key": key, "profile": profiles["by_key"][key],
+                             "collected_at": profiles["collected_at"],
+                             "freshness_sla_hours": profiles["freshness_sla_hours"],
+                             "content_hash": profiles["content_hash"]}
+                            for key in keys[:RECORD_COLLECTIONS["faculty"] + 1]
+                            if key in profiles["by_key"]]
+
                 def records(entity: dict[str, Any], collection: str) -> list[dict[str, Any]]:
+                    if collection == "faculty":
+                        return faculty(entity)
                     if collection == "courses":
                         return courses(entity)
                     if collection == "graduation_plans":

@@ -47,6 +47,8 @@ RECORD_COLLECTIONS = {
     "courses": 1,
     # A calendar event's row and a club's directory row (Archway).
     "events": 1, "clubs": 1,
+    # A faculty member's profile (the faculty artifact entry the link's key names).
+    "faculty": 1,
 }
 # Entities a student can ask about by name: offices and dining venues. A route is not named by
 # students; it is read through the shuttle timetable.
@@ -1965,6 +1967,59 @@ def club_property(row: dict[str, Any], now: datetime) -> tuple[dict[str, Any], d
                          "source_ids": [source["id"]]}], "assertions": [assertion]}, source)
 
 
+MAX_PEOPLE_READ = 6
+_OFFICE_HOURS = re.compile(r"(?im)^\s*office hours?\s*:?.*$")
+
+
+def person_property(contact: dict[str, Any] | None, profile: dict[str, Any] | None,
+                    now: datetime) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """A person as the directory and their faculty profile publish them: name, title, school,
+    email, phone, office room, the profile's office-hours lines as written, courses, research
+    and teaching interests, cited to the profile page (else the directory)."""
+    sources: list[dict[str, Any]] = []
+    value: dict[str, Any] = {}
+    if contact:
+        source = _source(contact, now)
+        source.update(collection="contacts", source_record_keys=[contact["source_record_key"]],
+                      record_ids=[contact["id"]], content_hash=contact.get("content_hash"))
+        sources.append(source)
+        value.update(name=clean(contact.get("name")), title=clean(contact.get("title")),
+                     department=clean(contact.get("department")),
+                     email=clean(contact.get("email")),
+                     phone=clean(contact.get("phone")), office=clean(contact.get("office")))
+    if profile:
+        found = profile.get("profile")
+        record: dict[str, Any] = found if isinstance(found, dict) else {}
+        url = _url(record.get("profileUrl"))
+        source = _source({**profile, "canonical_url": url}, now)
+        source.update(collection="faculty", source_record_keys=[profile["source_record_key"]],
+                      record_ids=[profile["id"]], content_hash=profile.get("content_hash"))
+        sources.append(source)
+        bio = str(record.get("bio") or "")
+        value.update({key: value.get(key) or clean(record.get(field))
+                      for key, field in (("name", "name"), ("title", "title"),
+                                         ("email", "email"), ("phone", "phone"),
+                                         ("office", "office"))},
+                     school=clean(record.get("school")),
+                     office_hours=[" ".join(m.group(0).split()) for m in
+                                   _OFFICE_HOURS.finditer(bio)][:3],
+                     courses=[clean(c) for c in record.get("courses") or [] if isinstance(c, str)],
+                     research_interests=[clean(c) for c in record.get("researchInterests") or []
+                                         if isinstance(c, str)],
+                     teaching_interests=[clean(c) for c in record.get("teachingInterests") or []
+                                         if isinstance(c, str)],
+                     profile_url=url)
+    assertion_ids = [f"{source['id']}:person" for source in sources]
+    assertions = [{"id": f"{source['id']}:person", "source_id": source["id"], "field": "person",
+                   "raw_value": None, "value": _json_safe(value), "caveats": []}
+                  for source in sources]
+    return ({"key": "person", "label": "Person", "category": "person",
+             "status": "known" if value else "unknown",
+             "values": [{"value": _json_safe(value), "assertion_ids": assertion_ids,
+                         "source_ids": [s["id"] for s in sources]}] if value else [],
+             "assertions": assertions}, sources)
+
+
 class EntityFacts:
     """Shared office search and canonical fact reader; adapters supply one snapshot."""
 
@@ -2597,6 +2652,42 @@ class EntityFacts:
                     "entity": {key: entity[key] for key in ("id", "kind", "name")},
                     "properties": [prop], "sources": [source], "evidence_count": 1,
                     "caveats": [], "complete": True,
+                })
+            return found
+
+    def get_person_facts(self, entity_ids: Sequence[str], dataset_version: str, *,
+                         identity_hash: str | None = None,
+                         as_of: datetime | None = None) -> list[dict[str, Any]]:
+        """Each named person's directory contact and faculty profile, at most
+        MAX_PEOPLE_READ in one snapshot."""
+        if (not entity_ids or len(entity_ids) > MAX_PEOPLE_READ
+                or not all(isinstance(e, str) and e and len(e) <= 100 for e in entity_ids)
+                or not isinstance(dataset_version, str) or not dataset_version):
+            raise InvalidFactRequest("Up to six canonical people and a dataset pin are required.")
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            now = as_of if as_of is not None else self.now()
+            if now.tzinfo is None:
+                raise InvalidFactRequest("The fact clock must include its timezone.")
+            by_id = {e["id"]: e for e in snapshot.entities if e["kind"] == "person"}
+            found = []
+            for entity_id in entity_ids:
+                entity = by_id.get(entity_id)
+                if entity is None:
+                    raise UnknownEntity("No person has that canonical identity.")
+                contacts = snapshot.contact_reader(entity)
+                profiles = snapshot.record_reader(entity, "faculty")
+                if len(linked_rows(entity, profiles, "faculty")) != len(profiles):
+                    raise EvidenceUnavailable("A profile has no exact canonical link.")
+                prop, sources = person_property(contacts[0] if contacts else None,
+                                                profiles[0] if profiles else None, now)
+                found.append({
+                    "schema_version": 4, "mapping_version": "entity-facts-7",
+                    "dataset_version": snapshot.dataset_version,
+                    "identity_hash": snapshot.identity_hash,
+                    "entity": {key: entity[key] for key in ("id", "kind", "name")},
+                    "properties": [prop], "sources": sources,
+                    "evidence_count": len(sources), "caveats": [], "complete": bool(sources),
                 })
             return found
 

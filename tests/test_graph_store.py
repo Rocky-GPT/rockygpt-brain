@@ -244,7 +244,10 @@ def test_a_stale_release_pin_fails_like_the_source(folder: Path) -> None:
 
 def test_evidence_for_a_kind_the_graph_did_not_build_fails_instead_of_saying_none(
         folder: Path) -> None:
-    with opened(aliases(), folder).snapshot() as snapshot:
+    # A graph built for offices only holds no evidence for a person.
+    built = GraphEntityFacts(build_release_graph(aliases(), folder, kinds=("office",)),
+                             now=lambda: NOW)
+    with built.snapshot() as snapshot:
         person = next(e for e in snapshot.entities if e["kind"] == "person")
         with pytest.raises(EvidenceUnavailable, match="no evidence for that kind"):
             snapshot.contact_reader(person)
