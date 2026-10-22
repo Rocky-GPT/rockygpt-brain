@@ -23,6 +23,7 @@ _TITLES = discovery_tokens("professor prof dr doctor mr mrs ms miss dean")
 # unrelated ones at most 0.23; a question naming a person no one in the directory is ("professor
 # smith email", 0.45 against strangers) is never answered by meaning.
 PERSON_FLOOR, PERSON_NEAR = 0.40, 0.05
+_CONTACT_ASK = re.compile(r"\b(?:e-?mail|phone|number|office|contact|reach|extension)\b")
 _TOPIC_ASK = re.compile(r"\b(?:who|teach\w*|research\w*|stud(?:y|ies)|experts?|chair|"
                         r"specializ\w*|works? on)\b")
 
@@ -36,27 +37,49 @@ def asks_people_topic(message: str) -> bool:
     return asks_people(message) and bool(_TOPIC_ASK.search(message.casefold()))
 
 
+# Degrees after a directory name ("Joyce Shim, Ph.D., MIA, MSW") are not part of what a
+# student types.
+_CREDENTIALS = re.compile(r"(?:,\s*[A-Z][A-Za-z.]{0,7})+\s*$")
+
+
+def _name(person: dict[str, Any]) -> str:
+    return _CREDENTIALS.sub("", str(person["name"])).strip()
+
+
 def find_people(people: Sequence[dict[str, Any]], message: str) -> list[dict[str, Any]]:
     """The people a message names: every word of a directory name, else a last name that is
-    exactly one person's (a title word before it, or none). At most MAX_PEOPLE."""
+    exactly one person's. A hyphenated last name names its person whole ("williams-goldstein")
+    even where each half is someone else's too. A last name several people share names all of
+    them (the reply asks which one); a two-letter last name ("xu") counts only after a title
+    word. At most MAX_PEOPLE."""
     words = discovery_tokens(message) - _TITLES
-    whole = [p for p in people if (name := discovery_tokens(str(p["name"])))
+    shortest = 2 if discovery_tokens(message) & _TITLES else 3
+    whole = [p for p in people if (name := discovery_tokens(_name(p)))
              and len(name) >= 2 and name <= words]
     if whole:
         return whole[:MAX_PEOPLE]
-    by_last: dict[str, list[dict[str, Any]]] = {}
+    # A last name alone is a person only in a question about one ("is the food good" names no
+    # Professor Norflus-Good).
+    if not (asks_people(message) or _CONTACT_ASK.search(message.casefold())):
+        return []
+    owners: dict[frozenset[str], list[dict[str, Any]]] = {}
     for person in people:
-        parts = str(person["name"]).replace(",", " ").split()
-        if parts:
-            last = discovery_tokens(parts[-1])
-            for token in last:
-                if len(token) >= 3:
-                    by_last.setdefault(token, []).append(person)
+        parts = _name(person).split()
+        last = discovery_tokens(parts[-1]) if parts else frozenset()
+        keys = {frozenset(last)} | {frozenset({token}) for token in last}
+        for key in keys:
+            if key and min(len(token) for token in key) >= shortest:
+                owners.setdefault(key, []).append(person)
+    named = sorted(((key, matches) for key, matches in owners.items() if key <= words),
+                   key=lambda pair: -len(pair[0]))
     found: list[dict[str, Any]] = []
-    for token in words:
-        matches = by_last.get(token, [])
+    for _, matches in named:
         if len(matches) == 1 and matches[0] not in found:
             found.append(matches[0])
+    if not found:
+        for _, matches in named:
+            if len(matches) <= MAX_PEOPLE:
+                return matches
     return found[:MAX_PEOPLE]
 
 

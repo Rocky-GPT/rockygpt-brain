@@ -11,10 +11,27 @@ PEOPLE = [{"id": "ra", "name": "Rikki Abzug"}, {"id": "js", "name": "Jane Smith"
 def test_a_person_is_named_by_their_whole_name_or_their_only_last_name() -> None:
     assert [p["id"] for p in find_people(PEOPLE, "what is rikki abzug's email")] == ["ra"]
     assert [p["id"] for p in find_people(PEOPLE, "professor abzug office hours")] == ["ra"]
-    # Two people share "Smith": a last name alone is not enough.
-    assert find_people(PEOPLE, "professor smith email") == []
+    # Two people share "Smith": both are given, and the reply asks which one.
+    assert [p["id"] for p in find_people(PEOPLE, "professor smith email")] == ["js", "ps"]
     assert [p["id"] for p in find_people(PEOPLE, "jane smith email")] == ["js"]
     assert [p["id"] for p in find_people(PEOPLE, "dr. del amo")] == ["ys"]
+    # Degrees after the name are not typed; a hyphenated last name is one name, unique here
+    # although both halves are other people's.
+    more = [*PEOPLE, {"id": "sh", "name": "Joyce Shim, Ph.D., MIA, MSW"},
+            {"id": "bw", "name": "Brittany A. Williams-Goldstein"},
+            {"id": "lw", "name": "Lisa Williams"}, {"id": "kg", "name": "Ken Goldstein"}]
+    assert [p["id"] for p in find_people(more, "what is joyce shim's email")] == ["sh"]
+    assert [p["id"] for p in find_people(more, "professor shim office")] == ["sh"]
+    assert [p["id"] for p in find_people(more, "prof williams-goldstein email")] == ["bw"]
+    assert [p["id"] for p in find_people(more, "professor goldstein")] == ["bw", "kg"]
+    # A two-letter last name only after a title word.
+    xu = [*PEOPLE, {"id": "xu", "name": "Yan Xu"}]
+    assert [p["id"] for p in find_people(xu, "professor xu email")] == ["xu"]
+    assert find_people(xu, "xu email") == []
+    # A last name alone, in a question about no person, names no one.
+    good = [*PEOPLE, {"id": "jn", "name": "Julie Norflus-Good"}]
+    assert find_people(good, "is the food good at the dining hall") == []
+    assert [p["id"] for p in find_people(good, "what is good's email")] == ["jn"]
     assert asks_people("prof abzug email") and not asks_people("how do i get a parking permit")
     assert asks_people_topic("who teaches business ethics")
     assert not asks_people_topic("professor smith email")
