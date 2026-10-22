@@ -43,6 +43,8 @@ RECORD_COLLECTIONS = {
     "office_sections": 400,
     # A program's catalog row and the requirement groups the catalog lists for it, in order.
     "programs": 1, "requirement_groups": 32,
+    # A catalog course's record (the courses artifact entry its code keys).
+    "courses": 1,
 }
 # Entities a student can ask about by name: offices and dining venues. A route is not named by
 # students; it is read through the shuttle timetable.
@@ -1857,6 +1859,34 @@ def program_properties(
     return props, sources
 
 
+MAX_COURSES_READ = 12
+COURSE_FIELDS = ("code", "name", "school", "description", "attributes", "requisites",
+                 "conveningGroups")
+
+
+def course_property(row: dict[str, Any], now: datetime) -> tuple[dict[str, Any], dict[str, Any]]:
+    """A catalog course exactly as published, cited to its own catalog page. Credits that are
+    not one published number (26 Career Pathways modules publish an object) are unknown, and the
+    catalog's credit-hour range is not read: its minimum is always 0."""
+    course = row.get("course")
+    if not isinstance(course, dict):
+        raise EvidenceUnavailable("Invalid published course record.")
+    url = _url(row.get("url"))
+    source = _source({**row, "canonical_url": url}, now)
+    source.update(collection="courses", source_record_keys=[row["source_record_key"]],
+                  record_ids=[row["id"]], content_hash=row.get("content_hash"))
+    credits = course.get("credits")
+    value = {key: course.get(key) for key in COURSE_FIELDS}
+    value["credits"] = (credits if isinstance(credits, int | float)
+                        and not isinstance(credits, bool) else None)
+    value["catalog_url"] = url
+    assertion = {"id": f"{source['id']}:course", "source_id": source["id"], "field": "course",
+                 "raw_value": None, "value": _json_safe(value), "caveats": []}
+    return ({"key": "course", "label": "Course", "category": "academic", "status": "known",
+             "values": [{"value": _json_safe(value), "assertion_ids": [assertion["id"]],
+                         "source_ids": [source["id"]]}], "assertions": [assertion]}, source)
+
+
 class EntityFacts:
     """Shared office search and canonical fact reader; adapters supply one snapshot."""
 
@@ -2452,8 +2482,49 @@ class EntityFacts:
         """The canonical identities of the given kinds (id, name, aliases), for discovery only:
         naming an identity establishes none of its facts."""
         with self.snapshot() as snapshot:
-            return [{"id": e["id"], "name": e["name"], "aliases": list(e["aliases"])}
+            return [{"id": e["id"], "kind": e["kind"], "name": e["name"],
+                     "aliases": list(e["aliases"])}
                     for e in snapshot.entities if e["kind"] in kinds]
+
+    def get_course_facts(
+        self,
+        entity_ids: Sequence[str],
+        dataset_version: str,
+        *,
+        identity_hash: str | None = None,
+        as_of: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """Each named catalog course as published (title, credits, description, prerequisites,
+        attributes), in the order asked, at most MAX_COURSES_READ in one snapshot."""
+        if (not entity_ids or len(entity_ids) > MAX_COURSES_READ
+                or not all(isinstance(e, str) and e and len(e) <= 100 for e in entity_ids)
+                or not isinstance(dataset_version, str) or not dataset_version):
+            raise InvalidFactRequest("Up to twelve canonical courses and a dataset pin are "
+                                     "required.")
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            now = as_of if as_of is not None else self.now()
+            if now.tzinfo is None:
+                raise InvalidFactRequest("The fact clock must include its timezone.")
+            by_id = {e["id"]: e for e in snapshot.entities if e["kind"] == "course"}
+            found = []
+            for entity_id in entity_ids:
+                entity = by_id.get(entity_id)
+                if entity is None:
+                    raise UnknownEntity("No course has that canonical identity.")
+                rows = snapshot.record_reader(entity, "courses")
+                if len(rows) != 1 or len(linked_rows(entity, rows, "courses")) != 1:
+                    raise EvidenceUnavailable("A course has no single exact catalog record.")
+                prop, source = course_property(rows[0], now)
+                found.append({
+                    "schema_version": 4, "mapping_version": "entity-facts-7",
+                    "dataset_version": snapshot.dataset_version,
+                    "identity_hash": snapshot.identity_hash,
+                    "entity": {key: entity[key] for key in ("id", "kind", "name")},
+                    "properties": [prop], "sources": [source], "evidence_count": 1,
+                    "caveats": [], "complete": True,
+                })
+            return found
 
     def get_program_facts(
         self,

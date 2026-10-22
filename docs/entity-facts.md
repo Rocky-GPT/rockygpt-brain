@@ -10,8 +10,8 @@ must not reconcile raw rows or infer its own fact values.
 The current rebuild reads **office contact facts and office schedules**, dining venues'
 hours and menus, shuttle routes' trips, topics' site pages, and **programs** (majors,
 minors, certificates: their catalog row and requirement groups, `get_program_facts`). It
-does not yet implement fact projections for people, clubs, events, buildings, schools,
-subjects, or courses. The
+and **courses** (`get_course_facts`). It does not yet implement fact projections for
+people, clubs, events, buildings, schools, or subjects. The
 development graph-node inspector exposes the Offices, Dining (venues) and Shuttle
 (routes) branches. It does not yet implement broad developer graph projections,
 profiles, paginated context groups, or versioned cursors.
@@ -363,3 +363,15 @@ certificate, master's, 4+1, major) choose the level, and with none the undergrad
 read while its other published levels are named beside it. Naming a program establishes none
 of its facts. Requirements are written out by code (`academics.render_requirements`), never
 summed or interpreted beyond the catalog's own `choose`.
+
+## Courses (entity-facts-7)
+
+A `course` identity (named by its catalog code, no aliases) links its record in the `courses`
+artifact by that code. `get_course_facts` reads up to twelve in one snapshot: code, title,
+school, description, attributes (Gen Ed categories among them), structured requisites and
+convening groups exactly as published, cited to the course's own catalog page
+(`https://catalog.ramapo.edu/courses/<CODE>`, published in catalog-course-identities) with the
+academic-programs capture time. Mapping rules: credits that are not one number (26 Career
+Pathways modules publish an object) are unknown, and the credit-hour range is not read (its
+minimum is always 0). Discovery (`academics.course_codes`) takes a typed code ("cmps147",
+"CMPS-147") only when it is exactly a published catalog code.

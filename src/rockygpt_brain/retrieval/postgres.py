@@ -316,6 +316,21 @@ ORDER BY w.ord
 LIMIT %s
 """
 
+# The academic-programs capture a catalog course comes from: the courses and the course
+# identities (each course's own catalog page), the capture time, and the source's freshness.
+_COURSE_CATALOG = """
+SELECT c.payload AS courses, i.payload AS identities,
+       (p.payload->>'generatedAt')::timestamptz AS collected_at,
+       (SELECT s.freshness_sla_hours FROM rockygpt_v2.sources s
+        WHERE s.source_key = 'academic-programs') AS freshness_sla_hours
+FROM rockygpt_v2.release_artifacts c
+JOIN rockygpt_v2.release_artifacts i ON i.dataset_version_id = c.dataset_version_id
+  AND i.artifact_key = 'catalog-course-identities'
+JOIN rockygpt_v2.release_artifacts p ON p.dataset_version_id = c.dataset_version_id
+  AND p.artifact_key = 'programs'
+WHERE c.dataset_version_id = %s::uuid AND c.artifact_key = 'courses'
+"""
+
 _RECORD_SQL = {"programs": _PROGRAMS, "requirement_groups": _REQUIREMENT_GROUPS,
                "dining_hours": _DINING, "menu": _MENU, "shuttle_trips": _TRIPS,
                "menu_documents": _MENU_DOCUMENTS, "menu_listings": _MENU_LISTINGS,
@@ -469,7 +484,34 @@ class PostgresEntityFacts(EntityFacts):
                             "Office schedule evidence exceeds the bounded read.")
                     return result
 
+                # The course catalog is read once per snapshot: 2,658 courses are one 3 MB payload.
+                catalog: dict[str, Any] = {}
+
+                def courses(entity: dict[str, Any]) -> list[dict[str, Any]]:
+                    keys = [key for link in entity["links"]
+                            if link.get("collection") == "courses"
+                            and link.get("source_key") == "academic-programs"
+                            for key in link["source_record_keys"]]
+                    if not keys:
+                        return []
+                    if not catalog:
+                        rows = read(_COURSE_CATALOG, (release["dataset_id"],))
+                        if len(rows) != 1 or not isinstance(rows[0]["courses"], dict):
+                            raise EvidenceUnavailable("The course catalog is not published.")
+                        catalog.update(rows[0], urls={
+                            c.get("source_record_key"): c.get("url")
+                            for c in (rows[0]["identities"] or {}).get("courses", [])})
+                    return [{"id": f"course:{key}", "source_key": "academic-programs",
+                             "source_record_key": key, "course": catalog["courses"][key],
+                             "url": catalog["urls"].get(key),
+                             "collected_at": catalog["collected_at"],
+                             "freshness_sla_hours": catalog["freshness_sla_hours"]}
+                            for key in keys[:RECORD_COLLECTIONS["courses"] + 1]
+                            if isinstance(catalog["courses"].get(key), dict)]
+
                 def records(entity: dict[str, Any], collection: str) -> list[dict[str, Any]]:
+                    if collection == "courses":
+                        return courses(entity)
                     query = _RECORD_SQL.get(collection)
                     links = [link for link in entity["links"]
                              if link.get("collection") == collection]

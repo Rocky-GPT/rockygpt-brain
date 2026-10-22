@@ -9,9 +9,11 @@ import pytest
 
 from rockygpt_brain.academics import (
     also_published,
+    course_codes,
     find_programs,
     program_level,
     render_requirements,
+    render_requisites,
 )
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
@@ -154,3 +156,65 @@ def test_a_question_naming_a_program_is_answered_from_its_requirements() -> None
     assert "- CMPS 147 COURSE" in program["requirements"]
     assert result.trace is not None and result.trace["decidedBy"] == "one_call"
     assert "Sources: [1](https://catalog.ramapo.edu/programs/SN-BS-CMPS)" in result.body["answer"]
+
+
+def test_a_course_is_named_only_by_an_exact_catalog_code() -> None:
+    known = {"CMPS 147", "MATH 100T", "PATHCA 1", "PSYC 101"}
+    assert course_codes("is cmps147 hard? what about CMPS-147 and math 100t", known) == [
+        "CMPS 147", "MATH 100T"]
+    assert course_codes("PATHCA 1 and psyc 101", known) == ["PATHCA 1", "PSYC 101"]
+    # A room or a number in passing is not a course.
+    assert course_codes("meet me in ASB 312 at room 147 in 2026", known) == []
+
+
+def test_prerequisites_are_written_out_as_published_with_their_grade() -> None:
+    text = render_requisites([{"section": "Prerequisite", "rule": {
+        "name": "Prerequisite Course", "condition": "completedAllOf", "minimumGrade": "C",
+        "note": "May be taken concurrently with CMPS 231.",
+        "items": [{"logic": "and", "codes": [{"code": "CMPS 148",
+                                              "name": "COMPUTER SCIENCE II"}]}]}}])
+    assert text.splitlines() == [
+        "Prerequisite", "  Prerequisite Course all of:", "  (minimum grade: C)",
+        "  - CMPS 148 COMPUTER SCIENCE II", "  Note: May be taken concurrently with CMPS 231."]
+
+
+def course_catalog() -> MemoryEntityFacts:
+    def course(code: str, name: str, credits: Any) -> dict[str, Any]:
+        return {"id": f"course:{code}", "source_key": "academic-programs",
+                "source_record_key": code, "url": f"https://catalog.ramapo.edu/courses/"
+                f"{code.replace(' ', '')}", "collected_at": NOW, "freshness_sla_hours": 4320,
+                "course": {"code": code, "name": name, "credits": credits, "attributes": [],
+                           "requisites": [], "description": "A course.", "school": "SNH"}}
+    entities = [{"id": f"id-{code}", "name": code, "kind": "course", "aliases": [],
+                 "links": [{"collection": "courses", "source_key": "academic-programs",
+                            "source_record_keys": [code]}]} for code in ("CMPS 147", "PATH 001")]
+    return MemoryEntityFacts(dataset_version="release-1", identity_hash="identities-1",
+                             entities=entities, contacts=[],
+                             records={"courses": [course("CMPS 147", "COMPUTER SCIENCE I", 4),
+                                                  course("PATH 001", "CAREER PATHWAYS",
+                                                         {"min": 0})]},
+                             now=lambda: NOW)
+
+
+def test_courses_are_read_in_one_batch_with_unpublished_credits_unknown() -> None:
+    facts = course_catalog().get_course_facts(["id-CMPS 147", "id-PATH 001"], "release-1",
+                                              identity_hash="identities-1")
+    values = [f["properties"][0]["values"][0]["value"] for f in facts]
+    assert [v["code"] for v in values] == ["CMPS 147", "PATH 001"]
+    assert values[0]["credits"] == 4 and values[1]["credits"] is None
+    assert values[0]["catalog_url"] == "https://catalog.ramapo.edu/courses/CMPS147"
+
+
+def test_a_question_naming_a_course_code_is_answered_from_its_catalog_record() -> None:
+    reply = {"parts": [{"asked": "cmps 147", "not_on_pages": False, "sections": [1]}],
+             "text": "CMPS 147 COMPUTER SCIENCE I is 4 credits. [1]"}
+    gateway = ScriptedGateway(Completion("", (ToolCall("w", "write_answer", reply),), [
+        {"type": "function_call", "call_id": "w", "name": "write_answer",
+         "arguments": json.dumps(reply)}], Usage(10, 10, 0)))
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "how many credits is cmps147"}]})
+    engine = ChatEngine(gateway, course_catalog(), output="written")  # type: ignore[arg-type]
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    (course,) = json.loads(gateway.inputs[0][1]["content"])["programs"]
+    assert course["course"] == "CMPS 147 COMPUTER SCIENCE I" and course["credits"] == 4
+    assert "Sources: [1](https://catalog.ramapo.edu/courses/CMPS147)" in result.body["answer"]
