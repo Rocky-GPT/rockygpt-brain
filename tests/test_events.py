@@ -145,7 +145,7 @@ def test_a_question_about_this_weekend_is_answered_from_the_calendar() -> None:
     request = ChatRequest.model_validate({"messages": [
         {"role": "user", "content": "anything fun happening this weekend? also is there a "
                                     "chess club"}]})
-    engine = ChatEngine(gateway, calendar(), output="written")  # type: ignore[arg-type]
+    engine = ChatEngine(gateway, calendar(), output="written")
     result = asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
     given = json.loads(gateway.inputs[0][1]["content"])
     assert given["calendar"]["window"] == "this weekend"

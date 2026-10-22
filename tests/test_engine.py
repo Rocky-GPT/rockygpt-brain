@@ -1465,7 +1465,7 @@ def test_where_to_go_reads_a_contact_note_that_says_to_make_an_appointment() -> 
     assert "C-101" in visit.body["answer"] and "idroom@example.edu" in visit.body["answer"]
     # Said in the office's own words, so a writer cannot leave the appointment out.
     request = ChatRequest.model_validate({"messages": message})
-    engine = ChatEngine(ScriptedGateway(ask, finish()), id_card_room(note),  # type: ignore[arg-type]
+    engine = ChatEngine(ScriptedGateway(ask, finish()), id_card_room(note),
                         output="json")
     packet = asyncio.run(engine.answer(intake(request, now=NOW), request)).body["facts"]
     assert [n["approved_text"] for n in packet["notices"]
@@ -1507,7 +1507,7 @@ def test_a_contact_note_sentence_that_speaks_to_the_question_is_said_in_its_own_
 
     def notes(question: str) -> list[str]:
         request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
-        engine = ChatEngine(ScriptedGateway(ask, finish()), dining,  # type: ignore[arg-type]
+        engine = ChatEngine(ScriptedGateway(ask, finish()), dining,
                             output="json")
         packet = asyncio.run(engine.answer(intake(request, now=NOW), request)).body["facts"]
         return [n["approved_text"] for n in packet["notices"] if n["type"] == "note_answer"]
@@ -1543,7 +1543,7 @@ def test_a_contact_note_line_is_said_alone_not_with_the_staff_lines_after_it() -
         {"query": "Registrar", "fields": ["email", "contact_note"]}]})
     request = ChatRequest.model_validate({"messages": [
         {"role": "user", "content": "where do i drop off a form after the office closes"}]})
-    engine = ChatEngine(ScriptedGateway(ask, finish()), registrar,  # type: ignore[arg-type]
+    engine = ChatEngine(ScriptedGateway(ask, finish()), registrar,
                         output="json")
     packet = asyncio.run(engine.answer(intake(request, now=NOW), request)).body["facts"]
     assert [n["approved_text"] for n in packet["notices"] if n["type"] == "note_answer"] == [

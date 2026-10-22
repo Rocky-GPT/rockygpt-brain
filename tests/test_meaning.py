@@ -81,7 +81,7 @@ def test_by_meaning_a_section_sharing_no_word_with_the_question_is_offered() -> 
 class EmbeddingGateway(ScriptedGateway):
     def __init__(self, *steps: Any, vector: list[float]) -> None:
         super().__init__(*steps)
-        self.vector, self.embedded = vector, []
+        self.vector, self.embedded = vector, list[str]()
 
     async def embed(self, text: str, *, dimensions: int, budget: TurnBudget) -> list[float]:
         self.embedded.append(text)
@@ -96,7 +96,7 @@ class MeaningFacts(type(advising_and_tutoring())):  # type: ignore[misc]
 
 
 def meaning_service() -> Any:
-    service = advising_and_tutoring()
+    service: Any = advising_and_tutoring()
     service.__class__ = MeaningFacts
     service.index = index_of(
         [("page-advising", "0", ["advising"], [[0, 1, 0]]),
