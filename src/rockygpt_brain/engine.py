@@ -1985,6 +1985,7 @@ class ChatEngine:
             return fallback("no_text")
         view = {"today": turn.campus_now.date().isoformat(), "offices": offices,
                 "programs": academic, "calendar": calendar, "clubs": clubs, "people": people,
+                "computed": computed,
                 "sources": [{"n": s["n"], "urls": [s["url"]]} for s in sources if s.get("url")]}
         problems = unsupported_by(text, view)
         if problems:

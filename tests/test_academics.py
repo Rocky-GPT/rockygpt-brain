@@ -413,3 +413,15 @@ def test_a_gen_ed_question_about_a_subject_gets_its_courses_carrying_gen_ed() ->
         "BIOL 101 INTRODUCTION TO BIOLOGY: GESR"]
     assert gen_ed_courses(titles, gen_ed, codes, "does stats count for my major") == []
 
+
+
+def test_a_reply_stating_a_computed_sum_passes_the_evidence_check() -> None:
+    from rockygpt_brain.writer import unsupported_by
+    view = {"programs": [{"n": 1, "course": "BIOL 111", "credits": 4},
+                         {"n": 2, "course": "BIOL 111L", "credits": 1}],
+            "computed": [{"fact": "BIOL 111 and BIOL 111L together are 5 credits (4 + 1).",
+                          "n": 1}],
+            "sources": [{"n": 1, "urls": ["https://catalog.ramapo.edu/courses/BIOL111"]}]}
+    assert unsupported_by("Together they are 15 credits. [1]", view) == [
+        "a number the facts do not hold: 15"]
+    assert unsupported_by("Together they are 5 credits. [1]", view) == []
