@@ -1,0 +1,3 @@
+brain c52f928 (code-c52f928 export, all calls gpt-6-luna, written mode on :8013, BRAIN_HOWTO_ONE_CALL=1)
+data 9f6612a
+release dev-campus-daily-20261021-2246 (meaning index with program cards incl. plan names, course cards, reverse prerequisites)

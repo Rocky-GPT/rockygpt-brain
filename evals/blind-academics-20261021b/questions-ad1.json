@@ -1,0 +1,17 @@
+[
+{"id": "ad1-01", "question": "im a freshman and kinda lost. whats the difference between a major, gen eds, and electives? do they all count toward the 128 credits", "topic": "gen_ed"},
+{"id": "ad1-02", "question": "what classes should i take first if i want to major in biology?", "topic": "sequence"},
+{"id": "ad1-03", "question": "do I have to declare a major right away or can I stay undecided for a bit", "topic": "program"},
+{"id": "ad1-04", "question": "psych 101 prereqs? and does it count for gen ed", "topic": "course"},
+{"id": "ad1-05", "question": "how many credits is a minor and can i use classes from my major toward it", "topic": "program"},
+{"id": "ad1-06", "question": "what are the gen ed requirements at ramapo? like how many classes in each category", "topic": "gen_ed"},
+{"id": "ad1-07", "question": "cmps 147 - is that a good first class for computer science or should i start with something else", "topic": "course"},
+{"id": "ad1-08", "question": "Is there a major in nursing, and what do I need to take my first year to get in?", "topic": "program"},
+{"id": "ad1-09", "question": "what is a free elective", "topic": "gen_ed"},
+{"id": "ad1-10", "question": "Can you tell me what the Critical Reading and Writing course is and whether everyone has to take it?", "topic": "course"},
+{"id": "ad1-11", "question": "whats the suggested 4 year plan for business admin majors", "topic": "sequence"},
+{"id": "ad1-12", "question": "can I double major in sociology and social work? how many extra classes would that be", "topic": "program"},
+{"id": "ad1-13", "question": "what's my degree audit say I still need for gen ed", "topic": "out_of_scope"},
+{"id": "ad1-14", "question": "are there any open seats in math 110 this fall and who is teaching it?", "topic": "out_of_scope"},
+{"id": "ad1-15", "question": "which major should i pick if i like art and science but want a job after graduating", "topic": "out_of_scope"}
+]
