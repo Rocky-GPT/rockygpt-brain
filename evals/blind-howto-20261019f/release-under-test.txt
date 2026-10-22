@@ -1,0 +1,3 @@
+brain under test: cf1ce22 ("Read a web address up to a citation mark, not into it"; passages, capitals and full sections aac6467)
+(a clean git archive export, run as the written-mode dev Brain on :8013; graders read :8013)
+release: dev-campus-daily-20261019-1927 (data 8f6ba5c)

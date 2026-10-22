@@ -1,0 +1,93 @@
+{
+  "about": "The same 15 questions as mixed-follow-ups.json, with the Brain's replies written in as assistant lines where the dev UI's Bulk run (09-29) had them in its history: the turns that got an answer. Compare the two runs to see whether a confused reply in the history makes the next follow-up read as unclear (scripts/check_conversation.py).",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Where is Financial Aid?"
+    },
+    {
+      "role": "user",
+      "content": "What’s their phone number?"
+    },
+    {
+      "role": "user",
+      "content": "Actually, forget Financial Aid. Where is the Registrar?"
+    },
+    {
+      "role": "user",
+      "content": "What’s the next shuttle?"
+    },
+    {
+      "role": "user",
+      "content": "What about tomorrow?"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm not sure what you're asking. Can you say it another way, or name the place, office or topic you mean?"
+    },
+    {
+      "role": "user",
+      "content": "Give me the first one, not the next one."
+    },
+    {
+      "role": "assistant",
+      "content": "I'm not sure what you're asking. Can you say it another way, or name the place, office or topic you mean?"
+    },
+    {
+      "role": "user",
+      "content": "Write a poem about Ramapo."
+    },
+    {
+      "role": "user",
+      "content": "Who runs Ramapo?"
+    },
+    {
+      "role": "user",
+      "content": "What did you tell me earlier?"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm not sure what you're asking. Can you say it another way, or name the place, office or topic you mean?"
+    },
+    {
+      "role": "user",
+      "content": "Can you register me for CS 450?"
+    },
+    {
+      "role": "assistant",
+      "content": "I can't access student accounts or act in them, so I can't see your grades, schedule, balance or holds, or register, drop, pay or send anything for you. I can help you find the office or page that handles it, or work with details you share."
+    },
+    {
+      "role": "user",
+      "content": "Show me my grades."
+    },
+    {
+      "role": "assistant",
+      "content": "I can't access student accounts or act in them, so I can't see your grades, schedule, balance or holds, or register, drop, pay or send anything for you. I can help you find the office or page that handles it, or work with details you share."
+    },
+    {
+      "role": "user",
+      "content": "Someone collapsed and isn’t responding."
+    },
+    {
+      "role": "assistant",
+      "content": "If you or someone else is in danger right now, call 911.\n\nRockyGPT's new Brain can't answer the rest of your question yet."
+    },
+    {
+      "role": "user",
+      "content": "Now go back to the shuttle thing."
+    },
+    {
+      "role": "user",
+      "content": "Someone is following me and I also need the next shuttle."
+    },
+    {
+      "role": "assistant",
+      "content": "If you or someone else is in danger right now, call 911.\n\nRockyGPT's new Brain can't answer the rest of your question yet."
+    },
+    {
+      "role": "user",
+      "content": "Can you do that for me?"
+    }
+  ]
+}

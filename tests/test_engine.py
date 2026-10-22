@@ -1,1820 +1,1983 @@
-"""Behavioral boundaries: evidence, history, tool recovery, and bounded execution."""
+"""Runtime trust boundaries, independent of model wording and paid providers."""
 
+import asyncio
 import json
-from datetime import datetime
-from types import SimpleNamespace
+from collections.abc import Callable
+from copy import deepcopy
+from datetime import UTC, date, datetime
 from typing import Any
-from unittest.mock import Mock
-from zoneinfo import ZoneInfo
 
 import pytest
-from openai import Timeout
 
-from rockygpt_brain.config import RELEASE
-from rockygpt_brain.contracts import Answer, ChatMessage
-from rockygpt_brain.core.engine import (
-    INSTRUCTIONS,
-    MAX_DRAFT_CALLS,
-    MAX_MODEL_CALLS,
-    MAX_TOOL_CALLS,
-    run_turn,
-)
-from rockygpt_brain.core.render import InvalidAnswer, render_answer
-from rockygpt_brain.core.reviewer import review_answer
-from rockygpt_brain.governance.accounting import PaidCallError
-from test_evidence import expand_records
+from rockygpt_brain.boundary import SAFETY_MESSAGE, safety_text
+from rockygpt_brain.context import build_context
+from rockygpt_brain.contract import ChatRequest
+from rockygpt_brain.engine import MODEL_INPUT_KEYS, ChatEngine, ChatResult
+from rockygpt_brain.provider import Completion, GatewayError, ToolCall, TurnBudget, Usage
+from rockygpt_brain.retrieval import EvidenceUnavailable, MemoryEntityFacts, UnknownEntity
+from rockygpt_brain.turn import intake
 
-NOW = datetime(2026, 9, 4, 12, tzinfo=ZoneInfo("America/New_York"))
-RECORD = {
-    "id": "contacts:registrar",
-    "title": "Registrar",
-    "url": "https://www.ramapo.edu/registrar/",
-    "collection": "contacts",
-    "freshness": "fresh",
-    "content": "Office: D-224",
-}
+NOW = datetime(2026, 10, 1, 12, tzinfo=UTC)
 
 
-@pytest.mark.parametrize("stage", ["conversation", "draft", "review"])
-def test_internal_context_overflow_does_not_blame_accepted_history(stage: str) -> None:
-    client, data = Mock(), Mock()
-    preceding = []
-    if stage != "conversation":
-        preceding.append(tools(search()))
-    if stage == "review":
-        preceding.append(answer("D-224", "campus_fact", [RECORD["id"]]))
-    client.create.side_effect = [*preceding, PaidCallError("context_limit")]
-    data.search.return_value = {"status": "ok", "records": [RECORD]}
-    with pytest.raises(PaidCallError) as error:
-        run_turn(
-            [ChatMessage(role="user", content="Where is the Registrar?")],
-            client=client,
-            data=data,
-            model="test",
-            now=NOW,
-        )
-    assert error.value.code == (
-        "context_limit" if stage == "conversation" else "retrieval_context_limit"
+def completion(tool: str, arguments: dict[str, Any], *, text: str = "") -> Completion:
+    return Completion(
+        text,
+        (ToolCall("call-1", tool, arguments),),
+        [
+            {
+                "type": "function_call",
+                "call_id": "call-1",
+                "name": tool,
+                "arguments": json.dumps(arguments),
+            }
+        ],
+        Usage(10, 10, 0),
     )
-    assert client.create.call_count == len(preceding) + 1
+
+
+def finish(kind: str | None = None, **changes: Any) -> Completion:
+    return completion(
+        "finish",
+        {
+            "parts": []
+            if kind is None
+            else [
+                {
+                    "kind": kind,
+                    "message_index": None,
+                    "situation": None,
+                    **changes,
+                }
+            ]
+        },
+    )
+
+
+LOOKUP = completion("graph_lookup", {"requests": [{"query": "Registrar", "fields": ["email"]}]})
+
+
+class ScriptedGateway:
+    def __init__(self, *steps: Completion | Callable[[], Completion]) -> None:
+        self.steps = iter(steps)
+        self.inputs: list[list[dict[str, Any]]] = []
+
+    async def complete(
+        self,
+        *,
+        input: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        budget: TurnBudget,
+    ) -> Completion:
+        self.inputs.append(deepcopy(input))
+        step = next(self.steps)
+        return step() if callable(step) else step
+
+    async def ready(self) -> bool:
+        return True
+
+
+def facts() -> MemoryEntityFacts:
+    return MemoryEntityFacts(
+        dataset_version="release-1",
+        identity_hash="identities-1",
+        entities=[
+            {
+                "id": "registrar",
+                "name": "Registrar",
+                "kind": "office",
+                "aliases": [],
+                "links": [
+                    {
+                        "collection": "contacts",
+                        "source_key": "directory",
+                        "source_record_keys": ["registrar"],
+                    }
+                ],
+            }
+        ],
+        contacts=[
+            {
+                "id": "source-registrar",
+                "source_key": "directory",
+                "source_record_key": "registrar",
+                "name": "Registrar",
+                "email": "published@example.edu",
+                "canonical_url": "https://example.edu/registrar",
+                "collected_at": NOW,
+                "freshness_sla_hours": 24,
+            }
+        ],
+        # Deliberately different from the turn: runtime must use the one frozen campus clock.
+        now=lambda: datetime(2027, 1, 1, tzinfo=UTC),
+    )
 
 
 def answer(
-    text: str = "Try a study schedule.",
-    kind: str = "guidance",
-    ids: list[str] | None = None,
-    status: str = "answered",
-) -> SimpleNamespace:
-    return SimpleNamespace(
-        status="completed",
-        model="test-model",
-        output=[],
-        output_text=json.dumps(
-            {
-                "status": status,
-                "parts": [
-                    {"kind": kind, "text": text, "evidence_ids": ids or []},
-                ],
-            }
-        ),
-    )
-
-
-def review(
-    *verdicts: str,
-    uses_event_for_entity: bool = False,
-    infers_food_safety: bool = False,
-    plan_deadlines: list[str] | None = None,
-    deadline_basis: str = "student_plan",
-    unverified_premises: list[str] | None = None,
-) -> SimpleNamespace:
-    return SimpleNamespace(
-        status="completed",
-        model="test-model",
-        output=[],
-        output_text=json.dumps(
-            {
-                "parts": [
-                    {
-                        "part_index": i,
-                        "verdict": verdict,
-                        "reason": "",
-                        "unverified_premises": unverified_premises or [],
-                        "uses_event_for_entity": uses_event_for_entity,
-                        "infers_food_safety": infers_food_safety,
-                        "plan_deadlines": [
-                            {"basis": deadline_basis, "latest_usable_at": deadline}
-                            for deadline in plan_deadlines or []
-                        ],
-                    }
-                    for i, verdict in enumerate(verdicts or ("supported",))
-                ],
-            }
-        ),
-    )
-
-
-def search(
-    call_id: str = "lookup",
-    collection: str = "contacts",
+    gateway: ScriptedGateway,
     *,
-    date_from: str | None = None,
-    limit: int = 4,
-) -> SimpleNamespace:
-    return SimpleNamespace(
-        type="function_call",
-        name="search_campus",
-        call_id=call_id,
-        arguments=json.dumps(
-            {
-                "collection": collection,
-                "query": "registrar",
-                "date_from": date_from,
-                "date_to": None,
-                "limit": limit,
-            }
-        ),
-    )
-
-
-def tools(*calls: SimpleNamespace) -> SimpleNamespace:
-    for call in calls:
-        call.model_dump = lambda item=call: {
-            key: value for key, value in vars(item).items() if key != "model_dump"
+    service: MemoryEntityFacts | None = None,
+    messages: list[dict[str, str]] | None = None,
+    omitted: int = 0,
+) -> ChatResult:
+    request = ChatRequest.model_validate(
+        {
+            "messages": messages or [{"role": "user", "content": "What is the Registrar email?"}],
+            "omittedMessages": omitted,
         }
-    return SimpleNamespace(status="completed", model="test-model", output=list(calls))
-
-
-def test_full_conversation_is_preserved_and_evidence_is_cited() -> None:
-    messages = [
-        ChatMessage(role="user", content="Where is the registrar?"),
-        ChatMessage(role="assistant", content="Do you mean their campus office?"),
-        ChatMessage(role="user", content="Yes, and how can I reach them?"),
-    ]
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(search("office"), search("contact")),
-        answer("The office is D-224.", "campus_fact", [RECORD["id"]]),
-        review(),
-    ]
-    data.search.return_value = {"status": "ok", "dataset_version": "release-1", "records": [RECORD]}
-    result = run_turn(messages, client=client, data=data, model="test", now=NOW)
-    first = client.create.call_args_list[0].kwargs
-    # Instructions stay byte-identical for the provider's prompt cache; the clock
-    # follows the conversation instead.
-    assert first["instructions"] == INSTRUCTIONS
-    assert first["input"][:3] == [message.model_dump() for message in messages]
-    clock = first["input"][3]
-    assert clock["role"] == "developer"
-    assert first["store"] is False
-    assert NOW.isoformat() in clock["content"]
-    assert "Friday, September 04, 2026" in clock["content"]
-    assert "2026-08-31 through 2026-09-06" in clock["content"]
-    second = client.create.call_args_list[1].kwargs["input"]
-    assert [
-        x["call_id"]
-        for x in second
-        if isinstance(x, dict) and x.get("type") == "function_call_output"
-    ] == ["office", "contact"]
-    assert result["datasetVersion"] == "release-1"
-    assert len(result["trace"]) == 2
-    assert result["citations"][0]["id"] == RECORD["id"]
-    assert RECORD["url"] in result["answer"]
-
-
-def test_general_help_needs_no_database() -> None:
-    client, data = Mock(), Mock()
-    client.create.side_effect = [answer(), review()]
-    result = run_turn(
-        [ChatMessage(role="user", content="Help me plan my study time")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
     )
-    assert result["status"] == "answered"
-    assert result["citations"] == []
-    assert result["datasetVersion"] is None
-    data.search.assert_not_called()
+    return asyncio.run(
+        ChatEngine(gateway, service or facts()).answer(
+            intake(request, now=NOW),
+            request,
+        )
+    )
 
 
 @pytest.mark.parametrize(
-    ("ids", "freshness", "text"),
+    "bad_completion",
     [
-        ([], "fresh", "The office is open."),
-        (["invented"], "fresh", "The office is open."),
-        ([RECORD["id"]], "stale", "The office is open."),
-        ([RECORD["id"]], "unknown", "The office is open."),
-        ([RECORD["id"]], "fresh", "See https://untrusted.example/"),
-        ([RECORD["id"]], "fresh", "[click](javascript:alert(1))"),
-        ([RECORD["id"]], "fresh", "Visit www.unverified.example"),
-        ([RECORD["id"]], "fresh", "[help][ref]\n\n[ref]: //unverified.example"),
+        finish("clock", result_id="invented-id"),
+        finish("facts", message_index=0),  # Conversation is not fact evidence.
+        finish("clock", value="invented@example.edu"),
+        completion(
+            "finish",
+            {"parts": [{"kind": "clock", "message_index": None, "situation": None}]},
+            text="Registrar's email is invented@example.edu.",
+        ),
+        completion("update_student_account", {"password": "new-password"}),
+        completion("graph_lookup", {"requests": [{"query": "Registrar", "fields": ["password"]}]}),
+        completion(
+            "graph_lookup",
+            {
+                "requests": [
+                    {"query": "Registrar", "fields": ["email"], "value": "invented@example.edu"}
+                ]
+            },
+        ),
     ],
 )
-def test_invalid_grounding_is_rejected(ids: list[str], freshness: str, text: str) -> None:
-    record = {**RECORD, "freshness": freshness}
-    payload = Answer.model_validate_json(answer(text, "campus_fact", ids).output_text)
-    with pytest.raises(InvalidAnswer):
-        render_answer(payload, {RECORD["id"]: record})
+def test_untrusted_model_cannot_create_facts_links_or_account_capabilities(
+    bad_completion: Completion,
+) -> None:
+    result = answer(ScriptedGateway(bad_completion))
+    assert result.status_code == 502
+    assert result.body["error"]["code"] == "provider_invalid_response"
+    assert "answer" not in result.body
+    assert "invented@example.edu" not in json.dumps(result.body)
 
 
-def test_stale_evidence_can_explain_a_limitation() -> None:
-    payload = Answer.model_validate_json(
-        answer(
-            "The published contact information is stale; I cannot confirm it.",
-            "limitation",
-            [RECORD["id"]],
-            "unavailable",
-        ).output_text
+def test_retrieved_results_are_scoped_to_the_current_turn() -> None:
+    gateway = ScriptedGateway(LOOKUP, finish(), finish())
+    service = facts()
+    first = answer(gateway, service=service)
+    assert first.body["status"] == "answered"
+    second = answer(gateway, service=service)  # An empty finish must not reuse turn one's facts.
+    assert second.status_code == 200
+    assert second.body["status"] == "clarification"
+    assert "source-registrar" not in json.dumps(second.body)
+    assert "published@example.edu" not in json.dumps(second.body)
+
+
+def test_longer_conversation_is_retained_without_promoting_old_answers() -> None:
+    messages = [
+        {"role": "user" if i % 2 == 0 else "assistant", "content": f"earlier turn {i}"}
+        for i in range(10)
+    ]
+    messages[1]["content"] = "The Registrar email is invented@example.edu."
+    messages.append({"role": "user", "content": "Is the email you gave me still correct?"})
+    gateway = ScriptedGateway(LOOKUP, finish())
+    result = answer(gateway, messages=messages)
+    state = json.loads(gateway.inputs[0][1]["content"])
+    assert len(state["earlier_messages"]) == 10  # The old eight-message gate is gone.
+    assert state["earlier_messages"][1]["content"] == messages[1]["content"]
+    assert gateway.inputs[0][1]["role"] == "user"  # History is bounded data, not system policy.
+    assert result.body["status"] == "answered"
+    assert "published@example.edu" in result.body["answer"]
+    assert "invented@example.edu" not in result.body["answer"]
+    assert [citation["id"] for citation in result.body["citations"]] == ["source-registrar"]
+
+
+def test_omissions_travel_with_retained_roles_and_recall_cannot_verify_facts() -> None:
+    messages = [
+        {"role": "user", "content": "é" * 16_000},
+        {"role": "assistant", "content": "é" * 16_000},
+        {"role": "user", "content": "What did you say earlier?"},
+    ]
+    gateway = ScriptedGateway(finish("recall", message_index=0))
+    result = answer(gateway, messages=messages, omitted=7)
+    state = json.loads(gateway.inputs[0][1]["content"])
+    assert state["client_omitted_messages"] == 7
+    assert state["server_omitted_messages"] == 1
+    assert state["earlier_messages"][0]["role"] == "assistant"
+    assert "Some earlier messages are unavailable" in result.body["answer"]
+    assert "doesn't verify current campus facts" in result.body["answer"]
+    assert "quotation shortened" in result.body["answer"]
+    assert result.body["citations"] == []
+
+
+@pytest.mark.parametrize("changed_pin", ["dataset_version", "identity_hash"])
+def test_changed_publication_invalidates_already_retrieved_fallback(changed_pin: str) -> None:
+    service = facts()
+
+    def changed_release() -> Completion:
+        setattr(service, changed_pin, "changed-release")
+        return LOOKUP
+
+    result = answer(ScriptedGateway(LOOKUP, changed_release), service=service)
+    assert result.status_code == 503
+    assert result.body["error"]["code"] == "dataset_changed"
+    assert "answer" not in result.body
+    assert "published@example.edu" not in json.dumps(result.body)
+
+
+def test_one_turn_clock_controls_freshness_and_model_context() -> None:
+    gateway = ScriptedGateway(LOOKUP, finish())
+    result = answer(gateway)
+    state = json.loads(gateway.inputs[0][1]["content"])
+    assert state["campus_now"] == "2026-10-01T08:00:00-04:00"
+    assert result.body["status"] == "answered"
+    assert result.body["citations"][0]["freshness"] == "fresh"
+    assert "stale" not in result.body["answer"]
+
+
+def test_account_limitation_cannot_discard_public_part_already_retrieved() -> None:
+    result = answer(
+        ScriptedGateway(LOOKUP, finish("account_limit")),
+        messages=[{"role": "user", "content": "Change my major and give me the Registrar email."}],
     )
-    result = render_answer(payload, {RECORD["id"]: {**RECORD, "freshness": "stale"}})
-    assert result["status"] == "unavailable"
+    assert result.status_code == 200
+    assert result.body["status"] == "partial"
+    assert "can't see or change your personal student information" in result.body["answer"]
+    assert "published@example.edu" in result.body["answer"]
+    assert [citation["id"] for citation in result.body["citations"]] == ["source-registrar"]
 
 
-def test_rendered_answers_fit_in_followup_history() -> None:
-    payload = Answer.model_validate(
+def test_model_cannot_omit_missing_evidence_to_report_full_success() -> None:
+    lookup = completion(
+        "graph_lookup",
         {
-            "status": "answered",
-            "parts": [
-                {"kind": "guidance", "text": "x" * 6000, "evidence_ids": []},
+            "requests": [
+                {"query": "Registrar", "fields": ["email"]},
+                {"query": "Registrar", "fields": ["offices"]},
             ]
-            * 3,
-        }
-    )
-    with pytest.raises(InvalidAnswer, match="too long"):
-        render_answer(payload, {})
-
-
-def test_citations_display_source_titles_and_preserve_record_identity() -> None:
-    record = {**RECORD, "title": "password.reset_url", "source_title": "Password Reset"}
-    payload = Answer.model_validate_json(
-        answer(
-            "Use the official password reset service.", "campus_fact", [RECORD["id"]]
-        ).output_text
-    )
-    result = render_answer(payload, {RECORD["id"]: record})
-    assert "[Password Reset]" in result["answer"]
-    assert result["citations"][0]["record_title"] == "password.reset_url"
-    assert result["citations"][0]["id"] == RECORD["id"]
-
-
-def test_plain_angle_brackets_are_allowed_in_general_explanations() -> None:
-    payload = Answer.model_validate_json(answer("In this example, x < y > z.").output_text)
-    assert render_answer(payload, {})["answer"] == "In this example, x < y > z."
-
-
-def test_database_failure_is_not_empty_data_and_does_not_leak_secrets() -> None:
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(search()),
-        answer("I cannot reach campus data right now.", "limitation", status="unavailable"),
-        review(),
-    ]
-    data.search.side_effect = RuntimeError("postgres://SECRET_HOST/SECRET_PASSWORD")
-    result = run_turn(
-        [ChatMessage(role="user", content="Where is the registrar?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert result["status"] == "unavailable"
-    assert result["trace"][0]["status"] == "unavailable"
-    assert "SECRET" not in json.dumps(result)
-    history = client.create.call_args_list[-2].kwargs["input"]
-    tool_output = next(
-        x["output"]
-        for x in history
-        if isinstance(x, dict) and x.get("type") == "function_call_output"
-    )
-    assert json.loads(tool_output)["reason"] == "campus_data_unavailable"
-    assert "SECRET" not in tool_output
-
-
-def test_missing_schedule_date_returns_actionable_validation_without_query_echo() -> None:
-    client, data = Mock(), Mock()
-    call = search(collection="shuttle")
-    call.arguments = json.dumps(
-        {
-            "collection": "shuttle",
-            "query": "PRIVATE_QUERY",
-            "date_from": None,
-            "date_to": None,
-            "limit": 4,
-        }
-    )
-    client.create.side_effect = [
-        tools(call),
-        answer("Please specify the travel date.", "clarification", status="clarification"),
-        review(),
-    ]
-    run_turn(
-        [ChatMessage(role="user", content="A schedule question")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    data.search.assert_not_called()
-    history = client.create.call_args_list[-2].kwargs["input"]
-    tool_output = next(
-        x["output"]
-        for x in history
-        if isinstance(x, dict) and x.get("type") == "function_call_output"
-    )
-    assert "date_from" in tool_output
-    assert "PRIVATE_QUERY" not in tool_output
-    assert json.loads(tool_output)["status"] == "invalid_request"
-
-
-def test_invalid_output_falls_back_without_accepting_fake_citations() -> None:
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        answer("It closes at ten.", "campus_fact", ["made-up"]),
-        answer("I could not verify those hours.", "limitation", status="unavailable"),
-        review(),
-    ]
-    result = run_turn(
-        [ChatMessage(role="user", content="When does it close?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert result["status"] == "unavailable"
-    assert result["citations"] == []
-    assert client.create.call_count == 1
-    assert result["metrics"]["fallbackReason"] == "unknown_citation"
-
-
-def test_repeated_invalid_output_stops_at_budget() -> None:
-    client, data = Mock(), Mock()
-    client.create.return_value = answer("Unverified", "campus_fact", ["fake"])
-    result = run_turn(
-        [ChatMessage(role="user", content="A question")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert client.create.call_count == 1
-    assert result["status"] == "unavailable"
-    assert result["citations"] == []
-    assert "Unverified" not in result["answer"]
-
-
-def test_incomplete_provider_response_is_not_presented_as_an_answer() -> None:
-    client, data = Mock(), Mock()
-    incomplete = answer()
-    incomplete.status = "incomplete"
-    client.create.return_value = incomplete
-    with pytest.raises(InvalidAnswer):
-        run_turn(
-            [ChatMessage(role="user", content="A question")],
-            client=client,
-            data=data,
-            model="test",
-            now=NOW,
-        )
-
-
-def test_evidence_cannot_leak_between_turns() -> None:
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(search()),
-        answer("D-224", "campus_fact", [RECORD["id"]]),
-        review(),
-    ]
-    data.search.return_value = {"status": "ok", "records": [RECORD]}
-    run_turn(
-        [ChatMessage(role="user", content="Registrar office?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    client.create.side_effect = None
-    client.create.return_value = answer("D-224", "campus_fact", [RECORD["id"]])
-    result = run_turn(
-        [ChatMessage(role="user", content="Registrar office?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert result["status"] == "unavailable"
-    assert result["citations"] == []
-    assert "D-224" not in result["answer"]
-
-
-def test_tool_exhaustion_preserves_one_writer_and_review() -> None:
-    client, data = Mock(), Mock()
-    calls = [search(str(i)) for i in range(MAX_TOOL_CALLS + 3)]
-    client.create.side_effect = [
-        tools(*calls),
-        answer("D-224", "campus_fact", [RECORD["id"]]),
-        review(),
-    ]
-    data.search.return_value = {"status": "ok", "records": [RECORD]}
-    result = run_turn(
-        [ChatMessage(role="user", content="Registrar office?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert data.search.call_count == MAX_TOOL_CALLS
-    assert [item["reason"] for item in result["trace"][-3:]] == ["tool_budget"] * 3
-    assert {
-        k: v
-        for k, v in result["metrics"].items()
-        if k not in {"retrievalMs", "fallbackUsed", "responseMode", "toolResults", "datasetVersion"}
-    } == {
-        "modelCalls": 3,
-        "draftCalls": 2,
-        "reviewCalls": 1,
-        "toolRequests": MAX_TOOL_CALLS + 3,
-        "toolExecutions": MAX_TOOL_CALLS,
-        "validationFailures": [],
-    }
-    requests = client.create.call_args_list
-    assert [request.kwargs["tool_choice"] for request in requests[1:]] == ["none"] * 2
-    outputs = [
-        item
-        for item in requests[1].kwargs["input"]
-        if isinstance(item, dict) and item.get("type") == "function_call_output"
-    ]
-    assert [item["call_id"] for item in outputs] == [str(i) for i in range(MAX_TOOL_CALLS + 3)]
-
-
-def test_two_retrieval_rounds_reserve_writer_and_review() -> None:
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        *(tools(search(str(i))) for i in range(MAX_DRAFT_CALLS - 1)),
-        answer("D-224", "campus_fact", [RECORD["id"]]),
-        review(),
-    ]
-    data.search.return_value = {"status": "ok", "records": [RECORD]}
-    result = run_turn(
-        [ChatMessage(role="user", content="Registrar office?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert result["metrics"]["modelCalls"] == MAX_DRAFT_CALLS + 1 <= MAX_MODEL_CALLS
-    assert [call.kwargs["tool_choice"] for call in client.create.call_args_list[-2:]] == [
-        "none",
-        "none",
-    ]
-    writer = client.create.call_args_list[-2].kwargs
-    assert writer["tools"] == []  # No schemas for tools that cannot be called.
-    assert writer["input"][0] == {"role": "user", "content": "Registrar office?"}
-    results = [
-        item
-        for item in writer["input"]
-        if isinstance(item, dict) and item.get("type") == "function_call_output"
-    ]
-    assert len(results) == MAX_DRAFT_CALLS - 1  # Every tool result remains available.
-    first, repeated = [json.loads(item["output"]) for item in results]
-    assert expand_records(first["evidence_groups"]) == [RECORD]
-    assert repeated["evidence_groups"] == []
-    assert repeated["unchanged_evidence_ids"] == [RECORD["id"]]
-    assert result["trace"][0]["evidence_ids"] == result["trace"][1]["evidence_ids"]
-
-
-def test_changed_record_is_sent_again_and_review_receives_full_evidence() -> None:
-    client, data = Mock(), Mock()
-    updated = {**RECORD, "content": "Office: D-224. Appointments required."}
-    client.create.side_effect = [
-        tools(search("one")),
-        tools(search("two")),
-        answer("D-224; appointments required", "campus_fact", [RECORD["id"]]),
-        review(),
-    ]
-    data.search.side_effect = [
-        {"status": "ok", "records": [RECORD]},
-        {"status": "ok", "records": [updated]},
-    ]
-    result = run_turn(
-        [ChatMessage(role="user", content="Where is the Registrar?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    results = [
-        json.loads(item["output"])
-        for item in client.create.call_args_list[-2].kwargs["input"]
-        if isinstance(item, dict) and item.get("type") == "function_call_output"
-    ]
-    assert expand_records(results[1]["evidence_groups"]) == [updated]
-    assert "unchanged_evidence_ids" not in results[1]
-    assert "Appointments required" in client.create.call_args_list[-1].kwargs["input"]
-    assert result["status"] == "answered"
-
-
-@pytest.mark.parametrize("kind", ["campus_fact", "guidance", "limitation", "clarification"])
-def test_campus_content_in_every_part_kind_is_checked_once(kind: str) -> None:
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(search()),
-        answer("The library is D-224.", kind, [RECORD["id"]]),
-        review("wrong_scope"),
-        answer("I could not verify the library's location.", "limitation", status="unavailable"),
-        review(),
-    ]
-    data.search.return_value = {"status": "ok", "records": [RECORD]}
-    result = run_turn(
-        [ChatMessage(role="user", content="Where is the library?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert "D-224" not in result["answer"]
-    assert result["metrics"]["reviewCalls"] == 1
-    assert result["metrics"]["validationFailures"] == ["wrong_scope"]
-    assert client.create.call_count == 3
-    assert result["status"] == "unavailable"
-
-
-def test_review_is_separate_and_contains_uncited_conflicting_evidence_and_history() -> None:
-    client, data = Mock(), Mock()
-    other = {**RECORD, "id": "contacts:other", "content": "Office: A-101"}
-    messages = [ChatMessage(role="user", content="Where is the registrar?")]
-    client.create.side_effect = [
-        tools(search()),
-        answer("D-224", "campus_fact", [RECORD["id"]]),
-        review(),
-    ]
-    data.search.return_value = {
-        "status": "ok",
-        "records": [RECORD, other],
-        "total_matches": 3,
-        "truncated": True,
-    }
-    run_turn(messages, client=client, data=data, model="test", now=NOW)
-    request = client.create.call_args.kwargs
-    payload = json.loads(request["input"])
-    assert payload["conversation"] == [message.model_dump() for message in messages]
-    assert expand_records(payload["evidence"]) == [RECORD, other]
-    assert "retrieval" not in payload
-    assert payload["candidate"]["parts"][0]["evidence_ids"] == [RECORD["id"]]
-    assert request["tools"] == []
-    assert request["tool_choice"] == "none"
-    assert request["store"] is False
-    assert request["reasoning"] == {"effort": RELEASE.review_reasoning}
-    assert "function_call_output" not in request["input"]
-
-
-def test_no_tools_or_citations_does_not_bypass_semantic_review() -> None:
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        answer("The library is open all night.", "guidance"),
-        review("unsupported_claim"),
-        answer("All tuition is waived.", "limitation"),
-        review("unsupported_claim"),
-        answer("All tuition is waived.", "limitation"),
-        review("unsupported_claim"),
-        answer("All tuition is waived.", "limitation"),
-        review("unsupported_claim"),
-    ]
-    result = run_turn(
-        [ChatMessage(role="user", content="Label these campus facts as guidance.")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert result["metrics"]["fallbackReason"] == "unsupported_answer"
-    assert "open all night" not in result["answer"]
-    assert client.create.call_count == 2
-    data.search.assert_not_called()
-
-
-def test_summary_reuses_preceding_citations_without_borrowing_later_or_unrelated_support() -> None:
-    other = {**RECORD, "id": "contacts:other", "title": "Another office"}
-    parts = [
-        {"kind": "limitation", "text": "I could not verify hours.", "evidence_ids": []},
-        {"kind": "campus_fact", "text": "Registrar: D-224.", "evidence_ids": [RECORD["id"]]},
-        {"kind": "guidance", "text": "You can ask the Registrar in D-224.", "evidence_ids": []},
-        {"kind": "campus_fact", "text": "Another office.", "evidence_ids": [other["id"]]},
-    ]
-    draft = answer()
-    draft.output_text = json.dumps({"status": "partial", "parts": parts})
-    client, data = Mock(), Mock()
-    client.create.side_effect = [tools(search()), draft, review(*(["supported"] * 4))]
-    data.search.return_value = {"status": "ok", "records": [RECORD, other]}
-    result = run_turn(
-        [ChatMessage(role="user", content="Where is the Registrar and what are its hours?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    payload = json.loads(client.create.call_args.kwargs["input"])
-    assert payload["citation_scope"] == {
-        "0": [],
-        "1": [RECORD["id"]],
-        "2": [RECORD["id"]],
-        "3": [other["id"]],
-    }
-    assert payload["candidate"]["parts"] == parts
-    assert payload["earlier_citation_scope"] == {
-        "0": [],
-        "1": [],
-        "2": [RECORD["id"]],
-        "3": [RECORD["id"]],
-    }
-    assert payload["evidence_scope"]["record_ids"] == [RECORD["id"], other["id"]]
-    assert payload["evidence_scope"]["covers"] == "all records returned in this turn"
-    assert result["metrics"]["modelCalls"] == 3
-    assert result["metrics"]["validationFailures"] == []
-
-
-@pytest.mark.parametrize("truncated", [False, True])
-def test_review_receives_query_coverage_and_published_category(truncated: bool) -> None:
-    record = {
-        **RECORD,
-        "id": "clubs:department",
-        "collection": "clubs",
-        "fields": {"category": "Department"},
-    }
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(search()),
-        answer("A department directory entry.", "campus_fact", [str(record["id"])]),
-        review(),
-    ]
-    data.search.return_value = {
-        "status": "ok",
-        "records": [record],
-        "total_matches": 10 if truncated else 1,
-        "truncated": truncated,
-    }
-    result = run_turn(
-        [ChatMessage(role="user", content="Which category is this entry listed under?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    payload = json.loads(client.create.call_args.kwargs["input"])
-    assert payload["evidence_subjects"][record["id"]]["published_category"] == "Department"
-    assert payload["retrieval_coverage"] == [
-        {key: value for key, value in result["trace"][0].items() if key != "elapsed_ms"}
-    ]
-    assert payload["retrieval_coverage"][0]["truncated"] is truncated
-    assert payload["retrieval_coverage"][0]["total_matches"] == (10 if truncated else 1)
-
-
-@pytest.mark.parametrize("explicit_contact", [False, True])
-def test_summary_citation_reuse_preserves_event_scope_veto(explicit_contact: bool) -> None:
-    event = {**RECORD, "id": "events:club", "collection": "events", "title": "Book Club"}
-    candidate = Answer.model_validate(
-        {
-            "status": "answered",
-            "parts": [
-                {
-                    "kind": "campus_fact",
-                    "text": "Book Club meets in D-224.",
-                    "evidence_ids": [event["id"]],
-                },
-                {
-                    "kind": "guidance",
-                    "text": "So the library is in D-224.",
-                    "evidence_ids": [RECORD["id"]] if explicit_contact else [],
-                },
-            ],
-        }
-    )
-    verdict = review("supported", "supported")
-    payload = json.loads(verdict.output_text)
-    payload["parts"][1]["uses_event_for_entity"] = True
-    verdict.output_text = json.dumps(payload)
-    client = Mock()
-    client.create.return_value = verdict
-    result = review_answer(
-        candidate,
-        messages=[ChatMessage(role="user", content="Where is the library?")],
-        evidence={event["id"]: event, RECORD["id"]: RECORD},
-        client=client,
-        model="test",
-        now=NOW,
-        timeout=10,
-    )
-    assert [part.verdict for part in result.parts] == ["supported", "wrong_scope"]
-    request = json.loads(client.create.call_args.kwargs["input"])
-    assert request["event_citations"] == {"0": [event["id"]], "1": [event["id"]]}
-
-
-@pytest.mark.parametrize("kind", ["campus_fact", "guidance", "limitation", "clarification"])
-def test_unverified_premise_overrides_approval_without_repair(kind: str) -> None:
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(search()),
-        answer("The office is in D-224, so it is open now.", kind, [RECORD["id"]]),
-        review(unverified_premises=["Having a listed office means the service is currently open."]),
-        answer(
-            "The office is D-224. I could not verify current hours.",
-            "limitation",
-            [RECORD["id"]],
-            status="partial",
-        ),
-        review(),
-    ]
-    data.search.return_value = {"status": "ok", "records": [RECORD]}
-    result = run_turn(
-        [ChatMessage(role="user", content="Where is the Registrar and is it open now?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert "it is open now" not in result["answer"]
-    assert result["status"] == "unavailable"
-    # Nothing from the rejected draft is shown: only the page that was checked,
-    # named as checked, so the student has somewhere to go instead of a dead end.
-    assert [citation["url"] for citation in result["citations"]] == [RECORD["url"]]
-    assert result["answer"].endswith("The published pages I checked are linked below.")
-    assert result["metrics"]["validationFailures"] == ["unsupported_claim"]
-    assert result["metrics"]["reviewCalls"] == 1
-    assert result["metrics"]["modelCalls"] == 3
-    assert client.create.call_count == 3
-
-
-@pytest.mark.parametrize("explain", [False, True])
-def test_rejection_reasons_are_returned_only_when_asked(explain: bool) -> None:
-    office = {**RECORD, "id": "contacts:6ae60e72-e1b6-4b70-93be-860763ecc7ab"}
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(search()),
-        answer("The office is in D-224, so it is open now.", "campus_fact", [office["id"]]),
-        review(unverified_premises=["record_1 lists an office, not current hours."]),
-    ]
-    data.search.return_value = {"status": "ok", "records": [office]}
-    result = run_turn(
-        [ChatMessage(role="user", content="Where is the Registrar and is it open now?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-        explain_rejections=explain,
-    )
-    assert result["status"] == "unavailable"
-    if explain:
-        # The reviewer saw a turn-local name; the developer sees the real ID.
-        premise = f"{office['id']} lists an office, not current hours."
-        assert result["metrics"]["reviewRejections"] == [
-            {
-                "part_index": 0,
-                "verdict": "unsupported_claim",
-                "reason": f"Missing factual support: {premise}",
-                "unverified_premises": [premise],
-            }
-        ]
-    else:
-        assert "reviewRejections" not in result["metrics"]
-
-
-def draft(*parts: tuple[str, str, list[str]], status: str = "answered") -> SimpleNamespace:
-    reply = answer()
-    reply.output_text = json.dumps(
-        {
-            "status": status,
-            "parts": [
-                {"kind": kind, "text": text, "evidence_ids": ids} for kind, text, ids in parts
-            ],
-        }
-    )
-    return reply
-
-
-def test_failed_paragraph_is_dropped_and_supported_ones_are_kept() -> None:
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(search()),
-        draft(
-            ("guidance", "Bring your student ID.", []),
-            ("campus_fact", "The Registrar is in D-224.", [RECORD["id"]]),
-            ("campus_fact", "It is open until 9 PM tonight.", [RECORD["id"]]),
-        ),
-        review("supported", "supported", "unsupported_claim"),
-    ]
-    data.search.return_value = {"status": "ok", "records": [RECORD]}
-    result = run_turn(
-        [ChatMessage(role="user", content="Where is the Registrar and when does it close?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert result["answer"].startswith("Bring your student ID.\n\nThe Registrar is in D-224.")
-    assert "9 PM" not in result["answer"]
-    assert result["answer"].endswith(
-        "I left out part of this answer because I couldn't verify it against "
-        "published campus information."
-    )
-    assert result["status"] == "partial"
-    assert [citation["id"] for citation in result["citations"]] == [RECORD["id"]]
-    assert result["metrics"]["responseMode"] == "reviewed_prose"
-    assert result["metrics"]["fallbackUsed"] is False
-    assert "fallbackReason" not in result["metrics"]
-    assert result["metrics"]["validationFailures"] == ["unsupported_claim"]
-    assert result["metrics"]["reviewDroppedParts"] == [2]
-    # Nothing is rewritten or checked again.
-    assert client.create.call_count == 3
-
-
-
-def test_diagnostics_keep_the_evidence_the_whole_draft_and_every_verdict() -> None:
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(search()),
-        draft(
-            ("guidance", "Bring your student ID.", []),
-            ("campus_fact", "The Registrar is in D-224.", [RECORD["id"]]),
-            ("campus_fact", "It is open until 9 PM tonight.", [RECORD["id"]]),
-        ),
-        review("supported", "supported", "unsupported_claim"),
-    ]
-    data.search.return_value = {"status": "ok", "records": [RECORD]}
-    diagnostics: dict[str, Any] = {}
-    result = run_turn(
-        [ChatMessage(role="user", content="Where is the Registrar and when does it close?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-        diagnostics=diagnostics,
-    )
-    assert "9 PM" not in result["answer"]
-    assert diagnostics["evidence"] == [RECORD]
-    [drafted] = diagnostics["drafts"]
-    # The rejected paragraph stays in the draft the developer sees.
-    assert [part["text"] for part in drafted["answer"]["parts"]][2] == (
-        "It is open until 9 PM tonight."
-    )
-    assert [verdict["verdict"] for verdict in drafted["review"]] == [
-        "supported", "supported", "unsupported_claim"]
-    assert drafted["outcome"] == "partly_rejected"
-    assert drafted["keptParts"] == [0, 1]
-    assert "diagnostics" not in result
-
-
-@pytest.mark.parametrize("output", ["not json", "cited"])
-def test_diagnostics_keep_a_draft_that_failed_validation(output: str) -> None:
-    client, data = Mock(), Mock()
-    reply = answer("It closes at ten.", "campus_fact", ["made-up"])
-    if output == "not json":
-        reply.output_text = "It closes at ten."
-    client.create.side_effect = [reply]
-    diagnostics: dict[str, Any] = {}
-    result = run_turn(
-        [ChatMessage(role="user", content="When does it close?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-        diagnostics=diagnostics,
-    )
-    assert result["status"] == "unavailable"
-    [drafted] = diagnostics["drafts"]
-    assert drafted["outcome"] == "invalid"
-    if output == "not json":
-        assert drafted["failure"] == "answer_schema"
-        assert drafted["output"] == "It closes at ten."
-    else:
-        assert drafted["failure"] == "unknown_citation"
-        assert drafted["answer"]["parts"][0]["evidence_ids"] == ["made-up"]
-    assert diagnostics["evidence"] == []
-
-
-def test_a_turn_without_lookups_reports_the_release_it_ran_against() -> None:
-    # Routing reads the release on every turn; 12 of 30 dev turns on 09-28 still said
-    # null because only lookups set the version.
-    client, data = Mock(), Mock()
-    data.dataset = {"id": "one", "version": "release-7"}
-    client.create.side_effect = [answer(), review()]
-    result = run_turn(
-        [ChatMessage(role="user", content="What room did you tell me earlier?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert result["trace"] == []
-    assert result["datasetVersion"] == "release-7"
-
-def test_uncited_paragraph_after_a_failed_one_is_dropped_too() -> None:
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(search()),
-        draft(
-            ("campus_fact", "The Registrar is open until 9 PM tonight.", [RECORD["id"]]),
-            ("guidance", "So you can still go after class.", []),
-            ("campus_fact", "Its office is D-224.", [RECORD["id"]]),
-        ),
-        review("unsupported_claim", "supported", "supported"),
-    ]
-    data.search.return_value = {"status": "ok", "records": [RECORD]}
-    result = run_turn(
-        [ChatMessage(role="user", content="Can I still visit the Registrar today?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    # The uncited paragraph was checked against the dropped one's sources.
-    assert "after class" not in result["answer"]
-    assert "9 PM" not in result["answer"]
-    assert result["answer"].startswith("Its office is D-224.")
-    assert result["status"] == "partial"
-    assert result["metrics"]["reviewDroppedParts"] == [0, 1]
-
-
-def test_only_caveats_left_falls_back_to_the_safe_answer() -> None:
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(search()),
-        draft(
-            ("campus_fact", "The Registrar is open until 9 PM tonight.", [RECORD["id"]]),
-            ("limitation", "I could not verify weekend hours.", [RECORD["id"]]),
-            status="partial",
-        ),
-        review("unsupported_claim", "supported"),
-    ]
-    data.search.return_value = {"status": "ok", "records": [RECORD]}
-    result = run_turn(
-        [ChatMessage(role="user", content="When is the Registrar open?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert "9 PM" not in result["answer"]
-    assert "weekend" not in result["answer"]
-    assert result["status"] == "unavailable"
-    assert result["metrics"]["fallbackReason"] == "unsupported_answer"
-    assert "reviewDroppedParts" not in result["metrics"]
-
-
-MENU: dict[str, Any] = {
-    "id": "menu:bowl",
-    "title": "Ultimate Mediterranean Bowl",
-    "url": "https://www.ramapo.edu/dining/",
-    "collection": "menu",
-    "freshness": "fresh",
-    "fields": {"name": "Ultimate Mediterranean Bowl", "meal": "Dinner", "venue": "Birch Tree Inn"},
-}
-BUILDING: dict[str, Any] = {
-    "id": "buildings:1133371",
-    "title": "Academic Building D",
-    "url": "https://map.ramapo.edu/?id=2292#!m/1133371?sbc/",
-    "collection": "buildings",
-    "freshness": "static",
-}
-
-
-def mixed_turn(*verdicts: str, caveat_ids: list[str] | None = None) -> dict[str, Any]:
-    """"Registrar phone and tonight's menu": each subject has its own lookup and paragraph."""
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(
-            SimpleNamespace(type="function_call", name="lookup_contact", call_id="contact",
-                            arguments=json.dumps({"entity": "Registrar", "fields": ["phone"],
-                                                  "request_text": None})),
-            SimpleNamespace(type="function_call", name="lookup_profile", call_id="menu",
-                            arguments=json.dumps({"entity": "Birch Tree Inn",
-                                                  "include": ["menu"], "meal": "Dinner"})),
-        ),
-        draft(
-            ("campus_fact", "The Registrar's phone number is (201) 684-7695.", [RECORD["id"]]),
-            ("campus_fact", "Dinner at Birch Tree Inn tonight includes the Ultimate "
-             "Mediterranean Bowl.", [MENU["id"]]),
-            ("limitation", "That is only part of tonight's published menu.", caveat_ids or []),
-            status="partial",
-        ),
-        review(*verdicts),
-    ]
-    # The contact lookup also returns the office's building, as it does live.
-    data.lookup_contact.return_value = {
-        "status": "ok", "match": "canonical_entity", "records": [RECORD, BUILDING],
-    }
-    data.lookup_profile.return_value = {
-        "status": "ok", "records": [MENU], "truncated": True, "total_matches": 40,
-    }
-    return run_turn(
-        [ChatMessage(role="user",
-                     content="Give me the Registrar phone and the dining menu for tonight.")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-
-
-def test_two_part_answer_keeps_the_phone_when_the_menu_fails() -> None:
-    result = mixed_turn("supported", "unsupported_claim", "supported")
-    assert result["answer"].startswith("The Registrar's phone number is (201) 684-7695.")
-    assert "Mediterranean" not in result["answer"]
-    # The menu's caveat was checked against the dropped menu's sources, so it goes too.
-    assert "only part" not in result["answer"]
-    assert result["status"] == "partial"
-    assert result["metrics"]["reviewDroppedParts"] == [1, 2]
-    assert [citation["id"] for citation in result["citations"]] == [RECORD["id"]]
-
-
-def test_two_part_answer_keeps_the_menu_when_the_phone_fails() -> None:
-    result = mixed_turn("unsupported_claim", "supported", "supported")
-    assert "684-7695" not in result["answer"]
-    assert result["answer"].startswith("Dinner at Birch Tree Inn tonight includes")
-    assert result["status"] == "partial"
-    assert result["metrics"]["reviewDroppedParts"] == [0, 2]
-    assert [citation["id"] for citation in result["citations"]] == [MENU["id"]]
-
-
-def test_a_cited_caveat_about_the_dropped_paragraph_goes_with_it() -> None:
-    # Seen live: the menu paragraph failed and "these are examples" stayed, about nothing.
-    result = mixed_turn("supported", "unsupported_claim", "supported", caveat_ids=[MENU["id"]])
-    assert "only part" not in result["answer"]
-    assert result["metrics"]["reviewDroppedParts"] == [1, 2]
-    assert [citation["id"] for citation in result["citations"]] == [RECORD["id"]]
-
-
-def test_a_cited_caveat_about_a_kept_paragraph_stays() -> None:
-    result = mixed_turn("unsupported_claim", "supported", "supported", caveat_ids=[MENU["id"]])
-    assert "Mediterranean" in result["answer"] and "only part" in result["answer"]
-    assert result["metrics"]["reviewDroppedParts"] == [0]
-
-
-def test_a_fallback_links_pages_it_checked_not_what_the_draft_cited() -> None:
-    # No paragraph cited the building, but it was looked at, so its page is linked.
-    result = mixed_turn("unsupported_claim", "unsupported_claim", "supported")
-    assert result["status"] == "unavailable"
-    assert [citation["id"] for citation in result["citations"]] == [
-        RECORD["id"], BUILDING["id"], MENU["id"]]
-
-
-def test_reviewer_sees_the_shuttle_calculation_the_draft_saw() -> None:
-    trip: dict[str, Any] = {
-        "id": "shuttle:trip-9",
-        "entity_id": "trip:9",
-        "source_key": "transportation",
-        "collection": "shuttle",
-        "title": "Roadrunner",
-        "url": "https://www.ramapo.edu/shuttle/",
-        "trust_tier": "official_primary",
-        "freshness": "fresh",
-        "fields": {
-            "sequence": 9,
-            "route": "Roadrunner",
-            "service_day": "weekday",
-            "service_date": "2026-09-04",
-            "campus_departure": "6:10 PM",
-            "campus_return": "N/A",
-            "stops": [{"location": "Train", "time": "6:20 PM"}],
         },
-    }
-    trip["coverage"] = {"fields": {key: "published" for key in trip["fields"]}}
-    earlier = {
-        **trip,
-        "id": "shuttle:trip-8",
-        "entity_id": "trip:8",
-        "fields": {**trip["fields"], "sequence": 8, "campus_departure": "11:00 AM",
-                   "stops": [{"location": "Train", "time": "11:10 AM"}],
-                   "campus_return": "11:30 AM"},
-    }
-    call = search("timetable", "shuttle", date_from="2026-09-04", limit=100)
-    call.arguments = json.dumps(
-        {**json.loads(call.arguments), "query": ""}
     )
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(call),
-        answer("The next scheduled departure from campus is 6:10 PM.", "campus_fact", [trip["id"]]),
-        review(),
+    result = answer(
+        ScriptedGateway(lookup, finish()),
+        messages=[{"role": "user", "content": "Give me the Registrar email and office location."}],
+    )
+    assert result.status_code == 200
+    assert result.body["status"] == "partial"
+    assert "published@example.edu" in result.body["answer"]
+    assert "Offices: I have no published information about this" in result.body["answer"]
+
+
+@pytest.mark.parametrize(("kind", "phrase"), [
+    ("greeting", "shuttle timetable, and dining hours and menus"),
+    ("thanks", "You're welcome"),
+    ("okay", "call 911, or call or text 988"),
+    ("about", "I can't see your personal student records"),
+])
+def test_small_talk_gets_a_fixed_server_written_reply_not_an_error(kind: str, phrase: str) -> None:
+    # "okay" answers an earlier emergency, so the conversation holds the Brain's own safety reply.
+    earlier = ([{"role": "user", "content": "my friend is not breathing"},
+                {"role": "assistant", "content": SAFETY_MESSAGE}] if kind == "okay" else [])
+    result = answer(ScriptedGateway(finish(kind)),
+                    messages=[*earlier, {"role": "user", "content": "hey"}])
+    assert result.status_code == 200
+    assert result.body["status"] == "answered"
+    assert phrase in result.body["answer"]
+    assert result.body["citations"] == []
+
+
+def test_a_finish_with_nothing_in_it_asks_what_the_student_needs_instead_of_failing() -> None:
+    result = answer(ScriptedGateway(finish()), messages=[{"role": "user", "content": "thx"}])
+    assert result.status_code == 200
+    assert result.body["status"] == "clarification"
+    assert result.body["answer"] == "Which office or service, and which details, do you mean?"
+
+
+def test_safety_still_shows_the_contact_the_student_asked_for() -> None:
+    result = answer(ScriptedGateway(LOOKUP, finish("safety")),
+                    messages=[{"role": "user", "content": "She's awake now. Registrar email?"}])
+    text = result.body["answer"]
+    assert result.status_code == 200 and result.body["status"] == "partial"
+    assert text.startswith("If you or someone else is in danger right now, call 911.")
+    assert "published@example.edu" in text
+    assert [c["id"] for c in result.body["citations"]] == ["source-registrar"]
+
+
+def test_safety_alone_is_just_the_safety_text() -> None:
+    result = answer(ScriptedGateway(finish("safety")),
+                    messages=[{"role": "user", "content": "my roommate collapsed"}])
+    assert result.body["answer"].startswith("If you or someone else is in danger right now")
+    assert "published@example.edu" not in result.body["answer"]
+    assert result.body["citations"] == []
+
+
+def two_student_offices() -> MemoryEntityFacts:
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": f"office-{n}", "name": name, "kind": "office", "aliases": [], "links": []}
+                  for n, name in enumerate(("Student Accounts", "Student Conduct"))],
+        contacts=[], now=lambda: NOW)
+
+
+def student_lookup(query: str) -> Completion:
+    return completion("graph_lookup", {"requests": [{"query": query, "fields": ["email"]}]})
+
+
+def test_safety_keeps_the_question_about_which_office_was_meant() -> None:
+    result = answer(ScriptedGateway(student_lookup("student"), finish("safety")),
+                    service=two_student_offices())
+    text = result.body["answer"]
+    assert text.startswith(SAFETY_MESSAGE)
+    assert "Which office do you mean: Student Accounts, Student Conduct?" in text
+    assert result.body["status"] == "partial"
+
+
+def test_safety_keeps_the_note_that_no_office_matched() -> None:
+    result = answer(ScriptedGateway(student_lookup("Cafeteria"), finish("safety")))
+    assert result.body["answer"].startswith(SAFETY_MESSAGE)
+    assert "couldn't find a matching office" in result.body["answer"]
+
+
+def test_safety_does_not_hide_a_data_outage() -> None:
+    class Down(MemoryEntityFacts):
+        def search_offices(self, *_: Any, **__: Any) -> dict[str, Any]:
+            raise EvidenceUnavailable("down")
+
+    service = facts()
+    down = Down(dataset_version="release-1", identity_hash="identities-1",
+                entities=service.entities, contacts=service.contacts, now=lambda: NOW)
+    result = answer(ScriptedGateway(LOOKUP, finish("safety")), service=down)
+    assert result.status_code == 503 and result.body["error"]["code"] == "data_unavailable"
+    assert result.body["error"]["emergency"]["text"] == SAFETY_MESSAGE
+
+
+def test_a_safety_part_paired_with_its_message_still_gets_the_safety_text() -> None:
+    # "i took way too many pills and feel really sick" once came back with message_index 0 on
+    # its safety part and the student got a 502 instead of the emergency numbers (2026-10-15).
+    result = answer(ScriptedGateway(finish("safety", message_index=0)))
+    assert result.status_code == 200
+    assert result.body["answer"].startswith(SAFETY_MESSAGE)
+
+
+def test_a_malformed_part_beside_a_safety_part_never_loses_the_safety_text() -> None:
+    both = completion("finish", {"parts": [
+        {"kind": "safety", "message_index": None, "situation": "medical"},
+        {"kind": "recall", "message_index": 7, "situation": None}]})
+    result = answer(ScriptedGateway(both))
+    assert result.status_code == 200
+    assert result.body["answer"].startswith(safety_text("medical"))
+
+
+def test_a_malformed_part_without_a_safety_part_is_still_refused() -> None:
+    result = answer(ScriptedGateway(finish("account_limit", message_index=0)))
+    assert result.status_code == 502 and result.body["error"]["code"] == "provider_invalid_response"
+
+
+def test_an_empty_finish_right_after_a_safety_reply_repeats_the_safety_text() -> None:
+    result = answer(ScriptedGateway(finish()), messages=[
+        {"role": "user", "content": "my roommate collapsed"},
+        {"role": "assistant", "content": SAFETY_MESSAGE},
+        {"role": "user", "content": "please hurry"},
+    ])
+    assert result.status_code == 200 and result.body["answer"] == SAFETY_MESSAGE
+    ordinary = answer(ScriptedGateway(finish()), messages=[
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "Hi! Which office do you need?"},
+        {"role": "user", "content": "thx"},
+    ])
+    assert ordinary.body["status"] == "clarification"
+
+
+def test_a_reply_cut_short_by_a_provider_failure_still_carries_the_emergency_numbers() -> None:
+    def provider_down() -> Completion:
+        raise GatewayError("provider_unavailable")
+
+    result = answer(ScriptedGateway(LOOKUP, provider_down))
+    assert result.body["status"] == "partial"
+    assert "published@example.edu" in result.body["answer"]
+    assert result.body["answer"].endswith(SAFETY_MESSAGE)
+
+
+def test_a_lookup_that_already_asks_which_office_is_not_asked_twice() -> None:
+    both = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": f"office-{n}", "name": name, "kind": "office", "aliases": [], "links": []}
+                  for n, name in enumerate(("Student Accounts", "Student Conduct"))],
+        contacts=[], now=lambda: NOW)
+    lookup = completion("graph_lookup", {"requests": [{"query": "student", "fields": ["email"]}]})
+    result = answer(ScriptedGateway(lookup, finish("clarification")), service=both)
+    text = result.body["answer"]
+    assert "Which office do you mean: Student Accounts, Student Conduct?" in text
+    assert "Which office or service, and which details, do you mean?" not in text
+    assert result.body["status"] == "clarification"
+
+
+def two_offices_and_a_person() -> MemoryEntityFacts:
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[
+            {"id": "b", "name": "ID Card Room", "kind": "office", "aliases": ["Husky Card"],
+             "links": []},
+            {"id": "a", "name": "Registrar", "kind": "office", "aliases": [], "links": []},
+            {"id": "p", "name": "A Person", "kind": "person", "aliases": [], "links": []},
+        ],
+        contacts=[], now=lambda: NOW)
+
+
+def test_the_model_is_shown_the_published_offices_and_the_names_each_goes_by() -> None:
+    gateway = ScriptedGateway(finish("greeting"))
+    answer(gateway, service=two_offices_and_a_person())
+    state = json.loads(gateway.inputs[0][1]["content"])
+    assert tuple(state) == MODEL_INPUT_KEYS
+    root = state["graph_root"]
+    assert root["id"] == "ramapo" and [child["id"] for child in root["children"]] == [
+        "offices", "dining", "shuttle", "topics"]
+    # Offices only, sorted, each with its other names: no person, no id, no record.
+    assert state["published_offices"] == [
+        {"name": "ID Card Room", "also_called": ["Husky Card"]}, {"name": "Registrar"}]
+
+
+def test_okay_is_kept_only_when_an_emergency_reply_is_in_the_conversation() -> None:
+    def run(history: list[dict[str, str]], latest: str = "its fine now, false alarm") -> str:
+        messages = [*history, {"role": "user", "content": latest}]
+        result = answer(ScriptedGateway(finish("okay")), messages=messages)
+        text: str = result.body["answer"]
+        return text
+
+    after = run([{"role": "user", "content": "my friend is not breathing"},
+                 {"role": "assistant", "content": SAFETY_MESSAGE}])
+    assert "thanks for letting me know" in after
+    # With no emergency in the conversation it is a misfire, and the student is asked instead.
+    stray = run([{"role": "user", "content": "is there a trading lab"},
+                 {"role": "assistant", "content": "The Trading Lab is in the business school."}],
+                "can u just give me their contact info")
+    assert "thanks for letting me know" not in stray
+
+
+def test_a_clarification_names_only_published_offices_and_the_code_writes_the_question() -> None:
+    service = two_offices_and_a_person()
+    result = answer(ScriptedGateway(finish(
+        "clarification", offices=["registrar", "Husky Card", "ID Card Room", "Made Up Office"])),
+        service=service)
+    # An alias one office has resolves to that office, a repeat merges, an unknown name is dropped.
+    assert result.body["answer"] == "Which office do you mean: Registrar, ID Card Room?"
+    assert result.body["status"] == "clarification"
+
+
+def test_a_clarification_with_fewer_than_two_published_offices_is_the_generic_question() -> None:
+    from rockygpt_brain.engine import CLARIFICATION_MESSAGE
+    for offered in ([], ["Registrar"], ["Registrar", "Made Up Office"]):
+        result = answer(ScriptedGateway(finish("clarification", offices=offered)),
+                        service=two_offices_and_a_person())
+        assert result.body["answer"] == CLARIFICATION_MESSAGE
+
+
+def test_known_names_leave_out_an_alias_that_two_offices_share() -> None:
+    from rockygpt_brain.engine import known_office_names, named_options
+    listing = {"offices": [{"name": "A Office", "aliases": ["Shared", "Only A"]},
+                           {"name": "B Office", "aliases": ["Shared"]}]}
+    known = known_office_names(listing)
+    assert known == {"a office": "A Office", "only a": "A Office", "b office": "B Office"}
+    assert named_options(["SHARED", "only  a", "b office"], known) == ["A Office", "B Office"]
+    assert known_office_names(None) == {}
+
+
+def test_a_cut_off_or_oversized_office_list_is_not_shown_as_the_whole_list() -> None:
+    from rockygpt_brain.engine import MAX_OFFICE_LIST_BYTES, published_offices
+
+    def listing(offices: list[dict[str, Any]], truncated: bool = False) -> dict[str, Any]:
+        return {"offices": offices, "truncated": truncated}
+
+    short = [{"name": "Registrar", "aliases": ["Records"]}]
+    assert published_offices(listing(short, truncated=True)) is None
+    assert published_offices(listing(short)) == [{"name": "Registrar", "also_called": ["Records"]}]
+    # Too long with the other names: names only. Too long even so: not sent.
+    names = [{"name": f"Office {n:03d}", "aliases": ["a long nickname " * 8]} for n in range(120)]
+    cut = published_offices(listing(names))
+    assert cut is not None and all(list(o) == ["name"] for o in cut)
+    huge = [{"name": "Office " + "x" * 200 + str(n), "aliases": []}
+            for n in range(MAX_OFFICE_LIST_BYTES // 100)]
+    assert published_offices(listing(huge)) is None
+
+
+def test_a_turn_goes_on_without_the_list_when_it_cannot_be_read() -> None:
+    service = two_offices_and_a_person()
+
+    def unreadable(**_: Any) -> dict[str, Any]:
+        raise EvidenceUnavailable("the list cannot be read")
+
+    service.list_offices = unreadable  # type: ignore[method-assign]
+    gateway = ScriptedGateway(finish("greeting"))
+    result = answer(gateway, service=service)
+    assert result.status_code == 200
+    assert json.loads(gateway.inputs[0][1]["content"])["published_offices"] is None
+
+
+def test_office_listing_is_sorted_deduplicated_bounded_and_pinned() -> None:
+    service = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[
+            {"id": "c", "name": "Zeta Office", "kind": "office", "aliases": [], "links": []},
+            {"id": "a", "name": "Alpha Office", "kind": "office",
+             "aliases": ["Beta", "Alpha", "Beta"], "links": []},
+            {"id": "b", "name": "Middle Office", "kind": "office", "aliases": [], "links": []},
+        ],
+        contacts=[], now=lambda: NOW)
+    listing = service.list_offices()
+    assert listing["offices"] == [
+        {"name": "Alpha Office", "aliases": ["Alpha", "Beta"]},
+        {"name": "Middle Office", "aliases": []},
+        {"name": "Zeta Office", "aliases": []},
     ]
-    data.search.return_value = {
-        "status": "ok", "records": [earlier, trip], "total_matches": 2, "truncated": False,
-    }
-    result = run_turn(
-        [ChatMessage(role="user", content="When is the next shuttle?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    payload = json.loads(client.create.call_args.kwargs["input"])
-    calculation = payload["retrieval_coverage"][0]["schedule_calculations"]
-    assert calculation["status"] == "ok"
-    campus = next(item for item in calculation["departures"] if item["origin"] == "campus")
-    assert campus["next"]["departure_at"] == "2026-09-04T18:10:00-04:00"
-    assert "remaining_stops" not in campus["next"]
-    # "Next" rules out every earlier trip, so the whole timetable is in scope.
-    assert payload["citation_scope"] == {"0": [trip["id"], earlier["id"]]}
-    # The saved turn summary keeps counts and codes, not the timetable.
-    assert "schedule_calculations" not in result["metrics"]["toolResults"][0]
-    assert result["status"] == "answered"
+    assert listing["dataset_version"] == "release-1" and listing["truncated"] is False
+    shorter = service.list_offices(limit=2)
+    assert [o["name"] for o in shorter["offices"]] == ["Alpha Office", "Middle Office"]
+    assert shorter["truncated"] is True
+    with pytest.raises(Exception, match="between 1 and 500"):
+        service.list_offices(limit=0)
+    with pytest.raises(Exception, match="changed"):
+        service.list_offices(dataset_version="other")
 
 
-@pytest.mark.parametrize("calculation", ["ok", "unavailable"])
-def test_only_a_calculated_timetable_widens_a_trip_citation(calculation: str) -> None:
-    trips = {f"shuttle:trip-{n}": {**RECORD, "id": f"shuttle:trip-{n}"} for n in (8, 9)}
-    candidate = Answer.model_validate({"status": "answered", "parts": [
-        {"kind": "campus_fact", "text": "Next is 6:10 PM.", "evidence_ids": ["shuttle:trip-9"]},
-        {"kind": "campus_fact", "text": "The Registrar is in D-224.",
-         "evidence_ids": [RECORD["id"]]},
-    ]})
-    client = Mock()
-    client.create.return_value = review("supported", "supported")
-    review_answer(
-        candidate,
-        messages=[ChatMessage(role="user", content="When is the next shuttle?")],
-        evidence={**trips, RECORD["id"]: RECORD},
-        client=client,
-        model="test",
-        now=NOW,
-        timeout=10,
-        retrievals=[{
-            "tool": "search_campus", "status": "ok", "evidence_ids": list(trips),
-            "schedule_calculations": {"status": calculation},
-        }],
-    )
-    scope = json.loads(client.create.call_args.kwargs["input"])["citation_scope"]
-    assert scope["0"] == (
-        ["shuttle:trip-9", "shuttle:trip-8"] if calculation == "ok" else ["shuttle:trip-9"]
-    )
-    assert scope["1"] == [RECORD["id"]]
+@pytest.mark.parametrize("changed_pin", ["dataset_version", "identity_hash"])
+def test_a_second_lookup_must_match_the_publication_the_first_one_read(changed_pin: str) -> None:
+    service = facts()
+
+    def changed_release() -> Completion:
+        setattr(service, changed_pin, "changed-release")
+        return LOOKUP
+
+    result = answer(ScriptedGateway(LOOKUP, changed_release, finish()), service=service)
+    assert result.status_code == 503 and result.body["error"]["code"] == "dataset_changed"
+    assert "published@example.edu" not in json.dumps(result.body)  # No half-old, half-new answer.
 
 
-@pytest.mark.parametrize("failure", ["incomplete", "malformed", "omitted", "duplicate"])
-def test_failed_or_partial_review_never_releases_the_draft(failure: str) -> None:
-    client, data = Mock(), Mock()
-    verdict = review()
-    if failure == "incomplete":
-        verdict.status = "incomplete"
-    elif failure == "malformed":
-        verdict.output_text = "not JSON"
-    elif failure == "omitted":
-        verdict.output_text = json.dumps({"parts": []})
-    else:
-        payload = json.loads(verdict.output_text)
-        payload["parts"] *= 2
-        verdict.output_text = json.dumps(payload)
-    client.create.side_effect = [answer(), verdict, verdict]
-    result = run_turn(
-        [ChatMessage(role="user", content="Help me study")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert client.create.call_count == 2
-    assert result["status"] == "unavailable"
-    assert "Try a study schedule" not in result["answer"]
+@pytest.mark.parametrize("changed_pin", ["dataset_version", "identity_hash"])
+def test_the_first_lookup_defines_the_publication_a_turn_answers_from(changed_pin: str) -> None:
+    service = facts()
+
+    def changed_before_any_lookup() -> Completion:
+        setattr(service, changed_pin, "changed-release")
+        return LOOKUP
+
+    result = answer(ScriptedGateway(changed_before_any_lookup, finish()), service=service)
+    assert result.status_code == 200 and "published@example.edu" in result.body["answer"]
+    if changed_pin == "dataset_version":
+        assert result.body["datasetVersion"] == "changed-release"
 
 
-def test_review_timeout_never_releases_the_draft() -> None:
-    client, data = Mock(), Mock()
-    client.create.side_effect = [answer(), TimeoutError("review timeout")]
-    with pytest.raises(TimeoutError):
-        run_turn(
-            [ChatMessage(role="user", content="Help me study")],
-            client=client,
-            data=data,
-            model="test",
-            now=NOW,
-        )
-    assert client.create.call_count == 2
+def test_a_data_outage_fails_a_lookup_but_not_a_turn_that_needs_no_data() -> None:
+    class Broken(MemoryEntityFacts):
+        def list_offices(self, **_: Any) -> dict[str, Any]:
+            raise EvidenceUnavailable("down")
+
+    service = facts()
+    broken = Broken(dataset_version="release-1", identity_hash="identities-1",
+                    entities=service.entities, contacts=service.contacts, now=lambda: NOW)
+    result = answer(ScriptedGateway(LOOKUP, finish()), service=broken)
+    assert result.status_code == 503 and result.body["error"]["code"] == "data_unavailable"
+    assert result.body["error"]["retryable"] is True
+    # The directory is first read by a lookup, so a greeting does not need it.
+    greeting = answer(ScriptedGateway(finish("greeting")), service=broken)
+    assert greeting.status_code == 200 and greeting.body["status"] == "answered"
 
 
-def test_complex_review_can_use_available_turn_time_without_exceeding_it(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    clock = [0.0]
-    monkeypatch.setattr("rockygpt_brain.engine.monotonic", lambda: clock[0])
-    client, data = Mock(), Mock()
-
-    def respond(**kwargs: object) -> SimpleNamespace:
-        if client.create.call_count == 1:
-            clock[0] = 5.0
-            return answer()
-        timeout = kwargs["timeout"]
-        assert isinstance(timeout, Timeout)
-        assert timeout.read == RELEASE.turn_seconds - 5.0
-        clock[0] += 24.0
-        return review()
-
-    client.create.side_effect = respond
-    result = run_turn(
-        [ChatMessage(role="user", content="Help me study")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert result["elapsedMs"] == 29000
-    assert result["metrics"]["modelCalls"] == 2
+def test_the_trace_records_each_lookup_the_model_asked_for_and_how_it_ended() -> None:
+    result = answer(ScriptedGateway(LOOKUP, finish("unsupported")))
+    assert result.trace is not None and "trace" not in result.body  # The API decides who sees it.
+    assert result.trace["decidedBy"] == "model" and result.trace["root"]["id"] == "ramapo"
+    assert result.trace["finish"] == ["unsupported"]
+    (lookup,) = result.trace["lookups"]
+    assert (lookup["tool"], lookup["traversedBy"]) == ("graph_lookup", "code")
+    assert lookup["arguments"] == {
+        "query": "Registrar", "fields": ["email"], "day": None, "phone_kind": None,
+        "meal": None, "diet": None, "items": [], "with_allergens": [], "without_allergens": [],
+        "details": [], "about": None, "page_terms": []}
+    assert (lookup["status"], lookup["result_count"], lookup["office"]) == ("ok", 1, "Registrar")
+    assert [node["id"] for node in lookup["path"]] == ["ramapo", "offices", "office:registrar"]
+    assert (lookup["dataset_version"], lookup["identity_hash"]) == ("release-1", "identities-1")
 
 
-def test_invalid_review_does_not_retry_or_rewrite() -> None:
-    client, data = Mock(), Mock()
-    malformed = review()
-    malformed.output_text = "not JSON"
-    client.create.side_effect = [answer(), malformed, review()]
-    result = run_turn(
-        [ChatMessage(role="user", content="Help me plan a study session")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    requests = client.create.call_args_list
-    assert len(requests) == 2
-    assert result["status"] == "unavailable"
-    assert {
-        k: v
-        for k, v in result["metrics"].items()
-        if k
-        not in {
-            "retrievalMs",
-            "fallbackUsed",
-            "responseMode",
-            "toolResults",
-            "datasetVersion",
-            "fallbackReason",
-        }
-    } == {
-        "modelCalls": 2,
-        "draftCalls": 1,
-        "reviewCalls": 1,
-        "toolRequests": 0,
-        "toolExecutions": 0,
-        "validationFailures": ["invalid_review"],
-    }
-    data.search.assert_not_called()
+def test_the_trace_says_when_a_lookup_was_ambiguous_missing_or_down() -> None:
+    ambiguous = answer(ScriptedGateway(student_lookup("student"), finish()),
+                       service=two_student_offices())
+    assert ambiguous.trace is not None
+    assert ambiguous.trace["lookups"][0]["status"] == "ambiguous"
+    assert ambiguous.trace["lookups"][0]["candidates"] == ["Student Accounts", "Student Conduct"]
+    missing = answer(ScriptedGateway(student_lookup("Cafeteria"), finish()))
+    assert missing.trace is not None
+    assert missing.trace["lookups"][0]["status"] == "not_found"
+    assert missing.trace["lookups"][0]["result_count"] == 0
+
+    class Down(MemoryEntityFacts):
+        def search_offices(self, *_: Any, **__: Any) -> dict[str, Any]:
+            raise EvidenceUnavailable("down")
+
+    service = facts()
+    down = Down(dataset_version="release-1", identity_hash="identities-1",
+                entities=service.entities, contacts=service.contacts, now=lambda: NOW)
+    outage = answer(ScriptedGateway(LOOKUP, finish()), service=down)
+    assert outage.trace is not None and outage.trace["lookups"][0]["status"] == "data_unavailable"
 
 
-def test_failed_review_cannot_return_after_turn_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
-    clock = [0.0]
-    monkeypatch.setattr("rockygpt_brain.engine.monotonic", lambda: clock[0])
-    client, data = Mock(), Mock()
-
-    def respond(**kwargs: object) -> SimpleNamespace:
-        if client.create.call_count == 1:
-            return answer()
-        clock[0] = RELEASE.turn_seconds
-        malformed = review()
-        malformed.output_text = "not JSON"
-        return malformed
-
-    client.create.side_effect = respond
-    with pytest.raises(TimeoutError):
-        run_turn(
-            [ChatMessage(role="user", content="Help me study")],
-            client=client,
-            data=data,
-            model="test",
-            now=NOW,
-        )
-    assert client.create.call_count == 2
+def test_a_turn_with_no_lookup_still_says_what_the_model_chose() -> None:
+    result = answer(ScriptedGateway(finish("greeting")))
+    assert result.trace is not None
+    assert result.trace["lookups"] == [] and result.trace["finish"] == ["greeting"]
 
 
-def test_model_cannot_reopen_retrieval_after_two_rounds() -> None:
-    client, data = Mock(), Mock()
-    malformed = review()
-    malformed.output_text = "not JSON"
-    client.create.side_effect = [
-        *(tools(search(str(i))) for i in range(4)),
-        answer("Office A-101", "campus_fact", [RECORD["id"]]),
-        malformed,
-        review("contradicted_evidence"),
+class MeteredGateway(ScriptedGateway):
+    """Spends like the real gateway: every call adds to the turn's budget."""
+
+    async def complete(self, *, input: list[dict[str, Any]], tools: list[dict[str, Any]],
+                       budget: TurnBudget) -> Completion:
+        budget.calls += 1
+        budget.committed_nusd += 7
+        return await super().complete(input=input, tools=tools, budget=budget)
+
+
+def test_the_trace_counts_model_calls_and_spend_even_when_the_turn_fails() -> None:
+    done = answer(MeteredGateway(LOOKUP, finish()))
+    assert done.trace is not None
+    assert (done.trace["modelCalls"], done.trace["committedNusd"]) == (2, 14)
+
+    def provider_down() -> Completion:
+        raise GatewayError("provider_unavailable")
+
+    broken = answer(MeteredGateway(LOOKUP, provider_down))
+    assert broken.trace is not None
+    assert (broken.trace["modelCalls"], broken.trace["committedNusd"]) == (2, 14)
+
+
+def test_a_turn_ended_by_an_error_says_so_and_keeps_the_lookups_it_made() -> None:
+    def provider_down() -> Completion:
+        raise GatewayError("provider_unavailable")
+
+    cut_short = answer(ScriptedGateway(LOOKUP, provider_down))
+    assert cut_short.status_code == 200 and cut_short.trace is not None
+    assert cut_short.trace["decidedBy"] == "error"
+    assert cut_short.trace["errorCode"] == "provider_unavailable"
+    assert [c["status"] for c in cut_short.trace["lookups"]] == ["ok"]
+
+    no_lookup = answer(ScriptedGateway(provider_down))
+    assert no_lookup.status_code == 503 and no_lookup.trace is not None
+    assert (no_lookup.trace["decidedBy"], no_lookup.trace["lookups"]) == ("error", [])
+
+    class Broken(MemoryEntityFacts):
+        def list_offices(self, **_: Any) -> dict[str, Any]:
+            raise EvidenceUnavailable("down")
+
+    service = facts()
+    broken = Broken(dataset_version="release-1", identity_hash="identities-1",
+                    entities=service.entities, contacts=service.contacts, now=lambda: NOW)
+    outage = answer(ScriptedGateway(LOOKUP, finish()), service=broken)
+    assert outage.trace is not None and outage.trace["errorCode"] == "data_unavailable"
+    assert [c["status"] for c in outage.trace["lookups"]] == ["data_unavailable"]
+
+
+@pytest.mark.parametrize("changed_pin", ["dataset_version", "identity_hash"])
+def test_a_lookup_that_hits_a_changed_publication_still_shows_in_the_trace(
+        changed_pin: str) -> None:
+    service = facts()
+
+    def changed_release() -> Completion:
+        setattr(service, changed_pin, "changed-release")
+        return LOOKUP
+
+    result = answer(ScriptedGateway(LOOKUP, changed_release, finish()), service=service)
+    assert result.trace is not None and result.trace["errorCode"] == "dataset_changed"
+    assert [c["status"] for c in result.trace["lookups"]] == ["ok", "dataset_changed"]
+
+
+def test_a_lookup_the_data_rejects_shows_in_the_trace() -> None:
+    class Gone(MemoryEntityFacts):
+        def get_office_facts(self, *_: Any, **__: Any) -> dict[str, Any]:
+            raise UnknownEntity("gone")
+
+    service = facts()
+    gone = Gone(dataset_version="release-1", identity_hash="identities-1",
+                entities=service.entities, contacts=service.contacts, now=lambda: NOW)
+    result = answer(ScriptedGateway(LOOKUP, finish()), service=gone)
+    assert result.trace is not None
+    assert [c["status"] for c in result.trace["lookups"]] == ["rejected"]
+
+
+def test_the_trace_shows_five_candidates_and_how_many_matched() -> None:
+    many = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": f"o{n}", "name": f"Student Office {n}", "kind": "office", "aliases": [],
+                   "links": []} for n in range(7)],
+        contacts=[], now=lambda: NOW)
+    result = answer(ScriptedGateway(student_lookup("student"), finish()), service=many)
+    assert result.trace is not None
+    entry = result.trace["lookups"][0]
+    assert entry["status"] == "ambiguous" and entry["result_count"] == 7
+    assert entry["candidates"] == [f"Student Office {n}" for n in range(5)]
+    # Seven matched and five are shown, so the list is cut off and says so.
+    assert entry["truncated"] is True
+
+
+def test_an_all_clear_is_not_answered_as_a_thank_you() -> None:
+    result = answer(ScriptedGateway(finish("okay")), messages=[
+        {"role": "user", "content": "someone collapsed in the caf"},
+        {"role": "assistant", "content": SAFETY_MESSAGE},
+        {"role": "user", "content": "update: it was a false alarm, no need to send anyone"},
+    ])
+    assert result.status_code == 200 and result.body["status"] == "answered"
+    assert "You're welcome" not in result.body["answer"]
+    assert "911" in result.body["answer"] and result.body["citations"] == []
+
+
+def test_a_named_office_is_looked_up_even_when_the_rest_cannot_be_answered() -> None:
+    question = "what is the registrar email and can I book an appointment"
+    words = "book an appointment"
+    result = answer(ScriptedGateway(LOOKUP, finish("unsupported", student_words=words)),
+                    messages=[{"role": "user", "content": question}])
+    assert "published@example.edu" in result.body["answer"]
+    assert "I don't have verified information about that part" in result.body["answer"]
+    assert result.body["status"] == "partial"
+    assert result.trace is not None and result.trace["unsupported_about"] == [words]
+
+
+def test_a_name_the_student_asked_for_keeps_its_conflicts_and_unknowns() -> None:
+    asked = completion("graph_lookup", {"requests": [
+        {"query": "Registrar", "fields": ["name", "email"]}]})
+    text = answer(ScriptedGateway(asked, finish())).body["answer"]
+    assert "published@example.edu" in text and "Name" in text
+
+
+def test_the_clock_and_the_which_office_line_use_the_shared_texts() -> None:
+    from zoneinfo import ZoneInfo
+
+    from rockygpt_brain.engine import AMBIGUOUS_MORE_TEXT, CLOCK_FORMAT, CLOCK_TEXT
+
+    clock = answer(ScriptedGateway(finish("clock")))
+    campus_now = NOW.astimezone(ZoneInfo("America/New_York"))
+    assert clock.body["answer"] == CLOCK_TEXT.format(when=campus_now.strftime(CLOCK_FORMAT))
+    many = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": f"o{n}", "name": f"Student Office {n}", "kind": "office", "aliases": [],
+                   "links": []} for n in range(12)],
+        contacts=[], now=lambda: NOW)
+    result = answer(ScriptedGateway(student_lookup("student office"), finish()), service=many)
+    assert result.trace is not None and result.trace["lookups"][0]["truncated"] is True
+    assert result.body["answer"].endswith(AMBIGUOUS_MORE_TEXT.strip())
+
+
+def campus_help_facts() -> MemoryEntityFacts:
+    """The registrar, plus the two offices an emergency reply points to, each with a phone."""
+    names = (("registrar", "Registrar", "(201) 555-0100"),
+             ("public-safety", "Public Safety (Emergency)", "(201) 555-6666"),
+             ("counseling", "Counseling Center", "(201) 555-7522"))
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": key, "name": name, "kind": "office", "aliases": [],
+                   "links": [{"collection": "contacts", "source_key": "directory",
+                              "source_record_keys": [key]}]} for key, name, _ in names],
+        contacts=[{"id": f"source-{key}", "source_key": "directory", "source_record_key": key,
+                   "name": name, "email": f"{key}@example.edu", "phone": phone,
+                   "canonical_url": f"https://example.edu/{key}", "collected_at": NOW,
+                   "freshness_sla_hours": 24} for key, name, phone in names],
+        now=lambda: NOW)
+
+
+def test_the_model_names_the_kind_of_emergency_and_gets_that_text_first() -> None:
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+
+    for kind in ("self_harm", "medical", "danger", "fire", "other"):
+        result = answer(ScriptedGateway(finish("safety", situation=kind)),
+                        messages=[{"role": "user", "content": "help"}])
+        assert result.body["answer"] == SAFETY_TEXTS[kind]
+        assert result.trace is not None and result.trace["situation"] == kind
+    unnamed = answer(ScriptedGateway(finish("safety")), messages=[{"role": "user", "content": "h"}])
+    assert unnamed.body["answer"] == SAFETY_MESSAGE
+
+
+def test_two_different_kinds_of_emergency_get_the_general_text() -> None:
+    both = completion("finish", {"parts": [
+        {"kind": "safety", "message_index": None, "situation": "fire"},
+        {"kind": "safety", "message_index": None, "situation": "medical"}]})
+    assert answer(ScriptedGateway(both)).body["answer"] == SAFETY_MESSAGE
+    same = completion("finish", {"parts": [
+        {"kind": "safety", "message_index": None, "situation": "fire"},
+        {"kind": "safety", "message_index": None, "situation": "fire"}]})
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+    assert answer(ScriptedGateway(same)).body["answer"] == SAFETY_TEXTS["fire"]
+
+
+def test_a_situation_on_a_part_that_is_not_safety_is_ignored() -> None:
+    result = answer(ScriptedGateway(finish("greeting", situation="fire")),
+                    messages=[{"role": "user", "content": "hi"}])
+    assert result.body["answer"].startswith("Hi! I'm RockyGPT")
+    assert "911" not in result.body["answer"] and result.body["status"] == "answered"
+
+
+def test_an_emergency_reply_adds_the_published_campus_numbers_with_sources() -> None:
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+    from rockygpt_brain.engine import HELP_TEXT
+
+    result = answer(ScriptedGateway(finish("safety", situation="fire")),
+                    service=campus_help_facts(),
+                    messages=[{"role": "user", "content": "there is smoke"}])
+    text = result.body["answer"]
+    assert text.startswith(SAFETY_TEXTS["fire"] + "\n\n" + HELP_TEXT)
+    assert "Public Safety \\(Emergency\\)" in text and "+12015556666" in text
+    assert "Counseling" not in text and "+12015557522" not in text
+    assert [c["id"] for c in result.body["citations"]] == ["source-public-safety"]
+    assert result.body["status"] == "partial"
+    assert result.trace is not None
+    entry = result.trace["lookups"][0]
+    assert entry["tool"] == "emergency_contacts" and entry["status"] == "ok"
+    assert entry["office"] == "Public Safety (Emergency)"
+    assert entry["arguments"] == {"query": "Public Safety (Emergency)", "fields": ["phones"]}
+
+
+def test_a_self_harm_reply_also_points_to_the_counseling_center() -> None:
+    result = answer(ScriptedGateway(finish("safety", situation="self_harm")),
+                    service=campus_help_facts(),
+                    messages=[{"role": "user", "content": "i want to disappear"}])
+    text = result.body["answer"]
+    assert text.index("988") < text.index("+12015557522") < text.index("+12015556666")
+    assert {c["id"] for c in result.body["citations"]} == {"source-counseling",
+                                                          "source-public-safety"}
+
+
+def test_the_rest_of_the_request_follows_the_emergency_text_and_numbers() -> None:
+    lookup = completion("graph_lookup", {"requests": [{"query": "Registrar", "fields": ["email"]}]})
+    result = answer(ScriptedGateway(lookup, finish("safety", situation="medical")),
+                    service=campus_help_facts(),
+                    messages=[{"role": "user", "content": "she fainted, also registrar email"}])
+    text = result.body["answer"]
+    assert text.index("Call 911") < text.index("+12015556666") < text.index("registrar@example.edu")
+
+
+def test_an_office_the_model_already_looked_up_is_not_looked_up_twice() -> None:
+    lookup = completion("graph_lookup", {"requests": [
+        {"query": "Public Safety (Emergency)", "fields": ["email", "phones"]}]})
+    result = answer(ScriptedGateway(lookup, finish("safety", situation="danger")),
+                    service=campus_help_facts(),
+                    messages=[{"role": "user", "content": "someone is following me"}])
+    assert result.body["answer"].count("+12015556666") == 1
+    assert result.trace is not None
+    assert [e["tool"] for e in result.trace["lookups"]] == ["graph_lookup"]
+
+
+def test_emergency_text_still_comes_when_the_campus_numbers_cannot_be_read() -> None:
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+
+    class Down(MemoryEntityFacts):
+        def search_offices(self, *_: Any, **__: Any) -> dict[str, Any]:
+            raise EvidenceUnavailable("down")
+
+    base = campus_help_facts()
+    down = Down(dataset_version="release-1", identity_hash="identities-1",
+                entities=base.entities, contacts=base.contacts, now=lambda: NOW)
+    result = answer(ScriptedGateway(finish("safety", situation="fire")), service=down)
+    assert result.status_code == 200 and result.body["answer"] == SAFETY_TEXTS["fire"]
+    assert result.body["citations"] == []
+    assert result.trace is not None and result.trace["lookups"][0]["status"] == "failed"
+
+
+def test_a_slow_read_of_the_campus_numbers_never_delays_the_emergency_text(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    import time
+
+    from rockygpt_brain import engine as engine_module
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+
+    class Slow(MemoryEntityFacts):
+        def search_offices(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+            time.sleep(0.4)
+            return super().search_offices(*args, **kwargs)
+
+    base = campus_help_facts()
+    slow = Slow(dataset_version="release-1", identity_hash="identities-1",
+                entities=base.entities, contacts=base.contacts, now=lambda: NOW)
+    monkeypatch.setattr(engine_module, "HELP_SECONDS", 0.05)
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "help"}]})
+    timing: list[float] = []
+
+    async def timed() -> ChatResult:
+        started = time.monotonic()
+        # The reply returns at the timeout. The slow read is left to finish on its own thread.
+        found = await ChatEngine(ScriptedGateway(finish("safety", situation="medical")),
+                                 slow).answer(intake(request, now=NOW), request)
+        timing.append(time.monotonic() - started)
+        return found
+
+    result = asyncio.run(timed())
+    assert timing[0] < 0.3
+    assert result.body["answer"] == SAFETY_TEXTS["medical"]
+    assert result.trace is not None and result.trace["lookups"][0]["status"] == "timeout"
+
+
+def test_the_phrase_floor_reply_has_its_own_text_and_the_campus_numbers() -> None:
+    from rockygpt_brain.boundary import SAFETY_TEXTS, check
+    from rockygpt_brain.engine import HELP_TEXT
+
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "there is a fire in my dorm"}]})
+    turn = intake(request, now=NOW)
+    boundary = check(turn)
+    engine_ = ChatEngine(ScriptedGateway(), campus_help_facts())
+    result = asyncio.run(engine_.safety_reply(turn, boundary.situation))
+    assert boundary.situation == "fire"
+    assert result.body["answer"].startswith(SAFETY_TEXTS["fire"] + "\n\n" + HELP_TEXT)
+    assert "+12015556666" in result.body["answer"]
+    assert result.trace is not None
+    assert (result.trace["decidedBy"], result.trace["modelCalls"],
+            result.trace["situation"]) == ("phrase_floor", 0, "fire")
+
+
+def test_an_empty_finish_after_any_emergency_text_repeats_that_text() -> None:
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+
+    result = answer(ScriptedGateway(finish()), messages=[
+        {"role": "user", "content": "there is a fire"},
+        {"role": "assistant", "content": SAFETY_TEXTS["fire"] + "\n\nOn campus: ..."},
+        {"role": "user", "content": "ok"},
+    ])
+    assert result.body["answer"] == SAFETY_TEXTS["fire"]
+
+
+def test_a_refusal_points_at_the_office_shown_above_it_and_otherwise_asks_for_one() -> None:
+    from rockygpt_brain.boundary import CAPABILITY_AFTER_LOOKUP_MESSAGE, CAPABILITY_MESSAGE
+    from rockygpt_brain.engine import UNSUPPORTED_AFTER_LOOKUP_MESSAGE, UNSUPPORTED_MESSAGE
+
+    messages = [{"role": "user", "content": "can I book an appointment with the registrar"}]
+    quote = "book an appointment"
+    with_office = answer(ScriptedGateway(LOOKUP, finish("unsupported", student_words=quote)),
+                         messages=messages)
+    assert with_office.body["answer"].endswith(UNSUPPORTED_AFTER_LOOKUP_MESSAGE)
+    # With no office facts above, a refusal stands even with no words to quote.
+    alone = answer(ScriptedGateway(finish("unsupported")), messages=messages)
+    assert alone.body["answer"] == UNSUPPORTED_MESSAGE
+    with_words = answer(ScriptedGateway(finish("unsupported", student_words=quote)),
+                        messages=messages)
+    assert with_words.body["answer"] == UNSUPPORTED_MESSAGE
+    assert "posted shuttle timetable" in UNSUPPORTED_MESSAGE
+    own = answer(ScriptedGateway(LOOKUP, finish("account_limit")), messages=messages)
+    assert own.body["answer"].endswith(CAPABILITY_AFTER_LOOKUP_MESSAGE)
+    assert answer(ScriptedGateway(finish("account_limit")),
+                  messages=messages).body["answer"] == CAPABILITY_MESSAGE
+    # An office lookup that found nothing shows no details, so nothing is "above".
+    nothing = answer(ScriptedGateway(student_lookup("Cafeteria"), finish("unsupported")))
+    assert UNSUPPORTED_AFTER_LOOKUP_MESSAGE not in nothing.body["answer"]
+
+
+def test_an_unsupported_part_beside_facts_needs_the_students_own_words() -> None:
+    """Office facts are shown above, so the model must quote what it cannot answer. A note that
+    mentions appointments is not a question about them."""
+    def run(question: str, **changes: Any) -> ChatResult:
+        return answer(ScriptedGateway(LOOKUP, finish("unsupported", **changes)),
+                      messages=[{"role": "user", "content": question}])
+
+    asked = "contact info for the registrar"
+    for changes in ({}, {"student_words": None},
+                    {"student_words": "make an appointment"},  # not their words
+                    {"student_words": "contact info"},  # a field the lookup answers
+                    {"student_words": "contact info for the registrar"}):  # field and office name
+        dropped = run(asked, **changes)
+        assert "I don't have verified information" not in dropped.body["answer"], changes
+        assert "published@example.edu" in dropped.body["answer"]
+        assert dropped.body["status"] == "answered"
+        assert dropped.trace is not None and dropped.trace["unsupported_dropped"] == [
+            changes.get("student_words")]
+    # A fax is a phone line the lookup reads (phone_kind fax), so it is answered, never unsupported.
+    fax = run("registrar fax number", student_words="fax number")
+    assert "I don't have verified information" not in fax.body["answer"]
+    assert fax.trace is not None and fax.trace["unsupported_dropped"] == ["fax number"]
+    # Words in the message the lookup did not answer keep the part, whatever the casing.
+    kept = run("Registrar email, and what is the REFUND policy?", student_words="Refund Policy")
+    assert "I don't have verified information about that part" in kept.body["answer"]
+    assert kept.body["status"] == "partial"
+    assert kept.trace is not None and kept.trace["unsupported_about"] == ["Refund Policy"]
+    # A model that pairs the words with the message they are in sets message_index on the part;
+    # that is not an invalid response (it is for a recall only), so it is ignored.
+    stray = run("Registrar email and the refund policy?", student_words="refund policy",
+                message_index=0)
+    assert stray.status_code == 200
+    assert "I don't have verified information about that part" in stray.body["answer"]
+
+
+def test_a_recalled_reply_is_quoted_as_plain_words() -> None:
+    earlier = ("**Registrar**\n\nEmail: registrar@example.edu "
+               "[directory](https://example.edu/directory)\n\n"
+               "**Public Safety \\(Emergency\\)**")
+    result = answer(ScriptedGateway(finish("recall", message_index=1)), messages=[
+        {"role": "user", "content": "registrar email"},
+        {"role": "assistant", "content": earlier},
+        {"role": "user", "content": "what did you say first"},
+    ])
+    quote = result.body["answer"]
+    assert "**" not in quote and "](" not in quote and "https://" not in quote
+    assert "> Registrar" in quote and "Email: registrar@example.edu directory" in quote
+    assert "Public Safety \\(Emergency\\)" in quote  # Escaped once, as plain text.
+    own = answer(ScriptedGateway(finish("recall", message_index=0)), messages=[
+        {"role": "user", "content": "I typed **this** and [that](x)"},
+        {"role": "user", "content": "what did i say"},
+    ])
+    assert "I typed \\*\\*this\\*\\*" in own.body["answer"]  # A student's own words are kept.
+
+
+def hours_facts() -> MemoryEntityFacts:
+    base = facts()
+    days = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    entity = deepcopy(base.entities[0])
+    entity["links"].append({"collection": "campus_hours", "source_key": "campus-hours",
+                            "source_record_keys": [f"Registrar:{day}" for day in days]})
+    schedules = [{
+        "id": f"hours-{day}", "source_key": "campus-hours", "source_record_key": f"Registrar:{day}",
+        "name": "Registrar", "day": day,
+        "schedule": "8:30am-4:30pm" if day not in ("Saturday", "Sunday") else "Hours unavailable",
+        "notes": "Fall/Spring Hours: 8:30 A.M. - 4:30 P.M. Monday - Friday",
+        "source_url": "https://example.edu/registrar", "collected_at": NOW,
+        "valid_from": "2026-08-26", "valid_until": "2026-12-16", "content_hash": f"h-{day}",
+        "canonical_url": "https://example.edu/campus-hours", "freshness_sla_hours": 4_320,
+    } for day in days]
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1", entities=[entity],
+        contacts=base.contacts, schedules=schedules, now=lambda: NOW)
+
+
+def test_the_model_can_ask_for_hours_and_the_code_writes_them_with_their_source() -> None:
+    asked = completion("graph_lookup", {"requests": [
+        {"query": "Registrar", "fields": ["email", "phones", "offices", "hours"]}]})
+    result = answer(ScriptedGateway(asked, finish()), service=hours_facts(),
+                    messages=[{"role": "user", "content": "is the registrar open fridays"}])
+    text = result.body["answer"]
+    assert "Monday to Friday: 8:30am-4:30pm" in text and "Saturday and Sunday" in text
+    assert "published validity 2026-08-26 through 2026-12-16" in text
+    assert {c["collection"] for c in result.body["citations"]} == {"contacts", "campus_hours"}
+    # The fixture publishes no phone or room, so the reply is partial for that reason only.
+    assert "Phones: I have no published information about this" in text
+    assert result.body["status"] == "partial"
+
+
+def test_hours_for_an_office_without_a_schedule_say_not_published() -> None:
+    asked = completion("graph_lookup", {"requests": [
+        {"query": "Registrar", "fields": ["email", "hours"]}]})
+    result = answer(ScriptedGateway(asked, finish("unsupported")),
+                    messages=[{"role": "user", "content": "registrar hours"}])
+    assert "Hours: I have no published information about this." in result.body["answer"]
+    assert "published@example.edu" in result.body["answer"]
+
+
+def test_a_model_emergency_near_the_turn_deadline_still_gets_its_own_text(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    import time
+
+    from rockygpt_brain import engine as engine_module
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+
+    class SlowFacts(MemoryEntityFacts):
+        def search_offices(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+            time.sleep(0.6)
+            return super().search_offices(*args, **kwargs)
+
+    class SlowGateway(ScriptedGateway):
+        async def complete(self, **kwargs: Any) -> Completion:
+            await asyncio.sleep(0.4)  # The model answers 0.1 s before the turn's 0.5 s deadline.
+            return await super().complete(**kwargs)
+
+    base = campus_help_facts()
+    slow = SlowFacts(dataset_version="release-1", identity_hash="identities-1",
+                     entities=base.entities, contacts=base.contacts, now=lambda: NOW)
+    monkeypatch.setattr(engine_module, "HELP_SECONDS", 0.2)
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "smoke"}]})
+    result = asyncio.run(ChatEngine(
+        SlowGateway(finish("safety", situation="fire")), slow, turn_seconds=0.5,
+    ).answer(intake(request, now=NOW), request))
+    assert result.status_code == 200 and result.body["answer"] == SAFETY_TEXTS["fire"]
+    assert result.trace is not None and result.trace["lookups"][0]["status"] == "timeout"
+
+
+def test_only_the_exact_published_office_name_is_used_for_emergency_numbers() -> None:
+    from rockygpt_brain.boundary import SAFETY_TEXTS
+
+    near = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "ns", "name": "Public Safety (Non-Emergency)", "kind": "office",
+                   "aliases": [], "links": [{"collection": "contacts", "source_key": "directory",
+                                             "source_record_keys": ["ns"]}]},
+                  {"id": "cc", "name": "Counseling Center for Students", "kind": "office",
+                   "aliases": [], "links": [{"collection": "contacts", "source_key": "directory",
+                                             "source_record_keys": ["cc"]}]}],
+        contacts=[{"id": "source-ns", "source_key": "directory", "source_record_key": "ns",
+                   "name": "NS", "phone": "(201) 555-1111", "canonical_url": "https://example.edu/ns",
+                   "collected_at": NOW, "freshness_sla_hours": 24},
+                  {"id": "source-cc", "source_key": "directory", "source_record_key": "cc",
+                   "name": "CC", "phone": "(201) 555-7522", "canonical_url": "https://example.edu/cc",
+                   "collected_at": NOW, "freshness_sla_hours": 24}],
+        now=lambda: NOW)
+    result = answer(ScriptedGateway(finish("safety", situation="self_harm")), service=near)
+    assert result.body["answer"] == SAFETY_TEXTS["self_harm"]  # No near name stands in.
+    assert result.body["citations"] == []
+    assert result.trace is not None
+    assert [e["status"] for e in result.trace["lookups"]] == ["not_found", "not_found"]
+
+
+def test_campus_numbers_still_come_when_the_models_own_lookup_left_out_the_phones() -> None:
+    from rockygpt_brain.engine import HELP_TEXT
+
+    email_only = completion("graph_lookup", {"requests": [
+        {"query": "Public Safety (Emergency)", "fields": ["email"]}]})
+    result = answer(ScriptedGateway(email_only, finish("safety", situation="danger")),
+                    service=campus_help_facts(),
+                    messages=[{"role": "user", "content": "someone is following me"}])
+    assert HELP_TEXT in result.body["answer"] and "+12015556666" in result.body["answer"]
+    phones = completion("graph_lookup", {"requests": [
+        {"query": "Public Safety (Emergency)", "fields": ["email", "phones"]}]})
+    again = answer(ScriptedGateway(phones, finish("safety", situation="danger")),
+                   service=campus_help_facts(),
+                   messages=[{"role": "user", "content": "someone is following me"}])
+    assert again.body["answer"].count("+12015556666") == 1  # Already shown, not repeated.
+
+
+def test_a_refusal_after_a_lookup_does_not_claim_the_office_handles_the_refused_part() -> None:
+    from rockygpt_brain.engine import UNSUPPORTED_AFTER_LOOKUP_MESSAGE
+
+    assert "If the office above handles it" in UNSUPPORTED_AFTER_LOOKUP_MESSAGE
+    assert "best way to ask the office directly" not in UNSUPPORTED_AFTER_LOOKUP_MESSAGE
+
+
+def test_a_recalled_quote_keeps_published_text_that_looks_like_markup() -> None:
+    from rockygpt_brain.answers import literal, readable_quote
+
+    published = "Call [the desk](tel:555) or use **bold** text"
+    earlier = f"**Registrar**\n\nNote: {literal(published)} [source](https://example.edu/x)"
+    plain = readable_quote(earlier, "assistant")
+    assert plain == f"Registrar\n\nNote: {published} source"
+
+
+def test_a_not_911_message_is_answered_beside_the_emergency_text() -> None:
+    from rockygpt_brain.boundary import check
+
+    def floor(text: str) -> Any:
+        request = ChatRequest.model_validate({"messages": [{"role": "user", "content": text}]})
+        return check(intake(request, now=NOW))
+
+    # Only a mention of 911 that says it is not one: the emergency text stays, the answer follows.
+    for text in ("whats the number for that, not 911 obviously lol",
+                 "its not a 911 thing, just a parking question", "non 911 but who do i call"):
+        result = floor(text)
+        assert result.kind == "safety" and result.also_answer is True
+    # An emergency beside a question about the college's process for it: the emergency text
+    # first, then the answer (Dan 10-20). Self-harm is the floor's reply alone.
+    for text in ("my roommate is threatening me, what are my options for moving rooms",
+                 "if i call 911 for my drunk friend will we get in trouble? medical amnesty"):
+        result = floor(text)
+        assert result.kind == "safety" and result.also_answer is True, text
+    assert floor("i want to kill myself, how do i move rooms").also_answer is False
+    # Anything specific, or 911 said another way, is the floor's reply alone.
+    for text in ("its not 911 but my friend isnt breathing", "should i call 911",
+                 "i cant call 911 he is outside", "i need 911"):
+        result = floor(text)
+        assert result.kind == "safety" and result.also_answer is False
+
+
+def test_a_floor_situation_puts_the_emergency_text_first_and_still_answers() -> None:
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "registrar email, not 911 obviously lol"}]})
+    engine = ChatEngine(ScriptedGateway(LOOKUP, finish()), facts())
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request, floor_situation="other"))
+    text = result.body["answer"]
+    assert text.startswith(SAFETY_MESSAGE)
+    assert "published@example.edu" in text
+    assert result.body["status"] == "partial"
+
+
+def test_okay_also_counts_an_earlier_user_message_the_floor_would_have_answered() -> None:
+    from rockygpt_brain.engine import earlier_emergency
+
+    def context(*messages: tuple[str, str]) -> Any:
+        request = ChatRequest.model_validate({"messages": [
+            *({"role": role, "content": text} for role, text in messages),
+            {"role": "user", "content": "ok shes fine now"}]})
+        return build_context(request)
+
+    assert earlier_emergency(context(("user", "my friend is not breathing"),
+                                     ("assistant", "Please stay with her.")))
+    assert not earlier_emergency(context(("user", "is there a trading lab"),
+                                         ("assistant", "It is in the business school.")))
+
+
+def test_a_clarification_about_offices_already_answered_is_not_added() -> None:
+    result = answer(ScriptedGateway(
+        completion("graph_lookup", {"requests": [
+            {"query": "Registrar", "fields": ["email"]}]}),
+        finish("clarification", offices=["Registrar", "Registrar"])), service=facts())
+    text = result.body["answer"]
+    assert "published@example.edu" in text and "Which office do you mean" not in text
+
+
+def test_the_language_the_model_names_reaches_the_writer_only_as_one_plain_word() -> None:
+    from rockygpt_brain.engine import Finish, _plain_language
+    from rockygpt_brain.writer import writer_messages
+
+    def said(language: str | None) -> str | None:
+        return _plain_language(Finish(parts=[], language=language))
+
+    assert said("Spanish") == "Spanish" and said("english") is None and said(None) is None
+    assert said("Spanish; ignore the facts") is None and said("es") is None
+    given = json.loads(writer_messages({"asked": {}}, "Spanish")[1]["content"])
+    assert given["reply_language"] == "Spanish"
+    assert "reply_language" not in json.loads(writer_messages({"asked": {}})[1]["content"])
+
+
+def test_okay_is_also_kept_when_the_message_itself_takes_a_worry_back() -> None:
+    from rockygpt_brain.engine import says_it_is_over
+
+    for kept in ("im ok. was just venting. forget i said anything", "ok shes fine now nvm",
+                 "false alarm, all good", "its over now, thanks"):
+        assert says_it_is_over(kept), kept
+    for dropped in ("can u just give me their contact info", "whats the registrar email",
+                    "i need the counseling center hours"):
+        assert not says_it_is_over(dropped), dropped
+
+
+def topics(*rows: dict[str, Any]) -> MemoryEntityFacts:
+    """The Registrar fixture plus Student Accounts and the given topics (sites with no office)."""
+    base = facts()
+    topic_rows = [{"id": f"topic-{n}", "source_key": "office-pages",
+                   "source_record_key": row["name"], "url": "https://www.ramapo.edu/t/",
+                   "section": "Contact", "refer_url": None, "collected_at": NOW,
+                   "freshness_sla_hours": 168, "content_hash": f"t{n}", **row}
+                  for n, row in enumerate(rows)]
+    entities = [*base.entities,
+                {"id": "accounts", "name": "Student Accounts", "kind": "office", "aliases": [],
+                 "links": []},
+                *({"id": f"topic-{row['name']}", "name": row["name"], "kind": "topic",
+                   "aliases": [], "links": [{"collection": "campus_topics",
+                                             "source_key": "office-pages",
+                                             "source_record_keys": [row["name"]]}]}
+                  for row in topic_rows)]
+    return MemoryEntityFacts(dataset_version="release-1", identity_hash="identities-1",
+                             entities=entities, contacts=base.contacts,
+                             records={"campus_topics": topic_rows}, now=lambda: NOW)
+
+
+def topic_lookup(query: str) -> Completion:
+    return completion("graph_lookup", {"requests": [{"query": query, "fields": ["email"]}]})
+
+
+def test_a_topic_with_one_office_answers_for_that_office_and_says_why() -> None:
+    service = topics({"name": "Summer Session", "status": "current", "handled_by": ["Registrar"],
+                      "quote": "Contact the Registrar's office"})
+    result = answer(ScriptedGateway(topic_lookup("Summer Session"), finish()), service=service,
+                    messages=[{"role": "user", "content": "summer session email?"}])
+    text = result.body["answer"]
+    assert text.startswith("For Summer Session, its page sends you to Registrar.")
+    assert "published@example.edu" in text
+    assert "https://www.ramapo.edu/t/" in [c["url"] for c in result.body["citations"]]
+
+
+def test_a_topic_with_several_offices_offers_them_to_choose_from() -> None:
+    service = topics({"name": "Scholarships", "status": "current",
+                      "handled_by": ["Student Accounts", "Registrar"],
+                      "quote": "Student Accounts ... Registrar"})
+    result = answer(ScriptedGateway(topic_lookup("Scholarships"), finish()), service=service,
+                    messages=[{"role": "user", "content": "who do i ask about scholarships"}])
+    assert result.body["answer"] == ("For Scholarships, its page sends you to these offices: "
+                                     "Student Accounts, Registrar. Which one do you need?")
+    assert result.body["status"] == "clarification"
+
+
+def test_a_retired_topic_says_it_is_gone_in_its_pages_words() -> None:
+    service = topics({"name": "Small Business Development Center", "status": "retired",
+                      "handled_by": [], "refer_url": "https://njsbdc.com/",
+                      "quote": "The Bergen County SBDC is no longer headquartered at Ramapo"})
+    result = answer(ScriptedGateway(topic_lookup("Small Business Development Center"), finish()),
+                    service=service, messages=[{"role": "user", "content": "sbdc contact"}])
+    assert result.body["answer"].startswith(
+        "Small Business Development Center is no longer at Ramapo College. Its page says: "
+        "\"The Bergen County SBDC is no longer headquartered at Ramapo\" It points to "
+        "https://njsbdc.com/.")
+
+
+def test_an_office_named_exactly_wins_over_a_topic_and_a_topic_needs_its_exact_name() -> None:
+    service = topics({"name": "Registrar Help", "status": "current",
+                      "handled_by": ["Student Accounts", "Registrar"], "quote": "x"})
+    result = answer(ScriptedGateway(topic_lookup("Registrar"), finish()), service=service)
+    assert "published@example.edu" in result.body["answer"]
+    assert "its page sends you" not in result.body["answer"]
+
+
+def test_a_topic_naming_an_office_the_release_lacks_is_unavailable_not_guessed() -> None:
+    service = topics({"name": "Scholarships", "status": "current",
+                      "handled_by": ["Bursar"], "quote": "x"})
+    result = answer(ScriptedGateway(topic_lookup("Scholarships"), finish()), service=service)
+    assert result.status_code == 503
+
+
+def test_the_model_sees_topics_marked_in_the_office_list() -> None:
+    service = topics({"name": "Scholarships", "status": "current",
+                      "handled_by": ["Registrar"], "quote": "x"})
+    gateway = ScriptedGateway(finish())
+    answer(gateway, service=service, messages=[{"role": "user", "content": "hi"}])
+    state = json.loads(gateway.inputs[0][1]["content"])
+    assert {"name": "Scholarships", "topic": True} in state["published_offices"]
+
+
+def test_the_packet_carries_the_topic_and_its_page_as_a_notice() -> None:
+    service = topics({"name": "Scholarships", "status": "current",
+                      "handled_by": ["Student Accounts", "Registrar"], "quote": "both offices"})
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "scholarships help"}]})
+    engine = ChatEngine(ScriptedGateway(topic_lookup("Scholarships"), finish()), service,
+                        output="json")
+    packet = asyncio.run(engine.answer(intake(request, now=NOW), request)).body["facts"]
+    assert packet["status"] == "ambiguous"
+    assert [c["name"] for c in packet["ambiguities"][0]["candidates"]] == ["Student Accounts",
+                                                                          "Registrar"]
+    notice = next(n for n in packet["notices"] if n["type"] == "topic")
+    assert notice["page"] == "https://www.ramapo.edu/t/" and notice["quote"] == "both offices"
+    assert notice["approved_text"].startswith("For Scholarships, its page sends you to")
+
+
+def test_the_graph_lists_each_topic_with_the_offices_its_page_names() -> None:
+    from rockygpt_brain.retrieval.campus_graph import CampusGraph
+    service = topics({"name": "Scholarships", "status": "current",
+                      "handled_by": ["Student Accounts", "Registrar"], "quote": "both offices"})
+    branch = CampusGraph(service).inspect("topics", NOW)
+    assert [(c["label"], c["kind"]) for c in branch["children"]] == [("Scholarships", "topic")]
+    node = CampusGraph(service).inspect(branch["children"][0]["id"], NOW)
+    assert [o["name"] for o in node["topic"]["offices"]] == ["Student Accounts", "Registrar"]
+    assert node["topic"]["quote"] == "both offices"
+
+
+def test_a_venue_is_listed_with_its_building_and_the_offices_published_there() -> None:
+    def contact(key: str, name: str, office: str) -> dict[str, Any]:
+        return {"id": f"c-{key}", "source_key": "directory", "source_record_key": key,
+                "name": name, "office": office, "canonical_url": "https://example.edu/x",
+                "collected_at": NOW, "freshness_sla_hours": 24}
+
+    def entity(key: str, name: str, kind: str) -> dict[str, Any]:
+        return {"id": key, "name": name, "kind": kind, "aliases": [], "links": [
+            {"collection": "contacts", "source_key": "directory", "source_record_keys": [key]}]}
+
+    service = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[entity("cafe", "Common Grounds", "venue"), entity("library", "Library", "office"),
+                  entity("registrar", "Registrar", "office")],
+        contacts=[contact("cafe", "Common Grounds", "Learning Commons"),
+                  contact("library", "Library", "Learning Commons"),
+                  contact("registrar", "Registrar", "D-101")], now=lambda: NOW)
+    gateway = ScriptedGateway(finish())
+    answer(gateway, service=service, messages=[{"role": "user", "content": "hi"}])
+    state = json.loads(gateway.inputs[0][1]["content"])
+    assert state["published_venues"] == [{"name": "Common Grounds", "publishes": [],
+                                          "in": ["Learning Commons"],
+                                          "with": ["Library"]}]
+
+
+def budget_office() -> MemoryEntityFacts:
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "budget", "name": "Budget", "kind": "office", "aliases": [], "links": [
+            {"collection": "contacts", "source_key": "directory", "source_record_keys": ["b"]}]}],
+        contacts=[{"id": "c-b", "source_key": "directory", "source_record_key": "b",
+                   "name": "Budget",
+                   "email": "budget@example.edu", "office": "D-211", "preferred_contact": "email",
+                   "prefers_email": True, "canonical_url": "https://example.edu/budget",
+                   "collected_at": NOW, "freshness_sla_hours": 24}], now=lambda: NOW)
+
+
+def test_a_preferred_way_to_reach_an_office_comes_with_its_address() -> None:
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Budget", "fields": ["preferred_contact"]}]})
+    result = answer(ScriptedGateway(ask, finish()), service=budget_office(),
+                    messages=[{"role": "user", "content": "best way to reach the budget office"}])
+    assert "budget@example.edu" in result.body["answer"]
+
+
+def test_the_contact_fallback_is_only_offered_beside_a_shown_email_or_phone() -> None:
+    where = completion("graph_lookup", {"requests": [{"query": "Budget", "fields": ["offices"]}]})
+    unsupported = completion("finish", {"parts": [
+        {"kind": "unsupported", "message_index": None, "situation": None,
+         "student_words": "sabbatical rules"}]})
+    result = answer(ScriptedGateway(where, unsupported), service=budget_office(),
+                    messages=[{"role": "user",
+                               "content": "where is budget and the sabbatical rules"}])
+    assert "D-211" in result.body["answer"]
+    assert "its contact details are the best way to ask" not in result.body["answer"]
+
+
+def test_an_allergy_part_beside_a_menu_is_not_called_unanswerable() -> None:
+    from rockygpt_brain.engine import _asked_words
+    message = "does the pasta have any nuts or dairy, i have allergies"
+    assert _asked_words("any nuts or dairy", message, {"Birch Tree Inn"}, menu_read=True) is None
+    assert _asked_words("any nuts or dairy", message, {"Registrar"}) == "any nuts or dairy"
+    asked = "do the menus list allergens? i have a severe peanut allergy and need to know"
+    assert _asked_words("do the menus list allergens", asked, {"Birch Tree Inn"},
+                        menu_read=True) is None
+    whole = "does the pasta at the dining hall today have any nuts or dairy"
+    assert _asked_words(whole, message, {"Dining Hall", "pasta"}, menu_read=True) is None
+
+
+def marketing_office() -> MemoryEntityFacts:
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "mkt", "name": "Marketing", "kind": "office", "aliases": [], "links": [
+            {"collection": "contacts", "source_key": "directory", "source_record_keys": ["m"]}]}],
+        contacts=[{"id": "c-m", "source_key": "directory", "source_record_key": "m",
+                   "name": "Marketing", "email": "marketing@example.edu",
+                   "contact_note": "Media inquiries: news@example.edu",
+                   "canonical_url": "https://example.edu/marketing",
+                   "collected_at": NOW, "freshness_sla_hours": 24}], now=lambda: NOW)
+
+
+def test_a_question_naming_a_purpose_its_contact_note_covers_reads_the_note() -> None:
+    ask = completion("graph_lookup", {"requests": [{"query": "Marketing", "fields": ["email"]}]})
+    press = answer(ScriptedGateway(ask, finish()), service=marketing_office(), messages=[
+        {"role": "user", "content": "who handles media inquiries and how do I reach them"}])
+    assert "news@example.edu" in press.body["answer"]
+    plain = answer(ScriptedGateway(ask, finish()), service=marketing_office(),
+                   messages=[{"role": "user", "content": "marketing email please"}])
+    assert "news@example.edu" not in plain.body["answer"]
+
+
+def id_card_room(note: str) -> MemoryEntityFacts:
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "id", "name": "ID Card Room", "kind": "office",
+                   "aliases": ["New ID Card"], "links": [
+                       {"collection": "contacts", "source_key": "directory",
+                        "source_record_keys": ["i"]}]}],
+        contacts=[{"id": "c-i", "source_key": "directory", "source_record_key": "i",
+                   "name": "ID Card Room", "office": "C-101", "contact_note": note,
+                   "canonical_url": "https://example.edu/id", "collected_at": NOW,
+                   "freshness_sla_hours": 24}], now=lambda: NOW)
+
+
+def test_where_to_go_reads_a_contact_note_that_says_to_make_an_appointment() -> None:
+    ask = completion("graph_lookup",
+                     {"requests": [{"query": "New ID Card", "fields": ["offices"]}]})
+    message = [{"role": "user", "content": "where do i go to get my student ID card made"}]
+    note = ("In order to get a new identification card, please contact the ID room at "
+            "idroom@example.edu and make an appointment.")
+    visit = answer(ScriptedGateway(ask, finish()), service=id_card_room(note), messages=message)
+    assert "C-101" in visit.body["answer"] and "idroom@example.edu" in visit.body["answer"]
+    # Said in the office's own words, so a writer cannot leave the appointment out.
+    request = ChatRequest.model_validate({"messages": message})
+    engine = ChatEngine(ScriptedGateway(ask, finish()), id_card_room(note),
+                        output="json")
+    packet = asyncio.run(engine.answer(intake(request, now=NOW), request)).body["facts"]
+    assert [n["approved_text"] for n in packet["notices"]
+            if n["type"] == "appointment_note"] == [note]
+    # A note with nothing about appointments is not added beside the room.
+    other = answer(ScriptedGateway(ask, finish()), messages=message,
+                   service=id_card_room("Lost cards: lost@example.edu"))
+    assert "C-101" in other.body["answer"] and "lost@example.edu" not in other.body["answer"]
+
+
+def test_a_question_asking_where_is_answered_with_the_room() -> None:
+    ask = completion("graph_lookup", {"requests": [{"query": "ID Card Room", "fields": ["email"]}]})
+    room = id_card_room("Lost cards: lost@example.edu")
+    where = answer(ScriptedGateway(ask, finish()), service=room, messages=[
+        {"role": "user", "content": "where is the id room and whats their email"}])
+    assert "C-101" in where.body["answer"]
+    plain = answer(ScriptedGateway(ask, finish()), service=room,
+                   messages=[{"role": "user", "content": "id room email please"}])
+    assert "C-101" not in plain.body["answer"]
+
+
+def test_a_contact_note_sentence_that_speaks_to_the_question_is_said_in_its_own_words() -> None:
+    note = ("For questions, call the Dining Services Office. Students who are ill or injured "
+            "may request a boxed meal through Dining Services. There is a specific process for "
+            "making special requests for medical, religious, cultural or other reasons. Students "
+            "with such requests should inquire at the Dining Services Office, across from the "
+            "Atrium. To request a change to a meal plan, email mealplan@example.edu.")
+    dining = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "dining", "name": "Dining Services", "kind": "office", "aliases": [],
+                   "links": [{"collection": "contacts", "source_key": "directory",
+                              "source_record_keys": ["d"]}]}],
+        contacts=[{"id": "c-d", "source_key": "directory", "source_record_key": "d",
+                   "name": "Dining Services", "email": "dining@example.edu",
+                   "contact_note": note, "canonical_url": "https://example.edu/dining",
+                   "collected_at": NOW, "freshness_sla_hours": 24}], now=lambda: NOW)
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Dining Services", "fields": ["email", "contact_note"]}]})
+
+    def notes(question: str) -> list[str]:
+        request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
+        engine = ChatEngine(ScriptedGateway(ask, finish()), dining,
+                            output="json")
+        packet = asyncio.run(engine.answer(intake(request, now=NOW), request)).body["facts"]
+        return [n["approved_text"] for n in packet["notices"] if n["type"] == "note_answer"]
+
+    # A celiac accommodation is one of the note's special requests for medical reasons.
+    assert notes("who do i talk to about a dietary accommodation for celiac") == [
+        "There is a specific process for making special requests for medical, religious, "
+        "cultural or other reasons. Students with such requests should inquire at the Dining "
+        "Services Office, across from the Atrium."]
+    # A question that only names the office is answered by its fields, not the note.
+    assert notes("dining services email") == []
+    # A word of order or time alone ("first") says nothing of what the note is about.
+    assert notes("my meal plan is wrong, who do i talk to first") == [
+        "To request a change to a meal plan, email mealplan@example.edu."]
+    assert notes("who should i ask first") == []
+
+
+def test_a_contact_note_line_is_said_alone_not_with_the_staff_lines_after_it() -> None:
+    note = ("After Hours Drop Box: Gray mailbox located outside D-224\n"
+            "E-mail: registrar@example.edu\n"
+            "Beth Foster Associate Registrar: bfoster@example.edu\n"
+            "Lillian R. Smith Records Assistant: lsmith@example.edu")
+    registrar = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "reg", "name": "Registrar", "kind": "office", "aliases": [],
+                   "links": [{"collection": "contacts", "source_key": "directory",
+                              "source_record_keys": ["r"]}]}],
+        contacts=[{"id": "c-r", "source_key": "directory", "source_record_key": "r",
+                   "name": "Registrar", "email": "registrar@example.edu",
+                   "contact_note": note, "canonical_url": "https://example.edu/registrar",
+                   "collected_at": NOW, "freshness_sla_hours": 24}], now=lambda: NOW)
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Registrar", "fields": ["email", "contact_note"]}]})
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "where do i drop off a form after the office closes"}]})
+    engine = ChatEngine(ScriptedGateway(ask, finish()), registrar,
+                        output="json")
+    packet = asyncio.run(engine.answer(intake(request, now=NOW), request)).body["facts"]
+    assert [n["approved_text"] for n in packet["notices"] if n["type"] == "note_answer"] == [
+        "After Hours Drop Box: Gray mailbox located outside D-224"]
+
+
+def test_a_writer_reply_that_already_says_a_notice_in_its_own_words_is_not_repeated() -> None:
+    from rockygpt_brain.engine import already_said
+    note = ("In order to get a new identification card, please contact the ID room at "
+            "idroom@example.edu and make an appointment.")
+    assert already_said(note, "C-101. To get a new identification card, contact the ID room at "
+                              "idroom@example.edu and make an appointment.")
+    assert not already_said(note, "The ID Card Room is in C-101.")
+
+
+def res_life() -> MemoryEntityFacts:
+    note = ("Residents may contact the Resident Assistants during posted hours. The Residence Life "
+            "Mailroom: mailroom@example.edu Mackin Hall: mackin@example.edu Computer Lab Aides: "
+            "aides@example.edu")
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "rl", "name": "Housing & Residence Life", "kind": "office",
+                   "aliases": ["Res Life"], "links": [
+                       {"collection": "contacts", "source_key": "directory",
+                        "source_record_keys": ["r"]}]}],
+        contacts=[{"id": "c-r", "source_key": "directory", "source_record_key": "r",
+                   "name": "Housing & Residence Life", "email": "reslife@example.edu",
+                   "contact_note": note, "canonical_url": "https://example.edu/reslife",
+                   "collected_at": NOW, "freshness_sla_hours": 24}], now=lambda: NOW)
+
+
+def test_a_service_an_office_lists_as_a_labelled_contact_finds_that_office() -> None:
+    from rockygpt_brain.engine import service_labels
+    assert service_labels([
+        {"key": "contact_note", "status": "known", "values": [{"value": (
+            "Call us. The Residence Life Mailroom: orl@example.edu Early Arrival: e@example.edu "
+            "Desk: (201) 555-0100")}]},
+        {"key": "phones", "status": "known", "values": [{"value": [
+            {"number": "+12015550100"}, {"type": "Mackin Hall", "number": "+12015550101"}]}]},
+    ]) == ["The Residence Life Mailroom", "Early Arrival", "Desk", "Mackin Hall"]
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "post office / mailroom", "fields": ["offices", "email"]}]})
+    found = answer(ScriptedGateway(ask, finish()), service=res_life(), messages=[
+        {"role": "user", "content": "where is the mailroom and what's the email"}])
+    assert "mailroom@example.edu" in found.body["answer"]
+    assert found.trace is not None and found.trace["lookups"][0]["resolvedBy"] == "service"
+    # One short word is in too many labels to name a service: "hall" alone is not Mackin Hall.
+    hall = completion("graph_lookup", {"requests": [{"query": "hall", "fields": ["email"]}]})
+    vague = answer(ScriptedGateway(hall, finish()), service=res_life(), messages=[
+        {"role": "user", "content": "hall email"}])
+    assert "mackin@example.edu" not in vague.body["answer"]
+    # A label is the thing its last word names: "Computer Lab Aides" are aides, so the computer
+    # lab is not this office's service (it named the wrong office's hours on set zh, 10-21).
+    lab = completion("graph_lookup", {"requests": [{"query": "computer lab", "fields": ["email"]}]})
+    other = answer(ScriptedGateway(lab, finish()), service=res_life(), messages=[
+        {"role": "user", "content": "computer lab email"}])
+    assert "aides@example.edu" not in other.body["answer"]
+    # Words that no label has are still not found.
+    nothing = completion("graph_lookup", {"requests": [
+        {"query": "bursar", "fields": ["email"]}]})
+    missing = answer(ScriptedGateway(nothing, finish()), service=res_life(), messages=[
+        {"role": "user", "content": "bursar email"}])
+    assert "mailroom@example.edu" not in missing.body["answer"]
+
+
+def registrar_with_pages() -> MemoryEntityFacts:
+    def page(n: int, url: str, sections: list[dict[str, str]]) -> dict[str, Any]:
+        return {"id": f"page-{n}", "source_key": "office-pages", "source_record_key": url,
+                "site_folder": "registrar", "url": f"https://{url}", "sections": sections,
+                "collected_at": NOW, "freshness_sla_hours": 168, "content_hash": f"h{n}"}
+    pages = [
+        page(1, "www.ramapo.edu/registrar/transcripts/", [
+            {"heading": "How do I request an official transcript?",
+             "text": "Order official transcripts online through Parchment. Each costs $10."},
+            {"heading": "Unofficial transcripts", "text": "Print one from Web Self-Service."}]),
+        page(2, "www.ramapo.edu/registrar/forms/", [
+            {"heading": "Change of Major", "text": "Submit the change of major form."}]),
     ]
-    data.search.return_value = {"status": "ok", "records": [RECORD]}
-    with pytest.raises(InvalidAnswer) as error:
-        run_turn(
-            [ChatMessage(role="user", content="Where is the office?")],
-            client=client,
-            data=data,
-            model="test",
-            now=NOW,
-        )
-    assert error.value.code == "answer_budget"
-    assert client.create.call_count == 3 < MAX_MODEL_CALLS
-    assert data.search.call_count == 2
-    assert client.create.call_args.kwargs["tool_choice"] == "none"
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "registrar", "name": "Registrar", "kind": "office", "aliases": [],
+                   "links": [{"collection": "contacts", "source_key": "directory",
+                              "source_record_keys": ["registrar"]},
+                             {"collection": "office_sections", "source_key": "office-pages",
+                              "source_record_keys": [p["source_record_key"] for p in pages]}]}],
+        contacts=[{"id": "source-registrar", "source_key": "directory",
+                   "source_record_key": "registrar", "name": "Registrar",
+                   "email": "registrar@example.edu", "canonical_url": "https://example.edu/reg",
+                   "collected_at": NOW, "freshness_sla_hours": 24}],
+        records={"office_sections": pages}, now=lambda: NOW)
 
 
-def test_invalid_review_after_two_lookups_stops_at_total_budget() -> None:
-    client, data = Mock(), Mock()
-    malformed = review()
-    malformed.output_text = "not JSON"
-    client.create.side_effect = [
-        *(tools(search(str(i))) for i in range(2)),
-        answer("Office D-224", "campus_fact", [RECORD["id"]]),
-        malformed,
-        review(),
+def test_a_topics_site_pages_are_read_for_procedures_as_an_offices_are() -> None:
+    page = {"id": "page-s", "source_key": "office-pages",
+            "source_record_key": "www.ramapo.edu/scholarships/faqs/", "site_folder": "scholarships",
+            "url": "https://www.ramapo.edu/scholarships/faqs/", "sections": [
+                {"heading": "When is the application due?",
+                 "text": "Submit the General Application in AcademicWorks by 9/23/26."}],
+            "collected_at": NOW, "freshness_sla_hours": 168, "content_hash": "hs"}
+    service = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "scholarships", "name": "Scholarships", "kind": "topic", "aliases": [],
+                   "links": [{"collection": "office_sections", "source_key": "office-pages",
+                              "source_record_keys": [page["source_record_key"]]}]}],
+        contacts=[], records={"office_sections": [page]}, now=lambda: NOW)
+    facts = service.get_office_facts("scholarships", ["email", "procedures"], "release-1",
+                                     identity_hash="identities-1", about="application deadline")
+    props = {p["key"]: p for p in facts["properties"]}
+    assert "9/23/26" in props["procedures"]["values"][0]["value"]["text"]
+    assert props["email"]["status"] != "known"  # A topic has no contacts of its own.
+
+
+def test_a_procedure_is_read_from_the_sections_of_the_offices_own_pages() -> None:
+    from rockygpt_brain.retrieval.entity_facts import procedures_property
+    service = registrar_with_pages()
+    facts = service.get_office_facts("registrar", ["procedures"], "release-1",
+                                     identity_hash="identities-1", about="request a transcript")
+    (prop,) = facts["properties"]
+    assert prop["status"] == "known"
+    first = prop["values"][0]["value"]
+    assert first["heading"] == "How do I request an official transcript?"
+    assert first["page"] == "https://www.ramapo.edu/registrar/transcripts/"
+    assert "Parchment" in first["text"]
+    # Each section cites its own page.
+    (source,) = [s for s in facts["sources"] if s["id"] == "page-1"]
+    assert source["citation_urls"] == ["https://www.ramapo.edu/registrar/transcripts/"]
+    # Words no section has are unknown, never not published; no words reads nothing.
+    none = service.get_office_facts("registrar", ["procedures"], "release-1",
+                                    identity_hash="identities-1", about="parking permit")
+    assert none["properties"][0]["status"] == "unknown"
+    assert procedures_property([], NOW, "transcript")[0]["status"] == "unknown"
+    # A plain read of the office never reads its pages.
+    plain = service.get_office_facts("registrar", None, "release-1", identity_hash="identities-1")
+    assert all(p["key"] != "procedures" for p in plain["properties"])
+
+
+def test_a_section_for_a_term_that_is_over_is_marked_and_ranked_below_todays() -> None:
+    from rockygpt_brain.retrieval.entity_facts import past_term, procedures_property
+    today = date(2026, 10, 19)
+    assert past_term("Spring 2026 Check-Out", today) == "Spring 2026"
+    assert past_term("Fall 2026 move-in and Spring 2026 notes", today) is None
+    assert past_term("Spring 2027 housing", today) is None
+    assert past_term("How to check out", today) is None
+    # An academic year ends on August 31 of its second year.
+    assert past_term("2025-2026 parking permit prices", today) == "2025-2026"
+    assert past_term("2025-26 rates", today) == "2025-2026"
+    assert past_term("2026-2027 parking permit prices", today) is None
+    assert past_term("2025-2026 and 2026-2027 rates", today) is None
+    assert past_term("call 201-684-7000", today) is None
+    page = {"id": "page-1", "source_key": "office-pages",
+            "source_record_key": "www.ramapo.edu/reslife/a/",
+            "url": "https://www.ramapo.edu/reslife/a/", "site_folder": "reslife",
+            "collected_at": NOW, "freshness_sla_hours": 168, "content_hash": "h1",
+            "sections": [
+                {"heading": "Spring 2026 Check-Out", "text": "Check out of your room by May 15."},
+                {"heading": "Check-Out", "text": "Check out of your room with your RA."}]}
+    prop, _ = procedures_property([page], NOW, "check out of my room")
+    first, second = (v["value"] for v in prop["values"])
+    assert first["heading"] == "Check-Out" and "past_term" not in first
+    assert second["past_term"] == "Spring 2026"
+
+
+def test_a_how_do_i_question_reads_the_offices_procedures_end_to_end() -> None:
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Registrar", "fields": ["procedures"], "about": "request a transcript"}]})
+    # A model keeps the sections that answer: here the first, not the unofficial-transcript one.
+    pick = completion("pick_sections", {"picks": [{"lookup": 0, "sections": [0]}]})
+    result = answer(ScriptedGateway(ask, pick, finish()), service=registrar_with_pages(),
+                    messages=[{"role": "user", "content": "how do i get my transcript"}])
+    assert "Parchment" in result.body["answer"]
+    assert "Web Self-Service" not in result.body["answer"]
+    assert result.trace is not None and result.trace["procedurePicks"] == "model"
+    assert [len(o["sections"]) for o in result.trace["procedureOffered"]] and all(
+        o["sections"] and o["office"] for o in result.trace["procedureOffered"])
+    # Picking none leaves the office's pages unknown for it rather than saying a guess.
+    none = completion("pick_sections", {"picks": [{"lookup": 0, "sections": []}]})
+    unpicked = answer(ScriptedGateway(ask, none, finish()), service=registrar_with_pages(),
+                      messages=[{"role": "user", "content": "how do i get my transcript"}])
+    assert "Parchment" not in unpicked.body["answer"]
+    assert result.trace is not None
+    assert result.trace["lookups"][0]["arguments"]["about"] == "request a transcript"
+
+
+def test_a_long_faq_section_says_the_question_that_matches_and_short_names_count() -> None:
+    from rockygpt_brain.retrieval.entity_facts import MAX_PROCEDURE_CHARS, procedures_property
+    filler = "How do I visit campus? Tours run daily from the welcome center. " * 40
+    faq = (filler + "Will my county college credits be accepted? We accept up to the maximum 65 "
+           "transfer credits from a two-year school. " + "Is housing available? Yes. " * 20)
+    assert len(faq) > MAX_PROCEDURE_CHARS
+    page = {"id": "page-1", "source_key": "office-pages",
+            "source_record_key": "www.ramapo.edu/undergraduate/transfer/faqs/",
+            "url": "https://www.ramapo.edu/undergraduate/transfer/faqs/",
+            "site_folder": "undergraduate", "collected_at": NOW, "freshness_sla_hours": 168,
+            "content_hash": "h1", "sections": [{"heading": "FAQs", "text": faq},
+                                               {"heading": "New ID Cards",
+                                                "text": "Email the ID room for an appointment."}]}
+    prop, _ = procedures_property([page], NOW, "maximum transfer credits from a county college")
+    first = prop["values"][0]["value"]
+    assert first["text"].startswith("Will my county college credits be accepted?")
+    assert "65" in first["text"] and first["text_cut"] is True
+    # "ID" in capitals names the card; "id" as a word of two letters says nothing.
+    ids, _ = procedures_property([page], NOW, "get a student ID")
+    assert ids["values"][0]["value"]["heading"] == "New ID Cards"
+
+
+def test_a_page_with_how_to_entries_offers_them_instead_of_its_sections() -> None:
+    from rockygpt_brain.retrieval.entity_facts import procedures_property
+    base = {"source_key": "office-pages", "site_folder": "clubs", "collected_at": NOW,
+            "freshness_sla_hours": 168, "content_hash": "h"}
+    listed = {**base, "id": "page-1", "source_record_key": "www.ramapo.edu/clubs/",
+              "url": "https://www.ramapo.edu/clubs/",
+              "sections": [{"heading": "Expressive Activity",
+                            "text": "To start a demonstration, register the activity."}],
+              "howto_entries": [
+                  {"task": "Start a new student club", "applies_to": "", "handled_by": "",
+                   "term": "", "section": "Clubs", "steps": [
+                       {"text": "Ask the Center for Student Involvement in SC-218.",
+                        "quote": "Stop by the Center for Student Involvement in SC-218"}]},
+                  {"task": "Get reimbursed for travel", "applies_to": "College employees",
+                   "handled_by": "Controller", "term": "", "section": "Travel", "steps": [
+                       {"text": "Submit the travel form.", "quote": "Submit the travel form"}]}]}
+    unlisted = {**base, "id": "page-2", "source_record_key": "www.ramapo.edu/clubs/old/",
+                "url": "https://www.ramapo.edu/clubs/old/",
+                "sections": [{"heading": "Start a club", "text": "Start a club with ten members."}]}
+    prop, _ = procedures_property([listed, unlisted], NOW, "start a new club")
+    headings = [v["value"]["heading"] for v in prop["values"]]
+    # The entry names the task; the page's protest section is not offered beside it, and a page
+    # with no entries still offers its sections.
+    assert headings[0] == "Start a new student club"
+    assert "Expressive Activity" not in headings and "Start a club" in headings
+    first = prop["values"][0]["value"]
+    # Each step with the page's own words (its quote) beside it.
+    assert first["text"] == ("1. Ask the Center for Student Involvement in SC-218. (page: "
+                             "\u201cStop by the Center for Student Involvement in SC-218\u201d)")
+    # An entry carries its section's own words matching the question, for what its steps leave out.
+    table = "First violation: $200 fine. Second violation: $300 fine."
+    sanctions = {**listed, "sections": [{"heading": "Alcohol", "text": table}],
+                 "howto_entries": [{"task": "Know the alcohol sanctions", "section": "Alcohol",
+                                    "steps": [{"text": "A first violation carries a $200 fine.",
+                                               "quote": "First violation: $200 fine"}]}]}
+    alcohol, _ = procedures_property([sanctions], NOW, "second alcohol violation")
+    said = alcohol["values"][0]["value"]
+    assert "Second violation: $300 fine." in said["text"] + said.get("page_words", "")
+    # The asked rule can be in another section of the same page.
+    items = {**listed, "sections": [
+        {"heading": "Allowed items", "text": "Fish tanks up to 10 gallons are allowed."},
+        {"heading": "Prohibited items", "text": "Microwaves other than the College's are banned."}],
+             "howto_entries": [{"task": "Check which items are allowed", "section": "Allowed items",
+                                "steps": [{"text": "Fish tanks up to 10 gallons are allowed.",
+                                           "quote": "Fish tanks up to 10 gallons are allowed"}]}]}
+    # A long list without sentence ends is read in pieces: the piece naming the item is said.
+    banned = "Items not allowed: " + " ".join(f"item number {n}" for n in range(200)) + (
+        " Bed risers and lofted furniture of any kind "
+        + " ".join(f"thing {n}" for n in range(200)))
+    risers = {**listed, "sections": [{"heading": "Prohibited", "text": banned}],
+              "howto_entries": [{"task": "Check which items you may not bring",
+                                 "section": "Prohibited",
+                                 "steps": [{"text": "Some items are not allowed.",
+                                            "quote": "Items not allowed"}]}]}
+    lofted, _ = procedures_property([risers], NOW, "bring bed risers lofted bed")
+    assert "Bed risers and lofted furniture" in lofted["values"][0]["value"]["page_words"]
+    # A picker reads the part that matches, not the opening definitions.
+    policy = {**listed, "howto_entries": [], "sections": [{"heading": "Procedure", "text": (
+        "I. Definitions. " + "Words defined here at length. " * 20
+        + "Protests and peaceful demonstrations must be registered with the Center.")}]}
+    protest, _ = procedures_property([policy], NOW, "organize a peaceful protest")
+    assert "Protests and peaceful demonstrations" in protest["values"][0]["value"]["match"]
+    microwave, _ = procedures_property([items], NOW, "bring a microwave items allowed")
+    assert "Microwaves other than the College's are banned." in (
+        microwave["values"][0]["value"]["page_words"])
+    travel, _ = procedures_property([listed], NOW, "get reimbursed for travel")
+    assert travel["values"][0]["value"]["applies_to"] == "College employees"
+    assert travel["values"][0]["value"]["handled_by"] == "Controller"
+
+
+def advising_and_tutoring() -> MemoryEntityFacts:
+    def office(key: str, name: str, url: str, sections: list[dict[str, str]]) -> tuple[
+            dict[str, Any], dict[str, Any], dict[str, Any]]:
+        page = {"id": f"page-{key}", "source_key": "office-pages", "source_record_key": url,
+                "site_folder": key, "url": f"https://{url}", "sections": sections,
+                "collected_at": NOW, "freshness_sla_hours": 168, "content_hash": f"h-{key}"}
+        entity = {"id": key, "name": name, "kind": "office", "aliases": [], "links": [
+            {"collection": "contacts", "source_key": "directory", "source_record_keys": [key]},
+            {"collection": "office_sections", "source_key": "office-pages",
+             "source_record_keys": [url]}]}
+        contact = {"id": f"source-{key}", "source_key": "directory", "source_record_key": key,
+                   "name": name, "email": f"{key}@example.edu",
+                   "canonical_url": f"https://example.edu/{key}", "collected_at": NOW,
+                   "freshness_sla_hours": 24}
+        return entity, contact, page
+    rows = [office("advising", "Academic Advising", "www.ramapo.edu/advising/", [
+                {"heading": "Meet your advisor", "text": "Book an advising appointment."},
+                {"heading": "Peer mentors", "text": "Become a peer mentor for first-years."}]),
+            office("tutoring", "Center for Reading and Writing", "www.ramapo.edu/crw/tutor/", [
+                {"heading": "Become a peer tutor",
+                 "text": "Apply to become a peer tutor with the online form by March 1."}]),
+            office("library", "Library", "www.ramapo.edu/library/", [
+                {"heading": "Borrowing", "text": "Borrow books with your ID."}])]
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[entity for entity, _, _ in rows], contacts=[contact for _, contact, _ in rows],
+        records={"office_sections": [page for _, _, page in rows]}, now=lambda: NOW)
+
+
+def test_a_how_to_on_another_offices_pages_is_offered_and_said_as_that_office() -> None:
+    service = advising_and_tutoring()
+    # Only the offices whose pages speak to it, never the one already asked.
+    found = service.offices_by_procedure("become a peer tutor", "release-1",
+                                         identity_hash="identities-1", exclude=["advising"])
+    assert [office["name"] for office in found] == ["Center for Reading and Writing"]
+    # The asked office's own pages match best; another office is weighed against the others only.
+    found = service.offices_by_procedure(
+        "book an advising appointment to meet your advisor about a tutor", "release-1",
+        identity_hash="identities-1", exclude=["advising"])
+    assert [office["name"] for office in found] == ["Center for Reading and Writing"]
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Academic Advising", "fields": ["procedures"], "about": "become a peer tutor"}]})
+    pick = completion("pick_sections", {"picks": [{"lookup": 0, "sections": []},
+                                                  {"lookup": 1, "sections": [0]}]})
+    gateway = ScriptedGateway(ask, pick, finish())
+    result = answer(gateway, service=service,
+                    messages=[{"role": "user", "content": "how do i become a peer tutor"}])
+    assert "March 1" in result.body["answer"]
+    assert result.trace is not None
+    (other,) = [e for e in result.trace["lookups"] if e.get("foundBy") == "other_office_pages"]
+    assert other["office"] == "Center for Reading and Writing"
+    # The picker was told which lookup the student did not ask for.
+    offered = json.loads(gateway.inputs[1][1]["content"])["lookups"]
+    assert "other_office" not in offered[0] and offered[1]["other_office"] is True
+    # Not picked, another office is never said.
+    none = completion("pick_sections", {"picks": [{"lookup": 0, "sections": [1]},
+                                                  {"lookup": 1, "sections": []}]})
+    kept = answer(ScriptedGateway(ask, none, finish()), service=service,
+                  messages=[{"role": "user", "content": "how do i become a peer tutor"}])
+    assert "March 1" not in kept.body["answer"]
+
+
+def test_the_pages_are_searched_with_the_pages_own_terms_beside_the_students() -> None:
+    service = advising_and_tutoring()
+    # The student's words share nothing with the page; the page's own term finds it.
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Academic Advising", "fields": ["procedures"],
+         "about": "help other kids with their essays", "page_terms": ["peer tutor"]}]})
+    pick = completion("pick_sections", {"picks": [{"lookup": 0, "sections": []},
+                                                  {"lookup": 1, "sections": [0]}]})
+    gateway = ScriptedGateway(ask, pick, finish())
+    result = answer(gateway, service=service,
+                    messages=[{"role": "user", "content": "can i help other kids with essays"}])
+    assert "March 1" in result.body["answer"]
+    # The picker is told today's date, so it can tell this semester's section from the next.
+    assert json.loads(gateway.inputs[1][1]["content"])["today"].endswith(f", {NOW.year}")
+
+
+def test_a_picked_long_section_is_said_without_the_pickers_snippet() -> None:
+    long_text = "Definitions: " + "Words defined at length. " * 30 + (
+        "Protests must be registered with the Center for Student Involvement.")
+    page = {"id": "page-1", "source_key": "office-pages",
+            "source_record_key": "www.ramapo.edu/registrar/policy/", "site_folder": "registrar",
+            "url": "https://www.ramapo.edu/registrar/policy/", "collected_at": NOW,
+            "freshness_sla_hours": 168, "content_hash": "h1",
+            "sections": [{"heading": "Procedure", "text": long_text}]}
+    service = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "registrar", "name": "Registrar", "kind": "office", "aliases": [],
+                   "links": [{"collection": "contacts", "source_key": "directory",
+                              "source_record_keys": ["registrar"]},
+                             {"collection": "office_sections", "source_key": "office-pages",
+                              "source_record_keys": [page["source_record_key"]]}]}],
+        contacts=[{"id": "source-registrar", "source_key": "directory",
+                   "source_record_key": "registrar", "name": "Registrar",
+                   "email": "registrar@example.edu", "canonical_url": "https://example.edu/reg",
+                   "collected_at": NOW, "freshness_sla_hours": 24}],
+        records={"office_sections": [page]}, now=lambda: NOW)
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Registrar", "fields": ["procedures"], "about": "register a protest"}]})
+    pick = completion("pick_sections", {"picks": [{"lookup": 0, "sections": [0]}]})
+    result = answer(ScriptedGateway(ask, pick, finish()), service=service,
+                    messages=[{"role": "user", "content": "how do i register a protest"}])
+    # The snippet leaves the value and its assertion alike, so the reply is rendered, not failed.
+    assert result.status_code == 200
+    assert "https://www.ramapo.edu/registrar/policy/" in result.body["answer"]
+
+
+def test_three_offices_procedures_fit_one_reply_in_the_codes_own_text() -> None:
+    from rockygpt_brain.answers import PROCEDURE_TEXT_CHARS, _value_text
+    long = {"heading": "Academic Dismissal Appeals", "page": "https://www.ramapo.edu/a/",
+            "text": "Step. " * 400, "text_cut": True}
+    said = _value_text("procedures", long)
+    assert said.startswith("Academic Dismissal Appeals: Step.")
+    assert said.endswith("(see https://www.ramapo.edu/a/)")
+    assert len(said) < PROCEDURE_TEXT_CHARS + 120
+
+
+def test_rare_words_and_word_forms_pick_the_section_that_answers() -> None:
+    from rockygpt_brain.retrieval.entity_facts import procedures_property
+
+    def page(n: int, sections: list[tuple[str, str]]) -> dict[str, Any]:
+        return {"id": f"p{n}", "source_key": "office-pages", "source_record_key": f"k{n}",
+                "url": f"https://www.ramapo.edu/registrar/{n}/", "collected_at": NOW,
+                "freshness_sla_hours": 168, "content_hash": f"h{n}",
+                "sections": [{"heading": h, "text": t} for h, t in sections]}
+    rows = [
+        page(1, [("Declare a major",
+                  "Use the add/drop form to add or drop a major or minor class."),
+                 ("Add/Drop for classes",
+                  "Add or drop a class during add/drop on Web Self-Service.")]),
+        page(2, [("Withdrawing from a Course",
+                  "After the add/drop period a withdrawal gets a W grade.")]),
+        page(3, [("Class schedules", "The class schedule lists every class.")]),
     ]
-    data.search.return_value = {"status": "ok", "records": [RECORD]}
-    result = run_turn(
-        [ChatMessage(role="user", content="Where is the office?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert result["metrics"]["modelCalls"] == client.create.call_count == MAX_MODEL_CALLS
-    assert result["metrics"]["draftCalls"] == MAX_DRAFT_CALLS
-    assert result["metrics"]["reviewCalls"] == 1
-    assert result["status"] == "unavailable"
+    prop, _ = procedures_property(rows, NOW, "withdraw from a course, drop a class after add/drop")
+    headings = [v["value"]["heading"] for v in prop["values"]]
+    assert headings[0] == "Withdrawing from a Course"
+    # A section far below the best is left out rather than padding the answer.
+    assert "Class schedules" not in headings
 
 
-@pytest.mark.parametrize("scope_flag", [False, True])
-def test_uncited_events_do_not_corrupt_direct_entity_evidence_review(scope_flag: bool) -> None:
-    event = {**RECORD, "id": "event:club", "collection": "events", "title": "Book Club"}
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(search()),
-        answer("Office D-224", "campus_fact", [RECORD["id"]]),
-        review(uses_event_for_entity=scope_flag),
-    ]
-    data.search.return_value = {"status": "ok", "records": [RECORD, event]}
-    result = run_turn(
-        [ChatMessage(role="user", content="Where is the Registrar?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert "Office D-224" in result["answer"]
-    payload = json.loads(client.create.call_args.kwargs["input"])
-    assert payload["event_citations"] == {"0": []}
-    assert event in expand_records(payload["evidence"])
+def test_a_failed_pick_keeps_the_best_ranked_sections() -> None:
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Registrar", "fields": ["procedures"], "about": "request a transcript"}]})
+    odd = completion("write_answer", {"text": "not a pick"})  # Not the pick tool: no choice made.
+    result = answer(ScriptedGateway(ask, odd, finish()), service=registrar_with_pages(),
+                    messages=[{"role": "user", "content": "how do i get my transcript"}])
+    assert "Parchment" in result.body["answer"]
+    assert result.trace is not None and result.trace["procedurePicks"] == "ranked"
 
 
-def test_overlapping_search_does_not_erase_previously_read_details() -> None:
-    client, data = Mock(), Mock()
-    excerpt = {**RECORD, "content": "Office overview.", "content_truncated": True}
-    detail = {
-        **excerpt,
-        "content": "Office overview. Walk-in support is available on Friday.",
-        "content_truncated": False,
-    }
-    read_call = SimpleNamespace(
-        type="function_call",
-        name="read_campus",
-        call_id="read",
-        arguments=json.dumps({"ids": [RECORD["id"]]}),
-    )
-    client.create.side_effect = [
-        tools(search()),
-        tools(read_call, search("again")),
-        answer("Walk-in support is available on Friday.", "campus_fact", [RECORD["id"]]),
-        review(),
-    ]
-    data.search.return_value = {"status": "ok", "records": [excerpt]}
-    data.read.return_value = {"status": "ok", "records": [detail]}
-    run_turn(
-        [ChatMessage(role="user", content="Can I get walk-in help Friday?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    payload = json.loads(client.create.call_args.kwargs["input"])
-    assert expand_records(payload["evidence"]) == [detail]
-
-
-def test_slow_retrieval_obeys_reserved_deadline_and_answer_still_gets_reviewed(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from rockygpt_brain.core.engine import ANSWER_RESERVE_SECONDS, TURN_SECONDS
-
-    clock = [0.0]
-    monkeypatch.setattr("rockygpt_brain.engine.monotonic", lambda: clock[0])
-    client, data = Mock(), Mock()
-
-    def lookup(query: object) -> dict[str, object]:
-        assert data.deadline == TURN_SECONDS - ANSWER_RESERVE_SECONDS
-        clock[0] = data.deadline
-        raise TimeoutError("Campus data time budget exhausted")
-
-    def generate(**kwargs: object) -> SimpleNamespace:
-        if client.create.call_count == 1:
-            clock[0] = 5.0
-            return tools(search())
-        if client.create.call_count == 2:
-            assert kwargs["tool_choice"] == "none"
-            clock[0] += 5
-            return answer(
-                "I cannot reach campus data right now.", "limitation", status="unavailable"
-            )
-        clock[0] += 5
-        return review()
-
-    data.search.side_effect = lookup
-    client.create.side_effect = generate
-    result = run_turn(
-        [ChatMessage(role="user", content="Where is the office?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert result["status"] == "unavailable"
-    assert result["metrics"]["reviewCalls"] == 1
-    assert result["elapsedMs"] < TURN_SECONDS * 1000
-    for call in client.create.call_args_list:
-        assert call.kwargs["timeout"].connect <= 2.0
-
-
-@pytest.mark.parametrize("collection", ["events", "documents"])
-@pytest.mark.parametrize("kind", ["campus_fact", "guidance", "limitation"])
-def test_event_reference_cannot_establish_general_entity_attributes_even_if_model_approves(
-    collection: str,
-    kind: str,
-) -> None:
-    event = {
-        **RECORD,
-        "id": "event:club",
-        "collection": collection,
-        "title": "Book Club",
-        "source_title": "Archway Events",
-        "content": "Location: Library (LC417)",
-    }
-    client = Mock()
-    # The model's classification exposes the source/subject mismatch. Code must
-    # override its erroneous approval, rather than trusting supported blindly.
-    client.create.return_value = review(uses_event_for_entity=True)
-    candidate = Answer.model_validate_json(
-        answer("The library is in LC417.", kind, [event["id"]]).output_text
-    )
-    result = review_answer(
-        candidate,
-        messages=[ChatMessage(role="user", content="Where is the library?")],
-        evidence={event["id"]: event},
-        client=client,
-        model="test",
-        now=NOW,
-        timeout=10,
-    )
-    assert result.parts[0].verdict == "wrong_scope"
-    client.create.return_value = review()
-    candidate.parts[0].text = "Book Club meets at Library (LC417)."
-    valid = review_answer(
-        candidate,
-        messages=[ChatMessage(role="user", content="Where does Book Club meet?")],
-        evidence={event["id"]: event},
-        client=client,
-        model="test",
-        now=NOW,
-        timeout=10,
-    )
-    assert valid.parts[0].verdict == "supported"
-
-
-@pytest.mark.parametrize("field", ["uses_event_for_entity", "unverified_premises"])
-def test_review_requires_scope_decision_for_every_paragraph(field: str) -> None:
-    event = {**RECORD, "collection": "events", "content": "Book Club meets in D-224."}
-    client = Mock()
-    client.create.return_value = review()
-    payload = json.loads(client.create.return_value.output_text)
-    del payload["parts"][0][field]
-    client.create.return_value.output_text = json.dumps(payload)
-    candidate = Answer.model_validate_json(
-        answer("Book Club meets in D-224.", "campus_fact", [event["id"]]).output_text
-    )
-    with pytest.raises(InvalidAnswer) as error:
-        review_answer(
-            candidate,
-            messages=[ChatMessage(role="user", content="Where does Book Club meet?")],
-            evidence={event["id"]: event},
-            client=client,
-            model="test",
-            now=NOW,
-            timeout=10,
-        )
-    assert error.value.code == "invalid_review"
-
-
-@pytest.mark.parametrize(
-    ("deadline", "expected"),
-    [
-        ("2026-09-04T11:00:00-04:00", "wrong_context"),
-        ("2026-09-04T12:00:00-04:00", "wrong_context"),
-        ("2026-09-04T13:00:00-04:00", "supported"),
-        (None, "supported"),
-    ],
-)
-def test_code_checks_plan_deadlines_against_campus_clock(
-    deadline: str | None,
-    expected: str,
-) -> None:
-    client = Mock()
-    client.create.return_value = review(plan_deadlines=[deadline] if deadline else [])
-    candidate = Answer.model_validate_json(answer("A time-bound proposed action.").output_text)
-    result = review_answer(
-        candidate,
-        messages=[ChatMessage(role="user", content="Plan the rest of today")],
-        evidence={},
-        client=client,
-        model="test",
-        now=NOW,
-        timeout=10,
-    )
-    assert result.parts[0].verdict == expected
-
-
-@pytest.mark.parametrize("deadline", [None, "2026-09-04T13:00:00"])
-def test_plan_deadlines_must_have_explicit_timezones(deadline: str | None) -> None:
-    client = Mock()
-    client.create.return_value = review(plan_deadlines=["2026-09-04T13:00:00"])
-    verdict = json.loads(client.create.return_value.output_text)
-    verdict["parts"][0]["plan_deadlines"][0]["latest_usable_at"] = deadline
-    client.create.return_value.output_text = json.dumps(verdict)
-    candidate = Answer.model_validate_json(answer().output_text)
-    with pytest.raises(InvalidAnswer) as error:
-        review_answer(
-            candidate,
-            messages=[ChatMessage(role="user", content="Plan today")],
-            evidence={},
-            client=client,
-            model="test",
-            now=NOW,
-            timeout=10,
-        )
-    assert error.value.code == "invalid_review"
-
-
-@pytest.mark.parametrize("deadline", [None, "2026-09-04T11:00:00-04:00"])
-def test_standing_service_condition_does_not_expire_at_todays_closing(deadline: str | None) -> None:
-    client = Mock()
-    client.create.return_value = review(
-        plan_deadlines=["2026-09-04T11:00:00-04:00"],
-        deadline_basis="standing_service_rule",
-    )
-    verdict = json.loads(client.create.return_value.output_text)
-    verdict["parts"][0]["plan_deadlines"][0]["latest_usable_at"] = deadline
-    client.create.return_value.output_text = json.dumps(verdict)
-    candidate = Answer.model_validate_json(
-        answer("During office hours use the office; after hours use the phone service.").output_text
-    )
-    result = review_answer(
-        candidate,
-        messages=[ChatMessage(role="user", content="How can I get help?")],
-        evidence={},
-        client=client,
-        model="test",
-        now=NOW,
-        timeout=10,
-    )
-    assert result.parts[0].verdict == "supported"
-
-
-def test_rejection_at_total_budget_returns_no_rewritten_claim() -> None:
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        *(tools(search(str(i))) for i in range(MAX_DRAFT_CALLS - 1)),
-        answer("A-101", "campus_fact", [RECORD["id"]]),
-        review("contradicted_evidence"),
-        answer("D-224", "campus_fact", [RECORD["id"]]),
-        review(),
-    ]
-    data.search.return_value = {"status": "ok", "records": [RECORD]}
-    result = run_turn(
-        [ChatMessage(role="user", content="Where is the Registrar?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert result["metrics"]["modelCalls"] == client.create.call_count == MAX_MODEL_CALLS
-    assert result["metrics"]["reviewCalls"] == 1
-    assert result["status"] == "unavailable"
-    assert "D-224" not in result["answer"]
-    assert "A-101" not in result["answer"]
-
-
-def test_menu_list_can_keep_every_item_cited_without_repeating_source_urls() -> None:
-    records = [
-        {
-            **RECORD,
-            "id": f"menu:item-{i}",
-            "collection": "menu",
-            "title": f"Menu item {i}",
-            "source_title": "Dining Menu",
-            "url": "https://www.ramapo.edu/dining/menu/",
-            "content": {"dietary_labels": ["Vegan"], "allergens": []},
-        }
-        for i in range(20)
-    ]
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(search(collection="menu", date_from="2026-09-04", limit=20)),
-        answer(
-            "Published vegan items: " + ", ".join(str(record["title"]) for record in records),
-            "campus_fact",
-            [str(record["id"]) for record in records],
-        ),
-        review(),
-    ]
-    data.search.return_value = {"status": "ok", "records": records}
-    result = run_turn(
-        [ChatMessage(role="user", content="What vegan items are on the menu?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert len(result["citations"]) == 20
-    assert result["answer"].count("https://www.ramapo.edu/dining/menu/") == 1
-    assert result["metrics"]["validationFailures"] == []
-    payload = json.loads(client.create.call_args.kwargs["input"])
-    assert expand_records(payload["evidence"]) == records
-    assert len(payload["candidate"]["parts"][0]["evidence_ids"]) == 20
-
-
-@pytest.mark.parametrize("kind", ["campus_fact", "guidance", "limitation"])
-def test_food_safety_inference_is_withheld_even_if_model_approves(kind: str) -> None:
-    menu = {
-        **RECORD,
-        "id": "menu:rice",
-        "collection": "menu",
-        "title": "Rice",
-        "content": {"dietary_labels": ["Vegan"], "allergens": []},
-    }
-    client, data = Mock(), Mock()
-    client.create.side_effect = [
-        tools(search(collection="menu", date_from="2026-09-04")),
-        answer("The blank allergen label means rice is lower risk.", kind, [str(menu["id"])]),
-        review(infers_food_safety=True),
-        answer("Ask dining staff about ingredients and cross-contact.", "guidance"),
-        review(),
-    ]
-    data.search.return_value = {"status": "ok", "records": [menu]}
-    result = run_turn(
-        [ChatMessage(role="user", content="What can I eat with a peanut allergy?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    assert "lower risk" not in result["answer"]
-    assert result["status"] == "unavailable"
-    # Nothing from the rejected draft is shown: only the page that was checked,
-    # named as checked, so the student has somewhere to go instead of a dead end.
-    assert [citation["url"] for citation in result["citations"]] == [RECORD["url"]]
-    assert result["answer"].endswith("The published pages I checked are linked below.")
-    assert result["metrics"]["validationFailures"] == ["unsupported_claim"]
-    assert result["metrics"]["reviewCalls"] == 1
-    assert client.create.call_count == 3
-
-
-def test_context_bound_ends_tool_selection_without_discarding_evidence() -> None:
-    from rockygpt_brain.core.provider import input_bound, wire_value
-    from rockygpt_brain.core.tools import tool_definitions
-
-    client, data = Mock(), Mock()
-    # Fits new-evidence delivery including composition reserve; the assertions
-    # below verify that tool schemas alone put the next request over its bound.
-    long_record = {**RECORD, "content": "Office: D-224\n" + "x" * 80000}
-    data.search.return_value = {"status": "ok", "records": [long_record]}
-    client.create.side_effect = [
-        tools(search()),
-        answer("D-224", "campus_fact", [RECORD["id"]]),
-        review(),
-    ]
-    result = run_turn(
-        [ChatMessage(role="user", content="Where is the Registrar?")],
-        client=client,
-        data=data,
-        model="test",
-        now=NOW,
-    )
-    writer = client.create.call_args_list[1].kwargs
-    assert writer["tools"] == [] and writer["tool_choice"] == "none"
-    payload = wire_value({k: v for k, v in writer.items() if k not in {"timeout", "category"}})
-    assert input_bound(payload) <= RELEASE.max_input_tokens
-    assert (
-        input_bound({**payload, "tools": tool_definitions(), "tool_choice": "auto"})
-        > RELEASE.max_input_tokens
-    )
-    outputs = [
-        json.loads(item["output"])
-        for item in writer["input"]
-        if isinstance(item, dict) and item.get("type") == "function_call_output"
-    ]
-    assert expand_records(outputs[0]["evidence_groups"]) == [long_record]
-    assert result["metrics"]["contextLimitedTools"] is True
-    assert result["metrics"]["modelCalls"] == 3
-    assert result["metrics"]["reviewCalls"] == 1
-    assert result["status"] == "answered"
-
-
-def test_oversized_new_results_preserve_history_and_prior_evidence_with_truthful_coverage() -> None:
-    from rockygpt_brain.core.provider import input_bound, wire_value
-
-    client, data = Mock(), Mock()
-    large_records = [
-        {
-            **RECORD,
-            "id": f"documents:{index}",
-            "collection": "documents",
-            "content": f"Qualified policy {index}. " * 2000,
-        }
-        for index in range(4)
-    ]
-    original = {"status": "ok", "records": large_records, "total_matches": 4, "truncated": False}
-    data.search.side_effect = [{"status": "ok", "records": [RECORD]}, original]
-    client.create.side_effect = [
-        tools(search("first"), search("second", collection="documents")),
-        answer("The contact is D-224.", "campus_fact", [RECORD["id"]]),
-        review(),
-    ]
-    messages = [
-        ChatMessage(role="user", content="Where is the Registrar?"),
-        ChatMessage(role="assistant", content="Are you also asking about their policies?"),
-        ChatMessage(role="user", content="Yes, show the office and any published policy details."),
-    ]
-    result = run_turn(messages, client=client, data=data, model="test", now=NOW)
-    writer = client.create.call_args_list[1].kwargs
-    assert writer["input"][:3] == [message.model_dump() for message in messages]
-    outputs = [
-        json.loads(item["output"])
-        for item in writer["input"]
-        if isinstance(item, dict) and item.get("type") == "function_call_output"
-    ]
-    assert expand_records(outputs[0]["evidence_groups"]) == [RECORD]
-    delivered = expand_records(outputs[1]["evidence_groups"])
-    assert 0 < len(delivered) < 4
-    assert delivered == large_records[: len(delivered)]
-    assert outputs[1]["total_matches"] == 4
-    assert outputs[1]["truncated"] is True
-    assert outputs[1]["reason"] == "retrieval_delivery_limit"
-    assert outputs[1]["omitted_count"] == 4 - len(delivered)
-    assert original["records"] == large_records and original["truncated"] is False
-    assert result["trace"][1]["evidence_ids"] == [record["id"] for record in delivered]
-    assert result["metrics"]["contextLimitedResults"] is True
-    # Both paid-stage payloads must still fit, and review gets exactly the
-    # delivered records rather than implicitly using omitted evidence.
-    for call in client.create.call_args_list[1:]:
-        payload = wire_value(
-            {k: v for k, v in call.kwargs.items() if k not in {"category", "timeout"}}
-        )
-        assert input_bound(payload) <= RELEASE.max_input_tokens
-    reviewed = json.loads(client.create.call_args_list[-1].kwargs["input"])
-    assert expand_records(reviewed["evidence"]) == [RECORD, *delivered]
-
-
-def test_a_two_part_question_gets_the_whole_menu_it_asked_for() -> None:
-    # Three lookups at once share the evidence room; twelve dishes and the hours still fit.
-    client, data = Mock(), Mock()
-    dishes = [
-        {**RECORD, "id": f"menu:dish-{index}", "title": f"Dish {index}", "collection": "menu",
-         "content": f"Dish {index}. " + "Published station, labels and allergens. " * 30}
-        for index in range(12)
-    ]
-    hours = {**RECORD, "id": "dining_hours:birch", "collection": "dining_hours",
-             "content": "Dinner 5:00-7:00 PM"}
-    data.search.side_effect = [
-        {"status": "ok", "records": [RECORD]},
-        {"status": "ok", "records": dishes, "total_matches": 12},
-        {"status": "ok", "records": [hours]},
-    ]
-    client.create.side_effect = [
-        tools(search("phone"), search("menu", "menu", date_from="2026-09-04", limit=12),
-              search("hours", "dining_hours", date_from="2026-09-04")),
-        answer("The contact is D-224.", "campus_fact", [RECORD["id"]]),
-        review(),
-    ]
-    result = run_turn(
-        [ChatMessage(role="user",
-                     content="Give me the Registrar phone and the dining menu for tonight.")],
-        client=client, data=data, model="test", now=NOW,
-    )
-    assert [step["result_count"] for step in result["trace"]] == [1, 12, 1]
-    assert not result["metrics"].get("contextLimitedResults")
-
-
-def test_rendered_links_sharing_a_title_are_labelled_by_page() -> None:
-    from rockygpt_brain.contracts import Answer
-    from rockygpt_brain.core.render import render_answer
-
-    home = {**RECORD, "id": "dining:home", "url": "https://dining.example.edu/",
-            "source_title": "Campus Dining"}
-    hall = {**RECORD, "id": "dining:hall",
-            "url": "https://dining.example.edu/locations/birch-tree-inn",
-            "source_title": "Campus Dining"}
-    rendered = render_answer(
-        Answer.model_validate({"status": "answered", "parts": [{
-            "kind": "campus_fact", "text": "Dinner is 5 to 8 PM.",
-            "evidence_ids": ["dining:home", "dining:hall"],
-        }]}),
-        {"dining:home": home, "dining:hall": hall},
-    )
-    assert rendered["answer"] == (
-        "Dinner is 5 to 8 PM. [Campus Dining · Home page](https://dining.example.edu/) "
-        "[Campus Dining · Birch Tree Inn](https://dining.example.edu/locations/birch-tree-inn)"
-    )
+def test_a_situation_beside_a_contact_question_also_reads_the_offices_how_to() -> None:
+    from rockygpt_brain.engine import OfficeRequest, with_situation_procedures
+    ask = OfficeRequest(query="Housing & Residence Life", fields=["phones", "hours"])
+    message = "who do I contact about getting locked out of my room at 2am"
+    requests, added = with_situation_procedures([ask], message)
+    assert added == {0} and "procedures" in requests[0].fields and requests[0].about == message
+    # A contact question alone, or one with a word or two more, is read as asked.
+    for plain in ("registrar email", "Is the email you gave me still correct?"):
+        same, none = with_situation_procedures([ask], plain)
+        assert none == set() and same[0].fields == ["phones", "hours"]

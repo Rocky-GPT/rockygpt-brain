@@ -1,0 +1,3 @@
+brain c53d99b (code-c53d99b export, all calls gpt-6-luna, written mode on :8013, BRAIN_HOWTO_ONE_CALL=1)
+data 147c596
+release dev-campus-daily-20261021-1217 (release-9e7a3fc879806828.lbug + meaning index with office cards and unit headings, rebuilt 10-21)

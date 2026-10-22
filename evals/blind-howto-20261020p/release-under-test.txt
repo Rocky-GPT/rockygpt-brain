@@ -1,0 +1,3 @@
+brain under test: 9e0180f with BRAIN_OPENAI_STRONG_MODEL=gpt-6.1-sol for pick_sections and write_answer (rest gpt-6-luna); BRAIN_MAX_TURN_NUSD=250000000
+(a clean git archive export, run as the written-mode dev Brain on :8013 via .local-logs/dev-brain/start_written_8013_sol.py; graders read :8013)
+release: dev-campus-daily-20261020-0132 (data 100d7f3; 8,626 verified how-to entries on 1,870 of 2,574 office pages)

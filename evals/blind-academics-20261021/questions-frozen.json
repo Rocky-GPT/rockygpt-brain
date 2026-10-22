@@ -1,0 +1,302 @@
+[
+ {
+  "id": "ac1-01",
+  "question": "im a freshman and have no idea what i want to major in. what majors does ramapo even have?",
+  "topic": "program"
+ },
+ {
+  "id": "ac1-02",
+  "question": "what classes do I need to take for the psychology major",
+  "topic": "program"
+ },
+ {
+  "id": "ac1-03",
+  "question": "is there a major in cybersecurity or do i have to do computer science",
+  "topic": "program"
+ },
+ {
+  "id": "ac1-04",
+  "question": "how many credits is a minor and can i double count courses with my major?",
+  "topic": "program"
+ },
+ {
+  "id": "ac1-05",
+  "question": "what is cmps 147 about and what are the prereqs",
+  "topic": "course"
+ },
+ {
+  "id": "ac1-06",
+  "question": "psych 101 how many credits? does it count for gen ed",
+  "topic": "course"
+ },
+ {
+  "id": "ac1-07",
+  "question": "What general education requirements do I have to finish before I graduate, and how many credits is the whole gen ed thing?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ac1-08",
+  "question": "does bio 110 satisfy the natural science requirement or is that only for bio majors",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ac1-09",
+  "question": "what should a freshman in business take first semester",
+  "topic": "sequence"
+ },
+ {
+  "id": "ac1-10",
+  "question": "if I'm thinking about nursing or biology what intro courses should i start with so i can still switch later",
+  "topic": "sequence"
+ },
+ {
+  "id": "ac1-11",
+  "question": "whats the difference between a major, a minor and a certificate at ramapo?",
+  "topic": "program"
+ },
+ {
+  "id": "ac1-12",
+  "question": "do you have a major for communication arts and what does it require",
+  "topic": "program"
+ },
+ {
+  "id": "ac1-13",
+  "question": "which majors are the easiest? I want something that gets me a good job",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ac1-14",
+  "question": "can you check my degree audit and tell me which gen ed classes I still need",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ac1-15",
+  "question": "are there open seats in intro to sociology this spring and who is teaching it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ac2-01",
+  "question": "what are the prereqs for cmps 147? im a business major thinking about adding a computing minor",
+  "topic": "course"
+ },
+ {
+  "id": "ac2-02",
+  "question": "How many credits is the computer science minor and which courses does it require?",
+  "topic": "program"
+ },
+ {
+  "id": "ac2-03",
+  "question": "nursing major: what science classes do i need to take before the clinical courses start",
+  "topic": "sequence"
+ },
+ {
+  "id": "ac2-04",
+  "question": "does bio 110 count for a gen ed natural science requirement or only for the bio major?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ac2-05",
+  "question": "what does acct 201 cover and is it required for all business majors",
+  "topic": "course"
+ },
+ {
+  "id": "ac2-06",
+  "question": "I'm a junior in the data science major. Is there a recommended order for the upper level electives, and do I need calc 2 before the stats courses?",
+  "topic": "sequence"
+ },
+ {
+  "id": "ac2-07",
+  "question": "chem 125 credits?",
+  "topic": "course"
+ },
+ {
+  "id": "ac2-08",
+  "question": "can I double major in finance and information systems, and how many total credits would the two together need",
+  "topic": "program"
+ },
+ {
+  "id": "ac2-09",
+  "question": "Which classes do I still need to graduate? I'm a sophomore in biology with 58 credits",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ac2-10",
+  "question": "are there any open sections of cmps 231 this spring and who teaches it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ac2-11",
+  "question": "does a statistics course like math 110 satisfy the quantitative reasoning gen ed, or do business majors need a different one",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ac2-12",
+  "question": "is there a certificate in cybersecurity or anything like that for computing students",
+  "topic": "program"
+ },
+ {
+  "id": "ac2-13",
+  "question": "what's the difference between the BS and BA in biology, which classes are different",
+  "topic": "program"
+ },
+ {
+  "id": "ac2-14",
+  "question": "Should I take organic chemistry or anatomy first if I want to apply to nursing, which one is easier",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ac2-15",
+  "question": "what is the prerequisite chain for upper level marketing courses like mktg 301 and do I need junior standing",
+  "topic": "course"
+ },
+ {
+  "id": "ac3-01",
+  "question": "how many credits do i need for a minor in business admin? and can i double count any of them with my major",
+  "topic": "program"
+ },
+ {
+  "id": "ac3-02",
+  "question": "I'm a transfer student with 60 credits from community college. which gen ed requirements does Ramapo still make me take?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ac3-03",
+  "question": "is there a certificate program in data analytics or anything like that",
+  "topic": "program"
+ },
+ {
+  "id": "ac3-04",
+  "question": "what are the prereqs for cmps 230",
+  "topic": "course"
+ },
+ {
+  "id": "ac3-05",
+  "question": "Im a biology major and want to add a second major in psychology. what courses would the psych major require?",
+  "topic": "program"
+ },
+ {
+  "id": "ac3-06",
+  "question": "does psych 101 count for a gen ed category",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ac3-07",
+  "question": "whats the difference between a minor and a certificate here",
+  "topic": "program"
+ },
+ {
+  "id": "ac3-08",
+  "question": "I want to add a communication arts minor starting junior year. what order should I take the minor courses in?",
+  "topic": "sequence"
+ },
+ {
+  "id": "ac3-09",
+  "question": "do transfer credits from another school count toward the writing intensive requirement",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ac3-10",
+  "question": "how many credits is econ 101 and what does it cover",
+  "topic": "course"
+ },
+ {
+  "id": "ac3-11",
+  "question": "what is the Intellectual Inquiry or whatever its called gen ed thing, and how many courses is it",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ac3-12",
+  "question": "can you look at my degree audit and tell me which gen eds I'm still missing? my id is on my account",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ac3-13",
+  "question": "Which should I pick, a minor in environmental studies or one in sociology? I can only fit one",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ac3-14",
+  "question": "are there any open sections of hist 101 this fall and who teaches them",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ac3-15",
+  "question": "I'm adding a second major in political science, what's the recommended sequence of courses for it, and what's the min number of credits to finish both majors",
+  "topic": "sequence"
+ },
+ {
+  "id": "ac4-01",
+  "question": "Is there an English major at Ramapo? What does it involve?",
+  "topic": "program"
+ },
+ {
+  "id": "ac4-02",
+  "question": "what classes do i need to take for the psychology major and how many credits is it total",
+  "topic": "program"
+ },
+ {
+  "id": "ac4-03",
+  "question": "I'm a parent looking at the social work program for my daughter. What are the degree requirements and does it include any field placement or internship?",
+  "topic": "program"
+ },
+ {
+  "id": "ac4-04",
+  "question": "What does psych 101 cover and is it a prerequisite for other psych classes?",
+  "topic": "course"
+ },
+ {
+  "id": "ac4-05",
+  "question": "How many credits is a minor in history?",
+  "topic": "program"
+ },
+ {
+  "id": "ac4-06",
+  "question": "does Ramapo offer a masters in education? what are the courses like",
+  "topic": "program"
+ },
+ {
+  "id": "ac4-07",
+  "question": "whats the prereq for soc 301?",
+  "topic": "course"
+ },
+ {
+  "id": "ac4-08",
+  "question": "Does the Intro to Sociology course count toward any gen ed requirement?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ac4-09",
+  "question": "What are the general education requirements for all students? I'm trying to figure out how many gen ed classes I would have to take outside my major if I did communication arts.",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ac4-10",
+  "question": "what should a freshman take first if theyre majoring in contemporary arts",
+  "topic": "sequence"
+ },
+ {
+  "id": "ac4-11",
+  "question": "Is there a recommended course sequence for the elementary education certification track, like what to take each semester?",
+  "topic": "sequence"
+ },
+ {
+  "id": "ac4-12",
+  "question": "Can I double major in political science and law and society, and is there a minor in either one?",
+  "topic": "program"
+ },
+ {
+  "id": "ac4-13",
+  "question": "Which programs at Ramapo have a graduate degree option? Looking for something in the humanities or social sciences.",
+  "topic": "program"
+ },
+ {
+  "id": "ac4-14",
+  "question": "Which sections of Intro to Psychology are open next semester and who teaches them?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ac4-15",
+  "question": "Should I pick history or political science if I want to go to law school? Which one is easier?",
+  "topic": "out_of_scope"
+ }
+]

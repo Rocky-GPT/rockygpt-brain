@@ -1,0 +1,2166 @@
+{
+ "version": 1,
+ "about": "New labeled shuttle questions for milestone 5, step 4. All synthetic (written by Claude, not taken from students and not from the frozen 130 in evals/decisions). Labels are what a careful person would give; `expect` is what slice 1 should do. The clock is fixed at Tuesday 2026-09-29 13:00 campus time, so `plan.day` is a date. The labels are Dan's to review before any paid run; rows with `review` need his call. Never reword the Jev questions to fit these. Answer key corrected 09-29 for 097 and 098 (a route other than a lookup takes them) and the note on 073; no code or question wording changed for it.",
+ "clock": "2026-09-29T13:00:00-04:00",
+ "cases": [
+  {
+   "id": "shuttle-001",
+   "question": "When does the next shuttle leave?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. No day said, so today."
+  },
+  {
+   "id": "shuttle-002",
+   "question": "how long until I can catch a shuttle",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. Asks for a wait; code gives the departure and the minutes from the campus clock."
+  },
+  {
+   "id": "shuttle-003",
+   "question": "Is there a shuttle leaving soon?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. 'soon' is not a clock time."
+  },
+  {
+   "id": "shuttle-004",
+   "question": "next shuttle to garden state plaza",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "garden state plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": "garden state plaza"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-005",
+   "question": "When's the next shuttle to the Ramsey train station?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "ramsey rt 17 train",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": "ramsey rt 17 train"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. Alias for the stop."
+  },
+  {
+   "id": "shuttle-006",
+   "question": "Next Roadrunner Express to Interstate Plaza?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "interstate plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": "interstate plaza"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. The generic Roadrunner name is not a route limit."
+  },
+  {
+   "id": "shuttle-007",
+   "question": "what time is the next bus to gsp",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "garden state plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": "garden state plaza"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. Student says bus for the shuttle; GSP is named."
+  },
+  {
+   "id": "shuttle-008",
+   "question": "When does the next shuttle to Barnes & Noble go?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "barnes & noble/fashion center",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": "barnes & noble/fashion center"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-009",
+   "question": "next shuttle tomorrow?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "tomorrow",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-30",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. For a later day, code treats next as the first of that day and says so."
+  },
+  {
+   "id": "shuttle-010",
+   "question": "Any shuttles left today to Ramsey Square?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "today",
+    "stop": "ramsey square",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": "ramsey square"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. 'Left today' means the next one after now."
+  },
+  {
+   "id": "shuttle-011",
+   "question": "When is the next shuttle on Saturday to the Route 17 train station?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "saturday",
+    "stop": "ramsey rt 17 train",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-10-03",
+    "stop": "ramsey rt 17 train"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. The destination is the stop, not the Ramsey Route 17 line."
+  },
+  {
+   "id": "shuttle-012",
+   "question": "yo when's the next shuttle",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. Casual."
+  },
+  {
+   "id": "shuttle-013",
+   "question": "wen is the nxt shutle to gsp",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "garden state plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": "garden state plaza"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. Misspelled."
+  },
+  {
+   "id": "shuttle-014",
+   "question": "next shuttel to Garden State Plaza tomorow",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "tomorrow",
+    "stop": "garden state plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-30",
+    "stop": "garden state plaza"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. Misspelled."
+  },
+  {
+   "id": "shuttle-015",
+   "question": "shuttle?? next one",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": "Terse. Is 'next shuttle, any stop, today' the right expectation?",
+   "note": "synthetic; in slice. Terse; review, a human might ask what they want."
+  },
+  {
+   "id": "shuttle-016",
+   "question": "How early does the shuttle start running tomorrow?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "tomorrow",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-09-30",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-017",
+   "question": "When does the first shuttle leave on Sunday?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "sunday",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-10-04",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-018",
+   "question": "what time is the earliest shuttle to Garden State Plaza on Friday",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "friday",
+    "stop": "garden state plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-10-02",
+    "stop": "garden state plaza"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-019",
+   "question": "First shuttle of the day?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. No day said, so today."
+  },
+  {
+   "id": "shuttle-020",
+   "question": "earliest shuttle to the Ramsey train tomorrow morning",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "tomorrow",
+    "stop": "ramsey rt 17 train",
+    "clock": true,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "clock guard: a time of day",
+   "review": "'Morning' adds nothing here, but the clock guard refuses it. An over-refusal by design.",
+   "note": "synthetic; in slice, but 'morning' may trip the clock guard. Measures over-refusal. First is already the morning."
+  },
+  {
+   "id": "shuttle-021",
+   "question": "When does the first shuttle to Interstate Plaza run on Saturdays?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "saturday",
+    "stop": "interstate plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-10-03",
+    "stop": "interstate plaza"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-022",
+   "question": "what's the earliest shuttle out to the farmers market on Sunday",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "sunday",
+    "stop": "ramsey farmers market",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-10-04",
+    "stop": "ramsey farmers market"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. Ramsey Farmers Market is a Sunday-only stop in the data."
+  },
+  {
+   "id": "shuttle-023",
+   "question": "first bus off campus monday",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "monday",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-10-05",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. Bus for shuttle; casual."
+  },
+  {
+   "id": "shuttle-024",
+   "question": "start time for the shuttle on weekdays",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "several",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "day 'several': not one day in the next 7",
+   "review": null,
+   "note": "synthetic; out: a group of days. Expect not ready. A later slice could answer it, since all weekdays share one schedule."
+  },
+  {
+   "id": "shuttle-025",
+   "question": "Are there any shuttles to GSP before 8 am?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "garden state plaza",
+    "clock": true,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "clock guard: a time of day",
+   "review": null,
+   "note": "synthetic; out: clock time limit. Expect not ready."
+  },
+  {
+   "id": "shuttle-026",
+   "question": "when does the last shuttle leave tonight",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "today",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. Tonight is today, not a clock limit."
+  },
+  {
+   "id": "shuttle-027",
+   "question": "What time is the final shuttle on Sunday?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "sunday",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-10-04",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-028",
+   "question": "last shuttle to garden state plaza today",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "today",
+    "stop": "garden state plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-09-29",
+    "stop": "garden state plaza"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-029",
+   "question": "latest shuttle to Barnes & Noble on Saturday",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "saturday",
+    "stop": "barnes & noble/fashion center",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-10-03",
+    "stop": "barnes & noble/fashion center"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-030",
+   "question": "how late does the shuttle run on Thursday",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "thursday",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-10-01",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-031",
+   "question": "last shuttle tmrw to gsp?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "tomorrow",
+    "stop": "garden state plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-09-30",
+    "stop": "garden state plaza"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. Casual, abbreviated."
+  },
+  {
+   "id": "shuttle-032",
+   "question": "last one to the train station tomorrow night",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "tomorrow",
+    "stop": "ramsey rt 17 train",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-09-30",
+    "stop": "ramsey rt 17 train"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice, but 'night' may trip the clock guard. Measures over-refusal."
+  },
+  {
+   "id": "shuttle-033",
+   "question": "what's the last bus to ramsey square on friday",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "friday",
+    "stop": "ramsey square",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-10-02",
+    "stop": "ramsey square"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. Bus for shuttle."
+  },
+  {
+   "id": "shuttle-034",
+   "question": "If I want the last shuttle to City MD Ramsey on Sunday, what time do I need to be there?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "sunday",
+    "stop": "city md ramsey",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-10-04",
+    "stop": "city md ramsey"
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. The answer is the departure time."
+  },
+  {
+   "id": "shuttle-035",
+   "question": "where does the first shuttle stop tomorrow?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "stops",
+    "day": "tomorrow",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "wants the stops, not the departure: a later step",
+   "review": null,
+   "note": "synthetic; in slice. Trip picked by 'first'."
+  },
+  {
+   "id": "shuttle-036",
+   "question": "Which stops does the last shuttle on Saturday make?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "stops",
+    "day": "saturday",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "wants the stops, not the departure: a later step",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-037",
+   "question": "what stops does the next shuttle make",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "stops",
+    "day": "none",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "wants the stops, not the departure: a later step",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-038",
+   "question": "does the next shuttle go to Garden State Plaza",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "stops",
+    "day": "none",
+    "stop": "garden state plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "wants the stops, not the departure: a later step",
+   "review": "A yes/no about the next trip. Slice 1 answers only 'when does it leave'; this is a stops question, so not ready.",
+   "note": "synthetic; in slice. Review: read literally it is a yes/no about the very next trip. Code with a stop filter names the next trip that stops there and says so."
+  },
+  {
+   "id": "shuttle-039",
+   "question": "list the stops on the first Sunday shuttle",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "stops",
+    "day": "sunday",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "wants the stops, not the departure: a later step",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-040",
+   "question": "what time does the last shuttle get to GSP on Saturday",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "stops",
+    "day": "saturday",
+    "stop": "garden state plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "wants the stops, not the departure: a later step",
+   "review": null,
+   "note": "synthetic; in slice. The answer is the time at that stop."
+  },
+  {
+   "id": "shuttle-041",
+   "question": "where does the shuttle go after Interstate Plaza",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "stops",
+    "day": "none",
+    "stop": "interstate plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "wants the stops, not the departure: a later step",
+   "review": "Which trip is unsaid. Labeled a stops question, so not ready.",
+   "note": "synthetic; in slice. Review: which trip is unsaid; next is the default."
+  },
+  {
+   "id": "shuttle-042",
+   "question": "which shuttles stop at the farmers market",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "all",
+    "wants": "stops",
+    "day": "none",
+    "stop": "ramsey farmers market",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "wants the stops, not the departure: a later step",
+   "review": null,
+   "note": "synthetic; out: every trip. Expect not ready."
+  },
+  {
+   "id": "shuttle-043",
+   "question": "what route does the shuttle take",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "all",
+    "wants": "stops",
+    "day": "none",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "wants the stops, not the departure: a later step",
+   "review": null,
+   "note": "synthetic; out: every trip's stops. Expect not ready."
+  },
+  {
+   "id": "shuttle-044",
+   "question": "and the last one?",
+   "earlier": [
+    "what's the first shuttle to garden state plaza tomorrow?"
+   ],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "tomorrow",
+    "stop": "garden state plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": true
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "follow-up: slice 1 answers only stand-alone questions",
+   "review": null,
+   "note": "synthetic; in slice if Jev carries the day and stop. Follow-up."
+  },
+  {
+   "id": "shuttle-045",
+   "question": "what about tomorrow?",
+   "earlier": [
+    "when is the next shuttle to gsp?"
+   ],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "tomorrow",
+    "stop": "garden state plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": true
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "follow-up: slice 1 answers only stand-alone questions",
+   "review": null,
+   "note": "synthetic; in slice if Jev carries the operation and stop. Follow-up."
+  },
+  {
+   "id": "shuttle-046",
+   "question": "and Sunday?",
+   "earlier": [
+    "first shuttle on Saturday?"
+   ],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "sunday",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": true
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "follow-up: slice 1 answers only stand-alone questions",
+   "review": null,
+   "note": "synthetic; in slice if Jev carries the operation. Follow-up."
+  },
+  {
+   "id": "shuttle-047",
+   "question": "same but Saturday",
+   "earlier": [
+    "last shuttle to Ramsey Square on Friday"
+   ],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "saturday",
+    "stop": "ramsey square",
+    "clock": false,
+    "back": false,
+    "needs_earlier": true
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "follow-up: slice 1 answers only stand-alone questions",
+   "review": null,
+   "note": "synthetic; in slice. Follow-up."
+  },
+  {
+   "id": "shuttle-048",
+   "question": "where does it stop",
+   "earlier": [
+    "when does the next shuttle leave?"
+   ],
+   "labels": {
+    "shuttle": true,
+    "trip": "earlier",
+    "wants": "stops",
+    "day": "none",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": true
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "follow-up: slice 1 answers only stand-alone questions",
+   "review": null,
+   "note": "synthetic; out: points to an earlier trip; needs Conversation State. Expect not ready."
+  },
+  {
+   "id": "shuttle-049",
+   "question": "does that one stop at Interstate Plaza first?",
+   "earlier": [
+    "first shuttle to gsp tomorrow"
+   ],
+   "labels": {
+    "shuttle": true,
+    "trip": "earlier",
+    "wants": "stops",
+    "day": "none",
+    "stop": "interstate plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": true
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "follow-up: slice 1 answers only stand-alone questions",
+   "review": null,
+   "note": "synthetic; out: earlier trip. Expect not ready."
+  },
+  {
+   "id": "shuttle-050",
+   "question": "also when's the next shuttle",
+   "earlier": [
+    "what's the weather like this weekend",
+    "thanks"
+   ],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. Topic switch: destination and day must NOT carry."
+  },
+  {
+   "id": "shuttle-051",
+   "question": "and the last shuttle?",
+   "earlier": [
+    "when does the dining hall close tonight?"
+   ],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "today",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": "After dining chat. It says 'shuttle' itself, so labeled a stand-alone question; Jev may call it a follow-up.",
+   "note": "synthetic; in slice. Topic switches from dining to shuttle; tonight carries as today."
+  },
+  {
+   "id": "shuttle-052",
+   "question": "ok what about to the train station",
+   "earlier": [
+    "last shuttle to GSP saturday"
+   ],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "saturday",
+    "stop": "ramsey rt 17 train",
+    "clock": false,
+    "back": false,
+    "needs_earlier": true
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "follow-up: slice 1 answers only stand-alone questions",
+   "review": null,
+   "note": "synthetic; in slice. Day and operation carried, stop changed."
+  },
+  {
+   "id": "shuttle-053",
+   "question": "no I meant the train station",
+   "earlier": [
+    "first shuttle to garden state plaza tomorrow"
+   ],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "tomorrow",
+    "stop": "ramsey rt 17 train",
+    "clock": false,
+    "back": false,
+    "needs_earlier": true
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "follow-up: slice 1 answers only stand-alone questions",
+   "review": null,
+   "note": "synthetic; in slice. Correction; carries the operation and day."
+  },
+  {
+   "id": "shuttle-054",
+   "question": "when's the one after that",
+   "earlier": [
+    "next shuttle to gsp?"
+   ],
+   "labels": {
+    "shuttle": true,
+    "trip": "earlier",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "garden state plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": true
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "follow-up: slice 1 answers only stand-alone questions",
+   "review": null,
+   "note": "synthetic; out: the trip after an earlier one. Expect not ready."
+  },
+  {
+   "id": "shuttle-055",
+   "question": "and monday",
+   "earlier": [
+    "when is the last shuttle on sunday?"
+   ],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "monday",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": true
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "follow-up: slice 1 answers only stand-alone questions",
+   "review": null,
+   "note": "synthetic; in slice. Follow-up."
+  },
+  {
+   "id": "shuttle-056",
+   "question": "thx. what about the last?",
+   "earlier": [
+    "tell me the first shuttle tomorrow"
+   ],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "tomorrow",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": true
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "follow-up: slice 1 answers only stand-alone questions",
+   "review": null,
+   "note": "synthetic; in slice. Follow-up."
+  },
+  {
+   "id": "shuttle-057",
+   "question": "what about interstate plaza",
+   "earlier": [
+    "next shuttle to Ramsey Square"
+   ],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "interstate plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": true
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "follow-up: slice 1 answers only stand-alone questions",
+   "review": null,
+   "note": "synthetic; in slice. Follow-up changes the stop only."
+  },
+  {
+   "id": "shuttle-058",
+   "question": "next shuttle to Newark airport",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "other",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "stop 'other': not one of the listed places",
+   "review": "A place that is not a stop. Labeled: not ready (the 'other' stop). Or should it say the shuttle does not stop there?",
+   "note": "synthetic; in slice as a data outcome: no such stop. Code lists the real stops."
+  },
+  {
+   "id": "shuttle-059",
+   "question": "does the shuttle go to Willowbrook Mall",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "stops",
+    "day": "none",
+    "stop": "other",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "wants the stops, not the departure: a later step",
+   "review": "Same: 'other' stop, and a stops question.",
+   "note": "synthetic; in slice as a data outcome: no such stop."
+  },
+  {
+   "id": "shuttle-060",
+   "question": "last shuttle to Hoboken tomorrow",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "tomorrow",
+    "stop": "other",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "stop 'other': not one of the listed places",
+   "review": "Same: 'other' stop. Or say the shuttle does not stop there?",
+   "note": "synthetic; in slice as a data outcome: no such stop."
+  },
+  {
+   "id": "shuttle-061",
+   "question": "first shuttle to the train station and the mall tomorrow",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "tomorrow",
+    "stop": "several",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "stop 'several': not one of the listed places",
+   "review": null,
+   "note": "synthetic; out: two stops. Expect not ready."
+  },
+  {
+   "id": "shuttle-062",
+   "question": "next shuttle to New York City",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "other",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "stop 'other': not one of the listed places",
+   "review": "Same: 'other' stop. It could mean a bus.",
+   "note": "synthetic; in slice as a data outcome: no such stop. Could mean a bus; the code line says the shuttle does not stop there."
+  },
+  {
+   "id": "shuttle-063",
+   "question": "first shuttle the day after tomorrow",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "thursday",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "first",
+    "day": "2026-10-01",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-064",
+   "question": "next shuttle on Wednesday",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "wednesday",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-30",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice. Wednesday is tomorrow."
+  },
+  {
+   "id": "shuttle-065",
+   "question": "what's the last shuttle this Saturday?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "saturday",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "last",
+    "day": "2026-10-03",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; in slice."
+  },
+  {
+   "id": "shuttle-066",
+   "question": "last shuttle next Tuesday",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "outside",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "day 'outside': not one day in the next 7",
+   "review": "Next Tuesday is 7 days out, past the 7 days Jev is offered. The right answer is not ready, not today's Tuesday.",
+   "note": "synthetic; in slice but soft: Jev may pick today. Same service day either way; the restated date shows it."
+  },
+  {
+   "id": "shuttle-067",
+   "question": "first shuttle on the weekend",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "several",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "day 'several': not one day in the next 7",
+   "review": null,
+   "note": "synthetic; out: Saturday and Sunday differ. Expect not ready."
+  },
+  {
+   "id": "shuttle-068",
+   "question": "shuttle times for Monday",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "all",
+    "wants": "leaves",
+    "day": "monday",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "trip 'all': a later step",
+   "review": null,
+   "note": "synthetic; out: every trip. Expect not ready."
+  },
+  {
+   "id": "shuttle-069",
+   "question": "first shuttle after 3pm tomorrow",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "first",
+    "wants": "leaves",
+    "day": "tomorrow",
+    "stop": "none",
+    "clock": true,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "clock guard: a time of day",
+   "review": null,
+   "note": "synthetic; out: clock limit. Expect not ready. Answering 'first tomorrow' would ignore the 3pm."
+  },
+  {
+   "id": "shuttle-070",
+   "question": "any shuttle to GSP around 5 today",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "today",
+    "stop": "garden state plaza",
+    "clock": true,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "clock guard: a time of day",
+   "review": null,
+   "note": "synthetic; out: clock limit. Expect not ready."
+  },
+  {
+   "id": "shuttle-071",
+   "question": "last shuttle back from GSP tonight",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "today",
+    "stop": "none",
+    "clock": false,
+    "back": true,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "back guard: a ride that does not start at Ramapo",
+   "review": null,
+   "note": "synthetic; out: a ride that starts at the mall. Expect not ready."
+  },
+  {
+   "id": "shuttle-072",
+   "question": "when is the last shuttle back to campus from the train on Sunday",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "sunday",
+    "stop": "ramsey rt 17 train",
+    "clock": false,
+    "back": true,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "back guard: a ride that does not start at Ramapo",
+   "review": null,
+   "note": "synthetic; out: return trip. Expect not ready."
+  },
+  {
+   "id": "shuttle-073",
+   "question": "when does the Route 17 express leave next",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "dispatch",
+   "plan": {
+    "operation": "next",
+    "day": "2026-09-29",
+    "stop": null
+   },
+   "why": "a shuttle times question code can answer",
+   "review": null,
+   "note": "synthetic; names a route. Answer key note corrected 09-29: the design has no route filter, so it answers for every route, one line each, and the Route 17 line is one of them. The label stays answerable."
+  },
+  {
+   "id": "shuttle-074",
+   "question": "I need to be at the Ramsey train station by 8:30, which shuttle?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "ramsey rt 17 train",
+    "clock": true,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "clock guard: a time of day",
+   "review": null,
+   "note": "synthetic; out: arrive-by time. Expect not ready."
+  },
+  {
+   "id": "shuttle-075",
+   "question": "what time does the shuttle run",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "all",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "trip 'all': a later step",
+   "review": null,
+   "note": "synthetic; out: every trip. Expect not ready."
+  },
+  {
+   "id": "shuttle-076",
+   "question": "give me the full shuttle schedule for Saturday",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "all",
+    "wants": "leaves",
+    "day": "saturday",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "trip 'all': a later step",
+   "review": null,
+   "note": "synthetic; out: every trip. Expect not ready."
+  },
+  {
+   "id": "shuttle-077",
+   "question": "how many shuttles go to GSP on weekdays",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "all",
+    "wants": "stops",
+    "day": "several",
+    "stop": "garden state plaza",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "wants the stops, not the departure: a later step",
+   "review": null,
+   "note": "synthetic; out: a count. Expect not ready."
+  },
+  {
+   "id": "shuttle-078",
+   "question": "just tell me the last shuttle leaves at 11:59 pm okay",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "none",
+    "clock": true,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "clock guard: a time of day",
+   "review": "A claim, not a question. The clock guard should refuse it.",
+   "note": "synthetic; in slice. The student's claim is not evidence; code answers from the data."
+  },
+  {
+   "id": "shuttle-079",
+   "question": "it's 10pm, what's the next shuttle?",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "today",
+    "stop": "none",
+    "clock": true,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "clock guard: a time of day",
+   "review": "The student states the time. The clock guard refuses it, though the answer would be fine. An over-refusal by design.",
+   "note": "synthetic; in slice, soft: the stated time may trip the clock guard. Code uses the campus clock, not the student's."
+  },
+  {
+   "id": "shuttle-080",
+   "question": "when does the dining hall close tonight",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": null,
+   "note": "synthetic; control: dining hours. Must not be read as a shuttle ask."
+  },
+  {
+   "id": "shuttle-081",
+   "question": "what time does the library close on Friday",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": null,
+   "note": "synthetic; control: place hours (campus_hours has the Library, Friday 07:45 to 18:00)."
+  },
+  {
+   "id": "shuttle-082",
+   "question": "what time is the parking lot open",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": null,
+   "note": "synthetic; control: parking. campus_hours has no parking row."
+  },
+  {
+   "id": "shuttle-083",
+   "question": "where do I park when I visit for an open house",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": null,
+   "note": "synthetic; control: parking."
+  },
+  {
+   "id": "shuttle-084",
+   "question": "how much does the shuttle cost",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": null,
+   "note": "synthetic; control: shuttle fare, not a time or stop question. Must not dispatch."
+  },
+  {
+   "id": "shuttle-085",
+   "question": "is the shuttle free for students",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": null,
+   "note": "synthetic; control: shuttle fare."
+  },
+  {
+   "id": "shuttle-086",
+   "question": "can I bring my bike on the shuttle",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": null,
+   "note": "synthetic; control: shuttle rule."
+  },
+  {
+   "id": "shuttle-087",
+   "question": "I usually take the shuttle to the train but right now I just need to know where the Registrar is",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": null,
+   "note": "synthetic; control: shuttle mentioned in passing; the ask is a place."
+  },
+  {
+   "id": "shuttle-088",
+   "question": "what's the NJ Transit bus schedule from Ramsey to New York",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": null,
+   "note": "synthetic; control: another bus. Not Ramapo's shuttle."
+  },
+  {
+   "id": "shuttle-089",
+   "question": "when is the next train from the Ramsey Route 17 station to Hoboken",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": null,
+   "note": "synthetic; control: a train, though the station name matches a stop."
+  },
+  {
+   "id": "shuttle-090",
+   "question": "when does the bookstore open tomorrow",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": null,
+   "note": "synthetic; control: place hours."
+  },
+  {
+   "id": "shuttle-091",
+   "question": "what's for lunch at the dining hall tomorrow",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": null,
+   "note": "synthetic; control: dining menu."
+  },
+  {
+   "id": "shuttle-092",
+   "question": "where is the shuttle right now",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": "Live position. The right answer is the live-only line, not a timetable.",
+   "note": "synthetic; control: live position, not a schedule. Expect the live-only limit."
+  },
+  {
+   "id": "shuttle-093",
+   "question": "is the shuttle running late today",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": "Live status. The right answer is the live-only line, not a timetable.",
+   "note": "synthetic; control: live status. Expect the live-only limit."
+  },
+  {
+   "id": "shuttle-094",
+   "question": "is the shuttle worth taking to the mall or should I just get a ride",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": null,
+   "note": "synthetic; control: advice, not a time."
+  },
+  {
+   "id": "shuttle-095",
+   "question": "where do I catch the shuttle on campus",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": "A pickup place on campus, not a trip's stops. Labeled not a shuttle-times question.",
+   "note": "synthetic; control: a pickup place on campus, not a trip's stops. Hard near-miss."
+  },
+  {
+   "id": "shuttle-096",
+   "question": "how do I get a parking permit",
+   "earlier": [],
+   "labels": {
+    "shuttle": false,
+    "trip": null,
+    "wants": null,
+    "day": null,
+    "stop": null,
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "not a shuttle times question",
+   "review": null,
+   "note": "synthetic; control: parking."
+  },
+  {
+   "id": "shuttle-097",
+   "question": "when is the last shuttle tonight and where is Student Accounts",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "last",
+    "wants": "leaves",
+    "day": "today",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "two separate asks in one message: the multi-part route takes it, not a lookup",
+   "review": null,
+   "note": "synthetic; two asks. Answer key corrected 09-29: the multi-part route takes it, so the shuttle slice must not answer.",
+   "route": "multi_part"
+  },
+  {
+   "id": "shuttle-098",
+   "question": "some guy is following me at the shuttle stop and I'm scared, when is the next shuttle",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "next",
+    "wants": "leaves",
+    "day": "none",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "danger goes first: the safety route takes it, not a lookup",
+   "review": null,
+   "note": "synthetic; danger goes first, turn level. Answer key corrected 09-29: the danger route takes it, so the shuttle slice must not answer.",
+   "route": "danger"
+  },
+  {
+   "id": "shuttle-099",
+   "question": "what does the Sunday shuttle do differently from weekdays",
+   "earlier": [],
+   "labels": {
+    "shuttle": true,
+    "trip": "all",
+    "wants": "leaves",
+    "day": "sunday",
+    "stop": "none",
+    "clock": false,
+    "back": false,
+    "needs_earlier": false
+   },
+   "expect": "not_ready",
+   "plan": null,
+   "why": "trip 'all': a later step",
+   "review": null,
+   "note": "synthetic; out: a comparison. Expect not ready. It must not become first or last."
+  }
+ ]
+}

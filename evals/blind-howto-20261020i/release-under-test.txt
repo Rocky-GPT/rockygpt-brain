@@ -1,0 +1,3 @@
+brain under test: 989e29f ("Say each picked how-to entry in full"; picker and note rules c429c0b; entries 5434f4c)
+(a clean git archive export, run as the written-mode dev Brain on :8013; graders read :8013)
+release: dev-campus-daily-20261020-0042 (data 3b378bb; 8,436 verified how-to entries on 1,872 of 2,574 office pages)

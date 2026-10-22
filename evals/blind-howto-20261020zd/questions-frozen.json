@@ -1,0 +1,497 @@
+[
+ {
+  "id": "zd1-01",
+  "question": "how do I send my transcript from my old community college to Ramapo",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd1-02",
+  "question": "I'm transferring in from Bergen CC with an associate degree. Do all my credits transfer automatically and who do I talk to to find out?",
+  "topic": "policy"
+ },
+ {
+  "id": "zd1-03",
+  "question": "I left Ramapo 3 years ago after sophomore year. How do I come back? Do I have to reapply?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd1-04",
+  "question": "readmission deadline for spring",
+  "topic": "policy"
+ },
+ {
+  "id": "zd1-05",
+  "question": "whats the max number of transfer credits ramapo will accept",
+  "topic": "policy"
+ },
+ {
+  "id": "zd1-06",
+  "question": "How do I get my official Ramapo transcript sent to another school, and is there a fee?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd1-07",
+  "question": "i took a class at a different college over the summer, how do i get it to count toward my degree here",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd1-08",
+  "question": "Who is my transfer advisor and how do I make an appointment with them?",
+  "topic": "contact"
+ },
+ {
+  "id": "zd1-09",
+  "question": "what happens to my old gpa if I come back after being away for years? does it reset?",
+  "topic": "policy"
+ },
+ {
+  "id": "zd1-10",
+  "question": "how do I find out which of my credits transfered and what they count as",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd1-11",
+  "question": "I was dismissed for academic reasons a few years ago. Can I apply for readmission and what is the process?",
+  "topic": "policy"
+ },
+ {
+  "id": "zd1-12",
+  "question": "degree audit - where do i see what requirements i still need",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd1-13",
+  "question": "Can I use AP or CLEP credits from before I transferred? How do I submit the scores?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd1-14",
+  "question": "how to withdraw from the college for a semester and come back later",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd1-15",
+  "question": "do I need to resubmit immunization records and a new application when returning after a leave of absence",
+  "topic": "policy"
+ },
+ {
+  "id": "zd1-16",
+  "question": "who do I contact about an error on my transcript",
+  "topic": "contact"
+ },
+ {
+  "id": "zd1-17",
+  "question": "My credits from a school overseas, how do they get evaluated? Need a foreign transcript evaluation?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd1-18",
+  "question": "how do i change my catalog year to follow the newer requirements",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd1-19",
+  "question": "is there a minimum grade a course needs for transfer, like does a C- transfer",
+  "topic": "policy"
+ },
+ {
+  "id": "zd1-20",
+  "question": "Is there a transfer orientation and do I have to attend before registering?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd1-21",
+  "question": "How many of my credits will transfer from Rutgers? I have 54.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zd1-22",
+  "question": "whats my current credit total and how many more do I need to graduate",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zd1-23",
+  "question": "Should I go back to Ramapo or just finish my degree online somewhere cheaper?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zd1-24",
+  "question": "how do I request a transcript hold be removed and who handles it? I owe a small library fine",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd1-25",
+  "question": "can I get a course waiver or substitution for a gen ed requirement if I took something similar at my old school, and who approves it",
+  "topic": "policy"
+ },
+ {
+  "id": "zd2-01",
+  "question": "whats the deadline to drop a class without a W and how do i do it tonight",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd2-02",
+  "question": "I need the withdrawal form link ASAP, who do I email if its not working",
+  "topic": "contact"
+ },
+ {
+  "id": "zd2-03",
+  "question": "how do i submit a FAFSA correction before the deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd2-04",
+  "question": "is there a late registration fee and when does registration close",
+  "topic": "policy"
+ },
+ {
+  "id": "zd2-05",
+  "question": "need to request an official transcript today, how fast can it be sent to another school",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd2-06",
+  "question": "who do i contact about a hold on my account that is blocking me from registering",
+  "topic": "contact"
+ },
+ {
+  "id": "zd2-07",
+  "question": "how do i apply for graduation, i think the deadline is tomorrow??",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd2-08",
+  "question": "can i still change my major this semester or is it too late",
+  "topic": "policy"
+ },
+ {
+  "id": "zd2-09",
+  "question": "whats the link for the housing application and when does it close",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd2-10",
+  "question": "how do i get an extension on a scholarship application",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd2-11",
+  "question": "I missed the add/drop date, is there a way to appeal and who do I send it to",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd2-12",
+  "question": "email for the financial aid office pls, my verification docs are due",
+  "topic": "contact"
+ },
+ {
+  "id": "zd2-13",
+  "question": "how do i upload immunization records, health center form due soon",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd2-14",
+  "question": "what's the policy on incomplete grades and how do i request one",
+  "topic": "policy"
+ },
+ {
+  "id": "zd2-15",
+  "question": "how do i get a parking permit quick, cant find the form",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd2-16",
+  "question": "waive the health insurance deadline?? how do i do that",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd2-17",
+  "question": "can i pay my tuition late without getting dropped from classes",
+  "topic": "policy"
+ },
+ {
+  "id": "zd2-18",
+  "question": "internship for credit paperwork, what form and who signs, due friday",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd2-19",
+  "question": "how to request a disability accommodation letter before my exam tomorrow",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd2-20",
+  "question": "whos my advisor and how do i get my registration pin",
+  "topic": "contact"
+ },
+ {
+  "id": "zd2-21",
+  "question": "how do i apply for a leave of absence and when do i have to do it by",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd2-22",
+  "question": "what time does the bursar close today",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zd2-23",
+  "question": "will I get a refund if I drop now, how much exactly",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zd2-24",
+  "question": "did my application get received? it says pending",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zd2-25",
+  "question": "how do i reserve a room in the library for a group project tonight",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd3-01",
+  "question": "What happens if I get caught with alcohol in my dorm room and I'm under 21?",
+  "topic": "policy"
+ },
+ {
+  "id": "zd3-02",
+  "question": "how do i appeal a parking ticket and who do i email about it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd3-03",
+  "question": "is there a fine for a late library book",
+  "topic": "policy"
+ },
+ {
+  "id": "zd3-04",
+  "question": "My roommate had a candle burning and the RA wrote us up. What does the conduct process look like and can I appeal the decision?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd3-05",
+  "question": "am i allowed to have a mini fridge or microwave in my room",
+  "topic": "policy"
+ },
+ {
+  "id": "zd3-06",
+  "question": "what's the penalty for plagiarism at ramapo",
+  "topic": "policy"
+ },
+ {
+  "id": "zd3-07",
+  "question": "I got put on academic probation. How do I get off it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd3-08",
+  "question": "can my boyfriend stay overnight in my room? whats the guest policy",
+  "topic": "policy"
+ },
+ {
+  "id": "zd3-09",
+  "question": "do i get charged if i lose my room key or ID card",
+  "topic": "policy"
+ },
+ {
+  "id": "zd3-10",
+  "question": "what happens if i miss the deadline to pay my tuition",
+  "topic": "policy"
+ },
+ {
+  "id": "zd3-11",
+  "question": "Who do I contact if I think a professor accused me of cheating unfairly, and how do I fight it?",
+  "topic": "contact"
+ },
+ {
+  "id": "zd3-12",
+  "question": "can i get kicked out of housing for having a pet",
+  "topic": "policy"
+ },
+ {
+  "id": "zd3-13",
+  "question": "whats the smoking/vaping rule on campus",
+  "topic": "policy"
+ },
+ {
+  "id": "zd3-15",
+  "question": "If I get a parking ticket on campus how much is it and what happens if I never pay it?",
+  "topic": "policy"
+ },
+ {
+  "id": "zd3-16",
+  "question": "got a conduct hearing letter, am i going to be suspended?? what should i do",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zd3-17",
+  "question": "what is the attendance policy, will i fail if i miss too many classes",
+  "topic": "policy"
+ },
+ {
+  "id": "zd3-18",
+  "question": "is it ok to have a party in my on-campus apartment w/ more than 10 ppl, what are the quiet hours",
+  "topic": "policy"
+ },
+ {
+  "id": "zd3-19",
+  "question": "how do i report a roommate who keeps breaking rules without them knowing it was me",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd3-20",
+  "question": "How many times can I withdraw from a class before it hurts my financial aid, and who should I talk to?",
+  "topic": "contact"
+ },
+ {
+  "id": "zd3-21",
+  "question": "do I have to pay a fee if I break my housing contract mid semester",
+  "topic": "policy"
+ },
+ {
+  "id": "zd3-22",
+  "question": "will my parents be told if I get written up for drugs",
+  "topic": "policy"
+ },
+ {
+  "id": "zd3-23",
+  "question": "can you tell me exactly how much my library fines are right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zd3-24",
+  "question": "Is it legal for campus police to search my dorm room? Should I get a lawyer?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zd3-25",
+  "question": "how do i get a hold removed from my account after a violation",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd4-01",
+  "question": "my roommate has been really down lately and says she wants to talk to someone. where can she go on campus for counseling?",
+  "topic": "contact"
+ },
+ {
+  "id": "zd4-02",
+  "question": "how does my friend make an appointment at the counseling center and does it cost anything",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd4-03",
+  "question": "my roommate is super sick and can't get out of bed, is there a health center she can go to and how does she get seen",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd4-04",
+  "question": "friend lost her wallet w/ her student id in it. what should she do to get a new id",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd4-05",
+  "question": "my friend left her laptop in the library, who do I contact to see if someone turned it in?",
+  "topic": "contact"
+ },
+ {
+  "id": "zd4-06",
+  "question": "a girl on my floor says she's being harassed by another student. who does she report that to? is it confidential",
+  "topic": "contact"
+ },
+ {
+  "id": "zd4-07",
+  "question": "my friend is a transfer student and is totally lost, where does he go to get help figuring out his schedule and advising",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd4-08",
+  "question": "can my friend from home stay overnight in my dorm for the weekend? what's the guest policy",
+  "topic": "policy"
+ },
+ {
+  "id": "zd4-09",
+  "question": "my roommate keeps skipping class and I think she's failing everything. is there tutoring or some kind of academic help I can point her to",
+  "topic": "contact"
+ },
+ {
+  "id": "zd4-10",
+  "question": "my friend got a parking ticket on campus and thinks it's unfair, how does he appeal it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd4-11",
+  "question": "my friend just got in a car accident off campus and cant make it to his exam tmrw. who does he tell and what does he need",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd4-12",
+  "question": "what happens if my roommate gets caught with alcohol in the dorm? is it a write up or what",
+  "topic": "policy"
+ },
+ {
+  "id": "zd4-13",
+  "question": "my friend has a disability and needs extra time on tests, how does she get accommodations and who does she contact",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd4-14",
+  "question": "friend of mine is out of money for food. does ramapo have a food pantry or any emergency help for students",
+  "topic": "contact"
+ },
+ {
+  "id": "zd4-15",
+  "question": "my roommate is homesick and wants to withdraw from the school, how does she do that",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd4-16",
+  "question": "new student in my hall doesn't know how to get a meal plan set up or change hers, where does she go?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd4-17",
+  "question": "my friend got locked out of her room at 2am, who can let her in",
+  "topic": "contact"
+ },
+ {
+  "id": "zd4-18",
+  "question": "Can my friend bring a service dog / emotional support animal into the dorms? how does she get that approved",
+  "topic": "policy"
+ },
+ {
+  "id": "zd4-19",
+  "question": "my friend wants to switch roommates cuz hers is awful. how do you request a room change",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd4-20",
+  "question": "someone stole my friend's bike from the rack near the dorms. do we call campus police or what, and how does he file a report",
+  "topic": "procedure"
+ },
+ {
+  "id": "zd4-21",
+  "question": "my friend thinks she might be pregnant and is freaking out, what resources does ramapo have for her",
+  "topic": "contact"
+ },
+ {
+  "id": "zd4-22",
+  "question": "my roommate is an international student and her visa paperwork is a mess, who helps with that",
+  "topic": "contact"
+ },
+ {
+  "id": "zd4-23",
+  "question": "is my roommate going to fail her class? she missed the last 3 weeks",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zd4-24",
+  "question": "how much does my friend owe the bursar right now? she said she has a hold on her account",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zd4-25",
+  "question": "is the health center open right now? my friend has a fever and I need to know if I should just take her to urgent care instead",
+  "topic": "out_of_scope"
+ }
+]

@@ -1,0 +1,502 @@
+[
+ {
+  "id": "m1-01",
+  "question": "how do i apply to the nursing program if im already a ramapo student in a different major",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-02",
+  "question": "What are the requirements to get placed for student teaching and who do I talk to about my placement?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-03",
+  "question": "do nursing students need a background check and drug test before clinicals? how do i get them done",
+  "topic": "policy"
+ },
+ {
+  "id": "m1-04",
+  "question": "how do i register for classes",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-05",
+  "question": "Hi, I'm a junior in elementary ed. When is the deadline to apply for my clinical practice semester, and is there a GPA minimum I need to have to be allowed to student teach?",
+  "topic": "policy"
+ },
+ {
+  "id": "m1-06",
+  "question": "whats the policy on missing a chem lab? can i make it up",
+  "topic": "policy"
+ },
+ {
+  "id": "m1-07",
+  "question": "how do i get an override into a closed section",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-08",
+  "question": "who do i contact about getting an internship for credit in the business school (ASB)?",
+  "topic": "contact"
+ },
+ {
+  "id": "m1-09",
+  "question": "do i need to pass the praxis before i can student teach",
+  "topic": "policy"
+ },
+ {
+  "id": "m1-10",
+  "question": "How do I declare a minor in music? And who signs off on it",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-11",
+  "question": "what immunizations and health forms do nursing clinicals require and where do i upload them",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-12",
+  "question": "can i take more than 18 credits next semester? how do i get approval for an overload",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-13",
+  "question": "how do i reserve a practice room in the music building",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-14",
+  "question": "did i get into the nursing program yet?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m1-15",
+  "question": "I'm a bio major and I want to do research with a professor for credit. How does that work, is there a form or do I just email someone?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-16",
+  "question": "when does registration open for seniors and how do i find my registration time",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-17",
+  "question": "theres a hold on my account and i cant register. how do i get it removed",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-18",
+  "question": "how do i get a substitute teaching certificate or CEAS as an education student, and who in the teacher ed office handles it?",
+  "topic": "contact"
+ },
+ {
+  "id": "m1-19",
+  "question": "what's the policy for taking a class pass/fail",
+  "topic": "policy"
+ },
+ {
+  "id": "m1-20",
+  "question": "For the BFA in visual arts do I have to do a portfolio review to get in, and when are the reviews?",
+  "topic": "policy"
+ },
+ {
+  "id": "m1-21",
+  "question": "how much does the nursing lab kit cost this semester",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m1-22",
+  "question": "how do i take a course at another college over the summer and get it to transfer back to ramapo",
+  "topic": "procedure"
+ },
+ {
+  "id": "m1-23",
+  "question": "is there a dress code or uniform for nursing clinicals",
+  "topic": "policy"
+ },
+ {
+  "id": "m1-24",
+  "question": "should i do accounting or finance as an ASB major, which one gets better jobs",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m1-25",
+  "question": "how do i request a prerequisite waiver for an upper level bio course? who do i ask",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-01",
+  "question": "i got an email saying i have a student conduct hearing next week, what actually happens at one and can i bring someone with me?",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-02",
+  "question": "How do I appeal a final grade I think is wrong? I already emailed the professor and he won't change it.",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-03",
+  "question": "lost my airpods in the library yesterday, is there a lost and found and where",
+  "topic": "contact"
+ },
+ {
+  "id": "m2-04",
+  "question": "my car got towed from the lot behind the dorms last night. who do i call to get it back and can i fight the tow?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-05",
+  "question": "I missed the payment deadline for my tuition bill. Will my classes get dropped and how do I fix this?",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-06",
+  "question": "if i fail a class can i retake it and does the new grade replace the F in my GPA",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-07",
+  "question": "My roommate and I really don't get along anymore. How do I request a room change and who do I talk to about it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-08",
+  "question": "How do I file a complaint about how an office treated me? The person at the front desk was really rude and didn't help at all.",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-09",
+  "question": "how do i appeal a parking ticket i got on campus, i had a permit it just wasnt showing",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-10",
+  "question": "Got put on academic probation after this semester. What does that mean and what do I have to do to get off it?",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-11",
+  "question": "can i appeal an academic dismissal? whats the deadline and who do i send it to",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-12",
+  "question": "Someone stole my laptop out of my room. Do I report it to campus police or res life, or both?",
+  "topic": "contact"
+ },
+ {
+  "id": "m2-13",
+  "question": "i have a hold on my account and cant register, how do i get it removed",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-14",
+  "question": "what's the sanction for a first-time alcohol violation in the dorms",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-15",
+  "question": "Is my financial aid going to be taken away because I failed two classes? I need to know if I still have my grant for spring.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m2-16",
+  "question": "how do i report a professor for academic misconduct or like unfair treatment, is there a formal process",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-17",
+  "question": "I was accused of plagiarism on a paper. What's the academic integrity process and can I appeal the professor's decision?",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-18",
+  "question": "how much do i owe on my bill right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m2-19",
+  "question": "is there a late fee if you pay your tuition late and can you set up a payment plan instead",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-20",
+  "question": "My roommate keeps having her boyfriend stay over like every night. Is that even allowed? What's the guest policy?",
+  "topic": "policy"
+ },
+ {
+  "id": "m2-21",
+  "question": "lost my student id card, how do i get a new one and how much is it",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-22",
+  "question": "Can I withdraw from a class after the deadline if I had a medical issue? I was in the hospital for 2 weeks.",
+  "topic": "procedure"
+ },
+ {
+  "id": "m2-23",
+  "question": "should i just withdraw from the semester or try to pass my classes, im failing 3 of them",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m2-24",
+  "question": "who do i contact if i want to report a roommate for harassment, i dont feel safe in my suite",
+  "topic": "contact"
+ },
+ {
+  "id": "m2-25",
+  "question": "My car got booted in commuter lot. How do I get the boot taken off and where do I pay the fines?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-01",
+  "question": "how do i submit my enrollment deposit after getting accepted?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-02",
+  "question": "My daughter was just admitted for fall. What are the next steps she needs to complete before orientation, and who should we call if we have questions?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-03",
+  "question": "is orientation mandatory for transfer students",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-04",
+  "question": "how do i sign up for orientation and can my parents come with me",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-05",
+  "question": "do i have to take a math placement test? i took AP calc",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-06",
+  "question": "where do I upload my immunization records? and which vaccines are required",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-07",
+  "question": "What happens if my son doesn't turn in his health forms before move-in? Will he be blocked from registering?",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-08",
+  "question": "can i get a medical or religious exemption from the meningitis vaccine requirement",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-09",
+  "question": "how do I apply for on campus housing as an incoming freshman",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-10",
+  "question": "is there a deadline for the housing application and is the housing deposit refundable if I change my mind",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-11",
+  "question": "can i request a specific roommate? i already found someone on instagram",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-12",
+  "question": "Are freshmen required to live on campus, or can my daughter commute from home? We live about 25 minutes away.",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-13",
+  "question": "how do i get my student id card before classes start? do i need to send a photo",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-14",
+  "question": "how do I set up my ramapo email and student portal account",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-15",
+  "question": "when and how do new students register for their first semester classes? do we pick them ourselves or does an advisor do it",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-16",
+  "question": "how do I send my final high school transcript to admissions",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-17",
+  "question": "will my AP scores count for credit and how do i get them sent",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-18",
+  "question": "I'm a transfer student. How do I find out which of my community college credits will transfer, and who do I talk to about it?",
+  "topic": "contact"
+ },
+ {
+  "id": "m3-19",
+  "question": "who do i contact about disability accomodations for my son before he starts in the fall",
+  "topic": "contact"
+ },
+ {
+  "id": "m3-20",
+  "question": "can freshman bring a car to campus? how do you get a parking permit",
+  "topic": "policy"
+ },
+ {
+  "id": "m3-21",
+  "question": "Is health insurance required for full time students and how do we waive the school plan if he's on ours?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m3-22",
+  "question": "what's the phone number for the admissions office and are they open on saturdays for tours",
+  "topic": "contact"
+ },
+ {
+  "id": "m3-23",
+  "question": "did my application get all my documents? i submitted my recommendation letter last week",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m3-24",
+  "question": "how much will my financial aid package cover for fall?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m3-25",
+  "question": "should my daughter pick ramapo or TCNJ for nursing? which is better",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m4-01",
+  "question": "how do i request vacation time as a staff member",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-02",
+  "question": "I'm a graduate assistant, where do I submit my timesheet and when is it due each pay period?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-03",
+  "question": "Does Ramapo offer tuition remission for employees' dependents? who do i talk to about it",
+  "topic": "policy"
+ },
+ {
+  "id": "m4-04",
+  "question": "need to go to a conference in chicago next month. what's the process to get travel approved before i book anything",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-05",
+  "question": "how do I order office supplies for my department",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-06",
+  "question": "there's a broken handrail on the stairs in the academic building, how do i report that and who handles it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-07",
+  "question": "how do i get card access to my building after hours? my ID doesnt open the side door",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-08",
+  "question": "new hire here - how do I get my Ramapo email and network account set up",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-09",
+  "question": "my work laptop screen cracked, who do I contact for a replacement or repair",
+  "topic": "contact"
+ },
+ {
+  "id": "m4-10",
+  "question": "how many sick days do I have left this year?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m4-11",
+  "question": "What is the policy on carrying over unused vacation days into the next year?",
+  "topic": "policy"
+ },
+ {
+  "id": "m4-12",
+  "question": "how do i get reimbursed for mileage when i drive my own car for college business",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-13",
+  "question": "Can GAs work more than 20 hrs a week? Whats the limit",
+  "topic": "policy"
+ },
+ {
+  "id": "m4-14",
+  "question": "who do i call in HR about FMLA leave and what forms do i need",
+  "topic": "contact"
+ },
+ {
+  "id": "m4-15",
+  "question": "how to request a key for my office",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-16",
+  "question": "I forgot to punch out yesterday, how do I fix my timecard",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-17",
+  "question": "Is there a tuition waiver for full-time staff taking classes at Ramapo, and how do I apply for it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-18",
+  "question": "how do I use the college p-card and what can't I buy with it",
+  "topic": "policy"
+ },
+ {
+  "id": "m4-19",
+  "question": "when is my next paycheck going to hit?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m4-20",
+  "question": "a student told me something that might be a title ix issue. as an employee am i required to report it and who do i report to",
+  "topic": "policy"
+ },
+ {
+  "id": "m4-21",
+  "question": "how do i request new software be installed on my office computer",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-22",
+  "question": "what's the process for borrowing a projector or laptop for an event",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-23",
+  "question": "should I take the state health plan or the cheaper one? which is better for a family of 4",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "m4-24",
+  "question": "How do I set up direct deposit and who in payroll do I send the form to?",
+  "topic": "procedure"
+ },
+ {
+  "id": "m4-25",
+  "question": "is the college closed on columbus day / indigenous peoples day for staff or do we have to work",
+  "topic": "policy"
+ }
+]

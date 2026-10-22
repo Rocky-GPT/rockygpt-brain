@@ -1,0 +1,17 @@
+[
+{"id": "zg1-01", "question": "how do i get my student ID card? i just got here and dont have one yet", "topic": "procedure"},
+{"id": "zg1-02", "question": "I lost my ID card already (first month, ugh). how do I get a replacement and does it cost anything? also who do I contact", "topic": "procedure"},
+{"id": "zg1-03", "question": "can i change my meal plan after the semester started", "topic": "policy"},
+{"id": "zg1-04", "question": "my parents sent me a package, where do I pick it up and what do i need to bring", "topic": "procedure"},
+{"id": "zg1-05", "question": "how do i get free tutoring for chem? whos the person to email", "topic": "contact"},
+{"id": "zg1-06", "question": "How do I find out who my academic advisor is and make an appointment with them? I'm a freshman and I'm not sure I'm even registered for the right classes.", "topic": "procedure"},
+{"id": "zg1-07", "question": "can my friend from home sleep over in my dorm for the weekend", "topic": "policy"},
+{"id": "zg1-08", "question": "how to apply for a campus job on campus (work study?)", "topic": "procedure"},
+{"id": "zg1-09", "question": "is there a shuttle to the train station and how do I ride it", "topic": "procedure"},
+{"id": "zg1-10", "question": "i dont have a car, can freshmen bring one on campus and how do i get a parking permit if so", "topic": "policy"},
+{"id": "zg1-11", "question": "what do i do if my roommate and i are not getting along, can i switch rooms", "topic": "procedure"},
+{"id": "zg1-12", "question": "how much money is left on my meal plan right now", "topic": "out_of_scope"},
+{"id": "zg1-13", "question": "whats my advisor going to say if I drop a class, will I lose my financial aid??", "topic": "out_of_scope"},
+{"id": "zg1-14", "question": "how do i do laundry in the dorms, do I need quarters or does my id work", "topic": "procedure"},
+{"id": "zg1-15", "question": "Which is better for a freshman, working at the library or the dining hall?", "topic": "out_of_scope"}
+]

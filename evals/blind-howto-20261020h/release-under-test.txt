@@ -1,0 +1,3 @@
+brain under test: 5434f4c ("Offer a page's how-to entries, not its sections, to the section pick"; writer call reserved 2ffd12c)
+(a clean git archive export, run as the written-mode dev Brain on :8013; graders read :8013)
+release: dev-campus-daily-20261020-0042 (data 3b378bb; 8,436 verified how-to entries on 1,872 of 2,574 office pages)

@@ -1,0 +1,17 @@
+[
+  {"id": "ag3-01", "question": "what are the requirements for the history major", "topic": "program"},
+  {"id": "ag3-02", "question": "is there a creative writing concentration in the literature major or is it a separate thing? and how many credits would it be", "topic": "program"},
+  {"id": "ag3-03", "question": "can you double major in political science and communication arts? how many credits total would i need to graduate", "topic": "program"},
+  {"id": "ag3-04", "question": "how many credits is the art history minor", "topic": "program"},
+  {"id": "ag3-05", "question": "does sociology have concentrations? like criminology or something", "topic": "program"},
+  {"id": "ag3-06", "question": "whats the prereq for soc 301 and is it offered every semester", "topic": "course"},
+  {"id": "ag3-07", "question": "Does Intro to Philosophy count as a gen ed or only as a major elective for philosophy?", "topic": "gen_ed"},
+  {"id": "ag3-08", "question": "how many gen ed credits do i need total and do my major courses count toward any of them", "topic": "gen_ed"},
+  {"id": "ag3-09", "question": "what does the senior seminar in history cover and how many credits is it", "topic": "course"},
+  {"id": "ag3-10", "question": "im a sophomore in psych, whats the recommended order of classes so i can graduate in 4 yrs? like what should i be taking junior year", "topic": "sequence"},
+  {"id": "ag3-11", "question": "Is there a film or cinema studies major at Ramapo, or just a minor?", "topic": "program"},
+  {"id": "ag3-12", "question": "do i need a foreign language to graduate with a BA in a humanities major? how many semesters", "topic": "gen_ed"},
+  {"id": "ag3-13", "question": "can you check if im on track to graduate in may? i switched from english to journalism last year", "topic": "out_of_scope"},
+  {"id": "ag3-14", "question": "who is teaching the shakespeare class next spring and does it still have seats", "topic": "out_of_scope"},
+  {"id": "ag3-15", "question": "should i add a minor in women and gender studies or just take more electives, which looks better for law school", "topic": "out_of_scope"}
+]

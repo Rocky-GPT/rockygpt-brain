@@ -1,0 +1,497 @@
+[
+ {
+  "id": "k1-01",
+  "question": "How do I pay my daughter's tuition bill online and is there a payment plan option?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-02",
+  "question": "my son says i can't see his grades bc of FERPA. how do i get access to his records as a parent",
+  "topic": "policy"
+ },
+ {
+  "id": "k1-03",
+  "question": "What is the number to call in an emergency on campus and who do I contact if I can't reach my child?",
+  "topic": "contact"
+ },
+ {
+  "id": "k1-04",
+  "question": "Can parents visit the residence halls? We are driving up for family weekend",
+  "topic": "policy"
+ },
+ {
+  "id": "k1-05",
+  "question": "My daughter has mold in her dorm room and Facilities hasnt fixed it. Who do I call?",
+  "topic": "contact"
+ },
+ {
+  "id": "k1-06",
+  "question": "how do I set up an authorized payer account so I can pay the bill",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-07",
+  "question": "What should I do if my son seems depressed and isn't going to class? Is there counseling on campus and how does he sign up?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-08",
+  "question": "Do you have a waiver form so I can see my student's financial aid information?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-09",
+  "question": "How do I request a room change for my student because of a roommate conflict",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-10",
+  "question": "Are overnight guests allowed in the dorms? Can I stay one night when I move her in?",
+  "topic": "policy"
+ },
+ {
+  "id": "k1-11",
+  "question": "whats the refund policy if my kid withdraws mid semester",
+  "topic": "policy"
+ },
+ {
+  "id": "k1-12",
+  "question": "Where can I park when I visit campus and do I need a visitor permit?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-13",
+  "question": "My daughter was in a car accident and is in the hospital. How do I notify the college so she can get extensions from her professors?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-14",
+  "question": "How can I find out my son's current balance and whether his financial aid has posted?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k1-15",
+  "question": "Who handles Title IX complaints and how does a student report something that happened to them?",
+  "topic": "contact"
+ },
+ {
+  "id": "k1-16",
+  "question": "how do i get a campus safety welfare check on my kid. she isnt answering her phone",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-17",
+  "question": "Is there a food pantry for students who can't afford groceries? My son is skipping meals.",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-18",
+  "question": "Can I get a copy of my student's class schedule if he gives me permission, and what form is needed?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-19",
+  "question": "What are the move-in day rules and what can she NOT bring to the dorm?",
+  "topic": "policy"
+ },
+ {
+  "id": "k1-20",
+  "question": "my student has a disability and needs housing accommodations. who do we contact and how long does it take",
+  "topic": "procedure"
+ },
+ {
+  "id": "k1-21",
+  "question": "Will my daughter pass her chemistry class? She says she's failing and I'm worried",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k1-22",
+  "question": "How do I report my student as missing or in crisis if its after hours?",
+  "topic": "contact"
+ },
+ {
+  "id": "k1-23",
+  "question": "What's the policy on alcohol in the residence halls? Got a call that my son got written up.",
+  "topic": "policy"
+ },
+ {
+  "id": "k1-24",
+  "question": "Is it better for my son to live on campus or commute? We're debating what makes sense financially",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k1-25",
+  "question": "how do I appeal a housing charge or a fine on my child's account",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-01",
+  "question": "when is the last day I can drop a class and still get a refund",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-02",
+  "question": "how do i set up a payment plan for tuition? who do i talk to",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-03",
+  "question": "whats the late fee if i pay my bill after the due date",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-04",
+  "question": "I missed the FAFSA deadline for this year, is there anything I can still do to get aid at Ramapo?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-05",
+  "question": "what happens if I dont pay my balance by the deadline, do they drop my classes",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-06",
+  "question": "how much does it cost to live in the dorms this year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k2-07",
+  "question": "deadline to apply for graduation?? i think its soon",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-08",
+  "question": "How do I get a refund if I overpaid my student account, and how long does it take to arrive?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-09",
+  "question": "parking ticket fine amt and how do i pay it",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-10",
+  "question": "do I get money back if I withdraw from all my classes mid semester",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-11",
+  "question": "what is my current balance",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k2-12",
+  "question": "how do i pay for a library fine / overdue book fee",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-13",
+  "question": "is there a fee for a late housing application and when is the housing deadline",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-14",
+  "question": "my financial aid hasnt shown up yet and my bill is due friday, who should i contact",
+  "topic": "contact"
+ },
+ {
+  "id": "k2-15",
+  "question": "how do I request a tuition refund after dropping below full time",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-16",
+  "question": "Can I pay my tuition with a credit card, and is there a fee for that?",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-17",
+  "question": "whens the deadline to apply for scholarships",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-18",
+  "question": "i got a hold on my account for unpaid fees, how do i get it removed so i can register",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-19",
+  "question": "what's the fee to replace a lost ID card",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-20",
+  "question": "how do i get my 1098-T tax form and who do i email if its wrong",
+  "topic": "contact"
+ },
+ {
+  "id": "k2-21",
+  "question": "Should I take out a loan or use my savings to cover the spring bill?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k2-22",
+  "question": "how do i appeal a late fee or ask them to waive it",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-23",
+  "question": "deadline to submit transfer credits / fee for ordering a transcript",
+  "topic": "policy"
+ },
+ {
+  "id": "k2-24",
+  "question": "what is the deadline to waive student health insurance and how do I do it",
+  "topic": "procedure"
+ },
+ {
+  "id": "k2-25",
+  "question": "whos the person to see about work study paychecks not being direct deposited",
+  "topic": "contact"
+ },
+ {
+  "id": "k3-01",
+  "question": "How do I book a study room in the library?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-02",
+  "question": "how do i reserve a practice room in the music building and who do i contact",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-03",
+  "question": "Can I use the pool if I'm a commuter student, and do I need to bring my ID?",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-04",
+  "question": "gym hours?? also do i have to sign anything before using the fitness center",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-05",
+  "question": "How do I get a locker on campus? I have a lot of gear for my studio class.",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-06",
+  "question": "I left my laptop charger in a classroom, where is lost and found?",
+  "topic": "contact"
+ },
+ {
+  "id": "k3-07",
+  "question": "What do I do if I find someone's wallet or phone on campus?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-08",
+  "question": "Is the Academic Building wheelchair accessible? I use a wheelchair and need to know which entrances have automatic doors.",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-09",
+  "question": "who do I talk to if an elevator is broken and I cant get to my class",
+  "topic": "contact"
+ },
+ {
+  "id": "k3-10",
+  "question": "how can I get access to the art studios after hours",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-11",
+  "question": "Are there rules about food and drinks in the computer labs?",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-12",
+  "question": "How do I request a classroom for a club meeting, and is there a fee?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-13",
+  "question": "can my friend from another school come use the gym with me as a guest",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-14",
+  "question": "What are the rules for using the lounges in the residence halls for studying or events?",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-15",
+  "question": "how do i get into the 3d printing lab or makerspace if i dont have that class",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-16",
+  "question": "I'm a film major. How do I reserve the editing suites and borrow camera equipment?",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-17",
+  "question": "Do I need a swim test to use the pool, and are there lifeguards on duty?",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-18",
+  "question": "how to report a building thats not accessible or a ramp thats blocked",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-19",
+  "question": "Is there a quiet room or prayer space I can use on campus, and how do I get access?",
+  "topic": "policy"
+ },
+ {
+  "id": "k3-20",
+  "question": "how do I get a key or card access to the science lab for my research project",
+  "topic": "procedure"
+ },
+ {
+  "id": "k3-21",
+  "question": "Who do I contact about getting a lockout or reserving the Student Center ballroom?",
+  "topic": "contact"
+ },
+ {
+  "id": "k3-22",
+  "question": "Is there a free study room available in the library right now?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k3-23",
+  "question": "Is the gym crowded at 5pm today?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k3-24",
+  "question": "Which practice room is best for recording vocals, and should I buy my own gear or use the school's?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k3-25",
+  "question": "Can I bring my emotional support dog into the library and the dining hall? What's the process?",
+  "topic": "policy"
+ },
+ {
+  "id": "k4-01",
+  "question": "i got a hold??",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-02",
+  "question": "how do i fix my schedule its all wrong",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-03",
+  "question": "can my friend sleep over in my dorm for the weekend",
+  "topic": "policy"
+ },
+ {
+  "id": "k4-04",
+  "question": "lost my id card how do i get a new one and does it cost anything",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-05",
+  "question": "who do i even email about my financial aid being late",
+  "topic": "contact"
+ },
+ {
+  "id": "k4-06",
+  "question": "how to drop a class after the deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-07",
+  "question": "got a parking ticket today this is so unfair how do i fight it",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-08",
+  "question": "transcript",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-09",
+  "question": "can i have a car on campus as a freshman",
+  "topic": "policy"
+ },
+ {
+  "id": "k4-10",
+  "question": "how do i change my major and who do i talk to",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-11",
+  "question": "my roommate is driving me insane can i switch rooms",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-12",
+  "question": "wheres the lost and found, left my hoodie in the library",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-14",
+  "question": "do i need to pay my bill before i can register",
+  "topic": "policy"
+ },
+ {
+  "id": "k4-15",
+  "question": "how do i reserve a room for my club meeting",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-16",
+  "question": "what's my gpa rn",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k4-17",
+  "question": "ugh i missed the add/drop thing what now",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-18",
+  "question": "can i bring my emotional support dog to my dorm? how do i ask",
+  "topic": "policy"
+ },
+ {
+  "id": "k4-19",
+  "question": "how do i get reimbursed for stuff i bought for my club",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-20",
+  "question": "whats the number for campus safety, someone was following me",
+  "topic": "contact"
+ },
+ {
+  "id": "k4-21",
+  "question": "how do i withdraw from the whole semester",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-22",
+  "question": "is it ok to have a mini fridge or microwave in the room",
+  "topic": "policy"
+ },
+ {
+  "id": "k4-23",
+  "question": "will i get enough aid next year? should i take out a loan or work",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "k4-24",
+  "question": "how do i apply to graduate and when is the deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "k4-25",
+  "question": "can u tell me if my professor approved my late work extension",
+  "topic": "out_of_scope"
+ }
+]

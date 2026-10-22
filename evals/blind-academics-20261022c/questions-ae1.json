@@ -1,0 +1,17 @@
+[
+  {"id": "ae1-01", "question": "im transferring from bergen community college with an associates in liberal arts, do i still have to do all the gen eds at ramapo or does the AA cover them?", "topic": "gen_ed"},
+  {"id": "ae1-02", "question": "how many credits do i need total to graduate from ramapo and how many of those have to be taken at ramapo itself", "topic": "program"},
+  {"id": "ae1-03", "question": "what are the prerequisites for cmps 231", "topic": "course"},
+  {"id": "ae1-04", "question": "I took intro to psych and statistics at my community college. For the psychology major, which required courses would I still have left after those two?", "topic": "program"},
+  {"id": "ae1-05", "question": "does ramapo have a nursing program for transfer students or is it only freshmen", "topic": "program"},
+  {"id": "ae1-06", "question": "is there a business administration major with a concentration in marketing? and what are the upper level courses for it", "topic": "program"},
+  {"id": "ae1-07", "question": "how many credits is the minor in data science and which courses are in it", "topic": "program"},
+  {"id": "ae1-08", "question": "Do the transfer seminar or first year seminar requirements apply to me if I'm coming in as a junior?", "topic": "gen_ed"},
+  {"id": "ae1-09", "question": "what does ACCT 221 cover and is it 4 credits", "topic": "course"},
+  {"id": "ae1-10", "question": "can you check if my ENG 101 from passaic county cc transferred in as ramapo's writing requirement", "topic": "out_of_scope"},
+  {"id": "ae1-11", "question": "im a transfer starting the computer science major in the fall with my math done, whats the recommended order of the cs courses for the next 2 years", "topic": "sequence"},
+  {"id": "ae1-12", "question": "Is there a writing intensive requirement for graduation and how many WI courses do you need?", "topic": "gen_ed"},
+  {"id": "ae1-13", "question": "which section of bio 211 has open seats this spring and who teaches it", "topic": "out_of_scope"},
+  {"id": "ae1-14", "question": "does a 3 credit course from community college count the same as a ramapo 4 credit course toward a major requirement?", "topic": "program"},
+  {"id": "ae1-15", "question": "should i switch to a criminal justice major or stay with sociology, which one will get me done faster with my transfer credits", "topic": "out_of_scope"}
+]

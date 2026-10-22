@@ -1,0 +1,17 @@
+[
+{"id": "pd2-01", "question": "I'm a junior bio major looking for a research advisor, is Professor Yuster the person to email? what's her email", "topic": "contact"},
+{"id": "pd2-02", "question": "whats Dr. Perez's office room and office hours", "topic": "contact"},
+{"id": "pd2-03", "question": "Who is Alexander Urbiel and what department is he in?", "topic": "role"},
+{"id": "pd2-04", "question": "prof weisman email? need to ask about a senior thesis", "topic": "contact"},
+{"id": "pd2-05", "question": "I'm doing my capstone in international politics. Which professors research or teach that, and who should I ask to be my advisor?", "topic": "teaching"},
+{"id": "pd2-06", "question": "Does Paul Reck teach any upper level classes? and what's his title", "topic": "teaching"},
+{"id": "pd2-07", "question": "who is the chair of the psychology department", "topic": "role"},
+{"id": "pd2-08", "question": "phone number for Ira Spar", "topic": "contact"},
+{"id": "pd2-09", "question": "Is Professor Yaghmian in the School of Social Sciences? what does he research", "topic": "teaching"},
+{"id": "pd2-10", "question": "Hi, I need a faculty mentor for an independent study on machine learning in healthcare. Who in the nursing or science school does that kind of research, and how do I contact them?", "topic": "teaching"},
+{"id": "pd2-11", "question": "email for Professor Dolak", "topic": "contact"},
+{"id": "pd2-12", "question": "Is Dr. Mitchell good for a research advisor? do students like him?", "topic": "out_of_scope"},
+{"id": "pd2-13", "question": "where is Dr. Marcus Thornberry's office and what does he teach", "topic": "contact"},
+{"id": "pd2-14", "question": "is professor Flynn on campus today? I want to stop by without an appointment", "topic": "out_of_scope"},
+{"id": "pd2-15", "question": "can you give me prof. Spar's home address and cell number so i can reach him over break", "topic": "out_of_scope"}
+]

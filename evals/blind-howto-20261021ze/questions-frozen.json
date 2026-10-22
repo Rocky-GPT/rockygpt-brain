@@ -1,0 +1,452 @@
+[
+ {
+  "id": "ze1-01",
+  "question": "when is the last day to drop a class and still get a refund?",
+  "topic": "policy"
+ },
+ {
+  "id": "ze1-02",
+  "question": "How do I find out when my tuition bill is due and what happens if I pay late?",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze1-03",
+  "question": "what's the late fee if i miss the payment deadline",
+  "topic": "policy"
+ },
+ {
+  "id": "ze1-04",
+  "question": "how do i set up a payment plan for my tuition, and who do i contact at the bursar if i have problems with it",
+  "topic": "contact"
+ },
+ {
+  "id": "ze1-05",
+  "question": "When does my financial aid actually get disbursed? I need it to pay for books",
+  "topic": "policy"
+ },
+ {
+  "id": "ze1-07",
+  "question": "I got a parking ticket last week, how do I pay it or appeal it and what's the deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze1-08",
+  "question": "what is the deadline to withdraw from a course w/o it showing a W on my transcript",
+  "topic": "policy"
+ },
+ {
+  "id": "ze1-09",
+  "question": "do i get my housing deposit back if I cancel my housing contract, and by when do i have to cancel",
+  "topic": "policy"
+ },
+ {
+  "id": "ze1-11",
+  "question": "Missed the FAFSA priority deadline. Can I still get aid? Who do I talk to?",
+  "topic": "contact"
+ },
+ {
+  "id": "ze1-12",
+  "question": "library fines - how much are they per day and how do i pay them",
+  "topic": "policy"
+ },
+ {
+  "id": "ze1-13",
+  "question": "will they drop me from my classes if I dont pay by the due date??",
+  "topic": "policy"
+ },
+ {
+  "id": "ze1-14",
+  "question": "how do I get a refund if I overpaid or my aid came in after I already paid",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze1-15",
+  "question": "what is the full-time student fee breakdown this semester",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ze1-16",
+  "question": "my financial aid has a hold on it, how do i fix that and who handles it",
+  "topic": "contact"
+ },
+ {
+  "id": "ze1-17",
+  "question": "is there a fee for a late add or a late registration",
+  "topic": "policy"
+ },
+ {
+  "id": "ze1-18",
+  "question": "How do I request a tuition refund after withdrawing from the college completely, and how long does it take?",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze1-19",
+  "question": "where do i send my parents the bill so they can pay for me, can they get access to my account",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze1-20",
+  "question": "what happens to my aid if i drop below 12 credits",
+  "topic": "policy"
+ },
+ {
+  "id": "ze1-21",
+  "question": "do i have to pay a deposit to hold my spot as an incoming student and is it refundable",
+  "topic": "policy"
+ },
+ {
+  "id": "ze1-22",
+  "question": "Can I get an extension on my bill due date? I'm waiting on a scholarship check",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze1-23",
+  "question": "should I take out a loan or pay out of pocket this semester",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ze1-24",
+  "question": "how do i get a 1098-T for taxes",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze1-25",
+  "question": "what are the fines if I return my dorm key late or lose it, and who do I pay",
+  "topic": "contact"
+ },
+ {
+  "id": "ze2-02",
+  "question": "My roommate and I are not getting along at all. Is there a process to switch rooms mid-semester and who do I talk to first?",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze2-05",
+  "question": "Can I have a mini fridge or microwave in my room, and are there size limits?",
+  "topic": "policy"
+ },
+ {
+  "id": "ze2-06",
+  "question": "i broke the window blind in my room how do i report it and will i get charged",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze2-07",
+  "question": "how are room damage charges split if the damage is in a common area of the suite",
+  "topic": "policy"
+ },
+ {
+  "id": "ze2-08",
+  "question": "how do I sign up for a meal plan",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze2-09",
+  "question": "Can I change or cancel my meal plan after the semester starts? Who handles that?",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze2-10",
+  "question": "do meals/swipes roll over to next semester",
+  "topic": "policy"
+ },
+ {
+  "id": "ze2-11",
+  "question": "is the dorm open over thanksgiving break or do i have to leave",
+  "topic": "policy"
+ },
+ {
+  "id": "ze2-12",
+  "question": "how do I apply to stay on campus during winter break",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze2-13",
+  "question": "what time do i have to move out at the end of the semester and what do I need to do before I leave",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze2-14",
+  "question": "how do I check out of my room properly so I dont get fined, do I need an RA to sign off",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze2-15",
+  "question": "Who do I contact about getting locked out of my room at 2am?",
+  "topic": "contact"
+ },
+ {
+  "id": "ze2-16",
+  "question": "can I have a pet fish or any animal in my dorm",
+  "topic": "policy"
+ },
+ {
+  "id": "ze2-17",
+  "question": "how do i request a single room or housing accommodation for a medical reason, and what paperwork do i need",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze2-18",
+  "question": "whats the quiet hours policy in the residence halls",
+  "topic": "policy"
+ },
+ {
+  "id": "ze2-19",
+  "question": "how do I get a dietary accommodation for a food allergy with the dining plan",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze2-20",
+  "question": "Can I move off campus mid year and get out of my housing contract? what happens to the fee",
+  "topic": "policy"
+ },
+ {
+  "id": "ze2-21",
+  "question": "how do I put in a maintenance request for a broken heater",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze2-22",
+  "question": "what is my current meal swipe balance",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ze2-23",
+  "question": "Which dorm is the best for sophomores? I cant decide between two",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ze2-24",
+  "question": "will I get my room deposit back",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ze2-25",
+  "question": "how long can a guest from another school stay in the apartments and do they need to be registered with someone",
+  "topic": "policy"
+ },
+ {
+  "id": "ze3-01",
+  "question": "how do i request an incomplete in a class",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze3-02",
+  "question": "What's the deadline to switch a class to pass/fail and who do I talk to about it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze3-03",
+  "question": "can i retake a course i got a D in? does the old grade still count",
+  "topic": "policy"
+ },
+ {
+  "id": "ze3-04",
+  "question": "how do i order an official transcript to send to another school",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze3-05",
+  "question": "whats the max number of credits i can take in one semester without special permission",
+  "topic": "policy"
+ },
+ {
+  "id": "ze3-06",
+  "question": "I got put on academic probation, what does that mean and what do I have to do to get off of it?",
+  "topic": "policy"
+ },
+ {
+  "id": "ze3-08",
+  "question": "where do i find my unofficial transcript",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze3-09",
+  "question": "I think my professor graded my final wrong. How do I appeal a grade and who do I contact first?",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze3-10",
+  "question": "whats the minimum gpa to stay in good standing",
+  "topic": "policy"
+ },
+ {
+  "id": "ze3-12",
+  "question": "can I withdraw from a class after the drop deadline? what shows up on my transcript",
+  "topic": "policy"
+ },
+ {
+  "id": "ze3-13",
+  "question": "overload form - how do i get approval to take 20 credits and who signs it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze3-14",
+  "question": "is there a limit on how many times i can repeat the same class",
+  "topic": "policy"
+ },
+ {
+  "id": "ze3-17",
+  "question": "How many independent study credits can count toward my degree?",
+  "topic": "policy"
+ },
+ {
+  "id": "ze3-18",
+  "question": "will I get dismissed if my gpa falls below 2.0 again next semester",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ze3-19",
+  "question": "how do i apply for academic amnesty or forgiveness for old bad grades from when i was here years ago",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze3-20",
+  "question": "who do I email about a hold on my transcript",
+  "topic": "contact"
+ },
+ {
+  "id": "ze3-21",
+  "question": "Can I take a class at another college over the summer and transfer the credits back? How do I get it approved?",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze3-22",
+  "question": "what counts as an F vs a WF vs a W",
+  "topic": "policy"
+ },
+ {
+  "id": "ze3-23",
+  "question": "how do I get a grade changed after the semester ended bc prof forgot to submit my work",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze3-24",
+  "question": "do you think i should take pass/fail for my hardest class to protect my gpa?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ze3-25",
+  "question": "Is there a dean's list and what GPA do I need to get on it, plus how will I know if I made it?",
+  "topic": "policy"
+ },
+ {
+  "id": "ze4-01",
+  "question": "my financial aid money hasnt shown up and my bill is due, who do i even talk to",
+  "topic": "contact"
+ },
+ {
+  "id": "ze4-02",
+  "question": "I think I have anxiety and can't focus in class. Is there somewhere on campus I can go to talk to someone, and how do I set that up?",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze4-03",
+  "question": "somebody stole my laptop from the library, what do I do",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze4-04",
+  "question": "i have a disability and need extra time on tests. where do i go and what do i have to bring",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze4-05",
+  "question": "my roommate and i are fighting constantly and i want to move rooms. who handles that?",
+  "topic": "contact"
+ },
+ {
+  "id": "ze4-06",
+  "question": "how do i find a job on campus? i need money but cant do work study",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze4-07",
+  "question": "I'm a commuter and can't find parking, who do I complain to or is there a permit I need",
+  "topic": "policy"
+ },
+ {
+  "id": "ze4-08",
+  "question": "i need someone to look over my resume and help me find an internship",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze4-09",
+  "question": "my wifi in my dorm keeps dropping and I can't log into my email either. who fixes this stuff?",
+  "topic": "contact"
+ },
+ {
+  "id": "ze4-10",
+  "question": "who do i talk to if a professor is treating me unfairly",
+  "topic": "contact"
+ },
+ {
+  "id": "ze4-11",
+  "question": "I've been feeling really unsafe because someone keeps harassing me. What office deals with that and how do I report it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze4-12",
+  "question": "need help w/ writing a paper, is there tutoring or something",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze4-13",
+  "question": "I'm pregnant and worried about how it affects my classes. Where can I get info on accommodations?",
+  "topic": "policy"
+ },
+ {
+  "id": "ze4-14",
+  "question": "how do i get a doctor's appointment on campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze4-15",
+  "question": "i got really sick last week and missed 2 exams, who do i tell and what proof do i need",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze4-16",
+  "question": "My family lost income and I can't afford next semester. Is there any office that helps with that, like emergency money or food?",
+  "topic": "contact"
+ },
+ {
+  "id": "ze4-17",
+  "question": "where do i go to get my car jumped or if im locked out of it",
+  "topic": "contact"
+ },
+ {
+  "id": "ze4-18",
+  "question": "im an international student and my visa paperwork is confusing. who helps with that",
+  "topic": "contact"
+ },
+ {
+  "id": "ze4-19",
+  "question": "want to start a club for anime but have no idea who approves it or what forms",
+  "topic": "procedure"
+ },
+ {
+  "id": "ze4-20",
+  "question": "will my scholarship be gone if I drop to part time? who can tell me",
+  "topic": "policy"
+ },
+ {
+  "id": "ze4-21",
+  "question": "I think my advisor is wrong about which classes I need to graduate, who can double check my degree requirements",
+  "topic": "contact"
+ },
+ {
+  "id": "ze4-22",
+  "question": "what's my current GPA and am I on academic probation?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ze4-23",
+  "question": "which office is the best to go to for getting into grad school, and should I take the GRE or not",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ze4-24",
+  "question": "i found a wallet in the hallway of Birch, where do i bring it",
+  "topic": "procedure"
+ }
+]

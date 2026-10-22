@@ -1,0 +1,17 @@
+[
+  {"id": "ag4-01", "question": "does ramapo have an MBA program", "topic": "program"},
+  {"id": "ag4-02", "question": "How many credits is the Master of Science in Accounting and can it be done part time while working?", "topic": "program"},
+  {"id": "ag4-03", "question": "what is the 4+1 program and which majors offer it", "topic": "program"},
+  {"id": "ag4-04", "question": "Im a junior in business admin. if I do the accelerated bachelors/masters how many grad credits count toward both degrees?", "topic": "program"},
+  {"id": "ag4-05", "question": "are there any graduate certificates? I already have a bachelors and dont want a full masters", "topic": "program"},
+  {"id": "ag4-06", "question": "how many total credits do you need to graduate with a bachelor's degree at Ramapo", "topic": "program"},
+  {"id": "ag4-07", "question": "What courses are required for the business administration major, and is there a concentration in finance?", "topic": "program"},
+  {"id": "ag4-08", "question": "prereqs for ACCT 222?", "topic": "course"},
+  {"id": "ag4-09", "question": "what does BADM 471 cover and how many credits is it", "topic": "course"},
+  {"id": "ag4-10", "question": "Is there a minor in business for non business majors and how many credits would it be", "topic": "program"},
+  {"id": "ag4-11", "question": "I'm going back to school at 34 to finish my degree in business. What should I take my first semester in the major?", "topic": "sequence"},
+  {"id": "ag4-12", "question": "does econ 101 count for gen ed or just for the business major", "topic": "gen_ed"},
+  {"id": "ag4-13", "question": "Can you check how many of my transfer credits from community college were accepted?", "topic": "out_of_scope"},
+  {"id": "ag4-14", "question": "who's teaching the MBA data analytics class this spring and does it still have open seats", "topic": "out_of_scope"},
+  {"id": "ag4-15", "question": "should I do the MS in data science or the MBA if I want to get into management? which one is better", "topic": "out_of_scope"}
+]

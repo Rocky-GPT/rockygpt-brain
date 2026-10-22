@@ -1,0 +1,3 @@
+brain under test: 7c7e744 (c7563ce + 475f870 entry term and today for the picker + 7c7e744 word endings), all calls on gpt-6-luna
+(a clean git archive export .local-logs/dev-brain/code-7c7e744, run as the written-mode dev Brain on :8013 via .local-logs/dev-brain/start_written_8013.py; graders read :8013)
+release: dev-campus-daily-20261020-1035 (data 4f1f93d; 8,722 verified how-to entries)

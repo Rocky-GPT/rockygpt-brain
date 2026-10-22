@@ -1,0 +1,2 @@
+brain at freeze: 6c07354 Say a booking question is unanswered when the office's results do not say how to book
+release: dev-campus-daily-20261015-1322

@@ -1,0 +1,297 @@
+[
+ {
+  "id": "zi1-01",
+  "question": "how do i find out if i have a registration hold and who do i call to get it removed",
+  "topic": "contact"
+ },
+ {
+  "id": "zi1-02",
+  "question": "I work 25 hrs a week and cant make it to campus during the day. how do I withdraw from a class without going in person?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi1-03",
+  "question": "whats the last day to withdraw from a class this semester",
+  "topic": "policy"
+ },
+ {
+  "id": "zi1-04",
+  "question": "what grade do i get if i withdraw after the deadline? does a W hurt my gpa",
+  "topic": "policy"
+ },
+ {
+  "id": "zi1-05",
+  "question": "how do I meet with my academic advisor, and how do I even find out who my advisor is",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi1-06",
+  "question": "can i register for classes before i meet with my advisor or do i need a pin",
+  "topic": "policy"
+ },
+ {
+  "id": "zi1-07",
+  "question": "How do I appeal a grade I think was wrong? My professor won't respond to my emails and I work during his office hours.",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi1-08",
+  "question": "incomplete grade - how does that work and how long do I have to finish the work",
+  "topic": "policy"
+ },
+ {
+  "id": "zi1-09",
+  "question": "how do i get a hold removed if its from the bursar",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi1-10",
+  "question": "is there an online or evening option for advising for commuters",
+  "topic": "policy"
+ },
+ {
+  "id": "zi1-11",
+  "question": "whats my current gpa and do i have any holds right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zi1-12",
+  "question": "how do I add a class after the semester already started? is there a late add deadline",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi1-13",
+  "question": "Should I drop my 8am or my Tuesday night class? I'm struggling with both and my boss keeps changing my shifts",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zi1-14",
+  "question": "how do I retake a class to replace a bad grade and does the old grade still count",
+  "topic": "policy"
+ },
+ {
+  "id": "zi1-15",
+  "question": "when does registration open for spring for sophomores",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zi2-01",
+  "question": "can my friend from home stay in my room over the weekend? how many nights is allowed",
+  "topic": "policy"
+ },
+ {
+  "id": "zi2-02",
+  "question": "my radiator is making a loud banging noise and the room is freezing. how do i put in a maintenance request and who do i call if its after hours",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi2-03",
+  "question": "how do I switch rooms mid semester",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi2-04",
+  "question": "when do we have to sign up for housing for next year and how does the selection process work for rising juniors?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi2-05",
+  "question": "quiet hours?",
+  "topic": "policy"
+ },
+ {
+  "id": "zi2-06",
+  "question": "where do i pick up packages that got delivered to my hall, and do i need my ID",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi2-07",
+  "question": "my roommate and i cant get along anymore, is there a roommate mediation thing or can we just request a change",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi2-08",
+  "question": "are candles or string lights allowed in the dorms? also can i have a mini fridge or microwave",
+  "topic": "policy"
+ },
+ {
+  "id": "zi2-09",
+  "question": "the washer on my floor ate my money, how do i get a refund for laundry and who is the person to email",
+  "topic": "contact"
+ },
+ {
+  "id": "zi2-10",
+  "question": "I locked myself out of my room at 2am, what do I do and is there a fee for it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi2-11",
+  "question": "can i get an emotional support animal in my dorm? what paperwork do i need",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi2-12",
+  "question": "how do i move out at the end of the year, is there a checkout form or do i just leave my keys",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi2-13",
+  "question": "will i get a single room next year if i apply? like what are the odds",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zi2-14",
+  "question": "how much do i owe for my housing this semester",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zi2-15",
+  "question": "which dorm is better for sophomores, Mackin or Bischoff? asking so I pick the best one",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zi3-02",
+  "question": "Our club is putting together an end of semester banquet and we need money for catering. How do we request funding from SGA, and who do I email about the budget process?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi3-03",
+  "question": "can we book a room in the student center for a weekly meeting? how far in advance",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi3-04",
+  "question": "what is the policy on posting flyers around campus",
+  "topic": "policy"
+ },
+ {
+  "id": "zi3-05",
+  "question": "How do I get my club recognized again, it got deactivated last year bc nobody did the re-registration thing",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi3-06",
+  "question": "who do I contact about joining greek life / how does recruitment work",
+  "topic": "contact"
+ },
+ {
+  "id": "zi3-07",
+  "question": "Are clubs allowed to fundraise off campus or sell food at a bake sale? What forms do we need?",
+  "topic": "policy"
+ },
+ {
+  "id": "zi3-08",
+  "question": "how do i find volunteer opportunities or community service hours for grad requirement",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi3-09",
+  "question": "do we need insurance or a risk form to host an event with outside guests",
+  "topic": "policy"
+ },
+ {
+  "id": "zi3-10",
+  "question": "i'm treasurer of my org, how do I get reimbursed for stuff i bought for an event with my own card",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi3-11",
+  "question": "How do I get a speaker approved to come to campus for our club and who handles the contract/payment?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi3-12",
+  "question": "how many people are in the Ramapo Programming Club right now and who is the president",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zi3-13",
+  "question": "can you tell me if my club's budget request for this semester was approved",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zi3-14",
+  "question": "what's the minimum gpa to be an e-board member or run for sga",
+  "topic": "policy"
+ },
+ {
+  "id": "zi3-15",
+  "question": "which fraternity should i join? which one is best",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zi4-01",
+  "question": "I just got accepted!! how do I accept my offer and pay the deposit",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi4-02",
+  "question": "whats the deadline to put down the enrollment deposit for fall and is it refundable",
+  "topic": "policy"
+ },
+ {
+  "id": "zi4-03",
+  "question": "When is orientation for new freshmen and do I have to sign up for it, or does it happen automatically? Also who do I email if I can't make my date?",
+  "topic": "contact"
+ },
+ {
+  "id": "zi4-04",
+  "question": "do i need to take a placement test for math or english",
+  "topic": "policy"
+ },
+ {
+  "id": "zi4-05",
+  "question": "how do i send my immunization records, my doctor filled out the form already",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi4-06",
+  "question": "Im a transfer student from Bergen CC. how do I find out which of my credits will transfer and who should I talk to about it?",
+  "topic": "contact"
+ },
+ {
+  "id": "zi4-07",
+  "question": "how do I get my student ID card before classes start",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi4-08",
+  "question": "is the meningitis vaccine required for commuters too or only people living on campus",
+  "topic": "policy"
+ },
+ {
+  "id": "zi4-09",
+  "question": "I submitted my application like 3 weeks ago, how do I check if you got all my documents? where do I log in",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi4-10",
+  "question": "how do I set up my ramapo email and password. I dont know my username",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi4-11",
+  "question": "can I apply for housing before I pay my deposit, and how do I pick a roommate",
+  "topic": "procedure"
+ },
+ {
+  "id": "zi4-12",
+  "question": "what are my chances of getting in with a 3.2 GPA and 1050 SAT",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zi4-13",
+  "question": "has my financial aid package been finalized yet? it still says pending on my portal",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zi4-14",
+  "question": "do I need to submit SAT scores, or is Ramapo test optional? and where do I send official transcripts from my high school",
+  "topic": "policy"
+ },
+ {
+  "id": "zi4-15",
+  "question": "whats the best dorm for a freshman and how much will my total bill be",
+  "topic": "out_of_scope"
+ }
+]

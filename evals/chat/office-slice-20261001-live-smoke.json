@@ -1,0 +1,105 @@
+{
+  "kind": "live-integration-smoke-not-quality-evaluation",
+  "started_at": "2026-10-01T17:34:08.727024+00:00",
+  "environment": "development",
+  "model": "gpt-6-luna",
+  "max_total_nusd": 75000000,
+  "source_hashes": {
+    "src/rockygpt_brain/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/rockygpt_brain/answers.py": "c418a6ae0df8e9220f62ca5f2f17fa4a2e4375975563f06a8a33a0dac0fe67de",
+    "src/rockygpt_brain/api/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/rockygpt_brain/api/app.py": "90294850f5addf7d6a515586f921a18dc3e9811b66b51328c17a6984b25ba279",
+    "src/rockygpt_brain/boundary.py": "fe23e79a1445088437bebed20b6e9c2fdfbfd51ce5efb7ca3e8ed50d28c0a242",
+    "src/rockygpt_brain/context.py": "474c8ab50990f7774bd12a184ab85a22d259ad23db2f0a094ae9f081cfb15ae4",
+    "src/rockygpt_brain/contract.py": "6cf96d6d6576cd803908160db645d43675274295360ca8aaae5597f4c023e577",
+    "src/rockygpt_brain/engine.py": "9f94f8deead2b78dac89f7e4a0ed82f179cae14ce6db9a8350f256c510caa047",
+    "src/rockygpt_brain/failures.py": "4a7989ecc9a552af271128fca0a1ee9c4c1dfcd20c0bbc172d5ada08ec5e798d",
+    "src/rockygpt_brain/provider-release.json": "391bba72f71df64b63f0d62ea5cca798e67ac0c9b44ad008dde157bd696d1f1f",
+    "src/rockygpt_brain/provider.py": "0d5136874644c5e9ba1b9157d2a248ac6e97b22c665a36a6a3f9ddd53e0f7fac",
+    "src/rockygpt_brain/retrieval/__init__.py": "7f8472d2021d6c42d3dc25bb1729a66a247fe8454eb3c1c3a8fe7338e1f2e018",
+    "src/rockygpt_brain/retrieval/entity_facts.py": "92f749356818f703ebe0eb53e4f3c8e9caf473eb746ce2b5dbba983a52f057af",
+    "src/rockygpt_brain/retrieval/postgres.py": "46f0b5e30ba1bfaab84d82ab137e9ad55a752a26bdd9a73916881fd61be33093",
+    "src/rockygpt_brain/retrieval/projection.py": "70a3ec09fec3a2fef46371ea3f70edeabc60b69edd92e1f8e1582db89a5791fe",
+    "src/rockygpt_brain/settings.py": "9196554f646934551d006427297804b1379cf686b5a27eabce28d1fec023e7c1",
+    "src/rockygpt_brain/spending.py": "1d3b01fc1ca5b51654d5a27223b8f4425e6b69e2a30da4e739815f30264cf4dc",
+    "src/rockygpt_brain/turn.py": "c498b3033713cd3810c49e481129b461a9bfb11b207e5983527e9aaffcf4230f"
+  },
+  "turns": [
+    {
+      "question": "Where is the Registrar office and what is their phone number?",
+      "http_status": 200,
+      "body": {
+        "answer": "I couldn't find a matching office in the published directory. That doesn't establish that the office doesn't exist.",
+        "status": "unavailable",
+        "citations": [],
+        "requestId": "e4458601-8f78-4ebb-8c7a-923cafaff959",
+        "datasetVersion": "dev-profiles-headings3-20260929"
+      }
+    },
+    {
+      "question": "And their email address?",
+      "http_status": 503,
+      "body": {
+        "error": {
+          "code": "provider_unavailable",
+          "message": "RockyGPT's answering service is unavailable.",
+          "retryable": true,
+          "emergency": {
+            "text": "If you or someone else is in danger right now, call 911. If you are thinking about hurting yourself, call or text 988 (Suicide & Crisis Lifeline) to talk with someone right away. RockyGPT can't send help or stay with you, so please reach out to them now.",
+            "sources": []
+          }
+        },
+        "reason": "provider_unavailable",
+        "requestId": "88836711-d93a-4df8-a996-e965c4526333"
+      }
+    }
+  ],
+  "readiness_status": 200,
+  "accounting": [
+    {
+      "request_id": "e4458601-8f78-4ebb-8c7a-923cafaff959",
+      "state": "settled",
+      "reserved_nusd": 1331250,
+      "cost_nusd": 130250,
+      "usage": {
+        "input_tokens": 898,
+        "cached_tokens": 0,
+        "output_tokens": 36
+      },
+      "returned_model": "gpt-6-luna"
+    },
+    {
+      "request_id": "e4458601-8f78-4ebb-8c7a-923cafaff959",
+      "state": "settled",
+      "reserved_nusd": 1411125,
+      "cost_nusd": 141125,
+      "usage": {
+        "input_tokens": 1001,
+        "cached_tokens": 0,
+        "output_tokens": 32
+      },
+      "returned_model": "gpt-6-luna"
+    },
+    {
+      "request_id": "88836711-d93a-4df8-a996-e965c4526333",
+      "state": "settled",
+      "reserved_nusd": 1364750,
+      "cost_nusd": 157250,
+      "usage": {
+        "input_tokens": 958,
+        "cached_tokens": 0,
+        "output_tokens": 75
+      },
+      "returned_model": "gpt-6-luna"
+    },
+    {
+      "request_id": "88836711-d93a-4df8-a996-e965c4526333",
+      "state": "uncertain",
+      "reserved_nusd": 1645875,
+      "cost_nusd": null,
+      "usage": null,
+      "returned_model": null
+    }
+  ],
+  "finished_at": "2026-10-01T17:34:25.271013+00:00"
+}

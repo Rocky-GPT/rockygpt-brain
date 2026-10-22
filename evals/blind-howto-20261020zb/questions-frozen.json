@@ -1,0 +1,472 @@
+[
+ {
+  "id": "zb1-01",
+  "question": "how do i get a replacement ID card if i lost mine during move in",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb1-02",
+  "question": "Can my roommate's boyfriend sleep over in our room? Is there a guest policy in the halls and how many nights are allowed?",
+  "topic": "policy"
+ },
+ {
+  "id": "zb1-03",
+  "question": "my roommate and i are not getting along at all. how do i switch rooms or ask for a roommate mediation, and who do i talk to",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb1-05",
+  "question": "is there laundry in my building and how do i pay for it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb1-06",
+  "question": "im sick w a fever and cant get to class, where do i go on campus? is there a health center",
+  "topic": "contact"
+ },
+ {
+  "id": "zb1-07",
+  "question": "are candles or string lights allowed in dorm rooms",
+  "topic": "policy"
+ },
+ {
+  "id": "zb1-08",
+  "question": "Can I bring a mini fridge or microwave to my residence hall room, and are there any rules about appliances?",
+  "topic": "policy"
+ },
+ {
+  "id": "zb1-09",
+  "question": "i locked myself out of my room at 2am who do i call",
+  "topic": "contact"
+ },
+ {
+  "id": "zb1-11",
+  "question": "where do i pick up packages that got mailed to me at school",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb1-12",
+  "question": "how do I request a housing accommodation for a medical condition or emotional support animal",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb1-13",
+  "question": "What are the quiet hours in the dorms?",
+  "topic": "policy"
+ },
+ {
+  "id": "zb1-14",
+  "question": "how do i get a parking permit as a freshman, are first years even allowed to have cars",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb1-15",
+  "question": "i have a dietary allergy (celiac), how do i let dining services know so i can eat safely",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb1-16",
+  "question": "how do i sign up for the campus shuttle or find out where it picks up",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb1-17",
+  "question": "what do i do if i find someones wallet in the hallway or lose my own stuff",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb1-18",
+  "question": "can i drink in my room if im over 21 but my roommate is 18? whats the alcohol policy in the halls",
+  "topic": "policy"
+ },
+ {
+  "id": "zb1-19",
+  "question": "how do i get my wifi working on my laptop and xbox in my room",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb1-20",
+  "question": "Who is my RA and how do I reach them, and how do I find out about the floor events and the hall council?",
+  "topic": "contact"
+ },
+ {
+  "id": "zb1-21",
+  "question": "how do i drop a class in my first semester without it hurting me",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb1-22",
+  "question": "whats the best meal plan for a freshman who eats a lot",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zb1-23",
+  "question": "how much money is left on my dining dollars right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zb1-24",
+  "question": "is the laundry room in my building free right now, are any washers open",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zb1-25",
+  "question": "how do i get counseling or talk to someone because im homesick and really stressed, is it free?",
+  "topic": "contact"
+ },
+ {
+  "id": "zb2-01",
+  "question": "How do I apply for graduation? I'm finishing in May",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb2-02",
+  "question": "whats the deadline to submit the graduation application and who do i email if i missed it",
+  "topic": "contact"
+ },
+ {
+  "id": "zb2-03",
+  "question": "Do I have to walk at commencement or can I just get my diploma mailed to me?",
+  "topic": "policy"
+ },
+ {
+  "id": "zb2-05",
+  "question": "How do I order my official transcript to send to grad schools, and how long does it take?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb2-06",
+  "question": "can i still order a transcript if i have a hold on my account",
+  "topic": "policy"
+ },
+ {
+  "id": "zb2-07",
+  "question": "Where do I rent or buy my cap and gown?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb2-08",
+  "question": "will I keep my ramapo email after I graduate",
+  "topic": "policy"
+ },
+ {
+  "id": "zb2-09",
+  "question": "how do i do loan exit counseling? who do I contact at financial aid if the site isnt working",
+  "topic": "contact"
+ },
+ {
+  "id": "zb2-10",
+  "question": "I owe a library fine and a parking ticket. Will that stop me from graduating?",
+  "topic": "policy"
+ },
+ {
+  "id": "zb2-11",
+  "question": "how do i pay my final bill before graduation",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb2-12",
+  "question": "What does Career Services offer to alumni after we graduate? Can I still use it",
+  "topic": "policy"
+ },
+ {
+  "id": "zb2-13",
+  "question": "how do I get my resume reviewed before I graduate",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb2-14",
+  "question": "I'm one class short of my degree requirements, can I take it at another school over the summer and transfer it back? how do i get approval",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb2-15",
+  "question": "how do I run a degree audit to make sure I'm on track to graduate",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb2-17",
+  "question": "how to change the name or address that will be printed on my diploma",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb2-18",
+  "question": "whats my current loan balance and when does my repayment start",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zb2-19",
+  "question": "How do I return my parking permit and get my ID card deactivated or do I keep it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb2-20",
+  "question": "can I get a letter saying I completed my degree requirements before my diploma arrives for a job start date",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb2-21",
+  "question": "Are there any graduation fees and how much is the cap and gown going to cost",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zb2-22",
+  "question": "how do i apply for a minor or double major late senior year??",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb2-23",
+  "question": "what time does commencement start and is it going to rain",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zb2-24",
+  "question": "Who do I contact about the alumni association and how do I join",
+  "topic": "contact"
+ },
+ {
+  "id": "zb2-25",
+  "question": "can I take my last class pass/fail if I'm graduating this semester",
+  "topic": "policy"
+ },
+ {
+  "id": "zb3-01",
+  "question": "I got a C- in my bio class and I think the grading was unfair. How do I appeal a grade and who do I talk to first?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb3-02",
+  "question": "theres a hold on my account and i cant register for classes. how do i find out what it is and get it removed",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb3-03",
+  "question": "I got a parking ticket yesterday but my permit was in my car, just not hanging. how do i appeal it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb3-04",
+  "question": "lost my laptop in the library, where do i go to see if someone turned it in",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb3-05",
+  "question": "I received a letter from Student Conduct saying I have to schedule a meeting. What happens at the meeting and can I bring someone with me?",
+  "topic": "policy"
+ },
+ {
+  "id": "zb3-06",
+  "question": "I missed the deadline to withdraw from a class by 2 days. Is there any way to still withdraw?",
+  "topic": "policy"
+ },
+ {
+  "id": "zb3-07",
+  "question": "my wifi wont connect on campus and it keeps saying my password is wrong. who do i contact",
+  "topic": "contact"
+ },
+ {
+  "id": "zb3-08",
+  "question": "What do I do if I can't pay my tuition bill by the due date? Is there a late fee and who can I talk to about a payment plan?",
+  "topic": "policy"
+ },
+ {
+  "id": "zb3-09",
+  "question": "I locked myself out of my dorm room at 2am. what do I do",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb3-10",
+  "question": "missed my final exam bc I was in the hospital. how do I get an incomplete or a makeup",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb3-11",
+  "question": "someone stole my student ID and I think they used it for the dining hall. how do i get a new one and report it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb3-12",
+  "question": "My financial aid got cancelled because I didnt submit a verification document in time. What can I do now?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb3-13",
+  "question": "I can't log into Canvas or my college email after resetting my password. Who do I call?",
+  "topic": "contact"
+ },
+ {
+  "id": "zb3-14",
+  "question": "my car got towed from campus, where do i go to get it back",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb3-15",
+  "question": "I was accused of plagiarism by my professor. What is the process and what are my rights?",
+  "topic": "policy"
+ },
+ {
+  "id": "zb3-16",
+  "question": "My roommate is making it impossible to live here. How do I request a room change and how long does it take?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb3-17",
+  "question": "I got a notice that I'm on academic probation. what does that mean and what do I need to do to get off it?",
+  "topic": "policy"
+ },
+ {
+  "id": "zb3-18",
+  "question": "i broke my phone charger cord thing in the dorm and RA says i might get charged for damages? how do i dispute a damage charge",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb3-19",
+  "question": "I think I'm being harassed by another student. Who do I report it to and is it confidential?",
+  "topic": "contact"
+ },
+ {
+  "id": "zb3-20",
+  "question": "I missed the deadline to apply for graduation. Can I still graduate this semester?",
+  "topic": "policy"
+ },
+ {
+  "id": "zb3-21",
+  "question": "will my appeal for the C- actually get my grade changed? what are the odds",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zb3-22",
+  "question": "What is the exact amount of the hold on my account right now?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zb3-23",
+  "question": "Should I just drop out and transfer? My GPA is terrible and I don't know what to do.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zb3-24",
+  "question": "my professor never posted my midterm grade, how do i file a complaint and with who",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb3-25",
+  "question": "Is there emergency money available for students who suddenly can't afford food or rent? How do I apply?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb4-02",
+  "question": "Im the treasurer of a club. How do we request funding from SGA and who do I email about it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb4-03",
+  "question": "what's the process to start a new student org",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb4-04",
+  "question": "do club officers need a minimum gpa to hold a position",
+  "topic": "policy"
+ },
+ {
+  "id": "zb4-05",
+  "question": "How do I get reimbursed for money I spent on supplies for a club event? I paid out of pocket and have the receipts",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb4-06",
+  "question": "whats the deadline to apply for study abroad for spring",
+  "topic": "policy"
+ },
+ {
+  "id": "zb4-07",
+  "question": "am i eligible to study abroad if i'm a transfer student with 2 semesters at ramapo",
+  "topic": "policy"
+ },
+ {
+  "id": "zb4-08",
+  "question": "how do i become a student worker on campus? where do i find openings",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb4-09",
+  "question": "Can student athletes get a class excused for away games, and who do I talk to if a professor refuses?",
+  "topic": "policy"
+ },
+ {
+  "id": "zb4-10",
+  "question": "What forms do I need to fill out to join a varsity team as a walk-on",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb4-11",
+  "question": "how do we get approval to hold an event with food from outside vendors",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb4-12",
+  "question": "i volunteer w/ the community service office, how do i log my hours",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb4-13",
+  "question": "Can my club hang flyers in the residence halls? who has to approve them",
+  "topic": "policy"
+ },
+ {
+  "id": "zb4-14",
+  "question": "how do i get a van or bus for a club trip off campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb4-15",
+  "question": "club advisor quit, do we need a new one right away or can we keep meeting",
+  "topic": "policy"
+ },
+ {
+  "id": "zb4-16",
+  "question": "who do I contact to get my club on the activities fair",
+  "topic": "contact"
+ },
+ {
+  "id": "zb4-17",
+  "question": "how do i pay my student worker timesheet / when is it due each pay period",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb4-18",
+  "question": "Do I need a passport and visa paperwork before applying for study abroad or can I do that after getting accepted?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb4-19",
+  "question": "is there a limit on how many credits i can take while on the soccer team",
+  "topic": "policy"
+ },
+ {
+  "id": "zb4-20",
+  "question": "how do I book the amphitheater or outdoor space for a fundraiser",
+  "topic": "procedure"
+ },
+ {
+  "id": "zb4-21",
+  "question": "can we sell stuff at a table in the student center for a fundraiser, and what permits do we need",
+  "topic": "policy"
+ },
+ {
+  "id": "zb4-23",
+  "question": "will my study abroad application get accepted if my gpa is 2.9",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zb4-24",
+  "question": "is the student center open right now? i need to get into the club office",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zb4-25",
+  "question": "how do i change my club's officer list after elections and who do i send it to",
+  "topic": "procedure"
+ }
+]

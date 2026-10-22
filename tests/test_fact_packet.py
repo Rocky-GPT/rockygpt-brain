@@ -1,0 +1,439 @@
+"""The Fact Packet contract: what the Brain hands on, and what it refuses to hand on."""
+
+from copy import deepcopy
+from datetime import UTC, timedelta
+from typing import Any
+
+import pytest
+
+from rockygpt_brain.fact_packet import PACKET_VERSION, PacketInvalid, build_packet, validate_packet
+from rockygpt_brain.retrieval import MemoryEntityFacts
+from test_graph_store import IDENTITY, NOW, VERSION, contact, office, source, week
+
+AS_OF = NOW.isoformat()
+
+
+def part_for(service: MemoryEntityFacts, entity_id: str, name: str, fields: list[str],
+             query: str | None = None) -> dict[str, Any]:
+    reader = service.get_office_facts(entity_id, fields, VERSION, identity_hash=IDENTITY, as_of=NOW)
+    return {"kind": "office_facts", "query": query or name, "fields": fields,
+            "office": {"id": entity_id, "name": name}, "facts": reader}
+
+
+def registrar(**changes: Any) -> MemoryEntityFacts:
+    return source([office("registrar", "Registrar")], [contact("r1", **changes)])
+
+
+def test_the_reader_s_properties_become_subject_predicate_value_facts() -> None:
+    service = registrar()
+    packet = build_packet(AS_OF, [part_for(service, "registrar", "Registrar", ["email", "phones"])])
+    assert packet["version"] == PACKET_VERSION == "1.0" and packet["status"] == "complete"
+    assert packet["request"]["intent"] == "contact" and packet["request"]["fields"] == [
+        "email", "phones"]
+    assert packet["request"]["entities"] == [
+        {"id": "registrar", "name": "Registrar", "kind": "office", "query": "Registrar"}]
+    assert packet["request"]["asOf"] == AS_OF
+    assert packet["request"]["dataset"] == {"version": VERSION, "identityHash": IDENTITY}
+    email = next(f for f in packet["facts"] if f["predicate"] == "email")
+    assert email["subject"] == {"id": "registrar", "name": "Registrar", "kind": "office"}
+    assert email["value"] == "published@example.edu"
+    assert email["status"] == "known" and email["current"] is True
+    assert set(email["source_ids"]) <= {s["id"] for s in packet["sources"]}
+    assert packet["derived_facts"] == [] and packet["missing"] == []
+    # The value is exactly what the reader returned, not a restatement.
+    reader = part_for(service, "registrar", "Registrar", ["email"])["facts"]
+    assert email["value"] == reader["properties"][0]["values"][0]["value"]
+
+
+def test_a_source_carries_its_dates_freshness_and_secure_links() -> None:
+    packet = build_packet(AS_OF, [part_for(registrar(), "registrar", "Registrar", ["email"])])
+    (source_,) = packet["sources"]
+    assert source_["title"] == "directory" and source_["collection"] == "contacts"
+    assert source_["urls"] == ["https://example.edu/directory"]
+    assert source_["freshness"] == "fresh" and source_["current"] is True
+    assert source_["captured_at"] and source_["validity"] in {"current", "unspecified"}
+    insecure = build_packet(AS_OF, [part_for(registrar(canonical_url="http://example.edu/x"),
+                                             "registrar", "Registrar", ["email"])])
+    assert insecure["sources"][0]["urls"] == []  # Listed, but with no link a writer could use.
+    # A value nothing can cite is withheld, not stated: the text answer never gave it either.
+    assert insecure["facts"] == []
+    assert insecure["missing"] == [{"subject": {"id": "registrar", "name": "Registrar",
+                                                "kind": "office"},
+                                    "predicate": "email", "reason": "no_citable_source"}]
+    assert insecure["status"] == "insufficient"
+    # Beside a value that can be cited, only the uncitable one is withheld, and only once.
+    both = source([office("registrar", "Registrar")],
+                  [contact("r1", canonical_url="http://example.edu/x"),
+                   contact("r2", email="other@example.edu")])
+    mixed = build_packet(AS_OF, [part_for(both, "registrar", "Registrar", ["email"])])
+    assert [f["value"] for f in mixed["facts"]] == ["other@example.edu"]
+    assert [m["reason"] for m in mixed["missing"]] == ["no_citable_source"]
+    assert mixed["status"] == "partial"
+
+
+def test_an_old_capture_is_a_fact_that_is_not_current_and_the_packet_is_partial() -> None:
+    old = registrar(collected_at=NOW - timedelta(days=30))
+    packet = build_packet(AS_OF, [part_for(old, "registrar", "Registrar", ["email"])])
+    (fact,) = packet["facts"]
+    assert fact["current"] is False and fact["value"] == "published@example.edu"
+    assert packet["sources"][0]["freshness"] == "stale" and packet["sources"][0]["current"] is False
+    assert packet["status"] == "partial"
+
+
+def test_conflicting_values_are_listed_side_by_side_and_nothing_is_chosen() -> None:
+    service = source([office("registrar", "Registrar")],
+                     [contact("r1"), contact("r2", email="other@example.edu")])
+    packet = build_packet(AS_OF, [part_for(service, "registrar", "Registrar", ["email"])])
+    emails = [f for f in packet["facts"] if f["predicate"] == "email"]
+    assert sorted(f["value"] for f in emails) == ["other@example.edu", "published@example.edu"]
+    assert {f["status"] for f in emails} == {"conflicting"} and packet["status"] == "partial"
+
+
+def test_a_requested_fact_the_evidence_does_not_hold_is_missing_not_blank() -> None:
+    both = part_for(registrar(), "registrar", "Registrar", ["email", "hours"])
+    packet = build_packet(AS_OF, [both])
+    assert packet["request"]["intent"] == "contact_and_hours"
+    assert [(m["predicate"], m["reason"]) for m in packet["missing"]] == [("hours", "unknown")]
+    assert packet["missing"][0]["subject"]["id"] == "registrar"
+    assert not any(f["predicate"] == "hours" for f in packet["facts"])
+    assert packet["status"] == "partial"
+    only_hours = build_packet(AS_OF, [part_for(registrar(), "registrar", "Registrar", ["hours"])])
+    assert only_hours["request"]["intent"] == "hours" and only_hours["status"] == "insufficient"
+
+
+def test_a_note_read_beside_an_unpublished_contact_is_shown_but_not_asked_for() -> None:
+    service = registrar(email=None, contact_note="Director: director@example.edu")
+    part = part_for(service, "registrar", "Registrar", ["email"])
+    note = part_for(service, "registrar", "Registrar", ["contact_note"])["facts"]
+    packet = build_packet(AS_OF, [{**part, "also": note}])
+    # The student asked for an email; the office's note is beside it, marked as not asked.
+    assert packet["request"]["fields"] == ["email"]
+    assert packet["request"]["intent"] == "contact"
+    (shown,) = packet["facts"]
+    assert shown["predicate"] == "contact_note" and shown["purpose"] == "also_published"
+    assert shown["value"] == "Director: director@example.edu"
+    # The unpublished email is still the gap the status reports; the note does not hide or add one.
+    assert [m["predicate"] for m in packet["missing"]] == ["email"]
+    assert packet["status"] == "insufficient"
+    # A note with nothing missing beside it changes nothing about the answer's status.
+    complete = registrar(contact_note="Director: director@example.edu")
+    asked = part_for(complete, "registrar", "Registrar", ["email"])
+    extra = part_for(complete, "registrar", "Registrar", ["contact_note"])["facts"]
+    plain = build_packet(AS_OF, [asked])
+    both = build_packet(AS_OF, [{**asked, "also": extra}])
+    assert both["status"] == plain["status"] == "complete"
+    assert both["request"]["fields"] == ["email"]
+
+
+def test_two_offices_share_one_source_list_without_repeats() -> None:
+    service = source([office("registrar", "Registrar"), office("bursar", "Bursar")],
+                     [contact("r1"), contact("b1", "bursar")])
+    one = part_for(service, "registrar", "Registrar", ["email"])
+    two = part_for(service, "bursar", "Bursar", ["email"])
+    packet = build_packet(AS_OF, [one, two, one])
+    ids = [s["id"] for s in packet["sources"]]
+    assert len(ids) == len(set(ids)) == 2
+    assert {e["id"] for e in packet["request"]["entities"]} == {"registrar", "bursar"}
+
+
+def test_the_packet_names_what_could_not_be_resolved() -> None:
+    ambiguous = build_packet(AS_OF, [{"kind": "ambiguous", "query": "student", "truncated": False,
+                                      "candidates": [{"id": "a", "name": "A", "match": "exact"}]}])
+    assert ambiguous["status"] == "ambiguous" and ambiguous["request"]["intent"] == "office_lookup"
+    assert ambiguous["ambiguities"][0]["candidates"][0]["id"] == "a" and ambiguous["facts"] == []
+    missing = build_packet(AS_OF, [{"kind": "not_found", "query": "Cafeteria"}])
+    assert missing["status"] == "not_found"
+    assert missing["unresolved"] == [{"query": "Cafeteria", "reason": "no_matching_office"}]
+
+
+def test_a_question_the_brain_must_ask_is_ambiguous_with_no_facts_and_partial_with_some() -> None:
+    asking = build_packet(AS_OF, [{"kind": "clarification", "afterLookup": False,
+                                   "approved_text": "Which office?"}])
+    assert asking["status"] == "ambiguous" and asking["request"]["intent"] == "clarification"
+    assert asking["notices"][0]["approved_text"] == "Which office?" and asking["facts"] == []
+    # With facts already found, the question is only one more thing left unanswered.
+    both = build_packet(AS_OF, [part_for(registrar(), "registrar", "Registrar", ["email"]),
+                                {"kind": "clarification", "afterLookup": False,
+                                 "approved_text": "?"}])
+    assert both["status"] == "partial"
+
+
+def test_replies_with_no_facts_are_notices_and_say_whether_anything_was_answerable() -> None:
+    assert build_packet(AS_OF, [{"kind": "greeting"}])["status"] == "no_facts_needed"
+    clock = build_packet(AS_OF, [{"kind": "clock", "campusNow": AS_OF}])
+    assert clock["request"]["intent"] == "clock"
+    unsupported = build_packet(AS_OF, [{"kind": "unsupported", "afterLookup": False}])
+    assert unsupported["status"] == "insufficient"
+    assert unsupported["notices"] == [{"type": "unsupported", "afterLookup": False}]
+    mixed = build_packet(AS_OF, [part_for(registrar(), "registrar", "Registrar", ["email"]),
+                                 {"kind": "unsupported", "afterLookup": True}])
+    assert mixed["status"] == "partial" and len(mixed["facts"]) == 1
+
+
+def test_an_emergency_carries_the_kind_and_the_campus_numbers_as_marked_facts() -> None:
+    service = source([office("ps", "Public Safety (Emergency)")], [contact("p1", "ps")])
+    contacts = [part_for(service, "ps", "Public Safety (Emergency)", ["phones"])]
+    packet = build_packet(AS_OF, [{"kind": "safety", "situation": "medical",
+                                   "campusContacts": contacts, "approved_text": "Call 911."}])
+    assert packet["status"] == "emergency" and packet["request"]["intent"] == "safety"
+    assert packet["notices"] == [{"type": "safety", "situation": "medical", "contacts": ["ps"],
+                                  "approved_text": "Call 911."}]
+    (fact,) = packet["facts"]
+    assert fact["predicate"] == "phones" and fact["purpose"] == "emergency_contact"
+    assert packet["request"]["entities"] == []  # The student asked about no office.
+
+
+def test_words_the_brain_approved_travel_in_the_packet_so_a_writer_never_composes_them() -> None:
+    greeting = build_packet(AS_OF, [{"kind": "greeting", "approved_text": "Hi! I'm RockyGPT."}])
+    assert greeting["notices"] == [{"type": "greeting", "approved_text": "Hi! I'm RockyGPT."}]
+    # The standing reminder on a cut-short reply is not an emergency.
+    reminder = build_packet(AS_OF, [
+        part_for(registrar(), "registrar", "Registrar", ["email"]),
+        {"kind": "incomplete", "code": "provider_unavailable", "approved_text": "Not finished."},
+        {"kind": "emergency_reminder", "approved_text": "In danger? Call 911."}])
+    assert reminder["status"] == "partial" and reminder["request"]["intent"] == "contact"
+    assert [n["type"] for n in reminder["notices"]] == ["incomplete", "emergency_reminder"]
+
+
+def test_a_safety_notice_without_its_approved_text_is_refused() -> None:
+    with pytest.raises(PacketInvalid):
+        build_packet(AS_OF, [{"kind": "safety", "situation": "fire", "campusContacts": [],
+                              "approved_text": ""}])
+    with pytest.raises(KeyError):  # An engine that forgot the key fails loudly, never quietly.
+        build_packet(AS_OF, [{"kind": "safety", "situation": "fire", "campusContacts": []}])
+
+
+@pytest.fixture
+def valid() -> dict[str, Any]:
+    return build_packet(AS_OF, [part_for(registrar(), "registrar", "Registrar", ["email"])])
+
+
+def broken(packet: dict[str, Any], change: Any) -> dict[str, Any]:
+    copy = deepcopy(packet)
+    change(copy)
+    return copy
+
+
+@pytest.mark.parametrize("name,change", [
+    ("wrong version", lambda p: p.update(version="2.0")),
+    ("unknown status", lambda p: p.update(status="great")),
+    ("no intent", lambda p: p["request"].update(intent="")),
+    ("no time", lambda p: p["request"].pop("asOf")),
+    ("facts not a list", lambda p: p.update(facts={})),
+    ("a fact missing a key", lambda p: p["facts"][0].pop("current")),
+    ("a fact without sources", lambda p: p["facts"][0].update(source_ids=[])),
+    ("a fact with an unlisted source", lambda p: p["facts"][0].update(source_ids=["x"])),
+    ("duplicate fact ids", lambda p: p["facts"].append(deepcopy(p["facts"][0]))),
+    ("unknown fact status", lambda p: p["facts"][0].update(status="maybe")),
+    ("current is not a boolean", lambda p: p["facts"][0].update(current="yes")),
+    ("duplicate source ids", lambda p: p["sources"].append(deepcopy(p["sources"][0]))),
+    ("a value that is not plain JSON", lambda p: p["facts"][0].update(value=float("nan"))),
+    ("an incomplete missing entry", lambda p: p["missing"].append({"predicate": "x"})),
+])
+def test_a_packet_that_breaks_the_contract_is_refused(
+        valid: dict[str, Any], name: str, change: Any) -> None:
+    validate_packet(valid)
+    with pytest.raises(PacketInvalid):
+        validate_packet(broken(valid, change))
+
+
+def test_the_clock_used_for_freshness_is_the_one_the_reader_was_given() -> None:
+    later = NOW + timedelta(days=3)
+    reader = registrar().get_office_facts("registrar", ["email"], VERSION, identity_hash=IDENTITY,
+                                          as_of=later)
+    part = {"kind": "office_facts", "query": "Registrar", "fields": ["email"],
+            "office": {"id": "registrar", "name": "Registrar"}, "facts": reader}
+    packet = build_packet(later.astimezone(UTC).isoformat(), [part])
+    assert packet["facts"][0]["current"] is False  # 24 h limit, three days on.
+
+
+def hours_service() -> MemoryEntityFacts:
+    return source([office("registrar", "Registrar", schedules=["Regular"])], [contact("r1")],
+                  schedules=week("Regular", "w1", "8am-5pm"))
+
+
+def hours_part(day: str, on: str) -> dict[str, Any]:
+    return {**part_for(hours_service(), "registrar", "Registrar", ["hours"]),
+            "when": {"day": day, "date": on}}
+
+
+def test_the_hours_of_the_asked_day_are_worked_out_and_trace_to_the_full_week() -> None:
+    packet = build_packet(AS_OF, [hours_part("friday", "2026-10-09")])
+    (week_fact,) = [f for f in packet["facts"] if f["predicate"] == "hours"]
+    (derived,) = packet["derived_facts"]
+    assert derived["predicate"] == "hours_on" and derived["day"] == "Friday"
+    assert derived["date"] == "2026-10-09" and derived["value"]["hours"] == "8am-5pm"
+    assert derived["from"] == [week_fact["id"]] and derived["source_ids"] == week_fact["source_ids"]
+    assert derived["applies"] is True and derived["current"] is True
+    assert derived["subject"]["id"] == "registrar"
+    # Friday is fully answered, but the weekend is a reported gap, so the packet is partial.
+    assert packet["status"] == "partial"
+    assert [(m["reason"], m["days"]) for m in packet["missing"]] == [
+        ("partially_unknown_schedule", ["Saturday", "Sunday"])]
+    # The same day asked twice is one derived fact.
+    twice = build_packet(AS_OF, [hours_part("friday", "2026-10-09"),
+                                 hours_part("friday", "2026-10-09")])
+    (once,) = twice["derived_facts"]
+    assert len(twice["facts"]) == 2 and sorted(once["from"]) == ["f1", "f2"]
+    validate_packet(twice)
+    from rockygpt_brain.writer_view import writer_view
+    assert "facts" not in writer_view(twice)  # Neither copy of the full week reaches a writer.
+
+
+def seasonal_part(day: str, on: str) -> dict[str, Any]:
+    rows = week("Regular", "w1", "8am-5pm", since=None, until=None)
+    for row in rows:  # The page names a season but prints no dates for it.
+        row["normalization_metadata"] = {"evidence": {"schedule": {"season": "Fall and Spring"}}}
+    service = source([office("registrar", "Registrar", schedules=["Regular"])], [contact("r1")],
+                     schedules=rows)
+    return {**part_for(service, "registrar", "Registrar", ["hours"]),
+            "when": {"day": day, "date": on}}
+
+
+def test_a_seasonal_schedule_without_dates_lists_its_weekday_hours_but_is_not_current() -> None:
+    packet = build_packet(AS_OF, [seasonal_part("friday", "2026-10-09")])
+    (derived,) = packet["derived_facts"]
+    assert derived["applicability"] == "unverified"
+    assert derived["applies"] is False and derived["current"] is False
+    assert derived["value"]["hours"] is None
+    assert derived["value"]["listed_hours"] == "8am-5pm"
+    validate_packet(packet)
+    # Not known to apply, so never open_now; only how today's listed hours read at this moment.
+    assert "open_now" not in derived and "listed_open_now" not in derived  # Not asked for today.
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    friday_9am = datetime(2026, 10, 9, 9, 0, tzinfo=ZoneInfo("America/New_York")).isoformat()
+    today = build_packet(friday_9am, [seasonal_part("friday", "2026-10-09")])
+    (now,) = today["derived_facts"]
+    assert "open_now" not in now and now["listed_open_now"]["state"] == "open"
+    validate_packet(today)
+    from rockygpt_brain.writer_view import writer_view
+    (row,) = writer_view(today)["derived_facts"]
+    assert row["listed_open_now"]["state"] == "open"
+    # Listed hours may never ride with real hours or on a date that is simply outside a window.
+    for change in ({"hours": "8am-5pm"},):
+        broken = deepcopy(packet)
+        broken["derived_facts"][0]["value"].update(change)
+        with pytest.raises(PacketInvalid):
+            validate_packet(broken)
+    plain = build_packet(AS_OF, [hours_part("friday", "2026-10-09")])
+    plain["derived_facts"][0]["value"]["listed_hours"] = "8am-5pm"
+    with pytest.raises(PacketInvalid):
+        validate_packet(plain)
+
+
+def test_no_day_asked_means_nothing_is_worked_out() -> None:
+    plain = part_for(hours_service(), "registrar", "Registrar", ["hours"])
+    assert build_packet(AS_OF, [plain])["derived_facts"] == []
+
+
+def test_a_date_outside_the_schedule_makes_the_answer_partial() -> None:
+    packet = build_packet(AS_OF, [hours_part("saturday", "2027-01-09")])
+    (derived,) = packet["derived_facts"]
+    assert derived["applies"] is False and derived["current"] is False
+    assert derived["value"]["hours"] is None and packet["status"] == "partial"
+
+
+def test_a_derived_fact_that_does_not_trace_or_add_up_is_refused() -> None:
+    good = build_packet(AS_OF, [hours_part("friday", "2026-10-09")])
+    validate_packet(good)
+    changes: tuple[dict[str, Any], ...] = (
+        {"from": ["f99"]}, {"from": []}, {"source_ids": ["nope"]}, {"day": "Saturday"},
+        {"date": "yesterday"}, {"predicate": "closes_at"}, {"applies": "yes"}, {"value": {}},
+        {"subject": {"id": "registrar"}},
+    )
+    for change in changes:
+        broken = deepcopy(good)
+        broken["derived_facts"][0].update(change)
+        with pytest.raises(PacketInvalid):
+            validate_packet(broken)
+    incomplete = deepcopy(good)
+    del incomplete["derived_facts"][0]["from"]
+    with pytest.raises(PacketInvalid):
+        validate_packet(incomplete)
+
+
+def test_open_now_is_read_only_from_plain_hours_and_never_guessed() -> None:
+    from datetime import datetime
+
+    from rockygpt_brain.fact_packet import open_now
+
+    at = datetime.fromisoformat("2026-10-13T18:57:00-04:00")
+    assert open_now("10:00am-6:00pm", at) == {"state": "closed", "now": "6:57pm"}
+    assert open_now("10:00am-7:00pm", at) == {"state": "open", "now": "6:57pm"}
+    assert open_now("8:00am-12:00am", at) == {"state": "open", "now": "6:57pm"}  # to midnight
+    assert open_now("9:00am-12:00pm, 6:00pm-8:00pm", at) == {"state": "open", "now": "6:57pm"}
+    assert open_now("24 hours", at) == {"state": "open", "now": "6:57pm"}
+    assert open_now("CLOSED", at) == {"state": "closed", "now": "6:57pm"}
+    assert open_now("12:00pm-6:57pm", at) == {"state": "closed", "now": "6:57pm"}  # end excluded
+    for unclear in ("6:00pm-2:00am", "10:00am-6:00pm by appointment", "Hours unavailable",
+                    "1 hour prior to performances", "", None):
+        assert open_now(unclear, at) is None, unclear
+
+
+def test_todays_hours_carry_open_now_and_another_days_do_not() -> None:
+    from datetime import datetime, timedelta
+
+    from rockygpt_brain.fact_packet import build_packet
+
+    today = datetime.fromisoformat(AS_OF)
+    day = today.strftime("%A").lower()
+    morning = today.replace(hour=10, minute=30).isoformat()
+    evening = today.replace(hour=18, minute=5).isoformat()
+    part = hours_part(day, today.date().isoformat())
+    (open_,) = build_packet(morning, [part])["derived_facts"]
+    (closed,) = build_packet(evening, [part])["derived_facts"]
+    assert open_["open_now"] == {"state": "open", "now": "10:30am"}
+    assert closed["open_now"] == {"state": "closed", "now": "6:05pm"}
+    # Tomorrow's hours are not an answer about this moment.
+    tomorrow = today + timedelta(days=1)
+    other = hours_part(tomorrow.strftime("%A").lower(), tomorrow.date().isoformat())
+    (derived,) = build_packet(morning, [other])["derived_facts"]
+    assert "open_now" not in derived
+
+
+
+def test_a_fax_question_keeps_only_the_fax_lines_and_says_so_when_there_is_none() -> None:
+    lines = [{"number": "+12015550100"}, {"number": "+12015550199", "type": "Fax"}]
+    service = source([office("registrar", "Registrar")], [contact("r1", phones=lines)])
+    part = part_for(service, "registrar", "Registrar", ["phones"])
+    everything = build_packet(AS_OF, [part])
+    (phones,) = [f for f in everything["facts"] if f["predicate"] == "phones"]
+    assert len(phones["value"]) == 2
+
+    fax = build_packet(AS_OF, [{**part, "phone_kind": "fax"}])
+    (phones,) = [f for f in fax["facts"] if f["predicate"] == "phones"]
+    assert phones["value"] == [{"number": "+12015550199", "type": "Fax"}]
+    assert phones["source_ids"] == everything["facts"][0]["source_ids"]  # Same evidence.
+    validate_packet(fax)
+
+    plain = source([office("registrar", "Registrar")], [contact("r1", phones=lines[:1])])
+    none = build_packet(AS_OF, [{**part_for(plain, "registrar", "Registrar", ["phones"]),
+                                 "phone_kind": "fax"}])
+    assert [f for f in none["facts"] if f["predicate"] == "phones"] == []
+    # The phone lines were read and none is a fax: said as that, citing the listing read.
+    (entry,) = none["missing"]
+    assert entry["reason"] == "no_fax_line" and entry["predicate"] == "phones"
+    assert entry["source_ids"] and set(entry["source_ids"]) <= {s["id"] for s in none["sources"]}
+    validate_packet(none)
+    from rockygpt_brain.writer_view import writer_view
+    (row,) = writer_view(none)["missing"]
+    assert row["reason"] == "no_fax_line" and row["sources"]
+
+
+def test_a_venue_open_through_meals_that_meet_closes_at_the_end_of_service() -> None:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from rockygpt_brain.fact_packet import open_now
+    hours = ("Lunch: 11:00 AM - 02:00 PM; Lite Lunch: 02:00 PM - 05:00 PM; "
+             "Dinner: 05:00 PM - 08:00 PM; Late Night: 09:00 PM - 11:00 PM")
+    at = datetime(2026, 10, 15, 14, 58, tzinfo=ZoneInfo("America/New_York"))
+    # Dinner ends at 8:00pm and late night starts at 9:00pm: 8:00pm is not the day's close.
+    assert open_now(hours, at) == {"state": "open", "now": "2:58pm", "closes": "8:00pm",
+                                   "meal": "Lite Lunch", "meal_ends": "5:00pm",
+                                   "then_meal": "Dinner", "reopens": "9:00pm",
+                                   "reopens_meal": "Late Night", "last_closes": "11:00pm"}
+    late = datetime(2026, 10, 15, 21, 30, tzinfo=ZoneInfo("America/New_York"))
+    assert open_now(hours, late) == {"state": "open", "now": "9:30pm", "closes": "11:00pm",
+                                     "meal": "Late Night"}

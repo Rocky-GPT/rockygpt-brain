@@ -1,0 +1,302 @@
+[
+ {
+  "id": "ec1-01",
+  "question": "whats going on tonight on campus",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-02",
+  "question": "any events this weekend? im a freshman and dont really know anyone yet",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-03",
+  "question": "is there free food at any events this week",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-04",
+  "question": "when is the next home basketball game and is it free for students to go",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-05",
+  "question": "are there any shows or performances happening at the Sharp Theater or Berrie Center next week?",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-06",
+  "question": "game night events",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-07",
+  "question": "whos hosting the thing in the student center on friday and where exactly is it",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-08",
+  "question": "is there a club for anime or gaming?",
+  "topic": "club"
+ },
+ {
+  "id": "ec1-09",
+  "question": "how do i find and join a club here, i dont even know where to look",
+  "topic": "club"
+ },
+ {
+  "id": "ec1-10",
+  "question": "what cultural clubs does ramapo have",
+  "topic": "club"
+ },
+ {
+  "id": "ec1-11",
+  "question": "any events next fri night? like comedy or a dance or something",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-12",
+  "question": "do u guys have a club for intramural or club sports, and when's the next sports event on campus",
+  "topic": "club"
+ },
+ {
+  "id": "ec1-13",
+  "question": "what time does the anime club meet and who is the president",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec1-14",
+  "question": "which club should i join if i like making friends and hate public speaking",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec1-15",
+  "question": "how many people are going to the fall fest tonight, is it gonna be crowded?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec2-01",
+  "question": "what clubs does ramapo have",
+  "topic": "club"
+ },
+ {
+  "id": "ec2-02",
+  "question": "is there a latino or hispanic cultural club on campus? how do i join",
+  "topic": "club"
+ },
+ {
+  "id": "ec2-03",
+  "question": "any pre-med or biology clubs?",
+  "topic": "club"
+ },
+ {
+  "id": "ec2-04",
+  "question": "Hi! I'm a freshman and I want to get involved. What service or volunteering organizations are there, and where can I find a list of all of them?",
+  "topic": "club"
+ },
+ {
+  "id": "ec2-05",
+  "question": "is there a business or finance club for professional networking",
+  "topic": "club"
+ },
+ {
+  "id": "ec2-06",
+  "question": "what frats and sororities are at ramapo",
+  "topic": "club"
+ },
+ {
+  "id": "ec2-07",
+  "question": "how do i find the page for the Asian Student Association",
+  "topic": "club"
+ },
+ {
+  "id": "ec2-08",
+  "question": "whats going on on campus tonight",
+  "topic": "event"
+ },
+ {
+  "id": "ec2-09",
+  "question": "any events this weekend that are free? looking for free food esp lol",
+  "topic": "event"
+ },
+ {
+  "id": "ec2-10",
+  "question": "are there any career fairs or resume workshops next week and where are they held",
+  "topic": "event"
+ },
+ {
+  "id": "ec2-11",
+  "question": "when is the next home basketball game and do students get in free?",
+  "topic": "event"
+ },
+ {
+  "id": "ec2-12",
+  "question": "who's hosting the events happening next friday",
+  "topic": "event"
+ },
+ {
+  "id": "ec2-13",
+  "question": "what time does the psychology club meet and who are the officers",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec2-14",
+  "question": "I like anime and community service, which club should I join?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec2-15",
+  "question": "how many people are going to the fall fest on saturday",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec3-01",
+  "question": "when is the next home game",
+  "topic": "event"
+ },
+ {
+  "id": "ec3-02",
+  "question": "Are there any athletics events this weekend and are they free to get into?",
+  "topic": "event"
+ },
+ {
+  "id": "ec3-03",
+  "question": "is there an intramural basketball league? how do i sign up",
+  "topic": "club"
+ },
+ {
+  "id": "ec3-04",
+  "question": "what club sports does ramapo have",
+  "topic": "club"
+ },
+ {
+  "id": "ec3-05",
+  "question": "any games tonight at the bsc?",
+  "topic": "event"
+ },
+ {
+  "id": "ec3-06",
+  "question": "where is the womens soccer game next friday and what time does it start",
+  "topic": "event"
+ },
+ {
+  "id": "ec3-07",
+  "question": "is there a club for ultimate frisbee",
+  "topic": "club"
+ },
+ {
+  "id": "ec3-08",
+  "question": "Im a transfer student and played club rugby at my old school. does ramapo have a rugby team and how do i find the page for it",
+  "topic": "club"
+ },
+ {
+  "id": "ec3-09",
+  "question": "what sports events are happening next week",
+  "topic": "event"
+ },
+ {
+  "id": "ec3-10",
+  "question": "do students get into home games for free or do I need to show my ID",
+  "topic": "event"
+ },
+ {
+  "id": "ec3-11",
+  "question": "whos hosting the volleyball tournament on campus this sat?",
+  "topic": "event"
+ },
+ {
+  "id": "ec3-12",
+  "question": "list of sports clubs + intramural stuff pls",
+  "topic": "club"
+ },
+ {
+  "id": "ec3-13",
+  "question": "what time does the club lacrosse team practice",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec3-14",
+  "question": "how many people are going to the football game on saturday",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec3-15",
+  "question": "I'm good at baseball and tennis, which club sport should I join?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec4-01",
+  "question": "when is the next career fair and is it open to all majors",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-02",
+  "question": "any career events or employer info sessions happening this week?",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-03",
+  "question": "Is there a resume workshop coming up? I commute so I need to know the day and time to plan around my classes",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-04",
+  "question": "guest speakers next week",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-05",
+  "question": "what arts performances are on campus this month, like theater or music concerts at the Sharp Theater or Berrie Center",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-06",
+  "question": "is there anything the School of Business is hosting this semester? lectures, networking, whatever",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-07",
+  "question": "Are there any events next friday and are they free for students?",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-08",
+  "question": "whats the Career Development office running this month, workshops or mock interviews?",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-09",
+  "question": "Is there a dance or music performance this weekend and where do I get tickets",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-10",
+  "question": "what events are the school of theoretical and applied science doing, like a seminar or speaker series",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-11",
+  "question": "is there a pre-law or business professional club for upperclassmen, and where can I see their page",
+  "topic": "club"
+ },
+ {
+  "id": "ec4-12",
+  "question": "how do I find a list of all the academic clubs/honor societies",
+  "topic": "club"
+ },
+ {
+  "id": "ec4-13",
+  "question": "how many people are going to the career fair this year",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec4-14",
+  "question": "im a junior commuter who works part time, which club should i join to help me get an internship",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec4-15",
+  "question": "will the keynote speaker at the next lecture be good and what time does the pre-event dinner start? not sure its on the calendar",
+  "topic": "out_of_scope"
+ }
+]

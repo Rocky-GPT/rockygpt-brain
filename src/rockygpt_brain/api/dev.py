@@ -1,0 +1,122 @@
+"""Development-only read routes for the dev UI: what the Brain is set to do, and what it publishes.
+
+Registered only when the Brain runs in development, and each route also needs the
+`x-rockygpt-diagnostics: 1` header the dev UI sends. In production the routes do not exist.
+They are left out of the OpenAPI schema, so the route count the dev UI shows stays the real surface.
+"""
+
+import asyncio
+from datetime import UTC, date, datetime
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query
+from fastapi.responses import JSONResponse
+
+from rockygpt_brain.failures import failure
+from rockygpt_brain.retrieval import (
+    DatasetChanged,
+    EvidenceUnavailable,
+    InvalidFactRequest,
+    UnknownEntity,
+)
+from rockygpt_brain.retrieval.campus_graph import CampusGraph, lookup_choice
+from rockygpt_brain.turn import new_id
+
+DIAGNOSTICS_HEADER = "x-rockygpt-diagnostics"
+NO_STORE = {"Cache-Control": "no-store"}
+
+
+def add_dev_routes(application: FastAPI) -> None:
+    def asked(diagnostics: Annotated[str | None, Header(alias=DIAGNOSTICS_HEADER)] = None) -> None:
+        if diagnostics != "1":
+            raise HTTPException(404)
+
+    router = APIRouter(prefix="/v1/dev", dependencies=[Depends(asked)], include_in_schema=False)
+
+    @router.get("/runtime")
+    async def runtime() -> JSONResponse:
+        engine = application.state.engine
+        if engine is None:
+            return failure(503, "model_not_configured", "RockyGPT isn't configured.", new_id())
+        return JSONResponse(engine.runtime(), headers=NO_STORE)
+
+    @router.get("/offices")
+    async def offices() -> JSONResponse:
+        engine = application.state.engine
+        if engine is None:
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id())
+        try:
+            async with asyncio.timeout(5):
+                listing = await asyncio.to_thread(engine.facts.list_offices, with_ids=True)
+        except (EvidenceUnavailable, TimeoutError):
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
+                           retryable=True)
+        return JSONResponse({
+            "datasetVersion": listing["dataset_version"], "identityHash": listing["identity_hash"],
+            "truncated": listing["truncated"],
+            "offices": [{"entityId": o["entity_id"], "name": o["name"], "aliases": o["aliases"]}
+                        for o in listing["offices"]],
+        }, headers=NO_STORE)
+
+    @router.get("/graph/node")
+    async def graph_node(
+        node_id: Annotated[str, Query(min_length=1, max_length=160)] = "ramapo",
+        dataset_version: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
+        identity_hash: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
+        as_of: datetime | None = None,
+        fields: Annotated[str | None, Query(min_length=1, max_length=200)] = None,
+        on: date | None = None,
+    ) -> JSONResponse:
+        engine = application.state.engine
+        if engine is None:
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id())
+        if (dataset_version is None) != (identity_hash is None):
+            return failure(422, "invalid_request", "Supply both publication pins or neither.",
+                           new_id())
+        if as_of is not None and as_of.utcoffset() is None:
+            return failure(422, "invalid_request", "The inspection time needs a timezone.",
+                           new_id())
+        graph = CampusGraph(engine.facts, dataset_version=dataset_version,
+                            identity_hash=identity_hash)
+        try:
+            async with asyncio.timeout(5):
+                node = await asyncio.to_thread(graph.inspect, node_id, as_of or datetime.now(UTC),
+                                               fields.split(",") if fields else None, on)
+        except DatasetChanged:
+            return failure(409, "dataset_changed",
+                           "This trace's publication is no longer active. Its saved path remains "
+                           "in the trace; open the current root to inspect newer data.", new_id())
+        except (InvalidFactRequest, UnknownEntity):
+            return failure(422, "invalid_request", "The node or requested fields are unavailable.",
+                           new_id())
+        except (EvidenceUnavailable, TimeoutError):
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
+                           retryable=True)
+        return JSONResponse(node, headers=NO_STORE)
+
+    @router.get("/offices/search")
+    async def search(q: Annotated[str, Query(min_length=1, max_length=200)]) -> JSONResponse:
+        engine = application.state.engine
+        if engine is None:
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id())
+        try:
+            async with asyncio.timeout(5):
+                found = await asyncio.to_thread(engine.facts.search_offices, q)
+        except InvalidFactRequest:
+            return failure(422, "invalid_request", "The search text isn't valid.", new_id())
+        except (EvidenceUnavailable, TimeoutError):
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
+                           retryable=True)
+        outcome, chosen = lookup_choice(found["candidates"], found["truncated"])
+        return JSONResponse({
+            "query": q, "datasetVersion": found["dataset_version"],
+            "identityHash": found["identity_hash"], "truncated": found["truncated"],
+            # What a lookup does with this result, decided by the engine's own function:
+            # answer for one office, ask which, or find none.
+            "outcome": outcome,
+            "chosen": [c["name"] for c in chosen] if outcome == "answers" else [],
+            "candidates": [{"entityId": c["entity_id"], "name": c["name"], "match": c["match"]}
+                           for c in found["candidates"]],
+        }, headers=NO_STORE)
+
+    application.include_router(router)

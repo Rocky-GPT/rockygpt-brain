@@ -1,0 +1,502 @@
+[
+ {
+  "id": "g1-01",
+  "question": "How do I retake a class I failed? Does the new grade replace the old one on my transcript?",
+  "topic": "policy"
+ },
+ {
+  "id": "g1-02",
+  "question": "what GPA do i need to stay in the nursing program and who do i talk to if im below it",
+  "topic": "contact"
+ },
+ {
+  "id": "g1-03",
+  "question": "I got an incomplete in my bio lab last semester. How long do I have to finish the work before it turns into an F?",
+  "topic": "policy"
+ },
+ {
+  "id": "g1-04",
+  "question": "how do i appeal a grade",
+  "topic": "procedure"
+ },
+ {
+  "id": "g1-05",
+  "question": "My professor accused me of plagiarism on a paper. What is the academic integrity process and what are my rights?",
+  "topic": "policy"
+ },
+ {
+  "id": "g1-06",
+  "question": "Am I on academic probation if my GPA dropped below 2.0? how do i find out what that means for financial aid",
+  "topic": "policy"
+ },
+ {
+  "id": "g1-07",
+  "question": "How do I apply to the teacher education program and what are the Praxis requirements",
+  "topic": "procedure"
+ },
+ {
+  "id": "g1-08",
+  "question": "what do i need to do to get ready for student teaching placement? who is the contact",
+  "topic": "contact"
+ },
+ {
+  "id": "g1-09",
+  "question": "can i withdraw from a class after the deadline if I'm failing it",
+  "topic": "policy"
+ },
+ {
+  "id": "g1-10",
+  "question": "how do i get a course repeat form",
+  "topic": "procedure"
+ },
+ {
+  "id": "g1-11",
+  "question": "I'm a social work major, how do I sign up for field placement/internship and who approves it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "g1-12",
+  "question": "What's the dean's list cutoff?",
+  "topic": "policy"
+ },
+ {
+  "id": "g1-13",
+  "question": "What is my current GPA and am I in good academic standing?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "g1-14",
+  "question": "how do I file an academic grievance against a professor who graded unfairly in chem",
+  "topic": "procedure"
+ },
+ {
+  "id": "g1-15",
+  "question": "I was dismissed for low GPA, how do I appeal academic dismissal and what should i include in the letter",
+  "topic": "procedure"
+ },
+ {
+  "id": "g1-16",
+  "question": "Is there a limit on how many times I can retake a course? I've taken orgo twice already",
+  "topic": "policy"
+ },
+ {
+  "id": "g1-17",
+  "question": "how do i request a medical withdrawal for the semester bc of a health issue",
+  "topic": "procedure"
+ },
+ {
+  "id": "g1-18",
+  "question": "does a W show up on my transcript and does it hurt my gpa",
+  "topic": "policy"
+ },
+ {
+  "id": "g1-19",
+  "question": "How can I take a leave of absence and come back later without reapplying? Who do I contact?",
+  "topic": "procedure"
+ },
+ {
+  "id": "g1-20",
+  "question": "Can I get extra time on exams for the nursing prereqs? where do I request testing accommodations",
+  "topic": "procedure"
+ },
+ {
+  "id": "g1-21",
+  "question": "How do I change my grade option to pass/fail, and are science major courses allowed to be pass/fail?",
+  "topic": "policy"
+ },
+ {
+  "id": "g1-22",
+  "question": "who is my academic advisor?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "g1-23",
+  "question": "What are the requirements to declare a biology major and how do I submit the form",
+  "topic": "procedure"
+ },
+ {
+  "id": "g1-24",
+  "question": "Will the professor let me make up the exam I missed? Should I just email them or go through some office?",
+  "topic": "policy"
+ },
+ {
+  "id": "g1-25",
+  "question": "how do i get a petition approved to transfer in a summer chem course from a community college so it counts toward my degree",
+  "topic": "procedure"
+ },
+ {
+  "id": "g2-01",
+  "question": "how do i set up a payment plan for my tuition bill? I work full time and can't pay it all at once",
+  "topic": "procedure"
+ },
+ {
+  "id": "g2-02",
+  "question": "Who do I contact about getting a refund if I dropped a class and was overpaid on my account?",
+  "topic": "contact"
+ },
+ {
+  "id": "g2-03",
+  "question": "whats the deadline to pay tuition before they drop me from classes",
+  "topic": "policy"
+ },
+ {
+  "id": "g2-04",
+  "question": "how do I apply for a parking permit as a commuter and how much is it",
+  "topic": "procedure"
+ },
+ {
+  "id": "g2-05",
+  "question": "I got a parking ticket because my permit wasnt showing. how do i appeal it",
+  "topic": "procedure"
+ },
+ {
+  "id": "g2-06",
+  "question": "can i get textbooks cheaper somewhere, does the library have copies i can borrow for a class",
+  "topic": "procedure"
+ },
+ {
+  "id": "g2-07",
+  "question": "how do I find scholarships for transfer students and who do i talk to about them?",
+  "topic": "contact"
+ },
+ {
+  "id": "g2-08",
+  "question": "is there a food pantry on campus for students who cant afford groceries",
+  "topic": "policy"
+ },
+ {
+  "id": "g2-09",
+  "question": "how do i switch to online or night classes since i work days",
+  "topic": "procedure"
+ },
+ {
+  "id": "g2-10",
+  "question": "What happens to my financial aid if I drop below full time to work more hours?",
+  "topic": "policy"
+ },
+ {
+  "id": "g2-11",
+  "question": "how do I get my financial aid refund check, direct deposit or mailed?",
+  "topic": "procedure"
+ },
+ {
+  "id": "g2-12",
+  "question": "is there a work study program and how do i apply for a job on campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "g2-13",
+  "question": "how do I withdraw from a class without it hurting my gpa, and will I still owe money for it",
+  "topic": "procedure"
+ },
+ {
+  "id": "g2-14",
+  "question": "what's the refund policy if i withdraw after the first week",
+  "topic": "policy"
+ },
+ {
+  "id": "g2-15",
+  "question": "I have a hold on my account for an unpaid balance, how do i get it removed so i can register",
+  "topic": "procedure"
+ },
+ {
+  "id": "g2-16",
+  "question": "who do i call about my fafsa being flagged for verification",
+  "topic": "contact"
+ },
+ {
+  "id": "g2-17",
+  "question": "can commuters buy a cheaper meal plan or just pay per meal",
+  "topic": "policy"
+ },
+ {
+  "id": "g2-18",
+  "question": "how do i get a shuttle or park near my 8am class if lots are full",
+  "topic": "procedure"
+ },
+ {
+  "id": "g2-19",
+  "question": "emergency grant or fund for students who cant pay rent or car repair?? how to ask",
+  "topic": "procedure"
+ },
+ {
+  "id": "g2-20",
+  "question": "how do I request a letter for my employer showing I'm enrolled, they pay part of my tuition",
+  "topic": "procedure"
+ },
+ {
+  "id": "g2-21",
+  "question": "where can i print for free on campus or do they charge per page",
+  "topic": "policy"
+ },
+ {
+  "id": "g2-22",
+  "question": "how do i get a tax form 1098-T for my tuition",
+  "topic": "procedure"
+ },
+ {
+  "id": "g2-23",
+  "question": "How much will I owe next semester after my financial aid?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "g2-24",
+  "question": "should i take out a loan or just work more hours and take fewer classes",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "g2-25",
+  "question": "is my scholarship getting renewed, i dont see anything on my account yet",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "g3-01",
+  "question": "how do I reserve a room on campus for my club's weekly meeting?",
+  "topic": "procedure"
+ },
+ {
+  "id": "g3-02",
+  "question": "Our club wants to host a movie night in the campus center. What's the process for getting the event approved, and who do I email about it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "g3-03",
+  "question": "how does my club get funding from SGA",
+  "topic": "procedure"
+ },
+ {
+  "id": "g3-04",
+  "question": "im the treasurer of a club, how do we get reimbursed for stuff we bought for an event",
+  "topic": "procedure"
+ },
+ {
+  "id": "g3-05",
+  "question": "Can non-students come to our club's event on campus? Do guests need to be registered?",
+  "topic": "policy"
+ },
+ {
+  "id": "g3-06",
+  "question": "how do i start a new club",
+  "topic": "procedure"
+ },
+ {
+  "id": "g3-07",
+  "question": "What are the rules for serving food at a student org event? Do we have to use Sodexo catering?",
+  "topic": "policy"
+ },
+ {
+  "id": "g3-08",
+  "question": "how do I get a table at the activities fair for my org",
+  "topic": "procedure"
+ },
+ {
+  "id": "g3-09",
+  "question": "can i put up flyers around campus for our event? where and who approves them",
+  "topic": "policy"
+ },
+ {
+  "id": "g3-10",
+  "question": "What's the process to book the gym or a field for an intramural or club sports practice?",
+  "topic": "procedure"
+ },
+ {
+  "id": "g3-11",
+  "question": "how do i sign up for intramurals",
+  "topic": "procedure"
+ },
+ {
+  "id": "g3-12",
+  "question": "Do I need to do anything to use the fitness center as a student? like a waiver or ID",
+  "topic": "policy"
+ },
+ {
+  "id": "g3-13",
+  "question": "where do I find volunteer opportunities / community service hours and who tracks them?",
+  "topic": "contact"
+ },
+ {
+  "id": "g3-14",
+  "question": "how do i apply for a work study job on campus",
+  "topic": "procedure"
+ },
+ {
+  "id": "g3-15",
+  "question": "Where do I look for on-campus jobs that aren't work-study, and how do I get hired and paid (what paperwork do I fill out)?",
+  "topic": "procedure"
+ },
+ {
+  "id": "g3-16",
+  "question": "club needs to travel to a conference off campus, what forms do we need and do we need a van reservation",
+  "topic": "procedure"
+ },
+ {
+  "id": "g3-17",
+  "question": "are we allowed to fundraise on campus? bake sale policy",
+  "topic": "policy"
+ },
+ {
+  "id": "g3-18",
+  "question": "how do I change the e-board / advisor for my club in the system",
+  "topic": "procedure"
+ },
+ {
+  "id": "g3-19",
+  "question": "Who do I contact about getting AV equipment or a mic set up for an event in the auditorium?",
+  "topic": "contact"
+ },
+ {
+  "id": "g3-20",
+  "question": "how to get a student leader position like RA or orientation leader, when do apps open",
+  "topic": "procedure"
+ },
+ {
+  "id": "g3-21",
+  "question": "What's the policy on alcohol at student org events?",
+  "topic": "policy"
+ },
+ {
+  "id": "g3-22",
+  "question": "how much money does my club have left in its account right now?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "g3-23",
+  "question": "is the rec center open right now and how crowded is it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "g3-24",
+  "question": "What's the best club to join to make friends as a transfer student? should I join the soccer club or the film club?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "g3-25",
+  "question": "we had a reservation for a room tmrw but someone else is in it, how do i report this and get it fixed",
+  "topic": "contact"
+ },
+ {
+  "id": "g4-01",
+  "question": "i forgot my ramapo password and the reset link isnt working, how do i get back into my account",
+  "topic": "procedure"
+ },
+ {
+  "id": "g4-02",
+  "question": "How do I set up two-factor authentication on my student email, and who do I call if I get locked out of it?",
+  "topic": "contact"
+ },
+ {
+  "id": "g4-03",
+  "question": "where can i print stuff on campus and how much does it cost per page",
+  "topic": "procedure"
+ },
+ {
+  "id": "g4-04",
+  "question": "my printing balance says 0 but I never used it. how do I get more print credits",
+  "topic": "procedure"
+ },
+ {
+  "id": "g4-05",
+  "question": "how do i get a form signed by my advisor if they never answer email",
+  "topic": "procedure"
+ },
+ {
+  "id": "g4-06",
+  "question": "I need proof of enrollment for my insurance company. How do I get an enrollment verification letter?",
+  "topic": "procedure"
+ },
+ {
+  "id": "g4-07",
+  "question": "transcript request??? how long does it take",
+  "topic": "procedure"
+ },
+ {
+  "id": "g4-08",
+  "question": "I got married and want my name changed in the school's records and on my email. What forms do I need and which office handles it?",
+  "topic": "contact"
+ },
+ {
+  "id": "g4-09",
+  "question": "how do i update my home address w/ the registrar",
+  "topic": "procedure"
+ },
+ {
+  "id": "g4-10",
+  "question": "can i use a different preferred name on my class rosters and ID card",
+  "topic": "policy"
+ },
+ {
+  "id": "g4-11",
+  "question": "I left my laptop in the library yesterday. Where do I check if somebody turned it in?",
+  "topic": "procedure"
+ },
+ {
+  "id": "g4-12",
+  "question": "lost my wallet with my student id in it, whats the process for getting a new id and is there a fee",
+  "topic": "procedure"
+ },
+ {
+  "id": "g4-13",
+  "question": "My professor keeps cancelling class and changing the syllabus mid-semester. Who do I complain to?",
+  "topic": "contact"
+ },
+ {
+  "id": "g4-14",
+  "question": "how do i file a formal complaint about a staff member in an office who was rude and refused to help me",
+  "topic": "procedure"
+ },
+ {
+  "id": "g4-15",
+  "question": "what is the policy on grade appeals? i think my final grade was calculated wrong",
+  "topic": "policy"
+ },
+ {
+  "id": "g4-16",
+  "question": "How do I get a form notarized on campus?",
+  "topic": "procedure"
+ },
+ {
+  "id": "g4-17",
+  "question": "wifi wont let me connect my xbox or roku in the dorm, how do i register a device",
+  "topic": "procedure"
+ },
+ {
+  "id": "g4-18",
+  "question": "who do i contact about canvas not showing one of my classes",
+  "topic": "contact"
+ },
+ {
+  "id": "g4-19",
+  "question": "Can someone else pick up my diploma or transcript for me if I can't come in person? what do they need to bring",
+  "topic": "policy"
+ },
+ {
+  "id": "g4-20",
+  "question": "how do i request a late withdrawal after the deadline passed because of a family emergency",
+  "topic": "procedure"
+ },
+ {
+  "id": "g4-21",
+  "question": "i need to change my emergency contact and my phone number in the system, where do i do that",
+  "topic": "procedure"
+ },
+ {
+  "id": "g4-22",
+  "question": "Why is there a hold on my account and how much do I owe? I can't register for classes",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "g4-23",
+  "question": "what's my GPA right now and am I on track to graduate in may",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "g4-24",
+  "question": "is the registrar's office open right now? need to drop off a form asap",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "g4-25",
+  "question": "Where do I report a harassment issue with a TA, and is the report confidential?",
+  "topic": "policy"
+ }
+]

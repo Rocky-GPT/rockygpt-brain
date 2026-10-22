@@ -1,0 +1,457 @@
+[
+ {
+  "id": "o1-01",
+  "question": "how do i drop a class after the add/drop period is over",
+  "topic": "procedure"
+ },
+ {
+  "id": "o1-02",
+  "question": "I'm a commuter and got a parking ticket today. How do I appeal it and who do I talk to?",
+  "topic": "procedure"
+ },
+ {
+  "id": "o1-03",
+  "question": "whats the deadline to withdraw from a course without it hurting my gpa",
+  "topic": "policy"
+ },
+ {
+  "id": "o1-04",
+  "question": "lost my student id, how do i get a new one and is there a fee",
+  "topic": "procedure"
+ },
+ {
+  "id": "o1-05",
+  "question": "can my friend from home stay overnight in my dorm room for the weekend?",
+  "topic": "policy"
+ },
+ {
+  "id": "o1-06",
+  "question": "How do I order an official transcript to send to another school? I'm transferring next semester and need it ASAP",
+  "topic": "procedure"
+ },
+ {
+  "id": "o1-07",
+  "question": "how to change my major",
+  "topic": "procedure"
+ },
+ {
+  "id": "o1-08",
+  "question": "who do i contact about my financial aid package being wrong",
+  "topic": "contact"
+ },
+ {
+  "id": "o1-09",
+  "question": "do commuter students need a parking permit to park on campus, and how do I buy one",
+  "topic": "policy"
+ },
+ {
+  "id": "o1-10",
+  "question": "how do I reserve a study room in the library for a group project",
+  "topic": "procedure"
+ },
+ {
+  "id": "o1-11",
+  "question": "i need to request a room change bc my roommate is impossible. what's the process?",
+  "topic": "procedure"
+ },
+ {
+  "id": "o1-12",
+  "question": "What is the policy on late tuition payment? I'm gonna be a week late and don't want to get dropped from my classes",
+  "topic": "policy"
+ },
+ {
+  "id": "o1-13",
+  "question": "how do i get my fafsa info to the school",
+  "topic": "procedure"
+ },
+ {
+  "id": "o1-14",
+  "question": "I have ADHD and want extra time on exams. How do I register for accommodations and who is the person to email?",
+  "topic": "procedure"
+ },
+ {
+  "id": "o1-15",
+  "question": "what do i do if i left my laptop in a classroom",
+  "topic": "procedure"
+ },
+ {
+  "id": "o1-16",
+  "question": "can i bring a car freshman year if i live on campus",
+  "topic": "policy"
+ },
+ {
+  "id": "o1-17",
+  "question": "how do I apply for graduation? I'm a senior and don't know when the form is due",
+  "topic": "procedure"
+ },
+ {
+  "id": "o1-18",
+  "question": "how do i get reimbursed for club event supplies i bought out of pocket",
+  "topic": "procedure"
+ },
+ {
+  "id": "o1-19",
+  "question": "Is there a pet policy for the residence halls? I have an emotional support cat",
+  "topic": "policy"
+ },
+ {
+  "id": "o1-20",
+  "question": "how do i pay my bill online",
+  "topic": "procedure"
+ },
+ {
+  "id": "o1-22",
+  "question": "Can you tell me what my current balance is and if I have any holds on my account?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "o1-23",
+  "question": "is it better to take Calc 1 with Professor Smith or someone else",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "o1-24",
+  "question": "is the shuttle running right now? my 8am class starts in 20 min",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "o1-25",
+  "question": "how do i take a leave of absence for a semster and will i lose my scholarship",
+  "topic": "procedure"
+ },
+ {
+  "id": "o2-01",
+  "question": "how do i set up a payment plan for my tuition",
+  "topic": "procedure"
+ },
+ {
+  "id": "o2-02",
+  "question": "I got a bill from the bursar's office but I didn't think I owed anything. who do I talk to and how do I dispute a charge on my student account?",
+  "topic": "contact"
+ },
+ {
+  "id": "o2-03",
+  "question": "when is tuition due",
+  "topic": "policy"
+ },
+ {
+  "id": "o2-04",
+  "question": "how do I get a refund if I dropped a class",
+  "topic": "procedure"
+ },
+ {
+  "id": "o2-05",
+  "question": "whats the refund policy if i withdraw from all my classes mid semester",
+  "topic": "policy"
+ },
+ {
+  "id": "o2-06",
+  "question": "how do I fill out the FAFSA and what school code do I put",
+  "topic": "procedure"
+ },
+ {
+  "id": "o2-07",
+  "question": "financial aid says my file is incomplete?? what do i do",
+  "topic": "procedure"
+ },
+ {
+  "id": "o2-08",
+  "question": "Can I see how much money I still owe for this semester?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "o2-09",
+  "question": "how do i appeal my financial aid package if my family's income dropped this year",
+  "topic": "procedure"
+ },
+ {
+  "id": "o2-10",
+  "question": "do i lose my scholarship if my gpa goes below 3.0",
+  "topic": "policy"
+ },
+ {
+  "id": "o2-11",
+  "question": "where do I apply for scholarships at ramapo and who can I email about them",
+  "topic": "contact"
+ },
+ {
+  "id": "o2-12",
+  "question": "how does work study work, how do i find a job and get paid",
+  "topic": "procedure"
+ },
+ {
+  "id": "o2-13",
+  "question": "my work study paycheck hasn't come in, who do i contact about payroll",
+  "topic": "contact"
+ },
+ {
+  "id": "o2-15",
+  "question": "I have a hold on my account for unpaid fines, how do I pay it and get the hold lifted so I can register",
+  "topic": "procedure"
+ },
+ {
+  "id": "o2-16",
+  "question": "library fine how to pay",
+  "topic": "procedure"
+ },
+ {
+  "id": "o2-17",
+  "question": "How do I appeal a parking fine that was added to my bill?",
+  "topic": "procedure"
+ },
+ {
+  "id": "o2-18",
+  "question": "can my parents pay my bill online without my login? is there a proxy or authorized payer thing",
+  "topic": "policy"
+ },
+ {
+  "id": "o2-19",
+  "question": "will I get a refund check if my financial aid is more than what I owe, and when does that usually happen",
+  "topic": "policy"
+ },
+ {
+  "id": "o2-20",
+  "question": "Should I take out a private loan or just work more hours to pay for next semester? what would you do",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "o2-21",
+  "question": "what happens if i miss the tuition payment deadline, is there a late fee",
+  "topic": "policy"
+ },
+ {
+  "id": "o2-22",
+  "question": "How do I get a 1098-T tax form for tuition payments?",
+  "topic": "procedure"
+ },
+ {
+  "id": "o2-23",
+  "question": "whats the phone number for financial aid and are they open walk in",
+  "topic": "contact"
+ },
+ {
+  "id": "o2-24",
+  "question": "im an independent student, how do i prove it to financial aid, my parents wont give me their tax info",
+  "topic": "procedure"
+ },
+ {
+  "id": "o2-25",
+  "question": "is the tuition going up next year and how much will it be per credit?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "o3-02",
+  "question": "What's the process for withdrawing from a class after the drop deadline, and who do I talk to about it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "o3-04",
+  "question": "im on academic probation, what does that mean and what do i have to do to get off of it",
+  "topic": "policy"
+ },
+ {
+  "id": "o3-05",
+  "question": "Can I transfer credits from community college? how do I get them evaluated",
+  "topic": "procedure"
+ },
+ {
+  "id": "o3-07",
+  "question": "how do i add a minor? is there a form or do i just email someone",
+  "topic": "procedure"
+ },
+ {
+  "id": "o3-09",
+  "question": "How do I apply for graduation and what's the deadline to do it?",
+  "topic": "procedure"
+ },
+ {
+  "id": "o3-10",
+  "question": "whats the policy on repeating a course to replace a bad grade",
+  "topic": "policy"
+ },
+ {
+  "id": "o3-12",
+  "question": "i missed registration because of a hold on my account, how do i get it removed",
+  "topic": "procedure"
+ },
+ {
+  "id": "o3-13",
+  "question": "can i take a class at another college over the summer and have it count here? what do i need to do first",
+  "topic": "policy"
+ },
+ {
+  "id": "o3-14",
+  "question": "How do I request an incomplete grade from a professor, and is there a time limit to finish the work?",
+  "topic": "policy"
+ },
+ {
+  "id": "o3-15",
+  "question": "what is the dean's list gpa cutoff",
+  "topic": "policy"
+ },
+ {
+  "id": "o3-16",
+  "question": "how do i do a leave of absence/ take a semester off",
+  "topic": "procedure"
+ },
+ {
+  "id": "o3-17",
+  "question": "can i double major",
+  "topic": "policy"
+ },
+ {
+  "id": "o3-18",
+  "question": "who do i contact about a course waiver or substitution for a gen ed requirement",
+  "topic": "contact"
+ },
+ {
+  "id": "o3-19",
+  "question": "how do i get a degree audit to see what requirements I have left",
+  "topic": "procedure"
+ },
+ {
+  "id": "o3-20",
+  "question": "do AP credits from high school count toward my degree and how do i send in my scores",
+  "topic": "policy"
+ },
+ {
+  "id": "o3-21",
+  "question": "How do I get a transcript sent to grad school?",
+  "topic": "procedure"
+ },
+ {
+  "id": "o3-22",
+  "question": "what is my GPA right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "o3-23",
+  "question": "is Professor Smith's section of calc 1 easier than the other one, which should I take",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "o3-24",
+  "question": "Is there still room in the 10am intro to psych class today? I want to add it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "o3-25",
+  "question": "i failed a class and now im being dismissed?? what are my options for appealing academic dismissal and who handles that",
+  "topic": "policy"
+ },
+ {
+  "id": "o4-01",
+  "question": "how do i apply for housing for next year",
+  "topic": "procedure"
+ },
+ {
+  "id": "o4-02",
+  "question": "Can my boyfriend stay overnight in my dorm room? What's the guest policy and do I have to sign him in?",
+  "topic": "policy"
+ },
+ {
+  "id": "o4-03",
+  "question": "what meal plan do i need as a freshman living on campus",
+  "topic": "policy"
+ },
+ {
+  "id": "o4-05",
+  "question": "my son has a food allergy, how do we set up dining accommodations before move-in?",
+  "topic": "procedure"
+ },
+ {
+  "id": "o4-06",
+  "question": "how to make a counseling appt",
+  "topic": "procedure"
+ },
+ {
+  "id": "o4-07",
+  "question": "Is counseling free for students and is it confidential? Also who do I call if it's after hours and I'm having a really rough night?",
+  "topic": "contact"
+ },
+ {
+  "id": "o4-08",
+  "question": "do i need to submit my immunization records and where do i send them",
+  "topic": "procedure"
+ },
+ {
+  "id": "o4-09",
+  "question": "how do i get a parking pass for my car as a commuter",
+  "topic": "procedure"
+ },
+ {
+  "id": "o4-10",
+  "question": "got a parking ticket on campus yesterday, how do i appeal it and who do i talk to",
+  "topic": "contact"
+ },
+ {
+  "id": "o4-11",
+  "question": "can freshmen bring cars to campus?",
+  "topic": "policy"
+ },
+ {
+  "id": "o4-12",
+  "question": "I forgot my password for my ramapo email, how do I reset it",
+  "topic": "procedure"
+ },
+ {
+  "id": "o4-13",
+  "question": "how do I connect my phone and xbox to the dorm wifi",
+  "topic": "procedure"
+ },
+ {
+  "id": "o4-14",
+  "question": "who do I contact if my laptop is broken and I need IT help",
+  "topic": "contact"
+ },
+ {
+  "id": "o4-15",
+  "question": "how do I request a ride from campus safety late at night / is there a safety escort",
+  "topic": "procedure"
+ },
+ {
+  "id": "o4-16",
+  "question": "someone stole my bike from outside the dorm, how do I file a report",
+  "topic": "procedure"
+ },
+ {
+  "id": "o4-17",
+  "question": "I lost my student ID card, how do I get a new one and does it cost anything",
+  "topic": "procedure"
+ },
+ {
+  "id": "o4-18",
+  "question": "how do i borrow a book or laptop from the library and how long can i keep it",
+  "topic": "policy"
+ },
+ {
+  "id": "o4-19",
+  "question": "can I reserve a study room in the library for my group?",
+  "topic": "procedure"
+ },
+ {
+  "id": "o4-20",
+  "question": "how do I start a new club on campus? my friends and i want to do an anime club",
+  "topic": "procedure"
+ },
+ {
+  "id": "o4-21",
+  "question": "how do i join clubs and who do i email about getting involved",
+  "topic": "contact"
+ },
+ {
+  "id": "o4-22",
+  "question": "Are pets or emotional support animals allowed in the residence halls, and how do I request one?",
+  "topic": "policy"
+ },
+ {
+  "id": "o4-23",
+  "question": "how much is my meal plan balance right now",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "o4-24",
+  "question": "which dorm is the best for sophomores? i cant decide",
+  "topic": "out_of_scope"
+ }
+]
