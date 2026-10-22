@@ -1216,6 +1216,8 @@ class ChatEngine:
         # "written": the same, and a writer with only the writer view says them; a reply the
         # verifier cannot hold to the view is replaced by the code-written text.
         self.output = output
+        # Every person's directory entry for list questions, read once per release.
+        self._directory_cache: tuple[str, list[dict[str, Any]]] | None = None
 
     def _json(self, result: ChatResult, parts: list[dict[str, Any]], turn: Turn) -> ChatResult:
         """In JSON output the written answer is dropped and the facts go out as they are: the full
@@ -1683,6 +1685,40 @@ class ChatEngine:
                 sources.append({"n": item["n"], "url": value.get("url"), "title": value["name"]})
         return calendar, clubs, sources
 
+    def _school_offices(self, schools: Sequence[Any]) -> list[str]:
+        """The office identities of the schools a reply's people or programs belong to ("School
+        of Science, Nursing, and Health" is its Office), so a student is sent to the right
+        school's office rather than to whatever office a page happens to mention."""
+        wanted = {re.sub(r"\s*\([^)]*\)\s*$", "", str(s)).strip().casefold()
+                  for s in schools if s}
+        if not wanted:
+            return []
+        return [o["id"] for o in self.facts.identities(("office",))
+                if re.sub(r"\s+office$", "", str(o["name"]).strip(), flags=re.I).casefold()
+                in wanted]
+
+    def _people_listed(self, message: str, numbered_from: int,
+                       ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Everyone in the field a list question names, read through the shared reader once
+        per release (people.listed)."""
+        version, identity_hash = self.facts.active_release()
+        if self._directory_cache is None or self._directory_cache[0] != version:
+            ids = [e["id"] for e in self.facts.identities(("person",))]
+            entries = []
+            for start in range(0, len(ids), 6):
+                for facts in self.facts.get_person_facts(ids[start:start + 6], version,
+                                                         identity_hash=identity_hash):
+                    entries.append({"id": facts["entity"]["id"],
+                                    **people_module.person_evidence(facts, 0)})
+            self._directory_cache = (version, entries)
+        found = people_module.listed(self._directory_cache[1], message)
+        items = [{"n": numbered_from + k + 1, **{x: y for x, y in entry.items() if x != "id"},
+                  **({"listed_first_of": len(found)}
+                     if k == 0 and len(found) > people_module.MAX_LISTED else {})}
+                 for k, entry in enumerate(found[:people_module.MAX_LISTED])]
+        return items, [{"n": i["n"], "url": i.get("profile_url"), "title": i.get("name")}
+                       for i in items]
+
     def _people_named(self, message: str) -> list[dict[str, Any]]:
         """The people a message names by their directory names (people.py)."""
         return people_module.find_people(self.facts.identities(("person",)), message)
@@ -1695,9 +1731,11 @@ class ChatEngine:
         version, identity_hash = self.facts.active_release()
         found: list[dict[str, Any]] = []
         sources: list[dict[str, Any]] = []
+        near = {p["id"] for p in people if p.get("near_spelling")}
         for facts in self.facts.get_person_facts([p["id"] for p in people], version,
                                                  identity_hash=identity_hash):
-            item = people_module.person_evidence(facts, numbered_from + len(sources) + 1)
+            item = people_module.person_evidence(facts, numbered_from + len(sources) + 1,
+                                                 facts["entity"]["id"] in near)
             found.append(item)
             sources.append({"n": item["n"], "url": item.get("profile_url"),
                             "title": item.get("name")})
@@ -1795,6 +1833,10 @@ class ChatEngine:
                     # an anime club") are found by their cards' meaning.
                     # People the question asks about but names by no directory name ("who
                     # researches machine learning") are found by their cards' meaning.
+                    if people_asked and not people and people_module.asks_people_list(latest):
+                        people, found_people = await asyncio.to_thread(
+                            self._people_listed, latest, len(sources))
+                        sources = [*sources, *found_people]
                     if (people_asked and not people and index.academic
                             and people_module.asks_people_topic(latest)):
                         names = {e["id"]: str(e["name"])
@@ -1808,6 +1850,10 @@ class ChatEngine:
                         clubs, club_sources = await asyncio.to_thread(
                             self._clubs_by_meaning, index, vectors[0], len(sources))
                         sources = [*sources, *club_sources]
+                # The school offices of the people and programs given come first among the
+                # offices read, so "who do I talk to" reaches the right school.
+                named = list(dict.fromkeys([*self._school_offices(
+                    [p.get("school") for p in [*people, *academic]]), *named]))
                 chosen = None
                 if searchable and index is not None and index.labels:
                     pool_scores, pool = one_call.chosen_units(
