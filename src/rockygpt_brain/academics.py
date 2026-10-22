@@ -160,3 +160,59 @@ def render_requirements(groups: Sequence[dict[str, Any]]) -> str:
             if isinstance(course, dict):
                 lines.append(f"  - {_course(course)}")
     return "\n".join(lines)
+
+
+# A course code as people type it: "CMPS 147", "cmps147", "CMPS-147", "MATH 100T", "PATHCA 1".
+_TYPED_CODE = re.compile(r"\b([A-Za-z]{2,6})\s*-?\s*(\d{1,3}[A-Za-z]?)\b")
+MAX_COURSES = 6
+
+
+def course_codes(message: str, known: set[str]) -> list[str]:
+    """The catalog course codes a message names, in its order: a typed code counts only when it
+    is exactly a published catalog code, so "ASB 312" (a room) and "room 147" are not courses."""
+    found: list[str] = []
+    for subject, number in _TYPED_CODE.findall(message):
+        code = f"{subject.upper()} {number.upper()}"
+        if code in known and code not in found:
+            found.append(code)
+    return found[:MAX_COURSES]
+
+
+def render_requisites(requisites: Sequence[dict[str, Any]]) -> str:
+    """A course's published prerequisites and corequisites as lines, each section with its rule,
+    the courses (joined by the item's own and/or) and the catalog's notes, as published."""
+    lines: list[str] = []
+    for section in requisites:
+        if not isinstance(section, dict):
+            continue
+        lines.append(str(section.get("section") or "Requisite"))
+        found = section.get("rule")
+        rule: dict[str, Any] = found if isinstance(found, dict) else {}
+        head = str(rule.get("name") or "").strip()
+        condition = {"completedAllOf": "all of", "completedAnyOf": "one of"}.get(
+            str(rule.get("condition") or ""), "")
+        grade = rule.get("minimumGrade") or rule.get("minimum_grade")
+        if head or condition:
+            lines.append(f"  {head} {condition}".rstrip() + ":")
+        if grade:
+            lines.append(f"  (minimum grade: {grade})")
+        for item in rule.get("items") or []:
+            codes = [c for c in item.get("codes") or [] if isinstance(c, dict)]
+            if codes:
+                joiner = " or " if item.get("logic") == "or" and len(codes) > 1 else " and "
+                lines.append(f"  - {joiner.join(_course(c) for c in codes)}")
+        if rule.get("note"):
+            lines.append(f"  Note: {' '.join(str(rule['note']).split())}")
+    return "\n".join(lines)
+
+
+def course_evidence(facts: dict[str, Any], n: int) -> dict[str, Any]:
+    """What the reply is given for one course, from its catalog record."""
+    course = facts["properties"][0]["values"][0]["value"]
+    requisites = course.get("requisites") or []
+    return {"n": n, "course": f"{course.get('code')} {course.get('name') or ''}".strip(),
+            "credits": course.get("credits"), "school": course.get("school"),
+            "description": course.get("description") or None,
+            "attributes": course.get("attributes") or [],
+            "prerequisites": render_requisites(requisites) if requisites else None,
+            "catalog_url": course.get("catalog_url")}

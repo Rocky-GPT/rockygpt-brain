@@ -1580,15 +1580,22 @@ class ChatEngine:
         trace["procedureSearch"] = "meaning"
         return scores
 
-    def _programs_named(self, message: str) -> tuple[list[dict[str, Any]], list[str]]:
-        """The programs a message names (academics.py) and their other published levels."""
-        programs = self.facts.identities(("program",))
+    def _programs_named(self, message: str,
+                        ) -> tuple[list[dict[str, Any]], list[str], list[dict[str, Any]]]:
+        """The programs a message names (academics.py), their other published levels, and the
+        catalog courses it names by code."""
+        named = self.facts.identities(("program", "course"))
+        programs = [e for e in named if e.get("kind") == "program"]
+        codes = {str(e["name"]): e for e in named if e.get("kind") == "course"}
         found = academics.find_programs(programs, message)
-        return found, academics.also_published(programs, found)
+        courses = [codes[code] for code in academics.course_codes(message, set(codes))]
+        return found, academics.also_published(programs, found), courses
 
     def _read_programs(self, programs: Sequence[dict[str, Any]], others: Sequence[str],
+                       courses: Sequence[dict[str, Any]] = (),
                        ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
-        """Each named program's facts through the shared reader, as numbered evidence."""
+        """Each named program's and course's facts through the shared reader, as numbered
+        evidence."""
         version, identity_hash = self.facts.active_release()
         evidence: list[dict[str, Any]] = []
         sources: list[dict[str, Any]] = []
@@ -1599,11 +1606,19 @@ class ChatEngine:
             evidence.append(item)
             sources.append({"n": item["n"], "url": item.get("catalog_url"),
                             "title": item.get("program")})
+        if courses:
+            for facts in self.facts.get_course_facts([c["id"] for c in courses], version,
+                                                     identity_hash=identity_hash):
+                item = academics.course_evidence(facts, len(sources) + 1)
+                evidence.append(item)
+                sources.append({"n": item["n"], "url": item.get("catalog_url"),
+                                "title": item.get("course")})
         return evidence, sources, version
 
     async def _one_call(self, turn: Turn, context: Context, budget: TurnBudget,
                         trace: dict[str, Any],
-                        programs: tuple[list[dict[str, Any]], list[str]] | None = None,
+                        programs: tuple[list[dict[str, Any]], list[str],
+                                        list[dict[str, Any]]] | None = None,
                         ) -> ChatResult | None:
         """One model call from code-found evidence (one_call.py); None leaves the question to
         the four-call loop: no meaning index and no program named, a failed call, or a reply
@@ -1726,7 +1741,8 @@ class ChatEngine:
                      committedNusd=budget.committed_nusd, writer={"used": True},
                      oneCall={"parts": len(vectors), "sections": len(sources),
                               "offices": [o["office"] for o in offices],
-                              **({"programs": [p["program"] for p in academic]}
+                              **({"academics": [p.get("program") or p.get("course")
+                                                 for p in academic]}
                                  if academic else {})})
         return answered(turn, text, "answered", citations, dataset_version)
 
@@ -2132,8 +2148,8 @@ class ChatEngine:
         # requirements, read through the program's identity (academics.py).
         named_programs = (await asyncio.to_thread(self._programs_named, context.latest_message)
                           if self.output == "written" and floor_situation is None
-                          else ([], []))
-        if named_programs[0]:
+                          else ([], [], []))
+        if named_programs[0] or named_programs[2]:
             done = await self._one_call(turn, context, budget, trace, programs=named_programs)
             if done is not None:
                 return done

@@ -43,7 +43,7 @@ from rockygpt_brain.retrieval.meaning import MEANING_SUFFIX, VECTORS_SUFFIX, Mea
 LOG = logging.getLogger(__name__)
 
 GRAPH_FORMAT = "2"
-BUILT_KINDS = ("office", "venue", "route", "topic", "program")
+BUILT_KINDS = ("office", "venue", "route", "topic", "program", "course")
 CONTACTS = "contacts"
 SCHEDULES = "campus_hours"
 RETRY_SECONDS = 60.0  # After a failed build or read, answer from the source for this long.
