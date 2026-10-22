@@ -79,6 +79,21 @@ and [evaluation notes](evals/README.md). Earlier modules, runners, and reports r
 as [historical evidence](docs/historical/README.md); they do not describe the active
 answering path.
 
+## Production releases
+
+Promote `dev` to `main` through a reviewed pull request. The `Brain checks`
+workflow tests the exact merge commit after a release PR is merged and records
+`Release checks` on that commit. The test job has read-only repository access;
+only the separate result-reporting job can write checks.
+
+The existing Render service follows `main` with **After CI Checks Pass** enabled.
+Its GitHub app must have access to `Rocky-GPT/rockygpt-brain`. A completed release
+requires a Render automatic-deploy event for the merged SHA, a live deployment
+of that SHA, and successful readiness and student-app checks. A passing GitHub
+check or a healthy older deployment alone does not establish that the release
+is live. If no automatic-deploy event appears, inspect the GitHub connection
+and delivery path before treating the release as complete.
+
 ## Release graph (optional, off by default)
 
 Postgres is where the campus data is published. A release can also be published as a read-only
