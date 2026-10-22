@@ -269,31 +269,53 @@ def course_codes(message: str, known: set[str]) -> list[str]:
     return found[:MAX_COURSES]
 
 
+_CONDITIONS = {"completedAllOf": "complete all of", "allOf": "all of",
+               "completedAnyOf": "complete one of", "anyOf": "any of",
+               "enrolledIn": "be enrolled in", "minimumGrade": "complete"}
+
+
+def _requisite_rule(rule: dict[str, Any], depth: int) -> list[str]:
+    """One published requisite rule and its sub-rules as lines: its name and condition, a
+    minimum grade, its own text (a placement test's scores), its courses joined by each item's
+    and/or, its note, then each sub-rule indented under it."""
+    pad = "  " * depth
+    condition = str(rule.get("condition") or "")
+    how = _CONDITIONS.get(condition, "")
+    if condition == "completedAtLeastXOf" and isinstance(rule.get("count"), int):
+        how = f"complete at least {rule['count']} of"
+    head = " ".join(part for part in (str(rule.get("name") or "").strip(), how) if part)
+    lines = [f"{pad}{head}:"] if head else []
+    constraints = rule.get("constraints") if isinstance(rule.get("constraints"), dict) else {}
+    grade = (constraints or {}).get("grade") or rule.get("minimumGrade")
+    if grade:
+        lines.append(f"{pad}  (minimum grade: {grade})")
+    if rule.get("text"):
+        lines.append(f"{pad}  {' '.join(str(rule['text']).split())}")
+    for item in rule.get("items") or []:
+        codes = [c for c in item.get("codes") or [] if isinstance(c, dict)]
+        if codes:
+            joiner = " or " if item.get("logic") == "or" and len(codes) > 1 else " and "
+            lines.append(f"{pad}  - {joiner.join(_course(c) for c in codes)}")
+    if rule.get("note"):
+        lines += [f"{pad}  {line.strip()}" for line in str(rule["note"]).splitlines()
+                  if line.strip()]
+    for sub in rule.get("subRules") or rule.get("sub_rules") or []:
+        if isinstance(sub, dict):
+            lines += _requisite_rule(sub, depth + 1)
+    return lines
+
+
 def render_requisites(requisites: Sequence[dict[str, Any]]) -> str:
-    """A course's published prerequisites and corequisites as lines, each section with its rule,
-    the courses (joined by the item's own and/or) and the catalog's notes, as published."""
+    """A course's published prerequisites and corequisites as lines: each section, then its rule
+    tree as published (sub-rules, conditions, minimum grades, placement tests, notes)."""
     lines: list[str] = []
     for section in requisites:
         if not isinstance(section, dict):
             continue
         lines.append(str(section.get("section") or "Requisite"))
         found = section.get("rule")
-        rule: dict[str, Any] = found if isinstance(found, dict) else {}
-        head = str(rule.get("name") or "").strip()
-        condition = {"completedAllOf": "all of", "completedAnyOf": "one of"}.get(
-            str(rule.get("condition") or ""), "")
-        grade = rule.get("minimumGrade") or rule.get("minimum_grade")
-        if head or condition:
-            lines.append(f"  {head} {condition}".rstrip() + ":")
-        if grade:
-            lines.append(f"  (minimum grade: {grade})")
-        for item in rule.get("items") or []:
-            codes = [c for c in item.get("codes") or [] if isinstance(c, dict)]
-            if codes:
-                joiner = " or " if item.get("logic") == "or" and len(codes) > 1 else " and "
-                lines.append(f"  - {joiner.join(_course(c) for c in codes)}")
-        if rule.get("note"):
-            lines.append(f"  Note: {' '.join(str(rule['note']).split())}")
+        if isinstance(found, dict):
+            lines += _requisite_rule(found, 1)
     return "\n".join(lines)
 
 
