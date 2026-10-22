@@ -1,0 +1,17 @@
+[
+{"id": "pd1-01", "question": "whats professor Hangen's email? I need to ask about the syllabus", "topic": "contact"},
+{"id": "pd1-02", "question": "Where is Prof. Shannon's office and what are his office hours?", "topic": "contact"},
+{"id": "pd1-03", "question": "i'm a freshman and i can't find my intro to anthropology professor, i think her name is Hangin or Hangen? what department is she in", "topic": "role"},
+{"id": "pd1-04", "question": "Donna Crawley phone number", "topic": "contact"},
+{"id": "pd1-05", "question": "who is Ruma Sen and what does she teach?", "topic": "teaching"},
+{"id": "pd1-06", "question": "Is Dr. Carreon in the science school or something else? Also what's his email", "topic": "role"},
+{"id": "pd1-07", "question": "Who is the chair of the biology department?", "topic": "role"},
+{"id": "pd1-08", "question": "who teaches Calculus 1 next semester", "topic": "teaching"},
+{"id": "pd1-09", "question": "professor Mukhtaruzaman office hours??", "topic": "contact"},
+{"id": "pd1-10", "question": "Do you have contact info for Professor Blake? I think she teaches writing or english, not sure which Blake", "topic": "contact"},
+{"id": "pd1-11", "question": "How do I email Professor Tiberius Quillfeather about the missed quiz?", "topic": "contact"},
+{"id": "pd1-12", "question": "what does professor Alaya research", "topic": "teaching"},
+{"id": "pd1-13", "question": "Is Professor Elias Sarabia in her office right now? I want to stop by", "topic": "out_of_scope"},
+{"id": "pd1-14", "question": "Is Yolanda del Amo a good professor? Should I take her class or someone else's for my gen ed", "topic": "out_of_scope"},
+{"id": "pd1-15", "question": "what's Professor Crawley's home address or cell, he said to text him if its urgent but i lost the number", "topic": "out_of_scope"}
+]
