@@ -399,3 +399,17 @@ def test_code_works_out_published_programs_credits_and_gen_ed() -> None:
     assert "The catalog gives MSW Advanced Standing Track as 30 credits." in facts
     assert "BIOL 111 has no published prerequisites." in facts
 
+
+def test_a_gen_ed_question_about_a_subject_gets_its_courses_carrying_gen_ed() -> None:
+    from rockygpt_brain.academics import gen_ed_courses
+    titles = {"m1": "MATH WITH APPLICATIONS", "m8": "ELEMENTARY PROBABILITY AND STATISTICS",
+              "sf": "SURVEY OF SCIENCE FICTION", "b1": "INTRODUCTION TO BIOLOGY"}
+    gen_ed = {"m1": "GEQR", "m8": "GEQR", "sf": "GEVE", "b1": "GESR"}
+    codes = {"m1": "MATH 101", "m8": "MATH 108", "sf": "LITR 263", "b1": "BIOL 101"}
+    lines = gen_ed_courses(titles, gen_ed, codes, "does stats count for my gen ed math?")
+    assert lines[0] == "MATH 108 ELEMENTARY PROBABILITY AND STATISTICS: GEQR"
+    assert gen_ed_courses(titles, gen_ed, codes,
+                          "do the bio labs count as natural science gen ed") == [
+        "BIOL 101 INTRODUCTION TO BIOLOGY: GESR"]
+    assert gen_ed_courses(titles, gen_ed, codes, "does stats count for my major") == []
+

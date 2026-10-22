@@ -1600,8 +1600,10 @@ class ChatEngine:
         index = self.facts.meaning_index()
         if index is not None and index.course_titles:
             by_id = {str(e["id"]): e for e in named if e.get("kind") == "course"}
-            courses += [by_id[i] for i in academics.courses_by_title(index.course_titles, message)
-                        if i in by_id and by_id[i] not in courses]
+            course_codes = {i: str(e["name"]) for i, e in by_id.items()}
+            courses += [by_id[i] for i in academics.courses_by_title(
+                index.course_titles, message, course_codes)
+                if i in by_id and by_id[i] not in courses]
         return found, academics.also_published(programs, found), courses
 
     def _academics_by_meaning(self, index: MeaningIndex, vector: Sequence[float], message: str,
@@ -1915,14 +1917,19 @@ class ChatEngine:
                     sources = [*sources, *found]
                 # What code works out from the catalog (published or not, credits and their
                 # sums, Gen Ed attributes, catalog credit totals) for the reply to state as is.
-                if academic or academics.asked_subjects(latest):
+                gen_ed_lines = (academics.gen_ed_courses(
+                    index.course_titles, index.course_gen_ed,
+                    {e["id"]: str(e["name"]) for e in self.facts.identities(("course",))},
+                    latest) if index is not None and index.course_gen_ed else [])
+                if academic or academics.asked_subjects(latest) or gen_ed_lines:
                     catalog_n = next((e["n"] for e in academic if "catalog_programs" in e), None)
-                    if catalog_n is None and academics.asked_subjects(latest):
+                    if catalog_n is None and (academics.asked_subjects(latest) or gen_ed_lines):
                         catalog_n = len(sources) + 1
                         sources = [*sources, {"n": catalog_n, "url": CATALOG_URL,
                                               "title": "Programs in the college catalog"}]
                     computed = academics.computed_answers(
-                        academic, self.facts.identities(("program",)), latest, catalog_n)
+                        academic, self.facts.identities(("program",)), latest, catalog_n,
+                        gen_ed_lines)
                 budget.max_calls = max(budget.max_calls, budget.calls + 1)
                 with measure("Write the answer from the evidence"):
                     completion = await self.gateway.complete(

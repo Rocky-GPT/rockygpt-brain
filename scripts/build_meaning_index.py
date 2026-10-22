@@ -193,6 +193,10 @@ def academic_cards(facts: GraphOnlyFacts, version: str,
                 required_by.setdefault(code, []).append(str(course.get("code")))
             card = f"Ramapo College course: {course.get('code')} {course.get('name') or ''}"
             titles[found["entity"]["id"]] = str(course.get("name") or "")
+            gen_ed = [str(a) for a in course.get("attributes") or []
+                      if "gen ed" in str(a).casefold()]
+            if gen_ed:
+                titles[found["entity"]["id"] + "#gen_ed"] = "; ".join(gen_ed)
             if course.get("description"):
                 card += f"\n{str(course['description'])[:400]}"
             cards.append((found["entity"]["id"], "course", card))
