@@ -25,7 +25,7 @@ def ask(case):
         body = {"error": str(exc)[:300]}
     return {**case, "seconds": round(time.time() - t0, 1), "body": body}
 
-with ThreadPoolExecutor(4) as pool:
+with ThreadPoolExecutor(2) as pool:
     rows = list(pool.map(ask, cases))
 Path(out).write_text(json.dumps(rows, indent=1, ensure_ascii=False))
 import collections
