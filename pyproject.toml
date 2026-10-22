@@ -38,6 +38,8 @@ packages = ["src/rockygpt_brain"]
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
+# Frozen one-run eval harnesses (dated sets): copied per set and kept as run, not maintained code.
+extend-exclude = ["evals/blind-*", "evals/*-2026*"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "S", "ASYNC"]

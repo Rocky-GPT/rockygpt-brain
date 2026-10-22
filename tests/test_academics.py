@@ -65,7 +65,7 @@ def test_a_program_is_named_by_its_core_name_and_its_level_by_the_questions_word
 
 
 def test_requirements_are_written_out_as_the_catalog_publishes_them() -> None:
-    groups = [
+    groups: list[dict[str, Any]] = [
         {"label": "Major Requirements", "note": None, "shape": "rule", "course_list": None,
          "rule": {"name": "Required Courses", "choose": {"all": True}, "note": None,
                   "credits": None, "sub_rules": [], "items": [
@@ -156,7 +156,7 @@ def test_a_question_naming_a_program_is_answered_from_its_requirements() -> None
     request = ChatRequest.model_validate({"messages": [
         {"role": "user", "content": "what do I need for the computer science major"}]})
     # The how-to switch is off: a named program is still read through its identity.
-    engine = ChatEngine(gateway, catalog(), output="written")  # type: ignore[arg-type]
+    engine = ChatEngine(gateway, catalog(), output="written")
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     given = json.loads(gateway.inputs[0][1]["content"])
     (program,) = given["programs"]
@@ -237,7 +237,7 @@ def test_a_question_naming_a_course_code_is_answered_from_its_catalog_record() -
          "arguments": json.dumps(reply)}], Usage(10, 10, 0)))
     request = ChatRequest.model_validate({"messages": [
         {"role": "user", "content": "how many credits is cmps147"}]})
-    engine = ChatEngine(gateway, course_catalog(), output="written")  # type: ignore[arg-type]
+    engine = ChatEngine(gateway, course_catalog(), output="written")
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     (course,) = json.loads(gateway.inputs[0][1]["content"])["programs"]
     assert course["course"] == "CMPS 147 COMPUTER SCIENCE I" and course["credits"] == 4

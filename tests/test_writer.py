@@ -154,7 +154,7 @@ def test_a_fixed_notice_the_writer_already_said_is_not_shown_twice() -> None:
         engine = ChatEngine(
             ScriptedGateway(LOOKUP, finish("unsupported", student_words="book an appointment"),
                             writing(said)),
-            facts(), output="written")  # type: ignore[arg-type]
+            facts(), output="written")
         result = asyncio.run(engine.answer(intake(request, now=NOW), request))
         return str(result.body["answer"])
 
@@ -210,7 +210,7 @@ def test_a_turn_that_used_every_call_still_gets_its_writer() -> None:
     # Four lookup rounds and the finish use all five calls; the writer is a sixth.
     steps = [LOOKUP, LOOKUP, LOOKUP, LOOKUP, finish(),
              writing("The Registrar's email is published@example.edu [1].")]
-    engine = ChatEngine(Counting(*steps), facts(), output="written")  # type: ignore[arg-type]
+    engine = ChatEngine(Counting(*steps), facts(), output="written")
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     assert result.trace is not None and result.trace["writer"] == {"used": True}
 
@@ -228,7 +228,7 @@ def test_the_writer_is_told_what_the_student_wants_for_a_how_to() -> None:
     request = ChatRequest.model_validate(
         {"messages": [{"role": "user", "content": "how do i get my transcript"}]})
     engine = ChatEngine(ScriptedGateway(ask, pick, finish()), registrar_with_pages(),
-                        output="json")  # type: ignore[arg-type]
+                        output="json")
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     assert result.body["writerInput"]["asked"]["wants"] == ["request a transcript"]
 
@@ -237,7 +237,7 @@ def test_an_emergency_beside_asked_facts_keeps_its_text_first_and_writes_the_fac
     from rockygpt_brain.boundary import SAFETY_MESSAGE
     request = ChatRequest.model_validate(
         {"messages": [{"role": "user", "content": "registrar email, not 911 obviously lol"}]})
-    engine = ChatEngine(ScriptedGateway(  # type: ignore[arg-type]
+    engine = ChatEngine(ScriptedGateway(
         LOOKUP, finish(), writing("The Registrar's email is published@example.edu [1].")),
         facts(), output="written")
     result = asyncio.run(engine.answer(intake(request, now=NOW), request, floor_situation="other"))
