@@ -133,7 +133,7 @@ def facts(midday: bool = False) -> MemoryEntityFacts:
 def ask(question: str, *steps: Any, now: datetime = TUESDAY_10AM,
         midday: bool = False) -> ChatResult:
     request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
-    engine = ChatEngine(ScriptedGateway(*steps), facts(midday),  # type: ignore[arg-type]
+    engine = ChatEngine(ScriptedGateway(*steps), facts(midday),
                         output="json")
     return asyncio.run(engine.answer(intake(request, now=now), request))
 
@@ -215,7 +215,9 @@ def test_a_named_route_reads_only_its_own_trips() -> None:
 
 def test_a_shuttle_lookup_records_its_walk_from_the_root() -> None:
     def path(step: Any) -> list[str]:
-        lookup = ask("shuttle", step, finish(), midday=True).trace["lookups"][0]
+        trace = ask("shuttle", step, finish(), midday=True).trace
+        assert trace is not None
+        lookup = trace["lookups"][0]
         return [node["id"] for node in lookup["path"]]
 
     # Every route is read when none is named, so the walk ends at Shuttle.
@@ -244,7 +246,7 @@ def test_a_route_the_timetable_does_not_list_is_said_with_the_routes_it_does() -
 def test_the_models_stop_and_stop_list_come_from_the_published_timetable() -> None:
     gateway = ScriptedGateway(finish())
     request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "hi"}]})
-    engine = ChatEngine(gateway, facts(), output="json")  # type: ignore[arg-type]
+    engine = ChatEngine(gateway, facts(), output="json")
     asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
     state = json.loads(gateway.inputs[0][1]["content"])
     assert [stop["name"] for stop in state["published_stops"]] == ["Garden State Plaza",
@@ -433,7 +435,7 @@ def _atrium() -> MemoryEntityFacts:
 def _atrium_packet(day: str | None) -> dict[str, Any]:
     request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "atrium?"}]})
     engine = ChatEngine(ScriptedGateway(lookup("The Atrium", ["hours"], day), finish()),
-                        _atrium(), output="json")  # type: ignore[arg-type]
+                        _atrium(), output="json")
     result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
     packet: dict[str, Any] = result.body["facts"]
     return packet
@@ -455,7 +457,7 @@ def test_a_venue_with_one_unlabelled_range_serves_no_meal_by_name() -> None:
     request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "breakfast?"}]})
     engine = ChatEngine(ScriptedGateway(
         lookup_meal("The Atrium", ["hours"], "today", "breakfast"), finish()),
-        _atrium(), output="json")  # type: ignore[arg-type]
+        _atrium(), output="json")
     result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
     value = derived(result, "hours_on")["value"]
     assert value["meals_not_labelled"] is True and value["meal_asked"] == "breakfast"
@@ -533,7 +535,7 @@ def _menu_value(**filters: Any) -> dict[str, Any]:
                  **filters}
     engine = ChatEngine(ScriptedGateway(completion("graph_lookup", {"requests": [arguments]}),
                                         finish()), _lunch_menu(),
-                        output="json")  # type: ignore[arg-type]
+                        output="json")
     result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
     (menu,) = [f for f in result.body["facts"]["facts"] if f["predicate"] == "menu"]
     value: dict[str, Any] = menu["value"]
@@ -594,7 +596,7 @@ def test_do_the_menus_list_allergens_is_answered_with_the_labels_in_fixed_words(
         menu = completion("graph_lookup", {"requests": [
             {"query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "lunch"}]})
         engine = ChatEngine(ScriptedGateway(menu, finish()), _lunch_menu(),
-                            output="json")  # type: ignore[arg-type]
+                            output="json")
         result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
         return [n["approved_text"] for n in result.body["facts"]["notices"]
                 if n["type"] == "menu_allergens"]
@@ -752,7 +754,7 @@ def test_a_special_day_timetable_is_offered_by_name_and_never_answers_a_regular_
                                entities=entities, contacts=[], records=records,
                                now=lambda: TUESDAY_10AM)
     engine = ChatEngine(ScriptedGateway(shuttle("Garden State Plaza", None, "next"), finish()),
-                        memory, output="json")  # type: ignore[arg-type]
+                        memory, output="json")
     result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
     packet = result.body["facts"]
     said = [n["approved_text"] for n in packet["notices"] if n["type"] == "shuttle_special"]
@@ -829,7 +831,7 @@ def test_a_shuttle_answer_about_a_stop_says_where_to_wait_there() -> None:
     message = {"role": "user", "content": "where do I catch the shuttle at the mall"}
     request = ChatRequest.model_validate({"messages": [message]})
     engine = ChatEngine(ScriptedGateway(shuttle("Garden State Plaza", None, "next"), finish()),
-                        memory, output="json")  # type: ignore[arg-type]
+                        memory, output="json")
     result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
     value = derived(result, "departures")["value"]
     assert value["stop_description"] == {"description": "A mall at Routes 4 and 17.",
@@ -840,7 +842,7 @@ def test_a_shuttle_answer_about_a_stop_says_where_to_wait_there() -> None:
     engine = ChatEngine(ScriptedGateway(shuttle("Garden State Plaza", None, "next"),
                                         finish("unsupported",
                                                student_words="does the shuttle stop there")),
-                        memory, output="json")  # type: ignore[arg-type]
+                        memory, output="json")
     stops = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
     assert not [n for n in stops.body["facts"]["notices"] if n["type"] == "unsupported"]
     assert stops.trace is not None
@@ -849,7 +851,7 @@ def test_a_shuttle_answer_about_a_stop_says_where_to_wait_there() -> None:
     engine = ChatEngine(ScriptedGateway(shuttle(None, None, "next"),
                                         finish("unsupported",
                                                student_words="does the shuttle stop there")),
-                        memory, output="json")  # type: ignore[arg-type]
+                        memory, output="json")
     plain = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
     assert [n for n in plain.body["facts"]["notices"] if n["type"] == "unsupported"]
 
@@ -872,7 +874,7 @@ def test_each_published_stop_says_what_it_is_from_its_own_description() -> None:
                                now=lambda: TUESDAY_10AM)
     gateway = ScriptedGateway(finish())
     request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "hi"}]})
-    engine = ChatEngine(gateway, memory, output="json")  # type: ignore[arg-type]
+    engine = ChatEngine(gateway, memory, output="json")
     asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
     state = json.loads(gateway.inputs[0][1]["content"])
     assert state["published_stops"][0] == {
@@ -899,7 +901,7 @@ def test_the_campus_stop_trips_leave_from_is_offered_and_answers_where_to_catch_
     gateway = ScriptedGateway(shuttle("Ramapo College (Bradley Center)", None, "all"), finish())
     request = ChatRequest.model_validate(
         {"messages": [{"role": "user", "content": "where does the shuttle stop on campus"}]})
-    engine = ChatEngine(gateway, memory, output="json")  # type: ignore[arg-type]
+    engine = ChatEngine(gateway, memory, output="json")
     result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
     state = json.loads(gateway.inputs[0][1]["content"])
     assert state["published_stops"][-1] == {
@@ -916,7 +918,7 @@ def test_the_campus_stop_trips_leave_from_is_offered_and_answers_where_to_catch_
         "The bus stop on campus is located outside the Bradley Center."]
     # With no stop asked about, every trip still leaves from the campus stop, and that is said.
     plain = ChatEngine(ScriptedGateway(shuttle(None, None, "next"), finish()), memory,
-                       output="json")  # type: ignore[arg-type]
+                       output="json")
     request = ChatRequest.model_validate(
         {"messages": [{"role": "user", "content": "does the shuttle stop at the far lot"}]})
     anywhere = asyncio.run(plain.answer(intake(request, now=TUESDAY_10AM), request))
@@ -939,7 +941,7 @@ def test_a_venue_with_no_daily_menu_answers_in_json_and_never_breaks_the_packet(
                                now=lambda: TUESDAY_10AM)
     request = ChatRequest.model_validate({"messages": [{"role": "user", "content": "atrium menu"}]})
     engine = ChatEngine(ScriptedGateway(lookup("The Atrium", ["menu"]), finish()), memory,
-                        output="json")  # type: ignore[arg-type]
+                        output="json")
     result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
     assert result.status_code == 200
     absent = result.body["facts"]["not_published"]
@@ -961,7 +963,7 @@ def test_the_whole_menu_and_a_filtered_list_of_one_meal_reach_the_writer_as_one(
         {"query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "lunch",
          "diet": "vegan"}]})
     engine = ChatEngine(ScriptedGateway(both, finish()), _lunch_menu(),
-                        output="json")  # type: ignore[arg-type]
+                        output="json")
     result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
     assert len([f for f in result.body["facts"]["facts"] if f["predicate"] == "menu"]) == 2
     (menu,) = [f for f in result.body["writerInput"]["facts"] if f["predicate"] == "menu"]
@@ -1005,8 +1007,8 @@ def test_entrees_are_the_items_the_dining_service_portions_as_an_entree() -> Non
 
 
 def test_a_place_named_by_its_building_finds_the_venues_in_that_building() -> None:
-    engine = ChatEngine(ScriptedGateway(), facts(), output="json")  # type: ignore[arg-type]
-    engine._venues_cache = (("release-1", "identities-1"),  # type: ignore[attr-defined]
+    engine = ChatEngine(ScriptedGateway(), facts(), output="json")
+    engine._venues_cache = (("release-1", "identities-1"),
                             [{"name": "Birch Tree Inn", "in": ["Robert A. Scott Student Center"]}])
     assert [v["name"] for v in engine._venues_in_building("cafe in the student center")] == [
         "Birch Tree Inn"]
@@ -1025,12 +1027,12 @@ def test_a_building_two_venues_share_is_asked_about_when_the_student_names_neith
         request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
         engine = ChatEngine(ScriptedGateway(lookup("Birch Tree Inn", ["hours"], "sunday"),
                                             finish()), memory,
-                            output="json")  # type: ignore[arg-type]
+                            output="json")
         venues = [{"name": "Birch Tree Inn", "in": ["Robert A. Scott Student Center"]},
                   {"name": "The Atrium", "in": ["Robert A. Scott Student Center"]}]
 
         def published() -> list[dict[str, Any]]:
-            engine._venues_cache = (("release-1", "identities-1"),  # type: ignore[attr-defined]
+            engine._venues_cache = (("release-1", "identities-1"),
                                     venues)
             return venues
         engine._published_venues = published  # type: ignore[method-assign]
@@ -1049,8 +1051,8 @@ def test_a_building_two_venues_share_is_asked_about_when_the_student_names_neith
 
 def test_several_venues_looked_up_for_a_question_naming_none_reads_them_all() -> None:
     from rockygpt_brain.engine import OfficeRequest
-    engine = ChatEngine(ScriptedGateway(), facts(), output="json")  # type: ignore[arg-type]
-    engine._venues_cache = (("release-1", "identities-1"), [  # type: ignore[attr-defined]
+    engine = ChatEngine(ScriptedGateway(), facts(), output="json")
+    engine._venues_cache = (("release-1", "identities-1"), [
         {"name": "Birch Tree Inn", "also_called": ["Dining Hall"]}, {"name": "The Atrium"},
         {"name": "Dunkin'"}, {"name": "We Proudly Serve Starbucks at Common Grounds"}])
     asked = [OfficeRequest(query="We Proudly Serve Starbucks at Common Grounds",
@@ -1082,7 +1084,7 @@ def test_an_allergy_named_to_ask_about_a_menu_is_not_a_medical_emergency() -> No
         menu = completion("graph_lookup", {"requests": [
             {"query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "lunch"}]})
         engine = ChatEngine(ScriptedGateway(menu, finish("safety", situation="medical")),
-                            _lunch_menu(), output="json")  # type: ignore[arg-type]
+                            _lunch_menu(), output="json")
         result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
         return [n["type"] for n in result.body["facts"]["notices"]]
 
@@ -1106,7 +1108,7 @@ def test_whats_for_lunch_beside_a_filter_asks_for_the_rest_of_the_menu_too() -> 
             {"query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "lunch",
              "diet": "vegan"}]})
         engine = ChatEngine(ScriptedGateway(vegan, finish()), _lunch_menu(),
-                            output="json")  # type: ignore[arg-type]
+                            output="json")
         result = asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
         (menu,) = [f for f in result.body["writerInput"]["facts"] if f["predicate"] == "menu"]
         value: dict[str, Any] = menu["value"]
@@ -1125,12 +1127,12 @@ def test_a_bare_question_back_about_a_shared_building_names_its_venues() -> None
                                entities=[*base.entities, atrium], contacts=[],
                                records=base.records, now=lambda: TUESDAY_10AM)
     engine = ChatEngine(ScriptedGateway(finish("clarification")), memory,
-                        output="json")  # type: ignore[arg-type]
+                        output="json")
     venues = [{"name": "Birch Tree Inn", "in": ["Robert A. Scott Student Center"]},
               {"name": "The Atrium", "in": ["Robert A. Scott Student Center"]}]
 
     def published() -> list[dict[str, Any]]:
-        engine._venues_cache = (("release-1", "identities-1"),  # type: ignore[attr-defined]
+        engine._venues_cache = (("release-1", "identities-1"),
                                 venues)
         return venues
     engine._published_venues = published  # type: ignore[method-assign]

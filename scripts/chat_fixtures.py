@@ -83,6 +83,9 @@ class ScriptedTransport:
                         "arguments": json.dumps(step["arguments"])}],
         }
 
+    async def embed(self, request: dict[str, Any], remaining_seconds: float) -> dict[str, Any]:
+        raise AssertionError("scripted chat fixtures make no embedding calls")
+
     async def close(self) -> None:
         pass
 

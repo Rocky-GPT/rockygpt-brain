@@ -43,7 +43,7 @@ class PartsGateway(ScriptedGateway):
 
 def ask(gateway: Any, question: str) -> Any:
     request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
-    engine = ChatEngine(gateway, meaning_service(), output="written",  # type: ignore[arg-type]
+    engine = ChatEngine(gateway, meaning_service(), output="written",
                         howto_one_call=True)
     return asyncio.run(engine.answer(intake(request, now=NOW), request))
 
@@ -110,14 +110,15 @@ def test_a_part_no_section_answers_gets_a_second_look_and_one_more_reply() -> No
 
 def test_the_offices_whose_cards_match_are_read_for_their_contacts() -> None:
     service = meaning_service()
-    units = [("page-advising", "0", ["advising"], [[0, 1, 0]]),
-             ("page-tutoring", "0", ["tutoring"], [[1, 0, 0]])]
+    units: list[tuple[str, str, list[str], list[list[float]]]] = [
+        ("page-advising", "0", ["advising"], [[0, 1, 0]]),
+        ("page-tutoring", "0", ["tutoring"], [[1, 0, 0]])]
     service.index = index_of(units, service.index.names,
                              cards=[("library", [1, 0, 0]), ("advising", [0, 1, 0])])
     gateway = PartsGateway(one_reply("Apply with the online form by March 1. [1]", [1]))
     request = ChatRequest.model_validate({"messages": [
         {"role": "user", "content": "how do i become a peer tutor"}]})
-    engine = ChatEngine(gateway, service, output="written",  # type: ignore[arg-type]
+    engine = ChatEngine(gateway, service, output="written",
                         howto_one_call=True)
     asyncio.run(engine.answer(intake(request, now=NOW), request))
     given = json.loads(gateway.inputs[0][1]["content"])["offices"]
@@ -167,7 +168,7 @@ def test_with_headings_published_the_pick_comes_before_the_answer() -> None:
     gateway = PartsGateway(picked, one_reply("Apply with the online form by March 1. [1]", [1]))
     request = ChatRequest.model_validate({"messages": [
         {"role": "user", "content": "how do i become a peer tutor"}]})
-    engine = ChatEngine(gateway, service, output="written",  # type: ignore[arg-type]
+    engine = ChatEngine(gateway, service, output="written",
                         howto_one_call=True)
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     assert gateway.inputs[0][1]["content"].startswith("Question: how do i become a peer tutor")
