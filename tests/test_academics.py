@@ -179,8 +179,24 @@ def test_prerequisites_are_written_out_as_published_with_their_grade() -> None:
         "items": [{"logic": "and", "codes": [{"code": "CMPS 148",
                                               "name": "COMPUTER SCIENCE II"}]}]}}])
     assert text.splitlines() == [
-        "Prerequisite", "  Prerequisite Course all of:", "  (minimum grade: C)",
-        "  - CMPS 148 COMPUTER SCIENCE II", "  Note: May be taken concurrently with CMPS 231."]
+        "Prerequisite", "  Prerequisite Course complete all of:", "    (minimum grade: C)",
+        "    - CMPS 148 COMPUTER SCIENCE II", "    May be taken concurrently with CMPS 231."]
+    # A rule of sub-rules (a course or a placement test) is written out whole, and a minimum
+    # grade published as a constraint is kept.
+    text = render_requisites([{"section": "Prerequisite", "rule": {
+        "name": "Prerequisite Course or Placement Test", "condition": "anyOf", "subRules": [
+            {"name": "Select 1 Course", "condition": "completedAnyOf", "items": [
+                {"logic": "and", "codes": [{"code": "MATH 110", "name": "PRECALCULUS"}]}]},
+            {"name": "Take 1 Test", "condition": "freeformText",
+             "text": "Complete one Placement Test with the required minimum score:",
+             "note": "- SAT MATH (minimum score 580)"}]}},
+        {"section": "Prerequisite", "rule": {
+            "name": "Prerequisite Course", "condition": "minimumGrade",
+            "constraints": {"grade": "C-"},
+            "items": [{"logic": "and", "codes": [{"code": "ACCT 321", "name": "INTERMEDIATE"}]}]}}])
+    assert "    Select 1 Course complete one of:" in text and "      - MATH 110 PRECALCULUS" in text
+    assert "      - SAT MATH (minimum score 580)" in text
+    assert "    (minimum grade: C-)" in text
 
 
 def course_catalog() -> MemoryEntityFacts:
