@@ -155,6 +155,35 @@ def office_cards(facts: GraphOnlyFacts, version: str, identity: str,
     return cards
 
 
+def academic_cards(facts: GraphOnlyFacts, version: str,
+                   identity: str) -> list[tuple[str, str, str]]:
+    """Each program's and course's card, read with the shared fact reader: a program's name,
+    degree and the start of its description; a course's code, title and the start of its
+    description. They find a program or course a question names only in part ("the english
+    major", "a class on machine learning")."""
+    entities = facts.identities(("program", "course"))
+    cards: list[tuple[str, str, str]] = []
+    for entity in entities:
+        if entity["kind"] != "program":
+            continue
+        found = facts.get_program_facts(entity["id"], version, identity_hash=identity)
+        program = found["properties"][0]["values"][0]["value"]
+        card = f"Ramapo College program: {program.get('name')} ({program.get('degree')})"
+        if program.get("description"):
+            card += f"\n{str(program['description'])[:500]}"
+        cards.append((entity["id"], "program", card))
+    courses = [e["id"] for e in entities if e["kind"] == "course"]
+    for start in range(0, len(courses), 12):
+        for found in facts.get_course_facts(courses[start:start + 12], version,
+                                            identity_hash=identity):
+            course = found["properties"][0]["values"][0]["value"]
+            card = f"Ramapo College course: {course.get('code')} {course.get('name') or ''}"
+            if course.get("description"):
+                card += f"\n{str(course['description'])[:400]}"
+            cards.append((found["entity"]["id"], "course", card))
+    return cards
+
+
 def write_questions(units: list[dict[str, Any]], cache: dict[str, list[str]]) -> int:
     """Three student questions per how-to entry not already in the cache, read 12 entries at a time
     per page. Returns how many entries were read."""
@@ -219,6 +248,7 @@ def main(argv: list[str] | None = None) -> int:
     facts = GraphOnlyFacts(args.dir)
     version, identity, units, names = collect(facts)
     cards = office_cards(facts, version, identity, units)
+    academic = academic_cards(facts, version, identity)
     names.update({entity_id: name for entity_id, name, _ in cards})
     args.cache.mkdir(parents=True, exist_ok=True)
     questions_path = args.cache / "questions.json"
@@ -245,11 +275,14 @@ def main(argv: list[str] | None = None) -> int:
             offsets += [-1] * len(asked)
     cache: dict[str, list[float]] = (json.loads(vectors_path.read_text())
                                      if vectors_path.exists() else {})
-    embedded = embed_all([t for _, t in texts] + [card for _, _, card in cards], cache)
+    embedded = embed_all([t for _, t in texts] + [card for _, _, card in cards]
+                         + [card for _, _, card in academic], cache)
     vectors_path.write_text(json.dumps(cache))
     flat = array.array("f")
-    # The office cards' vectors follow the units' vectors, in the order of "cards".
-    for text in [t for _, t in texts] + [card for _, _, card in cards]:
+    # The office cards' vectors follow the units' vectors, in the order of "cards"; then the
+    # program and course cards, in the order of "academic".
+    for text in ([t for _, t in texts] + [card for _, _, card in cards]
+                 + [card for _, _, card in academic]):
         vector = cache[_digest(EMBED_MODEL, str(DIMENSIONS), text)]
         norm = math.sqrt(sum(x * x for x in vector)) or 1.0
         flat.extend(x / norm for x in vector)
@@ -258,6 +291,7 @@ def main(argv: list[str] | None = None) -> int:
             "units": [[u["record_id"], u["index"], u["entities"]] for u in units],
             "owner": [n for n, _ in texts], "offsets": offsets,
             "cards": [entity_id for entity_id, _, _ in cards],
+            "academic": [[entity_id, kind] for entity_id, kind, _ in academic],
             "labels": [[_where(u["page"]), u["heading"]] for u in units]}
     if (version, identity) != (pointer["dataset_version"], pointer["identity_hash"]):
         print("The active release changed while the index was built; run it again.",
@@ -270,6 +304,7 @@ def main(argv: list[str] | None = None) -> int:
         temporary.write_bytes(data)
         os.replace(temporary, release_file.with_suffix(suffix))
     print(f"meaning index for {version}: {len(units)} units, {len(cards)} office cards, "
+          f"{len(academic)} program and course cards, "
           f"{len(texts)} vectors "
           f"({read} entries given questions, {embedded} texts embedded), "
           f"{time.monotonic() - started:.0f} s")

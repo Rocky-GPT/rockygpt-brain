@@ -17,6 +17,7 @@ from collections.abc import Sequence
 from datetime import date
 from typing import Any
 
+from rockygpt_brain.academics import asks_academics
 from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 
 PER_PART = 10  # Each part's own best units: a "how do I apply" part keeps its application section.
@@ -95,7 +96,7 @@ _HOWTO = re.compile(
 def routes_here(message: str) -> bool:
     """Whether a message is a how-to or policy question for the one-call path."""
     text = message.casefold()
-    if _SERVICES.search(text) and not _MEAL_PLAN.search(text):
+    if _SERVICES.search(text) and not _MEAL_PLAN.search(text) and not asks_academics(text):
         return False
     howto = _HOWTO.search(text)
     if (_HOURS.search(text) or _CONTACT.search(text)) and not howto:

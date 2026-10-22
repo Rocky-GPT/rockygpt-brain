@@ -10,6 +10,8 @@ import pytest
 
 from rockygpt_brain.academics import (
     also_published,
+    asks_academics,
+    by_meaning,
     choose_plan,
     course_codes,
     find_programs,
@@ -250,3 +252,29 @@ def test_the_plan_is_the_named_or_current_cohorts_and_the_programs_own() -> None
     assert "Total Credits Required: 128 credits" in text
     assert "  - Scientific Reasoning (waived for transfer students)" in text
     assert choose_plan([], "Computer Science BS", "x", date(2026, 10, 21)) is None
+
+
+def test_a_program_or_course_named_in_part_is_found_by_meaning_above_its_floor() -> None:
+    from rockygpt_brain.one_call import routes_here
+    from test_meaning import index_of
+    index = index_of([("page-a", "0", ["advising"], [[1, 0, 0]])],
+                     cards=[("advising", [1, 0, 0])],
+                     academic=[("eng-ba", "program", [0, 1, 0]), ("eng-mn", "program", [0, 1, 0.1]),
+                               ("litr-304", "course", [0, 0, 1])])
+    # Program cards never score as offices, and courses not as programs.
+    assert [e for e, _ in index.office_scores([0, 1, 0])] == ["advising"]
+    scores = index.academic_scores([0, 1, 0], "program")
+    assert [e for e, _ in scores] == ["eng-ba", "eng-mn"]
+    names = {"eng-ba": "English and Literary Studies BA",
+             "eng-mn": "English and Literary Studies Minor"}
+    # Near-tied programs: the question's level words choose, else the major.
+    assert [p["name"] for p in by_meaning(scores, names, "english minor", 0.42, 2)] == [
+        "English and Literary Studies Minor"]
+    assert [p["name"] for p in by_meaning(scores, names, "the english major", 0.42, 2)] == [
+        "English and Literary Studies BA"]
+    assert by_meaning([("eng-ba", 0.30)], names, "how do i get a parking permit", 0.42, 2) == []
+    assert asks_academics("what classes are in the business degree")
+    assert not asks_academics("how do i get a parking permit")
+    # "Food" names a dining question unless the message asks about a program or course.
+    assert routes_here("what is the food studies minor")
+    assert not routes_here("where can i get food right now")

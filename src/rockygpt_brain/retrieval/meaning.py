@@ -70,7 +70,12 @@ class MeaningIndex:
         self.labels: dict[tuple[str, str], tuple[str, str]] = {
             (u.record_id, u.index): (str(label[0]), str(label[1]))
             for u, label in zip(self.units, meta.get("labels") or [], strict=False)}
-        if len(vectors) != (len(self.owner) + len(self.cards)) * self.dimensions:
+        # Each program's and course's card (id, kind), after the office cards: a program or course
+        # named only in part is found by its meaning. Never office cards: they are read as offices.
+        self.academic: list[tuple[str, str]] = [(str(a[0]), str(a[1]))
+                                                for a in meta.get("academic") or []]
+        if len(vectors) != (len(self.owner) + len(self.cards)
+                            + len(self.academic)) * self.dimensions:
             raise ValueError("The meaning index vectors do not match its units.")
         self._vectors = memoryview(vectors)
 
@@ -117,6 +122,19 @@ class MeaningIndex:
         found = [(entity_id, dot(unit_query, self._vectors[(first + k) * size:
                                                            (first + k + 1) * size]))
                  for k, entity_id in enumerate(self.cards)]
+        return sorted(found, key=lambda pair: pair[1], reverse=True)
+
+    def academic_scores(self, query: Sequence[float], kind: str) -> list[tuple[str, float]]:
+        """Every program's or course's card similarity to the query, best first."""
+        size = self.dimensions
+        if len(query) != size:
+            raise ValueError("The query embedding has the wrong size.")
+        norm = math.sqrt(dot(query, query)) or 1.0
+        unit_query = [value / norm for value in query]
+        first = len(self.owner) + len(self.cards)
+        found = [(entity_id, dot(unit_query, self._vectors[(first + k) * size:
+                                                           (first + k + 1) * size]))
+                 for k, (entity_id, card_kind) in enumerate(self.academic) if card_kind == kind]
         return sorted(found, key=lambda pair: pair[1], reverse=True)
 
     def offices(self, ranked: Mapping[tuple[str, str], float], *, exclude: Sequence[str] = (),

@@ -56,6 +56,7 @@ from rockygpt_brain.retrieval import (
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
 from rockygpt_brain.retrieval.entity_facts import discovery_tokens
+from rockygpt_brain.retrieval.meaning import MeaningIndex
 from rockygpt_brain.shuttle import (
     SCOPE_TEXT,
     SPECIAL_TEXT,
@@ -1591,6 +1592,17 @@ class ChatEngine:
         courses = [codes[code] for code in academics.course_codes(message, set(codes))]
         return found, academics.also_published(programs, found), courses
 
+    def _academics_by_meaning(self, index: MeaningIndex, vector: Sequence[float], message: str,
+                              ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """The programs (at most two) and course (at most one) whose cards best match the
+        question's meaning, above academics.py's floors."""
+        names = {e["id"]: str(e["name"]) for e in self.facts.identities(("program", "course"))}
+        programs = academics.by_meaning(index.academic_scores(vector, "program"), names, message,
+                                        academics.PROGRAM_FLOOR, 2)
+        courses = academics.by_meaning(index.academic_scores(vector, "course"), names, message,
+                                       academics.COURSE_FLOOR, 1)
+        return programs, courses
+
     def _read_programs(self, programs: Sequence[dict[str, Any]], others: Sequence[str],
                        courses: Sequence[dict[str, Any]] = (), message: str = "",
                        today: date | None = None,
@@ -1659,6 +1671,16 @@ class ChatEngine:
                         vectors = await embed_many(one_call.parts_of(question),
                                                    dimensions=index.dimensions, budget=budget)
                     named = list(dict.fromkeys([*named, *one_call.card_offices(index, vectors)]))
+                    # A program or course named only in part ("the english major") is found by
+                    # its card's meaning when the question asks about programs or courses.
+                    if not programs and index.academic and academics.asks_academics(latest):
+                        found_programs, found_courses = self._academics_by_meaning(
+                            index, vectors[0], latest)
+                        if found_programs or found_courses:
+                            with measure("Read the programs found by meaning"):
+                                academic, sources, dataset_version = await asyncio.to_thread(
+                                    self._read_programs, found_programs, [], found_courses,
+                                    latest, turn.campus_now.date())
                 chosen = None
                 if searchable and index is not None and index.labels:
                     pool_scores, pool = one_call.chosen_units(
