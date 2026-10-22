@@ -1,0 +1,17 @@
+[
+{"id": "ec1-01", "question": "whats going on tonight on campus", "topic": "event"},
+{"id": "ec1-02", "question": "any events this weekend? im a freshman and dont really know anyone yet", "topic": "event"},
+{"id": "ec1-03", "question": "is there free food at any events this week", "topic": "event"},
+{"id": "ec1-04", "question": "when is the next home basketball game and is it free for students to go", "topic": "event"},
+{"id": "ec1-05", "question": "are there any shows or performances happening at the Sharp Theater or Berrie Center next week?", "topic": "event"},
+{"id": "ec1-06", "question": "game night events", "topic": "event"},
+{"id": "ec1-07", "question": "whos hosting the thing in the student center on friday and where exactly is it", "topic": "event"},
+{"id": "ec1-08", "question": "is there a club for anime or gaming?", "topic": "club"},
+{"id": "ec1-09", "question": "how do i find and join a club here, i dont even know where to look", "topic": "club"},
+{"id": "ec1-10", "question": "what cultural clubs does ramapo have", "topic": "club"},
+{"id": "ec1-11", "question": "any events next fri night? like comedy or a dance or something", "topic": "event"},
+{"id": "ec1-12", "question": "do u guys have a club for intramural or club sports, and when's the next sports event on campus", "topic": "club"},
+{"id": "ec1-13", "question": "what time does the anime club meet and who is the president", "topic": "out_of_scope"},
+{"id": "ec1-14", "question": "which club should i join if i like making friends and hate public speaking", "topic": "out_of_scope"},
+{"id": "ec1-15", "question": "how many people are going to the fall fest tonight, is it gonna be crowded?", "topic": "out_of_scope"}
+]
