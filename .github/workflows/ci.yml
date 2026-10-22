@@ -1,9 +1,18 @@
 name: Brain checks
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  # Release merges need checks even when older development commits skipped CI.
+  # This event ignores commit-message skip directives. Only merged, trusted
+  # main-branch code is executed; unmerged PR closures never run this job.
+  pull_request_target:
+    branches: [main]
+    types: [closed]
 permissions:
   contents: read
 jobs:
   checks:
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -20,6 +29,9 @@ jobs:
       BRAIN_GATEWAY_TEST_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/brain_gateway_test_ci
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.merge_commit_sha || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
