@@ -3,15 +3,18 @@ out by code from the catalog's own rules (academics.py)."""
 
 import asyncio
 import json
+from datetime import date
 from typing import Any
 
 import pytest
 
 from rockygpt_brain.academics import (
     also_published,
+    choose_plan,
     course_codes,
     find_programs,
     program_level,
+    render_plan,
     render_requirements,
     render_requisites,
 )
@@ -218,3 +221,32 @@ def test_a_question_naming_a_course_code_is_answered_from_its_catalog_record() -
     (course,) = json.loads(gateway.inputs[0][1]["content"])["programs"]
     assert course["course"] == "CMPS 147 COMPUTER SCIENCE I" and course["credits"] == 4
     assert "Sources: [1](https://catalog.ramapo.edu/courses/CMPS147)" in result.body["answer"]
+
+
+def plan(name: str, cohort: str) -> dict[str, Any]:
+    return {"name": name, "cohort": cohort, "totalCredits": 128,
+            "applicability": f"Applies to students admitted {cohort}.",
+            "totals": ["Total Credits Required: 128 credits"],
+            "terms": [{"year": "First Year", "term": "Fall Semester", "totalHours": 16,
+                       "items": [{"text": "CMPS 147 - COMPUTER SCIENCE I", "hours": 4}]}],
+            "generalEducation": [{"category": "Scientific Reasoning", "waivedForTransfers": True}],
+            "placementText": "MATH 022 to MATH 108", "url": "https://www.ramapo.edu/plan/"}
+
+
+def test_the_plan_is_the_named_or_current_cohorts_and_the_programs_own() -> None:
+    plans = [plan("Data Science", "Fall 2026"), plan("Computer Science", "Fall 2025"),
+             plan("Computer Science", "Fall 2026")]
+    chosen = choose_plan(plans, "Computer Science BS", "what should i take", date(2026, 10, 21))
+    assert chosen is not None and (chosen["name"], chosen["cohort"]) == (
+        "Computer Science", "Fall 2026")
+    # In July the academic year is still the one that began the August before.
+    chosen = choose_plan(plans, "Computer Science BS", "plan", date(2026, 7, 1))
+    assert chosen is not None and chosen["cohort"] == "Fall 2025"
+    chosen = choose_plan(plans, "Computer Science BS", "i started in 2025", date(2026, 10, 21))
+    assert chosen is not None and chosen["cohort"] == "Fall 2025"
+    text = render_plan(plans[2])
+    assert "First Year, Fall Semester (total 16 credits)" in text
+    assert "  - CMPS 147 - COMPUTER SCIENCE I (4)" in text
+    assert "Total Credits Required: 128 credits" in text
+    assert "  - Scientific Reasoning (waived for transfer students)" in text
+    assert choose_plan([], "Computer Science BS", "x", date(2026, 10, 21)) is None

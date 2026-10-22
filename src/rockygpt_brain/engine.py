@@ -1592,7 +1592,8 @@ class ChatEngine:
         return found, academics.also_published(programs, found), courses
 
     def _read_programs(self, programs: Sequence[dict[str, Any]], others: Sequence[str],
-                       courses: Sequence[dict[str, Any]] = (),
+                       courses: Sequence[dict[str, Any]] = (), message: str = "",
+                       today: date | None = None,
                        ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
         """Each named program's and course's facts through the shared reader, as numbered
         evidence."""
@@ -1602,7 +1603,7 @@ class ChatEngine:
         for program in programs:
             facts = self.facts.get_program_facts(program["id"], version,
                                                  identity_hash=identity_hash)
-            item = academics.program_evidence(facts, len(sources) + 1, others)
+            item = academics.program_evidence(facts, len(sources) + 1, others, message, today)
             evidence.append(item)
             sources.append({"n": item["n"], "url": item.get("catalog_url"),
                             "title": item.get("program")})
@@ -1651,7 +1652,7 @@ class ChatEngine:
                 if programs:
                     with measure("Read the programs named"):
                         academic, sources, dataset_version = await asyncio.to_thread(
-                            self._read_programs, *programs)
+                            self._read_programs, *programs, latest, turn.campus_now.date())
                 if searchable:
                     assert index is not None and embed_many is not None
                     with measure("Embed the question's parts"):

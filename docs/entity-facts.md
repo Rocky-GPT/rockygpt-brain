@@ -354,7 +354,9 @@ groups the catalog lists for it (`requirement_groups`, from the program-requirem
 artifact), in the catalog's section order; one group may be listed by several programs.
 `get_program_facts` returns the row (`program`) and each group exactly as published
 (`requirements`: label, shape, note, choose, rule, course_list), cited to the program's
-catalog page with the programs artifact's capture time. No group is a `not_published` claim:
+catalog page with the programs artifact's capture time, and its recommended graduation plans
+(`plans`, from the graduation-plans artifact: one per admission cohort and variant, as
+published; `multiple` when cohorts differ, a dated boundary). No group is a `not_published` claim:
 a program with none linked is `unknown`; a linked group the release lacks is a caveat.
 
 Discovery (`academics.find_programs`) names a program by its catalog name without its level
@@ -362,7 +364,10 @@ Discovery (`academics.find_programs`) names a program by its catalog name withou
 certificate, master's, 4+1, major) choose the level, and with none the undergraduate major is
 read while its other published levels are named beside it. Naming a program establishes none
 of its facts. Requirements are written out by code (`academics.render_requirements`), never
-summed or interpreted beyond the catalog's own `choose`.
+summed or interpreted beyond the catalog's own `choose`. The reader chooses no plan: code
+(`academics.choose_plan`) takes the cohort the student names, else the one whose academic year
+holds today (Fall 2026 from August 2026), and within it the plan named as the program itself;
+only the plan's published totals are said, never a sum of its semesters.
 
 ## Courses (entity-facts-7)
 
