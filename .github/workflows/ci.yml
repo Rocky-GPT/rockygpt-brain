@@ -48,3 +48,29 @@ jobs:
           name: offline-chat-regression
           path: /tmp/chat-regression.json
           if-no-files-found: ignore
+
+  release-result:
+    # GitHub attaches pull_request_target runs to the PR head, even though the
+    # checks above test the merge. Render needs the result on main's commit.
+    needs: checks
+    if: always() && github.event_name == 'pull_request_target' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+    steps:
+      - name: Record checked release commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          CHECK_RESULT: ${{ needs.checks.result }}
+        run: |
+          conclusion=failure
+          if [ "$CHECK_RESULT" = success ]; then conclusion=success; fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/check-runs" \
+            -f name='Release checks' \
+            -f head_sha="$MERGE_SHA" \
+            -f status=completed \
+            -f conclusion="$conclusion" \
+            -f completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -f details_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --silent
