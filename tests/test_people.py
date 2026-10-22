@@ -1,6 +1,13 @@
 """Faculty and staff lookup: the people a question names (people.py), read through the reader."""
 
-from rockygpt_brain.people import asks_people, asks_people_topic, by_meaning, find_people
+from rockygpt_brain.people import (
+    asks_people,
+    asks_people_list,
+    asks_people_topic,
+    by_meaning,
+    find_people,
+    listed,
+)
 from rockygpt_brain.retrieval.entity_facts import MemoryEntityFacts
 from test_engine import NOW
 
@@ -28,6 +35,16 @@ def test_a_person_is_named_by_their_whole_name_or_their_only_last_name() -> None
     xu = [*PEOPLE, {"id": "xu", "name": "Yan Xu"}]
     assert [p["id"] for p in find_people(xu, "professor xu email")] == ["xu"]
     assert find_people(xu, "xu email") == []
+    # A near spelling of a last name is offered as a near spelling, never as the person asked
+    # for; a common question word ("room") is not read as a name, and a first name used
+    # picks among near spellings.
+    near = [*PEOPLE, {"id": "jp", "name": "John Peffer"}, {"id": "mh", "name": "Mark Howenstein"},
+            {"id": "rr", "name": "Rebecca Root"}]
+    found = find_people(near, "office hours for professor Pefer?")
+    assert [(p["id"], p.get("near_spelling")) for p in found] == [("jp", True)]
+    assert [p["id"] for p in find_people(
+        near, "phone number and office room for Mark Howenstien")] == ["mh"]
+    assert find_people(near, "which room is the professor in") == []
     # A last name alone, in a question about no person, names no one.
     good = [*PEOPLE, {"id": "jn", "name": "Julie Norflus-Good"}]
     assert find_people(good, "is the food good at the dining hall") == []
@@ -69,3 +86,19 @@ def test_a_persons_facts_are_their_directory_entry_and_their_profile() -> None:
     assert value["office_hours"] == ["Office Hours: Monday 10:30 AM-1:00 PM"]
     assert value["research_interests"] == ["Organizational Governance"]
     assert value["profile_url"] == "https://www.ramapo.edu/asb/faculty/rikki-abzug/"
+
+
+def test_a_list_question_gives_everyone_in_the_field_named() -> None:
+    directory = [
+        {"id": "a", "name": "Kathleen Burke", "title": "Professor of Nursing",
+         "school": "School of Science, Nursing, and Health", "email": "kmburke@ramapo.edu"},
+        {"id": "b", "name": "Julie Fitzgerald", "title": "Associate Professor of Nursing",
+         "school": "School of Science, Nursing, and Health", "email": "jfitzge3@ramapo.edu"},
+        {"id": "c", "name": "Pradeep Bagga", "title": "Professor of Biology",
+         "school": "School of Science, Nursing, and Health", "email": "pbagga@ramapo.edu"}]
+    question = "can I get a list of everyone in the nursing faculty with their emails"
+    assert asks_people_list(question)
+    assert [p["name"] for p in listed(directory, question)] == ["Kathleen Burke",
+                                                                "Julie Fitzgerald"]
+    assert listed(directory, "list all faculty") == []
+
