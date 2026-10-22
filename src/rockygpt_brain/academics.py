@@ -9,6 +9,7 @@ level word, the undergraduate major is the program and the other levels are name
 
 import re
 from collections.abc import Sequence
+from datetime import date
 from typing import Any
 
 from rockygpt_brain.retrieval.entity_facts import discovery_tokens
@@ -99,17 +100,76 @@ def _course(course: dict[str, Any]) -> str:
     return f"{code} {name}".strip() if name else code
 
 
-def program_evidence(facts: dict[str, Any], n: int, others: Sequence[str]) -> dict[str, Any]:
+_YEAR = re.compile(r"\b(20\d\d)\b")
+
+
+def current_cohort(today: date) -> str:
+    """The admission cohort whose academic year holds today: Fall 2026 from August 2026."""
+    return f"Fall {today.year if today.month >= 8 else today.year - 1}"
+
+
+def choose_plan(plans: Sequence[dict[str, Any]], program: str, message: str,
+                today: date) -> dict[str, Any] | None:
+    """The recommended plan for the cohort the student names (a year in the message that a plan
+    is published for), else for the current one, else the latest published; within a cohort,
+    the plan named as the program itself rather than a variant of it."""
+    cohorts = {str(p.get("cohort")) for p in plans}
+    asked = [f"Fall {year}" for year in _YEAR.findall(message) if f"Fall {year}" in cohorts]
+    cohort = asked[0] if asked else current_cohort(today)
+    if cohort not in cohorts:
+        cohort = max(cohorts, key=lambda c: c[-4:], default="")
+    pool = [p for p in plans if str(p.get("cohort")) == cohort]
+    core = program_core(program).casefold()
+    named = [p for p in pool if str(p.get("name") or "").casefold() == core]
+    chosen = named or pool
+    return chosen[0] if chosen else None
+
+
+def render_plan(plan: dict[str, Any]) -> str:
+    """A recommended plan as published: who it applies to, each semester's items with their
+    hours and the semester's published total, the published totals, Gen Ed categories (and
+    which are waived for transfer students), and the placement note."""
+    lines = [f"{plan.get('name')} — {plan.get('cohort')}"]
+    if plan.get("applicability"):
+        lines.append(str(plan["applicability"]))
+    for term in plan.get("terms") or []:
+        total = term.get("totalHours")
+        lines.append(f"{term.get('year')}, {term.get('term')}"
+                     + (f" (total {total:g} credits)" if isinstance(total, int | float) else ""))
+        for item in term.get("items") or []:
+            hours = item.get("hours")
+            lines.append(f"  - {' '.join(str(item.get('text') or '').split())}"
+                         + (f" ({hours:g})" if isinstance(hours, int | float) else ""))
+    lines += [str(total) for total in plan.get("totals") or []]
+    gen_ed = [g for g in plan.get("generalEducation") or [] if isinstance(g, dict)]
+    if gen_ed:
+        lines.append("General Education categories:")
+        lines += [f"  - {g.get('category')}"
+                  + (" (waived for transfer students)" if g.get("waivedForTransfers") else "")
+                  for g in gen_ed]
+    if plan.get("placementText"):
+        lines.append(f"Placement: {' '.join(str(plan['placementText']).split())}")
+    return "\n".join(lines)
+
+
+def program_evidence(facts: dict[str, Any], n: int, others: Sequence[str],
+                     message: str = "", today: date | None = None) -> dict[str, Any]:
     """What the reply is given for one program: who it is (from its catalog row), its
-    requirements written out by code, and the program's other published levels."""
+    requirements and its recommended graduation plan written out by code, and the program's
+    other published levels."""
     props = {prop["key"]: prop for prop in facts["properties"]}
     program = props["program"]["values"][0]["value"]
     groups = [value["value"] for value in props.get("requirements", {}).get("values", [])]
+    plans = [value["value"] for value in props.get("plans", {}).get("values", [])]
+    plan = (choose_plan(plans, str(program.get("name") or ""), message, today)
+            if plans and today else None)
     description = str(program.get("description") or "")
     return {"n": n, "program": program.get("name"), "degree": program.get("degree"),
             "school": program.get("school"), "catalog_url": program.get("catalog_url"),
             **({"description": description[:800]} if description else {}),
             "requirements": render_requirements(groups) if groups else None,
+            **({"graduation_plan": render_plan(plan), "plan_url": plan.get("url")}
+               if plan else {}),
             **({"also_published": list(others)} if others else {})}
 
 

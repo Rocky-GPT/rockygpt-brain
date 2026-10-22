@@ -42,7 +42,7 @@ RECORD_COLLECTIONS = {
     "menu_documents": 10, "menu_listings": 2, "shuttle_stops": 40, "campus_topics": 1,
     "office_sections": 400,
     # A program's catalog row and the requirement groups the catalog lists for it, in order.
-    "programs": 1, "requirement_groups": 32,
+    "programs": 1, "requirement_groups": 32, "graduation_plans": 40,
     # A catalog course's record (the courses artifact entry its code keys).
     "courses": 1,
 }
@@ -1815,10 +1815,13 @@ def trips_property(
 
 MAX_REQUIREMENT_GROUPS = 32
 REQUIREMENT_FIELDS = ("label", "shape", "note", "choose", "rule", "course_list")
+PLAN_FIELDS = ("name", "cohort", "applicability", "totalCredits", "totals", "terms",
+               "generalEducation", "placementText", "variantOf")
 
 
 def program_properties(
     program: dict[str, Any], groups: Sequence[dict[str, Any]], now: datetime,
+    plans: Sequence[dict[str, Any]] = (),
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """A program's catalog row and its requirement groups, each exactly as published, cited to
     the program's catalog page. The groups keep the catalog's section order; nothing is chosen,
@@ -1856,6 +1859,31 @@ def program_properties(
     props.append({"key": "requirements", "label": "Requirements", "category": "academic",
                   "status": "known" if values else "unknown", "values": values,
                   "assertions": assertions})
+    # Recommended graduation plans, one per admission cohort (and variant) as published; the
+    # reader chooses none of them.
+    plan_values, plan_assertions = [], []
+    for row in plans:
+        plan = row.get("plan")
+        if not isinstance(plan, dict):
+            raise EvidenceUnavailable("Invalid published graduation plan.")
+        reading = _source({**row, "canonical_url": _url(plan.get("url"))}, now)
+        reading.update(collection="graduation_plans",
+                       source_record_keys=[row["source_record_key"]], record_ids=[row["id"]],
+                       content_hash=row.get("content_hash"))
+        sources.append(reading)
+        published = {key: plan.get(key) for key in PLAN_FIELDS} | {"url": _url(plan.get("url"))}
+        assertion = {"id": f"{reading['id']}:plan", "source_id": reading["id"],
+                     "field": "plans", "raw_value": None, "value": _json_safe(published),
+                     "caveats": []}
+        plan_assertions.append(assertion)
+        plan_values.append({"value": _json_safe(published), "assertion_ids": [assertion["id"]],
+                            "source_ids": [reading["id"]]})
+    if plan_values:
+        cohorts = {value["value"].get("cohort") for value in plan_values}
+        props.append({"key": "plans", "label": "Recommended graduation plans",
+                      "category": "academic",
+                      "status": "multiple" if len(cohorts) > 1 else "known",
+                      "values": plan_values, "assertions": plan_assertions})
     return props, sources
 
 
@@ -2547,6 +2575,9 @@ class EntityFacts:
                 raise UnknownEntity("No program has that canonical identity.")
             programs = snapshot.record_reader(entity, "programs")
             groups = snapshot.record_reader(entity, "requirement_groups")
+            plans = snapshot.record_reader(entity, "graduation_plans")
+            if len(linked_rows(entity, plans, "graduation_plans")) != len(plans):
+                raise EvidenceUnavailable("A graduation plan has no exact canonical link.")
             if len(programs) != 1 or len(linked_rows(entity, programs, "programs")) != 1:
                 raise EvidenceUnavailable("A program has no single exact catalog record.")
             if len(groups) > MAX_REQUIREMENT_GROUPS:
@@ -2562,7 +2593,7 @@ class EntityFacts:
                       for key in link["source_record_keys"]]
             by_key = {row["source_record_key"]: row for row in groups}
             ordered = [by_key[key] for key in wanted if key in by_key]
-            properties, sources = program_properties(programs[0], ordered, now)
+            properties, sources = program_properties(programs[0], ordered, now, plans)
             missing = len(wanted) - len(ordered)
             caveats = [f"{missing} linked requirement groups are missing."] if missing else []
             return {
@@ -2573,7 +2604,7 @@ class EntityFacts:
                 "entity": {key: entity[key] for key in ("id", "kind", "name")},
                 "properties": properties,
                 "sources": sources,
-                "evidence_count": 1 + len(ordered),
+                "evidence_count": 1 + len(ordered) + len(plans),
                 "caveats": caveats,
                 "complete": not caveats,
             }

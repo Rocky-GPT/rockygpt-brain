@@ -77,7 +77,8 @@ SELECT md5(concat_ws('|',
             FROM rockygpt_v2.programs p WHERE p.dataset_version_id = v.id), ''),
   coalesce((SELECT string_agg(a.content_hash, ',' ORDER BY a.artifact_key)
             FROM rockygpt_v2.release_artifacts a WHERE a.dataset_version_id = v.id
-              AND a.artifact_key IN ('programs', 'program-requirement-groups')), ''),
+              AND a.artifact_key IN ('programs', 'program-requirement-groups', 'courses',
+                                     'catalog-course-identities', 'graduation-plans')), ''),
   coalesce(coverage.content_hash, ''), coalesce(capture.content_hash, ''))) AS fingerprint
 FROM rockygpt_v2.dataset_versions v
 LEFT JOIN rockygpt_v2.release_artifacts coverage ON coverage.dataset_version_id = v.id
@@ -331,6 +332,14 @@ JOIN rockygpt_v2.release_artifacts p ON p.dataset_version_id = c.dataset_version
 WHERE c.dataset_version_id = %s::uuid AND c.artifact_key = 'courses'
 """
 
+_GRADUATION_PLANS = """
+SELECT a.payload, a.content_hash,
+       (SELECT s.freshness_sla_hours FROM rockygpt_v2.sources s
+        WHERE s.source_key = 'graduation-plans') AS freshness_sla_hours
+FROM rockygpt_v2.release_artifacts a
+WHERE a.dataset_version_id = %s::uuid AND a.artifact_key = 'graduation-plans'
+"""
+
 _RECORD_SQL = {"programs": _PROGRAMS, "requirement_groups": _REQUIREMENT_GROUPS,
                "dining_hours": _DINING, "menu": _MENU, "shuttle_trips": _TRIPS,
                "menu_documents": _MENU_DOCUMENTS, "menu_listings": _MENU_LISTINGS,
@@ -509,9 +518,36 @@ class PostgresEntityFacts(EntityFacts):
                             for key in keys[:RECORD_COLLECTIONS["courses"] + 1]
                             if isinstance(catalog["courses"].get(key), dict)]
 
+                # The recommended graduation plans are one 8 MB payload, read once per snapshot.
+                plans_read: dict[str, Any] = {}
+
+                def plans(entity: dict[str, Any]) -> list[dict[str, Any]]:
+                    keys = [key for link in entity["links"]
+                            if link.get("collection") == "graduation_plans"
+                            and link.get("source_key") == "graduation-plans"
+                            for key in link["source_record_keys"]]
+                    if not keys:
+                        return []
+                    if not plans_read:
+                        rows = read(_GRADUATION_PLANS, (release["dataset_id"],))
+                        if len(rows) != 1 or not isinstance(rows[0]["payload"], dict):
+                            raise EvidenceUnavailable("The graduation plans are not published.")
+                        plans_read.update(rows[0], by_id={
+                            p.get("id"): p for p in rows[0]["payload"].get("plans", [])
+                            if isinstance(p, dict)})
+                    return [{"id": f"plan:{key}", "source_key": "graduation-plans",
+                             "source_record_key": key, "plan": plans_read["by_id"][key],
+                             "collected_at": plans_read["payload"].get("captured_at"),
+                             "freshness_sla_hours": plans_read["freshness_sla_hours"],
+                             "content_hash": plans_read["content_hash"]}
+                            for key in keys[:RECORD_COLLECTIONS["graduation_plans"] + 1]
+                            if key in plans_read["by_id"]]
+
                 def records(entity: dict[str, Any], collection: str) -> list[dict[str, Any]]:
                     if collection == "courses":
                         return courses(entity)
+                    if collection == "graduation_plans":
+                        return plans(entity)
                     query = _RECORD_SQL.get(collection)
                     links = [link for link in entity["links"]
                              if link.get("collection") == collection]
