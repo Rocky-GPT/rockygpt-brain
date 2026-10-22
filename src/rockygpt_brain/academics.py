@@ -448,6 +448,13 @@ def _abbreviates(word: str, title_word: str) -> bool:
         len(word) >= 4 and word[-1] in "so" and title_word.startswith(word[:-1]))
 
 
+_GENERIC_TITLES = {"internship", "seminar", "independent", "topics", "thesis", "practicum",
+                   "capstone", "research", "study", "studies", "workshop", "colloquium",
+                   "fieldwork", "tutorial", "honors"}
+_COURSE_TALK = re.compile(r"\b(?:class|classes|course|courses|take|taking|prereq\w*|credits?|"
+                          r"lab|labs|cover|covers|semester|before|after)\b")
+
+
 def courses_by_title(titles: dict[str, str], message: str) -> list[str]:
     """The courses a question names by an everyday form of their catalog title ("calc 2" is
     Calculus II, "gen chem 2" General Chemistry II, "orgo 1" Organic Chemistry I): every title
@@ -460,8 +467,12 @@ def courses_by_title(titles: dict[str, str], message: str) -> list[str]:
     scored: list[tuple[float, str]] = []
     for entity_id, title in titles.items():
         parts = _title_words(title)
-        # A one-word title ("Internship", "Seminar") is too common a word to be named by.
+        # A one-word title is named only by that exact word in a question about courses
+        # ("when do you take genetics"), never a generic one ("Internship", "Seminar").
         if len(parts) < 2:
+            if (parts and len(parts[0]) >= 6 and parts[0] not in _GENERIC_TITLES
+                    and parts[0] in words and _COURSE_TALK.search(message.casefold())):
+                scored.append((1.0, entity_id))
             continue
         at = {p: [k for k, w in enumerate(words) if _abbreviates(w, p) and (
             w not in _ASKING or w == p or (w == "gen" and k + 1 < len(words)
@@ -484,4 +495,124 @@ def courses_by_title(titles: dict[str, str], message: str) -> list[str]:
         return []
     best = max(score for score, _ in scored)
     return [entity_id for score, entity_id in scored if score == best][:3]
+
+
+# Words beside a level word that are not the subject asked about ("is there a ... minor").
+_NOT_SUBJECT = {"there", "ramapo", "offer", "offers", "have", "has", "any", "program",
+                "programs", "degree", "degrees", "concentration", "track", "you", "your",
+                "college", "school", "some", "kind", "type", "available", "get", "add", "want",
+                "thinking", "about", "double", "also", "maybe", "or", "a", "an", "in", "of",
+                "is", "do", "does", "i", "im", "i'm", "can", "could", "be", "to", "my", "like",
+                "many", "much", "non", "other", "all", "every", "which", "same", "one", "two"}
+_LEVEL_TOKENS = {"minor": "minor", "minors": "minor", "major": "major", "majors": "major",
+                 "certificate": "certificate", "certificates": "certificate", "cert": "certificate",
+                 "certs": "certificate", "masters": "graduate", "master": "graduate",
+                 "ms": "graduate", "ma": "graduate", "mba": "graduate", "msw": "graduate",
+                 "bachelor": "major", "bachelors": "major", "ba": "major", "bs": "major"}
+_LEVEL_NAMES = {"minor": "minor", "major": "bachelor's major", "certificate": "certificate",
+                "graduate": "graduate program"}
+
+
+def asked_subjects(message: str) -> list[tuple[str, list[str]]]:
+    """Each level a message asks about with the subject words beside it ("a chem minor",
+    "minor in film", "a data analytics certificate"): up to four words before the level word
+    and five after, without question words, each level once."""
+    tokens = re.findall(r"[a-z0-9+]+", message.casefold())
+    asked: list[tuple[str, list[str]]] = []
+    for k, token in enumerate(tokens):
+        level = _LEVEL_TOKENS.get(token)
+        if not level:
+            continue
+        near = tokens[max(0, k - 4):k] + tokens[k + 1:k + 6]
+        words = [w for w in near if len(w) >= 3 and w not in _NOT_SUBJECT
+                 and w not in _ASKING and w not in _LEVEL_TOKENS]
+        known = next((pair for pair in asked if pair[0] == level), None)
+        if known:
+            known[1].extend(w for w in words if w not in known[1])
+        elif words:
+            asked.append((level, list(dict.fromkeys(words))))
+    return asked
+
+
+def published_in(programs: Sequence[dict[str, Any]], level: str,
+                 words: Sequence[str]) -> list[str]:
+    """The catalog's programs at a level whose name has a word the subject words name, or a
+    short form of it ("film" for Digital Filmmaking, "chem" for Chemistry); best covered first."""
+    scored = []
+    for program in programs:
+        name = str(program["name"])
+        if program_level(name) != level:
+            continue
+        core = [w for w in re.findall(r"[a-z0-9]+", program_core(name).casefold())
+                if w not in _TITLE_FILLER]
+        hit = sum(1 for c in core if any(_abbreviates(w, c) for w in words))
+        if hit:
+            scored.append((-hit, name))
+    return [name for _, name in sorted(scored)]
+
+
+def computed_answers(evidence: Sequence[dict[str, Any]], programs: Sequence[dict[str, Any]],
+                     message: str, catalog_n: int | None) -> list[dict[str, Any]]:
+    """What code works out from the catalog for the reply to state as it is, the way the
+    shuttle's next departure is: whether each subject asked about is published at the level
+    asked (and at which others), each course's credits and a lecture and its lab together, its
+    prerequisites (or that it has none), its description when asked what it covers, its Gen Ed
+    attributes, and the credit totals a program's requirement groups state."""
+    facts: list[dict[str, Any]] = []
+    for level, words in asked_subjects(message):
+        found = published_in(programs, level, words)
+        label = _LEVEL_NAMES[level]
+        if found:
+            facts.append({"fact": f"The catalog lists {'these' if len(found) > 1 else 'this'} "
+                                  f"{label}{'s' if len(found) > 1 else ''} for "
+                                  f"'{' '.join(words)}': {'; '.join(found[:8])}.",
+                          "n": catalog_n})
+        else:
+            others = [n for other in _LEVEL_NAMES if other != level
+                      for n in published_in(programs, other, words)][:6]
+            facts.append({"fact": f"The catalog lists no {label} for '{' '.join(words)}'."
+                                  + (f" It does list: {'; '.join(others)}." if others else ""),
+                          "n": catalog_n})
+    courses = [e for e in evidence if e.get("course")]
+    by_code = {str(e["course"]).split(" ")[0] + " " + str(e["course"]).split(" ")[1]: e
+               for e in courses if len(str(e["course"]).split(" ")) > 1}
+    asks_gen_ed = bool(re.search(r"\bgen ?eds?\b|general education", message.casefold()))
+    asks_content = bool(re.search(r"\b(?:cover|covers|about|learn|topics?|content|like|"
+                                  r"describe|description)\b", message.casefold()))
+    for code, item in by_code.items():
+        if isinstance(item.get("credits"), int | float):
+            facts.append({"fact": f"{item['course']} is {item['credits']:g} credits.",
+                          "n": item["n"]})
+        lab = by_code.get(code + "L")
+        if lab and isinstance(item.get("credits"), int | float) \
+                and isinstance(lab.get("credits"), int | float):
+            facts.append({"fact": f"{code} and {code}L together are "
+                                  f"{item['credits'] + lab['credits']:g} credits "
+                                  f"({item['credits']:g} + {lab['credits']:g}).",
+                          "n": item["n"]})
+        prerequisites = item.get("prerequisites")
+        if prerequisites == "none published":
+            facts.append({"fact": f"{code} has no published prerequisites.", "n": item["n"]})
+        elif prerequisites:
+            facts.append({"fact": f"{code} prerequisites, as the catalog states them: "
+                                  f"{' '.join(str(prerequisites).split())}", "n": item["n"]})
+        if item.get("description") and asks_content:
+            facts.append({"fact": f"The catalog describes {code}: "
+                                  f"{' '.join(str(item['description']).split())[:600]}",
+                          "n": item["n"]})
+        gen_ed = [a for a in item.get("attributes") or [] if "gen ed" in str(a).casefold()]
+        if gen_ed:
+            facts.append({"fact": f"{code} carries the Gen Ed attribute {'; '.join(gen_ed)}.",
+                          "n": item["n"]})
+        elif asks_gen_ed:
+            facts.append({"fact": f"{code} carries no Gen Ed attribute in the catalog.",
+                          "n": item["n"]})
+    for item in evidence:
+        if not item.get("program"):
+            continue
+        for track, credits in re.findall(r"(?m)^(.{3,80}?)\s*[-–]\s*(\d{2,3})\s*credits?\b",
+                                         str(item.get("requirements") or "")):
+            facts.append({"fact": f"The catalog gives {track.strip()} as {credits} credits.",
+                          "n": item["n"]})
+    return facts
 

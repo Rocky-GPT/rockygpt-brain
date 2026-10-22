@@ -369,3 +369,33 @@ def test_programs_are_named_by_short_forms_each_with_its_own_level() -> None:
         "Physics BS", "Engineering Physics BS"]
     assert names("is there a data science minor") == ["Data Science Minor"]
 
+
+def test_code_works_out_published_programs_credits_and_gen_ed() -> None:
+    from rockygpt_brain.academics import computed_answers
+    programs = [{"id": n, "name": n} for n in (
+        "Digital Filmmaking Minor", "Filmmaking BA", "Chemistry Minor", "Chemistry BS",
+        "Nursing Generic BSN", "Social Work MSW")]
+    facts = [f["fact"] for f in computed_answers([], programs, "is there a film minor?", 9)]
+    assert facts == ["The catalog lists this minor for 'film': Digital Filmmaking Minor."]
+    facts = [f["fact"] for f in computed_answers([], programs, "is there a nursing minor", 9)]
+    assert facts == ["The catalog lists no minor for 'nursing'. It does list: "
+                     "Nursing Generic BSN."]
+    evidence = [
+        {"n": 1, "course": "BIOL 111 FUNDAMENTALS OF BIOLOGY I LECTURE", "credits": 4,
+         "attributes": [], "prerequisites": "none published"},
+        {"n": 2, "course": "BIOL 111L FUNDAMENTALS OF BIOLOGY I LAB", "credits": 1,
+         "attributes": []},
+        {"n": 3, "course": "MATH 108 ELEMENTARY PROBABILITY AND STATISTICS", "credits": 4,
+         "attributes": ["Gen Ed 18-Quantitative Rsng (GEQR)"]},
+        {"n": 4, "program": "Social Work MSW",
+         "requirements": "MSW Advanced Standing Track - 30 credit program\n  - MSWK 690\n"
+                         "MSW Traditional Track - 60 credit program"}]
+    facts = [f["fact"] for f in computed_answers(evidence, programs,
+                                                 "does bio 1 with lab count for gen ed", None)]
+    assert "BIOL 111 and BIOL 111L together are 5 credits (4 + 1)." in facts
+    assert "BIOL 111 carries no Gen Ed attribute in the catalog." in facts
+    assert "MATH 108 carries the Gen Ed attribute Gen Ed 18-Quantitative Rsng (GEQR)." in facts
+    assert "The catalog gives MSW Traditional Track as 60 credits." in facts
+    assert "The catalog gives MSW Advanced Standing Track as 30 credits." in facts
+    assert "BIOL 111 has no published prerequisites." in facts
+

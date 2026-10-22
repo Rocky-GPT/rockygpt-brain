@@ -85,6 +85,7 @@ LOG = logging.getLogger(__name__)
 # A slow provider gets 52 s; with the emergency numbers' wait and 2 s the outer guard is 57 s,
 # inside the student and dev UIs' 60 s request timeout.
 TURN_SECONDS = 52.0
+CATALOG_URL = "https://catalog.ramapo.edu/programs"
 MAX_TOOL_ATTEMPTS = 8
 MAX_RESULTS = 8
 MAX_ANSWER_CHARS = 12_000
@@ -1812,6 +1813,7 @@ class ChatEngine:
             trace["oneCall"] = {"fallback": code}
             return None
         seen: set[tuple[str, str]] = set()
+        computed: list[dict[str, Any]] = []
         academic: list[dict[str, Any]] = []
         calendar: dict[str, Any] | None = None
         clubs: list[dict[str, Any]] = []
@@ -1911,12 +1913,22 @@ class ChatEngine:
                             index.dataset_version, index.identity_hash, named, seen=seen,
                             chosen=chosen, numbered_from=len(sources))
                     sources = [*sources, *found]
+                # What code works out from the catalog (published or not, credits and their
+                # sums, Gen Ed attributes, catalog credit totals) for the reply to state as is.
+                if academic or academics.asked_subjects(latest):
+                    catalog_n = next((e["n"] for e in academic if "catalog_programs" in e), None)
+                    if catalog_n is None and academics.asked_subjects(latest):
+                        catalog_n = len(sources) + 1
+                        sources = [*sources, {"n": catalog_n, "url": CATALOG_URL,
+                                              "title": "Programs in the college catalog"}]
+                    computed = academics.computed_answers(
+                        academic, self.facts.identities(("program",)), latest, catalog_n)
                 budget.max_calls = max(budget.max_calls, budget.calls + 1)
                 with measure("Write the answer from the evidence"):
                     completion = await self.gateway.complete(
                         input=one_call.messages(latest, earlier if question != latest else None,
                                                 offices, turn.campus_now.date(), academic,
-                                                calendar, clubs, people),
+                                                calendar, clubs, people, computed),
                         tools=[one_call.ONE_CALL_TOOL], budget=budget)
         except GatewayError as error:
             return fallback(error.code)
@@ -1948,7 +1960,8 @@ class ChatEngine:
                             input=one_call.messages(latest,
                                                     earlier if question != latest else None,
                                                     [*offices, *more], turn.campus_now.date(),
-                                                    academic, calendar, clubs, people),
+                                                    academic, calendar, clubs, people,
+                                                    computed),
                             tools=[one_call.ONE_CALL_TOOL], budget=budget)
                 second = again.tool_calls[0] if len(again.tool_calls) == 1 else None
                 if second is not None and second.name == "write_answer":
