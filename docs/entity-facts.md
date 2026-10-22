@@ -10,8 +10,9 @@ must not reconcile raw rows or infer its own fact values.
 The current rebuild reads **office contact facts and office schedules**, dining venues'
 hours and menus, shuttle routes' trips, topics' site pages, and **programs** (majors,
 minors, certificates: their catalog row and requirement groups, `get_program_facts`). It
-and **courses** (`get_course_facts`). It does not yet implement fact projections for
-people, clubs, events, buildings, schools, or subjects. The
+**courses** (`get_course_facts`), and **calendar events and clubs** (`get_event_facts`,
+`get_club_facts`). It does not yet implement fact projections for people, buildings, schools, or
+subjects. The
 development graph-node inspector exposes the Offices, Dining (venues) and Shuttle
 (routes) branches. It does not yet implement broad developer graph projections,
 profiles, paginated context groups, or versioned cursors.
@@ -380,3 +381,15 @@ academic-programs capture time. Mapping rules: credits that are not one number (
 Pathways modules publish an object) are unknown, and the credit-hour range is not read (its
 minimum is always 0). Discovery (`academics.course_codes`) takes a typed code ("cmps147",
 "CMPS-147") only when it is exactly a published catalog code.
+
+## Events and clubs (entity-facts-7)
+
+An `event` identity links its `campus_events` row (key "date:title", pinned by row id where two
+events share one); `get_event_facts` reads up to forty: title, date, start, end, organizer and
+description from the row, and location, tags and ticket status from its Archway listing entry
+(the events artifact, keyed alike), cited to its own event page. A `club` or `organization` links
+its `clubs` row; `get_club_facts` reads up to twelve: name, category and page, with the listing's
+membership note. Discovery (`events.py`) is by the question's words: its time words become a
+window on the campus clock and the calendar events dated in it (their identity names end in the
+date) are read; a club is named by every word of its directory name, or found by its card's
+meaning (name and category). Naming an event or club establishes none of its facts.

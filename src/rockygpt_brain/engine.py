@@ -18,7 +18,7 @@ from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from rockygpt_brain import academics, one_call
+from rockygpt_brain import academics, events, one_call
 from rockygpt_brain.answers import (
     Rendered,
     citation_url,
@@ -1642,10 +1642,69 @@ class ChatEngine:
                             "title": "Programs in the college catalog"})
         return evidence, sources, version
 
+    def _read_calendar(self, message: str, now: datetime, numbered_from: int,
+                       ) -> tuple[dict[str, Any] | None, list[dict[str, Any]],
+                                  list[dict[str, Any]]]:
+        """The calendar events in the question's window and the clubs it names, read through the
+        shared reader (events.py), numbered after the evidence before them."""
+        version, identity_hash = self.facts.active_release()
+        named = self.facts.identities(("event", "club", "organization"))
+        sources: list[dict[str, Any]] = []
+        calendar: dict[str, Any] | None = None
+        if events.asks_events(message):
+            start, end, label = events.window(message, now)
+            dated = events.events_in([e for e in named if e["kind"] == "event"], start, end)
+            values = [f["properties"][0]["values"][0]["value"]
+                      for at in range(0, len(dated), 40)
+                      for f in self.facts.get_event_facts(
+                          [e["id"] for e in dated[at:at + 40]], version,
+                          identity_hash=identity_hash, as_of=now)]
+            chosen = []
+            ranked, matched = events.rank_events(values, message, start, end)
+            for value in ranked:
+                line = {"n": numbered_from + len(sources) + 1, **events.event_line(value)}
+                chosen.append(line)
+                sources.append({"n": line["n"], "url": line.get("url"), "title": line["event"]})
+            calendar = {"window": label, "events_on_the_calendar_in_it": len(dated),
+                        **({"topic_matched": matched,
+                            "topic_words": sorted(events.topic_words(message))}
+                           if matched is not None else {}),
+                        "events": chosen, "calendar_url": events.CALENDAR_URL}
+        clubs: list[dict[str, Any]] = []
+        found = events.find_clubs([e for e in named if e["kind"] in ("club", "organization")],
+                                  message) if events.asks_clubs(message) else []
+        if found:
+            for facts in self.facts.get_club_facts([c["id"] for c in found], version,
+                                                   identity_hash=identity_hash, as_of=now):
+                value = facts["properties"][0]["values"][0]["value"]
+                item = {"n": numbered_from + len(sources) + 1, **value}
+                clubs.append(item)
+                sources.append({"n": item["n"], "url": value.get("url"), "title": value["name"]})
+        return calendar, clubs, sources
+
+    def _clubs_by_meaning(self, index: MeaningIndex, vector: Sequence[float], numbered_from: int,
+                          ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """The clubs whose cards best match the question's meaning, read through the reader."""
+        names = {e["id"]: str(e["name"]) for e in self.facts.identities(("club", "organization"))}
+        found = events.clubs_by_meaning(index.academic_scores(vector, "club"), names)
+        if not found:
+            return [], []
+        version, identity_hash = self.facts.active_release()
+        clubs: list[dict[str, Any]] = []
+        sources: list[dict[str, Any]] = []
+        for facts in self.facts.get_club_facts([c["id"] for c in found], version,
+                                               identity_hash=identity_hash):
+            value = facts["properties"][0]["values"][0]["value"]
+            item = {"n": numbered_from + len(sources) + 1, **value}
+            clubs.append(item)
+            sources.append({"n": item["n"], "url": value.get("url"), "title": value["name"]})
+        return clubs, sources
+
     async def _one_call(self, turn: Turn, context: Context, budget: TurnBudget,
                         trace: dict[str, Any],
                         programs: tuple[list[dict[str, Any]], list[str],
                                         list[dict[str, Any]]] | None = None,
+                        calendar_asked: bool = False,
                         ) -> ChatResult | None:
         """One model call from code-found evidence (one_call.py); None leaves the question to
         the four-call loop: no meaning index and no program named, a failed call, or a reply
@@ -1654,7 +1713,7 @@ class ChatEngine:
         embed_many = getattr(self.gateway, "embed_many", None)
         index = await asyncio.to_thread(self.facts.meaning_index)
         searchable = embed_many is not None and index is not None
-        if not searchable and not programs:
+        if not searchable and not programs and not calendar_asked:
             return None
         latest = context.latest_message
         earlier = next((m.content for m in reversed(context.recent_messages)
@@ -1669,6 +1728,8 @@ class ChatEngine:
             return None
         seen: set[tuple[str, str]] = set()
         academic: list[dict[str, Any]] = []
+        calendar: dict[str, Any] | None = None
+        clubs: list[dict[str, Any]] = []
         vectors: list[list[float]] = []
         offices: list[dict[str, Any]] = []
         sources: list[dict[str, Any]] = []
@@ -1679,6 +1740,12 @@ class ChatEngine:
                     with measure("Read the programs named"):
                         academic, sources, dataset_version = await asyncio.to_thread(
                             self._read_programs, *programs, latest, turn.campus_now.date())
+                if calendar_asked:
+                    with measure("Read the calendar and clubs"):
+                        calendar, clubs, found_sources = await asyncio.to_thread(
+                            self._read_calendar, latest, turn.campus_now, len(sources))
+                    sources = [*sources, *found_sources]
+                    dataset_version = dataset_version or self.facts.active_release()[0]
                 if searchable:
                     assert index is not None and embed_many is not None
                     with measure("Embed the question's parts"):
@@ -1694,6 +1761,12 @@ class ChatEngine:
                             academic, sources, dataset_version = await asyncio.to_thread(
                                 self._read_programs, found_programs, [], found_courses,
                                 latest, turn.campus_now.date(), True)
+                    # Clubs the question asks about but names by no directory name ("is there
+                    # an anime club") are found by their cards' meaning.
+                    if calendar_asked and not clubs and events.asks_clubs(latest):
+                        clubs, club_sources = await asyncio.to_thread(
+                            self._clubs_by_meaning, index, vectors[0], len(sources))
+                        sources = [*sources, *club_sources]
                 chosen = None
                 if searchable and index is not None and index.labels:
                     pool_scores, pool = one_call.chosen_units(
@@ -1719,7 +1792,8 @@ class ChatEngine:
                 with measure("Write the answer from the evidence"):
                     completion = await self.gateway.complete(
                         input=one_call.messages(latest, earlier if question != latest else None,
-                                                offices, turn.campus_now.date(), academic),
+                                                offices, turn.campus_now.date(), academic,
+                                                calendar, clubs),
                         tools=[one_call.ONE_CALL_TOOL], budget=budget)
         except GatewayError as error:
             return fallback(error.code)
@@ -1751,7 +1825,7 @@ class ChatEngine:
                             input=one_call.messages(latest,
                                                     earlier if question != latest else None,
                                                     [*offices, *more], turn.campus_now.date(),
-                                                    academic),
+                                                    academic, calendar, clubs),
                             tools=[one_call.ONE_CALL_TOOL], budget=budget)
                 second = again.tool_calls[0] if len(again.tool_calls) == 1 else None
                 if second is not None and second.name == "write_answer":
@@ -1767,7 +1841,7 @@ class ChatEngine:
         if not text:
             return fallback("no_text")
         view = {"today": turn.campus_now.date().isoformat(), "offices": offices,
-                "programs": academic,
+                "programs": academic, "calendar": calendar, "clubs": clubs,
                 "sources": [{"n": s["n"], "urls": [s["url"]]} for s in sources if s.get("url")]}
         problems = unsupported_by(text, view)
         if problems:
@@ -2185,8 +2259,12 @@ class ChatEngine:
         named_programs = (await asyncio.to_thread(self._programs_named, context.latest_message)
                           if self.output == "written" and floor_situation is None
                           else ([], [], []))
-        if named_programs[0] or named_programs[2]:
-            done = await self._one_call(turn, context, budget, trace, programs=named_programs)
+        calendar_asked = (self.output == "written" and floor_situation is None
+                          and (events.asks_events(context.latest_message)
+                               or events.asks_clubs(context.latest_message)))
+        if named_programs[0] or named_programs[2] or calendar_asked:
+            done = await self._one_call(turn, context, budget, trace, programs=named_programs,
+                                        calendar_asked=calendar_asked)
             if done is not None:
                 return done
         elif (self.howto_one_call and self.output == "written" and floor_situation is None

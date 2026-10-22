@@ -78,7 +78,12 @@ SELECT md5(concat_ws('|',
   coalesce((SELECT string_agg(a.content_hash, ',' ORDER BY a.artifact_key)
             FROM rockygpt_v2.release_artifacts a WHERE a.dataset_version_id = v.id
               AND a.artifact_key IN ('programs', 'program-requirement-groups', 'courses',
-                                     'catalog-course-identities', 'graduation-plans')), ''),
+                                     'catalog-course-identities', 'graduation-plans',
+                                     'events', 'clubs')), ''),
+  coalesce((SELECT md5(string_agg(to_jsonb(e)::text, ',' ORDER BY e.id))
+            FROM rockygpt_v2.campus_events e WHERE e.dataset_version_id = v.id), ''),
+  coalesce((SELECT md5(string_agg(to_jsonb(c)::text, ',' ORDER BY c.id))
+            FROM rockygpt_v2.clubs c WHERE c.dataset_version_id = v.id), ''),
   coalesce(coverage.content_hash, ''), coalesce(capture.content_hash, ''))) AS fingerprint
 FROM rockygpt_v2.dataset_versions v
 LEFT JOIN rockygpt_v2.release_artifacts coverage ON coverage.dataset_version_id = v.id
@@ -340,7 +345,67 @@ FROM rockygpt_v2.release_artifacts a
 WHERE a.dataset_version_id = %s::uuid AND a.artifact_key = 'graduation-plans'
 """
 
-_RECORD_SQL = {"programs": _PROGRAMS, "requirement_groups": _REQUIREMENT_GROUPS,
+# A calendar event's row, with the location, tags and ticket status its Archway listing entry
+# (the events artifact, keyed by date and title) publishes beside it.
+_EVENTS = """
+WITH links AS (
+  SELECT * FROM jsonb_to_recordset(%s::jsonb) AS link(
+    source_key text, source_record_keys jsonb, source_record_ids jsonb)
+), release AS (SELECT %s::uuid AS id)
+SELECT e.id::text AS id, e.source_record_key, e.title, e.date_label, e.starts_at,
+       e.start_time, e.end_time, e.organizer, e.description, e.event_url, e.collected_at,
+       e.valid_from, e.valid_until, e.content_hash, s.source_key, s.freshness_sla_hours,
+       listing.item AS listing
+FROM release
+JOIN rockygpt_v2.campus_events e ON e.dataset_version_id = release.id
+JOIN rockygpt_v2.sources s ON s.id = e.source_id
+LEFT JOIN LATERAL (
+  SELECT item FROM rockygpt_v2.release_artifacts a,
+       jsonb_array_elements(a.payload) AS item
+  WHERE a.dataset_version_id = release.id AND a.artifact_key = 'events'
+    AND item->>'date' || ':' || (item->>'title') = e.source_record_key
+  LIMIT 1
+) listing ON true
+WHERE EXISTS (
+  SELECT 1 FROM links l WHERE l.source_key = s.source_key
+    AND l.source_record_keys ? e.source_record_key
+    -- Two events of one title on one day share a key; the link pins its own row.
+    AND (l.source_record_ids IS NULL OR l.source_record_ids ? e.id::text)
+)
+ORDER BY e.starts_at, e.id
+LIMIT %s
+"""
+
+# A club's directory row, with the membership note its Archway listing entry publishes.
+_CLUBS = """
+WITH links AS (
+  SELECT * FROM jsonb_to_recordset(%s::jsonb) AS link(
+    source_key text, source_record_keys jsonb, source_record_ids jsonb)
+), release AS (SELECT %s::uuid AS id)
+SELECT c.id::text AS id, c.source_record_key, c.name, c.category, c.website_url,
+       c.collected_at, c.valid_from, c.valid_until, c.content_hash, s.source_key,
+       s.freshness_sla_hours, listing.item AS listing
+FROM release
+JOIN rockygpt_v2.clubs c ON c.dataset_version_id = release.id
+JOIN rockygpt_v2.sources s ON s.id = c.source_id
+LEFT JOIN LATERAL (
+  SELECT item FROM rockygpt_v2.release_artifacts a,
+       jsonb_array_elements(a.payload) AS item
+  WHERE a.dataset_version_id = release.id AND a.artifact_key = 'clubs'
+    AND item->>'name' = c.source_record_key
+  LIMIT 1
+) listing ON true
+WHERE EXISTS (
+  SELECT 1 FROM links l WHERE l.source_key = s.source_key
+    AND l.source_record_keys ? c.source_record_key
+    AND (l.source_record_ids IS NULL OR l.source_record_ids ? c.id::text)
+)
+ORDER BY c.source_record_key, c.id
+LIMIT %s
+"""
+
+_RECORD_SQL = {"programs": _PROGRAMS, "events": _EVENTS, "clubs": _CLUBS,
+               "requirement_groups": _REQUIREMENT_GROUPS,
                "dining_hours": _DINING, "menu": _MENU, "shuttle_trips": _TRIPS,
                "menu_documents": _MENU_DOCUMENTS, "menu_listings": _MENU_LISTINGS,
                "shuttle_stops": _SHUTTLE_STOPS, "campus_topics": _CAMPUS_TOPICS,

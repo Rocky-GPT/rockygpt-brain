@@ -45,6 +45,8 @@ RECORD_COLLECTIONS = {
     "programs": 1, "requirement_groups": 32, "graduation_plans": 40,
     # A catalog course's record (the courses artifact entry its code keys).
     "courses": 1,
+    # A calendar event's row and a club's directory row (Archway).
+    "events": 1, "clubs": 1,
 }
 # Entities a student can ask about by name: offices and dining venues. A route is not named by
 # students; it is read through the shuttle timetable.
@@ -1915,6 +1917,54 @@ def course_property(row: dict[str, Any], now: datetime) -> tuple[dict[str, Any],
                          "source_ids": [source["id"]]}], "assertions": [assertion]}, source)
 
 
+MAX_EVENTS_READ = 40
+MAX_CLUBS_READ = 12
+
+
+def _listing(row: dict[str, Any]) -> dict[str, Any]:
+    found = row.get("listing")
+    return found if isinstance(found, dict) else {}
+
+
+def event_property(row: dict[str, Any], now: datetime) -> tuple[dict[str, Any], dict[str, Any]]:
+    """A calendar event as published (its row, and the location, tags and ticket status of its
+    Archway listing), cited to its own event page."""
+    listing = _listing(row)
+    url = _url(row.get("event_url"))
+    source = _source({**row, "canonical_url": url}, now)
+    source.update(collection="events", source_record_keys=[row["source_record_key"]],
+                  record_ids=[row["id"]], content_hash=row.get("content_hash"))
+    starts = _instant(row.get("starts_at"))
+    value = {"title": clean(row.get("title")), "date": clean(row.get("date_label")),
+             "starts_at": starts.isoformat() if starts else None,
+             "start_time": clean(row.get("start_time")), "end_time": clean(row.get("end_time")),
+             "organizer": clean(row.get("organizer")), "location": clean(listing.get("location")),
+             "tags": [clean(t) for t in listing.get("tags") or [] if isinstance(t, str)],
+             "ticket_status": clean(listing.get("ticketStatus")),
+             "description": clean(row.get("description")), "url": url}
+    assertion = {"id": f"{source['id']}:event", "source_id": source["id"], "field": "event",
+                 "raw_value": None, "value": _json_safe(value), "caveats": []}
+    return ({"key": "event", "label": "Event", "category": "event", "status": "known",
+             "values": [{"value": _json_safe(value), "assertion_ids": [assertion["id"]],
+                         "source_ids": [source["id"]]}], "assertions": [assertion]}, source)
+
+
+def club_property(row: dict[str, Any], now: datetime) -> tuple[dict[str, Any], dict[str, Any]]:
+    """A club's directory entry as published (name, category, page, membership note)."""
+    listing = _listing(row)
+    url = _url(row.get("website_url"))
+    source = _source({**row, "canonical_url": url}, now)
+    source.update(collection="clubs", source_record_keys=[row["source_record_key"]],
+                  record_ids=[row["id"]], content_hash=row.get("content_hash"))
+    value = {"name": clean(row.get("name")), "category": clean(row.get("category")),
+             "membership": clean(listing.get("membershipInfo")), "url": url}
+    assertion = {"id": f"{source['id']}:club", "source_id": source["id"], "field": "club",
+                 "raw_value": None, "value": _json_safe(value), "caveats": []}
+    return ({"key": "club", "label": "Club", "category": "club", "status": "known",
+             "values": [{"value": _json_safe(value), "assertion_ids": [assertion["id"]],
+                         "source_ids": [source["id"]]}], "assertions": [assertion]}, source)
+
+
 class EntityFacts:
     """Shared office search and canonical fact reader; adapters supply one snapshot."""
 
@@ -2513,6 +2563,57 @@ class EntityFacts:
             return [{"id": e["id"], "kind": e["kind"], "name": e["name"],
                      "aliases": list(e["aliases"])}
                     for e in snapshot.entities if e["kind"] in kinds]
+
+    def _batch_facts(
+        self, entity_ids: Sequence[str], dataset_version: str, identity_hash: str | None,
+        as_of: datetime | None, kinds: Sequence[str], collection: str, bound: int,
+        read: Callable[[dict[str, Any], datetime], tuple[dict[str, Any], dict[str, Any]]],
+    ) -> list[dict[str, Any]]:
+        """Each named identity's one linked record, in the order asked, in one snapshot."""
+        if (not entity_ids or len(entity_ids) > bound
+                or not all(isinstance(e, str) and e and len(e) <= 100 for e in entity_ids)
+                or not isinstance(dataset_version, str) or not dataset_version):
+            raise InvalidFactRequest("A bounded list of canonical identities and a dataset pin "
+                                     "are required.")
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            now = as_of if as_of is not None else self.now()
+            if now.tzinfo is None:
+                raise InvalidFactRequest("The fact clock must include its timezone.")
+            by_id = {e["id"]: e for e in snapshot.entities if e["kind"] in kinds}
+            found = []
+            for entity_id in entity_ids:
+                entity = by_id.get(entity_id)
+                if entity is None:
+                    raise UnknownEntity("No identity of that kind has that canonical id.")
+                rows = snapshot.record_reader(entity, collection)
+                if len(rows) != 1 or len(linked_rows(entity, rows, collection)) != 1:
+                    raise EvidenceUnavailable("An identity has no single exact record.")
+                prop, source = read(rows[0], now)
+                found.append({
+                    "schema_version": 4, "mapping_version": "entity-facts-7",
+                    "dataset_version": snapshot.dataset_version,
+                    "identity_hash": snapshot.identity_hash,
+                    "entity": {key: entity[key] for key in ("id", "kind", "name")},
+                    "properties": [prop], "sources": [source], "evidence_count": 1,
+                    "caveats": [], "complete": True,
+                })
+            return found
+
+    def get_event_facts(self, entity_ids: Sequence[str], dataset_version: str, *,
+                        identity_hash: str | None = None,
+                        as_of: datetime | None = None) -> list[dict[str, Any]]:
+        """Each named calendar event as published, at most MAX_EVENTS_READ in one snapshot."""
+        return self._batch_facts(entity_ids, dataset_version, identity_hash, as_of, ("event",),
+                                 "events", MAX_EVENTS_READ, event_property)
+
+    def get_club_facts(self, entity_ids: Sequence[str], dataset_version: str, *,
+                       identity_hash: str | None = None,
+                       as_of: datetime | None = None) -> list[dict[str, Any]]:
+        """Each named club or organization's directory entry, at most MAX_CLUBS_READ."""
+        return self._batch_facts(entity_ids, dataset_version, identity_hash, as_of,
+                                 ("club", "organization"), "clubs", MAX_CLUBS_READ,
+                                 club_property)
 
     def get_course_facts(
         self,
