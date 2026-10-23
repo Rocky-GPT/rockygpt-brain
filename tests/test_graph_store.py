@@ -840,6 +840,30 @@ class FakeDatabase:
         return []
 
 
+def test_postgres_trusts_public_certificate_roots_unless_the_url_names_its_own(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    import certifi
+
+    from rockygpt_brain.retrieval.postgres import failure_cause
+
+    monkeypatch.delenv("PGSSLROOTCERT", raising=False)
+    database = FakeDatabase()
+    monkeypatch.setattr(psycopg, "connect", database.connect)
+    PostgresEntityFacts("postgresql://example.invalid/test?sslmode=verify-full").active_release()
+    assert database.kwargs["sslrootcert"] == certifi.where()
+    PostgresEntityFacts(
+        "postgresql://example.invalid/test?sslmode=verify-full&sslrootcert=/own.pem"
+    ).active_release()
+    assert "sslrootcert" not in database.kwargs  # The URL's own file wins.
+    monkeypatch.setenv("PGSSLROOTCERT", "system")
+    PostgresEntityFacts("postgresql://example.invalid/test").active_release()
+    assert "sslrootcert" not in database.kwargs
+    assert failure_cause(psycopg.OperationalError(
+        'connection to server at "db.example" failed: root certificate file '
+        '"/root/.postgresql/root.crt" does not exist')) == "tls_certificate"
+    assert failure_cause(psycopg.OperationalError("something else")) == "other"
+
+
 def test_postgres_names_its_active_release_without_reading_the_registry(
         monkeypatch: pytest.MonkeyPatch) -> None:
     database = FakeDatabase()
