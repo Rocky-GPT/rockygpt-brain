@@ -2,13 +2,16 @@
 
 import json
 import logging
+import os
 import time
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
 from urllib.parse import quote
 
+import certifi
 import psycopg
+from psycopg.conninfo import conninfo_to_dict
 from psycopg.rows import dict_row
 
 from rockygpt_brain.retrieval.entity_facts import (
@@ -429,6 +432,26 @@ _RECORD_SQL = {"programs": _PROGRAMS, "events": _EVENTS, "clubs": _CLUBS,
                "office_sections": _OFFICE_SECTIONS}
 
 
+# A failed connection has no SQLSTATE, and libpq's message names hosts; these name the cause alone.
+_CAUSES = (
+    ("certificate", "tls_certificate"),
+    ("ssl", "tls"),
+    ("password authentication", "authentication"),
+    ("channel binding", "authentication"),
+    ("unsupported startup parameter", "startup_parameter"),
+    ("could not translate host name", "dns"),
+    ("timeout", "timeout"),
+    ("timed out", "timeout"),
+    ("connection refused", "refused"),
+    ("too many", "too_many_connections"),
+)
+
+
+def failure_cause(error: Exception) -> str:
+    message = str(error).lower()
+    return next((cause for needle, cause in _CAUSES if needle in message), "other")
+
+
 class PostgresEntityFacts(EntityFacts):
     """Each operation pins one repeatable-read snapshot; mutations are prohibited."""
 
@@ -459,6 +482,12 @@ class PostgresEntityFacts(EntityFacts):
                  statement_ms: int) -> Iterator[psycopg.Connection[dict[str, Any]]]:
         """One repeatable-read, read-only transaction with its limits set inside it. Startup
         options would be simpler, but a pooled Neon connection (PgBouncer) refuses them."""
+        # A URL that asks for certificate checks (Neon's sslmode=verify-full) needs trusted roots;
+        # the slim image has no ~/.postgresql/root.crt, so libpq would refuse to connect.
+        tls: dict[str, Any] = {}
+        if (not os.getenv("PGSSLROOTCERT")
+                and "sslrootcert" not in conninfo_to_dict(self._database_url)):
+            tls["sslrootcert"] = certifi.where()
         with psycopg.connect(
             self._database_url,
             connect_timeout=self._connect_timeout,
@@ -467,6 +496,7 @@ class PostgresEntityFacts(EntityFacts):
             keepalives_idle=3,
             keepalives_interval=1,
             keepalives_count=2,
+            **tls,
         ) as connection:
             connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
             connection.execute(
@@ -697,8 +727,8 @@ class PostgresEntityFacts(EntityFacts):
         except psycopg.Error as exc:
             # Database URLs, passwords, row contents, and provider diagnostics are private; the
             # error class and SQLSTATE say which (timeout, permission, missing table) without them.
-            LOG.warning("campus_evidence_read_failed error=%s sqlstate=%s",
-                        type(exc).__name__, exc.sqlstate)
+            LOG.warning("campus_evidence_read_failed error=%s sqlstate=%s cause=%s",
+                        type(exc).__name__, exc.sqlstate, failure_cause(exc))
             raise EvidenceUnavailable(
                 "Published campus evidence is temporarily unavailable."
             ) from exc
