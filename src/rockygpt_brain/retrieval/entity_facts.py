@@ -636,7 +636,12 @@ def validate_entities(entities: Any) -> list[dict[str, Any]]:
                         or not all(isinstance(k, str) for k in record_keys)
                         or len(record_keys) > RECORD_COLLECTIONS[link["collection"]]
                         or not _text(link.get("source_key"))):
-                    raise EvidenceUnavailable("Invalid record identity link.")
+                    # Names the link (no record text) so a log says which entity to fix.
+                    count = len(record_keys) if isinstance(record_keys, list) else "?"
+                    raise EvidenceUnavailable(
+                        f"Invalid record identity link: {link['collection']} {count}/"
+                        f"{RECORD_COLLECTIONS[link['collection']]} on {entity['kind']} "
+                        f"{entity['name'][:60]}.")
                 continue
             if link.get("collection") != "contacts":
                 continue
@@ -2090,7 +2095,7 @@ class EntityFacts:
                     "identity_hash": snapshot.identity_hash,
                 }
         except EvidenceUnavailable as error:
-            LOG.warning("campus_facts_not_ready reason=%s", str(error)[:120])
+            LOG.warning("campus_facts_not_ready reason=%s", str(error)[:200])
             return {"ready": False}
 
     def list_offices(
