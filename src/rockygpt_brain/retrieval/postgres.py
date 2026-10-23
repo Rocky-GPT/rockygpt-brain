@@ -1,6 +1,7 @@
 """Bounded, read-only reads of the data publisher's existing release schema."""
 
 import json
+import logging
 import time
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -21,6 +22,8 @@ from rockygpt_brain.retrieval.entity_facts import (
     linked_records,
     validate_entities,
 )
+
+LOG = logging.getLogger(__name__)
 
 # A derived copy is built from one read with its own, longer limits; questions keep short ones.
 BUILD_SECONDS = 60.0
@@ -689,7 +692,10 @@ class PostgresEntityFacts(EntityFacts):
                     records,
                 )
         except psycopg.Error as exc:
-            # Database URLs, passwords, row contents, and provider diagnostics are private.
+            # Database URLs, passwords, row contents, and provider diagnostics are private; the
+            # error class and SQLSTATE say which (timeout, permission, missing table) without them.
+            LOG.warning("campus_evidence_read_failed error=%s sqlstate=%s",
+                        type(exc).__name__, exc.sqlstate)
             raise EvidenceUnavailable(
                 "Published campus evidence is temporarily unavailable."
             ) from exc
