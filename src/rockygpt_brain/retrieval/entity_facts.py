@@ -46,8 +46,10 @@ RECORD_COLLECTIONS = {
     "programs": 1, "requirement_groups": 32, "graduation_plans": 40,
     # A catalog course's record (the courses artifact entry its code keys).
     "courses": 1,
-    # A calendar event's row and a club's directory row (Archway).
-    "events": 1, "clubs": 1,
+    # A calendar event's row. Archway directory rows: a club's own row, or the reviewed Archway
+    # groups a school owns (Arts, Humanities, and Education has two since its merger). A club's
+    # facts still need exactly one row; a school's clubs link is not read as club facts.
+    "events": 1, "clubs": 8,
     # A faculty member's profile (the faculty artifact entry the link's key names).
     "faculty": 1,
 }
@@ -603,6 +605,7 @@ def validate_entities(entities: Any) -> list[dict[str, Any]]:
         raise EvidenceUnavailable("Invalid or oversized identity registry.")
     ids: set[str] = set()
     owners: dict[tuple[str, str], list[set[str] | None]] = {}
+    oversized: list[str] = []
     for entity in entities:
         if not isinstance(entity, dict) or not all(
             isinstance(entity.get(key), str) and entity[key] for key in ("id", "name", "kind")
@@ -634,14 +637,15 @@ def validate_entities(entities: Any) -> list[dict[str, Any]]:
                 record_keys = link.get("source_record_keys")
                 if (not isinstance(record_keys, list)
                         or not all(isinstance(k, str) for k in record_keys)
-                        or len(record_keys) > RECORD_COLLECTIONS[link["collection"]]
                         or not _text(link.get("source_key"))):
-                    # Names the link (no record text) so a log says which entity to fix.
-                    count = len(record_keys) if isinstance(record_keys, list) else "?"
-                    raise EvidenceUnavailable(
-                        f"Invalid record identity link: {link['collection']} {count}/"
+                    raise EvidenceUnavailable("Invalid record identity link.")
+                if len(record_keys) > RECORD_COLLECTIONS[link["collection"]]:
+                    # Every link over its bound is named (no record text), so one log line
+                    # says each entity to fix.
+                    oversized.append(
+                        f"{link['collection']} {len(record_keys)}/"
                         f"{RECORD_COLLECTIONS[link['collection']]} on {entity['kind']} "
-                        f"{entity['name'][:60]}.")
+                        f"{entity['name'][:60]}")
                 continue
             if link.get("collection") != "contacts":
                 continue
@@ -667,6 +671,8 @@ def validate_entities(entities: Any) -> list[dict[str, Any]]:
                 ):
                     raise EvidenceUnavailable("Contact evidence has multiple canonical owners.")
                 ownership.append(pin_set)
+    if oversized:
+        raise EvidenceUnavailable(f"Invalid record identity link: {'; '.join(oversized[:6])}.")
     for entity in entities:
         if entity["kind"] in DESK_KINDS and any(
                 link.get("collection") == "contacts" and link.get("source_record_keys")
@@ -2095,7 +2101,7 @@ class EntityFacts:
                     "identity_hash": snapshot.identity_hash,
                 }
         except EvidenceUnavailable as error:
-            LOG.warning("campus_facts_not_ready reason=%s", str(error)[:200])
+            LOG.warning("campus_facts_not_ready reason=%s", str(error)[:600])
             return {"ready": False}
 
     def list_offices(
