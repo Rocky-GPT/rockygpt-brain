@@ -598,9 +598,12 @@ def test_postgres_read_is_parameterized_read_only_and_deadline_bounded(
     )
     assert result["evidence_count"] == 1
     assert kwargs_seen["connect_timeout"] == 3
-    assert "statement_timeout=2000" in kwargs_seen["options"]
-    assert "default_transaction_read_only=on" in kwargs_seen["options"]
+    assert "options" not in kwargs_seen  # A pooled Neon connection refuses startup options.
     assert calls[0][0] == "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"
+    limits_query, limits = calls[1]
+    assert "set_config('default_transaction_read_only', 'on', true)" in limits_query
+    assert "set_config('statement_timeout', %s, true)" in limits_query
+    assert limits == ("2000ms",)
     contact_query, params = next(call for call in calls if "campus_contacts c" in call[0])
     assert "contact_capture.dataset_version_id = c.dataset_version_id" in contact_query
     assert "contact_capture.content_hash AS contact_observation_artifact_hash" in contact_query
@@ -610,7 +613,7 @@ def test_postgres_read_is_parameterized_read_only_and_deadline_bounded(
     assert params[2] == 129
     assert kwargs_seen["tcp_user_timeout"] == 4_000
     statement_limits = [int(params[0][:-2]) for query, params in calls if "set_config" in query]
-    assert len(statement_limits) == 2
+    assert len(statement_limits) == 3  # The transaction's limit, then one per read.
     assert all(0 < timeout <= 2_000 for timeout in statement_limits)
     ticks = iter([0.0, 5.0])
     monkeypatch.setattr(
@@ -620,7 +623,7 @@ def test_postgres_read_is_parameterized_read_only_and_deadline_bounded(
     calls.clear()
     with pytest.raises(EvidenceUnavailable, match="read deadline"):
         PostgresEntityFacts("postgresql://example.invalid/test").search_offices("Registrar")
-    assert len(calls) == 1  # No release/contact query starts after time is exhausted.
+    assert len(calls) == 2  # Only the transaction setup: no release/contact query starts.
 
 
 def test_database_failure_is_sanitized_and_readiness_fails(
