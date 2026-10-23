@@ -847,9 +847,9 @@ def test_postgres_names_its_active_release_without_reading_the_registry(
     service = PostgresEntityFacts("postgresql://example.invalid/test")
     assert service.active_release() == ("r1", "h1")
     assert database.queries[0][0] == "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"
-    assert len(database.queries) == 2
-    assert "registry" not in database.queries[1][0]
-    assert "campus_contacts" not in database.queries[1][0]
+    assert len(database.queries) == 3  # The transaction, its limits, then one read.
+    assert "registry" not in database.queries[2][0]
+    assert "campus_contacts" not in database.queries[2][0]
     database.release_rows.append(dict(database.release_rows[0]))
     with pytest.raises(EvidenceUnavailable, match="No unique active"):
         service.active_release()
@@ -869,7 +869,7 @@ def test_postgres_digests_the_evidence_rows_for_the_active_release(
     monkeypatch.setattr(psycopg, "connect", database.connect)
     service = PostgresEntityFacts("postgresql://example.invalid/test")
     assert service.evidence_fingerprint() == "digest-1"
-    query, params = database.queries[1]
+    query, params = database.queries[2]
     assert params == {"dataset_id": None}  # No release named: the active one.
     assert "campus_contacts" in query and "campus_hours" in query and "to_jsonb" in query
 
@@ -885,7 +885,8 @@ def test_the_build_reads_the_release_in_one_transaction_with_its_own_limits(
     contacts, schedules = inputs.evidence["registrar"]
     assert len(contacts) == 1 and len(schedules) == 7
     assert database.kwargs["tcp_user_timeout"] == 60_000  # Not the 4 s a question gets.
-    assert "statement_timeout=10000" in database.kwargs["options"]
+    assert "options" not in database.kwargs
+    assert database.queries[1][1] == ("10000ms",)
     assert database.queries[0][0] == "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"
     asked = [query for query, _ in database.queries if "AS fingerprint" not in query]
     assert sum("campus_contacts c" in q for q in asked) == 1  # One read per office and kind,
