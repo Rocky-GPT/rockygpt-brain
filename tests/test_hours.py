@@ -394,9 +394,19 @@ def test_an_oversized_record_link_names_its_collection_and_entity() -> None:
     entity = {"id": "a", "kind": "office", "name": "Library", "aliases": [], "links": [
         {"collection": "office_sections", "source_key": "office-pages",
          "source_record_keys": [f"library/page-{n}" for n in range(401)]}]}
-    with pytest.raises(EvidenceUnavailable,
-                       match="office_sections 401/400 on office Library"):
-        validate_entities([entity])
+    other = {**entity, "id": "b", "name": "Scholarships", "kind": "topic"}
+    with pytest.raises(EvidenceUnavailable, match="office_sections 401/400 on office Library; "
+                       "office_sections 401/400 on topic Scholarships"):
+        validate_entities([entity, other])
+
+
+def test_a_school_may_link_each_archway_group_it_owns() -> None:
+    school = {"id": "s", "kind": "school", "name": "School of Arts, Humanities, and Education",
+              "aliases": [], "links": [
+                  {"collection": "clubs", "source_key": "archway-clubs",
+                   "source_record_keys": ["School of Contemporary Arts",
+                                          "School of Humanities and Global Studies"]}]}
+    assert len(validate_entities([school])) == 1
 
 
 def test_postgres_reads_schedules_by_exact_link_only_when_hours_are_asked(
