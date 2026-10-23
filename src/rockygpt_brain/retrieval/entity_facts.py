@@ -7,6 +7,7 @@ identities; only exact published identity links select the evidence records.
 import dataclasses
 import hashlib
 import json
+import logging
 import math
 import re
 from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -69,6 +70,8 @@ ABSENCE_FIELDS = {"email": "email", "phones": "phone", "offices": "office", "hou
 MAX_OBSERVATION_PAGES = 16
 CAMPUS_TIMEZONE = ZoneInfo("America/New_York")
 _DISCOVERY_FILLER = frozenset({"a", "an", "the", "of", "for", "and", "office", "offices"})
+
+LOG = logging.getLogger(__name__)
 
 
 def _discovery_tokens(value: str) -> frozenset[str]:
@@ -2086,7 +2089,8 @@ class EntityFacts:
                     "dataset_version": snapshot.dataset_version,
                     "identity_hash": snapshot.identity_hash,
                 }
-        except EvidenceUnavailable:
+        except EvidenceUnavailable as error:
+            LOG.warning("campus_facts_not_ready reason=%s", str(error)[:120])
             return {"ready": False}
 
     def list_offices(
