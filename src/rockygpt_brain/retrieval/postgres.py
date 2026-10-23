@@ -454,9 +454,12 @@ class PostgresEntityFacts(EntityFacts):
         self._statement_timeout = statement_timeout_ms
         self._operation_timeout = operation_timeout_seconds
 
+    @contextmanager
     def _connect(self, operation_seconds: float,
-                 statement_ms: int) -> psycopg.Connection[dict[str, Any]]:
-        return psycopg.connect(
+                 statement_ms: int) -> Iterator[psycopg.Connection[dict[str, Any]]]:
+        """One repeatable-read, read-only transaction with its limits set inside it. Startup
+        options would be simpler, but a pooled Neon connection (PgBouncer) refuses them."""
+        with psycopg.connect(
             self._database_url,
             connect_timeout=self._connect_timeout,
             row_factory=dict_row,
@@ -464,17 +467,19 @@ class PostgresEntityFacts(EntityFacts):
             keepalives_idle=3,
             keepalives_interval=1,
             keepalives_count=2,
-            options=(
-                f"-c statement_timeout={statement_ms} "
-                "-c default_transaction_read_only=on "
-                "-c idle_in_transaction_session_timeout=5000"
-            ),
-        )
+        ) as connection:
+            connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+            connection.execute(
+                "SELECT set_config('statement_timeout', %s, true), "
+                "set_config('default_transaction_read_only', 'on', true), "
+                "set_config('idle_in_transaction_session_timeout', '5000', true)",
+                (f"{statement_ms}ms",),
+            )
+            yield connection
 
     def active_release(self) -> tuple[str, str]:
         try:
             with self._connect(self._operation_timeout, self._statement_timeout) as connection:
-                connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
                 rows = connection.execute(_ACTIVE_RELEASE).fetchall()
         except psycopg.Error as exc:
             raise EvidenceUnavailable(
@@ -487,7 +492,6 @@ class PostgresEntityFacts(EntityFacts):
     def evidence_fingerprint(self) -> str:
         try:
             with self._connect(self._operation_timeout, self._statement_timeout) as connection:
-                connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
                 rows = connection.execute(_FINGERPRINT, {"dataset_id": None}).fetchall()
         except psycopg.Error as exc:
             raise EvidenceUnavailable(
@@ -527,7 +531,6 @@ class PostgresEntityFacts(EntityFacts):
 
         try:
             with self._connect(operation_seconds, statement_ms) as connection:
-                connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
 
                 def read(query: str, params: Any = None) -> list[dict[str, Any]]:
                     connection.execute(
