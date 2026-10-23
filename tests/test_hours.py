@@ -390,6 +390,15 @@ def test_schedule_links_are_validated_and_may_be_shared() -> None:
     assert len(linked_schedules(shared[0], schedule_rows()[:2])) == 1  # Only Monday is linked.
 
 
+def test_an_oversized_record_link_names_its_collection_and_entity() -> None:
+    entity = {"id": "a", "kind": "office", "name": "Library", "aliases": [], "links": [
+        {"collection": "office_sections", "source_key": "office-pages",
+         "source_record_keys": [f"library/page-{n}" for n in range(401)]}]}
+    with pytest.raises(EvidenceUnavailable,
+                       match="office_sections 401/400 on office Library"):
+        validate_entities([entity])
+
+
 def test_postgres_reads_schedules_by_exact_link_only_when_hours_are_asked(
         monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[str, Any]] = []
