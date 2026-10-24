@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, Header, Query, Request
 from fastapi.exception_handlers import http_exception_handler
@@ -48,6 +48,16 @@ INVALID = "The request isn't in the shape RockyGPT expects."
 DEBUG_HEADER = "x-rockygpt-diagnostics"
 
 
+def timing_summary(report: dict[str, Any], top: int = 12) -> str:
+    """A timing report as one log line: the total, then the slowest steps by name, in ms."""
+    by_label: dict[str, int] = {}
+    for step in report["steps"]:
+        by_label[step["label"]] = by_label.get(step["label"], 0) + step["durationUs"]
+    slowest = sorted(by_label.items(), key=lambda item: -item[1])[:top]
+    return f"total_ms={report['totalUs'] // 1000} " + " | ".join(
+        f"{label}={us // 1000}" for label, us in slowest)
+
+
 class Admission:
     """Authenticate server ingress and bound bytes before JSON decoding or paid work."""
 
@@ -59,7 +69,17 @@ class Admission:
                       and scope["method"] == "POST" and self.environment == "development"
                       and Headers(scope=scope).get(DEBUG_HEADER) == "1")
         if not diagnostic:
-            await self._admit(scope, receive, send)
+            if not (scope["type"] == "http" and scope["path"] == "/v1/chat"
+                    and scope["method"] == "POST"):
+                await self._admit(scope, receive, send)
+                return
+            # Every chat turn logs where its time went, by step name only (no question text),
+            # so a slow production answer can be read from the logs like a dev trace.
+            with request_timing() as timeline:
+                try:
+                    await self._admit(scope, receive, send)
+                finally:
+                    LOG.info("brain_timing %s", timing_summary(timeline.report()))
             return
         # Chat returns one JSON document. Record the whole admission/engine path,
         # including early refusals, before attaching diagnostics to that document.
