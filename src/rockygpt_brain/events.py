@@ -18,10 +18,17 @@ CALENDAR_URL = "https://archway.ramapo.edu/home/events/"
 MAX_EVENTS = 15
 DEFAULT_DAYS = 14
 _EVENT_WORDS = re.compile(
-    r"\b(?:events?|happening|going on|tonight|this weekend|next weekend|games?|match(?:es)?|"
+    r"\b(?:events?|happening|going on|games?|match(?:es)?|"
     r"shows?|concerts?|performances?|plays?|recitals?|fairs?|workshops?|speakers?|lectures?|"
     r"free food|parties|party|things to do|anything to do|calendar|homecoming|tournaments?|"
     r"screenings?|exhibits?|exhibitions?)\b")
+# A time alone asks for the calendar ("anything tonight?"), but not beside a subject code answers
+# from its own records: "dinner at the Birch tonight" is the menu, "the last shuttle tonight" the
+# timetable, "is the Library open tonight" its hours.
+_WHEN_WORDS = re.compile(r"\b(?:tonight|this weekend|next weekend)\b")
+_OTHER_SUBJECT = re.compile(
+    r"\b(?:menus?|eat|food|meals?|breakfast|brunch|lunch|dinner|dining|shuttles?|bus|buses|"
+    r"train|hours|open|opens|close|closes|closing|closed)\b")
 _CLUB_WORDS = re.compile(
     r"\b(?:clubs?|organi[sz]ations?|orgs?|greek|sororit(?:y|ies)|fraternit(?:y|ies)|"
     r"student groups?|honor societ(?:y|ies))\b")
@@ -40,7 +47,9 @@ _NOT_TOPIC = discovery_tokens(
 
 
 def asks_events(message: str) -> bool:
-    return bool(_EVENT_WORDS.search(message.casefold()))
+    text = message.casefold()
+    return bool(_EVENT_WORDS.search(text)
+                or (_WHEN_WORDS.search(text) and not _OTHER_SUBJECT.search(text)))
 
 
 def asks_clubs(message: str) -> bool:
