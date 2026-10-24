@@ -50,6 +50,10 @@ def test_the_time_words_of_a_question_are_a_window_on_the_campus_clock() -> None
         "Fri 10-23 17:00", "Fri 10-23 23:59", "Friday, October 23, evening")
     assert asks_events("is there a basketball game this weekend")
     assert asks_clubs("is there a chess club") and not asks_events("how do i get a permit")
+    assert asks_events("anything tonight?") and asks_events("free food tonight")
+    for other in ("What's for dinner at the Birch tonight?", "when is the last shuttle tonight",
+                  "is the library open this weekend"):
+        assert not asks_events(other)  # A time beside a menu, shuttle or hours question.
 
 
 def event(title: str, day: str, hour: int, tags: list[str], **more: Any) -> dict[str, Any]:
