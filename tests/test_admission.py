@@ -209,3 +209,21 @@ def test_a_crash_outside_the_trace_sends_no_trace_rather_than_an_empty_one() -> 
     body = response.json()
     assert response.status_code == 503 and body["reason"] == "internal_error"
     assert "trace" not in body and without_timing(body["metrics"]) == {"decidedBy": "error"}
+
+
+def test_every_production_chat_turn_logs_its_steps_by_name(
+        caplog: pytest.LogCaptureFixture) -> None:
+    engine = BoundaryEngine()
+    with TestClient(create_app(engine, service_token="fixture-secret",  # noqa: S106
+                               environment="production")) as client, \
+            caplog.at_level("INFO", logger="rockygpt_brain.api.app"):
+        client.post("/v1/chat", json=QUESTION,
+                    headers={"x-rockygpt-environment-token": "fixture-secret"})
+    [line] = [r.getMessage() for r in caplog.records if r.getMessage().startswith("brain_timing")]
+    assert line.startswith("brain_timing total_ms=") and "What time is it" not in line
+    report = {"totalUs": 9_000_000, "steps": [
+        {"label": "Settle model usage", "durationUs": 400_000},
+        {"label": "Write the answer from the evidence", "durationUs": 8_000_000},
+        {"label": "Settle model usage", "durationUs": 600_000}]}
+    assert app_module.timing_summary(report) == (
+        "total_ms=9000 Write the answer from the evidence=8000 | Settle model usage=1000")
