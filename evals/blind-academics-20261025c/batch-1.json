@@ -1,0 +1,164 @@
+[
+ {
+  "id": "as1-01",
+  "question": "does ramapo have a pre-med track or do i just major in bio",
+  "answer": "Yes—there are pre-med tracks, so the choice isn’t limited to a Biology major. The catalog lists these bachelor’s majors for “bio”: Biochemistry BS; Bioinformatics BS; Biology BS [16]. The recommended plan for students admitted in 2026–2027 includes “Biology: General Pre-Med Track” [3], and Biochemistry also has a “Biochemistry/Pre-Medical Track” plan [1]. A track is an advising path of courses through a major intended to prepare students for graduate school or a professional career; it does not appear on your transcript [4].\n\nPlans: https://www.ramapo.edu/recommended-graduation-plan-2026/tas/biology/ [3] and https://www.ramapo.edu/recommended-graduation-plan-2026/tas/biochemistry/ [1]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-BCHM) [3](https://catalog.ramapo.edu/programs/SN-BS-BIOL) [4](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [16](https://catalog.ramapo.edu/programs)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-BCHM",
+   "https://catalog.ramapo.edu/programs/SN-BS-BIOL",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://catalog.ramapo.edu/programs"
+  ]
+ },
+ {
+  "id": "as1-02",
+  "question": "What are the prerequisites for Organic Chemistry I and does it have a separate lab I have to register for?",
+  "answer": "The exact prerequisites for Organic Chemistry I aren’t stated in the information provided. The Registrar’s prerequisite page says to select a subject; Chemistry is listed there: https://www.ramapo.edu/registrar/course-prerequisites/ [5]. The Registrar also says students must satisfactorily complete prerequisites before registering and should review prerequisite requirements and course descriptions in Web Self Service. Transfer or visiting students who have fulfilled a prerequisite but cannot register should contact the academic school offering the course. If you prove you satisfied it, the unit secretary may place an override on your record; then complete registration in Experience: https://experience.elluciancloud.com/rconj/ [4].\n\nThe Chemistry BS requirements list both CHEM 211 ORGANIC CHEMISTRY I LECTURE and CHEM 211L ORGANIC CHEMISTRY I LAB as required courses [1]. So the lab is a separate required course, but the catalog information does not confirm the registration mechanics (whether you must register for it separately).\n\nFor the course’s specific prerequisite or registration details, contact the School of Science, Nursing, and Health Office: SNHOffice@ramapo.edu, (201) 684-7734, ASB-422. [4]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-CHEM) [4](https://www.ramapo.edu/registrar/registrationinfo/) [5](https://www.ramapo.edu/registrar/course-prerequisites/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-CHEM",
+   "https://www.ramapo.edu/registrar/registrationinfo/",
+   "https://www.ramapo.edu/registrar/course-prerequisites/"
+  ]
+ },
+ {
+  "id": "as1-03",
+  "question": "how many credits is the biology major total and how many of those are labs",
+  "answer": "The Biology BS graduation plan lists 128 credits total for the degree, not the major alone [1]. College policy says undergraduate major requirements must total at least 40 and may not exceed 64 credits, including major-specific concentrations, tracks, and prerequisites [2]. The pages don’t give a specific total for the Biology major or a total number of lab credits. For those figures, contact the School of Science, Nursing, and Health Office at SNHOffice@ramapo.edu or (201) 684-7734, ASB-422.\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-BIOL) [2](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-BIOL",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1"
+  ]
+ },
+ {
+  "id": "as1-04",
+  "question": "Im a freshman bio major wanting to go to PT school. what should i take my first year? gen chem and bio 1 both in fall or is that too much",
+  "answer": "[error, no answer: \"HTTP Error 504: Gateway Timeout\"]",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": []
+ },
+ {
+  "id": "as1-05",
+  "question": "is there a chem minor? how many credits",
+  "answer": "Yes. The catalog lists a Chemistry Minor [14]. Its listed courses total 21 to 26.5 credits, depending on the courses chosen [1]. Separately, the catalog’s general rule says a minor must include 16 to 24 credits, excluding lab science course credits [2].\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-MN-CHEM) [2](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [14](https://catalog.ramapo.edu/programs)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-MN-CHEM",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://catalog.ramapo.edu/programs"
+  ]
+ },
+ {
+  "id": "as1-06",
+  "question": "does physics 1 count toward gen ed or only for my major",
+  "answer": "If by “Physics 1” you mean PHYS 111 or PHYS 116: both count toward Gen Ed 18-Scientific Reasoning (GESR), not only your major [16]. PHYS 111 FUNDAMENTALS PHYSICS I LECTURE is 4 credits; it has GESR and WRITING INTENSIVE (WRIT) attributes, and requires concurrent enrollment in PHYS 118L INTRODUCTORY PHYSICS I LAB [1]. PHYS 116 PHYSICS I WITH CALCULUS LECTURE is 4 credits; it has the GESR attribute and requires concurrent enrollment in PHYS 116L INTRODUCTORY PHYSICS I LAB [2]. PHYS 116L is 1 credit and also has the GESR attribute; it requires concurrent enrollment in PHYS 116 [3]. PHYS 116 and 116L together are 5 credits [2]. General Education courses can also count toward your major, but no more than two may double count [6].\n\nSources: [1](https://catalog.ramapo.edu/courses/PHYS111) [2](https://catalog.ramapo.edu/courses/PHYS116) [3](https://catalog.ramapo.edu/courses/PHYS116L) [6](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [16](https://catalog.ramapo.edu/programs)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/PHYS111",
+   "https://catalog.ramapo.edu/courses/PHYS116",
+   "https://catalog.ramapo.edu/courses/PHYS116L",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://catalog.ramapo.edu/programs"
+  ]
+ },
+ {
+  "id": "as1-07",
+  "question": "What's the difference between the Biology major and the Biochemistry major in terms of required courses? Which one has more chem?",
+  "answer": "Biochemistry BS requires all of these chemistry courses: CHEM 117 and 117L; CHEM 211 and 211L; CHEM 213 and 213L; CHEM 324 and 324L; CHEM 350 and 350L; CHEM 425; CHEM 430; and CHEM 446. [1]\n\nBiology BS requires CHEM 117 and 117L, plus one organic chemistry option: either CHEM 206 and 206L, or CHEM 211 and 211L plus CHEM 213 and 213L. It also requires four electives; at least one must be from the biology elective options with a lab or field component and at least one from the options without lab or field components. CHEM 425 is one option in the latter list, but it is not mandatory. [2]\n\nSo Biochemistry has more required chemistry: it requires additional chemistry courses, while Biology offers a shorter organic chemistry option and makes CHEM 425 optional. [1][2]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-BCHM) [2](https://catalog.ramapo.edu/programs/SN-BS-BIOL)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-BCHM",
+   "https://catalog.ramapo.edu/programs/SN-BS-BIOL"
+  ]
+ },
+ {
+  "id": "as1-08",
+  "question": "whats the prereq for anatomy and physiology 2, do i need A&P 1 with a C or better",
+  "answer": "BIOL 216 Anatomy & Physiology II Lecture requires one of: BIOL 213, or BIOL 214 Anatomy and Physiology I Lecture and BIOL 214L Anatomy & Physiology I Lab. BIOL 213 may be taken concurrently with BIOL 216. BIOL 216L Anatomy & Physiology II Lab is a corequisite, and BIOL 216L requires enrollment in BIOL 216. [1][2] The catalog does not state a C-or-better grade requirement for these prerequisites. For confirmation, the Registrar says to review prerequisite requirements in Web Self Service. [3] Contact the Registrar at reg@ramapo.edu or (201) 684-7695. [3]\n\nSources: [1](https://catalog.ramapo.edu/courses/BIOL216) [2](https://catalog.ramapo.edu/courses/BIOL216L) [3](https://www.ramapo.edu/registrar/registrationinfo/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/BIOL216",
+   "https://catalog.ramapo.edu/courses/BIOL216L",
+   "https://www.ramapo.edu/registrar/registrationinfo/"
+  ]
+ },
+ {
+  "id": "as1-09",
+  "question": "is there an exercise science or kinesiology major here for pre physical therapy",
+  "answer": "I can’t verify from the provided pages whether Ramapo offers an exercise science or kinesiology major; the pages don’t provide a complete catalog listing of majors. The catalog identifies EXSS 100 IS-EXERCISE SCIENCE as a 2-credit course with no published prerequisites [1]. The Pre-Medical/Pre-Health Club welcomes aspiring physical therapists [6].\n\nFor help choosing a major, the Center for Student Success advises first-year and undeclared students through the Ramapo Exploration Program (REP) [3]. It recommends reading the catalog, asking questions, and talking with advisors and students [2]. Contact: success@ramapo.edu, (201) 684-7441; D-207 [2].\n\nSources: [1](https://catalog.ramapo.edu/courses/EXSS100) [2](https://www.ramapo.edu/studentsuccess/major/) [3](https://www.ramapo.edu/myadvisor/) [6](https://www.ramapo.edu/clubs/organization/pre-medicalpre-health-organization/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/EXSS100",
+   "https://www.ramapo.edu/studentsuccess/major/",
+   "https://www.ramapo.edu/myadvisor/",
+   "https://www.ramapo.edu/clubs/organization/pre-medicalpre-health-organization/"
+  ]
+ },
+ {
+  "id": "as1-10",
+  "question": "can you show me the 4 year plan for the biochem major",
+  "answer": "Ramapo lists Biochemistry BS (Bachelor of Science) [1]. The recommended graduation plan is for students admitted to the major during the 2026–2027 academic year; it is titled “Biochemistry — Fall 2026.” Full plan: https://www.ramapo.edu/recommended-graduation-plan-2026/tas/biochemistry/ [1]\n\nSemester totals as listed: First Year—Fall 18 credits, Spring 18; Second Year—Fall 18, Spring 18; Third Year—Fall 15.5, Spring 16; Fourth Year—Fall 14.5, Spring 15.5. Total credits required: 128. [1]\n\nThe catalog also lists a Biochemistry/Pre-Medical Track plan for the same year. [1]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-BCHM)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-BCHM"
+  ]
+ },
+ {
+  "id": "as1-11",
+  "question": "which professor is teaching orgo 2 in the spring and are there still seats",
+  "answer": "Sarah Bolton Carberry’s faculty profile lists “Organic Chemistry II (lec & lab)” among her courses, but does not confirm she is teaching it in Spring 2027. [6] The Schedule of Classes for Spring 2027 is available here: https://myssb.ramapo.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search. [9]\nI don’t have verified information about the Spring 2027 instructor assignment or whether seats remain. Contact the Registrar at reg@ramapo.edu or (201) 684-7695. [9]\n\nSources: [6](https://www.ramapo.edu/snh/faculty/sarah-bolton/) [9](https://www.ramapo.edu/registrar/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://www.ramapo.edu/snh/faculty/sarah-bolton/",
+   "https://www.ramapo.edu/registrar/"
+  ]
+ },
+ {
+  "id": "as1-12",
+  "question": "does ramapo offer a stats course that counts for the bio major, med schools want biostatistics",
+  "answer": "Yes. For the Biology BS, the Math Requirement is “Select 2” courses, including BIOL 354 RESEARCH DESIGN & STATISTICS or PSYC 242 STATISTICS. BIOL 354 is also listed as a Biology elective without a lab or field component. [3]\n\nI don’t have verified information about whether medical schools want biostatistics. The School of Science, Nursing, and Health Office may be able to help: SNHOffice@ramapo.edu, (201) 684-7734.\n\nSources: [3](https://catalog.ramapo.edu/programs/SN-BS-BIOL)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-BIOL"
+  ]
+ },
+ {
+  "id": "as1-13",
+  "question": "i got a C- in gen chem 1, did that count for my major requirements or do i have to retake it?",
+  "answer": "For the Chemistry BS, CHEM 116 is not listed among the major requirements [1]. It is 4 credits and carries the Gen Ed 18-Scientific Reasoning (GESR) attribute [2]; the 2026–2027 recommended plan lists it under Scientific Reasoning, for students admitted that academic year [1]. The grading table says C- earns 1.7 grade points per credit, with credit awarded and counted credit attempted [6].\n\nThe pages do not say whether your particular C- meets any progression rule or how it appears on your degree audit. For an individual check, contact the School of Science, Nursing, and Health Office: SNHOffice@ramapo.edu, (201) 684-7734, ASB-422.\n\nThe pages do not say you must retake a course passed with a C-. For undergraduates retaking a course already passed to try for a better grade, the page says to submit the Retake Course Form [4]. Grade replacement requires retaking the course first and then requesting replacement; consult your advisor, and the request must be made before applying for graduation [14]. Form: https://www.ramapo.edu/registrar/forms-transcripts/repeat-course-form/ [4, 14]. Registrar: reg@ramapo.edu, (201) 684-7695 [14].\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-CHEM) [2](https://catalog.ramapo.edu/courses/CHEM116) [4](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#retaking-courses) [6](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#grading-system) [14](https://www.ramapo.edu/registrar/forms-transcripts/repeat-course-form/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-CHEM",
+   "https://catalog.ramapo.edu/courses/CHEM116",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#retaking-courses",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#grading-system",
+   "https://www.ramapo.edu/registrar/forms-transcripts/repeat-course-form/"
+  ]
+ },
+ {
+  "id": "as1-14",
+  "question": "how many credits is microbiology and what does the course cover",
+  "answer": "BIOL 311 Microbiology Lecture is 4 credits. [1] BIOL 311L Microbiology Laboratory is 1.5 credits; together, lecture and lab are 5.5 credits. [1][2]\n\nThe lecture covers the biology, chemistry, and genetics of microorganisms; their relations to other biological systems; their environmental roles; food, industrial, pharmaceutical, and applied microbiology; and general microbiological aspects of infectious diseases (host-parasite relations). [1]\n\nThe lab complements the lecture. It covers general and diagnostic microbiology techniques and epidemiology, including handling, culturing, and identifying microbes. Students also design, conduct, and report on an experiment answering a microbiological question. [2]\n\nSources: [1](https://catalog.ramapo.edu/courses/BIOL311) [2](https://catalog.ramapo.edu/courses/BIOL311L)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/BIOL311",
+   "https://catalog.ramapo.edu/courses/BIOL311L"
+  ]
+ },
+ {
+  "id": "as1-15",
+  "question": "should i major in chemistry or biology if i want to get into pharmacy school",
+  "answer": "If you’re aiming for Ramapo’s Pharmacy Early Acceptance Program with LECOM, Biology is the clearest fit: the program awards a Ramapo B.S. in Biology, and Ramapo lists a “Biology/Touro Pharm 3+4” track. [1][3] The pages don’t say that Biology is required for pharmacy school generally or that Chemistry is a bad choice; they don’t give a general recommendation between the two. [1][2][3]\n\nFor LECOM’s Pharmacy EAP, the pages say to apply separately from your Ramapo application (high school seniors may apply); complete LECOM’s online EAP application by April 1; and, if eligible, self-schedule an offered interview. A successful interview may lead to provisional acceptance. You need that provisional acceptance before starting your second undergraduate year. Phase II requires an overall GPA of 3.2 or higher and a science GPA of 3.0. To enter LECOM, submit a PharmCas application, complete three years of undergraduate study, and meet GPA and other requirements. The PCAT is encouraged, not required. The program is three years at Ramapo plus four years of pharmacy education. [3][6]\n\nThe Pharmacy EAP is handled by LECOM. Ramapo Admissions lists admissions@ramapo.edu, (201) 684-7300. [3][6] For help choosing, the Center for Student Success recommends gathering information, talking with advisors and faculty, and meeting with your major’s convener when ready; contact success@ramapo.edu, (201) 684-7441. [8] The Pre-Medical/Pre-Health Club welcomes aspiring pharmacists; email premed@ramapo.edu. [7]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-BIOL) [2](https://catalog.ramapo.edu/programs/SN-BS-CHEM) [3](https://www.ramapo.edu/undergraduate/freshmen/admission-requirements/) [6](https://www.ramapo.edu/undergraduate/freshmen/admission-requirements/) [7](https://www.ramapo.edu/clubs/organization/pre-medicalpre-health-organization/) [8](https://www.ramapo.edu/studentsuccess/major/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-BIOL",
+   "https://catalog.ramapo.edu/programs/SN-BS-CHEM",
+   "https://www.ramapo.edu/undergraduate/freshmen/admission-requirements/",
+   "https://www.ramapo.edu/undergraduate/freshmen/admission-requirements/",
+   "https://www.ramapo.edu/clubs/organization/pre-medicalpre-health-organization/",
+   "https://www.ramapo.edu/studentsuccess/major/"
+  ]
+ }
+]
