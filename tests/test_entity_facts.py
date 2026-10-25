@@ -1,5 +1,6 @@
 """Canonical office evidence contract, independent of any paid model."""
 
+import json
 from copy import deepcopy
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -565,8 +566,19 @@ def test_postgres_read_is_parameterized_read_only_and_deadline_bounded(
         def __exit__(self, *args: Any) -> None:
             pass
 
+        closed = False
+
+        def rollback(self) -> None:
+            pass
+
+        def close(self) -> None:
+            self.closed = True
+
         def execute(self, query: str, params: Any = None) -> Cursor:
             calls.append((query, params))
+            if "AS registry_text" in query:
+                return Cursor([{"registry_text": json.dumps(
+                    {"schema_version": 1, "entities": [entity]})}])
             if "dataset_versions v" in query:
                 return Cursor(
                     [
@@ -574,10 +586,6 @@ def test_postgres_read_is_parameterized_read_only_and_deadline_bounded(
                             "dataset_id": "dataset-uuid",
                             "dataset_version": "test-release",
                             "identity_hash": "identity-hash",
-                            "registry": {
-                                "schema_version": 1,
-                                "entities": [entity],
-                            },
                             "alias_sources": [],
                         }
                     ]
@@ -613,7 +621,8 @@ def test_postgres_read_is_parameterized_read_only_and_deadline_bounded(
     assert params[2] == 129
     assert kwargs_seen["tcp_user_timeout"] == 4_000
     statement_limits = [int(params[0][:-2]) for query, params in calls if "set_config" in query]
-    assert len(statement_limits) == 3  # The transaction's limit, then one per read.
+    # The transaction's limit, then one per read: the release, its registry, the contacts.
+    assert len(statement_limits) == 4
     assert all(0 < timeout <= 2_000 for timeout in statement_limits)
     ticks = iter([0.0, 5.0])
     monkeypatch.setattr(
@@ -624,6 +633,76 @@ def test_postgres_read_is_parameterized_read_only_and_deadline_bounded(
     with pytest.raises(EvidenceUnavailable, match="read deadline"):
         PostgresEntityFacts("postgresql://example.invalid/test").search_offices("Registrar")
     assert len(calls) == 2  # Only the transaction setup: no release/contact query starts.
+
+
+def test_question_reads_keep_their_connection_and_the_registry_of_a_publication(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Render to Neon, a new connection cost about a second and one question read ten times."""
+    queries: list[str] = []
+    identity_hash = ["identity-hash"]
+
+    class Cursor:
+        def __init__(self, result: list[dict[str, Any]]) -> None:
+            self.result = result
+
+        def fetchall(self) -> list[dict[str, Any]]:
+            return deepcopy(self.result)
+
+    class Connection:
+        closed = False
+        fail_next = False
+
+        def rollback(self) -> None:
+            pass
+
+        def close(self) -> None:
+            self.closed = True
+
+        def execute(self, query: str, params: Any = None) -> Cursor:
+            if self.fail_next:
+                self.fail_next = False
+                raise psycopg.OperationalError("server closed the connection unexpectedly")
+            queries.append(query)
+            if "AS registry_text" in query:
+                return Cursor([{"registry_text": json.dumps(
+                    {"schema_version": 1, "entities": [office()]})}])
+            if "dataset_versions v" in query:
+                return Cursor([{"dataset_id": "dataset-uuid", "dataset_version": "test-release",
+                                "identity_hash": identity_hash[0], "alias_sources": []}])
+            if "campus_contacts c" in query:
+                return Cursor([contact()])
+            return Cursor([])
+
+    opened: list[Connection] = []
+
+    def connect(*args: Any, **kwargs: Any) -> Connection:
+        assert kwargs["prepare_threshold"] is None  # A transaction pooler can't keep them.
+        opened.append(Connection())
+        return opened[-1]
+
+    monkeypatch.setattr(psycopg, "connect", connect)
+    service = PostgresEntityFacts("postgresql://example.invalid/test")
+    for _ in range(3):
+        assert service.get_office_facts("registrar", ["email"], "test-release")[
+            "evidence_count"] == 1
+    assert len(opened) == 1
+    assert sum("AS registry_text" in query for query in queries) == 1
+    # A snapshot's entities are its own: changing them does not change the next one's.
+    with service.snapshot() as snapshot:
+        snapshot.entities[0]["name"] = "Changed"
+    with service.snapshot() as snapshot:
+        assert snapshot.entities[0]["name"] != "Changed"
+    # A new publication's registry is read again.
+    identity_hash[0] = "identity-hash-2"
+    with service.snapshot():
+        pass
+    assert sum("AS registry_text" in query for query in queries) == 2
+    # A connection the server closed while idle is replaced, and the read still answers.
+    opened[0].fail_next = True
+    with service.snapshot() as snapshot:
+        assert snapshot.dataset_version == "test-release"
+    assert len(opened) == 2 and opened[0].closed
 
 
 def test_database_failure_is_sanitized_and_readiness_fails(
