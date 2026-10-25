@@ -6,6 +6,7 @@ build, release changes, in-place edits, the failures, and the engine limits.
 """
 
 import asyncio
+import json
 import logging
 import os
 import threading
@@ -810,9 +811,17 @@ class FakeDatabase:
                                                              "entities": [entity]},
                          "alias_sources": []}
 
+    closed = False
+
     def connect(self, *args: Any, **kwargs: Any) -> "FakeDatabase":
         self.kwargs = kwargs
         return self
+
+    def rollback(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
 
     def __enter__(self) -> "FakeDatabase":
         return self
@@ -829,8 +838,10 @@ class FakeDatabase:
         query = self._query
         if "AS fingerprint" in query:
             return [{"fingerprint": self.fingerprint}]
-        if "a.payload AS registry" in query:
-            return [deepcopy(self.registry)]
+        if "AS registry_text" in query:
+            return [{"registry_text": json.dumps(self.registry["registry"])}]
+        if "AS dataset_id" in query:
+            return [{key: value for key, value in self.registry.items() if key != "registry"}]
         if "campus_contacts c" in query:
             return [contact("r1")]
         if "campus_hours h" in query:
@@ -883,7 +894,8 @@ def test_postgres_names_its_active_release_without_reading_the_registry(
 
     monkeypatch.setattr(psycopg, "connect", unavailable)
     with pytest.raises(EvidenceUnavailable, match="temporarily unavailable") as failure:
-        service.active_release()
+        # A new reader: one that already read keeps its open connection.
+        PostgresEntityFacts("postgresql://example.invalid/test").active_release()
     assert "private" not in str(failure.value)
 
 
