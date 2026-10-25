@@ -115,7 +115,9 @@ def _days(message: str, now: datetime) -> tuple[datetime, datetime, str]:
         monday = today + timedelta(days=7 - today.weekday())
         return _start(monday, now), _end(monday + timedelta(days=6), now), "next week"
     if "this week" in text:
-        return now, _end(today + timedelta(days=6 - today.weekday()), now), "this week"
+        # On a Sunday the week ahead is meant, not the hours left in it.
+        last = today + timedelta(days=6 - today.weekday() + (7 if today.weekday() == 6 else 0))
+        return now, _end(last, now), "this week"
     for n, name in enumerate(_DAYS):
         if re.search(rf"\b{name}s?\b", text):
             ahead = (n - today.weekday()) % 7
