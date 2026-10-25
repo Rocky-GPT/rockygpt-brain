@@ -1,0 +1,157 @@
+[
+ {
+  "id": "ag2-01",
+  "question": "how many credits is orgo 1 and does it have a lab with it",
+  "answer": "CHEM 211 Organic Chemistry I lecture is 4 credits. [1] It has a companion lab, CHEM 211L, worth 1 credit; together, the lecture and lab are 5 credits. [1][2] CHEM 211 and CHEM 211L are corequisites, so you must be enrolled in each alongside the other. [1][2]\n\nSources: [1](https://catalog.ramapo.edu/courses/CHEM211) [2](https://catalog.ramapo.edu/courses/CHEM211L)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/CHEM211",
+   "https://catalog.ramapo.edu/courses/CHEM211L"
+  ]
+ },
+ {
+  "id": "ag2-02",
+  "question": "what are the prereqs for calc 3",
+  "answer": "MATH 123 CALCULUS III is 4 credits and has no published prerequisites. [1]\n\nSources: [1](https://catalog.ramapo.edu/courses/MATH123)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/MATH123"
+  ]
+ },
+ {
+  "id": "ag2-03",
+  "question": "Does Physics 1 count for a gen ed? I'm a bio major and trying to figure out if I can double dip it with my major requirements.",
+  "answer": "Yes. Physics I courses count for Gen Ed 18—Scientific Reasoning (GESR): PHYS 111 [4], PHYS 116 [5], and PHYS 116L [6, 19]. [19] lists Biology BS among the catalog’s bachelor’s majors. For Biology BS, PHYS 111 and PHYS 118L are required; the Biology major requirements do not list PHYS 116/116L. [3] General Education courses may double count toward a major, but no more than two Gen Ed courses may do so. [9] So PHYS 111 appears to satisfy both the Biology major requirement and Scientific Reasoning; the catalog allows that double count, subject to the two-course limit. [3, 9] PHYS 111 is 4 credits and has a corequisite: enroll in PHYS 118L INTRODUCTORY PHYSICS I LAB. [4]\n\nSources: [3](https://catalog.ramapo.edu/programs/SN-BS-BIOL) [4](https://catalog.ramapo.edu/courses/PHYS111) [5](https://catalog.ramapo.edu/courses/PHYS116) [9](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [19](https://catalog.ramapo.edu/programs)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-BIOL",
+   "https://catalog.ramapo.edu/courses/PHYS111",
+   "https://catalog.ramapo.edu/courses/PHYS116",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://catalog.ramapo.edu/programs"
+  ]
+ },
+ {
+  "id": "ag2-04",
+  "question": "is biochem a separate lab or is the lab built into the course",
+  "answer": "The Biochemistry BS requirements list CHEM 425 Biochemistry I without a lab course beside it, and list CHEM 430 Experimental Biochemistry as a separate required course. CHEM 446 is listed as Biochemistry II Lecture. The page doesn’t explicitly say whether CHEM 425 includes lab work. [1]\nFor clarification, contact the School of Science, Nursing, and Health Office at SNHOffice@ramapo.edu or (201) 684-7734, ASB-422.\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-BCHM)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-BCHM"
+  ]
+ },
+ {
+  "id": "ag2-05",
+  "question": "what does linear algebra actually cover at ramapo? like is it proof heavy or more computational",
+  "answer": "MATH 262 Linear Algebra is a 4-credit, writing-intensive course. Ramapo describes it as an introduction to finite-dimensional linear vector spaces, covering matrices and systems of equations; abstract vector spaces; bases and dimension; linear transformations; and eigenvalues and eigenvectors. [1]\n\nThe catalog description doesn’t say whether it is proof-heavy or more computational, so I don’t have verified information about that. For course-specific guidance, contact the STEM Center: (201) 684-7345 or (201) 684-7774; G-131. [2]\n\nSources: [1](https://catalog.ramapo.edu/courses/MATH262) [2](https://www.ramapo.edu/stem-center/)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/MATH262",
+   "https://www.ramapo.edu/stem-center/"
+  ]
+ },
+ {
+  "id": "ag2-06",
+  "question": "can i take discrete math and data structures at the same time or is one a prereq for the other",
+  "answer": "If by discrete math you mean MATH 237 DISCRETE STRUCTURES, its prerequisites are CRWT 102 or CRWT 102S and MATH 121; those courses may be taken concurrently with MATH 237. MATH 237 is listed as a prerequisite for CMPS 311, 331, 342, 345, and 366, but the catalog does not identify which course you mean by “data structures” or give that course’s prerequisites. So I can’t verify whether you can take those two courses together or whether one is a prerequisite for the other. [3]\n\nThe Registrar says to review prerequisite requirements in Web Self Service and course descriptions there. [5] For help confirming the Computer Science course, contact the School of Science, Nursing, and Health Office: SNHOffice@ramapo.edu, (201) 684-7734. [3]\n\nSources: [3](https://catalog.ramapo.edu/courses/MATH237) [5](https://www.ramapo.edu/registrar/registrationinfo/)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/MATH237",
+   "https://www.ramapo.edu/registrar/registrationinfo/"
+  ]
+ },
+ {
+  "id": "ag2-07",
+  "question": "how many credits do i still need to graduate as a chem major",
+  "answer": "The catalog lists Chemistry BS (Bachelor of Science) as the chemistry major [13]. Its recommended plan for students admitted during the 2026–2027 academic year says 128 credits are required, which may vary based on electives for the ACS-approved degree; it advises reviewing your audit regularly [1]. The college also says students need a minimum of 128 credits to graduate [5, 7, 8]. I can’t determine how many credits you personally still need without your earned-credit and degree-audit records. Review your audit and discuss your classes and credits with your adviser [1, 5].\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-CHEM) [13](https://catalog.ramapo.edu/programs)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-CHEM",
+   "https://catalog.ramapo.edu/programs"
+  ]
+ },
+ {
+  "id": "ag2-08",
+  "question": "whats the difference between gen chem 1 and the intro chem class for non majors, and which one counts for the bio major",
+  "answer": "CHEM 116 General Chemistry I is described as a comprehensive introduction for science majors; its lecture covers chemistry fundamentals, including atomic structure, reactions, bonding and gas laws. The lecture is 4 credits; CHEM 116L is a 1-credit concurrent lab, for 5 credits together. [4][5] I don’t have verified information comparing it with the non-majors introductory chemistry class. The School of Science, Nursing, and Health Office may be able to clarify: SNHOffice@ramapo.edu, (201) 684-7734.\n\nFor the Biology BS, the listed major requirements include CHEM 117 General Chemistry II and CHEM 117L, not CHEM 116. [3] CHEM 116 is listed as a prerequisite for CHEM 117. [4] A recommended plan specifically for the Biology: Ramapo/NYCPM 3+4 Podiatry track includes CHEM 116 and CHEM 116L in its first fall; that plan applies to students admitted to that track during 2026–2027. [3]\n\nSources: [3](https://catalog.ramapo.edu/programs/SN-BS-BIOL) [4](https://catalog.ramapo.edu/courses/CHEM116) [5](https://catalog.ramapo.edu/courses/CHEM116L)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-BIOL",
+   "https://catalog.ramapo.edu/courses/CHEM116",
+   "https://catalog.ramapo.edu/courses/CHEM116L"
+  ]
+ },
+ {
+  "id": "ag2-09",
+  "question": "is there a minor in statistics or data science? how many credits would it be",
+  "answer": "Yes. The catalog lists both a Data Science Minor and a Statistics Minor. [1][2][17]\n\nFor both, a minor must include between 16 and 24 credits, including non-General Education prerequisites and excluding lab science course credits. [5] The catalog lists the required courses and one elective for each minor, but does not state a specific total credit count for either minor. [1][2]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-MN-DSCI) [2](https://catalog.ramapo.edu/programs/SN-MN-STAT) [5](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [17](https://catalog.ramapo.edu/programs)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-MN-DSCI",
+   "https://catalog.ramapo.edu/programs/SN-MN-STAT",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://catalog.ramapo.edu/programs"
+  ]
+ },
+ {
+  "id": "ag2-10",
+  "question": "who's teaching cell bio next semester and are there still seats in the morning section",
+  "answer": "I don’t have verified information on who is teaching Cell Bio next semester; contact the School of Science, Nursing, and Health Office at SNHOffice@ramapo.edu or (201) 684-7734. [3]\nI can’t verify current seat availability in the morning section. If the section is full, the Center for Student Success says to complete the Course Request Form; submitting it helps assess demand for additional sections but does not guarantee one will open. [10] Contact success@ramapo.edu or (201) 684-7441. [10]\n\nSources: [3](https://catalog.ramapo.edu/programs/SN-BS-BIOL) [10](https://www.ramapo.edu/studentsuccess/course-request-form/)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-BIOL",
+   "https://www.ramapo.edu/studentsuccess/course-request-form/"
+  ]
+ },
+ {
+  "id": "ag2-11",
+  "question": "what upper level electives are required for the math major, and do i need to take abstract algebra or real analysis or both",
+  "answer": "The catalog lists Mathematics BS (Bachelor of Science) as the math major [15].\n\nFor the Traditional Track, choose at least 4 electives from MATH 239 Graph Theory, 240 Cryptography, 245 Numerical Analysis, 253 Probability, 282 Number Theory, 290 Topics, 321 Geometry, 339 Complex Variables, 370 Applied Statistics or 353 Statistics, 360 Stochastic Calculus for Finance, 390 Advanced Topics, and 490 Topics. At least 2 electives must be 300- or 400-level [1].\n\nFor the Teacher Education Track, choose at least 1 elective from MATH 239 Graph Theory, 240 Cryptography, 245 Numerical Analysis, 290 Topics, 305 Differential Equations, 339 Complex Variables, 360 Stochastic Calculus for Finance, 390 Advanced Topics, and 490 Topics. The listed requirements do not specify an upper-level minimum for this track [1].\n\nYou need both: MATH 416 Introduction to Analysis and MATH 432 Abstract Algebra are required courses in both tracks [1]. MATH 432 is 4 credits, has the WRITING INTENSIVE (WRIT) attribute, and requires CRWT 102 Critical Reading and Writing II or CRWT 102S Critical Reading and Writing II, and MATH 262 Linear Algebra [2].\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-MATH) [2](https://catalog.ramapo.edu/courses/MATH432) [15](https://catalog.ramapo.edu/programs)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-MATH",
+   "https://catalog.ramapo.edu/courses/MATH432",
+   "https://catalog.ramapo.edu/programs"
+  ]
+ },
+ {
+  "id": "ag2-12",
+  "question": "prereq for genetics?",
+  "answer": "BIOL 332 Genetics Lecture (4 credits) requires [1]:\n- Complete one of: BIOL 112; BIOL 113 and BIOL 113L; BIOL 215; or BIOL 216 and BIOL 216L.\n- Complete one of: CHEM 110; or CHEM 116 and CHEM 116L.\n- Complete CRWT 102 or CRWT 102S.\n- Be enrolled in BIOL 332L Genetics Lab as a corequisite.\n\nBIOL 332L Genetics Lab (1.5 credits; WRITING INTENSIVE (WRIT)) has the same prerequisites and requires BIOL 332 Genetics Lecture as a corequisite [2].\n\nSources: [1](https://catalog.ramapo.edu/courses/BIOL332) [2](https://catalog.ramapo.edu/courses/BIOL332L)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/BIOL332",
+   "https://catalog.ramapo.edu/courses/BIOL332L"
+  ]
+ },
+ {
+  "id": "ag2-13",
+  "question": "I'm a junior in environmental science. What courses are supposed to be taken junior and senior year in the recommended sequence, and when is the capstone?",
+  "answer": "The Environmental Science recommended plan is for students admitted to the major during the 2023–2024 academic year. [1]\n\n**Third year (junior):** Fall: Distribution Category (choose 1)—Culture and Creativity, Systems, Sustainability and Society, or Values and Ethics; ENSC 343 Environmental Chemistry Lecture; ENSC 343L Environmental Chemistry Lab; ENSC Elective 1. Total 14 credits. Spring: ENSC 345 Research Design & Statistics; GEOL 328 Paleontology, Paleoecology & Paleoenvironments Lecture; GEOL 328L Paleontology, Paleoecology & Paleoenvironments Lab; ENSC 225 GIS for Environmental Science; Distribution Category (choose 1)—Culture and Creativity, Systems, Sustainability and Society, or Values and Ethics (must be outside of TAS). Total 17.5 credits. [1]\n\n**Fourth year (senior):** Fall: ENSC 417 Ecological Field Research Lecture; ENSC 417L Ecological Field Research Lab; ENSC Major Elective 2; Elective; Elective. Total 18 credits. Spring: ENSC Major Elective 3; Elective; Elective; Elective. Total 16 credits. [1]\n\nThe plan lists ENSC 417 and its lab in fourth-year fall, but does not identify them as a capstone or state when a capstone occurs. I don’t have verified information about capstone timing. Contact the School of Science, Nursing, and Health Office: SNHOffice@ramapo.edu, (201) 684-7734, ASB-422.\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-ENSC)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-ENSC"
+  ]
+ },
+ {
+  "id": "ag2-14",
+  "question": "should i take p chem or organic 2 next fall, which is easier",
+  "answer": "I don’t have verified information about which course is easier or which you should take next fall. The catalog lists CHEM 213 Organic Chemistry II Lecture (4 credits) with CHEM 213L lab (1 credit; together 5 credits). Both require CHEM 210, or CHEM 211 and CHEM 211L, and require enrollment in the other course as a corequisite. [2][3]\n\nThe Chemistry BS recommended plan is for students admitted in 2026–2027: it places Organic II in second-year spring and Physical Chemistry I (CHEM 350) in third-year spring—not next fall. [1]\n\nFor course advisement, contact Orientation Programs (Center for Student Success): meet an advisor by appointment. Phone: (201) 684-7441; email: orient@ramapo.edu. [4]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-CHEM) [2](https://catalog.ramapo.edu/courses/CHEM213) [3](https://catalog.ramapo.edu/courses/CHEM213L) [4](https://www.ramapo.edu/orientation/staff/)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-CHEM",
+   "https://catalog.ramapo.edu/courses/CHEM213",
+   "https://catalog.ramapo.edu/courses/CHEM213L",
+   "https://www.ramapo.edu/orientation/staff/"
+  ]
+ },
+ {
+  "id": "ag2-15",
+  "question": "does stats for the sciences fill the quantitative reasoning gen ed or do i need a separate math course for that",
+  "answer": "The catalog lists MATH 108, “Elementary Probability and Statistics,” as meeting Gen Ed 18—Quantitative Reasoning (GEQR) [15]. It also lists MATH 101, 104, 106, and 110 as GEQR courses [15]. The pages provided don’t identify a course titled “Stats for the Sciences,” so I can’t verify whether that specific course fulfills GEQR. They indicate you need a course in the Quantitative Reasoning category [4, 6]; MATH 108 is one listed option [15]. Contact the Office of the Provost at provost@ramapo.edu or (201) 684-7330 for clarification [4, 6].\n\nSources: [15](https://catalog.ramapo.edu/programs)",
+  "answered_at": "2026-10-25T11:02-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs"
+  ]
+ }
+]
