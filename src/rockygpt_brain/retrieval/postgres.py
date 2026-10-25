@@ -5,7 +5,8 @@ import logging
 import os
 import time
 from collections.abc import Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
+from threading import Lock
 from typing import Any
 from urllib.parse import quote
 
@@ -31,10 +32,19 @@ LOG = logging.getLogger(__name__)
 # A derived copy is built from one read with its own, longer limits; questions keep short ones.
 BUILD_SECONDS = 60.0
 BUILD_STATEMENT_MS = 10_000
+# Opening a connection to a remote database (TCP, TLS, then the pooler's sign-in) took about a
+# second from Render to Neon, and one question reads the campus data about ten times. Question
+# reads reuse their connections, as the ledger's pool does; idle ones are dropped long before the
+# server would drop them, and one the server closed anyway is replaced on its first statement.
+IDLE_SECONDS = 120.0
+MAX_IDLE_CONNECTIONS = 4
+_idle_clock = time.monotonic  # Its own clock: tests replace `time` to move read deadlines.
 
+# The registry itself (2.4 MB of JSON, 3,686 entities on 10-22) is read once per publication by
+# _REGISTRY and kept: every question reads the release about ten times, and its hash names it.
 _RELEASE = """
 SELECT v.id::text AS dataset_id, v.version AS dataset_version,
-       a.content_hash AS identity_hash, a.payload AS registry,
+       a.content_hash AS identity_hash,
        coverage.payload->'alias_sources' AS alias_sources
 FROM rockygpt_v2.dataset_versions v
 JOIN rockygpt_v2.release_artifacts a ON a.dataset_version_id = v.id
@@ -46,7 +56,15 @@ WHERE v.status = 'active' AND pg_column_size(a.payload) <= 16000000
 LIMIT 2
 """
 
-# The same release as _RELEASE, without reading its registry: which publication is active.
+# As text: each snapshot decodes its own copy, so no caller can change the kept registry.
+_REGISTRY = """
+SELECT a.payload::text AS registry_text
+FROM rockygpt_v2.release_artifacts a
+WHERE a.dataset_version_id = %s::uuid AND a.artifact_key = 'campus-identities'
+  AND a.content_hash = %s AND pg_column_size(a.payload) <= 16000000
+"""
+
+# Which publication is active, without its alias sources.
 _ACTIVE_RELEASE = """
 SELECT v.version AS dataset_version, a.content_hash AS identity_hash
 FROM rockygpt_v2.dataset_versions v
@@ -476,36 +494,102 @@ class PostgresEntityFacts(EntityFacts):
         self._connect_timeout = connect_timeout_seconds
         self._statement_timeout = statement_timeout_ms
         self._operation_timeout = operation_timeout_seconds
+        self._idle: list[tuple[psycopg.Connection[dict[str, Any]], float]] = []
+        self._idle_lock = Lock()
+        self._registry: tuple[str, str, str] | None = None  # dataset id, hash, registry JSON
 
-    @contextmanager
-    def _connect(self, operation_seconds: float,
-                 statement_ms: int) -> Iterator[psycopg.Connection[dict[str, Any]]]:
-        """One repeatable-read, read-only transaction with its limits set inside it. Startup
-        options would be simpler, but a pooled Neon connection (PgBouncer) refuses them."""
+    def _open(self, operation_seconds: float) -> psycopg.Connection[dict[str, Any]]:
         # A URL that asks for certificate checks (Neon's sslmode=verify-full) needs trusted roots;
         # the slim image has no ~/.postgresql/root.crt, so libpq would refuse to connect.
         tls: dict[str, Any] = {}
         if (not os.getenv("PGSSLROOTCERT")
                 and "sslrootcert" not in conninfo_to_dict(self._database_url)):
             tls["sslrootcert"] = certifi.where()
-        with psycopg.connect(
+        return psycopg.connect(
             self._database_url,
             connect_timeout=self._connect_timeout,
             row_factory=dict_row,
+            # A kept connection would otherwise prepare repeated reads on the server, and a
+            # transaction pooler (PgBouncer) may run the next transaction on another backend.
+            prepare_threshold=None,
             tcp_user_timeout=int(operation_seconds * 1_000),
             keepalives_idle=3,
             keepalives_interval=1,
             keepalives_count=2,
             **tls,
-        ) as connection:
-            connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
-            connection.execute(
-                "SELECT set_config('statement_timeout', %s, true), "
-                "set_config('default_transaction_read_only', 'on', true), "
-                "set_config('idle_in_transaction_session_timeout', '5000', true)",
-                (f"{statement_ms}ms",),
-            )
+        )
+
+    @staticmethod
+    def _begin(connection: psycopg.Connection[dict[str, Any]], statement_ms: int) -> None:
+        """One repeatable-read, read-only transaction with its limits set inside it. Startup
+        options would be simpler, but a pooled Neon connection (PgBouncer) refuses them."""
+        connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+        connection.execute(
+            "SELECT set_config('statement_timeout', %s, true), "
+            "set_config('default_transaction_read_only', 'on', true), "
+            "set_config('idle_in_transaction_session_timeout', '5000', true)",
+            (f"{statement_ms}ms",),
+        )
+
+    def _kept(self) -> psycopg.Connection[dict[str, Any]] | None:
+        now, stale = _idle_clock(), []
+        with self._idle_lock:
+            while self._idle:
+                connection, since = self._idle.pop()
+                if now - since < IDLE_SECONDS and not connection.closed:
+                    break
+                stale.append(connection)
+            else:
+                connection = None
+        for old in stale:
+            self._discard(old)
+        return connection
+
+    def _keep(self, connection: psycopg.Connection[dict[str, Any]], reuse: bool) -> None:
+        try:
+            connection.rollback()  # Ends the read-only transaction; nothing was written.
+        except psycopg.Error:
+            self._discard(connection)
+            return
+        with self._idle_lock:
+            if reuse and not connection.closed and len(self._idle) < MAX_IDLE_CONNECTIONS:
+                self._idle.append((connection, _idle_clock()))
+                return
+        self._discard(connection)
+
+    @staticmethod
+    def _discard(connection: psycopg.Connection[dict[str, Any]]) -> None:
+        with suppress(Exception):
+            connection.close()
+
+    @contextmanager
+    def _connect(self, operation_seconds: float,
+                 statement_ms: int) -> Iterator[psycopg.Connection[dict[str, Any]]]:
+        # Only question reads are kept: a build's connection has its own, longer TCP limit.
+        reuse = operation_seconds == self._operation_timeout
+        connection = self._kept() if reuse else None
+        if connection is not None:
+            try:
+                self._begin(connection, statement_ms)
+            except psycopg.Error:  # The server closed it while it sat idle: open a new one.
+                self._discard(connection)
+                connection = None
+        if connection is None:
+            connection = self._open(operation_seconds)
+            try:
+                self._begin(connection, statement_ms)
+            except BaseException:
+                self._discard(connection)
+                raise
+        try:
             yield connection
+        except BaseException as error:
+            if isinstance(error, psycopg.Error):
+                self._discard(connection)
+            else:
+                self._keep(connection, reuse)
+            raise
+        self._keep(connection, reuse)
 
     def active_release(self) -> tuple[str, str]:
         try:
@@ -574,10 +658,21 @@ class PostgresEntityFacts(EntityFacts):
                 if len(rows) != 1:
                     raise EvidenceUnavailable("No unique active identity publication is available.")
                 release = rows[0]
-                registry = release["registry"]
+                kept = self._registry
+                if kept is None or kept[:2] != (release["dataset_id"], release["identity_hash"]):
+                    found = read(_REGISTRY, (release["dataset_id"], release["identity_hash"]))
+                    if len(found) != 1 or not isinstance(found[0]["registry_text"], str):
+                        raise EvidenceUnavailable("No unique active identity registry.")
+                    kept = (release["dataset_id"], release["identity_hash"],
+                            found[0]["registry_text"])
+                try:
+                    registry = json.loads(kept[2])
+                except ValueError as exc:
+                    raise EvidenceUnavailable("Unreadable identity registry.") from exc
                 if not isinstance(registry, dict) or registry.get("schema_version") != 1:
                     raise EvidenceUnavailable("Unsupported identity registry schema.")
                 entities = validate_entities(registry.get("entities"))
+                self._registry = kept  # Kept only once it has been read whole and checked.
 
                 def contacts(entity: dict[str, Any]) -> list[dict[str, Any]]:
                     links = [

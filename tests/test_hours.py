@@ -5,6 +5,7 @@ of one named schedule into one value, keeps its validity window and the official
 never decides between schedules that disagree.
 """
 
+import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 from copy import deepcopy
@@ -429,14 +430,23 @@ def test_postgres_reads_schedules_by_exact_link_only_when_hours_are_asked(
         def __exit__(self, *args: Any) -> None:
             pass
 
+        closed = False
+
+        def rollback(self) -> None:
+            pass
+
+        def close(self) -> None:
+            self.closed = True
+
         def execute(self, query: str, params: Any = None) -> Cursor:
             calls.append((query, params))
+            if "AS registry_text" in query:
+                return Cursor([{"registry_text": json.dumps(
+                    {"schema_version": 1, "entities": [entity]})}])
             if "dataset_versions v" in query:
                 return Cursor([{
                     "dataset_id": "dataset-uuid", "dataset_version": "release-1",
-                    "identity_hash": "identities-1",
-                    "registry": {"schema_version": 1, "entities": [entity]},
-                    "alias_sources": []}])
+                    "identity_hash": "identities-1", "alias_sources": []}])
             if "campus_contacts c" in query:
                 return Cursor([contact()])
             if "campus_hours h" in query:
