@@ -894,7 +894,8 @@ def test_postgres_names_its_active_release_without_reading_the_registry(
 
     monkeypatch.setattr(psycopg, "connect", unavailable)
     with pytest.raises(EvidenceUnavailable, match="temporarily unavailable") as failure:
-        service.active_release()
+        # A new reader: one that already read keeps its open connection.
+        PostgresEntityFacts("postgresql://example.invalid/test").active_release()
     assert "private" not in str(failure.value)
 
 
