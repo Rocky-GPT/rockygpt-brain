@@ -1,0 +1,17 @@
+[
+  {"id": "ec3-01", "question": "Hello, is there any Indian student association or South Asian club at Ramapo? I am new graduate student and want to meet people from my culture.", "topic": "club"},
+  {"id": "ec3-02", "question": "Are there any Diwali celebration happening on campus this year? When and where it will be?", "topic": "event"},
+  {"id": "ec3-03", "question": "what cultural clubs are exist at Ramapo, can you give me the list", "topic": "club"},
+  {"id": "ec3-04", "question": "Is there a resume workshop or career fair next week? I want to improve my resume for internship in US.", "topic": "event"},
+  {"id": "ec3-05", "question": "Do you know if the Chinese student club meets on which day and time? Also who is the president of it?", "topic": "out_of_scope"},
+  {"id": "ec3-06", "question": "any language exchange or conversation partner event this week? i want to practice english speaking", "topic": "event"},
+  {"id": "ec3-07", "question": "How can I join a club as graduate student? Is it allowed or only for undergrad?", "topic": "club"},
+  {"id": "ec3-08", "question": "What events are happening tonight on campus, and is any of them free food?", "topic": "event"},
+  {"id": "ec3-09", "question": "Is there Spanish club or French club? I am interested to learn new language beside English.", "topic": "club"},
+  {"id": "ec3-10", "question": "Which cultural club is best for international student to join, which one is most active?", "topic": "out_of_scope"},
+  {"id": "ec3-11", "question": "Is there any event for Hispanic Heritage Month or Black History Month? Who is organizing these?", "topic": "event"},
+  {"id": "ec3-12", "question": "networking events this weekend for grad students?", "topic": "event"},
+  {"id": "ec3-13", "question": "Please tell me the webpage of the Asian Student Association so I can see more informations about them.", "topic": "club"},
+  {"id": "ec3-14", "question": "How many people usually attend the international food festival? I want to know if it will be crowded.", "topic": "out_of_scope"},
+  {"id": "ec3-15", "question": "Is the cultural dance performance next friday free for students, and in which building it is held?", "topic": "event"}
+]

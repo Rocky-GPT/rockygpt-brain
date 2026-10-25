@@ -1,0 +1,302 @@
+[
+ {
+  "id": "pn1-01",
+  "question": "whats prof hecht email i need to ask abt my midterm grade",
+  "topic": "contact"
+ },
+ {
+  "id": "pn1-02",
+  "question": "does jason hect have office hrs this week? i work tues/thurs so need to know when hes in",
+  "topic": "contact"
+ },
+ {
+  "id": "pn1-03",
+  "question": "dr monen office room number + phone pls",
+  "topic": "contact"
+ },
+ {
+  "id": "pn1-04",
+  "question": "who is lisa luter, is she a prof or like staff",
+  "topic": "role"
+ },
+ {
+  "id": "pn1-05",
+  "question": "need an extension on my paper for mcsherry how do i reach him fastest",
+  "topic": "contact"
+ },
+ {
+  "id": "pn1-06",
+  "question": "what dept is professor skrzynski in and whats her email",
+  "topic": "role"
+ },
+ {
+  "id": "pn1-07",
+  "question": "is prof suarez good for a rec letter? like does she write good ones",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pn1-08",
+  "question": "matt jobrak what does he teach",
+  "topic": "teaching"
+ },
+ {
+  "id": "pn1-09",
+  "question": "emer mcguire pool email? also is she the chair of something",
+  "topic": "role"
+ },
+ {
+  "id": "pn1-10",
+  "question": "whos the chair of the accounting dept in anisfield, need to dispute a grade",
+  "topic": "role"
+ },
+ {
+  "id": "pn1-11",
+  "question": "dr mentore research area?? thinking of asking him for a letter for an internship",
+  "topic": "teaching"
+ },
+ {
+  "id": "pn1-12",
+  "question": "contact info for prof kwak",
+  "topic": "contact"
+ },
+ {
+  "id": "pn1-13",
+  "question": "prof patel in the business school email and office",
+  "topic": "contact"
+ },
+ {
+  "id": "pn1-14",
+  "question": "whats prof kowalski's cell number, emailed him 3 times no answer",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pn1-15",
+  "question": "which marketing prof should i ask for a recomendation letter, anyone who knows business students well",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pn2-01",
+  "question": "Hello, my daughter is a first-year nursing student and she mentioned a Professor Chan. Could you please tell me how to reach him by email?",
+  "topic": "contact"
+ },
+ {
+  "id": "pn2-02",
+  "question": "Good afternoon. Who is the chair of the nursing department, and what is the best way to contact them?",
+  "topic": "role"
+ },
+ {
+  "id": "pn2-03",
+  "question": "Could you tell me who the dean of the School of Science, Nursing, and Health is?",
+  "topic": "role"
+ },
+ {
+  "id": "pn2-04",
+  "question": "My son has a Dr. Buna for one of his science classes. What does she teach, and where is her office located?",
+  "topic": "teaching"
+ },
+ {
+  "id": "pn2-05",
+  "question": "Hello, I am trying to find a phone number for Professor Daniella Bunna. Thank you in advance.",
+  "topic": "contact"
+ },
+ {
+  "id": "pn2-06",
+  "question": "My daughter said she needs help with research for a paper and mentioned a librarian named Reppert. Is she a librarian, and how can my daughter reach her?",
+  "topic": "contact"
+ },
+ {
+  "id": "pn2-07",
+  "question": "Is Professor Sidorsky in the political science department? My son is thinking about taking her class next semester and I would like to know what she teaches.",
+  "topic": "teaching"
+ },
+ {
+  "id": "pn2-08",
+  "question": "Could you please give me the email address and office hours for Dr. Elizabeth Carabello in the business school?",
+  "topic": "contact"
+ },
+ {
+  "id": "pn2-09",
+  "question": "Who is in charge of the nursing program for first-year students? I would like to speak with someone about clinical placements.",
+  "topic": "role"
+ },
+ {
+  "id": "pn2-10",
+  "question": "My daughter mentioned a Professor Koenig from her writing class. What is her title, and which school is she part of?",
+  "topic": "role"
+ },
+ {
+  "id": "pn2-11",
+  "question": "Hello, is Professor Patel from the nursing program on campus today? I would like to stop by and introduce myself.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pn2-12",
+  "question": "Can you please tell me if Dr. Chan is a good professor? My daughter is struggling in his class and I am worried.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pn2-13",
+  "question": "I am looking for Prof Kaiden. What department is she in, and what is her office phone number?",
+  "topic": "contact"
+ },
+ {
+  "id": "pn2-14",
+  "question": "Good evening. Could you give me the home phone number for Professor Rubino? My son needs to reach her urgently about an assignment.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pn2-15",
+  "question": "Who is Professor Murphy in the nursing department, and does she teach the anatomy course?",
+  "topic": "teaching"
+ },
+ {
+  "id": "pn3-01",
+  "question": "Who is the dean of the Anisfield School of Business and what is their office number?",
+  "topic": "role"
+ },
+ {
+  "id": "pn3-02",
+  "question": "email for prof Frees",
+  "topic": "contact"
+ },
+ {
+  "id": "pn3-03",
+  "question": "What is Samantha Wittenburg's title in the library?",
+  "topic": "role"
+ },
+ {
+  "id": "pn3-04",
+  "question": "need the phone ext and room # for Dr. Katic in arts and humanities",
+  "topic": "contact"
+ },
+ {
+  "id": "pn3-05",
+  "question": "Which department is James Morley in, and who chairs it?",
+  "topic": "role"
+ },
+ {
+  "id": "pn3-06",
+  "question": "Does Mihaela Serban teach any law or political science courses? Need to confirm for a schedule.",
+  "topic": "teaching"
+ },
+ {
+  "id": "pn3-07",
+  "question": "huiping li business school - what does she teach",
+  "topic": "teaching"
+ },
+ {
+  "id": "pn3-08",
+  "question": "Is John Micik still an adjunct this semester and what is his campus email?",
+  "topic": "contact"
+ },
+ {
+  "id": "pn3-09",
+  "question": "Office location and office hours for Professor Leathers please",
+  "topic": "contact"
+ },
+ {
+  "id": "pn3-10",
+  "question": "who is vito savino and what does he do at the library",
+  "topic": "role"
+ },
+ {
+  "id": "pn3-11",
+  "question": "Michael Cornel ASB - title and phone number",
+  "topic": "contact"
+ },
+ {
+  "id": "pn3-12",
+  "question": "Who is the department contact or administrative assistant for the nursing program?",
+  "topic": "role"
+ },
+ {
+  "id": "pn3-13",
+  "question": "Can I get Prof. Henderson's cell number? He's not answering his office line.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pn3-14",
+  "question": "Is Dr. Patel in her office today? I have a form she needs to sign.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pn3-15",
+  "question": "Which of the accounting professors is the easiest to work with for a new advising assignment?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pn4-01",
+  "question": "Hi, I'm a senior in political science and I need a faculty mentor for my senior thesis on voting behavior and elections. I think Teigen does something with elections and veterans? What does he research and what's his email so I can reach out?",
+  "topic": "teaching"
+ },
+ {
+  "id": "pn4-02",
+  "question": "what are dr cassidy's office hours this semester and where is her office? i want to ask her about doing an independent study in philosophy",
+  "topic": "contact"
+ },
+ {
+  "id": "pn4-03",
+  "question": "I'm hoping to do an honors thesis in economics, something on health economics or labor markets. Is professor Ekichi in the business school the right person for that, and what does he actually study?",
+  "topic": "teaching"
+ },
+ {
+  "id": "pn4-04",
+  "question": "Which professors in the Anisfield School of Business do research on marketing or consumer behavior? I need someone to supervise a research project next spring and I don't really know any of the marketing faculty.",
+  "topic": "teaching"
+ },
+ {
+  "id": "pn4-05",
+  "question": "prof Napolitano - what department is she in and what does she teach? a friend said she'd be good for a capstone in literature or writing but I'm not sure",
+  "topic": "role"
+ },
+ {
+  "id": "pn4-06",
+  "question": "I took a class with Dr. Catalioti a couple years ago and want to ask him to be my thesis reader. Can you give me his email and phone number and tell me what his title is now?",
+  "topic": "contact"
+ },
+ {
+  "id": "pn4-07",
+  "question": "Is Professor Perez-Strumolo in social work? I'm interested in doing my senior research on child welfare and want to know if that's her area, and also what her office room number is.",
+  "topic": "role"
+ },
+ {
+  "id": "pn4-08",
+  "question": "Who is the better thesis advisor for a business senior, Christina Chung or Alex Biagioli? Which one is easier to work with and gives more feedback?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pn4-09",
+  "question": "what does professor biagoli teach? i think he's in the business school, maybe finance or management? and does he have office hours on tuesdays",
+  "topic": "teaching"
+ },
+ {
+  "id": "pn4-10",
+  "question": "I'm a history major looking for someone to mentor my senior seminar project on 19th century American history. Who teaches US history at Ramapo, and is there a Professor Martinez in that department?",
+  "topic": "teaching"
+ },
+ {
+  "id": "pn4-11",
+  "question": "dr zach peck - what's his email and what subjects does he teach? I want to see if he would sponsor an independent research project in the arts and humanities school",
+  "topic": "contact"
+ },
+ {
+  "id": "pn4-12",
+  "question": "Is Prof Colman on campus today? I wanted to drop by his office to talk about a research opportunity but I don't want to walk over there for nothing.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pn4-13",
+  "question": "Who is the chair of the psychology department? I need to ask about getting approval for a senior thesis and I don't know who to email.",
+  "topic": "role"
+ },
+ {
+  "id": "pn4-14",
+  "question": "Can you find Michelle Chung's office and phone number? She's in marketing I think. I want to ask her about research assistant positions for seniors.",
+  "topic": "contact"
+ },
+ {
+  "id": "pn4-15",
+  "question": "I'm trying to find a mentor for a research project on environmental policy. Does a Dr. Thompson or a Professor O'Brien work in environmental science or sustainability studies, and what are their office hours?",
+  "topic": "teaching"
+ }
+]

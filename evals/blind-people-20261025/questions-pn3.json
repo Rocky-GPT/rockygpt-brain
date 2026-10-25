@@ -1,0 +1,17 @@
+[
+  {"id": "pn3-01", "question": "Who is the dean of the Anisfield School of Business and what is their office number?", "topic": "role"},
+  {"id": "pn3-02", "question": "email for prof Frees", "topic": "contact"},
+  {"id": "pn3-03", "question": "What is Samantha Wittenburg's title in the library?", "topic": "role"},
+  {"id": "pn3-04", "question": "need the phone ext and room # for Dr. Katic in arts and humanities", "topic": "contact"},
+  {"id": "pn3-05", "question": "Which department is James Morley in, and who chairs it?", "topic": "role"},
+  {"id": "pn3-06", "question": "Does Mihaela Serban teach any law or political science courses? Need to confirm for a schedule.", "topic": "teaching"},
+  {"id": "pn3-07", "question": "huiping li business school - what does she teach", "topic": "teaching"},
+  {"id": "pn3-08", "question": "Is John Micik still an adjunct this semester and what is his campus email?", "topic": "contact"},
+  {"id": "pn3-09", "question": "Office location and office hours for Professor Leathers please", "topic": "contact"},
+  {"id": "pn3-10", "question": "who is vito savino and what does he do at the library", "topic": "role"},
+  {"id": "pn3-11", "question": "Michael Cornel ASB - title and phone number", "topic": "contact"},
+  {"id": "pn3-12", "question": "Who is the department contact or administrative assistant for the nursing program?", "topic": "role"},
+  {"id": "pn3-13", "question": "Can I get Prof. Henderson's cell number? He's not answering his office line.", "topic": "out_of_scope"},
+  {"id": "pn3-14", "question": "Is Dr. Patel in her office today? I have a form she needs to sign.", "topic": "out_of_scope"},
+  {"id": "pn3-15", "question": "Which of the accounting professors is the easiest to work with for a new advising assignment?", "topic": "out_of_scope"}
+]

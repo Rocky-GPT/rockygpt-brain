@@ -1,0 +1,17 @@
+[
+  {"id": "ec4-01", "question": "any concerts or live music on campus this weekend?", "topic": "event"},
+  {"id": "ec4-02", "question": "is there a guitar club or like a music club i can join", "topic": "club"},
+  {"id": "ec4-03", "question": "when's the next home basketball game and is it free for students", "topic": "event"},
+  {"id": "ec4-04", "question": "how do i join a club at ramapo? do i just show up or is there a sign up somewhere", "topic": "club"},
+  {"id": "ec4-05", "question": "whats happening tonight on campus", "topic": "event"},
+  {"id": "ec4-06", "question": "Are there any theater or dance performances coming up next week? Where are they held?", "topic": "event"},
+  {"id": "ec4-07", "question": "can u send me the link to the intramural sports page", "topic": "club"},
+  {"id": "ec4-08", "question": "what arts clubs are there? like painting, photography, that kind of stuff", "topic": "club"},
+  {"id": "ec4-09", "question": "soccer game next friday?? what time and where", "topic": "event"},
+  {"id": "ec4-10", "question": "is there an open mic night anytime soon, i wanna play a couple songs", "topic": "event"},
+  {"id": "ec4-11", "question": "when does the music club meet and who's the president", "topic": "out_of_scope"},
+  {"id": "ec4-12", "question": "list all the music related orgs and give me the page link for the a cappella one", "topic": "club"},
+  {"id": "ec4-13", "question": "should i join a band club or the intramural flag football team, i dont have time for both lol", "topic": "out_of_scope"},
+  {"id": "ec4-14", "question": "who's hosting the jazz show this month and do i need tickets", "topic": "event"},
+  {"id": "ec4-15", "question": "how many people usually go to the volleyball games, is it packed", "topic": "out_of_scope"}
+]
