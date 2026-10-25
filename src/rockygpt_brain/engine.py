@@ -1629,24 +1629,6 @@ class ChatEngine:
                                        academics.COURSE_FLOOR, 3)
         return programs, courses
 
-    def _requirement_credits(self, facts: dict[str, Any], version: str,
-                             identity_hash: str | None) -> dict[str, float]:
-        """The catalog credits of every course a program's requirements name, through the
-        shared reader."""
-        groups = [v["value"] for p in facts["properties"] if p["key"] == "requirements"
-                  for v in p.get("values", [])]
-        codes = academics.requirement_codes(groups)
-        ids = [e["id"] for e in self.facts.identities(("course",)) if str(e["name"]) in codes]
-        credits: dict[str, float] = {}
-        for at in range(0, min(len(ids), 120), 12):
-            for course in self.facts.get_course_facts(ids[at:at + 12], version,
-                                                      identity_hash=identity_hash):
-                value = course["properties"][0]["values"][0]["value"] \
-                    if course["properties"][0].get("values") else {}
-                if isinstance(value.get("credits"), int | float):
-                    credits[str(course["entity"]["name"])] = float(value["credits"])
-        return credits
-
     def _read_programs(self, programs: Sequence[dict[str, Any]], others: Sequence[str],
                        courses: Sequence[dict[str, Any]] = (), message: str = "",
                        today: date | None = None, listing: bool = False,
@@ -1659,10 +1641,7 @@ class ChatEngine:
         for program in programs:
             facts = self.facts.get_program_facts(program["id"], version,
                                                  identity_hash=identity_hash)
-            item = academics.program_evidence(
-                facts, len(sources) + 1, others, message, today,
-                self._requirement_credits(facts, version, identity_hash)
-                if academics.asks_credits(message) else None)
+            item = academics.program_evidence(facts, len(sources) + 1, others, message, today)
             evidence.append(item)
             sources.append({"n": item["n"], "url": item.get("catalog_url"),
                             "title": item.get("program")})
@@ -2128,8 +2107,8 @@ class ChatEngine:
                             index.dataset_version, index.identity_hash, named, seen=seen,
                             chosen=chosen, numbered_from=len(sources))
                     sources = [*sources, *found]
-                # What code works out from the catalog (published or not, credits and their
-                # sums, Gen Ed attributes, catalog credit totals) for the reply to state as is.
+                # What code works out from the catalog (published or not, each course's credits,
+                # Gen Ed attributes, published credit totals) for the reply to state as is.
                 gen_ed_lines = (academics.gen_ed_courses(
                     index.course_titles, index.course_gen_ed,
                     {e["id"]: str(e["name"]) for e in self.facts.identities(("course",))},

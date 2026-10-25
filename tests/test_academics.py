@@ -392,7 +392,9 @@ def test_code_works_out_published_programs_credits_and_gen_ed() -> None:
                          "MSW Traditional Track - 60 credit program"}]
     facts = [f["fact"] for f in computed_answers(evidence, programs,
                                                  "does bio 1 with lab count for gen ed", None)]
-    assert "BIOL 111 and BIOL 111L together are 5 credits (4 + 1)." in facts
+    # Each course's own credits; code never adds a lecture and its lab together.
+    assert "BIOL 111L FUNDAMENTALS OF BIOLOGY I LAB is 1 credit." in facts
+    assert not any("together" in f for f in facts)
     assert "BIOL 111 carries no Gen Ed attribute in the catalog." in facts
     assert "MATH 108 carries the Gen Ed attribute Gen Ed 18-Quantitative Rsng (GEQR)." in facts
     assert "The catalog gives MSW Traditional Track as 60 credits." in facts
@@ -468,30 +470,15 @@ def test_code_lists_a_level_and_places_a_course_in_a_program() -> None:
             "a required course by itself.") in facts
 
 
-def test_code_adds_up_a_programs_credits_and_picks_the_programs_own_plan() -> None:
+def test_only_published_credit_totals_and_the_programs_own_plan() -> None:
     from datetime import date
 
-    from rockygpt_brain.academics import choose_plan, requirement_credits
-
-    def course(code: str) -> dict[str, str]:
-        return {"code": code, "name": code}
-    groups = [{"label": "Minor Requirements", "rule": {"condition": "catalogBlock", "sub_rules": [
-        {"name": "Required Course", "choose": {"all": True}, "condition": "completedAllOf",
-         "items": [{"logic": "and", "courses": [course("THEA 220")]}]},
-        {"name": "Electives - Select 1", "choose": {"all": True}, "condition": "completedAllOf",
-         "items": [{"logic": "and", "courses": [course("THEA 230")]},
-                   {"logic": "and", "courses": [course("THEA 231")]}]},
-        {"name": "Select 2 of these", "condition": "numberOf", "sub_rules": [
-            {"name": "A", "condition": "completedAnyOf",
-             "items": [{"logic": "and", "courses": [course("THEA 240")]}]},
-            {"name": "B", "condition": "completedAnyOf",
-             "items": [{"logic": "and", "courses": [course("THEA 241")]}]},
-            {"name": "C", "condition": "completedAnyOf",
-             "items": [{"logic": "and", "courses": [course("THEA 242")]}]}]}]}}]
-    credits = {"THEA 220": 4, "THEA 230": 4, "THEA 231": 2, "THEA 240": 4, "THEA 241": 4,
-               "THEA 242": 1.5}
-    assert requirement_credits(groups, credits) == (11.5, 16.0)
-    assert requirement_credits(groups, {"THEA 220": 4}) is None
+    from rockygpt_brain.academics import choose_plan, computed_answers
+    program = {"n": 1, "program": "Theater Minor", "requirements":
+               "Minor Requirements\n  Required Course all of:\n    - THEA 220 ACTING"}
+    facts = [f["fact"] for f in computed_answers([program], [], "how many credits is it", 2)]
+    assert facts == ["The catalog publishes no total credit count for the Theater Minor; its "
+                     "requirements list the courses only."]
     plans = [{"name": n, "cohort": "Fall 2026", "terms": [{}]} for n in (
         "Biology: Ramapo/NYCPM 3+4 Podiatry", "Biology (General)",
         "Biology: General Pre-Med Track")]
