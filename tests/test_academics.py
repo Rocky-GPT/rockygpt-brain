@@ -466,3 +466,35 @@ def test_code_lists_a_level_and_places_a_course_in_a_program() -> None:
     assert ("In the Computer Science BS requirements, MATH 262 is listed under 'Math Electives "
             "- Select 2' (Select 2 Courses at least 2 of): one of the courses to choose from, not "
             "a required course by itself.") in facts
+
+
+def test_code_adds_up_a_programs_credits_and_picks_the_programs_own_plan() -> None:
+    from datetime import date
+
+    from rockygpt_brain.academics import choose_plan, requirement_credits
+
+    def course(code: str) -> dict[str, str]:
+        return {"code": code, "name": code}
+    groups = [{"label": "Minor Requirements", "rule": {"condition": "catalogBlock", "sub_rules": [
+        {"name": "Required Course", "choose": {"all": True}, "condition": "completedAllOf",
+         "items": [{"logic": "and", "courses": [course("THEA 220")]}]},
+        {"name": "Electives - Select 1", "choose": {"all": True}, "condition": "completedAllOf",
+         "items": [{"logic": "and", "courses": [course("THEA 230")]},
+                   {"logic": "and", "courses": [course("THEA 231")]}]},
+        {"name": "Select 2 of these", "condition": "numberOf", "sub_rules": [
+            {"name": "A", "condition": "completedAnyOf",
+             "items": [{"logic": "and", "courses": [course("THEA 240")]}]},
+            {"name": "B", "condition": "completedAnyOf",
+             "items": [{"logic": "and", "courses": [course("THEA 241")]}]},
+            {"name": "C", "condition": "completedAnyOf",
+             "items": [{"logic": "and", "courses": [course("THEA 242")]}]}]}]}}]
+    credits = {"THEA 220": 4, "THEA 230": 4, "THEA 231": 2, "THEA 240": 4, "THEA 241": 4,
+               "THEA 242": 1.5}
+    assert requirement_credits(groups, credits) == (11.5, 16.0)
+    assert requirement_credits(groups, {"THEA 220": 4}) is None
+    plans = [{"name": n, "cohort": "Fall 2026", "terms": [{}]} for n in (
+        "Biology: Ramapo/NYCPM 3+4 Podiatry", "Biology (General)",
+        "Biology: General Pre-Med Track")]
+    plans.append({"name": "Biology", "cohort": "Fall 2026", "terms": []})
+    plan = choose_plan(plans, "Biology BS", "what does a biology freshman take", date(2026, 10, 25))
+    assert plan is not None and plan["name"] == "Biology (General)"

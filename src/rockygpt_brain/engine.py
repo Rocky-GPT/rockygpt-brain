@@ -1596,6 +1596,15 @@ class ChatEngine:
         programs = [e for e in named if e.get("kind") == "program"]
         codes = {str(e["name"]): e for e in named if e.get("kind") == "course"}
         found = academics.find_programs(programs, message)
+        if not found:
+            # A subject asked at a level ("a minor in business") names the catalog's programs
+            # holding every word of it, read when there are at most three.
+            by_name = {str(p["name"]): p for p in programs}
+            for level, words in academics.asked_subjects(message):
+                if academics.names_subject(programs, words):
+                    listed = academics.published_in(programs, level, words)
+                    if 0 < len(listed) <= 3:
+                        found += [by_name[n] for n in listed if by_name[n] not in found]
         courses = [codes[code] for code in academics.course_codes(message, set(codes))]
         # Courses named by an everyday form of their title ("calc 2"), from the meaning index's
         # catalog titles when one is published.
@@ -1620,6 +1629,24 @@ class ChatEngine:
                                        academics.COURSE_FLOOR, 3)
         return programs, courses
 
+    def _requirement_credits(self, facts: dict[str, Any], version: str,
+                             identity_hash: str | None) -> dict[str, float]:
+        """The catalog credits of every course a program's requirements name, through the
+        shared reader."""
+        groups = [v["value"] for p in facts["properties"] if p["key"] == "requirements"
+                  for v in p.get("values", [])]
+        codes = academics.requirement_codes(groups)
+        ids = [e["id"] for e in self.facts.identities(("course",)) if str(e["name"]) in codes]
+        credits: dict[str, float] = {}
+        for at in range(0, min(len(ids), 120), 12):
+            for course in self.facts.get_course_facts(ids[at:at + 12], version,
+                                                      identity_hash=identity_hash):
+                value = course["properties"][0]["values"][0]["value"] \
+                    if course["properties"][0].get("values") else {}
+                if isinstance(value.get("credits"), int | float):
+                    credits[str(course["entity"]["name"])] = float(value["credits"])
+        return credits
+
     def _read_programs(self, programs: Sequence[dict[str, Any]], others: Sequence[str],
                        courses: Sequence[dict[str, Any]] = (), message: str = "",
                        today: date | None = None, listing: bool = False,
@@ -1632,7 +1659,10 @@ class ChatEngine:
         for program in programs:
             facts = self.facts.get_program_facts(program["id"], version,
                                                  identity_hash=identity_hash)
-            item = academics.program_evidence(facts, len(sources) + 1, others, message, today)
+            item = academics.program_evidence(
+                facts, len(sources) + 1, others, message, today,
+                self._requirement_credits(facts, version, identity_hash)
+                if academics.asks_credits(message) else None)
             evidence.append(item)
             sources.append({"n": item["n"], "url": item.get("catalog_url"),
                             "title": item.get("program")})

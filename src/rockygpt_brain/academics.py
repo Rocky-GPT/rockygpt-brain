@@ -208,16 +208,32 @@ def choose_plan(plans: Sequence[dict[str, Any]], program: str, message: str,
     cohort = asked[0] if asked else f"Fall {current - standing}"
     if cohort not in cohorts:
         cohort = max(cohorts, key=lambda c: c[-4:], default="")
-    pool = [p for p in plans if str(p.get("cohort")) == cohort]
+    # A plan with no semesters published is not a plan to give.
+    pool = [p for p in plans if str(p.get("cohort")) == cohort and p.get("terms")]
     # A plan the message names by its own name (a concentration: "Contemporary Arts" of Visual
     # Arts) before the plan named as the program itself.
     words = discovery_tokens(message)
     core = program_core(program).casefold()
     asked_plan = [p for p in pool if (name := discovery_tokens(str(p.get("name") or "")))
                   and name <= words and str(p.get("name") or "").casefold() != core]
-    named = [p for p in pool if str(p.get("name") or "").casefold() == core]
-    chosen = asked_plan or named or pool
+    # Else the program's own plan: its name alone, or with only "General" or "undeclared
+    # concentration" beside it ("Biology (General)"), never a track's ("NYCPM Podiatry").
+    core_words = discovery_tokens(core)
+    named = [p for p in pool if (name := discovery_tokens(str(p.get("name") or "")))
+             and core_words <= name and name - core_words <= _BASE_PLAN_WORDS]
+    chosen = asked_plan or named or sorted(pool, key=lambda p: len(str(p.get("name") or "")))
     return chosen[0] if chosen else None
+
+
+_BASE_PLAN_WORDS = discovery_tokens("general undeclared concentration")
+
+
+def other_plans(plans: Sequence[dict[str, Any]], chosen: dict[str, Any]) -> list[str]:
+    """The other recommended plans published for the chosen plan's cohort (tracks and
+    concentrations), by name."""
+    return sorted({str(p.get("name")) for p in plans
+                   if p.get("cohort") == chosen.get("cohort") and p.get("terms")
+                   and p.get("name") != chosen.get("name")})
 
 
 def render_plan(plan: dict[str, Any]) -> str:
@@ -248,7 +264,8 @@ def render_plan(plan: dict[str, Any]) -> str:
 
 
 def program_evidence(facts: dict[str, Any], n: int, others: Sequence[str],
-                     message: str = "", today: date | None = None) -> dict[str, Any]:
+                     message: str = "", today: date | None = None,
+                     credits: dict[str, float] | None = None) -> dict[str, Any]:
     """What the reply is given for one program: who it is (from its catalog row), its
     requirements and its recommended graduation plan written out by code, and the program's
     other published levels."""
@@ -259,11 +276,15 @@ def program_evidence(facts: dict[str, Any], n: int, others: Sequence[str],
     plan = (choose_plan(plans, str(program.get("name") or ""), message, today)
             if plans and today else None)
     description = str(program.get("description") or "")
+    counted = requirement_credits(groups, credits) if credits else None
     return {"n": n, "program": program.get("name"), "degree": program.get("degree"),
+            **({"_credit_range": counted} if counted else {}),
             "school": program.get("school"), "catalog_url": program.get("catalog_url"),
             **({"description": description[:800]} if description else {}),
             "requirements": render_requirements(groups) if groups else None,
-            **({"graduation_plan": render_plan(plan), "plan_url": plan.get("url")}
+            **({"graduation_plan": render_plan(plan), "plan_url": plan.get("url"),
+                **({"other_plans_same_year": others_plans}
+                   if (others_plans := other_plans(plans, plan)) else {})}
                if plan else {}),
             **({"also_published": list(others)} if others else {})}
 
@@ -650,6 +671,14 @@ def computed_answers(evidence: Sequence[dict[str, Any]], programs: Sequence[dict
             continue
         for code in by_code:
             facts += _course_in_program(code, item)
+        if item.get("_credit_range") and asks_credits(message):
+            low, high = item["_credit_range"]
+            facts.append({"fact": f"Adding up the catalog credits of the courses its requirements "
+                                  f"list, the {item['program']} comes to "
+                                  + (f"{low:g} credits" if low == high else
+                                     f"{low:g} to {high:g} credits, depending on the courses "
+                                     "chosen") + " (code's sum; check any total the catalog "
+                                  "states).", "n": item["n"]})
         for track, credits in re.findall(r"(?m)^(.{3,80}?)\s*[-–]\s*(\d{2,3})\s*credits?\b",
                                          str(item.get("requirements") or "")):
             facts.append({"fact": f"The catalog gives {track.strip()} as {credits} credits.",
@@ -747,3 +776,104 @@ def gen_ed_courses(titles: dict[str, str], gen_ed: dict[str, str], codes: dict[s
         scored = [row for row in scored if not row[0]]
     return [line.strip() for _, _, line in sorted(scored)][:6]
 
+
+
+_CREDITS_ASK = re.compile(r"\bcredits?\b|\bhow (?:many|long)\b")
+
+
+def asks_credits(message: str) -> bool:
+    return bool(_CREDITS_ASK.search(message.casefold()))
+
+
+def requirement_codes(groups: Sequence[dict[str, Any]]) -> set[str]:
+    """Every course code a program's requirement groups name."""
+    codes: set[str] = set()
+
+    def walk(rule: dict[str, Any]) -> None:
+        for item in rule.get("items") or []:
+            codes.update(str(c.get("code")) for c in item.get("courses") or []
+                         if isinstance(c, dict) and c.get("code"))
+        for sub in rule.get("sub_rules") or []:
+            if isinstance(sub, dict):
+                walk(sub)
+    for group in groups:
+        if isinstance(group.get("rule"), dict):
+            walk(group["rule"])
+        codes.update(str(c.get("code")) for c in group.get("course_list") or []
+                     if isinstance(c, dict) and c.get("code"))
+    return codes
+
+
+def requirement_credits(groups: Sequence[dict[str, Any]],
+                        credits: dict[str, float]) -> tuple[float, float] | None:
+    """The credits a program's requirement groups add up to, course by course from the catalog
+    (the fewest and the most a student's choices can come to); None when a course's credits are
+    unknown or a rule cannot be counted."""
+    def item_range(item: dict[str, Any]) -> tuple[float, float] | None:
+        courses = [c for c in item.get("courses") or [] if isinstance(c, dict)]
+        values = [credits.get(str(c.get("code"))) for c in courses]
+        if not courses or any(v is None for v in values):
+            return None
+        known = [float(v) for v in values if v is not None]
+        if item.get("logic") == "or" and len(known) > 1:
+            return min(known), max(known)
+        return sum(known), sum(known)
+
+    def rule_range(rule: dict[str, Any]) -> tuple[float, float] | None:
+        choose = rule.get("choose") or {}
+        low = high = 0.0
+        if rule.get("condition") == "freeformText" and not rule.get("items"):
+            return None  # Written out in words only: code cannot count it.
+        if rule.get("condition") == "numberOf":
+            # "Select 3" of its sub-rules, by the count its name states.
+            stated = re.search(r"\bselect (\d+)\b", str(rule.get("name") or ""), re.I)
+            subs = [rule_range(sub) for sub in rule.get("sub_rules") or []
+                    if isinstance(sub, dict)]
+            if not stated or any(r is None for r in subs) or int(stated.group(1)) > len(subs):
+                return None
+            known = [r for r in subs if r is not None]
+            k = int(stated.group(1))
+            return (sum(sorted(r[0] for r in known)[:k]),
+                    sum(sorted((r[1] for r in known), reverse=True)[:k]))
+        named = re.search(r"\bselect (\d+)\b", str(rule.get("name") or ""), re.I)
+        named_count = int(named.group(1)) if named and rule.get("items") else 0
+        items = [r for item in rule.get("items") or [] if (r := item_range(item)) is not None]
+        if len(items) != len([i for i in rule.get("items") or [] if i.get("courses")]):
+            return None
+        if isinstance(choose.get("minimum_credits"), int | float):
+            low = high = float(choose["minimum_credits"])
+        elif named_count or isinstance(choose.get("at_least"), int) \
+                or isinstance(rule.get("count"), int) \
+                or (not choose and rule.get("condition") == "completedAnyOf"):
+            # The catalog's own "Select 2" wins over a choose rule that says "all of"; "any of"
+            # with no count is one of them.
+            count = (named_count or choose.get("at_least") or rule.get("count") or 1)
+            if count > len(items):
+                return None
+            low = sum(sorted(r[0] for r in items)[:count])
+            high = sum(sorted((r[1] for r in items), reverse=True)[:count])
+        elif items:
+            low, high = sum(r[0] for r in items), sum(r[1] for r in items)
+        elif isinstance(rule.get("credits"), int | float):
+            low = high = float(rule["credits"])
+        for sub in rule.get("sub_rules") or []:
+            if isinstance(sub, dict):
+                found = rule_range(sub)
+                if found is None:
+                    return None
+                low, high = low + found[0], high + found[1]
+        return low, high
+    low = high = 0.0
+    for group in groups:
+        if isinstance(group.get("rule"), dict):
+            found = rule_range(group["rule"])
+            if found is None:
+                return None
+            low, high = low + found[0], high + found[1]
+        listed = [credits.get(str(c.get("code"))) for c in group.get("course_list") or []
+                  if isinstance(c, dict)]
+        if any(v is None for v in listed):
+            return None
+        low += sum(float(v) for v in listed if v is not None)
+        high += sum(float(v) for v in listed if v is not None)
+    return (low, high) if high else None
