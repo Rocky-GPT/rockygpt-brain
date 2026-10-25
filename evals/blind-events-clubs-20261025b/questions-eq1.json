@@ -1,0 +1,17 @@
+[
+  {"id": "eq1-01", "question": "whats happening on campus tonight", "topic": "event"},
+  {"id": "eq1-02", "question": "any events with free food this week?", "topic": "event"},
+  {"id": "eq1-03", "question": "I'm an RA and want to take my floor to something next friday night, what's on the calendar and is it free?", "topic": "event"},
+  {"id": "eq1-04", "question": "is there a home basketball game this weekend? what time", "topic": "event"},
+  {"id": "eq1-05", "question": "anything going on saturday afternoon that a group of 15 freshmen could go to", "topic": "event"},
+  {"id": "eq1-06", "question": "free events tmrw?", "topic": "event"},
+  {"id": "eq1-07", "question": "where is the next comedy show or performance and who's hosting it", "topic": "event"},
+  {"id": "eq1-08", "question": "are there any workshops next week on stress or time management, and do they have snacks", "topic": "event"},
+  {"id": "eq1-09", "question": "what events are on wednesday in the student center", "topic": "event"},
+  {"id": "eq1-10", "question": "is there a club that does game nights or board games? my residents keep asking", "topic": "club"},
+  {"id": "eq1-11", "question": "list of cultural clubs? want to bring my floor to one of their events", "topic": "club"},
+  {"id": "eq1-12", "question": "how do my residents join a club, is there a page with all of them", "topic": "club"},
+  {"id": "eq1-13", "question": "how many people usually show up to the friday night events, will it be packed", "topic": "out_of_scope"},
+  {"id": "eq1-14", "question": "when does the hiking/outdoors club meet and who's the president", "topic": "out_of_scope"},
+  {"id": "eq1-15", "question": "which club would be best for a shy freshman who likes art", "topic": "out_of_scope"}
+]

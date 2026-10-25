@@ -1,0 +1,17 @@
+[
+  {"id": "eq4-01", "question": "We're visiting for family weekend, what events are open to parents this saturday?", "topic": "event"},
+  {"id": "eq4-02", "question": "is there a home football game this weekend", "topic": "event"},
+  {"id": "eq4-03", "question": "Are there any home soccer or volleyball games next friday? What time and where are they played?", "topic": "event"},
+  {"id": "eq4-04", "question": "does ramapo have a robotics club", "topic": "club"},
+  {"id": "eq4-05", "question": "My daughter loves to cook - is there a cooking or culinary club on campus and how would she join?", "topic": "club"},
+  {"id": "eq4-06", "question": "outdoors club? like hiking camping that kind of thing", "topic": "club"},
+  {"id": "eq4-07", "question": "Touring campus tomorrow with my son. Anything going on tomorrow afternoon that visitors can stop by, and is it free?", "topic": "event"},
+  {"id": "eq4-08", "question": "any concerts or theater performances tonight that the public can attend", "topic": "event"},
+  {"id": "eq4-09", "question": "what sports teams have home games this week and do we need tickets", "topic": "event"},
+  {"id": "eq4-10", "question": "How many clubs does Ramapo have and where can I see the full list?", "topic": "club"},
+  {"id": "eq4-11", "question": "is there an engineering or computer science club? also what about esports", "topic": "club"},
+  {"id": "eq4-12", "question": "when does the robotics club meet and who runs it", "topic": "out_of_scope"},
+  {"id": "eq4-13", "question": "My kid is shy and into science and video games. Which club do you think she should join to make friends?", "topic": "out_of_scope"},
+  {"id": "eq4-14", "question": "how crowded do the basketball games usually get, will we find seats if we show up late?", "topic": "out_of_scope"},
+  {"id": "eq4-15", "question": "are there cultural clubs or greek life here? whats the process to rush a sorority", "topic": "club"}
+]

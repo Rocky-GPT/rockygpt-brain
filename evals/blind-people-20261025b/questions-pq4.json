@@ -1,0 +1,17 @@
+[
+  {"id": "pq4-01", "question": "what's dean daffron's email? writing a piece for the ramapo news on the humanities budget and want to request an interview", "topic": "contact"},
+  {"id": "pq4-02", "question": "Is Sourav Dutta a professor in the science school? What's his title and what department is he in?", "topic": "role"},
+  {"id": "pq4-03", "question": "prof warner office room number + phone pls", "topic": "contact"},
+  {"id": "pq4-04", "question": "Who is Shaziela Ishak and what does she research? Looking for a social science expert to quote", "topic": "teaching"},
+  {"id": "pq4-05", "question": "dr padhy email", "topic": "contact"},
+  {"id": "pq4-06", "question": "I need to reach Nasim Chowdhury in social sciences for a story on community health. what's the best email and does she have office hours this semester?", "topic": "contact"},
+  {"id": "pq4-07", "question": "what does professor Petro teach and what's her official title? need it right for a byline caption", "topic": "role"},
+  {"id": "pq4-08", "question": "is Laura Santangelo in nursing? need her email for an article about the nursing program", "topic": "contact"},
+  {"id": "pq4-09", "question": "Gonpu in the business school - what's his phone number and which department?", "topic": "contact"},
+  {"id": "pq4-10", "question": "does dr kenneavy research anything related to surveys or public opinion? and where's her office", "topic": "teaching"},
+  {"id": "pq4-11", "question": "who's the director of the journalism program and how do i contact them", "topic": "role"},
+  {"id": "pq4-12", "question": "professor rodriguez in communications, what's his extension?", "topic": "contact"},
+  {"id": "pq4-13", "question": "Which professor is the best expert on climate policy at Ramapo that would give a good quote? I want someone students actually like", "topic": "out_of_scope"},
+  {"id": "pq4-14", "question": "is prof daffron on campus today? I want to just drop by his office for a quick interview", "topic": "out_of_scope"},
+  {"id": "pq4-15", "question": "can i get dr. dutta's cell number? deadline is tonight and he isn't answering email", "topic": "out_of_scope"}
+]

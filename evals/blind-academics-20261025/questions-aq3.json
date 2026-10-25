@@ -1,0 +1,17 @@
+[
+  {"id": "aq3-01", "question": "what is the recommended course sequence for the nursing major freshman year", "topic": "sequence"},
+  {"id": "aq3-02", "question": "Does BIOL 213 anatomy and physiology have a lab, and how many credits is it?", "topic": "course"},
+  {"id": "aq3-03", "question": "im a nursing student, which gen ed categories do i still have to fill if my major already has chem and bio", "topic": "gen_ed"},
+  {"id": "aq3-04", "question": "is there a public health major or is it just a minor", "topic": "program"},
+  {"id": "aq3-05", "question": "what are the prereqs for microbiology? and do i need to finish them before sophmore year to stay on track for nursing", "topic": "course"},
+  {"id": "aq3-06", "question": "Does a statistics class count for the quantitative reasoning gen ed, or is that a separate requirement for health science majors?", "topic": "gen_ed"},
+  {"id": "aq3-07", "question": "what GPA do you need to stay in the nursing program and what courses are the prerequisites before you start clinicals", "topic": "program"},
+  {"id": "aq3-08", "question": "how many credits is the BS in nursing total", "topic": "program"},
+  {"id": "aq3-09", "question": "can psych 101 count for both gen ed social science and a requirement for the health science major", "topic": "gen_ed"},
+  {"id": "aq3-10", "question": "Is there an exercise science or kinesiology major at Ramapo? If so what does the first year look like", "topic": "sequence"},
+  {"id": "aq3-11", "question": "what does NURS 210 cover", "topic": "course"},
+  {"id": "aq3-12", "question": "what order should i take chem courses in for allied health / pre-PT? gen chem then organic?", "topic": "sequence"},
+  {"id": "aq3-13", "question": "am i behind? i failed chem 1 last semester and im retaking it in the spring, will that push back my nursing courses", "topic": "out_of_scope"},
+  {"id": "aq3-14", "question": "is the anatomy and physiology II section on tuesdays still open and who teaches it", "topic": "out_of_scope"},
+  {"id": "aq3-15", "question": "should i switch from nursing to health science if im struggling with the science classes", "topic": "out_of_scope"}
+]

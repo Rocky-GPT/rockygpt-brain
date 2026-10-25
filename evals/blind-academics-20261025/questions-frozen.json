@@ -1,0 +1,302 @@
+[
+ {
+  "id": "aq1-01",
+  "question": "what majors does ramapo even have? im undecided and kinda lost",
+  "topic": "program"
+ },
+ {
+  "id": "aq1-02",
+  "question": "is there a major for like computer stuff? comp sci or information technology or whatever its called",
+  "topic": "program"
+ },
+ {
+  "id": "aq1-03",
+  "question": "whats the diffrence between the psychology major and the psych minor, like how many credits is each",
+  "topic": "program"
+ },
+ {
+  "id": "aq1-04",
+  "question": "do u guys have a nursing major and is it hard to get into",
+  "topic": "program"
+ },
+ {
+  "id": "aq1-05",
+  "question": "is there a minor in creative writing or is it just english",
+  "topic": "program"
+ },
+ {
+  "id": "aq1-06",
+  "question": "what classes would i need to take for a business major, is it marketing or management or are those seperate",
+  "topic": "program"
+ },
+ {
+  "id": "aq1-07",
+  "question": "im thinking biology or enviromental science. what does a freshman take first year for either one",
+  "topic": "sequence"
+ },
+ {
+  "id": "aq1-08",
+  "question": "what are the gen ed requirements? how many credits of gen eds do i need total",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "aq1-09",
+  "question": "does intro to psych count towards gen ed",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "aq1-10",
+  "question": "what is cmps 147 about and does it have prereqs",
+  "topic": "course"
+ },
+ {
+  "id": "aq1-11",
+  "question": "how many credits is a normal class here, and how many do i need to graduate",
+  "topic": "course"
+ },
+ {
+  "id": "aq1-12",
+  "question": "can i double major in communication and something else or is that too many credits? also are there any certificates i could add",
+  "topic": "program"
+ },
+ {
+  "id": "aq1-13",
+  "question": "which major should i pick if i like helping people but also kinda like math",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aq1-14",
+  "question": "is there still room in psych 101 this spring and who teaches it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aq1-15",
+  "question": "can u check how many credits i have so far and whats left for me to take",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aq2-01",
+  "question": "what are the prereqs for cmps 361",
+  "topic": "course"
+ },
+ {
+  "id": "aq2-02",
+  "question": "How many credits is the math minor and which classes are required for it?",
+  "topic": "program"
+ },
+ {
+  "id": "aq2-03",
+  "question": "im a junior in comp sci, what upper level electives can i pick from to finish the major?",
+  "topic": "program"
+ },
+ {
+  "id": "aq2-04",
+  "question": "does MATH 237 discrete math count toward the computer science major or is it only for math majors",
+  "topic": "course"
+ },
+ {
+  "id": "aq2-05",
+  "question": "what does data structures cover and how many credits is it",
+  "topic": "course"
+ },
+ {
+  "id": "aq2-06",
+  "question": "Is there a data science major or minor at Ramapo? I'm a CS major thinking about adding one",
+  "topic": "program"
+ },
+ {
+  "id": "aq2-07",
+  "question": "whats the recommended order for the math major courses after calc 2? like what do i take junior and senior year",
+  "topic": "sequence"
+ },
+ {
+  "id": "aq2-08",
+  "question": "do i need linear algebra for the cs major",
+  "topic": "program"
+ },
+ {
+  "id": "aq2-09",
+  "question": "Can I use a CMPS course to satisfy a gen ed requirement or do CS courses not count for gen ed at all?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "aq2-10",
+  "question": "what's the prerequisite for math 301 and is it offered every semester or just fall",
+  "topic": "course"
+ },
+ {
+  "id": "aq2-11",
+  "question": "how many total credits do you need to graduate and how many of them have to be upper level (300-400)?",
+  "topic": "program"
+ },
+ {
+  "id": "aq2-12",
+  "question": "is there a capstone or senior project required for computer science, and what's the course number",
+  "topic": "course"
+ },
+ {
+  "id": "aq2-13",
+  "question": "how many credits do i still need to graduate? im a junior cs major",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aq2-14",
+  "question": "is there still room in cmps 364 this spring and who teaches it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aq2-15",
+  "question": "should i take operating systems or software engineering next semester, which one is easier",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aq3-01",
+  "question": "what is the recommended course sequence for the nursing major freshman year",
+  "topic": "sequence"
+ },
+ {
+  "id": "aq3-02",
+  "question": "Does BIOL 213 anatomy and physiology have a lab, and how many credits is it?",
+  "topic": "course"
+ },
+ {
+  "id": "aq3-03",
+  "question": "im a nursing student, which gen ed categories do i still have to fill if my major already has chem and bio",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "aq3-04",
+  "question": "is there a public health major or is it just a minor",
+  "topic": "program"
+ },
+ {
+  "id": "aq3-05",
+  "question": "what are the prereqs for microbiology? and do i need to finish them before sophmore year to stay on track for nursing",
+  "topic": "course"
+ },
+ {
+  "id": "aq3-06",
+  "question": "Does a statistics class count for the quantitative reasoning gen ed, or is that a separate requirement for health science majors?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "aq3-07",
+  "question": "what GPA do you need to stay in the nursing program and what courses are the prerequisites before you start clinicals",
+  "topic": "program"
+ },
+ {
+  "id": "aq3-08",
+  "question": "how many credits is the BS in nursing total",
+  "topic": "program"
+ },
+ {
+  "id": "aq3-09",
+  "question": "can psych 101 count for both gen ed social science and a requirement for the health science major",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "aq3-10",
+  "question": "Is there an exercise science or kinesiology major at Ramapo? If so what does the first year look like",
+  "topic": "sequence"
+ },
+ {
+  "id": "aq3-11",
+  "question": "what does NURS 210 cover",
+  "topic": "course"
+ },
+ {
+  "id": "aq3-12",
+  "question": "what order should i take chem courses in for allied health / pre-PT? gen chem then organic?",
+  "topic": "sequence"
+ },
+ {
+  "id": "aq3-13",
+  "question": "am i behind? i failed chem 1 last semester and im retaking it in the spring, will that push back my nursing courses",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aq3-14",
+  "question": "is the anatomy and physiology II section on tuesdays still open and who teaches it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aq3-15",
+  "question": "should i switch from nursing to health science if im struggling with the science classes",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aq4-01",
+  "question": "Does Ramapo offer any master's degrees? I already have a bachelor's from 2009 and I'm looking at going back.",
+  "topic": "program"
+ },
+ {
+  "id": "aq4-02",
+  "question": "how many credits is the MBA program and are there any prerequisite courses if my undergrad wasnt in business",
+  "topic": "program"
+ },
+ {
+  "id": "aq4-03",
+  "question": "Is there an accelerated bachelor's to master's option? Which programs have it and how many grad credits can you take as an undergrad?",
+  "topic": "program"
+ },
+ {
+  "id": "aq4-04",
+  "question": "I have a BA in English from another school. If I come back for a second bachelor's in nursing, do I still have to do all the gen ed requirements?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "aq4-05",
+  "question": "what grad certificates do you have? looking for something in data analytics or something similar thats under 18 credits",
+  "topic": "program"
+ },
+ {
+  "id": "aq4-06",
+  "question": "Whats the maximum number of transfer credits I can bring into a graduate program at Ramapo?",
+  "topic": "program"
+ },
+ {
+  "id": "aq4-07",
+  "question": "Is there an MS in Computer Science? what are the core courses and do I need calc to get in",
+  "topic": "program"
+ },
+ {
+  "id": "aq4-08",
+  "question": "For the Master of Arts in Teaching, what courses do you take and in what order? I work full time so I'm wondering how long it takes part-time.",
+  "topic": "sequence"
+ },
+ {
+  "id": "aq4-09",
+  "question": "how many credits do i need at ramapo to finish a bachelors if im transferring in 64 credits from a community college 15 yrs ago",
+  "topic": "program"
+ },
+ {
+  "id": "aq4-10",
+  "question": "Is the MSEd in educational leadership something that leads to principal certification, and how many credits is it?",
+  "topic": "program"
+ },
+ {
+  "id": "aq4-11",
+  "question": "Does the accounting minor have any 300 level courses? I want to know if i can do it as a post-bacc to sit for the CPA",
+  "topic": "program"
+ },
+ {
+  "id": "aq4-12",
+  "question": "what does the course in the MSW program on research methods cover and is there a stats prereq",
+  "topic": "course"
+ },
+ {
+  "id": "aq4-13",
+  "question": "Can you check if my credits from Bergen Community College transferred? I sent my transcript last month.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aq4-14",
+  "question": "Which is better for someone switching careers at 38, the MBA or the masters in data science? Honest opinion pls",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aq4-15",
+  "question": "are there any evening or online sections of the grad accounting courses open for spring and who teaches them",
+  "topic": "out_of_scope"
+ }
+]

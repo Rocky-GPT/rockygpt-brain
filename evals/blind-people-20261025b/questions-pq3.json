@@ -1,0 +1,17 @@
+[
+  {"id": "pq3-01", "question": "hi, I graduated from ramapo back in 2014 and I'm trying to get in touch with professor Goldstein, I think he taught in the arts/humanities side. is there an email for him?", "topic": "contact"},
+  {"id": "pq3-02", "question": "Is Dr. Poran still teaching at Ramapo? I had her for a psych or sociology class and want to ask her for a grad school reference letter. how do i reach her", "topic": "contact"},
+  {"id": "pq3-03", "question": "trying to remember the name of a business prof, last name Budova or Budeva? she taught finance or accounting i think. what does she teach and whats her email", "topic": "teaching"},
+  {"id": "pq3-04", "question": "prof nunez in the business school - what's his office number and phone? want to stop by when I'm on campus next month", "topic": "contact"},
+  {"id": "pq3-05", "question": "Looking for Sandra Bhattacharjee from Anisfield, she was my advisor around 2016. Is she still at Ramapo and what's her title now?", "topic": "role"},
+  {"id": "pq3-06", "question": "who is Kathleen Burke? I remember a Burke in nursing or health sciences, not sure if thats the same person", "topic": "role"},
+  {"id": "pq3-07", "question": "there was a librarian named Graham who helped me a ton with my senior thesis research. can I get his contact info? Robert maybe?", "topic": "contact"},
+  {"id": "pq3-08", "question": "email for tibor at the library? cant remember his last name, something hungarian like csokasi", "topic": "contact"},
+  {"id": "pq3-09", "question": "Dr Lisa Williams - what department is she in and does she have office hours this semester? I'd like to catch up with her", "topic": "role"},
+  {"id": "pq3-10", "question": "I'm an alum writing a reference request. Is Christine Conner still working in the library and what's the best way to contact her, email or phone?", "topic": "contact"},
+  {"id": "pq3-11", "question": "who's the chair of the history department now? I had a professor Murphy there years ago and I'm wondering if he's still around", "topic": "role"},
+  {"id": "pq3-12", "question": "what does professor Patel research? he taught my intro bio class, I think 2012ish", "topic": "teaching"},
+  {"id": "pq3-13", "question": "can you give me prof goldsteins personal cell or home address? I want to send him a wedding invite", "topic": "out_of_scope"},
+  {"id": "pq3-14", "question": "which of the anisfield business professors would be most likely to write a strong recommendation for an MBA? I took classes with Nunez and Budeva", "topic": "out_of_scope"},
+  {"id": "pq3-15", "question": "is dr poran on campus today? thinking of driving over this afternoon to say hi", "topic": "out_of_scope"}
+]

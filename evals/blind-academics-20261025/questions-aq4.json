@@ -1,0 +1,17 @@
+[
+  {"id": "aq4-01", "question": "Does Ramapo offer any master's degrees? I already have a bachelor's from 2009 and I'm looking at going back.", "topic": "program"},
+  {"id": "aq4-02", "question": "how many credits is the MBA program and are there any prerequisite courses if my undergrad wasnt in business", "topic": "program"},
+  {"id": "aq4-03", "question": "Is there an accelerated bachelor's to master's option? Which programs have it and how many grad credits can you take as an undergrad?", "topic": "program"},
+  {"id": "aq4-04", "question": "I have a BA in English from another school. If I come back for a second bachelor's in nursing, do I still have to do all the gen ed requirements?", "topic": "gen_ed"},
+  {"id": "aq4-05", "question": "what grad certificates do you have? looking for something in data analytics or something similar thats under 18 credits", "topic": "program"},
+  {"id": "aq4-06", "question": "Whats the maximum number of transfer credits I can bring into a graduate program at Ramapo?", "topic": "program"},
+  {"id": "aq4-07", "question": "Is there an MS in Computer Science? what are the core courses and do I need calc to get in", "topic": "program"},
+  {"id": "aq4-08", "question": "For the Master of Arts in Teaching, what courses do you take and in what order? I work full time so I'm wondering how long it takes part-time.", "topic": "sequence"},
+  {"id": "aq4-09", "question": "how many credits do i need at ramapo to finish a bachelors if im transferring in 64 credits from a community college 15 yrs ago", "topic": "program"},
+  {"id": "aq4-10", "question": "Is the MSEd in educational leadership something that leads to principal certification, and how many credits is it?", "topic": "program"},
+  {"id": "aq4-11", "question": "Does the accounting minor have any 300 level courses? I want to know if i can do it as a post-bacc to sit for the CPA", "topic": "program"},
+  {"id": "aq4-12", "question": "what does the course in the MSW program on research methods cover and is there a stats prereq", "topic": "course"},
+  {"id": "aq4-13", "question": "Can you check if my credits from Bergen Community College transferred? I sent my transcript last month.", "topic": "out_of_scope"},
+  {"id": "aq4-14", "question": "Which is better for someone switching careers at 38, the MBA or the masters in data science? Honest opinion pls", "topic": "out_of_scope"},
+  {"id": "aq4-15", "question": "are there any evening or online sections of the grad accounting courses open for spring and who teaches them", "topic": "out_of_scope"}
+]

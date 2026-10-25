@@ -1,0 +1,302 @@
+[
+ {
+  "id": "pq1-01",
+  "question": "hi sorry if this is a dumb question but what is professor hoch's email? i need to ask him about an assignment",
+  "topic": "contact"
+ },
+ {
+  "id": "pq1-02",
+  "question": "Is Dr. Mattis in the nursing department or biology? I'm not sure who I'm supposed to email about my lab",
+  "topic": "role"
+ },
+ {
+  "id": "pq1-03",
+  "question": "where is prof giacopi's office",
+  "topic": "contact"
+ },
+ {
+  "id": "pq1-04",
+  "question": "hello, could you please tell me what Zach Layton teaches? and how I could reach him",
+  "topic": "teaching"
+ },
+ {
+  "id": "pq1-05",
+  "question": "who is stephanie jones? my advisor told me to talk to her but I don't know if she's a professor or what",
+  "topic": "role"
+ },
+ {
+  "id": "pq1-06",
+  "question": "I'm a freshman and I think my english teacher's name is Dr Reali? is he the one in charge of the english department or just a professor. sorry",
+  "topic": "role"
+ },
+ {
+  "id": "pq1-07",
+  "question": "does professor Leskinen have office hours",
+  "topic": "contact"
+ },
+ {
+  "id": "pq1-08",
+  "question": "phone number for Mrs. Tisi in the library please",
+  "topic": "contact"
+ },
+ {
+  "id": "pq1-09",
+  "question": "Hi! Is Professor Alice Parks a good teacher? I'm thinking about taking her class next semester but I'm kind of scared",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pq1-10",
+  "question": "what does dr fried research? and what school is he in, I thought he was psychology",
+  "topic": "teaching"
+ },
+ {
+  "id": "pq1-11",
+  "question": "who's the chair of the history department",
+  "topic": "role"
+ },
+ {
+  "id": "pq1-12",
+  "question": "is professor hock on campus today? I wanted to stop by but I don't want to bother him if he's not there",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pq1-13",
+  "question": "Hello, I need to email my math professor, I think her name is Professor Rodriguez but I'm not 100% sure. what's her email and is she math or computer science?",
+  "topic": "contact"
+ },
+ {
+  "id": "pq1-14",
+  "question": "Can you give me Dr. Matis's cell phone number? I need to text him that I'll miss class tomorrow",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pq1-15",
+  "question": "who teaches intro to sociology? I want to ask them a question before I register but I don't know their name",
+  "topic": "teaching"
+ },
+ {
+  "id": "pq2-01",
+  "question": "whats dr kota's email? want to ask abt research in her lab",
+  "topic": "contact"
+ },
+ {
+  "id": "pq2-02",
+  "question": "who is the chair of bio dept",
+  "topic": "role"
+ },
+ {
+  "id": "pq2-03",
+  "question": "prof becker office room # and does he have office hrs",
+  "topic": "contact"
+ },
+ {
+  "id": "pq2-04",
+  "question": "what does victor miller research? is he chem or physics",
+  "topic": "teaching"
+ },
+ {
+  "id": "pq2-05",
+  "question": "transfer student here, who runs the chem lab sections / who are the lab instructors for gen chem 1",
+  "topic": "teaching"
+ },
+ {
+  "id": "pq2-06",
+  "question": "dr kotta phone number",
+  "topic": "contact"
+ },
+ {
+  "id": "pq2-07",
+  "question": "is prof becker any good? thinking of joining his lab",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pq2-08",
+  "question": "susan kurzman librarian email - need help finding journal articles for my lit review",
+  "topic": "contact"
+ },
+ {
+  "id": "pq2-09",
+  "question": "who's the dean of the school of science nursing and health and where's their office",
+  "topic": "role"
+ },
+ {
+  "id": "pq2-10",
+  "question": "jess terrizzi what dept is she in and what's her title",
+  "topic": "role"
+ },
+ {
+  "id": "pq2-11",
+  "question": "prof mandel and prof skowronski - which one is in the business school? need a minor advisor",
+  "topic": "role"
+ },
+ {
+  "id": "pq2-12",
+  "question": "does dr patel teach orgo or is that someone else? also his email",
+  "topic": "teaching"
+ },
+ {
+  "id": "pq2-13",
+  "question": "is dr stephen becker on campus today",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pq2-14",
+  "question": "who is dolly sacristan",
+  "topic": "role"
+ },
+ {
+  "id": "pq2-15",
+  "question": "which bio prof should i pick for undergrad research, i like microbio",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pq3-01",
+  "question": "hi, I graduated from ramapo back in 2014 and I'm trying to get in touch with professor Goldstein, I think he taught in the arts/humanities side. is there an email for him?",
+  "topic": "contact"
+ },
+ {
+  "id": "pq3-02",
+  "question": "Is Dr. Poran still teaching at Ramapo? I had her for a psych or sociology class and want to ask her for a grad school reference letter. how do i reach her",
+  "topic": "contact"
+ },
+ {
+  "id": "pq3-03",
+  "question": "trying to remember the name of a business prof, last name Budova or Budeva? she taught finance or accounting i think. what does she teach and whats her email",
+  "topic": "teaching"
+ },
+ {
+  "id": "pq3-04",
+  "question": "prof nunez in the business school - what's his office number and phone? want to stop by when I'm on campus next month",
+  "topic": "contact"
+ },
+ {
+  "id": "pq3-05",
+  "question": "Looking for Sandra Bhattacharjee from Anisfield, she was my advisor around 2016. Is she still at Ramapo and what's her title now?",
+  "topic": "role"
+ },
+ {
+  "id": "pq3-06",
+  "question": "who is Kathleen Burke? I remember a Burke in nursing or health sciences, not sure if thats the same person",
+  "topic": "role"
+ },
+ {
+  "id": "pq3-07",
+  "question": "there was a librarian named Graham who helped me a ton with my senior thesis research. can I get his contact info? Robert maybe?",
+  "topic": "contact"
+ },
+ {
+  "id": "pq3-08",
+  "question": "email for tibor at the library? cant remember his last name, something hungarian like csokasi",
+  "topic": "contact"
+ },
+ {
+  "id": "pq3-09",
+  "question": "Dr Lisa Williams - what department is she in and does she have office hours this semester? I'd like to catch up with her",
+  "topic": "role"
+ },
+ {
+  "id": "pq3-10",
+  "question": "I'm an alum writing a reference request. Is Christine Conner still working in the library and what's the best way to contact her, email or phone?",
+  "topic": "contact"
+ },
+ {
+  "id": "pq3-11",
+  "question": "who's the chair of the history department now? I had a professor Murphy there years ago and I'm wondering if he's still around",
+  "topic": "role"
+ },
+ {
+  "id": "pq3-12",
+  "question": "what does professor Patel research? he taught my intro bio class, I think 2012ish",
+  "topic": "teaching"
+ },
+ {
+  "id": "pq3-13",
+  "question": "can you give me prof goldsteins personal cell or home address? I want to send him a wedding invite",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pq3-14",
+  "question": "which of the anisfield business professors would be most likely to write a strong recommendation for an MBA? I took classes with Nunez and Budeva",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pq3-15",
+  "question": "is dr poran on campus today? thinking of driving over this afternoon to say hi",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pq4-01",
+  "question": "what's dean daffron's email? writing a piece for the ramapo news on the humanities budget and want to request an interview",
+  "topic": "contact"
+ },
+ {
+  "id": "pq4-02",
+  "question": "Is Sourav Dutta a professor in the science school? What's his title and what department is he in?",
+  "topic": "role"
+ },
+ {
+  "id": "pq4-03",
+  "question": "prof warner office room number + phone pls",
+  "topic": "contact"
+ },
+ {
+  "id": "pq4-04",
+  "question": "Who is Shaziela Ishak and what does she research? Looking for a social science expert to quote",
+  "topic": "teaching"
+ },
+ {
+  "id": "pq4-05",
+  "question": "dr padhy email",
+  "topic": "contact"
+ },
+ {
+  "id": "pq4-06",
+  "question": "I need to reach Nasim Chowdhury in social sciences for a story on community health. what's the best email and does she have office hours this semester?",
+  "topic": "contact"
+ },
+ {
+  "id": "pq4-07",
+  "question": "what does professor Petro teach and what's her official title? need it right for a byline caption",
+  "topic": "role"
+ },
+ {
+  "id": "pq4-08",
+  "question": "is Laura Santangelo in nursing? need her email for an article about the nursing program",
+  "topic": "contact"
+ },
+ {
+  "id": "pq4-09",
+  "question": "Gonpu in the business school - what's his phone number and which department?",
+  "topic": "contact"
+ },
+ {
+  "id": "pq4-10",
+  "question": "does dr kenneavy research anything related to surveys or public opinion? and where's her office",
+  "topic": "teaching"
+ },
+ {
+  "id": "pq4-11",
+  "question": "who's the director of the journalism program and how do i contact them",
+  "topic": "role"
+ },
+ {
+  "id": "pq4-12",
+  "question": "professor rodriguez in communications, what's his extension?",
+  "topic": "contact"
+ },
+ {
+  "id": "pq4-13",
+  "question": "Which professor is the best expert on climate policy at Ramapo that would give a good quote? I want someone students actually like",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pq4-14",
+  "question": "is prof daffron on campus today? I want to just drop by his office for a quick interview",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pq4-15",
+  "question": "can i get dr. dutta's cell number? deadline is tonight and he isn't answering email",
+  "topic": "out_of_scope"
+ }
+]

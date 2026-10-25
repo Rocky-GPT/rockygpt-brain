@@ -1,0 +1,17 @@
+[
+  {"id": "aq1-01", "question": "what majors does ramapo even have? im undecided and kinda lost", "topic": "program"},
+  {"id": "aq1-02", "question": "is there a major for like computer stuff? comp sci or information technology or whatever its called", "topic": "program"},
+  {"id": "aq1-03", "question": "whats the diffrence between the psychology major and the psych minor, like how many credits is each", "topic": "program"},
+  {"id": "aq1-04", "question": "do u guys have a nursing major and is it hard to get into", "topic": "program"},
+  {"id": "aq1-05", "question": "is there a minor in creative writing or is it just english", "topic": "program"},
+  {"id": "aq1-06", "question": "what classes would i need to take for a business major, is it marketing or management or are those seperate", "topic": "program"},
+  {"id": "aq1-07", "question": "im thinking biology or enviromental science. what does a freshman take first year for either one", "topic": "sequence"},
+  {"id": "aq1-08", "question": "what are the gen ed requirements? how many credits of gen eds do i need total", "topic": "gen_ed"},
+  {"id": "aq1-09", "question": "does intro to psych count towards gen ed", "topic": "gen_ed"},
+  {"id": "aq1-10", "question": "what is cmps 147 about and does it have prereqs", "topic": "course"},
+  {"id": "aq1-11", "question": "how many credits is a normal class here, and how many do i need to graduate", "topic": "course"},
+  {"id": "aq1-12", "question": "can i double major in communication and something else or is that too many credits? also are there any certificates i could add", "topic": "program"},
+  {"id": "aq1-13", "question": "which major should i pick if i like helping people but also kinda like math", "topic": "out_of_scope"},
+  {"id": "aq1-14", "question": "is there still room in psych 101 this spring and who teaches it", "topic": "out_of_scope"},
+  {"id": "aq1-15", "question": "can u check how many credits i have so far and whats left for me to take", "topic": "out_of_scope"}
+]
