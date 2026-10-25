@@ -7,6 +7,8 @@ facts: the directory and their faculty profile do.
 """
 
 import re
+import unicodedata
+from collections import Counter
 from collections.abc import Sequence
 from typing import Any
 
@@ -35,6 +37,20 @@ _TOPIC_ASK = re.compile(r"\b(?:who|teach\w*|research\w*|stud(?:y|ies)|experts?|c
                         r"specializ\w*|works? on)\b")
 
 
+def fold(text: str) -> str:
+    """Name text as a student types it: accents and marks dropped ("Renée" is renee, "Katicˊ"
+    is katic) and an apostrophe inside a name joined ("D’Antonio" is dantonio); a possessive
+    's is dropped first."""
+    text = re.sub(r"(?<=\w)['’ʼ]s\b", "", text)
+    text = "".join(c for c in unicodedata.normalize("NFKD", text)
+                   if unicodedata.category(c) not in ("Mn", "Lm", "Sk"))
+    return re.sub(r"(?<=\w)['’`´](?=\w)", "", text)
+
+
+def name_tokens(text: str) -> frozenset[str]:
+    return discovery_tokens(fold(text))
+
+
 def asks_people(message: str) -> bool:
     return bool(_PEOPLE_WORDS.search(message.casefold()))
 
@@ -59,9 +75,9 @@ def find_people(people: Sequence[dict[str, Any]], message: str) -> list[dict[str
     even where each half is someone else's too. A last name several people share names all of
     them (the reply asks which one); a two-letter last name ("xu") counts only after a title
     word. At most MAX_PEOPLE."""
-    words = discovery_tokens(message) - _TITLES
-    shortest = 2 if discovery_tokens(message) & _TITLES else 3
-    whole = [p for p in people if (name := discovery_tokens(_name(p)))
+    words = name_tokens(message) - _TITLES
+    shortest = 2 if name_tokens(message) & _TITLES else 3
+    whole = [p for p in people if (name := name_tokens(_name(p)))
              and len(name) >= 2 and name <= words]
     if whole:
         return whole[:MAX_PEOPLE]
@@ -69,9 +85,11 @@ def find_people(people: Sequence[dict[str, Any]], message: str) -> list[dict[str
     # Professor Norflus-Good).
     if not (asks_people(message) or _CONTACT_ASK.search(message.casefold())):
         return []
+    # A possessive typed without its apostrophe ("professor brissons email") names Brisson.
+    words = words | {w[:-1] for w in words if len(w) > 4 and w.endswith("s")}
     owners: dict[frozenset[str], list[dict[str, Any]]] = {}
     for person in people:
-        parts = _name(person).split()
+        parts = fold(_name(person)).split()
         last = discovery_tokens(parts[-1]) if parts else frozenset()
         keys = {frozenset(last)} | {frozenset({token}) for token in last}
         for key in keys:
@@ -114,7 +132,7 @@ def _near_names(people: Sequence[dict[str, Any]],
     words = words - _QUESTION_WORDS
     found: list[dict[str, Any]] = []
     for person in people:
-        parts = _name(person).split()
+        parts = fold(_name(person)).split()
         last = sorted(discovery_tokens(parts[-1]), key=len)[-1:] if parts else []
         for token in last:
             allowed = 1 if len(token) <= 6 else 2
@@ -124,7 +142,7 @@ def _near_names(people: Sequence[dict[str, Any]],
                 found.append({**person, "near_spelling": True})
     # A first name the question also uses picks among near spellings ("mark howenstien").
     first_named = [p for p in found if _name(p).split()
-                   and discovery_tokens(_name(p).split()[0]) & words]
+                   and name_tokens(_name(p).split()[0]) & words]
     return (first_named or found)[:MAX_PEOPLE]
 
 
@@ -181,3 +199,246 @@ def person_evidence(facts: dict[str, Any], n: int, near_spelling: bool = False) 
     value = prop["values"][0]["value"] if prop["values"] else {"name": facts["entity"]["name"]}
     return {"n": n, **({"near_spelling_of_asked_name": True} if near_spelling else {}),
             **{k: v for k, v in value.items() if v not in (None, [], "")}}
+
+
+# What code works out for a people question, for the reply to state as it is (the way the
+# shuttle's next departure is): each person's title and the fields asked, or that the directory
+# and profile publish none; the people a shared name could mean, narrowed by the school or field
+# the question names; and who leads a school or field by their directory titles.
+
+# Title words that say rank or role, not a field ("Associate Professor of Chemistry" is
+# chemistry), and common words a question uses for other things.
+_NOT_FIELD = discovery_tokens(
+    "professor associate assistant adjunct visiting distinguished emeritus emerita retired "
+    "interim lecturer instructor librarian senior teaching specialist fellow executive "
+    "director dean chair convener coordinator coord supervisor secretary administrator "
+    "the and of in for at he him she her they them it s d te glo master post program "
+    "programs studies school college lab unit desk project projects series services system "
+    "systems resources development course learning research reading writing work social "
+    "science sciences data information technology world public policy applied global "
+    "association institute organization industry women unit circulation reference "
+    "instruction technical electronic web budget government documents assessment loan "
+    "scholarship monograph reserves")
+
+
+def schools_of(directory: Sequence[dict[str, Any]],
+               offices: Sequence[dict[str, Any]]) -> dict[str, frozenset[str]]:
+    """Each school in the directory with the words that name it: its own name's distinctive
+    words and its school office's other names ("SNH" for the School of Science, Nursing, and
+    Health); "(Retired)" and "(Adjunct)" listings belong to their school."""
+    names = {_school(e.get("school")) for e in directory} - {""}
+    aliases: dict[str, set[str]] = {}
+    for office in offices:
+        name = re.sub(r"\s+office$", "", str(office.get("name") or ""), flags=re.I).strip()
+        for alias in office.get("aliases") or []:
+            aliases.setdefault(name.casefold(), set()).update(
+                name_tokens(re.sub(r"\s+office$", "", str(alias), flags=re.I)))
+    return {school: frozenset((name_tokens(school) - _SCHOOL_GENERIC)
+                              | aliases.get(school.casefold(), set()))
+            for school in names}
+
+
+_SCHOOL_GENERIC = discovery_tokens("school of and faculty staff work")
+
+
+def _school(value: Any) -> str:
+    return re.sub(r"\s*\([^)]*\)\s*$", "", str(value or "")).strip()
+
+
+def school_asked(message: str, schools: dict[str, frozenset[str]]) -> str | None:
+    """The school a question names by its words ("the business school", "SNH"), the one with
+    the most of them; None when it names none."""
+    words = name_tokens(message)
+    scored = sorted(((len(tokens & words), school) for school, tokens in schools.items()),
+                    reverse=True)
+    if not scored or scored[0][0] == 0 or (len(scored) > 1 and scored[1][0] == scored[0][0]):
+        return None
+    return scored[0][1]
+
+
+def fields_asked(message: str, directory: Sequence[dict[str, Any]],
+                 exclude: frozenset[str] = frozenset()) -> set[str]:
+    """The fields a question names that some directory title names ("chemistry", "nursing"),
+    other than the words in `exclude` (the names asked)."""
+    vocabulary = {w for e in directory for w in name_tokens(str(e.get("title") or ""))
+                  if len(w) > 3} - _NOT_FIELD
+    return (set(name_tokens(message)) & vocabulary) - exclude
+
+
+def narrow(items: Sequence[dict[str, Any]], message: str,
+           schools: dict[str, frozenset[str]]) -> list[dict[str, Any]]:
+    """Among people who share the last name asked, those whose title or school the question's
+    other words name ("prof lee from the business school"); all of them when none or every one
+    is named that way."""
+    lasts = {fold(_name(i)).split()[-1].casefold() for i in items if _name(i).split()}
+    if len(items) < 2 or len(lasts) != 1:
+        return list(items)
+    words = set(name_tokens(message)) - _TITLES - _QUESTION_WORDS
+
+    def named(item: dict[str, Any]) -> int:
+        about = set(name_tokens(f"{item.get('title') or ''} {item.get('school') or ''}"))
+        about |= schools.get(_school(item.get("school")), frozenset())
+        return len((about - name_tokens(_name(item)) - _SCHOOL_GENERIC) & words)
+    best = max(named(i) for i in items)
+    kept = [i for i in items if named(i) == best]
+    return kept if best and len(kept) < len(items) else list(items)
+
+
+# The fields a question asks for, by its words; a question asking none of them gets the
+# contact fields.
+_ASKED_FIELDS = (
+    ("email", "email address", re.compile(r"\be-?mails?\b|\bcontact\b|\breach\b")),
+    ("phone", "phone number", re.compile(r"\bphone\b|\bnumber\b|\bcall\b|\bextension\b|"
+                                         r"\bcontact\b|\breach\b")),
+    ("office", "office room", re.compile(r"\boffice\b(?!\s*hours)|\broom\b|\bwhere\b|"
+                                         r"\blocated\b|\blocation\b")),
+    ("office_hours", "office hours", re.compile(r"\bhours\b|\bavailab\w*|\bmeet\b|"
+                                                r"\bdrop in\b|\bfree\b")),
+    ("courses", "courses", re.compile(r"\bteach\w*|\bcourses?\b|\bclass(?:es)?\b")),
+    ("research_interests", "research interests",
+     re.compile(r"\bresearch\w*|\binterests?\b|\bwork(?:s)? on\b|\bexpert\w*|\bspeciali\w*|"
+                r"\bstud(?:y|ies)\b")),
+)
+_CONTACT_FIELDS = ("email", "phone", "office")
+
+
+def _asked(message: str) -> list[tuple[str, str]]:
+    text = fold(message).casefold()
+    asked = [(key, label) for key, label, words in _ASKED_FIELDS if words.search(text)]
+    return asked or [(key, label) for key, label, _ in _ASKED_FIELDS if key in _CONTACT_FIELDS]
+
+
+def _value(value: Any) -> str:
+    return "; ".join(map(str, value)) if isinstance(value, list) else str(value)
+
+
+def computed_answers(items: Sequence[dict[str, Any]], message: str,
+                     directory: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """For the people a question names (already read, numbered): when several share the name
+    asked, each with title and school and that the student should say which; else each one's
+    directory title and school, every field asked as published or that neither the directory nor
+    the profile publishes it, and any field the question names that their title does not."""
+    named = [i for i in items if i.get("name")]
+    if not named:
+        return []
+    lasts = {fold(_name(i)).split()[-1].casefold() for i in named if _name(i).split()}
+    if len(named) > 1 and len(lasts) == 1:
+        listing = "; ".join(f"{_name(i)} ({i.get('title') or 'no title listed'}, "
+                            f"{i.get('school') or 'no school listed'}) [{i['n']}]" for i in named)
+        return [{"fact": f"{len(named)} people in the directory share the name asked: {listing}. "
+                         "Ask which one the student means.", "n": named[0]["n"]}]
+    facts: list[dict[str, Any]] = []
+    asked = _asked(message)
+    for item in named:
+        name, n = _name(item), item["n"]
+        if item.get("near_spelling_of_asked_name"):
+            facts.append({"fact": f"No one in the directory has exactly the name asked; the "
+                                  f"nearest is {name}. Ask whether the student means {name}.",
+                          "n": n})
+        title, school = item.get("title"), _school(item.get("school"))
+        facts.append({"fact": f"{name}'s directory title is {title}" if title else
+                              f"The directory lists no title for {name}", "n": n})
+        if school:
+            facts[-1]["fact"] += f", in the {school}."
+        else:
+            facts[-1]["fact"] += "."
+        others = fields_asked(message, directory, name_tokens(name))
+        missing = {w for w in others if w not in name_tokens(f"{title or ''} {school}")}
+        if title and missing:
+            facts.append({"fact": f"{name}'s title does not name {', '.join(sorted(missing))}.",
+                          "n": n})
+        for key, label in asked:
+            if item.get(key):
+                where = ("on the faculty profile, as written" if key in
+                         ("office_hours", "courses", "research_interests") else "per the directory")
+                facts.append({"fact": f"{name}'s {label}, {where}: {_value(item[key])}.", "n": n})
+            elif key == "office_hours":
+                facts.append({"fact": f"{name}'s faculty profile lists no office hours.", "n": n})
+            else:
+                facts.append({"fact": f"Neither the directory nor {name}'s faculty profile "
+                                      f"publishes {'an' if label[0] in 'aeiou' else 'a'} "
+                                      f"{label}.", "n": n})
+    return facts
+
+
+# A question about who leads a school or a field: its dean, or a department's chair or head.
+_LEAD_ASK = re.compile(r"\b(?:deans?|chair(?:s|person|man|woman)?|conveners?|"
+                       r"(?:department|dept|program) heads?|head of|in charge of)\b")
+_LEAD_TITLE = re.compile(r"\b(?:dean|chair\w*|convener|director|coordinator|head)\b", re.I)
+_DEAN_TITLE = re.compile(r"\b(?:(assistant|associate|vice)\s+)?(interim\s+)?dean\b", re.I)
+
+
+def asks_leadership(message: str) -> bool:
+    text = fold(message).casefold()
+    return bool(_LEAD_ASK.search(text)) and "dean of students" not in text
+
+
+def _dean_of_school(title: str) -> tuple[bool, bool] | None:
+    """Whether a directory title in a school's listing is that school's dean, and whether
+    interim: any Dean title but an assistant, associate or vice dean's ("Dean of Contemporary
+    Arts" is how the directory still titles the School of Arts, Humanities, and Education's
+    dean, by the Provost's list of deans)."""
+    found = _DEAN_TITLE.search(title.split("/")[0])
+    if not found or found.group(1):
+        return None
+    return True, bool(found.group(2))
+
+
+def leaders(directory: Sequence[dict[str, Any]], message: str,
+            schools: dict[str, frozenset[str]]) -> list[tuple[str, dict[str, Any] | None]]:
+    """Who leads what a leadership question asks about, by directory titles: each school's
+    dean (the school named, else every school), a permanent Dean before an Interim one for the
+    same school; for a field ("chair of nursing"), every title naming the field with a
+    leadership word, else that no title does and the dean of the school its faculty belong to.
+    Lines with the directory entry they are about."""
+    lines: list[tuple[str, dict[str, Any] | None]] = []
+    fields = fields_asked(message, directory) - {w for t in schools.values() for w in t
+                                                 if len(w) <= 4}
+    school = school_asked(message, schools)
+
+    def deans(of: str) -> list[tuple[str, dict[str, Any] | None]]:
+        found = [(e, kind) for e in directory if _school(e.get("school")) == of
+                 and "retired" not in str(e.get("school") or "").casefold()
+                 and (kind := _dean_of_school(str(e.get("title") or "")))]
+        permanent = [e for e, (_, interim) in found if not interim]
+        out: list[tuple[str, dict[str, Any] | None]] = []
+        for entry, (_, interim) in found:
+            if interim and permanent:
+                out.append((f"{_name(entry)} is also listed in the directory, as {entry['title']}; "
+                            f"an interim appointment is temporary, and the directory lists "
+                            f"{_name(permanent[0])} with the title Dean.", entry))
+        lead = permanent or [e for e, _ in found]
+        if not lead:
+            titled = [e for e in directory if _school(e.get("school")) == of
+                      and re.search(r"\bdean\b", str(e.get("title") or ""), re.I)
+                      and "retired" not in str(e.get("school") or "").casefold()]
+            return [(f"The directory lists no one with the title Dean of the {of}.", None),
+                    *[(f"{_name(e)} has the directory title {e['title']}.", e) for e in titled]]
+        heads: list[tuple[str, dict[str, Any] | None]] = [
+            (f"The dean of the {of}, by the directory, is {_name(e)} (directory title: "
+             f"{e['title']}).", e) for e in lead]
+        return heads + out
+    dean_asked = bool(re.search(r"\bdeans?\b", fold(message).casefold()))
+    if school and dean_asked:
+        lines.extend(deans(school))
+    listed = {id(entry) for _, entry in lines if entry is not None}
+    for field in sorted(fields):
+        titled = [e for e in directory if field in name_tokens(str(e.get("title") or ""))
+                  and "retired" not in str(e.get("school") or "").casefold()]
+        leading = [e for e in titled if _LEAD_TITLE.search(str(e.get("title") or ""))
+                   and id(e) not in listed]
+        for entry in leading:
+            lines.append((f"{_name(entry)}'s directory title names {field} with a leadership "
+                          f"role: {entry['title']}.", entry))
+        if not leading and not (school and dean_asked):
+            lines.append((f"No directory title names a chair, head, convener, director or "
+                          f"dean for {field}.", None))
+            home = Counter(_school(e.get("school")) for e in titled if e.get("school"))
+            if home:
+                of = home.most_common(1)[0][0]
+                lines.append((f"The directory's {field} faculty are in the {of}.", None))
+                lines.extend(deans(of))
+    if not lines and dean_asked:
+        for of in ([school] if school else sorted(schools)):
+            lines.extend(deans(of))
+    return lines

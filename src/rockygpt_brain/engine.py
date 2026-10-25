@@ -13,7 +13,7 @@ import re
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -1220,6 +1220,7 @@ class ChatEngine:
         # Every person's and club's directory entry for list questions, read once per release.
         self._directory_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
+        self._upcoming_cache: tuple[tuple[str, str], list[dict[str, Any]]] | None = None
 
     def _json(self, result: ChatResult, parts: list[dict[str, Any]], turn: Turn) -> ChatResult:
         """In JSON output the written answer is dropped and the facts go out as they are: the full
@@ -1659,33 +1660,61 @@ class ChatEngine:
     def _read_calendar(self, message: str, now: datetime, numbered_from: int,
                        scores: Mapping[str, float] | None = None,
                        ) -> tuple[dict[str, Any] | None, list[dict[str, Any]],
-                                  list[dict[str, Any]]]:
+                                  list[dict[str, Any]], list[dict[str, Any]]]:
         """The calendar events in the question's window and the clubs it names, read through the
-        shared reader (events.py), numbered after the evidence before them; scores are the
+        shared reader (events.py), numbered after the evidence before them, and what code works
+        out from them (counts, food, the topic's other dates, a club's events); scores are the
         event cards' meaning, when the index has them."""
         version, identity_hash = self.facts.active_release()
         named = self.facts.identities(("event", "club", "organization"))
         sources: list[dict[str, Any]] = []
+        computed: list[dict[str, Any]] = []
         calendar: dict[str, Any] | None = None
+
+        def read(dated: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+            return [{**f["properties"][0]["values"][0]["value"], "_id": f["entity"]["id"]}
+                    for at in range(0, len(dated), 40)
+                    for f in self.facts.get_event_facts(
+                        [e["id"] for e in dated[at:at + 40]], version,
+                        identity_hash=identity_hash, as_of=now)]
+
+        def numbered(values: Sequence[dict[str, Any]], **extra: Any) -> list[dict[str, Any]]:
+            lines = []
+            for value in values:
+                line = {"n": numbered_from + len(sources) + 1, **events.event_line(value),
+                        **extra}
+                lines.append(line)
+                sources.append({"n": line["n"], "url": line.get("url"), "title": line["event"]})
+            return lines
+
+        def all_upcoming() -> list[dict[str, Any]]:
+            return self._upcoming_events(now)
         if events.asks_events(message):
+            sources.append({"n": numbered_from + 1, "url": events.CALENDAR_URL,
+                            "title": "Campus events calendar"})
             start, end, label = events.window(message, now)
             dated = events.events_in([e for e in named if e["kind"] == "event"], start, end)
-            values = [{**f["properties"][0]["values"][0]["value"], "_id": f["entity"]["id"]}
-                      for at in range(0, len(dated), 40)
-                      for f in self.facts.get_event_facts(
-                          [e["id"] for e in dated[at:at + 40]], version,
-                          identity_hash=identity_hash, as_of=now)]
-            chosen = []
-            ranked, matched = events.rank_events(values, message, start, end, scores)
-            for value in ranked:
-                line = {"n": numbered_from + len(sources) + 1, **events.event_line(value)}
-                chosen.append(line)
-                sources.append({"n": line["n"], "url": line.get("url"), "title": line["event"]})
+            values = read(dated)
+            ranked, matched = events.rank_events(values, message, start, end, scores,
+                                                 all_upcoming())
+            chosen = numbered(ranked)
+            outside: list[dict[str, Any]] = []
+            if matched is False:
+                later = [v for v in all_upcoming()
+                         if datetime.fromisoformat(str(v.get("starts_at"))) > end]
+                found, again = events.rank_events(later, message, end, now + timedelta(days=366),
+                                                  scores, all_upcoming(), by_share=True)
+                outside = numbered(found[:events.MAX_OUTSIDE], outside_window=True) \
+                    if again else []
+            words = events.asked_topic(message)
+            computed = events.computed_answers(
+                label, start, end, len(events.in_window(values, start, end)),
+                [{**line, "_value": value} for line, value in zip(chosen, ranked, strict=True)],
+                matched, words, events.asks_food(message), outside, numbered_from + 1)
             calendar = {"window": label, "events_on_the_calendar_in_it": len(dated),
-                        **({"topic_matched": matched,
-                            "topic_words": sorted(events.topic_words(message))}
+                        **({"topic_matched": matched, "topic_words": sorted(words)}
                            if matched is not None else {}),
-                        "events": chosen, "calendar_url": events.CALENDAR_URL}
+                        "events": [*chosen, *outside], "calendar_url": events.CALENDAR_URL}
         clubs: list[dict[str, Any]] = []
         found = events.find_clubs([e for e in named if e["kind"] in ("club", "organization")],
                                   message) if events.asks_clubs(message) else []
@@ -1696,7 +1725,56 @@ class ChatEngine:
                 item = {"n": numbered_from + len(sources) + 1, **value}
                 clubs.append(item)
                 sources.append({"n": item["n"], "url": value.get("url"), "title": value["name"]})
-        return calendar, clubs, sources
+            computed = [*computed, *events.club_answers(
+                clubs, message, True, len([e for e in named if e["kind"] != "event"]))]
+        return calendar, clubs, sources, computed
+
+    def _upcoming_events(self, now: datetime) -> list[dict[str, Any]]:
+        """Every calendar event from now through the next year, as published, read through the
+        shared reader once per release and day."""
+        version, identity_hash = self.facts.active_release()
+        key = (version, now.date().isoformat())
+        if self._upcoming_cache is None or self._upcoming_cache[0] != key:
+            dated = events.events_in([e for e in self.facts.identities(("event",))],
+                                     now, now + timedelta(days=366))
+            values = [{**f["properties"][0]["values"][0]["value"], "_id": f["entity"]["id"]}
+                      for at in range(0, len(dated), 40)
+                      for f in self.facts.get_event_facts(
+                          [e["id"] for e in dated[at:at + 40]], version,
+                          identity_hash=identity_hash, as_of=now)]
+            self._upcoming_cache = (key, values)
+        return [v for v in self._upcoming_cache[1]
+                if datetime.fromisoformat(str(v.get("starts_at"))) >= now - timedelta(hours=3)]
+
+    def _club_events(self, clubs: Sequence[dict[str, Any]], now: datetime, numbered_from: int,
+                     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]],
+                                list[dict[str, Any]]]:
+        """The upcoming calendar events each club given hosts (the club as organizer), or that
+        the calendar lists none through its last date: event lines, facts and sources."""
+        upcoming = self._upcoming_events(now)
+        last = max((datetime.fromisoformat(str(v.get("starts_at"))) for v in upcoming),
+                   default=None)
+        lines: list[dict[str, Any]] = []
+        facts: list[dict[str, Any]] = []
+        for club in clubs[:3]:
+            hosted = sorted((v for v in upcoming if str(v.get("organizer") or "").casefold()
+                             == str(club.get("name") or "").casefold()),
+                            key=lambda v: str(v.get("starts_at")))[:events.MAX_OUTSIDE]
+            mine = [{"n": numbered_from + len(lines) + k + 1, **events.event_line(v),
+                     "hosted_by": club.get("name")} for k, v in enumerate(hosted)]
+            lines.extend(mine)
+            if mine:
+                facts.append({"fact": f"The calendar's upcoming events hosted by {club['name']}: "
+                                      + "; ".join(f"{line['event']} ({line['when']}) [{line['n']}]"
+                                                  for line in mine) + ".", "n": mine[0]["n"]})
+            else:
+                facts.append({"fact": f"The calendar lists no upcoming event hosted by "
+                                      f"{club['name']}" + (f" through {last:%B} {last.day}, "
+                                                           f"{last.year}, its last listed date."
+                                                           if last else "."),
+                              "n": club["n"]})
+        return lines, facts, [{"n": line["n"], "url": line.get("url"), "title": line["event"]}
+                              for line in lines]
 
     def _school_offices(self, schools: Sequence[Any]) -> list[str]:
         """The office identities of the schools a reply's people or programs belong to ("School
@@ -1710,10 +1788,9 @@ class ChatEngine:
                 if re.sub(r"\s+office$", "", str(o["name"]).strip(), flags=re.I).casefold()
                 in wanted]
 
-    def _people_listed(self, message: str, numbered_from: int,
-                       ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        """Everyone in the field a list question names, read through the shared reader once
-        per release (people.listed)."""
+    def _directory(self) -> list[dict[str, Any]]:
+        """Every person's directory and profile entry with its id, read through the shared
+        reader once per release."""
         version, identity_hash = self.facts.active_release()
         if self._directory_cache is None or self._directory_cache[0] != version:
             ids = [e["id"] for e in self.facts.identities(("person",))]
@@ -1724,13 +1801,51 @@ class ChatEngine:
                     entries.append({"id": facts["entity"]["id"],
                                     **people_module.person_evidence(facts, 0)})
             self._directory_cache = (version, entries)
-        found = people_module.listed(self._directory_cache[1], message)
+        return self._directory_cache[1]
+
+    def _people_listed(self, message: str, numbered_from: int,
+                       ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Everyone in the field a list question names (people.listed)."""
+        found = people_module.listed(self._directory(), message)
         items = [{"n": numbered_from + k + 1, **{x: y for x, y in entry.items() if x != "id"},
                   **({"listed_first_of": len(found)}
                      if k == 0 and len(found) > people_module.MAX_LISTED else {})}
                  for k, entry in enumerate(found[:people_module.MAX_LISTED])]
         return items, [{"n": i["n"], "url": i.get("profile_url"), "title": i.get("name")}
                        for i in items]
+
+    def _people_computed(self, message: str, people: list[dict[str, Any]],
+                         named: bool, numbered_from: int,
+                         ) -> tuple[list[dict[str, Any]], list[dict[str, Any]],
+                                    list[dict[str, Any]]]:
+        """What code works out for a people question (people.py): the people named, narrowed by
+        the school or field the question names, each with the fields asked; and who leads the
+        school or field a leadership question asks about, by directory titles, added to the
+        people given. The people, the facts, and the new people's sources."""
+        directory = self._directory()
+        schools = people_module.schools_of(directory, self.facts.identities(("office",)))
+        computed: list[dict[str, Any]] = []
+        sources: list[dict[str, Any]] = []
+        if named:
+            people = people_module.narrow(people, message, schools)
+            computed = people_module.computed_answers(people, message, directory)
+        if people_module.asks_leadership(message):
+            given = {p.get("profile_url") or p.get("name") for p in people}
+            for line, entry in people_module.leaders(directory, message, schools):
+                n = None
+                if entry is not None:
+                    key = entry.get("profile_url") or entry.get("name")
+                    n = next((p["n"] for p in people
+                              if (p.get("profile_url") or p.get("name")) == key), None)
+                    if n is None and key not in given:
+                        n = numbered_from + len(sources) + 1
+                        people = [*people, {"n": n, **{k: v for k, v in entry.items()
+                                                       if k not in ("id", "n")}}]
+                        sources.append({"n": n, "url": entry.get("profile_url"),
+                                        "title": entry.get("name")})
+                        given.add(key)
+                computed.append({"fact": line, **({"n": n} if n is not None else {})})
+        return people, computed, sources
 
     def _people_named(self, message: str) -> list[dict[str, Any]]:
         """The people a message names by their directory names (people.py)."""
@@ -1845,10 +1960,11 @@ class ChatEngine:
                     event_scores = (dict(index.academic_scores(vectors[0], "event"))
                                     if vectors and index is not None else None)
                     with measure("Read the calendar and clubs"):
-                        calendar, clubs, found_sources = await asyncio.to_thread(
+                        calendar, clubs, found_sources, calendar_facts = await asyncio.to_thread(
                             self._read_calendar, latest, turn.campus_now, len(sources),
                             event_scores)
                     sources = [*sources, *found_sources]
+                    computed = [*computed, *calendar_facts]
                     dataset_version = dataset_version or self.facts.active_release()[0]
                 if searchable:
                     assert index is not None
@@ -1871,7 +1987,8 @@ class ChatEngine:
                             self._people_listed, latest, len(sources))
                         sources = [*sources, *found_people]
                     if (people_asked and not people and index.academic
-                            and people_module.asks_people_topic(latest)):
+                            and people_module.asks_people_topic(latest)
+                            and not people_module.asks_leadership(latest)):
                         names = {e["id"]: str(e["name"])
                                  for e in self.facts.identities(("person",))}
                         found = people_module.by_meaning(
@@ -1890,6 +2007,23 @@ class ChatEngine:
                         clubs, club_sources = await asyncio.to_thread(
                             self._clubs_by_meaning, index, club_vectors, len(sources))
                         sources = [*sources, *club_sources]
+                        computed = [*computed, *events.club_answers(
+                            clubs, latest, False, len(self._club_directory()))]
+                if people_asked or named_people:
+                    with measure("Work out the people facts"):
+                        people, people_facts, found_people = await asyncio.to_thread(
+                            self._people_computed, latest, people, bool(named_people),
+                            len(sources))
+                    sources = [*sources, *found_people]
+                    computed = [*computed, *people_facts]
+                if clubs and len(clubs) <= 3 and events.asks_club_events(latest):
+                    club_lines, club_facts, found_events = await asyncio.to_thread(
+                        self._club_events, clubs, turn.campus_now, len(sources))
+                    sources = [*sources, *found_events]
+                    computed = [*computed, *club_facts]
+                    calendar = {**(calendar or {"window": "upcoming",
+                                                "calendar_url": events.CALENDAR_URL}),
+                                "events": [*((calendar or {}).get("events") or []), *club_lines]}
                 # The school offices of the people and programs given come first among the
                 # offices read, so "who do I talk to" reaches the right school.
                 named = list(dict.fromkeys([*self._school_offices(
@@ -1927,9 +2061,12 @@ class ChatEngine:
                         catalog_n = len(sources) + 1
                         sources = [*sources, {"n": catalog_n, "url": CATALOG_URL,
                                               "title": "Programs in the college catalog"}]
-                    computed = academics.computed_answers(
+                    computed = [*academics.computed_answers(
                         academic, self.facts.identities(("program",)), latest, catalog_n,
-                        gen_ed_lines)
+                        gen_ed_lines), *computed]
+                computed = [*computed, *one_call.dated_statements(
+                    offices, turn.campus_now.date(), latest,
+                    [str(p.get("name") or "") for p in people])]
                 budget.max_calls = max(budget.max_calls, budget.calls + 1)
                 with measure("Write the answer from the evidence"):
                     completion = await self.gateway.complete(

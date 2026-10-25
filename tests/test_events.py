@@ -142,7 +142,7 @@ def test_events_and_clubs_are_read_as_published_with_their_listing() -> None:
 
 def test_a_question_about_this_weekend_is_answered_from_the_calendar() -> None:
     reply = {"parts": [{"asked": "this weekend", "not_on_pages": False, "sections": [1]}],
-             "text": "Trivia Night is Fri, Oct 23, 2026 at 8 PM in the Student Center. [1]"}
+             "text": "Trivia Night is Fri, Oct 23, 2026 at 8 PM in the Student Center. [2]"}
     gateway = ScriptedGateway(Completion("", (ToolCall("w", "write_answer", reply),), [
         {"type": "function_call", "call_id": "w", "name": "write_answer",
          "arguments": json.dumps(reply)}], Usage(10, 10, 0)))
@@ -154,8 +154,14 @@ def test_a_question_about_this_weekend_is_answered_from_the_calendar() -> None:
     given = json.loads(gateway.inputs[0][1]["content"])
     assert given["calendar"]["window"] == "this weekend"
     (line,) = given["calendar"]["events"]
-    assert line["event"] == "Trivia Night" and line["n"] == 1
-    assert given["clubs"][0]["name"] == "Chess Club" and given["clubs"][0]["n"] == 2
+    # The calendar page is 1; the window's count is computed by code and cites it.
+    assert line["event"] == "Trivia Night" and line["n"] == 2
+    assert given["clubs"][0]["name"] == "Chess Club" and given["clubs"][0]["n"] == 3
+    facts = [f["fact"] for f in given["computed"]]
+    assert ("The calendar lists no event about chess from Friday, October 23 to Sunday, "
+            "October 25; it lists 1 other event then.") in facts
+    assert "The club directory lists Chess Club (Recreation): " \
+           "https://archway.ramapo.edu/chess/." in facts
     assert result.trace is not None and result.trace["decidedBy"] == "one_call"
 
 
@@ -181,3 +187,41 @@ def test_a_kind_of_club_lists_its_whole_category_and_each_interest_is_searched()
     assert interests("I like anime and community service, which club should I join?") == [
         "anime", "community service"]
 
+
+
+def test_code_counts_the_topic_food_and_later_dates_for_the_reply() -> None:
+    from rockygpt_brain.events import computed_answers, food_mention, rank_events
+    at = datetime(2026, 10, 23, 9, 0, tzinfo=WEDNESDAY.tzinfo)
+
+    def event(n: int, title: str, day: int, description: str = "") -> dict[str, Any]:
+        return {"_id": f"e{n}", "title": title, "date": f"Oct {day}", "start_time": "7 PM",
+                "starts_at": f"2026-10-{day}T19:00:00-04:00", "description": description,
+                "tags": [], "organizer": "CPB", "location": "SC", "url": f"https://e/{n}"}
+    corpus = [event(1, "Trivia Night", 23), event(2, "Laurel Game Night", 23, "Board games."),
+              event(3, "Boo Bash", 23, "An evening of delicious food and games."),
+              event(4, "Halloween Costume Contest", 31)]
+    start, end = at, datetime(2026, 10, 23, 23, 59, tzinfo=at.tzinfo)
+    # "Basketball" is on no listing, so a game night is not a basketball game.
+    assert rank_events(corpus, "basketball game friday", start, end, None, corpus)[1] is False
+    ranked, matched = rank_events(corpus, "trivia nights friday", start, end, None, corpus)
+    assert matched and [v["title"] for v in ranked] == ["Trivia Night"]
+    assert food_mention(corpus[2]) == "An evening of delicious food and games."
+    ranked, matched = rank_events(corpus, "free food friday", start, end, None, corpus)
+    lines = [{"n": k + 2, "event": v["title"], "when": v["date"], "_value": v}
+             for k, v in enumerate(ranked)]
+    facts = [f["fact"] for f in computed_answers("Friday, October 23", start, end, 3, lines,
+                                                 matched, set(), True, (), 1)]
+    assert facts == [
+        "The window asked (Friday, October 23) is Friday, October 23.",
+        "The calendar lists 1 event whose listing mentions food on Friday, October 23 (of 3 "
+        "events then).",
+        'Boo Bash (Oct 23) mentions food in its listing: "An evening of delicious food and '
+        'games."']
+    later = [{"n": 5, "event": "Halloween Costume Contest", "when": "Oct 31"}]
+    facts = [f["fact"] for f in computed_answers("Friday, October 23", start, end, 3, [],
+                                                 False, {"halloween"}, False, later, 1)]
+    assert facts[1:] == [
+        "The calendar lists no event about halloween on Friday, October 23; it lists 3 other "
+        "events then.",
+        "After Friday, October 23, the calendar's events about halloween: Halloween Costume "
+        "Contest (Oct 31) [5]."]

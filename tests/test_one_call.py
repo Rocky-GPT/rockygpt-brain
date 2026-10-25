@@ -173,3 +173,26 @@ def test_with_headings_published_the_pick_comes_before_the_answer() -> None:
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     assert gateway.inputs[0][1]["content"].startswith("Question: how do i become a peer tutor")
     assert result.trace is not None and result.trace["decidedBy"] == "one_call"
+
+
+def test_a_dated_change_on_a_page_is_judged_against_today() -> None:
+    from datetime import date
+
+    from rockygpt_brain.one_call import dated_statements
+    offices = [{"sections": [{"n": 3, "text": "SSSW Interim Dean Kathleen Ray. Effective July 1, "
+                                              "2026 – Dean Susan Hangen"},
+                             {"n": 4, "text": "Chess Club is not currently active as of 6/12/25."},
+                             {"n": 5, "text": "Starting January 5, 2027 parking forms move "
+                                              "online."}]}]
+    today = date(2026, 10, 25)
+    facts = [f["fact"] for f in dated_statements(offices, today, "who is the sssw dean",
+                                                 ["Susan Hangen"])]
+    assert facts == ['Section [3] says "Effective July 1, 2026 – Dean Susan Hangen": July 1, '
+                     '2026 has passed, so this is in effect now.']
+    facts = [f["fact"] for f in dated_statements(offices, today,
+                                                 "is the chess club active? parking forms")]
+    assert facts == [
+        'Section [4] says "Chess Club is not currently active as of 6/12/25": June 12, 2025 has '
+        'passed, so this is in effect now.',
+        'Section [5] says "Starting January 5, 2027 parking forms move online": January 5, 2027 '
+        'is still to come, so this is not in effect yet.']

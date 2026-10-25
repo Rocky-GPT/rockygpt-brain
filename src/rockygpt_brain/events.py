@@ -7,6 +7,7 @@ each event's title, tags, organizer and location. A club is named by its directo
 events and clubs are then read through the shared reader; the model only words the reply.
 """
 
+import math
 import re
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime, time, timedelta
@@ -21,11 +22,13 @@ _EVENT_WORDS = re.compile(
     r"\b(?:events?|happening|going on|games?|match(?:es)?|"
     r"shows?|concerts?|performances?|plays?|recitals?|fairs?|workshops?|speakers?|lectures?|"
     r"free food|parties|party|things to do|anything to do|calendar|homecoming|tournaments?|"
-    r"screenings?|exhibits?|exhibitions?)\b")
+    r"screenings?|exhibits?|exhibitions?|movie nights?|game nights?|trivia|bingo|karaoke|"
+    r"open mics?|festivals?|celebrations?|info(?:rmation)? sessions?|socials?|mixers?|"
+    r"fundraisers?|ceremon(?:y|ies)|activities|coming up|upcoming)\b")
 # A time alone asks for the calendar ("anything tonight?"), but not beside a subject code answers
 # from its own records: "dinner at the Birch tonight" is the menu, "the last shuttle tonight" the
 # timetable, "is the Library open tonight" its hours.
-_WHEN_WORDS = re.compile(r"\b(?:tonight|this weekend|next weekend)\b")
+_WHEN_WORDS = re.compile(r"\b(?:tonight|this weekend|next weekend|tmrw|tmr)\b")
 _OTHER_SUBJECT = re.compile(
     r"\b(?:menus?|eat|food|meals?|breakfast|brunch|lunch|dinner|dining|shuttles?|bus|buses|"
     r"train|hours|open|opens|close|closes|closing|closed)\b")
@@ -43,7 +46,10 @@ _NOT_TOPIC = discovery_tokens(
     "next weekend week month on campus at ramapo college upcoming coming up soon when where "
     "who can i we go to do things anything fun free for me my friends students student "
     "monday tuesday wednesday thursday friday saturday sunday morning afternoon evening night "
-    "time times date dates schedule calendar")
+    "time times date dates schedule calendar anywhere anything somewhere around usually ppl "
+    "people gonna get got early many much how should would could will want need know see find "
+    "some good like also near tmrw tmr whos host hosting hosted packed crowded busy worth "
+    "couple attend attending have has had does did are was were")
 
 
 def asks_events(message: str) -> bool:
@@ -90,7 +96,7 @@ def _days(message: str, now: datetime) -> tuple[datetime, datetime, str]:
     if "tonight" in text:
         return max(now, datetime.combine(today, time(17, 0), tzinfo=now.tzinfo)), \
             _end(today, now), "tonight"
-    if "tomorrow" in text:
+    if re.search(r"\b(?:tomorrow|tmrw|tmr|tomorow|tommorow|tommorrow)\b", text):
         day = today + timedelta(days=1)
         return _start(day, now), _end(day, now), "tomorrow"
     if "today" in text:
@@ -147,9 +153,46 @@ def events_in(events: Sequence[dict[str, Any]], start: datetime,
     return found
 
 
+def _stems(text: str) -> set[str]:
+    """Words with a plural s dropped ("nights" is night, "games" is game)."""
+    return {w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w
+            for w in discovery_tokens(text)}
+
+
 def topic_words(message: str) -> set[str]:
     """The words of a question that say what an event or club is about."""
-    return set(discovery_tokens(message)) - _NOT_TOPIC
+    return _stems(message) - _stems(" ".join(_NOT_TOPIC))
+
+
+def asked_topic(message: str) -> set[str]:
+    """The topic words events are matched on; a food question's food words are matched on what
+    each listing says instead (food_mention)."""
+    food = _FOOD_ASK.findall(message.casefold())
+    return (topic_words(message) - (_stems(" ".join(food)) if food else set())
+            - _stems(" ".join(_GENERIC_CLUB)))
+
+
+def _about(value: dict[str, Any]) -> set[str]:
+    return _stems(" ".join([str(value.get("title") or ""), " ".join(value.get("tags") or []),
+                            str(value.get("organizer") or ""), str(value.get("location") or ""),
+                            str(value.get("description") or "")]))
+
+
+# An event is about the topic asked when it holds words carrying at least this share of the
+# question's topic, each word weighted by how rare it is on the calendar: "trivia nights" is a
+# trivia event, but "basketball game" is not any game when no listing says basketball.
+TOPIC_SHARE = 0.5
+
+
+def topic_share(values: Sequence[dict[str, Any]], words: set[str],
+                corpus: Sequence[dict[str, Any]]) -> dict[int, float]:
+    """Each event's share of the topic words (by id of its value), weighted by rarity across
+    the corpus (the calendar's upcoming events)."""
+    abouts = [_about(v) for v in corpus]
+    weight = {w: math.log((len(abouts) + 1) / (sum(w in a for a in abouts) + 0.5))
+              for w in words}
+    total = sum(weight.values()) or 1.0
+    return {id(v): sum(weight[w] for w in words & _about(v)) / total for v in values}
 
 
 # An event found by its card's meaning (title, tags, host, place, admission, description). On
@@ -159,8 +202,25 @@ def topic_words(message: str) -> set[str]:
 EVENT_FLOOR, EVENT_NEAR = 0.44, 0.06
 
 
+def _starts(value: dict[str, Any]) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(value.get("starts_at")))
+    except ValueError:
+        return None
+
+
+def in_window(values: Sequence[dict[str, Any]], start: datetime,
+              end: datetime) -> list[dict[str, Any]]:
+    """The events that start in the window (or began up to three hours before it, so are
+    likely still on), in time order."""
+    timed = [v for v in values if (at := _starts(v)) is not None
+             and start - timedelta(hours=3) <= at <= end]
+    return sorted(timed, key=lambda v: _starts(v) or start)
+
+
 def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
                 end: datetime, scores: Mapping[str, float] | None = None,
+                corpus: Sequence[dict[str, Any]] | None = None, by_share: bool = False,
                 ) -> tuple[list[dict[str, Any]], bool | None]:
     """The events in the window that have not ended, in time order, at most MAX_EVENTS: those
     sharing the question's topic words with their title, tags, organizer, location or
@@ -168,33 +228,59 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
     window's best above EVENT_FLOOR, when any are. Also whether the topic matched: None with no
     topic words, False when none matched (the whole window is then given, and the reply says
     the calendar lists nothing for the topic)."""
-    def starts(value: dict[str, Any]) -> datetime | None:
-        try:
-            return datetime.fromisoformat(str(value.get("starts_at")))
-        except ValueError:
-            return None
-    timed = [v for v in values if (s := starts(v)) is not None
-             and start - timedelta(hours=3) <= s <= end]
-    timed.sort(key=lambda v: starts(v) or start)
-    words = topic_words(message)
-    if words:
-        def about(value: dict[str, Any]) -> set[str]:
-            text = " ".join([str(value.get("title") or ""), " ".join(value.get("tags") or []),
-                             str(value.get("organizer") or ""), str(value.get("location") or ""),
-                             str(value.get("description") or "")])
-            return set(discovery_tokens(text))
+    timed = in_window(values, start, end)
+    food = asks_food(message)
+    words = asked_topic(message)
+    if words or food:
+        share = topic_share(timed, words, corpus or values) if words else {}
         meaning = {id(v): (scores or {}).get(str(v.get("_id")), 0.0) for v in timed}
         best = max(meaning.values(), default=0.0)
-        matching = [v for v in timed if words & about(v)
-                    or meaning[id(v)] >= max(EVENT_FLOOR, best - EVENT_NEAR)]
+        matching = []
+        for value in timed:
+            # How each event matched, for the reply to say: its listing names the topic, it
+            # mentions food, or it is only near the topic in meaning.
+            by = ("words" if share.get(id(value), 0.0) >= TOPIC_SHARE
+                  else "food" if food and food_mention(value)
+                  else "meaning" if meaning[id(value)] >= max(EVENT_FLOOR, best - EVENT_NEAR)
+                  else None)
+            if by:
+                matching.append({**value, "_matched_by": by})
         if matching:
+            if by_share:  # The most on-topic first, then by time.
+                matching.sort(key=lambda v: -round(share.get(id(v), 0.0), 2))
             return matching[:MAX_EVENTS], True
         return timed[:MAX_EVENTS], False
     return timed[:MAX_EVENTS], None
 
 
+# Food a listing mentions ("pizza", "snacks", "delicious food"): a question about food at events
+# is answered from what each listing says, not from its title alone.
+_FOOD = re.compile(
+    r"\b(?:food|pizza|snacks?|refreshments?|cookies?|treats?|candy|donuts?|bagels?|desserts?|"
+    r"lunch|dinner|breakfast|brunch|tacos?|cider|cocoa|hot chocolate|ice cream|s.mores|wings|"
+    r"catered|meals?|drinks?|coffee|popcorn|cupcakes?|cakes?|dumplings?|mocktails?)\b", re.I)
+_FOOD_ASK = re.compile(r"\b(?:food|eat|eating|snacks?|pizza|hungry|refreshments?|treats?|"
+                       r"candy|cookies?|meals?)\b")
+
+
+def asks_food(message: str) -> bool:
+    return bool(_FOOD_ASK.search(message.casefold()))
+
+
+def food_mention(value: dict[str, Any]) -> str | None:
+    """The first sentence of an event's listing (title, description, tags) that mentions food,
+    as written; None when none does."""
+    text = "\n".join([str(value.get("title") or ""), str(value.get("description") or ""),
+                      ", ".join(value.get("tags") or [])])
+    for sentence in re.split(r"(?<=[.!?])\s+|\n", text):
+        if _FOOD.search(sentence):
+            return " ".join(sentence.split())[:220]
+    return None
+
+
 def event_line(value: dict[str, Any]) -> dict[str, Any]:
-    """What the reply is given for one event, as published."""
+    """What the reply is given for one event, as published, with the start of its
+    description."""
     when = " ".join(part for part in (str(value.get("date") or ""),
                                       str(value.get("start_time") or ""),
                                       f"to {value['end_time']}" if value.get("end_time") else "")
@@ -202,7 +288,12 @@ def event_line(value: dict[str, Any]) -> dict[str, Any]:
     return {"event": value.get("title"), "when": when, "location": value.get("location"),
             "organizer": value.get("organizer"), "tags": value.get("tags") or [],
             **({"tickets": value["ticket_status"]} if value.get("ticket_status") else {}),
+            **({"about": " ".join(str(value["description"]).split())[:DESCRIPTION_CHARS]}
+               if value.get("description") else {}),
             "url": value.get("url")}
+
+
+DESCRIPTION_CHARS = 240
 
 
 _GENERIC_CLUB = discovery_tokens("club clubs society association organization union team group "
@@ -264,3 +355,108 @@ def interests(message: str) -> list[str]:
     bits = [b.strip(" ?.!") for b in re.split(r",|\band\b|\bor\b|&|/", text)]
     return [b for b in bits if topic_words(b)][:4]
 
+
+
+def _day(moment: datetime) -> str:
+    return f"{moment:%A, %B} {moment.day}"
+
+
+def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
+                     events: Sequence[dict[str, Any]], matched: bool | None, words: set[str],
+                     food: bool, outside: Sequence[dict[str, Any]] = (),
+                     calendar_n: int | None = None) -> list[dict[str, Any]]:
+    """What code works out from the calendar for the reply to state as it is: the window's
+    dates; how many events it holds, how many are about the topic asked or that none is (and
+    the topic's events outside the window); for a food question, which listings mention food
+    and what they say. `events` are the window's lines given (with "n" and the published
+    value under "_value"); `outside` the topic's lines after the window; `calendar_n` the
+    calendar page's number, for the facts about the whole window."""
+    span = (_day(start) if start.date() == end.date()
+            else f"{_day(start)} to {_day(end)}")
+    where = f"on {span}" if start.date() == end.date() else f"from {span}"
+    topic = ", ".join(sorted(w for w in words if len(w) > 2))
+    facts: list[dict[str, Any]] = [{"fact": f"The window asked ({label}) is {span}.",
+                                    "n": calendar_n}]
+    shown = len(events)
+    if matched is None:
+        facts.append({"fact": f"The calendar lists {in_window} event"
+                              f"{'s' if in_window != 1 else ''} {where}"
+                              + (f"; the first {shown} in time order are given."
+                                 if shown < in_window else "."), "n": calendar_n})
+    elif matched:
+        named = [line for line in events if (line.get("_value") or {}).get("_matched_by")
+                 in ("words", "food")]
+        near = [line for line in events if (line.get("_value") or {}).get("_matched_by")
+                == "meaning"]
+        about = (f"whose listing names {topic}" + (" or mentions food" if food else "")
+                 if topic else "whose listing mentions food")
+        facts.append({"fact": f"The calendar lists {len(named)} event"
+                              f"{'s' if len(named) != 1 else ''} {about} {where} (of "
+                              f"{in_window} events then).", "n": calendar_n})
+        if near:
+            facts.append({"fact": f"Only near {topic or 'the question'} in meaning, not named "
+                                  "by their listings: "
+                                  + "; ".join(f"{line['event']} [{line['n']}]" for line in near)
+                                  + ".", "n": near[0]["n"]})
+    else:
+        about = f"about {topic}" if topic else "whose listing mentions food"
+        facts.append({"fact": f"The calendar lists no event {about} {where}; it lists "
+                              f"{in_window} other event{'s' if in_window != 1 else ''} then.",
+                      "n": calendar_n})
+        if outside:
+            facts.append({"fact": f"After {span}, the calendar's events {about}: "
+                                  + "; ".join(f"{line['event']} ({line['when']}) [{line['n']}]"
+                                              for line in outside) + ".",
+                          "n": outside[0]["n"]})
+        else:
+            facts.append({"fact": f"No upcoming event on the whole calendar is {about}.",
+                          "n": calendar_n})
+    if food:
+        with_food = [(line, said) for line in events
+                     if (said := food_mention(line.get("_value") or {}))]
+        for line, said in with_food:
+            facts.append({"fact": f"{line['event']} ({line['when']}) mentions food in its "
+                                  f'listing: "{said}"', "n": line["n"]})
+        if not with_food and topic:
+            facts.append({"fact": f"No event listing {where} mentions food.", "n": calendar_n})
+    return facts
+
+
+_CLUB_TIME_ASK = re.compile(r"\b(?:when|meet|meets|meeting|meetings|perform\w*|events?|"
+                            r"schedule|next|upcoming|coming up)\b")
+
+
+def asks_club_events(message: str) -> bool:
+    return bool(_CLUB_TIME_ASK.search(message.casefold()))
+
+
+def club_answers(clubs: Sequence[dict[str, Any]], message: str, by_name: bool,
+                 directory_size: int) -> list[dict[str, Any]]:
+    """What code works out about the clubs a question asks for: each club found by its name
+    as the directory lists it; for clubs found only by meaning, whether any has a word the
+    question asked for in its name (else they are only the nearest); or that the directory lists
+    no club for what was asked."""
+    words = topic_words(message) - _GENERIC_CLUB
+    topic = ", ".join(sorted(w for w in words if len(w) > 2))
+    if not clubs:
+        return [{"fact": f"The club directory ({directory_size} clubs and organizations) lists "
+                         f"no club for {topic or 'what was asked'}."}]
+    facts: list[dict[str, Any]] = []
+    if not by_name:
+        named = [c for c in clubs if words & discovery_tokens(str(c.get("name") or ""))]
+        if not named:
+            facts.append({"fact": f"No club in the directory has {topic or 'the words asked'} in "
+                                  "its name; the clubs given are only the nearest by meaning."})
+    if len(clubs) > MAX_CLUB_LINES:
+        categories = sorted({str(c.get("category") or "") for c in clubs})
+        facts.append({"fact": f"{len(clubs)} clubs are given, from the directory's "
+                              f"{'; '.join(categories)} listing.", "n": clubs[0]["n"]})
+        return facts
+    for club in clubs:
+        facts.append({"fact": f"The club directory lists {club.get('name')} "
+                              f"({club.get('category')}): {club.get('url')}.", "n": club["n"]})
+    return facts
+
+
+MAX_CLUB_LINES = 6
+MAX_OUTSIDE = 3

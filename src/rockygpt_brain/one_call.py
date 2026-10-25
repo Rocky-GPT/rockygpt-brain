@@ -46,10 +46,12 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
 - Answer every part of the question. Before saying a part is not covered, check every section
   given, including its section_words. For a part no section answers, say once that you don't have
   verified information about it, and point to the office most likely to help with its contacts.
-- computed are facts code worked out from the catalog (whether a program is published at the
-  level asked, credits and their sums, Gen Ed attributes, catalog credit totals): state every one
-  that answers the question, exactly as given, with its number. They override any page section:
-  a page that disagrees with the catalog is out of date, and is not repeated.
+- computed are facts code worked out from the catalog, the directory, the calendar and the
+  dates the sections state: state every one that answers the question, exactly as given (names,
+  titles, counts, dates, numbers), with its number when it has one, and do what one says (ask
+  which person).
+  They override any page section: a page that disagrees with them is out of date, and is not
+  repeated.
 - A program's requirements (programs.requirements) were written out by code from the catalog: say
   them as given, every course and how many of a list to take, with their notes; never add up
   credits or courses yourself. Name the program and its degree; when also_published lists its
@@ -64,9 +66,11 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   that window, then give what the sections say about it (a fair's season, a series' next
   date), then offer the window's other events; with no events, say so and give
   calendar_url. When topic_matched is true the events are those about the topic, among
-  calendar.events_on_the_calendar_in_it: never call one the only event in the window. tickets
+  calendar.events_on_the_calendar_in_it: never call one the only event in the window. An event
+  marked outside_window is on a later date than the one asked: say so with its date. tickets
   FREE means free admission. clubs are directory entries:
-  give each club's name, category and page as written. Never add events, times or clubs.
+  give each club's name, category and page as written. A group a page names that is not among
+  clubs is not in the club directory: say so if you name it. Never add events, times or clubs.
 - people are directory and faculty-profile entries: give the asked facts (email, phone, office
   room, title, school, office hours as written, courses, interests) exactly as given, with the
   person's number. If several share the name asked, list each with title and school and ask which.
@@ -349,3 +353,57 @@ def reply(arguments: dict[str, Any], sources: list[dict[str, Any]],
         text += "\n\nSources: " + " ".join(f"[{s['n']}]({s['url']})" for s in cited)
     return text, [{"id": f"section-{s['n']}", "title": str(s.get("title") or ""),
                    "url": s["url"]} for s in cited]
+
+
+_MONTH_NAMES = ("january february march april may june july august september october november "
+                "december").split()
+# A dated change a page states ("Effective July 1, 2026 – Dean Susan Hangen", "as of 6/12/25"):
+# code says whether its date has passed, so a page listing both the old and the new is read as
+# of today rather than as two pages that differ.
+_DATED = re.compile(
+    r"\b(effective|beginning|starting|as of)\s+(?:on\s+)?"
+    r"(?:(" + "|".join(_MONTH_NAMES) + r")\s+(\d{1,2}),?\s+(\d{4})|(\d{1,2})/(\d{1,2})/(\d{2,4}))"
+    r"([^.;]{0,100})", re.IGNORECASE)
+MAX_DATED = 4
+
+
+def dated_statements(offices: Sequence[dict[str, Any]], today: date, question: str,
+                     names: Sequence[str] = ()) -> list[dict[str, Any]]:
+    """For each section given that states a change from a date about what was asked (a word of
+    the question of five letters or more, or a person given by name), whether that date has
+    passed: at most MAX_DATED, as computed facts with the section's number."""
+    asked = {w for w in re.findall(r"[a-z]{5,}", question.casefold())} | {
+        w for name in names for w in re.findall(r"[a-z]{3,}", name.casefold())}
+    facts: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for office in offices:
+        for section in office.get("sections") or []:
+            text = " ".join(str(section.get(k) or "") for k in ("text", "section_words"))
+            for found in _DATED.finditer(text):
+                try:
+                    if found.group(2):
+                        when = date(int(found.group(4)), _MONTH_NAMES.index(
+                            found.group(2).casefold()) + 1, int(found.group(3)))
+                    else:
+                        year = int(found.group(7))
+                        when = date(year + 2000 if year < 100 else year, int(found.group(5)),
+                                    int(found.group(6)))
+                except ValueError:
+                    continue
+                said = found.group(0)
+                if found.group(1).casefold() == "as of":  # "Not active as of 6/12/25."
+                    said = re.split(r"[.;]", text[:found.start()])[-1][-100:] + found.group(0)
+                said = " ".join(said.split()).strip(" ,–-")
+                if said.casefold() in seen or not asked & set(re.findall(r"[a-z]+",
+                                                                         said.casefold())):
+                    continue
+                seen.add(said.casefold())
+                facts.append({"fact": f'Section [{section["n"]}] says "{said}": '
+                                      f"{when:%B} {when.day}, {when.year} "
+                                      + ("has passed, so this is in effect now."
+                                         if when <= today else
+                                         "is still to come, so this is not in effect yet."),
+                              "n": section["n"]})
+                if len(facts) >= MAX_DATED:
+                    return facts
+    return facts
