@@ -1,0 +1,17 @@
+[
+  {"id": "ar4-01", "question": "My daughter is starting at Ramapo this fall and is interested in nursing. Does Ramapo offer a nursing major for incoming freshmen, and is it a direct-admit program or does she have to apply separately after her first year?", "topic": "program"},
+  {"id": "ar4-02", "question": "How many total credits does a student need to graduate with a bachelor's degree from Ramapo?", "topic": "program"},
+  {"id": "ar4-03", "question": "Could you explain what the general education requirements are at Ramapo? I'd like to know which categories my son has to complete and roughly how many credits they add up to.", "topic": "gen_ed"},
+  {"id": "ar4-04", "question": "What courses should a freshman majoring in biology take in the first semester, and is there a recommended four-year plan we can look at?", "topic": "sequence"},
+  {"id": "ar4-05", "question": "Is there a first year seminar that all freshmen are required to take? What is it and how many credits is it?", "topic": "gen_ed"},
+  {"id": "ar4-06", "question": "My son wants to major in computer science. What are the prerequisites for CMPS 147, and does he need to take a math placement test before he can register for it?", "topic": "course"},
+  {"id": "ar4-07", "question": "Does Ramapo have a pre-med track, or would my daughter need to pick a specific major like biology or chemistry to cover the medical school prerequisites?", "topic": "program"},
+  {"id": "ar4-08", "question": "how many credits is a minor in business and which classes are required for it?", "topic": "program"},
+  {"id": "ar4-09", "question": "If my son takes Intro to Psychology (PSYC 101), will that count toward his gen ed requirements as well as toward a psychology major?", "topic": "course"},
+  {"id": "ar4-10", "question": "Could you tell me what classes my daughter is registered for this fall and whether her schedule is full time?", "topic": "out_of_scope"},
+  {"id": "ar4-11", "question": "Is it possible to double major at Ramapo, and would a student still be able to graduate in four years if they do? For example, communication arts and psychology.", "topic": "program"},
+  {"id": "ar4-12", "question": "What does the College English / writing requirement look like for freshmen? Is there a required composition course, and what is its course number?", "topic": "gen_ed"},
+  {"id": "ar4-13", "question": "Which professor is teaching the intro accounting class this spring, and are there still open seats in it?", "topic": "out_of_scope"},
+  {"id": "ar4-14", "question": "My son is undecided. In your opinion, should he major in economics or finance if he wants a good job after graduating?", "topic": "out_of_scope"},
+  {"id": "ar4-15", "question": "Does Ramapo offer a major in environmental science, and if so, what are the core courses required and how many credits is the major itself?", "topic": "program"}
+]

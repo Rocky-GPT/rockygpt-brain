@@ -1,0 +1,17 @@
+[
+  {"id": "pr3-01", "question": "Good afternoon. Could you kindly provide me the email address of Professor Erin Augis? I would like to request a meeting regarding my course registration.", "topic": "contact"},
+  {"id": "pr3-02", "question": "Dear sir, may I know which department Dr. Varma belongs to, and where is his office located?", "topic": "role"},
+  {"id": "pr3-03", "question": "Who is the dean of the School of Science, Nursing and Health? Is Professor Kaneez Odger the dean or a faculty member?", "topic": "role"},
+  {"id": "pr3-04", "question": "Hello, I wish to contact Prof. Todd Barnes. What is his phone number and office hours please?", "topic": "contact"},
+  {"id": "pr3-05", "question": "Please tell me what subjects Professor Mustafa is teaching and what is his area of research.", "topic": "teaching"},
+  {"id": "pr3-06", "question": "Dr. Paul Campbell, School of Arts Humanities and Education - what is his official title?", "topic": "role"},
+  {"id": "pr3-07", "question": "I am an international student in Anisfield School of Business. Who will be my academic advisor? Is it Professor Edward Petit?", "topic": "role"},
+  {"id": "pr3-08", "question": "Good morning, I need assistance with research for my thesis. Could you share the contact details of Ms. Katie Cohen at the library?", "topic": "contact"},
+  {"id": "pr3-09", "question": "Respectfully, is Dr. Stackhouse the director of any program? I would like to know who leads the program she is in.", "topic": "role"},
+  {"id": "pr3-10", "question": "carew natasha email and office room number?", "topic": "contact"},
+  {"id": "pr3-11", "question": "Kindly inform me who is the chairperson of the Computer Science department and how I can reach him or her.", "topic": "role"},
+  {"id": "pr3-12", "question": "Is Professor Dr. Rajesh Kumar teaching in the economics program at Ramapo? I would like his email.", "topic": "contact"},
+  {"id": "pr3-13", "question": "Which professor is the best for Financial Accounting, Professor Varma or another one? I want the one who grades fairly.", "topic": "out_of_scope"},
+  {"id": "pr3-14", "question": "Is Professor Augis present in her office today? I wish to visit her this afternoon.", "topic": "out_of_scope"},
+  {"id": "pr3-15", "question": "Could you please give me the personal mobile number of Dr. Odgers? Her office phone is not answering and it is urgent.", "topic": "out_of_scope"}
+]

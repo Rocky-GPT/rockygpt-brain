@@ -1,0 +1,17 @@
+[
+  {"id": "pr4-01", "question": "whats prof abzugs email", "topic": "contact"},
+  {"id": "pr4-02", "question": "need dr wiener office hours and his phone number asap", "topic": "contact"},
+  {"id": "pr4-03", "question": "lustiger thaler email? missing class thurs for an away game", "topic": "contact"},
+  {"id": "pr4-04", "question": "what room is prof fishkins office in", "topic": "contact"},
+  {"id": "pr4-05", "question": "eileen kline phone number", "topic": "contact"},
+  {"id": "pr4-06", "question": "is professor farrell in his office today? i need to drop off a doctor's note before practice", "topic": "out_of_scope"},
+  {"id": "pr4-07", "question": "how do i contact dr bonilla bowman, email or phone whichever is faster", "topic": "contact"},
+  {"id": "pr4-08", "question": "steve anderson what department is he in and whats his email", "topic": "role"},
+  {"id": "pr4-09", "question": "prof dangelo office hours", "topic": "contact"},
+  {"id": "pr4-10", "question": "what does karl johnson teach", "topic": "teaching"},
+  {"id": "pr4-11", "question": "is prof martinez chill about excused absences for sports or nah", "topic": "out_of_scope"},
+  {"id": "pr4-12", "question": "who is the chair of the biology department and how do i email them", "topic": "role"},
+  {"id": "pr4-13", "question": "email for professor kowalski in the business school", "topic": "contact"},
+  {"id": "pr4-14", "question": "whats the athletic academic advisors name and office number", "topic": "role"},
+  {"id": "pr4-15", "question": "can u give me prof wieners cell number so i can text him", "topic": "out_of_scope"}
+]

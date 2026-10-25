@@ -1,0 +1,302 @@
+[
+ {
+  "id": "ar1-01",
+  "question": "what minors does ramapo offer? im a sociology major and want to add something",
+  "topic": "program"
+ },
+ {
+  "id": "ar1-02",
+  "question": "how many credits is the psychology minor and which classes are required for it",
+  "topic": "program"
+ },
+ {
+  "id": "ar1-03",
+  "question": "Is there a minor in creative writing or is it only part of the literature major?",
+  "topic": "program"
+ },
+ {
+  "id": "ar1-04",
+  "question": "can courses i take for my history major also count toward a political science minor or do they have to be different courses",
+  "topic": "program"
+ },
+ {
+  "id": "ar1-05",
+  "question": "thinking about double majoring in communication and english. what does each major require and do any of the classes overlap",
+  "topic": "program"
+ },
+ {
+  "id": "ar1-06",
+  "question": "does ramapo have a minor in law and society or pre-law?",
+  "topic": "program"
+ },
+ {
+  "id": "ar1-07",
+  "question": "whats the prereq for psyc 202",
+  "topic": "course"
+ },
+ {
+  "id": "ar1-08",
+  "question": "Is there a women's and gender studies minor, and if so what are the core courses?",
+  "topic": "program"
+ },
+ {
+  "id": "ar1-09",
+  "question": "do my gen ed courses count toward a minor too or are they separate",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ar1-10",
+  "question": "what does intro to anthropology cover and how many credits is it",
+  "topic": "course"
+ },
+ {
+  "id": "ar1-11",
+  "question": "I'm a sophomore in philosophy and want to add an economics minor. What should I take first since some of the econ classes probably have prereqs?",
+  "topic": "sequence"
+ },
+ {
+  "id": "ar1-12",
+  "question": "Are there any certificates I can do alongside my major, like in data analysis or nonprofit management?",
+  "topic": "program"
+ },
+ {
+  "id": "ar1-13",
+  "question": "based on what ive already taken would it be easier for me to add a minor in sociology or psychology",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ar1-14",
+  "question": "is there still space in the spring section of the intro social work class and whos teaching it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ar1-15",
+  "question": "should i do a second major or just a minor if i want to go to grad school for public policy",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ar2-01",
+  "question": "what are the prereqs for intermediate accounting 1",
+  "topic": "course"
+ },
+ {
+  "id": "ar2-02",
+  "question": "How many credits is Principles of Financial Accounting and is it required for the business administration major?",
+  "topic": "course"
+ },
+ {
+  "id": "ar2-03",
+  "question": "does macroeconomics count toward gen ed or only for the business major? i want to know if i can double count it",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ar2-04",
+  "question": "is there a finance major at ramapo or is it just a concentration under business",
+  "topic": "program"
+ },
+ {
+  "id": "ar2-05",
+  "question": "acct 221 prereq?",
+  "topic": "course"
+ },
+ {
+  "id": "ar2-06",
+  "question": "Whats the course code for microeconomics and how many credits is it",
+  "topic": "course"
+ },
+ {
+  "id": "ar2-07",
+  "question": "I'm an accounting major starting next fall. What accounting and econ classes should I take my first year and in what order?",
+  "topic": "sequence"
+ },
+ {
+  "id": "ar2-08",
+  "question": "what do i need to complete the economics minor? how many credits total",
+  "topic": "program"
+ },
+ {
+  "id": "ar2-09",
+  "question": "does business statistics count as my math gen ed or do i still need a separate math class",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ar2-10",
+  "question": "what is covered in corporate finance and do i need to take financial accounting before it",
+  "topic": "course"
+ },
+ {
+  "id": "ar2-11",
+  "question": "is there a 150 credit option or a masters in accounting so i can sit for the cpa exam",
+  "topic": "program"
+ },
+ {
+  "id": "ar2-12",
+  "question": "Can you check if I already have the prereqs done for Intermediate Accounting II? I took ACCT 1 last spring",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ar2-13",
+  "question": "is anyone teaching investments in the spring and does it still have open seats",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ar2-14",
+  "question": "should i major in finance or accounting, which one gets better jobs",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ar2-15",
+  "question": "what are the core business courses everyone in the anisfield school has to take, like the ones that arent specific to accounting or finance",
+  "topic": "program"
+ },
+ {
+  "id": "ar3-01",
+  "question": "what are all the required courses for the music major",
+  "topic": "program"
+ },
+ {
+  "id": "ar3-02",
+  "question": "Is there a film major at Ramapo or is it only a minor? and if theres a major what concentrations does it have",
+  "topic": "program"
+ },
+ {
+  "id": "ar3-03",
+  "question": "how many credits is the theater minor",
+  "topic": "program"
+ },
+ {
+  "id": "ar3-04",
+  "question": "what are the prereqs for drawing 2? do i need drawing 1 first or can i take them together",
+  "topic": "course"
+ },
+ {
+  "id": "ar3-05",
+  "question": "Im a freshman in visual arts, what studio classes should I take my first semester vs second semester?",
+  "topic": "sequence"
+ },
+ {
+  "id": "ar3-06",
+  "question": "does acting 1 count for gen ed",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ar3-07",
+  "question": "how many credits are studio art courses usually? is it 4 like everything else",
+  "topic": "course"
+ },
+ {
+  "id": "ar3-08",
+  "question": "what's the recommended order of courses for the communication arts major, like which ones in sophomore year and which in junior year",
+  "topic": "sequence"
+ },
+ {
+  "id": "ar3-09",
+  "question": "is there a senior capstone or thesis project required for the visual arts BA and what's it called",
+  "topic": "program"
+ },
+ {
+  "id": "ar3-10",
+  "question": "what does music theory 1 cover and does it need a placement test",
+  "topic": "course"
+ },
+ {
+  "id": "ar3-11",
+  "question": "which gen ed category do art history classes fulfill",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ar3-12",
+  "question": "who's teaching intro to digital photography next spring and is there still room",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ar3-13",
+  "question": "do i have enough credits to take the upper level film production class? i finished like 3 comm courses already",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ar3-14",
+  "question": "should I double major in music and theater or just minor in one, which is better for getting into grad school",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ar3-15",
+  "question": "are there any certificates in graphic design or video production I can add on top of my major",
+  "topic": "program"
+ },
+ {
+  "id": "ar4-01",
+  "question": "My daughter is starting at Ramapo this fall and is interested in nursing. Does Ramapo offer a nursing major for incoming freshmen, and is it a direct-admit program or does she have to apply separately after her first year?",
+  "topic": "program"
+ },
+ {
+  "id": "ar4-02",
+  "question": "How many total credits does a student need to graduate with a bachelor's degree from Ramapo?",
+  "topic": "program"
+ },
+ {
+  "id": "ar4-03",
+  "question": "Could you explain what the general education requirements are at Ramapo? I'd like to know which categories my son has to complete and roughly how many credits they add up to.",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ar4-04",
+  "question": "What courses should a freshman majoring in biology take in the first semester, and is there a recommended four-year plan we can look at?",
+  "topic": "sequence"
+ },
+ {
+  "id": "ar4-05",
+  "question": "Is there a first year seminar that all freshmen are required to take? What is it and how many credits is it?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ar4-06",
+  "question": "My son wants to major in computer science. What are the prerequisites for CMPS 147, and does he need to take a math placement test before he can register for it?",
+  "topic": "course"
+ },
+ {
+  "id": "ar4-07",
+  "question": "Does Ramapo have a pre-med track, or would my daughter need to pick a specific major like biology or chemistry to cover the medical school prerequisites?",
+  "topic": "program"
+ },
+ {
+  "id": "ar4-08",
+  "question": "how many credits is a minor in business and which classes are required for it?",
+  "topic": "program"
+ },
+ {
+  "id": "ar4-09",
+  "question": "If my son takes Intro to Psychology (PSYC 101), will that count toward his gen ed requirements as well as toward a psychology major?",
+  "topic": "course"
+ },
+ {
+  "id": "ar4-10",
+  "question": "Could you tell me what classes my daughter is registered for this fall and whether her schedule is full time?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ar4-11",
+  "question": "Is it possible to double major at Ramapo, and would a student still be able to graduate in four years if they do? For example, communication arts and psychology.",
+  "topic": "program"
+ },
+ {
+  "id": "ar4-12",
+  "question": "What does the College English / writing requirement look like for freshmen? Is there a required composition course, and what is its course number?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ar4-13",
+  "question": "Which professor is teaching the intro accounting class this spring, and are there still open seats in it?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ar4-14",
+  "question": "My son is undecided. In your opinion, should he major in economics or finance if he wants a good job after graduating?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ar4-15",
+  "question": "Does Ramapo offer a major in environmental science, and if so, what are the core courses required and how many credits is the major itself?",
+  "topic": "program"
+ }
+]

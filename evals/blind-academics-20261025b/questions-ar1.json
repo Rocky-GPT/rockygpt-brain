@@ -1,0 +1,17 @@
+[
+  {"id": "ar1-01", "question": "what minors does ramapo offer? im a sociology major and want to add something", "topic": "program"},
+  {"id": "ar1-02", "question": "how many credits is the psychology minor and which classes are required for it", "topic": "program"},
+  {"id": "ar1-03", "question": "Is there a minor in creative writing or is it only part of the literature major?", "topic": "program"},
+  {"id": "ar1-04", "question": "can courses i take for my history major also count toward a political science minor or do they have to be different courses", "topic": "program"},
+  {"id": "ar1-05", "question": "thinking about double majoring in communication and english. what does each major require and do any of the classes overlap", "topic": "program"},
+  {"id": "ar1-06", "question": "does ramapo have a minor in law and society or pre-law?", "topic": "program"},
+  {"id": "ar1-07", "question": "whats the prereq for psyc 202", "topic": "course"},
+  {"id": "ar1-08", "question": "Is there a women's and gender studies minor, and if so what are the core courses?", "topic": "program"},
+  {"id": "ar1-09", "question": "do my gen ed courses count toward a minor too or are they separate", "topic": "gen_ed"},
+  {"id": "ar1-10", "question": "what does intro to anthropology cover and how many credits is it", "topic": "course"},
+  {"id": "ar1-11", "question": "I'm a sophomore in philosophy and want to add an economics minor. What should I take first since some of the econ classes probably have prereqs?", "topic": "sequence"},
+  {"id": "ar1-12", "question": "Are there any certificates I can do alongside my major, like in data analysis or nonprofit management?", "topic": "program"},
+  {"id": "ar1-13", "question": "based on what ive already taken would it be easier for me to add a minor in sociology or psychology", "topic": "out_of_scope"},
+  {"id": "ar1-14", "question": "is there still space in the spring section of the intro social work class and whos teaching it", "topic": "out_of_scope"},
+  {"id": "ar1-15", "question": "should i do a second major or just a minor if i want to go to grad school for public policy", "topic": "out_of_scope"}
+]
