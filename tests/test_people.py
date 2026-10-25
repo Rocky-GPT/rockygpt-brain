@@ -228,3 +228,18 @@ def test_a_field_only_mentioned_is_not_reported_without_a_chair() -> None:
         "who is in charge of nursing? it's about clinical placements", schools)]
     assert lines == ["Kathleen M. Burke's directory title names nursing with a leadership "
                      "role: Assistant Dean of Nursing Programs / Professor of Nursing."]
+
+
+def test_an_unusual_last_name_or_a_middle_initial_needs_no_people_word() -> None:
+    names = [{"id": "jt", "name": "Jessica Terrizzi"}, {"id": "kb", "name": "Kathleen M. Burke"},
+             {"id": "jn", "name": "Julie Norflus-Good"}]
+    ordinary = frozenset({"good", "food", "dining", "hall", "what", "her", "title"})
+    assert [p["id"] for p in find_people(
+        names, "jess terrizzi what dept is she in and what's her title", ordinary)] == ["jt"]
+    assert [p["id"] for p in find_people(names, "who is Kathleen Burke?", ordinary)] == ["kb"]
+    assert find_people(names, "is the food good at the dining hall", ordinary) == []
+    directory = [{"id": "r", "name": "Paul Reck", "title": "Assistant Professor of Sociology",
+                  "courses": ["Introduction to Sociology"]},
+                 *({"id": f"x{n}", "name": f"P {n}", "title": "Professor of Art"}
+                   for n in range(6))]
+    assert [p["id"] for p in teachers(directory, "who teaches intro to sociology?")] == ["r"]

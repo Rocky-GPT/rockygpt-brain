@@ -80,7 +80,8 @@ def find_people(people: Sequence[dict[str, Any]], message: str,
     own words: "letter", "mentor") is never read as a misspelt name. At most MAX_PEOPLE."""
     words = name_tokens(message) - _TITLES
     shortest = 2 if name_tokens(message) & _TITLES else 3
-    whole = [p for p in people if (name := name_tokens(_name(p)))
+    whole = [p for p in people if (name := frozenset(w for w in name_tokens(_name(p))
+                                                     if len(w) > 1))
              and len(name) >= 2 and name <= words]
     if whole:
         covered = frozenset().union(*(name_tokens(_name(p)) for p in whole))
@@ -93,10 +94,11 @@ def find_people(people: Sequence[dict[str, Any]], message: str,
 def _last_names(people: Sequence[dict[str, Any]], message: str, words: frozenset[str],
                 shortest: int, ordinary: frozenset[str]) -> list[dict[str, Any]]:
     """The people a message names by last name alone, else by a near spelling of one."""
-    # A last name alone is a person only in a question about one ("is the food good" names no
-    # Professor Norflus-Good).
-    if not (asks_people(message) or _CONTACT_ASK.search(message.casefold())):
-        return []
+    # A last name that is an ordinary word of the pages is a person only in a question about one
+    # ("is the food good" names no Professor Norflus-Good); "Terrizzi" is a name anywhere.
+    cued = bool(asks_people(message) or _CONTACT_ASK.search(message.casefold()))
+    if not cued:
+        words = frozenset(w for w in words if ordinary and w not in ordinary)
     # A possessive typed without its apostrophe ("professor brissons email") names Brisson.
     words = words | {w[:-1] for w in words if len(w) > 4 and w.endswith("s")}
     owners: dict[frozenset[str], list[dict[str, Any]]] = {}
@@ -117,7 +119,7 @@ def _last_names(people: Sequence[dict[str, Any]], message: str, words: frozenset
         for _, matches in named:
             if len(matches) <= MAX_PEOPLE:
                 return matches
-    if not found and not named:
+    if not found and not named and cued:
         return _near_names(people, words - ordinary)
     return found[:MAX_PEOPLE]
 
@@ -473,7 +475,9 @@ _TEACH_FILLER = discovery_tokens(
     "who teaches teach teaching taught professor professors prof faculty does do is are at "
     "ramapo class classes course courses subject any someone anyone looking for my senior "
     "project mentor want need which the a an in on of to i me can could would like know about "
-    "research researches studies study works work interested interests field area")
+    "research researches studies study works work interested interests field area best "
+    "expert experts good great quote students actually instructor instructors section sections "
+    "runs run whos who's give get help")
 
 
 def _profile_words(entry: dict[str, Any]) -> frozenset[str]:
@@ -494,9 +498,13 @@ def teachers(directory: Sequence[dict[str, Any]], message: str) -> list[dict[str
         return []
     abouts = [(_profile_words(e), e) for e in directory
               if "retired" not in str(e.get("school") or "").casefold()]
-    weight = {w: math.log((len(abouts) + 1) / (sum(w in a for a, _ in abouts) + 0.5))
+
+    def holds(word: str, about: frozenset[str]) -> bool:
+        # A short form names its word ("intro" introduction, "chem" chemistry, "gen" general).
+        return word in about or (len(word) >= 3 and any(a.startswith(word) for a in about))
+    weight = {w: math.log((len(abouts) + 1) / (sum(holds(w, a) for a, _ in abouts) + 0.5))
               for w in words}
     total = sum(weight.values()) or 1.0
-    scored = sorted(((sum(weight[w] for w in words & a) / total, e) for a, e in abouts),
-                    key=lambda pair: -pair[0])
+    scored = sorted(((sum(weight[w] for w in words if holds(w, a)) / total, e)
+                     for a, e in abouts), key=lambda pair: -pair[0])
     return [e for share, e in scored if share >= TEACHES_SHARE][:MAX_TEACHERS]

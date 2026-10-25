@@ -238,3 +238,11 @@ def test_alternatives_match_alone_and_page_groups_are_checked_against_the_direct
         "Black Student Union", "Naach"]
     assert [c["name"] for c in clubs_by_words(directory, "is there a commuter club")] == [
         "Commuter Affairs"]
+
+
+def test_a_named_weekday_wins_over_weekend_and_a_versus_listing_is_a_game() -> None:
+    from rockygpt_brain.events import _about, window
+    sunday = datetime(2026, 10, 25, 10, 0, tzinfo=WEDNESDAY.tzinfo)
+    assert window("family weekend, what's open to parents this saturday", sunday)[2] == \
+        "Saturday, October 31"
+    assert "game" in _about({"title": "Women's Soccer vs. New Paltz", "tags": []})

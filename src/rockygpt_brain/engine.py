@@ -1730,6 +1730,20 @@ class ChatEngine:
                 clubs, message, True, len([e for e in named if e["kind"] != "event"]))]
         return calendar, clubs, sources, computed
 
+    def _clubs_by_words(self, clubs: list[dict[str, Any]], message: str,
+                        sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """The clubs given, then the directory clubs whose own names hold a word asked ("arts",
+        "commuter", "democrats"), each numbered after the sources (which it extends)."""
+        given = {c.get("url") for c in clubs}
+        clubs = list(clubs)
+        for club in events.clubs_by_words(self._club_directory(), message):
+            if club.get("url") not in given:
+                clubs.append({"n": len(sources) + 1,
+                              **{k: v for k, v in club.items() if k != "id"}})
+                sources.append({"n": clubs[-1]["n"], "url": club.get("url"),
+                                "title": club.get("name")})
+        return clubs
+
     def _upcoming_events(self, now: datetime) -> list[dict[str, Any]]:
         """Every calendar event from now through the next year, as published, read through the
         shared reader once per release and day."""
@@ -2037,17 +2051,13 @@ class ChatEngine:
                         clubs, club_sources = await asyncio.to_thread(
                             self._clubs_by_meaning, index, club_vectors, len(sources))
                         sources = [*sources, *club_sources]
-                        # Clubs whose own names hold a word asked ("arts", "commuter") are
-                        # given as well as those nearest in meaning.
-                        given = {c.get("url") for c in clubs}
-                        for club in events.clubs_by_words(self._club_directory(), latest):
-                            if club.get("url") not in given:
-                                clubs.append({"n": len(sources) + 1,
-                                              **{k: v for k, v in club.items() if k != "id"}})
-                                sources.append({"n": clubs[-1]["n"], "url": club.get("url"),
-                                                "title": club.get("name")})
+                        clubs = self._clubs_by_words(clubs, latest, sources)
                         computed = [*computed, *events.club_answers(
                             clubs, latest, False, len(self._club_directory()))]
+                    elif calendar_asked and clubs and events.asks_clubs(latest):
+                        # A club named ("College Republicans") does not hide the others the
+                        # question names by a word ("young democrats").
+                        clubs = self._clubs_by_words(clubs, latest, sources)
                 if people_asked or named_people:
                     with measure("Work out the people facts"):
                         people, people_facts, found_people = await asyncio.to_thread(

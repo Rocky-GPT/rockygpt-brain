@@ -101,6 +101,13 @@ def _days(message: str, now: datetime) -> tuple[datetime, datetime, str]:
         return _start(day, now), _end(day, now), "tomorrow"
     if "today" in text:
         return _start(today, now), _end(today, now), "today"
+    for n, name in enumerate(_DAYS):
+        if re.search(rf"\b{name}s?\b", text):
+            ahead = (n - today.weekday()) % 7
+            if re.search(rf"\bnext {name}", text) and ahead == 0:
+                ahead = 7
+            day = today + timedelta(days=ahead)
+            return _start(day, now), _end(day, now), f"{name.title()}, {day:%B} {day.day}"
     weekend = re.search(r"\b(this|next)?\s*weekend\b", text)
     if weekend:
         friday = today + timedelta(days=(4 - today.weekday()) % 7)
@@ -118,13 +125,6 @@ def _days(message: str, now: datetime) -> tuple[datetime, datetime, str]:
         # On a Sunday the week ahead is meant, not the hours left in it.
         last = today + timedelta(days=6 - today.weekday() + (7 if today.weekday() == 6 else 0))
         return now, _end(last, now), "this week"
-    for n, name in enumerate(_DAYS):
-        if re.search(rf"\b{name}s?\b", text):
-            ahead = (n - today.weekday()) % 7
-            if re.search(rf"\bnext {name}", text) and ahead == 0:
-                ahead = 7
-            day = today + timedelta(days=ahead)
-            return _start(day, now), _end(day, now), f"{name.title()}, {day:%B} {day.day}"
     found = _MONTH_DAY.search(text)
     numeric = _NUMERIC_DAY.search(text)
     if found or numeric:
@@ -174,10 +174,16 @@ def asked_topic(message: str) -> set[str]:
             - _stems(" ".join(_GENERIC_CLUB)))
 
 
+# A listing titled "A vs. B" is a game, whatever words its description uses.
+_VERSUS = re.compile(r"\bvs\b\.?", re.I)
+
+
 def _about(value: dict[str, Any]) -> set[str]:
-    return _stems(" ".join([str(value.get("title") or ""), " ".join(value.get("tags") or []),
+    title = str(value.get("title") or "")
+    return _stems(" ".join([title, " ".join(value.get("tags") or []),
                             str(value.get("organizer") or ""), str(value.get("location") or ""),
-                            str(value.get("description") or "")]))
+                            str(value.get("description") or ""),
+                            "game match" if _VERSUS.search(title) else ""]))
 
 
 # An event is about the topic asked when it holds words carrying at least this share of the
