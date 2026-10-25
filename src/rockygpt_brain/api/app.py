@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import secrets
+import sys
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import replace
@@ -199,6 +200,19 @@ def _configured_engine() -> ChatEngine:
                       output=output)
 
 
+def _log_info_lines() -> None:
+    """Send the Brain's own INFO lines (brain_timing, brain_turn) to stderr.
+
+    Uvicorn configures only its own loggers, so without this Python's WARNING default drops
+    them in production. Library loggers (httpx, openai) stay at their quieter defaults."""
+    package = logging.getLogger("rockygpt_brain")
+    package.setLevel(logging.INFO)
+    if not package.handlers:
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s %(message)s"))
+        package.addHandler(handler)
+
+
 def create_app(engine: ChatEngine | None = None, *, service_token: str | None = None,
                environment: str | None = None, max_concurrent: int = 8,
                clock: Callable[[], datetime] | None = None) -> FastAPI:
@@ -209,6 +223,7 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
         raise ValueError("Invalid Brain environment")
     token = service_token if service_token is not None else os.getenv("STAGING_SERVICE_TOKEN")
     token = token.strip() if token else None
+    _log_info_lines()
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:

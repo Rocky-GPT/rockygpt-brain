@@ -1,6 +1,7 @@
 """Admission and cancellation across the HTTP boundary, without paid calls."""
 
 import asyncio
+import logging
 from typing import Any, cast
 
 import httpx
@@ -214,9 +215,10 @@ def test_a_crash_outside_the_trace_sends_no_trace_rather_than_an_empty_one() -> 
 def test_every_production_chat_turn_logs_its_steps_by_name(
         caplog: pytest.LogCaptureFixture) -> None:
     engine = BoundaryEngine()
+    # No caplog.at_level: the app itself must let INFO lines through, as in production.
     with TestClient(create_app(engine, service_token="fixture-secret",  # noqa: S106
-                               environment="production")) as client, \
-            caplog.at_level("INFO", logger="rockygpt_brain.api.app"):
+                               environment="production")) as client:
+        assert logging.getLogger("rockygpt_brain").handlers
         client.post("/v1/chat", json=QUESTION,
                     headers={"x-rockygpt-environment-token": "fixture-secret"})
     [line] = [r.getMessage() for r in caplog.records if r.getMessage().startswith("brain_timing")]
