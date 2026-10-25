@@ -1,0 +1,17 @@
+[
+  {"id": "as1-01", "question": "does ramapo have a pre-med track or do i just major in bio", "topic": "program"},
+  {"id": "as1-02", "question": "What are the prerequisites for Organic Chemistry I and does it have a separate lab I have to register for?", "topic": "course"},
+  {"id": "as1-03", "question": "how many credits is the biology major total and how many of those are labs", "topic": "program"},
+  {"id": "as1-04", "question": "Im a freshman bio major wanting to go to PT school. what should i take my first year? gen chem and bio 1 both in fall or is that too much", "topic": "sequence"},
+  {"id": "as1-05", "question": "is there a chem minor? how many credits", "topic": "program"},
+  {"id": "as1-06", "question": "does physics 1 count toward gen ed or only for my major", "topic": "gen_ed"},
+  {"id": "as1-07", "question": "What's the difference between the Biology major and the Biochemistry major in terms of required courses? Which one has more chem?", "topic": "program"},
+  {"id": "as1-08", "question": "whats the prereq for anatomy and physiology 2, do i need A&P 1 with a C or better", "topic": "course"},
+  {"id": "as1-09", "question": "is there an exercise science or kinesiology major here for pre physical therapy", "topic": "program"},
+  {"id": "as1-10", "question": "can you show me the 4 year plan for the biochem major", "topic": "sequence"},
+  {"id": "as1-11", "question": "which professor is teaching orgo 2 in the spring and are there still seats", "topic": "out_of_scope"},
+  {"id": "as1-12", "question": "does ramapo offer a stats course that counts for the bio major, med schools want biostatistics", "topic": "course"},
+  {"id": "as1-13", "question": "i got a C- in gen chem 1, did that count for my major requirements or do i have to retake it?", "topic": "out_of_scope"},
+  {"id": "as1-14", "question": "how many credits is microbiology and what does the course cover", "topic": "course"},
+  {"id": "as1-15", "question": "should i major in chemistry or biology if i want to get into pharmacy school", "topic": "out_of_scope"}
+]
