@@ -644,14 +644,76 @@ def computed_answers(evidence: Sequence[dict[str, Any]], programs: Sequence[dict
         elif asks_gen_ed:
             facts.append({"fact": f"{code} carries no Gen Ed attribute in the catalog.",
                           "n": item["n"]})
+    facts += _listing_answers(evidence, message)
     for item in evidence:
         if not item.get("program"):
             continue
+        for code in by_code:
+            facts += _course_in_program(code, item)
         for track, credits in re.findall(r"(?m)^(.{3,80}?)\s*[-–]\s*(\d{2,3})\s*credits?\b",
                                          str(item.get("requirements") or "")):
             facts.append({"fact": f"The catalog gives {track.strip()} as {credits} credits.",
                           "n": item["n"]})
     return facts
+
+
+_LIST_ASK = re.compile(r"\b(?:what|which|list|any|offer|offers|options?|are there|do you have|"
+                       r"does ramapo have)\b")
+
+
+def _listing_answers(evidence: Sequence[dict[str, Any]], message: str) -> list[dict[str, Any]]:
+    """For a question asking which programs a level has ("what grad certificates", "which
+    programs have a 4+1"), the catalog's whole list at that level: 4+1 programs alone when
+    asked, graduate certificates alone when both words are used."""
+    listing = next((e for e in evidence if "catalog_programs" in e), None)
+    levels = asked_levels(message)
+    if listing is None or not levels or not _LIST_ASK.search(message.casefold()):
+        return []
+    # A question naming its subject ("a nursing major") gets the subject's listing instead.
+    if any(names_subject_words(listing, words) for _, words in asked_subjects(message)):
+        return []
+    # An accelerated bachelor's to master's path is the catalog's 4+1.
+    if "special" in levels or ({"major", "graduate"} <= levels
+                               and re.search(r"\baccelerated\b", message.casefold())):
+        levels = {"special"}
+    elif {"certificate", "graduate"} <= levels:
+        names = [n for n in listing["catalog_programs"].get("certificates", [])
+                 if "graduate" in n.casefold()]
+        return [{"fact": f"The catalog's graduate certificates: {'; '.join(names)}.",
+                 "n": listing["n"]}] if names else []
+    return [{"fact": f"The catalog's {_LISTING_LEVELS[level]}: {'; '.join(names)}.",
+             "n": listing["n"]}
+            for level in sorted(levels) if level in _LISTING_LEVELS
+            and (names := listing["catalog_programs"].get(_LISTING_LEVELS[level]))
+            and len(names) <= 120]
+
+
+def names_subject_words(listing: dict[str, Any], words: Sequence[str]) -> bool:
+    """Whether the words name a subject of some program in a catalog listing."""
+    return names_subject([{"name": n} for names in listing["catalog_programs"].values()
+                          for n in names], words)
+
+
+def _course_in_program(code: str, program: dict[str, Any]) -> list[dict[str, Any]]:
+    """Where a course named in the question sits in a program's requirements written out by
+    code: required (an "all of" group) or one choice among others, or not listed at all."""
+    group, rule = "", ""
+    for line in str(program.get("requirements") or "").splitlines():
+        if not line.startswith(" "):
+            group = line.strip()
+        elif not line.strip().startswith("-"):
+            rule = line.strip().rstrip(":")
+        elif re.search(rf"\b{re.escape(code)}\b", line):
+            required = rule.endswith("all of") and " or " not in line
+            return [{"fact": f"In the {program['program']} requirements, {code} is listed under "
+                             f"'{group}' ({rule}): "
+                             + ("a required course." if required else
+                                "one of the courses to choose from, not a required course by "
+                                "itself."), "n": program["n"]}]
+    if program.get("requirements"):
+        return [{"fact": f"{code} is not listed in the {program['program']} requirements.",
+                 "n": program["n"]}]
+    return []
 
 
 _GEN_ED_WORDS = {"gen", "ed", "eds", "general", "education", "count", "counts", "requirement",

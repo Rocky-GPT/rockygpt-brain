@@ -439,3 +439,30 @@ def test_only_a_subject_the_catalog_names_gets_a_listing_fact() -> None:
                             " It does list: Business Administration MBA.")
     assert class_standing("I'm a junior. What do juniors and seniors take?") == 2
     assert class_standing("im a sophomore, what should i take junior year") == 1
+
+
+def test_code_lists_a_level_and_places_a_course_in_a_program() -> None:
+    from rockygpt_brain.academics import computed_answers
+    programs = [{"name": n} for n in ("Computer Science 4+1", "Data Science 4+1",
+                                      "Nursing Generic BSN", "Data Analyst-Graduate Certificate",
+                                      "Teaching Certificate")]
+    listing = {"n": 5, "catalog_programs": {
+        "4+1 programs": ["Computer Science 4+1", "Data Science 4+1"],
+        "certificates": ["Data Analyst-Graduate Certificate", "Teaching Certificate"],
+        "majors": ["Nursing Generic BSN"]}}
+    facts = [f["fact"] for f in computed_answers(
+        [listing], programs, "is there an accelerated bachelor's to master's? which programs", 5)]
+    assert facts == ["The catalog's 4+1 programs: Computer Science 4+1; Data Science 4+1."]
+    facts = [f["fact"] for f in computed_answers([listing], programs,
+                                                 "what grad certificates do you have", 5)]
+    assert facts == ["The catalog's graduate certificates: Data Analyst-Graduate Certificate."]
+    program = {"n": 1, "program": "Computer Science BS", "requirements":
+               "Major Requirements\n  Required Courses all of:\n    - CMPS 147 CS I\n"
+               "Math Electives - Select 2\n  Select 2 Courses at least 2 of:\n"
+               "    - MATH 262 LINEAR ALGEBRA"}
+    course = {"n": 2, "course": "MATH 262 LINEAR ALGEBRA", "credits": 4}
+    facts = [f["fact"] for f in computed_answers([program, course], programs,
+                                                 "do i need linear algebra for cs", 3)]
+    assert ("In the Computer Science BS requirements, MATH 262 is listed under 'Math Electives "
+            "- Select 2' (Select 2 Courses at least 2 of): one of the courses to choose from, not "
+            "a required course by itself.") in facts
