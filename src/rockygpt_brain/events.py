@@ -186,6 +186,14 @@ def _about(value: dict[str, Any]) -> set[str]:
 TOPIC_SHARE = 0.5
 
 
+def alternatives(message: str, words: set[str]) -> list[set[str]]:
+    """The topic words of each alternative a question offers ("movie or trivia nights",
+    "theater, dance"): the whole topic, and each part split at "or", commas and slashes that
+    keeps a topic word."""
+    parts = [words & topic_words(part) for part in re.split(r"\bor\b|,|/", message.casefold())]
+    return [words, *[p for p in parts if p and p != words]]
+
+
 def topic_share(values: Sequence[dict[str, Any]], words: set[str],
                 corpus: Sequence[dict[str, Any]]) -> dict[int, float]:
     """Each event's share of the topic words (by id of its value), weighted by rarity across
@@ -234,7 +242,11 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
     food = asks_food(message)
     words = asked_topic(message)
     if words or food:
-        share = topic_share(timed, words, corpus or values) if words else {}
+        # Alternatives ("theater or dance performances") each match on their own.
+        share: dict[int, float] = {}
+        for alternative in alternatives(message, words):
+            for key, part in topic_share(timed, alternative, corpus or values).items():
+                share[key] = max(share.get(key, 0.0), part)
         meaning = {id(v): (scores or {}).get(str(v.get("_id")), 0.0) for v in timed}
         best = max(meaning.values(), default=0.0)
         matching = []
@@ -248,8 +260,9 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
             if by:
                 matching.append({**value, "_matched_by": by})
         if matching:
-            if by_share:  # The most on-topic first, then by time.
-                matching.sort(key=lambda v: -round(share.get(id(v), 0.0), 2))
+            if by_share:  # Only the most on-topic, by time.
+                top = max(round(share.get(id(v), 0.0), 2) for v in matching)
+                matching = [v for v in matching if round(share.get(id(v), 0.0), 2) == top]
             return matching[:MAX_EVENTS], True
         return timed[:MAX_EVENTS], False
     return timed[:MAX_EVENTS], None
@@ -406,7 +419,7 @@ def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
                               f"{in_window} other event{'s' if in_window != 1 else ''} then.",
                       "n": calendar_n})
         if outside:
-            facts.append({"fact": f"After {span}, the calendar's events {about}: "
+            facts.append({"fact": f"Outside {span}, the calendar's next events {about}, by date: "
                                   + "; ".join(f"{line['event']} ({line['when']}) [{line['n']}]"
                                               for line in outside) + ".",
                           "n": outside[0]["n"]})
@@ -445,7 +458,7 @@ def club_answers(clubs: Sequence[dict[str, Any]], message: str, by_name: bool,
                          f"no club for {topic or 'what was asked'}."}]
     facts: list[dict[str, Any]] = []
     if not by_name:
-        named = [c for c in clubs if words & discovery_tokens(str(c.get("name") or ""))]
+        named = [c for c in clubs if _stems(" ".join(words)) & _stems(str(c.get("name") or ""))]
         if not named:
             facts.append({"fact": f"No club in the directory has {topic or 'the words asked'} in "
                                   "its name; the clubs given are only the nearest by meaning."})
@@ -462,3 +475,31 @@ def club_answers(clubs: Sequence[dict[str, Any]], message: str, by_name: bool,
 
 MAX_CLUB_LINES = 6
 MAX_OUTSIDE = 3
+
+
+MAX_WORD_CLUBS = 12
+
+
+def clubs_by_words(directory: Sequence[dict[str, Any]], message: str) -> list[dict[str, Any]]:
+    """The directory clubs whose name has a word the question asks about ("arts" for an art
+    club question, "commuter" for Commuter Affairs), at most MAX_WORD_CLUBS."""
+    words = _stems(" ".join(topic_words(message) - _GENERIC_CLUB))
+    words = {w for w in words if len(w) > 2}
+    return [c for c in directory if words & _stems(str(c.get("name") or ""))][:MAX_WORD_CLUBS]
+
+
+def clubs_on_pages(directory: Sequence[dict[str, Any]], text: str,
+                   ordinary: frozenset[str] = frozenset()) -> list[dict[str, Any]]:
+    """The directory clubs a page given names by their whole directory name ("Black Student
+    Union", "Naach"); a one-word name only when it is not an ordinary word of the pages."""
+    folded = " ".join(re.findall(r"[^\W_]+", text.casefold()))
+    found = []
+    for club in directory:
+        words = re.findall(r"[^\W_]+", str(club.get("name") or "").casefold())
+        if not words or set(words) <= _GENERIC_CLUB | {"ramapo", "the", "of", "and"}:
+            continue
+        if len(words) == 1 and (len(words[0]) < 5 or words[0] in ordinary):
+            continue
+        if re.search(rf"\b{re.escape(' '.join(words))}\b", folded):
+            found.append(club)
+    return found

@@ -1935,6 +1935,9 @@ def course_property(row: dict[str, Any], now: datetime) -> tuple[dict[str, Any],
 
 MAX_EVENTS_READ = 40
 MAX_CLUBS_READ = 12
+# Another kind whose identity can also be an Archway group with a club directory entry (a school
+# or facility group is not read as a club: release graphs hold no records for those kinds).
+CLUB_DIRECTORY_KINDS = ("office",)
 
 
 def _listing(row: dict[str, Any]) -> dict[str, Any]:
@@ -2634,6 +2637,15 @@ class EntityFacts:
                      "aliases": list(e["aliases"])}
                     for e in snapshot.entities if e["kind"] in kinds]
 
+    def club_directory_ids(self) -> list[str]:
+        """Every identity that links a club directory (Archway group) row: the clubs and
+        organizations, and the offices that are Archway groups too (Commuter Affairs,
+        Yearbook), so the club directory is read whole."""
+        kinds = ("club", "organization", *CLUB_DIRECTORY_KINDS)
+        with self.snapshot() as snapshot:
+            return [e["id"] for e in snapshot.entities if e["kind"] in kinds
+                    and any(link.get("collection") == "clubs" for link in e.get("links") or [])]
+
     def _batch_facts(
         self, entity_ids: Sequence[str], dataset_version: str, identity_hash: str | None,
         as_of: datetime | None, kinds: Sequence[str], collection: str, bound: int,
@@ -2716,9 +2728,11 @@ class EntityFacts:
     def get_club_facts(self, entity_ids: Sequence[str], dataset_version: str, *,
                        identity_hash: str | None = None,
                        as_of: datetime | None = None) -> list[dict[str, Any]]:
-        """Each named club or organization's directory entry, at most MAX_CLUBS_READ."""
+        """Each named club directory entry (a club, an organization, or an office, school or
+        facility that is an Archway group), at most MAX_CLUBS_READ."""
         return self._batch_facts(entity_ids, dataset_version, identity_hash, as_of,
-                                 ("club", "organization"), "clubs", MAX_CLUBS_READ,
+                                 ("club", "organization", *CLUB_DIRECTORY_KINDS), "clubs",
+                                 MAX_CLUBS_READ,
                                  club_property)
 
     def get_course_facts(

@@ -425,3 +425,17 @@ def test_a_reply_stating_a_computed_sum_passes_the_evidence_check() -> None:
     assert unsupported_by("Together they are 15 credits. [1]", view) == [
         "a number the facts do not hold: 15"]
     assert unsupported_by("Together they are 5 credits. [1]", view) == []
+
+
+def test_only_a_subject_the_catalog_names_gets_a_listing_fact() -> None:
+    from rockygpt_brain.academics import class_standing, computed_answers
+    programs = [{"name": n} for n in ("International Business BA", "Healthcare Administration BS",
+                                      "Business Administration MBA", "History BA", "History Minor",
+                                      "Criminal Justice BA")]
+    assert computed_answers([], programs, "can you finish a business major in 4 years", 1) == []
+    assert computed_answers([], programs, "what minors pair well with a history major", 1) == []
+    (fact,) = computed_answers([], programs, "courses for the business administration major", 1)
+    assert fact["fact"] == ("The catalog lists no bachelor's major for 'business administration'."
+                            " It does list: Business Administration MBA.")
+    assert class_standing("I'm a junior. What do juniors and seniors take?") == 2
+    assert class_standing("im a sophomore, what should i take junior year") == 1

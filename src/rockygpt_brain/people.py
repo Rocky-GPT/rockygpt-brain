@@ -17,7 +17,8 @@ from rockygpt_brain.retrieval.entity_facts import discovery_tokens
 MAX_PEOPLE = 4
 _PEOPLE_WORDS = re.compile(
     r"\b(?:professors?|prof|profs|dr|doctor|teachers?|instructors?|faculty|lecturers?|"
-    r"office hours|who teaches|teaches|chair|advisors?|advisers?|dean|researcher|research(?:es)?"
+    r"office hours|teach(?:es|ing)?|taught|chair|advisors?|advisers?|dean|researcher|"
+    r"research(?:es)?|in charge|who runs|head of"
     r"|staff)\b")
 _TITLES = discovery_tokens("professor prof dr doctor mr mrs ms miss dean")
 # A card found by meaning, only for a question about a topic ("who teaches business ethics"): on
@@ -69,18 +70,29 @@ def _name(person: dict[str, Any]) -> str:
     return _CREDENTIALS.sub("", str(person["name"])).strip()
 
 
-def find_people(people: Sequence[dict[str, Any]], message: str) -> list[dict[str, Any]]:
-    """The people a message names: every word of a directory name, else a last name that is
-    exactly one person's. A hyphenated last name names its person whole ("williams-goldstein")
-    even where each half is someone else's too. A last name several people share names all of
-    them (the reply asks which one); a two-letter last name ("xu") counts only after a title
-    word. At most MAX_PEOPLE."""
+def find_people(people: Sequence[dict[str, Any]], message: str,
+                ordinary: frozenset[str] = frozenset()) -> list[dict[str, Any]]:
+    """The people a message names: every word of a directory name, and a last name that is
+    exactly one person's ("Christina Chung or Alex Biagioli" names both). A hyphenated last name
+    names its person whole ("williams-goldstein") even where each half is someone else's too. A
+    last name several people share names all of them (the reply asks which one); a two-letter
+    last name ("xu") counts only after a title word. A word in `ordinary` (the published pages'
+    own words: "letter", "mentor") is never read as a misspelt name. At most MAX_PEOPLE."""
     words = name_tokens(message) - _TITLES
     shortest = 2 if name_tokens(message) & _TITLES else 3
     whole = [p for p in people if (name := name_tokens(_name(p)))
              and len(name) >= 2 and name <= words]
     if whole:
-        return whole[:MAX_PEOPLE]
+        covered = frozenset().union(*(name_tokens(_name(p)) for p in whole))
+        rest = [p for p in _last_names(people, message, words - covered, shortest, ordinary)
+                if p not in whole and not p.get("near_spelling")]
+        return [*whole, *rest][:MAX_PEOPLE]
+    return _last_names(people, message, words, shortest, ordinary)
+
+
+def _last_names(people: Sequence[dict[str, Any]], message: str, words: frozenset[str],
+                shortest: int, ordinary: frozenset[str]) -> list[dict[str, Any]]:
+    """The people a message names by last name alone, else by a near spelling of one."""
     # A last name alone is a person only in a question about one ("is the food good" names no
     # Professor Norflus-Good).
     if not (asks_people(message) or _CONTACT_ASK.search(message.casefold())):
@@ -106,7 +118,7 @@ def find_people(people: Sequence[dict[str, Any]], message: str) -> list[dict[str
             if len(matches) <= MAX_PEOPLE:
                 return matches
     if not found and not named:
-        return _near_names(people, words)
+        return _near_names(people, words - ordinary)
     return found[:MAX_PEOPLE]
 
 
@@ -422,6 +434,15 @@ def leaders(directory: Sequence[dict[str, Any]], message: str,
     if school and dean_asked:
         lines.extend(deans(school))
     listed = {id(entry) for _, entry in lines if entry is not None}
+
+    def leading_in(field: str) -> list[dict[str, Any]]:
+        return [e for e in directory if field in name_tokens(str(e.get("title") or ""))
+                and "retired" not in str(e.get("school") or "").casefold()
+                and _LEAD_TITLE.search(str(e.get("title") or ""))]
+    # A field some title leads ("nursing") is what was asked; others the question only mentions
+    # ("clinical placements") are not reported as having no chair.
+    if any(leading_in(field) for field in fields):
+        fields = {field for field in fields if leading_in(field)}
     for field in sorted(fields):
         titled = [e for e in directory if field in name_tokens(str(e.get("title") or ""))
                   and "retired" not in str(e.get("school") or "").casefold()]
@@ -442,3 +463,40 @@ def leaders(directory: Sequence[dict[str, Any]], message: str,
         for of in ([school] if school else sorted(schools)):
             lines.extend(deans(of))
     return lines
+
+
+# Who teaches a subject by their profiles' own courses and interests ("who teaches US history"):
+# each question word weighted by how rare it is across the profiles, as for calendar topics.
+TEACHES_SHARE = 0.6
+MAX_TEACHERS = 8
+_TEACH_FILLER = discovery_tokens(
+    "who teaches teach teaching taught professor professors prof faculty does do is are at "
+    "ramapo class classes course courses subject any someone anyone looking for my senior "
+    "project mentor want need which the a an in on of to i me can could would like know about "
+    "research researches studies study works work interested interests field area")
+
+
+def _profile_words(entry: dict[str, Any]) -> frozenset[str]:
+    return name_tokens(" ".join(str(x) for key in ("courses", "teaching_interests",
+                                                   "research_interests", "title")
+                                for x in (entry.get(key) or [] if key != "title"
+                                          else [entry.get("title") or ""])).replace(".", ""))
+
+
+def teachers(directory: Sequence[dict[str, Any]], message: str) -> list[dict[str, Any]]:
+    """The people whose profile courses, interests or title hold most of what a "who teaches or
+    researches X" question names, weighted by rarity across the directory; at most
+    MAX_TEACHERS, best first."""
+    import math
+    words = set(name_tokens(message.replace(".", ""))) - _TEACH_FILLER - _QUESTION_WORDS
+    words = {w for w in words if len(w) > 1}
+    if not words:
+        return []
+    abouts = [(_profile_words(e), e) for e in directory
+              if "retired" not in str(e.get("school") or "").casefold()]
+    weight = {w: math.log((len(abouts) + 1) / (sum(w in a for a, _ in abouts) + 0.5))
+              for w in words}
+    total = sum(weight.values()) or 1.0
+    scored = sorted(((sum(weight[w] for w in words & a) / total, e) for a, e in abouts),
+                    key=lambda pair: -pair[0])
+    return [e for share, e in scored if share >= TEACHES_SHARE][:MAX_TEACHERS]

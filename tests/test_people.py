@@ -12,6 +12,7 @@ from rockygpt_brain.people import (
     listed,
     narrow,
     schools_of,
+    teachers,
 )
 from rockygpt_brain.retrieval.entity_facts import MemoryEntityFacts
 from test_engine import NOW
@@ -190,3 +191,40 @@ def test_deans_and_chairs_come_from_directory_titles() -> None:
                                  "the directory, is Benny Chan")
     assert asks_leadership("who's the dean of the business school")
     assert not asks_leadership("dean of students office hours")
+
+
+def test_ordinary_words_are_not_misspelt_names_and_two_people_can_be_named() -> None:
+    names = [{"id": "ll", "name": "Lisa Lutter"}, {"id": "rm", "name": "Robert Mentore"},
+             {"id": "mj", "name": "Matthew Jobrack"}, {"id": "cc", "name": "Christina Chung"},
+             {"id": "ab", "name": "Alexander Biagioli"}]
+    ordinary = frozenset({"letter", "mentor", "recommendation"})
+    assert find_people(names, "which prof should i ask for a recommendation letter",
+                       ordinary) == []
+    assert find_people(names, "is there a professor who could mentor me", ordinary) == []
+    assert [(p["id"], p.get("near_spelling")) for p in find_people(
+        names, "matt jobrak what does he teach", ordinary)] == [("mj", True)]
+    assert [p["id"] for p in find_people(
+        names, "who is the better advisor, Christina Chung or Alex Biagioli?")] == ["cc", "ab"]
+
+
+def test_who_teaches_a_subject_is_read_from_profile_courses() -> None:
+    directory = [
+        {"id": "a", "name": "Roark Atkinson", "title": "Associate Professor of History",
+         "courses": ["Introduction to U.S. History I"]},
+        {"id": "b", "name": "Stephen Anderson", "title": "Associate Professor of Chemistry",
+         "courses": ["Organic Chemistry I: Lecture and Lab"]},
+        {"id": "c", "name": "Jane Doe", "title": "Professor of History",
+         "courses": ["Ancient Rome"]},
+        *({"id": f"x{n}", "name": f"Person {n}", "title": "Professor of Art"} for n in range(8))]
+    assert [p["id"] for p in teachers(directory, "who teaches US history?")] == ["a"]
+    assert [p["id"] for p in teachers(directory, "who teaches organic chemistry")] == ["b"]
+
+
+def test_a_field_only_mentioned_is_not_reported_without_a_chair() -> None:
+    schools = schools_of(DIRECTORY, OFFICES)
+    lines = [line for line, _ in leaders(
+        [*DIRECTORY, {"id": "cp", "name": "Ann Clin", "title": "Professor of Clinical Psychology",
+                      "school": "School of Social Sciences and Social Work"}],
+        "who is in charge of nursing? it's about clinical placements", schools)]
+    assert lines == ["Kathleen M. Burke's directory title names nursing with a leadership "
+                     "role: Assistant Dean of Nursing Programs / Professor of Nursing."]

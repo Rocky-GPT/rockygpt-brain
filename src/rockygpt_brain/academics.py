@@ -179,6 +179,18 @@ _CLASS_YEARS = ((re.compile(r"\bsenior|\bfourth[- ]year"), 3),
                 (re.compile(r"\bsophomore|\bsecond[- ]year"), 1))
 
 
+def class_standing(message: str) -> int:
+    """How many years ago the student was admitted, by the class they say they are in: the
+    class word after "a"/"an" ("I'm a sophomore ... what about junior year"), else the first
+    class word the message uses; 0 for none."""
+    text = message.casefold()
+    found = [(m.start(), years, text[max(0, m.start() - 3):m.start()].strip() in ("a", "an"))
+             for word, years in _CLASS_YEARS for m in word.finditer(text)]
+    if not found:
+        return 0
+    return min(found, key=lambda f: (not f[2], f[0]))[1]
+
+
 def current_cohort(today: date) -> str:
     """The admission cohort whose academic year holds today: Fall 2026 from August 2026."""
     return f"Fall {today.year if today.month >= 8 else today.year - 1}"
@@ -192,7 +204,7 @@ def choose_plan(plans: Sequence[dict[str, Any]], program: str, message: str,
     cohorts = {str(p.get("cohort")) for p in plans}
     asked = [f"Fall {year}" for year in _YEAR.findall(message) if f"Fall {year}" in cohorts]
     current = int(current_cohort(today)[-4:])
-    standing = next((years for word, years in _CLASS_YEARS if word.search(message.casefold())), 0)
+    standing = class_standing(message)
     cohort = asked[0] if asked else f"Fall {current - standing}"
     if cohort not in cohorts:
         cohort = max(cohorts, key=lambda c: c[-4:], default="")
@@ -512,7 +524,8 @@ _NOT_SUBJECT = {"there", "ramapo", "offer", "offers", "have", "has", "any", "pro
                 "college", "school", "some", "kind", "type", "available", "get", "add", "want",
                 "thinking", "about", "double", "also", "maybe", "or", "a", "an", "in", "of",
                 "is", "do", "does", "i", "im", "i'm", "can", "could", "be", "to", "my", "like",
-                "many", "much", "non", "other", "all", "every", "which", "same", "one", "two"}
+                "many", "much", "non", "other", "all", "every", "which", "same", "one", "two",
+                "just", "only", "really", "actually", "even", "still"}
 _LEVEL_TOKENS = {"minor": "minor", "minors": "minor", "major": "major", "majors": "major",
                  "certificate": "certificate", "certificates": "certificate", "cert": "certificate",
                  "certs": "certificate", "masters": "graduate", "master": "graduate",
@@ -545,19 +558,30 @@ def asked_subjects(message: str) -> list[tuple[str, list[str]]]:
 
 def published_in(programs: Sequence[dict[str, Any]], level: str,
                  words: Sequence[str]) -> list[str]:
-    """The catalog's programs at a level whose name has a word the subject words name, or a
-    short form of it ("film" for Digital Filmmaking, "chem" for Chemistry); best covered first."""
-    scored = []
+    """The catalog's programs at a level whose name has every subject word, or a short form of
+    it ("film" for Digital Filmmaking, "chem" for Chemistry): "business administration" is not
+    Healthcare Administration."""
+    found = []
     for program in programs:
         name = str(program["name"])
         if program_level(name) != level:
             continue
-        core = [w for w in re.findall(r"[a-z0-9]+", program_core(name).casefold())
-                if w not in _TITLE_FILLER]
-        hit = sum(1 for c in core if any(_abbreviates(w, c) for w in words))
-        if hit:
-            scored.append((-hit, name))
-    return [name for _, name in sorted(scored)]
+        core = _core_words(name)
+        if all(any(_abbreviates(w, c) for c in core) for w in words):
+            found.append(name)
+    return sorted(found)
+
+
+def _core_words(name: str) -> list[str]:
+    return [w for w in re.findall(r"[a-z0-9]+", program_core(name).casefold())
+            if w not in _TITLE_FILLER]
+
+
+def names_subject(programs: Sequence[dict[str, Any]], words: Sequence[str]) -> bool:
+    """Whether every word is a word (or short form) of some catalog program's name: "finish
+    business years" or "pair well history" names no subject, so code states nothing about it."""
+    vocabulary = {c for p in programs for c in _core_words(str(p["name"]))}
+    return all(any(_abbreviates(w, c) for c in vocabulary) for w in words)
 
 
 def computed_answers(evidence: Sequence[dict[str, Any]], programs: Sequence[dict[str, Any]],
@@ -571,6 +595,8 @@ def computed_answers(evidence: Sequence[dict[str, Any]], programs: Sequence[dict
     facts: list[dict[str, Any]] = [
         {"fact": f"In the catalog, {line}", "n": catalog_n} for line in gen_ed_lines]
     for level, words in asked_subjects(message):
+        if not names_subject(programs, words):
+            continue
         found = published_in(programs, level, words)
         label = _LEVEL_NAMES[level]
         if found:

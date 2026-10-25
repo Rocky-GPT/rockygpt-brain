@@ -223,5 +223,18 @@ def test_code_counts_the_topic_food_and_later_dates_for_the_reply() -> None:
     assert facts[1:] == [
         "The calendar lists no event about halloween on Friday, October 23; it lists 3 other "
         "events then.",
-        "After Friday, October 23, the calendar's events about halloween: Halloween Costume "
-        "Contest (Oct 31) [5]."]
+        "Outside Friday, October 23, the calendar's next events about halloween, by date: "
+        "Halloween Costume Contest (Oct 31) [5]."]
+
+
+def test_alternatives_match_alone_and_page_groups_are_checked_against_the_directory() -> None:
+    from rockygpt_brain.events import alternatives, clubs_by_words, clubs_on_pages
+    words = {"theater", "dance", "performance"}
+    assert {"theater"} in alternatives("any theater or dance performances next week", words)
+    directory = [{"name": "Black Student Union"}, {"name": "Commuter Affairs"},
+                 {"name": "Naach"}, {"name": "Chess Club"}]
+    assert [c["name"] for c in clubs_on_pages(
+        directory, "Groups: Black Student Union (BSU), NAACH and the chess team.")] == [
+        "Black Student Union", "Naach"]
+    assert [c["name"] for c in clubs_by_words(directory, "is there a commuter club")] == [
+        "Commuter Affairs"]

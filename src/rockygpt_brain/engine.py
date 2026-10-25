@@ -1221,6 +1221,7 @@ class ChatEngine:
         self._directory_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._upcoming_cache: tuple[tuple[str, str], list[dict[str, Any]]] | None = None
+        self._ordinary_words: tuple[str, frozenset[str]] | None = None
 
     def _json(self, result: ChatResult, parts: list[dict[str, Any]], turn: Turn) -> ChatResult:
         """In JSON output the written answer is dropped and the facts go out as they are: the full
@@ -1700,9 +1701,9 @@ class ChatEngine:
             chosen = numbered(ranked)
             outside: list[dict[str, Any]] = []
             if matched is False:
-                later = [v for v in all_upcoming()
-                         if datetime.fromisoformat(str(v.get("starts_at"))) > end]
-                found, again = events.rank_events(later, message, end, now + timedelta(days=366),
+                window_ids = {v.get("_id") for v in values}
+                later = [v for v in all_upcoming() if v.get("_id") not in window_ids]
+                found, again = events.rank_events(later, message, now, now + timedelta(days=366),
                                                   scores, all_upcoming(), by_share=True)
                 outside = numbered(found[:events.MAX_OUTSIDE], outside_window=True) \
                     if again else []
@@ -1848,8 +1849,18 @@ class ChatEngine:
         return people, computed, sources
 
     def _people_named(self, message: str) -> list[dict[str, Any]]:
-        """The people a message names by their directory names (people.py)."""
-        return people_module.find_people(self.facts.identities(("person",)), message)
+        """The people a message names by their directory names (people.py); the published
+        pages' own words (section headings, course titles) are never read as misspelt names."""
+        index = self.facts.meaning_index()
+        if index is not None and (self._ordinary_words is None
+                                  or self._ordinary_words[0] != index.dataset_version):
+            text = " ".join([*(" ".join(label) for label in index.labels.values()),
+                             *index.course_titles.values()])
+            self._ordinary_words = (index.dataset_version,
+                                    frozenset(re.findall(r"[a-z]{3,}", text.casefold())))
+        return people_module.find_people(
+            self.facts.identities(("person",)), message,
+            self._ordinary_words[1] if index is not None and self._ordinary_words else frozenset())
 
     def _read_people(self, people: Sequence[dict[str, Any]], numbered_from: int,
                      ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -1873,7 +1884,7 @@ class ChatEngine:
         """Every club's directory entry with its id, read once per release."""
         version, identity_hash = self.facts.active_release()
         if self._club_cache is None or self._club_cache[0] != version:
-            ids = [e["id"] for e in self.facts.identities(("club", "organization"))]
+            ids = self.facts.club_directory_ids()
             entries = [{"id": facts["entity"]["id"], **facts["properties"][0]["values"][0]["value"]}
                        for start in range(0, len(ids), 12)
                        for facts in self.facts.get_club_facts(ids[start:start + 12], version,
@@ -1986,16 +1997,35 @@ class ChatEngine:
                         people, found_people = await asyncio.to_thread(
                             self._people_listed, latest, len(sources))
                         sources = [*sources, *found_people]
-                    if (people_asked and not people and index.academic
+                    if (people_asked and index.academic
                             and people_module.asks_people_topic(latest)
                             and not people_module.asks_leadership(latest)):
-                        names = {e["id"]: str(e["name"])
-                                 for e in self.facts.identities(("person",))}
-                        found = people_module.by_meaning(
-                            index.academic_scores(vectors[0], "person"), names)
-                        people, found_people = await asyncio.to_thread(
-                            self._read_people, found, len(sources))
-                        sources = [*sources, *found_people]
+                        # Code first: the profiles whose own courses, interests or title hold
+                        # what was asked; else the people cards nearest in meaning.
+                        given = {p.get("name") for p in people}
+                        taught = [e for e in people_module.teachers(
+                            await asyncio.to_thread(self._directory), latest)
+                            if e.get("name") not in given]
+                        if taught:
+                            more = [{"n": len(sources) + k + 1,
+                                     **{x: y for x, y in e.items() if x not in ("id", "n")}}
+                                    for k, e in enumerate(taught)]
+                            people = [*people, *more]
+                            sources = [*sources, *({"n": p["n"], "url": p.get("profile_url"),
+                                                    "title": p.get("name")} for p in more)]
+                            computed = [*computed, {
+                                "fact": "By their own profiles' courses, interests and titles, "
+                                        "these people teach or study what was asked: "
+                                        + "; ".join(f"{p['name']} [{p['n']}]" for p in more)
+                                        + "."}]
+                        elif not people:
+                            names = {e["id"]: str(e["name"])
+                                     for e in self.facts.identities(("person",))}
+                            found = people_module.by_meaning(
+                                index.academic_scores(vectors[0], "person"), names)
+                            people, found_people = await asyncio.to_thread(
+                                self._read_people, found, len(sources))
+                            sources = [*sources, *found_people]
                     if calendar_asked and not clubs and events.asks_clubs(latest):
                         # Each interest a question lists ("anime and community service") is
                         # searched on its own as well as the whole question.
@@ -2007,6 +2037,15 @@ class ChatEngine:
                         clubs, club_sources = await asyncio.to_thread(
                             self._clubs_by_meaning, index, club_vectors, len(sources))
                         sources = [*sources, *club_sources]
+                        # Clubs whose own names hold a word asked ("arts", "commuter") are
+                        # given as well as those nearest in meaning.
+                        given = {c.get("url") for c in clubs}
+                        for club in events.clubs_by_words(self._club_directory(), latest):
+                            if club.get("url") not in given:
+                                clubs.append({"n": len(sources) + 1,
+                                              **{k: v for k, v in club.items() if k != "id"}})
+                                sources.append({"n": clubs[-1]["n"], "url": club.get("url"),
+                                                "title": club.get("name")})
                         computed = [*computed, *events.club_answers(
                             clubs, latest, False, len(self._club_directory()))]
                 if people_asked or named_people:
@@ -2064,6 +2103,27 @@ class ChatEngine:
                     computed = [*academics.computed_answers(
                         academic, self.facts.identities(("program",)), latest, catalog_n,
                         gen_ed_lines), *computed]
+                if calendar_asked and events.asks_clubs(latest) and offices:
+                    # A group a page given names is checked against the club directory by code.
+                    given = {c.get("url") for c in clubs}
+                    text = " ".join(str(section.get(k) or "") for office in offices
+                                    for section in office.get("sections") or []
+                                    for k in ("text", "section_words"))
+                    on_pages = [c for c in events.clubs_on_pages(
+                        self._club_directory(), text, self._ordinary_words[1]
+                        if self._ordinary_words else frozenset())
+                        if c.get("url") not in given][:events.MAX_CATEGORY_CLUBS]
+                    lines = []
+                    for club in on_pages:
+                        clubs.append({"n": len(sources) + 1,
+                                      **{k: v for k, v in club.items() if k != "id"}})
+                        sources.append({"n": clubs[-1]["n"], "url": club.get("url"),
+                                        "title": club.get("name")})
+                        lines.append(f"{club.get('name')} [{clubs[-1]['n']}]")
+                    if lines:
+                        computed = [*computed, {"fact": "The club directory also lists these "
+                                                        "groups the pages name: "
+                                                        + "; ".join(lines) + "."}]
                 computed = [*computed, *one_call.dated_statements(
                     offices, turn.campus_now.date(), latest,
                     [str(p.get("name") or "") for p in people])]

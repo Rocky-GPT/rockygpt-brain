@@ -69,8 +69,7 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   calendar.events_on_the_calendar_in_it: never call one the only event in the window. An event
   marked outside_window is on a later date than the one asked: say so with its date. tickets
   FREE means free admission. clubs are directory entries:
-  give each club's name, category and page as written. A group a page names that is not among
-  clubs is not in the club directory: say so if you name it. Never add events, times or clubs.
+  give each club's name, category and page as written. Never add events, times or clubs.
 - people are directory and faculty-profile entries: give the asked facts (email, phone, office
   room, title, school, office hours as written, courses, interests) exactly as given, with the
   person's number. If several share the name asked, list each with title and school and ask which.
@@ -346,7 +345,8 @@ def messages(question: str, earlier_user: str | None, offices: list[dict[str, An
 def reply(arguments: dict[str, Any], sources: list[dict[str, Any]],
           ) -> tuple[str, list[dict[str, Any]]]:
     """The reply with the sources it cited (its [n] marks), and those as citations."""
-    text = str(arguments.get("text") or "").strip()
+    text = re.sub(r"\s*\[(?!\d)[A-Za-z][\w ,.&'-]*\](?!\()", "",
+                  str(arguments.get("text") or "")).strip()
     used = sorted({int(n) for n in re.findall(r"\[(\d+)\]", text) if 1 <= int(n) <= len(sources)})
     cited = [sources[n - 1] for n in used if sources[n - 1].get("url")]
     if cited:
