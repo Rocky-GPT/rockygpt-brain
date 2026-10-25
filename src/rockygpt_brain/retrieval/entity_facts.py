@@ -1986,6 +1986,8 @@ def club_property(row: dict[str, Any], now: datetime) -> tuple[dict[str, Any], d
 
 MAX_PEOPLE_READ = 6
 _OFFICE_HOURS = re.compile(r"(?im)^\s*office hours?\s*:?.*$")
+# A profile's own "Office: AC-210B" line, for a person whose directory row lists no room.
+_OFFICE_ROOM = re.compile(r"(?im)^\s*office\s*:\s*([A-Z]{1,4}[- ]?\d{2,4}[A-Z]?)\s*$")
 
 
 def person_property(contact: dict[str, Any] | None, profile: dict[str, Any] | None,
@@ -2020,6 +2022,9 @@ def person_property(contact: dict[str, Any] | None, profile: dict[str, Any] | No
                      school=clean(record.get("school")),
                      office_hours=[" ".join(m.group(0).split()) for m in
                                    _OFFICE_HOURS.finditer(bio)][:3],
+                     **({} if value.get("office") or clean(record.get("office"))
+                        or not (room := _OFFICE_ROOM.search(bio))
+                        else {"office": room.group(1)}),
                      courses=[clean(c) for c in record.get("courses") or [] if isinstance(c, str)],
                      research_interests=[clean(c) for c in record.get("researchInterests") or []
                                          if isinstance(c, str)],

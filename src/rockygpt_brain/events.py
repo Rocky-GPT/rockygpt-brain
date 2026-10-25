@@ -24,11 +24,14 @@ _EVENT_WORDS = re.compile(
     r"free food|parties|party|things to do|anything to do|calendar|homecoming|tournaments?|"
     r"screenings?|exhibits?|exhibitions?|movie nights?|game nights?|trivia|bingo|karaoke|"
     r"open mics?|festivals?|celebrations?|info(?:rmation)? sessions?|socials?|mixers?|"
-    r"fundraisers?|ceremon(?:y|ies)|activities|coming up|upcoming)\b")
+    r"fundraisers?|ceremon(?:y|ies)|activities|coming up|upcoming|contests?|competitions?|"
+    r"costume|hunts?|5ks?|races?|walks? for|charity walks?|haunted)\b")
 # A time alone asks for the calendar ("anything tonight?"), but not beside a subject code answers
 # from its own records: "dinner at the Birch tonight" is the menu, "the last shuttle tonight" the
 # timetable, "is the Library open tonight" its hours.
-_WHEN_WORDS = re.compile(r"\b(?:tonight|this weekend|next weekend|tmrw|tmr)\b")
+_WHEN_WORDS = re.compile(r"\b(?:tonight|this weekend|next weekend|tmrw|tmr|this week|next week|"
+                         r"(?:this|next) (?:monday|tuesday|wednesday|thursday|friday|saturday|"
+                         r"sunday))\b")
 _OTHER_SUBJECT = re.compile(
     r"\b(?:menus?|eat|food|meals?|breakfast|brunch|lunch|dinner|dining|shuttles?|bus|buses|"
     r"train|hours|open|opens|close|closes|closing|closed)\b")
@@ -225,12 +228,25 @@ def _starts(value: dict[str, Any]) -> datetime | None:
         return None
 
 
+def _ends(value: dict[str, Any]) -> datetime | None:
+    """When an event ends: its listed end time on its start day, else three hours after it
+    starts."""
+    began = _starts(value)
+    if began is None:
+        return None
+    found = re.match(r"\s*(\d{1,2})(?::(\d{2}))?\s*([AP]M)", str(value.get("end_time") or ""), re.I)
+    if not found:
+        return began + timedelta(hours=3)
+    hour = int(found.group(1)) % 12 + (12 if found.group(3).upper() == "PM" else 0)
+    ended = began.replace(hour=hour, minute=int(found.group(2) or 0))
+    return ended if ended > began else ended + timedelta(days=1)
+
+
 def in_window(values: Sequence[dict[str, Any]], start: datetime,
               end: datetime) -> list[dict[str, Any]]:
-    """The events that start in the window (or began up to three hours before it, so are
-    likely still on), in time order."""
-    timed = [v for v in values if (at := _starts(v)) is not None
-             and start - timedelta(hours=3) <= at <= end]
+    """The events that start in the window or are still on when it opens, in time order."""
+    timed = [v for v in values if (at := _starts(v)) is not None and at <= end
+             and (at >= start or ((ends := _ends(v)) is not None and ends > start))]
     return sorted(timed, key=lambda v: _starts(v) or start)
 
 
@@ -411,9 +427,14 @@ def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
                 == "meaning"]
         about = (f"whose listing names {topic}" + (" or mentions food" if food else "")
                  if topic else "whose listing mentions food")
-        facts.append({"fact": f"The calendar lists {len(named)} event"
-                              f"{'s' if len(named) != 1 else ''} {about} {where} (of "
-                              f"{in_window} events then).", "n": calendar_n})
+        if named or not near:
+            facts.append({"fact": f"The calendar lists {len(named)} event"
+                                  f"{'s' if len(named) != 1 else ''} {about} {where} (of "
+                                  f"{in_window} events then).", "n": calendar_n})
+        else:
+            facts.append({"fact": f"No listing {where} holds most of what was asked ({topic}); "
+                                  f"of the {in_window} events then, the ones below are only near "
+                                  "it in meaning.", "n": calendar_n})
         if near:
             facts.append({"fact": f"Only near {topic or 'the question'} in meaning, not named "
                                   "by their listings: "

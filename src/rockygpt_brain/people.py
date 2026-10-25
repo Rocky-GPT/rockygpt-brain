@@ -152,7 +152,9 @@ def _near_names(people: Sequence[dict[str, Any]],
             allowed = 1 if len(token) <= 6 else 2
             if len(token) >= 4 and any(
                     abs(len(w) - len(token)) <= allowed and len(w) >= 4
-                    and w[0] == token[0] and _distance(w, token) <= allowed for w in words):
+                    and w[0] == token[0] and (_distance(w, token) <= allowed
+                                              or sorted(w) == sorted(token))
+                    for w in words):
                 found.append({**person, "near_spelling": True})
     # A first name the question also uses picks among near spellings ("mark howenstien").
     first_named = [p for p in found if _name(p).split()
