@@ -1627,7 +1627,13 @@ class ChatEngine:
                                         academics.PROGRAM_FLOOR, 2)
         courses = academics.by_meaning(index.academic_scores(vector, "course"), names, message,
                                        academics.COURSE_FLOOR, 3)
-        return programs, courses
+        # A lab found is read with its lecture ("Organic Chemistry I" found CHEM 211L first).
+        by_name = {name: entity_id for entity_id, name in names.items()}
+        for course in list(courses):
+            lecture = str(course["name"])[:-1] if str(course["name"]).endswith("L") else ""
+            if lecture in by_name and all(c["name"] != lecture for c in courses):
+                courses.append({"id": by_name[lecture], "name": lecture})
+        return programs, courses[:5]
 
     def _read_programs(self, programs: Sequence[dict[str, Any]], others: Sequence[str],
                        courses: Sequence[dict[str, Any]] = (), message: str = "",
@@ -2005,13 +2011,22 @@ class ChatEngine:
                     named = list(dict.fromkeys([*named, *one_call.card_offices(index, vectors)]))
                     # A program or course named only in part ("the english major") is found by
                     # its card's meaning when the question asks about programs or courses.
-                    if not programs and index.academic and academics.asks_academics(latest):
+                    # A course question naming a program word but no course ("abnormal
+                    # psychology" names the Psychology programs) still looks for the course.
+                    course_only = bool(programs and not programs[2]
+                                       and academics.asks_course(latest))
+                    if (not programs or course_only) and index.academic \
+                            and academics.asks_academics(latest):
                         found_programs, found_courses = self._academics_by_meaning(
                             index, vectors[0], latest)
+                        if course_only and programs:
+                            found_programs, others = list(programs[0]), list(programs[1])
+                        else:
+                            others = []
                         with measure("Read the programs found by meaning"):
                             academic, sources, dataset_version = await asyncio.to_thread(
-                                self._read_programs, found_programs, [], found_courses,
-                                latest, turn.campus_now.date(), True)
+                                self._read_programs, found_programs, others, found_courses,
+                                latest, turn.campus_now.date(), not course_only)
                     # Clubs the question asks about but names by no directory name ("is there
                     # an anime club") are found by their cards' meaning.
                     # People the question asks about but names by no directory name ("who

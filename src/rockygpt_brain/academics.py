@@ -485,6 +485,11 @@ _COURSE_TALK = re.compile(r"\b(?:class|classes|course|courses|take|taking|prereq
                           r"lab|labs|cover|covers|semester|before|after)\b")
 
 
+def asks_course(message: str) -> bool:
+    """Whether a message talks about a course (taking it, its prerequisites, credits or lab)."""
+    return bool(_COURSE_TALK.search(message.casefold()))
+
+
 def courses_by_title(titles: dict[str, str], message: str,
                      codes: dict[str, str] | None = None) -> list[str]:
     """The courses a question names by an everyday form of their catalog title ("calc 2" is

@@ -485,3 +485,10 @@ def test_only_published_credit_totals_and_the_programs_own_plan() -> None:
     plans.append({"name": "Biology", "cohort": "Fall 2026", "terms": []})
     plan = choose_plan(plans, "Biology BS", "what does a biology freshman take", date(2026, 10, 25))
     assert plan is not None and plan["name"] == "Biology (General)"
+
+
+def test_course_talk_beside_a_program_word_still_asks_for_a_course() -> None:
+    from rockygpt_brain.academics import asks_course
+    assert asks_course("whats abnormal psychology about and how many credits is it")
+    assert asks_course("prereqs for drawing 2")
+    assert not asks_course("is there a psychology major")
