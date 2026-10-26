@@ -1,0 +1,152 @@
+[
+ {
+  "id": "et1-01",
+  "question": "are there any cultural clubs at ramapo? like for south asian or caribbean students",
+  "topic": "club"
+ },
+ {
+  "id": "et1-02",
+  "question": "Is there a community service club or volunteering org I can join? I'm a junior and never did anything like that and want to before I graduate",
+  "topic": "club"
+ },
+ {
+  "id": "et1-03",
+  "question": "whats going on on campus this week",
+  "topic": "event"
+ },
+ {
+  "id": "et1-04",
+  "question": "what does the ski and snowboard club actualy do",
+  "topic": "club"
+ },
+ {
+  "id": "et1-05",
+  "question": "any professional clubs for business majors? and how do i join one",
+  "topic": "club"
+ },
+ {
+  "id": "et1-06",
+  "question": "is there a christian fellowship or any faith based groups on campus",
+  "topic": "club"
+ },
+ {
+  "id": "et1-07",
+  "question": "anything happening tonight w free food",
+  "topic": "event"
+ },
+ {
+  "id": "et1-08",
+  "question": "arts clubs? theater, a cappella, art club, anything like that",
+  "topic": "club"
+ },
+ {
+  "id": "et1-09",
+  "question": "Are there any career fairs or networking events coming up next week? Where are they and do I need to register",
+  "topic": "event"
+ },
+ {
+  "id": "et1-10",
+  "question": "when does the black student union meet and who is the president",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "et1-11",
+  "question": "is there a muslim student assocation, and do they have anything going on this weekend",
+  "topic": "club"
+ },
+ {
+  "id": "et1-12",
+  "question": "which club should i join if i want to look good for grad school apps",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "et1-13",
+  "question": "is there a performance or concert this weekend and is it free for students",
+  "topic": "event"
+ },
+ {
+  "id": "et1-14",
+  "question": "whats the link to the hillel page",
+  "topic": "club"
+ },
+ {
+  "id": "et1-15",
+  "question": "how many people usually show up to the club fair stuff, is it worth going",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "et2-01",
+  "question": "whats going on tonight",
+  "topic": "event"
+ },
+ {
+  "id": "et2-02",
+  "question": "any home games this weekend? soccer or volleyball",
+  "topic": "event"
+ },
+ {
+  "id": "et2-03",
+  "question": "is there free food anywhere on campus today",
+  "topic": "event"
+ },
+ {
+  "id": "et2-04",
+  "question": "r there any thanksgiving events before break? like a friendsgiving or dinner thing",
+  "topic": "event"
+ },
+ {
+  "id": "et2-05",
+  "question": "whats happening next friday night and who's hosting it",
+  "topic": "event"
+ },
+ {
+  "id": "et2-06",
+  "question": "anything for finals week? like de-stress events or late night breakfast",
+  "topic": "event"
+ },
+ {
+  "id": "et2-07",
+  "question": "when's the next basketball game and is it home or away",
+  "topic": "event"
+ },
+ {
+  "id": "et2-08",
+  "question": "who runs the events in the student center on thursdays",
+  "topic": "event"
+ },
+ {
+  "id": "et2-09",
+  "question": "any halloween stuff happening this week? where and what time",
+  "topic": "event"
+ },
+ {
+  "id": "et2-10",
+  "question": "is the holiday party at the end of semester free or do i need tickets",
+  "topic": "event"
+ },
+ {
+  "id": "et2-11",
+  "question": "theres an event tmrw in the friends hall lounge, is it res life hosting it?",
+  "topic": "event"
+ },
+ {
+  "id": "et2-12",
+  "question": "does ramapo have a gaming club or esports team? how do i join",
+  "topic": "club"
+ },
+ {
+  "id": "et2-13",
+  "question": "how many ppl usually show up to the saturday night events, is it worth going",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "et2-14",
+  "question": "whats the best club to join if i wanna make friends in my dorm",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "et2-15",
+  "question": "when does the club that does the late night movie nights actually meet",
+  "topic": "out_of_scope"
+ }
+]

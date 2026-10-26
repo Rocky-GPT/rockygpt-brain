@@ -1,0 +1,17 @@
+[
+  {"id": "et2-01", "question": "whats going on tonight", "topic": "event"},
+  {"id": "et2-02", "question": "any home games this weekend? soccer or volleyball", "topic": "event"},
+  {"id": "et2-03", "question": "is there free food anywhere on campus today", "topic": "event"},
+  {"id": "et2-04", "question": "r there any thanksgiving events before break? like a friendsgiving or dinner thing", "topic": "event"},
+  {"id": "et2-05", "question": "whats happening next friday night and who's hosting it", "topic": "event"},
+  {"id": "et2-06", "question": "anything for finals week? like de-stress events or late night breakfast", "topic": "event"},
+  {"id": "et2-07", "question": "when's the next basketball game and is it home or away", "topic": "event"},
+  {"id": "et2-08", "question": "who runs the events in the student center on thursdays", "topic": "event"},
+  {"id": "et2-09", "question": "any halloween stuff happening this week? where and what time", "topic": "event"},
+  {"id": "et2-10", "question": "is the holiday party at the end of semester free or do i need tickets", "topic": "event"},
+  {"id": "et2-11", "question": "theres an event tmrw in the friends hall lounge, is it res life hosting it?", "topic": "event"},
+  {"id": "et2-12", "question": "does ramapo have a gaming club or esports team? how do i join", "topic": "club"},
+  {"id": "et2-13", "question": "how many ppl usually show up to the saturday night events, is it worth going", "topic": "out_of_scope"},
+  {"id": "et2-14", "question": "whats the best club to join if i wanna make friends in my dorm", "topic": "out_of_scope"},
+  {"id": "et2-15", "question": "when does the club that does the late night movie nights actually meet", "topic": "out_of_scope"}
+]
