@@ -1968,15 +1968,32 @@ def event_property(row: dict[str, Any], now: datetime) -> tuple[dict[str, Any], 
                          "source_ids": [source["id"]]}], "assertions": [assertion]}, source)
 
 
+# What a club's Archway listing says of itself, as written (its own heading dropped), cut at
+# CLUB_TEXT_CHARS: what it does, its own email, what members get.
+_CLUB_LISTING_TEXT = (("mission", "mission", "Mission"), ("email", "email", ""),
+                      ("member_benefits", "memberBenefits", "Membership Benefits"))
+CLUB_TEXT_CHARS = 400
+
+
+def _club_text(value: Any, label: str) -> str:
+    text = (clean(value) or "").replace("\u252c\u00e1", " ")  # A non-breaking space read as cp437.
+    if label and text.casefold().startswith(label.casefold()):
+        text = text[len(label):].strip()
+    return " ".join(text.split())[:CLUB_TEXT_CHARS]
+
+
 def club_property(row: dict[str, Any], now: datetime) -> tuple[dict[str, Any], dict[str, Any]]:
-    """A club's directory entry as published (name, category, page, membership note)."""
+    """A club's directory entry as published (name, category, page, membership note) and what
+    its own listing says of it (mission, email, member benefits)."""
     listing = _listing(row)
     url = _url(row.get("website_url"))
     source = _source({**row, "canonical_url": url}, now)
     source.update(collection="clubs", source_record_keys=[row["source_record_key"]],
                   record_ids=[row["id"]], content_hash=row.get("content_hash"))
     value = {"name": clean(row.get("name")), "category": clean(row.get("category")),
-             "membership": clean(listing.get("membershipInfo")), "url": url}
+             "membership": clean(listing.get("membershipInfo")), "url": url,
+             **{key: text for key, field, label in _CLUB_LISTING_TEXT
+                if (text := _club_text(listing.get(field), label))}}
     assertion = {"id": f"{source['id']}:club", "source_id": source["id"], "field": "club",
                  "raw_value": None, "value": _json_safe(value), "caveats": []}
     return ({"key": "club", "label": "Club", "category": "club", "status": "known",

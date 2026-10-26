@@ -246,3 +246,12 @@ def test_a_named_weekday_wins_over_weekend_and_a_versus_listing_is_a_game() -> N
     assert window("family weekend, what's open to parents this saturday", sunday)[2] == \
         "Saturday, October 31"
     assert "game" in _about({"title": "Women's Soccer vs. New Paltz", "tags": []})
+
+
+def test_a_clubs_own_listing_text_is_read_with_its_heading_dropped() -> None:
+    from rockygpt_brain.retrieval.entity_facts import _club_text
+    assert _club_text("Mission Naach is a dance club.┬áJoin us.", "Mission") == \
+        "Naach is a dance club. Join us."
+    assert _club_text("Membership BenefitsLearn dances.", "Membership Benefits") == \
+        "Learn dances."
+    assert _club_text(None, "Mission") == ""
