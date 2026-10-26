@@ -255,3 +255,11 @@ def test_a_clubs_own_listing_text_is_read_with_its_heading_dropped() -> None:
     assert _club_text("Membership BenefitsLearn dances.", "Membership Benefits") == \
         "Learn dances."
     assert _club_text(None, "Mission") == ""
+
+
+def test_a_later_part_of_the_term_reads_the_rest_of_the_semester() -> None:
+    from rockygpt_brain.events import window
+    monday = datetime(2026, 10, 26, 13, 0, tzinfo=WEDNESDAY.tzinfo)
+    assert window("any thanksgiving events before break", monday)[2] == "the rest of the semester"
+    assert window("anything for finals week", monday)[1].date().isoformat() == "2026-12-31"
+    assert window("anything fun", monday)[2] == "the next 14 days"

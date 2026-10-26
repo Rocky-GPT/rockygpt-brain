@@ -23,7 +23,7 @@ _LEVEL_SUFFIX = re.compile(
 _LEVEL_WORDS = {
     "minor": re.compile(r"\bminor(?:s|ing)?\b"),
     "certificate": re.compile(r"\bcert(?:ificate)?s?\b"),
-    "special": re.compile(r"4\s*\+\s*1|\bfive[- ]year\b|\b5[- ]year\b"),
+    "special": re.compile(r"4\s*\+\s*1|\bfive[- ]years?\b|\b5[- ]years?\b"),
     "graduate": re.compile(
         r"\bmaster'?s?\b|\bgrad(?:uate)?\b|\bm\.?s\.?\b|\bm\.?a\.?\b|\bmba\b|\bmsw\b|\bmfa\b|"
         r"\bmpp\b|\bmsn\b|\bdnp\b|\bdoctor"),
@@ -699,7 +699,8 @@ def _listing_answers(evidence: Sequence[dict[str, Any]], message: str) -> list[d
         return []
     # An accelerated bachelor's to master's path is the catalog's 4+1.
     if "special" in levels or ({"major", "graduate"} <= levels
-                               and re.search(r"\baccelerated\b", message.casefold())):
+                               and re.search(r"\b(?:accelerated|combined|dual)\b",
+                                             message.casefold())):
         levels = {"special"}
     elif {"certificate", "graduate"} <= levels:
         names = [n for n in listing["catalog_programs"].get("certificates", [])

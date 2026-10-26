@@ -144,7 +144,17 @@ def _days(message: str, now: datetime) -> tuple[datetime, datetime, str]:
         last = (date(today.year + (today.month == 12), today.month % 12 + 1, 1)
                 - timedelta(days=1))
         return now, _end(last, now), "this month"
+    # A later part of the term ("finals", "before Thanksgiving break") is past the usual two
+    # weeks: the rest of the semester's calendar is read.
+    if _LATER_TERM.search(text):
+        last = date(today.year, 12, 31) if today.month >= 8 else date(today.year, 6, 30)
+        return now, _end(last, now), "the rest of the semester"
     return now, _end(today + timedelta(days=DEFAULT_DAYS), now), f"the next {DEFAULT_DAYS} days"
+
+
+_LATER_TERM = re.compile(r"\b(?:finals?|end of (?:the )?(?:semester|term)|thanksgiving|"
+                         r"friendsgiving|before (?:the )?break|winter break|holiday|holidays|"
+                         r"december|semester)\b")
 
 
 def events_in(events: Sequence[dict[str, Any]], start: datetime,
