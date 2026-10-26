@@ -1,0 +1,17 @@
+[
+  {"id": "pu1-01", "question": "whats prof olbrecht's email", "topic": "contact"},
+  {"id": "pu1-02", "question": "hi i need to ask dr bitz for a rec letter for a summer program, where is his office and does he have office hours?", "topic": "contact"},
+  {"id": "pu1-03", "question": "what does professor castellanos teach? is it anthropology or sociology", "topic": "teaching"},
+  {"id": "pu1-04", "question": "email for sarah carberry in the science school", "topic": "contact"},
+  {"id": "pu1-05", "question": "who is ann lapore", "topic": "role"},
+  {"id": "pu1-06", "question": "prof al juboori office room # and phone pls", "topic": "contact"},
+  {"id": "pu1-07", "question": "is professor petkus a good professor for marketing? my friend said hes hard", "topic": "out_of_scope"},
+  {"id": "pu1-08", "question": "how do i contact dr otjen? i think his first name is nathan", "topic": "contact"},
+  {"id": "pu1-09", "question": "is lily pasaporte a librarian? i need help finding sources for my research paper", "topic": "role"},
+  {"id": "pu1-10", "question": "leigh keller library email", "topic": "contact"},
+  {"id": "pu1-11", "question": "whos the chair of the biology department and what's their email", "topic": "role"},
+  {"id": "pu1-12", "question": "professor martinez psychology office hours", "topic": "contact"},
+  {"id": "pu1-13", "question": "what does dr olbrect research? i want to ask him to be my advisor if i declare econ", "topic": "teaching"},
+  {"id": "pu1-14", "question": "is prof johnson in his office today? i need to get my add/drop form signed", "topic": "out_of_scope"},
+  {"id": "pu1-15", "question": "which professor should i pick for my advisor if im undecided business major", "topic": "out_of_scope"}
+]

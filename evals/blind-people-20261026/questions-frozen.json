@@ -1,0 +1,152 @@
+[
+ {
+  "id": "pu1-01",
+  "question": "whats prof olbrecht's email",
+  "topic": "contact"
+ },
+ {
+  "id": "pu1-02",
+  "question": "hi i need to ask dr bitz for a rec letter for a summer program, where is his office and does he have office hours?",
+  "topic": "contact"
+ },
+ {
+  "id": "pu1-03",
+  "question": "what does professor castellanos teach? is it anthropology or sociology",
+  "topic": "teaching"
+ },
+ {
+  "id": "pu1-04",
+  "question": "email for sarah carberry in the science school",
+  "topic": "contact"
+ },
+ {
+  "id": "pu1-05",
+  "question": "who is ann lapore",
+  "topic": "role"
+ },
+ {
+  "id": "pu1-06",
+  "question": "prof al juboori office room # and phone pls",
+  "topic": "contact"
+ },
+ {
+  "id": "pu1-07",
+  "question": "is professor petkus a good professor for marketing? my friend said hes hard",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pu1-08",
+  "question": "how do i contact dr otjen? i think his first name is nathan",
+  "topic": "contact"
+ },
+ {
+  "id": "pu1-09",
+  "question": "is lily pasaporte a librarian? i need help finding sources for my research paper",
+  "topic": "role"
+ },
+ {
+  "id": "pu1-10",
+  "question": "leigh keller library email",
+  "topic": "contact"
+ },
+ {
+  "id": "pu1-11",
+  "question": "whos the chair of the biology department and what's their email",
+  "topic": "role"
+ },
+ {
+  "id": "pu1-12",
+  "question": "professor martinez psychology office hours",
+  "topic": "contact"
+ },
+ {
+  "id": "pu1-13",
+  "question": "what does dr olbrect research? i want to ask him to be my advisor if i declare econ",
+  "topic": "teaching"
+ },
+ {
+  "id": "pu1-14",
+  "question": "is prof johnson in his office today? i need to get my add/drop form signed",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pu1-15",
+  "question": "which professor should i pick for my advisor if im undecided business major",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pu2-01",
+  "question": "Good afternoon. My daughter is visiting campus today and would like to speak with Professor Yuster about the math program. Could you please tell us her email address and where her office is located?",
+  "topic": "contact"
+ },
+ {
+  "id": "pu2-02",
+  "question": "Hello, could you tell me who Todd Barnes is and what department he is in?",
+  "topic": "role"
+ },
+ {
+  "id": "pu2-03",
+  "question": "We are touring with our son who is interested in nursing. Is Joan Richards in charge of the nursing program, and how would we contact her?",
+  "topic": "role"
+ },
+ {
+  "id": "pu2-04",
+  "question": "Hi, I'm looking for a librarian named Anita Capello. What is her phone number please?",
+  "topic": "contact"
+ },
+ {
+  "id": "pu2-05",
+  "question": "Could you please tell me what subjects Dr. Yuan Gao teaches in the business school, and whether he has office hours this week?",
+  "topic": "teaching"
+ },
+ {
+  "id": "pu2-06",
+  "question": "Who is the dean of the Anisfield School of Business? My son would like to send a short introduction email before applying.",
+  "topic": "role"
+ },
+ {
+  "id": "pu2-07",
+  "question": "Is there a professor Norflus who works with education majors? I believe her first name is Julia. We would like her title and email.",
+  "topic": "contact"
+ },
+ {
+  "id": "pu2-08",
+  "question": "My daughter wants to study theater. Could you tell us who teaches theater classes at Ramapo and who chairs that department?",
+  "topic": "teaching"
+ },
+ {
+  "id": "pu2-09",
+  "question": "Hello, what is Prof Ashley Stewart's office number and what does she teach?",
+  "topic": "contact"
+ },
+ {
+  "id": "pu2-10",
+  "question": "We met a Dr. Miller at the open house from the business school, Mike or Mark Miller I think. Could you please give me his email address?",
+  "topic": "contact"
+ },
+ {
+  "id": "pu2-11",
+  "question": "Could you tell me how to reach Elizabeth Siecke in the library, and what her role there is?",
+  "topic": "contact"
+ },
+ {
+  "id": "pu2-12",
+  "question": "Is Professor Regina Clark a good teacher? My son is deciding whether to take her writing class next fall.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pu2-13",
+  "question": "Good morning. Could you please let me know whether Professor Patel in the biology department is on campus today so we can stop by after our tour?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pu2-14",
+  "question": "Which professor would you recommend my daughter choose as her advisor for psychology, Dr. Thompson or Dr. Rivera?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pu2-15",
+  "question": "Who is the head of the computer science department, and what is the best phone number to call them?",
+  "topic": "role"
+ }
+]

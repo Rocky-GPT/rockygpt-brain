@@ -1,0 +1,17 @@
+[
+  {"id": "ev1-01", "question": "whats going on on campus this week", "topic": "event"},
+  {"id": "ev1-02", "question": "any events with free food tonight?", "topic": "event"},
+  {"id": "ev1-03", "question": "is there anything happening the week before thanksgiving or does campus just die", "topic": "event"},
+  {"id": "ev1-04", "question": "are there any finals week destress events like therapy dogs or pancakes at midnight", "topic": "event"},
+  {"id": "ev1-05", "question": "what's happening this weekend and is any of it free", "topic": "event"},
+  {"id": "ev1-06", "question": "when's the last home basketball game before winter break", "topic": "event"},
+  {"id": "ev1-07", "question": "is there a friendsgiving or thanksgiving dinner thing on campus? where is it", "topic": "event"},
+  {"id": "ev1-08", "question": "anything going on next friday night", "topic": "event"},
+  {"id": "ev1-09", "question": "are there any end of semester concerts or theater shows in december? do i need tickets", "topic": "event"},
+  {"id": "ev1-10", "question": "any career fair or internship stuff coming up before the semester ends, i need a summer internship lol", "topic": "event"},
+  {"id": "ev1-11", "question": "is there a club for people who like hiking or outdoors stuff", "topic": "club"},
+  {"id": "ev1-12", "question": "how do i join a club this late in the semester, is that even a thing", "topic": "club"},
+  {"id": "ev1-13", "question": "will the holiday party in the student center be crowded? like how many ppl usually go", "topic": "out_of_scope"},
+  {"id": "ev1-14", "question": "what time does the anime club meet and who's the president", "topic": "out_of_scope"},
+  {"id": "ev1-15", "question": "im kinda bored and want to meet people before finals, which club should i join", "topic": "out_of_scope"}
+]

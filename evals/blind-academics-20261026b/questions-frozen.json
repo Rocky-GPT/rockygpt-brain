@@ -1,0 +1,152 @@
+[
+ {
+  "id": "aw1-01",
+  "question": "is cmps 361 required for the computer science major or is it an elective",
+  "topic": "course"
+ },
+ {
+  "id": "aw1-02",
+  "question": "what are the prereqs for organic chemistry 2 and how many credits is it",
+  "topic": "course"
+ },
+ {
+  "id": "aw1-03",
+  "question": "I'm a junior in psych. Is research methods a required course for the major, and do I need stats before I can take it?",
+  "topic": "course"
+ },
+ {
+  "id": "aw1-04",
+  "question": "how many total credits do i need to graduate with a business administration degree",
+  "topic": "program"
+ },
+ {
+  "id": "aw1-05",
+  "question": "what classes are you supposed to take senior year for the nursing major?",
+  "topic": "sequence"
+ },
+ {
+  "id": "aw1-06",
+  "question": "does the senior seminar count as a capstone for the comm major or is that a separate class",
+  "topic": "program"
+ },
+ {
+  "id": "aw1-07",
+  "question": "hw many electives do i need for the biology major and can any 300 level bio class count",
+  "topic": "program"
+ },
+ {
+  "id": "aw1-08",
+  "question": "is calc 2 required for computer science or just calc 1",
+  "topic": "course"
+ },
+ {
+  "id": "aw1-09",
+  "question": "what's the recommended course sequence for junior and senior year in criminal justice",
+  "topic": "sequence"
+ },
+ {
+  "id": "aw1-10",
+  "question": "does econ 101 count toward gen ed? I took it as an elective freshman year and want to make sure it wasnt wasted",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "aw1-11",
+  "question": "whats the difference between INFO 101 and CMPS 147, do both count for the info tech major",
+  "topic": "course"
+ },
+ {
+  "id": "aw1-12",
+  "question": "Am I on track to graduate in spring 2028? I have 74 credits right now as an accounting major",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aw1-13",
+  "question": "is there an open section of the psych capstone next semester and who teaches it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aw1-14",
+  "question": "do i need to take a writing intensive course in my major to graduate, and how many",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "aw1-15",
+  "question": "should I take data structures or software engineering first, which is easier",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aw2-01",
+  "question": "Hi, my daughter is a high school senior who's interested in nursing. Does Ramapo have a nursing major for incoming freshmen, or is it only for people who are already RNs?",
+  "topic": "program"
+ },
+ {
+  "id": "aw2-02",
+  "question": "Is there a major in computer science, and if so what classes does a freshman usually take in the first semester?",
+  "topic": "sequence"
+ },
+ {
+  "id": "aw2-03",
+  "question": "What minors are available if I'm interested in environmental science or sustainability?",
+  "topic": "program"
+ },
+ {
+  "id": "aw2-04",
+  "question": "Can you explain how general education works at Ramapo? How many gen ed credits do students need and what categories do they have to cover?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "aw2-05",
+  "question": "does ramapo have any 5 year bachelors + masters programs? my son is thinking about accounting",
+  "topic": "program"
+ },
+ {
+  "id": "aw2-06",
+  "question": "We're looking at the psychology major. What are the required courses, and is there a recommended order for taking them over four years?",
+  "topic": "sequence"
+ },
+ {
+  "id": "aw2-07",
+  "question": "Are there any certificate programs undergrads can add on top of their major, like something in data analytics or business?",
+  "topic": "program"
+ },
+ {
+  "id": "aw2-08",
+  "question": "My son wants to be a high school teacher. Does Ramapo offer a teacher certification, and does he have to major in education or in the subject he wants to teach?",
+  "topic": "program"
+ },
+ {
+  "id": "aw2-09",
+  "question": "What is the first-year seminar that all freshmen take, and how many credits is it?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "aw2-10",
+  "question": "is there a film or communication major? what would the first year look like",
+  "topic": "sequence"
+ },
+ {
+  "id": "aw2-11",
+  "question": "What graduate programs does Ramapo offer? My daughter might want to stay for a master's after undergrad.",
+  "topic": "program"
+ },
+ {
+  "id": "aw2-12",
+  "question": "Do AP credits count toward gen ed requirements? She has AP Calc and AP English Lang.",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "aw2-13",
+  "question": "Which major would be better for getting into medical school, biology or biochemistry?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aw2-14",
+  "question": "Who teaches the intro biology classes this fall and are there still seats open in them?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "aw2-15",
+  "question": "My son already submitted his application. Can you check if he's been placed into the honors program and what his freshman schedule will be?",
+  "topic": "out_of_scope"
+ }
+]

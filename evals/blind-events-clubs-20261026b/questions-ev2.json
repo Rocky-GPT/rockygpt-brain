@@ -1,0 +1,17 @@
+[
+  {"id": "ev2-01", "question": "is there an environmental club or anything sustainability related i can join?", "topic": "club"},
+  {"id": "ev2-02", "question": "what does the gaming club actually do? like esports or just casual hangouts", "topic": "club"},
+  {"id": "ev2-03", "question": "Are there any dance clubs on campus? I did hip hop and contemporary in high school and want to keep going", "topic": "club"},
+  {"id": "ev2-04", "question": "business clubs at ramapo?", "topic": "club"},
+  {"id": "ev2-05", "question": "im catholic and looking for a religious group or campus ministry, is there one and how do i contact them", "topic": "club"},
+  {"id": "ev2-06", "question": "what clubs do volunteering or community service stuff", "topic": "club"},
+  {"id": "ev2-07", "question": "how do i join a club here? do i just show up or is there a sign up somewhere", "topic": "club"},
+  {"id": "ev2-08", "question": "when is the next event any of the cultural clubs are hosting", "topic": "event"},
+  {"id": "ev2-09", "question": "Is the Muslim Student Association doing anything this week, and do they have a page I can look at?", "topic": "event"},
+  {"id": "ev2-10", "question": "any club events tonight w free food lol", "topic": "event"},
+  {"id": "ev2-11", "question": "what clubs are having events next friday and where are they", "topic": "event"},
+  {"id": "ev2-12", "question": "is there a club for anime or video games and when do they meet", "topic": "club"},
+  {"id": "ev2-13", "question": "who's the president of the accounting society? i want to email them directly", "topic": "out_of_scope"},
+  {"id": "ev2-14", "question": "which club should i join if i want to make friends fast? im a shy transfer student", "topic": "out_of_scope"},
+  {"id": "ev2-15", "question": "how many people usually show up to the environmental club meetings, is it a big group", "topic": "out_of_scope"}
+]
