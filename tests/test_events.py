@@ -263,3 +263,21 @@ def test_a_later_part_of_the_term_reads_the_rest_of_the_semester() -> None:
     assert window("any thanksgiving events before break", monday)[2] == "the rest of the semester"
     assert window("anything for finals week", monday)[1].date().isoformat() == "2026-12-31"
     assert window("anything fun", monday)[2] == "the next 14 days"
+
+
+def test_function_words_and_term_words_are_not_what_an_event_is_about() -> None:
+    from rockygpt_brain.events import asked_topic, computed_answers
+    # "is any of it free" asks about the whole weekend; "it" was once read as its topic.
+    assert asked_topic("what's happening this weekend and is any of it free") == set()
+    # "finals week" and "before thanksgiving" say when (the later-term window), not what.
+    assert asked_topic("finals week destress events like therapy dogs") == {
+        "destress", "therapy", "dog"}
+    assert "thanksgiving" not in asked_topic("anything the week before thanksgiving")
+    at = datetime(2026, 10, 30, 0, 0, tzinfo=WEDNESDAY.tzinfo)
+    facts = [f["fact"] for f in computed_answers("this weekend", at, at, 4, [], False, {"xy"},
+                                                 False, (), 1)]
+    assert "mentions food" not in facts[1]
+    from rockygpt_brain.events import alternatives
+    words = asked_topic("finals week destress events like therapy dogs or pancakes")
+    assert {"therapy", "dog"} in alternatives("finals week destress events like therapy dogs or "
+                                              "pancakes", words)

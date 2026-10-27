@@ -52,7 +52,12 @@ _NOT_TOPIC = discovery_tokens(
     "time times date dates schedule calendar anywhere anything somewhere around usually ppl "
     "people gonna get got early many much how should would could will want need know see find "
     "some good like also near tmrw tmr whos host hosting hosted packed crowded busy worth "
-    "couple attend attending have has had does did are was were")
+    "couple attend attending have has had does did are was were "
+    # Function words, which never say what an event is about ("is any of it free").
+    "a an the and or but nor so yet if then than that this these those it its im you your "
+    "he she they them their we us our of in at by with from into onto about over under out "
+    "off up as be been being am do doing done here there which whom whose why just only very "
+    "really all each every both either neither no not too before after during until while")
 
 
 def asks_events(message: str) -> bool:
@@ -181,10 +186,12 @@ def topic_words(message: str) -> set[str]:
 
 def asked_topic(message: str) -> set[str]:
     """The topic words events are matched on; a food question's food words are matched on what
-    each listing says instead (food_mention)."""
-    food = _FOOD_ASK.findall(message.casefold())
+    each listing says instead (food_mention), and the words that set a later-term window
+    ("finals week", "before thanksgiving") say when, not what."""
+    text = message.casefold()
+    food = _FOOD_ASK.findall(text)
     return (topic_words(message) - (_stems(" ".join(food)) if food else set())
-            - _stems(" ".join(_GENERIC_CLUB)))
+            - _stems(" ".join(_LATER_TERM.findall(text))) - _stems(" ".join(_GENERIC_CLUB)))
 
 
 # A listing titled "A vs. B" is a game, whatever words its description uses.
@@ -207,9 +214,11 @@ TOPIC_SHARE = 0.5
 
 def alternatives(message: str, words: set[str]) -> list[set[str]]:
     """The topic words of each alternative a question offers ("movie or trivia nights",
-    "theater, dance"): the whole topic, and each part split at "or", commas and slashes that
-    keeps a topic word."""
-    parts = [words & topic_words(part) for part in re.split(r"\bor\b|,|/", message.casefold())]
+    "theater, dance", "destress events like therapy dogs"): the whole topic, and each part split
+    at "or", commas, slashes and the examples "like" or "such as" gives that keeps a topic
+    word."""
+    parts = [words & topic_words(part)
+             for part in re.split(r"\bor\b|,|/|\blike\b|\bsuch as\b", message.casefold())]
     return [words, *[p for p in parts if p and p != words]]
 
 
@@ -451,7 +460,8 @@ def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
                                   + "; ".join(f"{line['event']} [{line['n']}]" for line in near)
                                   + ".", "n": near[0]["n"]})
     else:
-        about = f"about {topic}" if topic else "whose listing mentions food"
+        about = (f"about {topic}" if topic else "whose listing mentions food" if food
+                 else "about what was asked")
         facts.append({"fact": f"The calendar lists no event {about} {where}; it lists "
                               f"{in_window} other event{'s' if in_window != 1 else ''} then.",
                       "n": calendar_n})
