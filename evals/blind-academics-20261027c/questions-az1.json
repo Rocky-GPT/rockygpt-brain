@@ -1,0 +1,17 @@
+[
+  {"id": "az1-01", "question": "whats the prereq for calc 2", "topic": "course"},
+  {"id": "az1-02", "question": "can i take orgo 1 if i only finished gen chem 1 or do i need gen chem 2 too", "topic": "course"},
+  {"id": "az1-03", "question": "how many credits is cmps 361 and what do u need before it", "topic": "course"},
+  {"id": "az1-04", "question": "is there a data science major or is it just a minor", "topic": "program"},
+  {"id": "az1-05", "question": "what classes do i need for the bio major besides the bio ones like is physics and calc required", "topic": "program"},
+  {"id": "az1-06", "question": "does stats count for gen ed math", "topic": "gen_ed"},
+  {"id": "az1-07", "question": "im a sophomore comp sci what should i be taking in the spring of 2nd year per the 4 yr plan", "topic": "sequence"},
+  {"id": "az1-08", "question": "how many credits is the math minor and does calc 1 count toward it", "topic": "program"},
+  {"id": "az1-09", "question": "what does phys 1 cover is it calc based or algebra based", "topic": "course"},
+  {"id": "az1-10", "question": "which gen ed categories do i still need to finish", "topic": "out_of_scope"},
+  {"id": "az1-11", "question": "is data structures open for spring or is it full already", "topic": "out_of_scope"},
+  {"id": "az1-12", "question": "do i need discrete math before data structures or can i take them at the same time", "topic": "course"},
+  {"id": "az1-13", "question": "whats the difference between the bs in chemistry and the biochem major, like requirements wise", "topic": "program"},
+  {"id": "az1-14", "question": "how many gen ed credits total do u need to graduate and is there a writing intensive requirement", "topic": "gen_ed"},
+  {"id": "az1-15", "question": "should i do cs or IT if i want to get a job faster after graduating", "topic": "out_of_scope"}
+]
