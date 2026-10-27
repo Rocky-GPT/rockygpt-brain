@@ -1697,7 +1697,9 @@ class ChatEngine:
         level_word = {"special": "4+1", "graduate": "graduate"}.get(pick["level"] or "",
                                                                      pick["level"] or "")
         asked = " ".join(part for part in (message, pick["track"] or "") if part)
-        listing = "programs_at_level" in pick["find"]
+        # A level asked about ("is there a physics major") gets that level's whole list, so a
+        # program the catalog does not have is said to be missing.
+        listing = "programs_at_level" in pick["find"] or pick["level"] is not None
         evidence, sources, version = self._read_programs(
             pick["programs"], academics.also_published(all_programs, pick["programs"]),
             pick["courses"], asked, today, listing,
