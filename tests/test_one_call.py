@@ -196,3 +196,14 @@ def test_a_dated_change_on_a_page_is_judged_against_today() -> None:
         'passed, so this is in effect now.',
         'Section [5] says "Starting January 5, 2027 parking forms move online": January 5, 2027 '
         'is still to come, so this is not in effect yet.']
+
+
+def test_a_reply_naming_a_course_the_facts_do_not_hold_is_not_sent() -> None:
+    from rockygpt_brain.writer import unsupported_by
+    view = {"facts": "CHEM 425 prerequisites: complete any of BIOL 332 and CHEM 205; CHEM 213",
+            "sources": [{"n": 1}]}
+    assert unsupported_by("Take CHEM 213 before CHEM 425 [1].", view) == []
+    assert unsupported_by("CHEM 425 needs CHEM 211 first.", view) == [
+        "a course the facts do not hold: CHEM 211"]
+    # A word of no subject the facts hold ("room 425") is not checked as a course.
+    assert unsupported_by("It meets in room 425.", view) == []

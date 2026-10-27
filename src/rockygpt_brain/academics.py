@@ -670,21 +670,11 @@ def _core_words(name: str) -> list[str]:
 
 def subject_words(programs: Sequence[dict[str, Any]], words: Sequence[str],
                   message: str, level: str) -> list[str]:
-    """The words beside a level word that name a subject: all of them, else the longest run
-    right before a level word or right after it (or its "in"/"of") that does ("a capstone for
-    the comm major" names Communication Arts by "comm"), else none."""
-    if names_subject(programs, words):
-        return list(words)
-    tokens = re.findall(r"[a-z0-9+]+", message.casefold())
-    levels = [k for k, token in enumerate(tokens) if _LEVEL_TOKENS.get(token) == level]
-    for size in range(len(words) - 1, 0, -1):
-        for k in levels:
-            after = k + 2 if tokens[k + 1:k + 2] in (["in"], ["of"]) else k + 1
-            for run in (tokens[max(0, k - size):k], tokens[after:after + size]):
-                if len(run) == size and all(w in words for w in run) \
-                        and names_subject(programs, run):
-                    return run
-    return []
+    """The words beside a level word when every one names a subject, else none. (A narrower
+    run, "business" of "finish a business major", named International Business as the business
+    major and "art" Communication Arts, 10-27: the catalog pick now finds what a student
+    means.)"""
+    return list(words) if names_subject(programs, words) else []
 
 
 def names_subject(programs: Sequence[dict[str, Any]], words: Sequence[str]) -> bool:

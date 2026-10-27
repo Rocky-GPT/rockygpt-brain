@@ -434,17 +434,8 @@ def test_only_a_subject_the_catalog_names_gets_a_listing_fact() -> None:
     programs = [{"name": n} for n in ("International Business BA", "Healthcare Administration BS",
                                       "Business Administration MBA", "History BA", "History Minor",
                                       "Criminal Justice BA")]
-    # The word right before the level word names the subject when the others do not.
-    (fact,) = computed_answers([], programs, "can you finish a business major in 4 years", 1)
-    assert fact["fact"] == ("The catalog lists this bachelor's major for 'business': "
-                            "International Business BA.")
-    (fact,) = computed_answers([], [*programs, {"name": "Communication Arts BA"}],
-                               "does the senior seminar count as a capstone for the comm major", 1)
-    assert "Communication Arts BA" in fact["fact"]
-    # "history" sits beside "major", not "minors": no minor is named for it.
-    assert [f["fact"] for f in computed_answers(
-        [], programs, "what minors pair well with a history major", 1)] == [
-        "The catalog lists this bachelor's major for 'history': History BA."]
+    assert computed_answers([], programs, "can you finish a business major in 4 years", 1) == []
+    assert computed_answers([], programs, "what minors pair well with a history major", 1) == []
     (fact,) = computed_answers([], programs, "courses for the business administration major", 1)
     assert fact["fact"] == ("The catalog lists no bachelor's major for 'business administration'."
                             " Its bachelor's majors named for part of it: Healthcare "

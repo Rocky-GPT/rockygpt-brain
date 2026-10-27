@@ -56,7 +56,8 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   them as given, every course and how many of a list to take, with their notes; never add up
   credits or courses yourself. Name the program and its degree; when also_published lists its
   other levels, name them in one short line. A course (programs entries with "course") is said
-  with its credits, prerequisites and attributes as given. A graduation_plan is the catalog's
+  with its credits, prerequisites (every alternative and condition, in the catalog's words,
+  never shortened) and attributes as given. A graduation_plan is the catalog's
   recommended sequence for the admission year it names: say which year it is for, and give its
   semesters and totals as written; other_plans_same_year names that year's other tracks.
   catalog_programs lists every published program by level: a major, minor or program it does

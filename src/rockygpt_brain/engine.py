@@ -18,7 +18,7 @@ from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from rockygpt_brain import academics, events, one_call
+from rockygpt_brain import academics, catalog, events, one_call
 from rockygpt_brain import people as people_module
 from rockygpt_brain.answers import (
     Rendered,
@@ -1222,7 +1222,7 @@ class ChatEngine:
         self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._upcoming_cache: tuple[tuple[str, str], list[dict[str, Any]]] | None = None
         self._ordinary_words: tuple[str, frozenset[str]] | None = None
-        self._tracks: tuple[str, dict[str, str]] | None = None
+        self._tracks: tuple[str, tuple[dict[str, str], dict[str, list[str]]]] | None = None
 
     def _json(self, result: ChatResult, parts: list[dict[str, Any]], turn: Turn) -> ChatResult:
         """In JSON output the written answer is dropped and the facts go out as they are: the full
@@ -1625,10 +1625,17 @@ class ChatEngine:
 
     def _plan_tracks(self) -> dict[str, str]:
         """Each recommended plan's name that has a track ("Law and Society/Criminal Justice")
-        and its program's name, read once per release."""
+        and its program's name."""
+        return self._catalog_maps()[0]
+
+    def _catalog_maps(self) -> tuple[dict[str, str], dict[str, list[str]]]:
+        """Read once per release from every program's published record: each plan name that
+        has a track with its program's name, and each course code with the programs whose
+        requirements list it."""
         version, identity_hash = self.facts.active_release()
         if self._tracks is None or self._tracks[0] != version:
             tracks: dict[str, str] = {}
+            listed_in: dict[str, list[str]] = {}
             for program in self.facts.identities(("program",)):
                 facts = self.facts.get_program_facts(program["id"], version,
                                                      identity_hash=identity_hash)
@@ -1638,8 +1645,75 @@ class ChatEngine:
                             name = str(value["value"].get("name") or "")
                             if academics.plan_track(name):
                                 tracks.setdefault(name, str(program["name"]))
-            self._tracks = (version, tracks)
+                    if prop["key"] == "requirements":
+                        text = academics.render_requirements(
+                            [value["value"] for value in prop["values"]])
+                        for code in catalog.courses_listed(text):
+                            listed_in.setdefault(code, []).append(str(program["name"]))
+            self._tracks = (version, (tracks, listed_in))
         return self._tracks[1]
+
+    async def _pick_catalog(self, question: str, index: MeaningIndex,
+                            vectors: Sequence[Sequence[float]],
+                            hints: tuple[list[dict[str, Any]], list[str], list[dict[str, Any]]]
+                            | None, budget: TurnBudget) -> dict[str, Any] | None:
+        """The programs and courses the question means, picked by the model from every catalog
+        program name and the courses near the question (catalog.py); None when the pick fails."""
+        named = self.facts.identities(("program", "course"))
+        programs = {str(e["name"]): e for e in named if e.get("kind") == "program"}
+        courses = {str(e["name"]): e for e in named if e.get("kind") == "course"}
+        by_id = {str(e["id"]): e for e in courses.values()}
+        # The courses typed or named by an everyday title (code hints), then those whose cards
+        # are nearest each part of the question.
+        candidates = [str(c["name"]) for c in (hints[2] if hints else [])]
+        for vector in vectors:
+            candidates += [str(by_id[i]["name"]) for i, _ in
+                           index.academic_scores(vector, "course")[:catalog.MAX_CANDIDATES]
+                           if i in by_id]
+        candidates = list(dict.fromkeys(candidates))[:2 * catalog.MAX_CANDIDATES]
+        titles = {str(by_id[i]["name"]): t for i, t in index.course_titles.items() if i in by_id}
+        tracks: dict[str, list[str]] = {}
+        for plan, program in (await asyncio.to_thread(self._catalog_maps))[0].items():
+            track = academics.plan_track(plan)
+            if track not in tracks.setdefault(program, []):
+                tracks[program].append(track)
+        budget.max_calls = max(budget.max_calls, budget.calls + 1)
+        completion = await self.gateway.complete(
+            input=catalog.pick_messages(question, sorted(programs),
+                                        [(c, titles.get(c, "")) for c in candidates], tracks),
+            tools=[catalog.PICK_TOOL], budget=budget)
+        call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
+        return catalog.read_pick(call.arguments if call is not None
+                                 and call.name == "pick_catalog" else None, programs, courses)
+
+    def _read_picked(self, pick: dict[str, Any], message: str, today: date,
+                     numbered_from: int,
+                     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str,
+                                list[dict[str, Any]]]:
+        """The picked programs and courses read as numbered evidence (the catalog listing too
+        when programs at a level are asked for), and what code answers across the catalog: the
+        programs listing each picked course and which picked course comes first."""
+        all_programs = self.facts.identities(("program",))
+        level_word = {"special": "4+1", "graduate": "graduate"}.get(pick["level"] or "",
+                                                                     pick["level"] or "")
+        asked = " ".join(part for part in (message, pick["track"] or "") if part)
+        listing = "programs_at_level" in pick["find"]
+        evidence, sources, version = self._read_programs(
+            pick["programs"], academics.also_published(all_programs, pick["programs"]),
+            pick["courses"], asked, today, listing,
+            listing_message=f"{message} {level_word}".strip(), numbered_from=numbered_from)
+        catalog_n = next((e["n"] for e in evidence if "catalog_programs" in e), None)
+        courses = [{"code": " ".join(str(e["course"]).split()[:2]), "n": e["n"],
+                    "prerequisites": str(e.get("prerequisites") or "")}
+                   for e in evidence if e.get("course")]
+        facts: list[dict[str, Any]] = []
+        if "programs_listing_course" in pick["find"] and courses:
+            listed_in = self._catalog_maps()[1]
+            facts += catalog.listing_facts([c["code"] for c in courses], listed_in,
+                                           catalog_n or courses[0]["n"])
+        facts += catalog.order_facts(courses, {c["code"]: catalog.courses_listed(
+            c["prerequisites"]) for c in courses})
+        return evidence, sources, version, facts
 
     def _academics_by_meaning(self, index: MeaningIndex, vector: Sequence[float], message: str,
                               ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -1662,16 +1736,18 @@ class ChatEngine:
     def _read_programs(self, programs: Sequence[dict[str, Any]], others: Sequence[str],
                        courses: Sequence[dict[str, Any]] = (), message: str = "",
                        today: date | None = None, listing: bool = False,
+                       listing_message: str | None = None, numbered_from: int = 0,
                        ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
         """Each named program's and course's facts through the shared reader, as numbered
-        evidence."""
+        evidence (numbered after the numbered_from sources before them)."""
         version, identity_hash = self.facts.active_release()
         evidence: list[dict[str, Any]] = []
         sources: list[dict[str, Any]] = []
         for program in programs:
             facts = self.facts.get_program_facts(program["id"], version,
                                                  identity_hash=identity_hash)
-            item = academics.program_evidence(facts, len(sources) + 1, others, message, today)
+            item = academics.program_evidence(facts, numbered_from + len(sources) + 1, others,
+                                              message, today)
             evidence.append(item)
             sources.append({"n": item["n"], "url": item.get("catalog_url"),
                             "title": item.get("program")})
@@ -1681,7 +1757,8 @@ class ChatEngine:
                                                      identity_hash=identity_hash):
                 code = str(facts["entity"]["name"])
                 item = academics.course_evidence(
-                    facts, len(sources) + 1, index.required_by.get(code, []) if index else [])
+                    facts, numbered_from + len(sources) + 1,
+                    index.required_by.get(code, []) if index else [])
                 evidence.append(item)
                 sources.append({"n": item["n"], "url": item.get("catalog_url"),
                                 "title": item.get("course")})
@@ -1689,8 +1766,9 @@ class ChatEngine:
             # Every published program by level, so "what majors are there" is answered and a
             # program the catalog does not list is said to be missing.
             programs = self.facts.identities(("program",))
-            item = {"n": len(sources) + 1,
-                    "catalog_programs": academics.catalog_listing(programs, message),
+            item = {"n": numbered_from + len(sources) + 1,
+                    "catalog_programs": academics.catalog_listing(
+                        programs, message if listing_message is None else listing_message),
                     "catalog_url": "https://catalog.ramapo.edu/programs"}
             evidence.append(item)
             sources.append({"n": item["n"], "url": item["catalog_url"],
@@ -2003,9 +2081,13 @@ class ChatEngine:
         offices: list[dict[str, Any]] = []
         sources: list[dict[str, Any]] = []
         dataset_version = index.dataset_version if index else ""
+        # An academic question is read from what the model picks among the catalog's own names
+        # when the meaning index is published; the code-named programs are its hints.
+        pick_catalog = bool(searchable and index is not None and index.academic and (
+            (programs and (programs[0] or programs[2])) or academics.asks_academics(latest)))
         try:
             async with asyncio.timeout(self.turn_seconds):
-                if programs:
+                if programs and not pick_catalog:
                     with measure("Read the programs named"):
                         academic, sources, dataset_version = await asyncio.to_thread(
                             self._read_programs, *programs, latest, turn.campus_now.date())
@@ -2039,7 +2121,30 @@ class ChatEngine:
                     # psychology" names the Psychology programs) still looks for the course.
                     course_only = bool(programs and not programs[2]
                                        and academics.asks_course(latest))
-                    if (not programs or course_only) and index.academic \
+                    picked = None
+                    if pick_catalog:
+                        with measure("Pick the catalog programs and courses"):
+                            picked = await self._pick_catalog(latest, index, vectors, programs,
+                                                              budget)
+                        trace["catalogPick"] = (
+                            {"programs": [p["name"] for p in picked["programs"]],
+                             "courses": [c["name"] for c in picked["courses"]],
+                             "find": picked["find"], "level": picked["level"],
+                             "track": picked["track"]} if picked is not None else None)
+                    if picked is not None:
+                        with measure("Read the catalog picks"):
+                            academic, found_sources, dataset_version, picked_facts = \
+                                await asyncio.to_thread(self._read_picked, picked, latest,
+                                                        turn.campus_now.date(), len(sources))
+                        sources = [*sources, *found_sources]
+                        computed = [*computed, *picked_facts]
+                    elif pick_catalog and programs:
+                        with measure("Read the programs named"):
+                            academic, found_sources, dataset_version = await asyncio.to_thread(
+                                self._read_programs, *programs, latest, turn.campus_now.date(),
+                                numbered_from=len(sources))
+                        sources = [*sources, *found_sources]
+                    elif (not programs or course_only) and index.academic \
                             and academics.asks_academics(latest):
                         found_programs, found_courses = self._academics_by_meaning(
                             index, vectors[0], latest)
