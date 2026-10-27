@@ -1,0 +1,17 @@
+[
+  {"id": "ex1-01", "question": "anything happening on campus tonight? i get out of work around 6", "topic": "event"},
+  {"id": "ex1-02", "question": "Is there a club or group for transfer students or commuters? I don't live on campus and kind of want to meet people", "topic": "club"},
+  {"id": "ex1-03", "question": "whats going on this weekend at ramapo", "topic": "event"},
+  {"id": "ex1-04", "question": "are there any events with free food this week", "topic": "event"},
+  {"id": "ex1-05", "question": "When is the next career fair or networking event? Is it free and do I need to register?", "topic": "event"},
+  {"id": "ex1-06", "question": "how do i join a club here, is there a list somewhere of all the orgs", "topic": "club"},
+  {"id": "ex1-07", "question": "what cultural clubs does ramapo have", "topic": "club"},
+  {"id": "ex1-08", "question": "is there a home basketball game next friday? what time and where", "topic": "event"},
+  {"id": "ex1-09", "question": "Is there an intramural or club soccer team? I played at my old school", "topic": "club"},
+  {"id": "ex1-10", "question": "any club meetings or events on tuesday or thursday afternoons? those are the only days im free before my shift", "topic": "event"},
+  {"id": "ex1-11", "question": "who runs the business club and when do they meet", "topic": "out_of_scope"},
+  {"id": "ex1-12", "question": "what are some workshops coming up next week, like resume or study skills stuff", "topic": "event"},
+  {"id": "ex1-13", "question": "Which club would be best for someone who's shy and only on campus 3 days a week?", "topic": "out_of_scope"},
+  {"id": "ex1-14", "question": "how many people usually show up to the club fair, is it worth going", "topic": "out_of_scope"},
+  {"id": "ex1-15", "question": "does ramapo have greek life? how do u rush if ur a transfer", "topic": "club"}
+]

@@ -1,0 +1,17 @@
+[
+  {"id": "ax2-01", "question": "how many credits is the psych minor? and can classes from my major double count for it", "topic": "program"},
+  {"id": "ax2-02", "question": "im a junior thinking abt switching from bio to environmental science, whats required for the env sci major", "topic": "program"},
+  {"id": "ax2-03", "question": "is there a data science minor or certificate at ramapo", "topic": "program"},
+  {"id": "ax2-04", "question": "prereqs for cmps 231?", "topic": "course"},
+  {"id": "ax2-05", "question": "what does stat 280 cover and how many credits is it", "topic": "course"},
+  {"id": "ax2-06", "question": "does intro to sociology count for gen ed? which category", "topic": "gen_ed"},
+  {"id": "ax2-07", "question": "how many total credits do u need to graduate from ramapo and how many of those are gen ed", "topic": "gen_ed"},
+  {"id": "ax2-08", "question": "what are the gen ed categories again, i forgot which ones i still need lol", "topic": "gen_ed"},
+  {"id": "ax2-09", "question": "if i switch to business admin as a junior what courses do they recommend taking first", "topic": "sequence"},
+  {"id": "ax2-10", "question": "whats the recommended order for the comp sci major courses? like what do ppl take sophomore vs junior yr", "topic": "sequence"},
+  {"id": "ax2-11", "question": "comm major reqs + is there a capstone or internship requirement", "topic": "program"},
+  {"id": "ax2-12", "question": "can u check my degree audit and tell me if i can still graduate in spring 2028 if i add a minor", "topic": "out_of_scope"},
+  {"id": "ax2-13", "question": "is econ 101 open next semester and who's teaching it", "topic": "out_of_scope"},
+  {"id": "ax2-14", "question": "should i switch to psych or just add it as a minor? i dont want to graduate late", "topic": "out_of_scope"},
+  {"id": "ax2-15", "question": "whats the difference between the marketing concentration in bus admin and the marketing minor", "topic": "program"}
+]
