@@ -68,12 +68,15 @@ def find_programs(programs: Sequence[dict[str, Any]], message: str) -> list[dict
     from the whole message, else the undergraduate major."""
     tokens = re.findall(r"[a-z0-9+]+", message.casefold())
     named: list[tuple[dict[str, Any], frozenset[str], list[int], set[int]]] = []
+    # Each short form's matches: the length of the word it stood for, by program.
+    short: dict[int, list[tuple[int, int]]] = {}
     for program in programs:
         core = discovery_tokens(program_core(str(program["name"])))
         if not core:
             continue
         places: list[int] = []
         every: set[int] = set()
+        stood: list[tuple[int, int]] = []
         for word in core:
             at = [k for k, w in enumerate(tokens) if w == word or (
                 w not in _ASKING and _abbreviates(w, word) and len(w) >= 3)]
@@ -81,10 +84,18 @@ def find_programs(programs: Sequence[dict[str, Any]], message: str) -> list[dict
                 break
             places.append(min(at))
             every.update(at)
+            stood += [(k, len(word)) for k in at if tokens[k] != word]
         else:
+            for k, length in stood:
+                short.setdefault(k, []).append((length, len(named)))
             named.append((program, core, places, every))
     if not named:
         return []
+    # A short form several programs share stands for the shortest word it starts ("bio" is
+    # Biology, not Biochemistry or Bioinformatics).
+    longer = {i for matches in short.values() for length, i in matches
+              if length > min(m for m, _ in matches)}
+    named = [item for i, item in enumerate(named) if i not in longer]
     # A shorter name is dropped only when every mention of it is inside the longer one ("just
     # physics" still names Physics beside Engineering Physics).
     kept = [(p, core, places) for p, core, places, every in named
@@ -208,15 +219,25 @@ def choose_plan(plans: Sequence[dict[str, Any]], program: str, message: str,
     cohort = asked[0] if asked else f"Fall {current - standing}"
     if cohort not in cohorts:
         cohort = max(cohorts, key=lambda c: c[-4:], default="")
-    # A plan with no semesters published is not a plan to give.
-    pool = [p for p in plans if str(p.get("cohort")) == cohort and p.get("terms")]
-    # A plan the message names by its own name (a concentration: "Contemporary Arts" of Visual
-    # Arts) before the plan named as the program itself.
     words = discovery_tokens(message)
     core = program_core(program).casefold()
-    asked_plan = [p for p in pool if ((name := discovery_tokens(str(p.get("name") or "")))
-                                      and name <= words or plan_track_named(p, words))
-                  and str(p.get("name") or "").casefold() != core]
+
+    def asked_for(plan: dict[str, Any]) -> bool:
+        """A plan the message names by its own name (a concentration: "Contemporary Arts" of
+        Visual Arts) or by its track's words."""
+        name = discovery_tokens(str(plan.get("name") or ""))
+        return bool(name) and str(plan.get("name") or "").casefold() != core and (
+            name <= words or names_all(name - discovery_tokens(core) - _TRACK_FILLER
+                                       - _BASE_PLAN_WORDS, words))
+    # A track asked for that this cohort has no plan for is read from the latest cohort that
+    # does, unless the message names its year.
+    if not asked and not any(asked_for(p) for p in plans if p.get("cohort") == cohort
+                             and p.get("terms")):
+        cohort = max((str(p.get("cohort")) for p in plans if p.get("terms") and asked_for(p)),
+                     key=lambda c: c[-4:], default=cohort)
+    # A plan with no semesters published is not a plan to give.
+    pool = [p for p in plans if str(p.get("cohort")) == cohort and p.get("terms")]
+    asked_plan = [p for p in pool if asked_for(p)]
     # Else the program's own plan: its name alone, or with only "General" or "undeclared
     # concentration" beside it ("Biology (General)"), never a track's ("NYCPM Podiatry").
     core_words = discovery_tokens(core)
@@ -235,10 +256,22 @@ def plan_track(name: str) -> str:
     return name.split("/", 1)[1].strip() if "/" in name else ""
 
 
+_TRACK_FILLER = discovery_tokens("track pre plan program with and the")
+
+
 def plan_track_named(plan: dict[str, Any], words: Set[str]) -> bool:
-    """Whether every word of a plan's track is a word of the message."""
-    track = discovery_tokens(plan_track(str(plan.get("name") or "")))
-    return bool(track) and track <= words
+    """Whether a plan's track (but "track" and "pre") is named by the message's words."""
+    return names_all(discovery_tokens(plan_track(str(plan.get("name") or ""))) - _TRACK_FILLER,
+                     words)
+
+
+def names_all(track: Set[str], words: Set[str]) -> bool:
+    """Whether every one of a track's words is a word of the message or one is a short form of
+    the other ("med school" names the Pre-Medical Track, "medical school" the Pre-Med one)."""
+    return bool(track) and all(
+        any(w == t or (w not in _ASKING and len(w) >= 3 and len(t) >= 3
+                       and (_abbreviates(w, t) or _abbreviates(t, w))) for w in words)
+        for t in track)
 
 
 def programs_by_track(tracks: dict[str, str], message: str) -> list[str]:
@@ -490,7 +523,11 @@ _ASKING = {"for", "the", "and", "can", "how", "what", "when", "who", "why", "doe
            "classes", "course", "courses", "credits", "credit", "prereqs", "prereq", "prerequisite",
            "prerequisites", "major", "minor", "year", "semester", "first", "next", "this", "that",
            "there", "have", "has", "will", "should", "count", "counts", "enough", "into", "from",
-           "gen", "general", "education", "ed"}
+           "gen", "general", "education", "ed",
+           # Function words, never a short form ("his first year" is not History).
+           "his", "her", "hers", "him", "its", "our", "ours", "their", "them", "they", "you",
+           "your", "any", "all", "are", "was", "were", "not", "but", "may", "one", "two", "out",
+           "own", "get", "got", "use"}
 
 
 def _title_words(title: str) -> list[str]:
@@ -681,7 +718,13 @@ def computed_answers(evidence: Sequence[dict[str, Any]], programs: Sequence[dict
         else:
             others = [n for other in _LEVEL_NAMES if other != level
                       for n in published_in(programs, other, words)][:6]
+            # The same level's programs named by part of it ("data" of "data science": the
+            # Data Analyst certificate), so "none" is never said of a near one.
+            partly = sorted({n for w in words for n in published_in(programs, level, [w])}
+                            ) if len(words) > 1 else []
             facts.append({"fact": f"The catalog lists no {label} for '{' '.join(words)}'."
+                                  + (f" Its {label}s named for part of it: "
+                                     f"{'; '.join(partly)}." if 0 < len(partly) <= 6 else "")
                                   + (f" It does list: {'; '.join(others)}." if others else ""),
                           "n": catalog_n})
     courses = [e for e in evidence if e.get("course")]

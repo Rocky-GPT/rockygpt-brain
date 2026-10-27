@@ -447,7 +447,9 @@ def test_only_a_subject_the_catalog_names_gets_a_listing_fact() -> None:
         "The catalog lists this bachelor's major for 'history': History BA."]
     (fact,) = computed_answers([], programs, "courses for the business administration major", 1)
     assert fact["fact"] == ("The catalog lists no bachelor's major for 'business administration'."
-                            " It does list: Business Administration MBA.")
+                            " Its bachelor's majors named for part of it: Healthcare "
+                            "Administration BS; International Business BA. It does list: "
+                            "Business Administration MBA.")
     assert class_standing("I'm a junior. What do juniors and seniors take?") == 2
     assert class_standing("im a sophomore, what should i take junior year") == 1
 
@@ -543,3 +545,27 @@ def test_published_credits_tracks_and_listing_names_are_found_by_code() -> None:
     assert said[-1] == ("Of the catalog's minors, these have a word of the question in their "
                         "names: Environmental Science Minor; Environmental Studies Minor; "
                         "Sustainability Minor.")
+
+
+def test_a_short_form_is_its_shortest_word_and_a_named_track_is_its_plan() -> None:
+    from datetime import date
+
+    from rockygpt_brain.academics import choose_plan, find_programs
+    programs = [{"id": str(k), "name": n} for k, n in enumerate((
+        "Biology BS", "Biochemistry BS", "Bioinformatics BS", "Environmental Science BS",
+        "History BA"))]
+    found = find_programs(programs, "switching from bio to environmental science, env sci reqs")
+    assert [p["name"] for p in found] == ["Biology BS", "Environmental Science BS"]
+    assert [p["name"] for p in find_programs(programs, "biology in his first year")] == [
+        "Biology BS"]
+    plans = [{"name": n, "cohort": c, "terms": [{}]} for n, c in (
+        ("Biology (General)", "Fall 2026"), ("Biology: General Pre-Med Track", "Fall 2026"),
+        ("Biology/Physical Therapy Track", "Fall 2025"))]
+    today = date(2026, 10, 27)
+    chosen = choose_plan(plans, "Biology BS", "biology and maybe medical school", today)
+    assert chosen is not None and chosen["name"] == "Biology: General Pre-Med Track"
+    # A track the current cohort has no plan for is read from the latest cohort that has one.
+    chosen = choose_plan(plans, "Biology BS", "biology physical therapy first year", today)
+    assert chosen is not None and chosen["cohort"] == "Fall 2025"
+    chosen = choose_plan(plans, "Biology BS", "biology first year", today)
+    assert chosen is not None and chosen["name"] == "Biology (General)"
