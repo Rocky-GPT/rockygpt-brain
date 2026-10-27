@@ -1222,6 +1222,7 @@ class ChatEngine:
         self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._upcoming_cache: tuple[tuple[str, str], list[dict[str, Any]]] | None = None
         self._ordinary_words: tuple[str, frozenset[str]] | None = None
+        self._tracks: tuple[str, dict[str, str]] | None = None
 
     def _json(self, result: ChatResult, parts: list[dict[str, Any]], turn: Turn) -> ChatResult:
         """In JSON output the written answer is dropped and the facts go out as they are: the full
@@ -1596,15 +1597,20 @@ class ChatEngine:
         programs = [e for e in named if e.get("kind") == "program"]
         codes = {str(e["name"]): e for e in named if e.get("kind") == "course"}
         found = academics.find_programs(programs, message)
+        by_name = {str(p["name"]): p for p in programs}
         if not found:
             # A subject asked at a level ("a minor in business") names the catalog's programs
             # holding every word of it, read when there are at most three.
-            by_name = {str(p["name"]): p for p in programs}
-            for level, words in academics.asked_subjects(message):
-                if academics.names_subject(programs, words):
+            for level, asked in academics.asked_subjects(message):
+                if words := academics.subject_words(programs, asked, message, level):
                     listed = academics.published_in(programs, level, words)
                     if 0 < len(listed) <= 3:
                         found += [by_name[n] for n in listed if by_name[n] not in found]
+        if not found and academics.asks_academics(message):
+            # A track of a program's recommended plans ("criminal justice" is Law and
+            # Society's) names that program.
+            found = [by_name[n] for n in academics.programs_by_track(self._plan_tracks(), message)
+                     if n in by_name]
         courses = [codes[code] for code in academics.course_codes(message, set(codes))]
         # Courses named by an everyday form of their title ("calc 2"), from the meaning index's
         # catalog titles when one is published.
@@ -1616,6 +1622,24 @@ class ChatEngine:
                 index.course_titles, message, course_codes)
                 if i in by_id and by_id[i] not in courses]
         return found, academics.also_published(programs, found), courses
+
+    def _plan_tracks(self) -> dict[str, str]:
+        """Each recommended plan's name that has a track ("Law and Society/Criminal Justice")
+        and its program's name, read once per release."""
+        version, identity_hash = self.facts.active_release()
+        if self._tracks is None or self._tracks[0] != version:
+            tracks: dict[str, str] = {}
+            for program in self.facts.identities(("program",)):
+                facts = self.facts.get_program_facts(program["id"], version,
+                                                     identity_hash=identity_hash)
+                for prop in facts["properties"]:
+                    if prop["key"] == "plans":
+                        for value in prop["values"]:
+                            name = str(value["value"].get("name") or "")
+                            if academics.plan_track(name):
+                                tracks.setdefault(name, str(program["name"]))
+            self._tracks = (version, tracks)
+        return self._tracks[1]
 
     def _academics_by_meaning(self, index: MeaningIndex, vector: Sequence[float], message: str,
                               ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:

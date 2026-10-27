@@ -434,8 +434,17 @@ def test_only_a_subject_the_catalog_names_gets_a_listing_fact() -> None:
     programs = [{"name": n} for n in ("International Business BA", "Healthcare Administration BS",
                                       "Business Administration MBA", "History BA", "History Minor",
                                       "Criminal Justice BA")]
-    assert computed_answers([], programs, "can you finish a business major in 4 years", 1) == []
-    assert computed_answers([], programs, "what minors pair well with a history major", 1) == []
+    # The word right before the level word names the subject when the others do not.
+    (fact,) = computed_answers([], programs, "can you finish a business major in 4 years", 1)
+    assert fact["fact"] == ("The catalog lists this bachelor's major for 'business': "
+                            "International Business BA.")
+    (fact,) = computed_answers([], [*programs, {"name": "Communication Arts BA"}],
+                               "does the senior seminar count as a capstone for the comm major", 1)
+    assert "Communication Arts BA" in fact["fact"]
+    # "history" sits beside "major", not "minors": no minor is named for it.
+    assert [f["fact"] for f in computed_answers(
+        [], programs, "what minors pair well with a history major", 1)] == [
+        "The catalog lists this bachelor's major for 'history': History BA."]
     (fact,) = computed_answers([], programs, "courses for the business administration major", 1)
     assert fact["fact"] == ("The catalog lists no bachelor's major for 'business administration'."
                             " It does list: Business Administration MBA.")
@@ -492,3 +501,45 @@ def test_course_talk_beside_a_program_word_still_asks_for_a_course() -> None:
     assert asks_course("whats abnormal psychology about and how many credits is it")
     assert asks_course("prereqs for drawing 2")
     assert not asks_course("is there a psychology major")
+
+
+def test_published_credits_tracks_and_listing_names_are_found_by_code() -> None:
+    from datetime import date
+
+    from rockygpt_brain.academics import (
+        choose_plan,
+        computed_answers,
+        program_evidence,
+        programs_by_track,
+    )
+    # Credit counts anywhere in a program's description are stated; no "publishes no total".
+    description = "x" * 900 + " The MBA has two paths: 30-credit Advanced Standing Program."
+    facts = {"properties": [{"key": "program", "values": [{"value": {
+        "name": "Business Administration MBA", "description": description}}]}]}
+    item = program_evidence(facts, 1, [])
+    said = [f["fact"] for f in computed_answers([item], [], "how many credits is the mba", 1)]
+    assert said == ["The catalog's description of the Business Administration MBA says: "
+                    '"30-credit Advanced Standing Program."']
+    # A plan's track names its program; a track many programs share names none.
+    tracks = {"Law and Society/Criminal Justice": "Law and Society BA",
+              "Sociology/Criminology": "Sociology BA",
+              **{f"{p}/Pre-Medical Track": f"{p} BS" for p in ("Biology", "Neuroscience",
+                                                               "Biochemistry", "Chemistry")}}
+    assert programs_by_track(tracks, "junior and senior year in criminal justice") == [
+        "Law and Society BA"]
+    assert programs_by_track(tracks, "pre medical track courses") == []
+    plans = [{"name": n, "cohort": "Fall 2024", "terms": [{}]}
+             for n in ("Law and Society", "Law and Society/Criminal Justice")]
+    chosen = choose_plan(plans, "Law and Society BA", "a junior in criminal justice",
+                         date(2026, 10, 26))
+    assert chosen is not None and chosen["name"] == "Law and Society/Criminal Justice"
+    # A listing question names the programs at its level holding a rare word it uses.
+    listing = {"n": 3, "catalog_programs": {"minors": [
+        "Environmental Science Minor", "Environmental Studies Minor", "Sustainability Minor",
+        "History Minor"]}}
+    said = [f["fact"] for f in computed_answers(
+        [listing], [], "what minors are there if I'm into environmental stuff or sustainability",
+        3)]
+    assert said[-1] == ("Of the catalog's minors, these have a word of the question in their "
+                        "names: Environmental Science Minor; Environmental Studies Minor; "
+                        "Sustainability Minor.")
