@@ -1,0 +1,17 @@
+[
+  {"id": "er1-01", "question": "when is the next career fair", "topic": "event"},
+  {"id": "er1-02", "question": "any networking events this week for business majors?", "topic": "event"},
+  {"id": "er1-03", "question": "is there a finance or investment club on campus", "topic": "club"},
+  {"id": "er1-04", "question": "Are there any resume workshops or mock interview events coming up? Need to get my resume ready for internship apps", "topic": "event"},
+  {"id": "er1-05", "question": "does ramapo have an accounting society or something like that and how do i join", "topic": "club"},
+  {"id": "er1-06", "question": "whats happening on campus tonight", "topic": "event"},
+  {"id": "er1-07", "question": "list of business clubs?", "topic": "club"},
+  {"id": "er1-08", "question": "is there a marketing club and when do they meet", "topic": "club"},
+  {"id": "er1-09", "question": "any employer info sessions or recruiting events next week? where are they", "topic": "event"},
+  {"id": "er1-10", "question": "which club looks best on a resume for someone going into consulting", "topic": "out_of_scope"},
+  {"id": "er1-11", "question": "is there an entrepreneurship club or like a pitch competition", "topic": "club"},
+  {"id": "er1-12", "question": "linkedin headshot event this semester? is it free", "topic": "event"},
+  {"id": "er1-13", "question": "how many people usually show up to the career fair, is it worth going", "topic": "out_of_scope"},
+  {"id": "er1-14", "question": "are there any professional business frats like alpha kappa psi or delta sigma pi at ramapo", "topic": "club"},
+  {"id": "er1-15", "question": "who's the president of the business club and whats their email", "topic": "out_of_scope"}
+]

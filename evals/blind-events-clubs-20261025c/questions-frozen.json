@@ -1,0 +1,302 @@
+[
+ {
+  "id": "er1-01",
+  "question": "when is the next career fair",
+  "topic": "event"
+ },
+ {
+  "id": "er1-02",
+  "question": "any networking events this week for business majors?",
+  "topic": "event"
+ },
+ {
+  "id": "er1-03",
+  "question": "is there a finance or investment club on campus",
+  "topic": "club"
+ },
+ {
+  "id": "er1-04",
+  "question": "Are there any resume workshops or mock interview events coming up? Need to get my resume ready for internship apps",
+  "topic": "event"
+ },
+ {
+  "id": "er1-05",
+  "question": "does ramapo have an accounting society or something like that and how do i join",
+  "topic": "club"
+ },
+ {
+  "id": "er1-06",
+  "question": "whats happening on campus tonight",
+  "topic": "event"
+ },
+ {
+  "id": "er1-07",
+  "question": "list of business clubs?",
+  "topic": "club"
+ },
+ {
+  "id": "er1-08",
+  "question": "is there a marketing club and when do they meet",
+  "topic": "club"
+ },
+ {
+  "id": "er1-09",
+  "question": "any employer info sessions or recruiting events next week? where are they",
+  "topic": "event"
+ },
+ {
+  "id": "er1-10",
+  "question": "which club looks best on a resume for someone going into consulting",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "er1-11",
+  "question": "is there an entrepreneurship club or like a pitch competition",
+  "topic": "club"
+ },
+ {
+  "id": "er1-12",
+  "question": "linkedin headshot event this semester? is it free",
+  "topic": "event"
+ },
+ {
+  "id": "er1-13",
+  "question": "how many people usually show up to the career fair, is it worth going",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "er1-14",
+  "question": "are there any professional business frats like alpha kappa psi or delta sigma pi at ramapo",
+  "topic": "club"
+ },
+ {
+  "id": "er1-15",
+  "question": "who's the president of the business club and whats their email",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "er2-01",
+  "question": "is there anything halloween themed happening on campus this weekend?? 🎃👻",
+  "topic": "event"
+ },
+ {
+  "id": "er2-02",
+  "question": "yo is there a costume contest for halloween and do u win anything lol 🧛‍♀️",
+  "topic": "event"
+ },
+ {
+  "id": "er2-03",
+  "question": "any movie nights tonight 🍿",
+  "topic": "event"
+ },
+ {
+  "id": "er2-04",
+  "question": "whats going on in the dorms friday night? like any res hall parties or game nights 🎉",
+  "topic": "event"
+ },
+ {
+  "id": "er2-05",
+  "question": "free candy or free food anywhere on campus today?? im starving fr 🍬🍕",
+  "topic": "event"
+ },
+ {
+  "id": "er2-06",
+  "question": "is the haunted house thing free and where is it at 😱",
+  "topic": "event"
+ },
+ {
+  "id": "er2-07",
+  "question": "r there any thanksgiving events b4 break? like a friendsgiving dinner or smth 🦃",
+  "topic": "event"
+ },
+ {
+  "id": "er2-08",
+  "question": "when is the tree lighting / holiday party in december and who's hosting it 🎄✨",
+  "topic": "event"
+ },
+ {
+  "id": "er2-09",
+  "question": "pumpkin carving or painting event next week?? 🎃🖌️",
+  "topic": "event"
+ },
+ {
+  "id": "er2-10",
+  "question": "is there like a party planning club or a club that throws themed events? how do i join 👀",
+  "topic": "club"
+ },
+ {
+  "id": "er2-11",
+  "question": "do yall have a horror movie club or film club 🔪🎬",
+  "topic": "club"
+ },
+ {
+  "id": "er2-12",
+  "question": "what cultural clubs r there that do holiday celebrations like diwali or lunar new year 🪔🏮",
+  "topic": "club"
+ },
+ {
+  "id": "er2-13",
+  "question": "how many ppl are going to the halloween dance tonight, is it gonna be packed 😬",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "er2-14",
+  "question": "which club should i join if i just wanna go to fun parties and meet ppl lmao",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "er2-15",
+  "question": "when does the anime club meet and who's the president? want to ask if theyre doing a cosplay night 🍥",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "er3-01",
+  "question": "is there a robotics club at ramapo",
+  "topic": "club"
+ },
+ {
+  "id": "er3-02",
+  "question": "any hackathons coming up this semester? also is there a coding club or computer science club i could join",
+  "topic": "event"
+ },
+ {
+  "id": "er3-03",
+  "question": "what tech talks or computer science events are happening next week",
+  "topic": "event"
+ },
+ {
+  "id": "er3-04",
+  "question": "Is there an esports or gaming club? I play Valorant and Smash and want to find people to play with",
+  "topic": "club"
+ },
+ {
+  "id": "er3-05",
+  "question": "when are the math tutoring sessions this week and where are they",
+  "topic": "event"
+ },
+ {
+  "id": "er3-06",
+  "question": "whats happening on campus tonight thats science related",
+  "topic": "event"
+ },
+ {
+  "id": "er3-07",
+  "question": "link to the chemistry club page?",
+  "topic": "club"
+ },
+ {
+  "id": "er3-08",
+  "question": "what academic clubs are there for STEM majors? like bio, physics, engineering type stuff",
+  "topic": "club"
+ },
+ {
+  "id": "er3-09",
+  "question": "is the coding workshop this friday free and who's hosting it",
+  "topic": "event"
+ },
+ {
+  "id": "er3-10",
+  "question": "when does the comp sci club meet and who's the president",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "er3-11",
+  "question": "how do i join a club here? i'm a transfer student and missed the involvement fair",
+  "topic": "club"
+ },
+ {
+  "id": "er3-12",
+  "question": "any game nights or board game events this weekend",
+  "topic": "event"
+ },
+ {
+  "id": "er3-13",
+  "question": "should i join the cybersecurity club or the robotics club if i want an internship at a tech company",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "er3-14",
+  "question": "are there any career events for tech or STEM jobs coming up, like an employer panel or networking night",
+  "topic": "event"
+ },
+ {
+  "id": "er3-15",
+  "question": "how many ppl usually show up to the astronomy club stargazing nights, is it worth going",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "er4-01",
+  "question": "are there any volunteer or community service events this weekend?",
+  "topic": "event"
+ },
+ {
+  "id": "er4-02",
+  "question": "Is there a club at Ramapo that does community service? I'm a senior and want to give back before I graduate",
+  "topic": "club"
+ },
+ {
+  "id": "er4-03",
+  "question": "any fundraisers going on this week",
+  "topic": "event"
+ },
+ {
+  "id": "er4-04",
+  "question": "what greek life orgs are there and do any of them do philanthropy events coming up",
+  "topic": "club"
+ },
+ {
+  "id": "er4-05",
+  "question": "Is there a food drive or clothing drive happening on campus next week? Where can I drop stuff off?",
+  "topic": "event"
+ },
+ {
+  "id": "er4-06",
+  "question": "I'm a commuter so I'm only on campus tues/thurs. Any service or volunteer events on thursday afternoon?",
+  "topic": "event"
+ },
+ {
+  "id": "er4-07",
+  "question": "how do i join habitat for humanity at ramapo, is there a chapter",
+  "topic": "club"
+ },
+ {
+  "id": "er4-08",
+  "question": "whos the president of the community service club and when do they meet",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "er4-09",
+  "question": "Are there any leadership workshops or student leadership events this month?",
+  "topic": "event"
+ },
+ {
+  "id": "er4-10",
+  "question": "is there a blood drive coming up? and is it in the student center",
+  "topic": "event"
+ },
+ {
+  "id": "er4-11",
+  "question": "which sorority would be best for someone who cares mostly about philanthropy and doesnt live on campus?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "er4-12",
+  "question": "Are there any charity walks or 5Ks next saturday?",
+  "topic": "event"
+ },
+ {
+  "id": "er4-13",
+  "question": "can a senior still run for a club e-board position this late? how many people usually show up to the volunteer fair",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "er4-14",
+  "question": "service clubs list pls",
+  "topic": "club"
+ },
+ {
+  "id": "er4-15",
+  "question": "Is there a page for the Center for Student Involvement where I can find clubs looking for officers or volunteers? Also anything happening tonight for commuters?",
+  "topic": "club"
+ }
+]

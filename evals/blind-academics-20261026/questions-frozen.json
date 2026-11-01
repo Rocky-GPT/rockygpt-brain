@@ -1,0 +1,152 @@
+[
+ {
+  "id": "at1-01",
+  "question": "what does abnormal psych cover and do i need intro psych before i can take it",
+  "topic": "course"
+ },
+ {
+  "id": "at1-02",
+  "question": "how many credits is intro to stats",
+  "topic": "course"
+ },
+ {
+  "id": "at1-03",
+  "question": "is orgo 1 a prereq for orgo 2 or can i take them at the same time? also does orgo have a lab you take seperately",
+  "topic": "course"
+ },
+ {
+  "id": "at1-04",
+  "question": "does psych 101 count for gen ed or only for the psych major",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "at1-05",
+  "question": "I'm a sophomore thinking about switching into the biology major. What are all the required courses and how many credits is the major total?",
+  "topic": "program"
+ },
+ {
+  "id": "at1-06",
+  "question": "can intro to stats count toward the psychology major or do psych majors have to take a different stats class",
+  "topic": "program"
+ },
+ {
+  "id": "at1-07",
+  "question": "what gen ed categories do i still need to fill if ive already done comp 1 and a math class",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "at1-08",
+  "question": "is there a minor in creative writing and how many classes is it",
+  "topic": "program"
+ },
+ {
+  "id": "at1-09",
+  "question": "whats the difference between developmental psych and child psych, are they the same class",
+  "topic": "course"
+ },
+ {
+  "id": "at1-10",
+  "question": "cmps 147 prerequisites?",
+  "topic": "course"
+ },
+ {
+  "id": "at1-11",
+  "question": "is there still room in abnormal psych for spring and who's teaching it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "at1-12",
+  "question": "for the psych major what order should i take research methods and stats in, like which one comes first",
+  "topic": "sequence"
+ },
+ {
+  "id": "at1-13",
+  "question": "what are the gen ed requirements at ramapo, like how many credits total and what categories",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "at1-14",
+  "question": "should i take orgo or physics next semester if i want to do pre med? which is easier",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "at1-15",
+  "question": "does micro econ count as a social science gen ed and is it 4 credits?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "at2-01",
+  "question": "I'm planning to transfer to Ramapo next fall and I'm interested in environmental science. Does Ramapo offer an environmental science major, and how many credits does the major itself require?",
+  "topic": "program"
+ },
+ {
+  "id": "at2-02",
+  "question": "Is there a minor in data science or something similar, and if so what courses are required for it?",
+  "topic": "program"
+ },
+ {
+  "id": "at2-03",
+  "question": "What graduate programs does Ramapo offer? I'm specifically wondering if there is a master's in educational leadership or a master's in social work.",
+  "topic": "program"
+ },
+ {
+  "id": "at2-04",
+  "question": "How many total credits do you need to graduate with a bachelor's degree from Ramapo, and how many of those have to be taken at Ramapo as a transfer student?",
+  "topic": "program"
+ },
+ {
+  "id": "at2-05",
+  "question": "For the nursing program, what are the prerequisite courses I would need to have done before I could start the nursing sequence?",
+  "topic": "course"
+ },
+ {
+  "id": "at2-06",
+  "question": "What does CMPS 147 cover and what are its prereqs? I took an intro programming class at my community college and want to know if it's the same thing.",
+  "topic": "course"
+ },
+ {
+  "id": "at2-07",
+  "question": "How many credits is ACCT 221, and is it required for the business administration major or just the accounting major?",
+  "topic": "course"
+ },
+ {
+  "id": "at2-08",
+  "question": "Could you explain how the general education requirements are structured at Ramapo? I want to know which categories I'd need to fill coming in as a transfer.",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "at2-09",
+  "question": "Does a statistics course count toward the gen ed math requirement, or does it have to be something like college algebra or calc?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "at2-10",
+  "question": "If I declare psychology as a junior transfer, what is the recommended order to take the research methods and statistics courses for the major?",
+  "topic": "sequence"
+ },
+ {
+  "id": "at2-11",
+  "question": "what's the suggested 4 year plan for the computer science major, specifically what should be taken in the first two semesters",
+  "topic": "sequence"
+ },
+ {
+  "id": "at2-12",
+  "question": "Is there a combined bachelor's and master's program where I could finish both degrees in five years, and which majors is it available for?",
+  "topic": "program"
+ },
+ {
+  "id": "at2-13",
+  "question": "Can you tell me which of my community college credits will transfer and how many credits I'll come in with?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "at2-14",
+  "question": "Is the section of Organic Chemistry I next spring still open, and who is teaching it?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "at2-15",
+  "question": "I'm torn between majoring in communication arts and minoring in business, or majoring in business and minoring in communication. Which one would be better for getting a job in marketing?",
+  "topic": "out_of_scope"
+ }
+]

@@ -1,0 +1,17 @@
+[
+  {"id": "aw1-01", "question": "is cmps 361 required for the computer science major or is it an elective", "topic": "course"},
+  {"id": "aw1-02", "question": "what are the prereqs for organic chemistry 2 and how many credits is it", "topic": "course"},
+  {"id": "aw1-03", "question": "I'm a junior in psych. Is research methods a required course for the major, and do I need stats before I can take it?", "topic": "course"},
+  {"id": "aw1-04", "question": "how many total credits do i need to graduate with a business administration degree", "topic": "program"},
+  {"id": "aw1-05", "question": "what classes are you supposed to take senior year for the nursing major?", "topic": "sequence"},
+  {"id": "aw1-06", "question": "does the senior seminar count as a capstone for the comm major or is that a separate class", "topic": "program"},
+  {"id": "aw1-07", "question": "hw many electives do i need for the biology major and can any 300 level bio class count", "topic": "program"},
+  {"id": "aw1-08", "question": "is calc 2 required for computer science or just calc 1", "topic": "course"},
+  {"id": "aw1-09", "question": "what's the recommended course sequence for junior and senior year in criminal justice", "topic": "sequence"},
+  {"id": "aw1-10", "question": "does econ 101 count toward gen ed? I took it as an elective freshman year and want to make sure it wasnt wasted", "topic": "gen_ed"},
+  {"id": "aw1-11", "question": "whats the difference between INFO 101 and CMPS 147, do both count for the info tech major", "topic": "course"},
+  {"id": "aw1-12", "question": "Am I on track to graduate in spring 2028? I have 74 credits right now as an accounting major", "topic": "out_of_scope"},
+  {"id": "aw1-13", "question": "is there an open section of the psych capstone next semester and who teaches it", "topic": "out_of_scope"},
+  {"id": "aw1-14", "question": "do i need to take a writing intensive course in my major to graduate, and how many", "topic": "gen_ed"},
+  {"id": "aw1-15", "question": "should I take data structures or software engineering first, which is easier", "topic": "out_of_scope"}
+]

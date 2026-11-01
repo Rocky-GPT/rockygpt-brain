@@ -1,0 +1,17 @@
+[
+  {"id": "pq1-01", "question": "hi sorry if this is a dumb question but what is professor hoch's email? i need to ask him about an assignment", "topic": "contact"},
+  {"id": "pq1-02", "question": "Is Dr. Mattis in the nursing department or biology? I'm not sure who I'm supposed to email about my lab", "topic": "role"},
+  {"id": "pq1-03", "question": "where is prof giacopi's office", "topic": "contact"},
+  {"id": "pq1-04", "question": "hello, could you please tell me what Zach Layton teaches? and how I could reach him", "topic": "teaching"},
+  {"id": "pq1-05", "question": "who is stephanie jones? my advisor told me to talk to her but I don't know if she's a professor or what", "topic": "role"},
+  {"id": "pq1-06", "question": "I'm a freshman and I think my english teacher's name is Dr Reali? is he the one in charge of the english department or just a professor. sorry", "topic": "role"},
+  {"id": "pq1-07", "question": "does professor Leskinen have office hours", "topic": "contact"},
+  {"id": "pq1-08", "question": "phone number for Mrs. Tisi in the library please", "topic": "contact"},
+  {"id": "pq1-09", "question": "Hi! Is Professor Alice Parks a good teacher? I'm thinking about taking her class next semester but I'm kind of scared", "topic": "out_of_scope"},
+  {"id": "pq1-10", "question": "what does dr fried research? and what school is he in, I thought he was psychology", "topic": "teaching"},
+  {"id": "pq1-11", "question": "who's the chair of the history department", "topic": "role"},
+  {"id": "pq1-12", "question": "is professor hock on campus today? I wanted to stop by but I don't want to bother him if he's not there", "topic": "out_of_scope"},
+  {"id": "pq1-13", "question": "Hello, I need to email my math professor, I think her name is Professor Rodriguez but I'm not 100% sure. what's her email and is she math or computer science?", "topic": "contact"},
+  {"id": "pq1-14", "question": "Can you give me Dr. Matis's cell phone number? I need to text him that I'll miss class tomorrow", "topic": "out_of_scope"},
+  {"id": "pq1-15", "question": "who teaches intro to sociology? I want to ask them a question before I register but I don't know their name", "topic": "teaching"}
+]

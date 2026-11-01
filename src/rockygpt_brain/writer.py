@@ -197,6 +197,7 @@ _EMAIL = re.compile(r"[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+")
 _URL = re.compile(r"https?://[^\s()\[\]<>\"']+")
 _PHONE = re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)")
 _NUMBER = re.compile(r"\d+")
+_COURSE = re.compile(r"\b([a-z]{2,6}) ?(\d{3}[a-z]?)\b")
 _LIST_ITEM = re.compile(r"(?m)^[ \t]*\d{1,2}[.)][ \t]")
 _MARKER = re.compile(r"\[(\d+)\]")
 
@@ -230,6 +231,13 @@ def unsupported_by(text: str, view: dict[str, Any]) -> list[str]:
         if number not in digits:
             problems.append(f"a phone number the facts do not hold: {phone.strip()}")
     rest = _PHONE.sub(" ", rest)
+    # A course code of a subject the facts hold ("CHEM 425") must be one of their codes.
+    codes = {f"{m.group(1)} {m.group(2)}" for m in _COURSE.finditer(held)}
+    subjects = {code.split()[0] for code in codes}
+    for m in _COURSE.finditer(rest):
+        if m.group(1) in subjects and f"{m.group(1)} {m.group(2)}" not in codes:
+            problems.append(f"a course the facts do not hold: {m.group(0).upper()}")
+    rest = _COURSE.sub(lambda m: " " if m.group(1) in subjects else m.group(0), rest)
     rest = _MARKER.sub(lambda m: " " if m.group(1) in sources else m.group(0), rest)
     # A numbered step ("2. Submit the form") numbers the reply's own list, not a fact.
     rest = _LIST_ITEM.sub(" ", rest)

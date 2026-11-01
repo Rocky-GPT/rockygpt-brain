@@ -1,0 +1,17 @@
+[
+  {"id": "er4-01", "question": "are there any volunteer or community service events this weekend?", "topic": "event"},
+  {"id": "er4-02", "question": "Is there a club at Ramapo that does community service? I'm a senior and want to give back before I graduate", "topic": "club"},
+  {"id": "er4-03", "question": "any fundraisers going on this week", "topic": "event"},
+  {"id": "er4-04", "question": "what greek life orgs are there and do any of them do philanthropy events coming up", "topic": "club"},
+  {"id": "er4-05", "question": "Is there a food drive or clothing drive happening on campus next week? Where can I drop stuff off?", "topic": "event"},
+  {"id": "er4-06", "question": "I'm a commuter so I'm only on campus tues/thurs. Any service or volunteer events on thursday afternoon?", "topic": "event"},
+  {"id": "er4-07", "question": "how do i join habitat for humanity at ramapo, is there a chapter", "topic": "club"},
+  {"id": "er4-08", "question": "whos the president of the community service club and when do they meet", "topic": "out_of_scope"},
+  {"id": "er4-09", "question": "Are there any leadership workshops or student leadership events this month?", "topic": "event"},
+  {"id": "er4-10", "question": "is there a blood drive coming up? and is it in the student center", "topic": "event"},
+  {"id": "er4-11", "question": "which sorority would be best for someone who cares mostly about philanthropy and doesnt live on campus?", "topic": "out_of_scope"},
+  {"id": "er4-12", "question": "Are there any charity walks or 5Ks next saturday?", "topic": "event"},
+  {"id": "er4-13", "question": "can a senior still run for a club e-board position this late? how many people usually show up to the volunteer fair", "topic": "out_of_scope"},
+  {"id": "er4-14", "question": "service clubs list pls", "topic": "club"},
+  {"id": "er4-15", "question": "Is there a page for the Center for Student Involvement where I can find clubs looking for officers or volunteers? Also anything happening tonight for commuters?", "topic": "club"}
+]

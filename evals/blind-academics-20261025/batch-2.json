@@ -1,0 +1,153 @@
+[
+ {
+  "id": "aq2-01",
+  "question": "what are the prereqs for cmps 361",
+  "answer": "CMPS 361 SOFTWARE DESIGN (4 credits) requires CMPS 231 DATA STRUCTURES completed with a minimum grade of C. [1]\n\nSources: [1](https://catalog.ramapo.edu/courses/CMPS361)",
+  "answered_at": "2026-10-25T11:57-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/CMPS361"
+  ]
+ },
+ {
+  "id": "aq2-02",
+  "question": "How many credits is the math minor and which classes are required for it?",
+  "answer": "The Mathematics Minor requires between 16 and 24 credits [4]. The catalog lists these required courses: MATH 122 CALCULUS II; MATH 237 DISCRETE STRUCTURES or MATH 205 MATHEMATICAL STRUCTURES; MATH 262 LINEAR ALGEBRA; and one elective from the list below [1]. Electives—select 1: MATH 239 GRAPH THEORY; MATH 240 CRYPTOGRAPHY; MATH 245 NUMERICAL ANALYSIS; MATH 253 PROBABILITY; MATH 282 NUMBER THEORY; MATH 290 TOPICS; MATH 305 DIFFERENTIAL EQUATIONS; MATH 321 GEOMETRY; MATH 339 COMPLEX VARIABLES; MATH 353 STATISTICS; MATH 370 APPLIED STATISTICS; MATH 360 STOCHASTIC CALCULUS FOR FINANCE; MATH 390 ADVANCED TOPICS; MATH 416 INTRODUCTION TO ANALYSIS; MATH 432 ABSTRACT ALGEBRA; or MATH 441 HISTORY OF MATH [1].\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-MN-MATH) [4](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1)",
+  "answered_at": "2026-10-25T11:57-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-MN-MATH",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1"
+  ]
+ },
+ {
+  "id": "aq2-03",
+  "question": "im a junior in comp sci, what upper level electives can i pick from to finish the major?",
+  "answer": "For the Computer Science BS (Bachelor of Science), the major requires you to select 7 Computer Science electives from this list [1]:\n- CMPS 240 DATA ANALYTICS IN PYTHON or CMPS 285 MOBILE DEVELOPMENT\n- CMPS 305 CYBER SECURITY\n- CMPS 310 BIG DATA PROGRAMMING\n- CMPS 315 THE LINUX ENVIRONMENT\n- CMPS 320 MACHINE LEARNING\n- CMPS 327 NETWORK PROGRAMMING\n- CMPS 331 ARTIFICIAL INTELLIGENCE\n- CMPS 335 AGENT ENGINEERING\n- CMPS 337 COMPUTER VISION\n- CMPS 342 COMPUTER GRAPHICS\n- CMPS 345 ANALYSIS OF ALGORITHMS\n- CMPS 350 FINANCIAL MODELING\n- CMPS 357 THE .NET ENVIRONMENT\n- CMPS 364 DATABASE DESIGN\n- CMPS 367 ADVANCED TOPICS\n- CMPS 369 WEB APPLICATION DEVELOPMENT\n- CMPS 370 CYBER AND NETWORK DEFENSE\n- CMPS 373 OBJECT ORIENTED PROGRAMMING\n- CMPS 375 MOBILE ROBOTICS\n- DATA 301 DATA ANALYSIS & VISUALIZATION\nThe catalog also lists Computer Science 4+1, Computer Science MS, and Computer Science Minor [1].\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-CMPS)",
+  "answered_at": "2026-10-25T11:57-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-CMPS"
+  ]
+ },
+ {
+  "id": "aq2-04",
+  "question": "does MATH 237 discrete math count toward the computer science major or is it only for math majors",
+  "answer": "Yes. In the Computer Science BS (Bachelor of Science), the major requires “MATH 205 MATHEMATICAL STRUCTURES or MATH 237 DISCRETE STRUCTURES” [1]. The recommended plan for students admitted during 2026–2027 also lists MATH 237 or MATH 205 in the second-year fall semester [1]. It is not only for math majors: the Mathematics BS also accepts MATH 237 or MATH 205 as a required course in both its Traditional and Teacher Education tracks [2]. MATH 237 is 4 credits. Its prerequisites are CRWT 102 or CRWT 102S and MATH 121; courses may be taken concurrently with MATH 237 [3].\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-CMPS) [2](https://catalog.ramapo.edu/programs/SN-BS-MATH) [3](https://catalog.ramapo.edu/courses/MATH237)",
+  "answered_at": "2026-10-25T11:57-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-CMPS",
+   "https://catalog.ramapo.edu/programs/SN-BS-MATH",
+   "https://catalog.ramapo.edu/courses/MATH237"
+  ]
+ },
+ {
+  "id": "aq2-05",
+  "question": "what does data structures cover and how many credits is it",
+  "answer": "CMPS 231 Data Structures is 4 credits. It studies basic data structures and related algorithms, including stacks, queues, deques, arrays, linked lists, trees, graphs, strings, sorting, searching, and file structures. A course fee is required. [1]\n\nSources: [1](https://catalog.ramapo.edu/courses/CMPS231)",
+  "answered_at": "2026-10-25T11:57-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/CMPS231"
+  ]
+ },
+ {
+  "id": "aq2-06",
+  "question": "Is there a data science major or minor at Ramapo? I'm a CS major thinking about adding one",
+  "answer": "Yes—Ramapo lists a Data Science BS (Bachelor of Science) and a Data Science Minor [1][2]. The catalog minor requires CMPS 130, CMPS 240, DATA 101, DATA 301, and one elective from BADM 225, BIOL 354, MATH 353, MATH 370, POLI 316, PSYC 242, SOCI 308, or SWRK 307 [2]. Also published: Data Science 4+1 and Data Science MS [2].\n\nTo add a minor, the Center for Student Success (Academic Advising) says to complete the online major/minor declaration form: https://www.ramapo.edu/registrar/declare-major-minor-certificate/. The Registrar’s Office will update your record in 5–7 days after submission [13]. Contact the Center for Student Success at success@ramapo.edu or (201) 684-7441 [13].\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-DSCI) [2](https://catalog.ramapo.edu/programs/SN-MN-DSCI) [13](https://www.ramapo.edu/myadvisor/)",
+  "answered_at": "2026-10-25T11:57-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-DSCI",
+   "https://catalog.ramapo.edu/programs/SN-MN-DSCI",
+   "https://www.ramapo.edu/myadvisor/"
+  ]
+ },
+ {
+  "id": "aq2-07",
+  "question": "whats the recommended order for the math major courses after calc 2? like what do i take junior and senior year",
+  "answer": "For the Mathematics Bachelor of Science, the recommended plan below is for students admitted to the major during the 2024–2025 academic year; it is not necessarily the plan for other admission years. [1] Mathematics is also published as a minor. [1]\n\nThird Year, Fall Semester (total 16 credits): MATH 416 - INTRODUCTION TO ANALYSIS (4); MATH Elective 300 Level or Above (possibly MATH 353 - STATISTICS [2]**) (4); Free Elective (minor, certificate, or second major requirement) (4); General Education Requirement * (4). [1]\n\nThird Year, Spring Semester (total 16 credits): MATH Elective numbered above 237 (4); MATH Elective 300 Level or Above (4); Free Elective (minor, certificate, or second major requirement) (4); Free Elective (minor, certificate, or second major requirement) (4). [1]\n\nFourth Year, Fall Semester (total 16 credits): MATH 432 - ABSTRACT ALGEBRA WI (4); MATH 441 - HISTORY OF MATH WI (4); Free Elective (minor, certificate, or second major requirement) (4); Free Elective (minor, certificate, or second major requirement) (4). [1]\n\nFourth Year, Spring Semester (total 15 credits): Free Elective (minor, certificate, or second major requirement) (4); Free Elective (minor, certificate, or second major requirement) (4); Free Elective (minor, certificate, or second major requirement) (4); Free Elective (minor, certificate, or second major requirement) (3). [1]\n\nThe plan lists 128 total credits required and a 2.0 major GPA for graduation. [1]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-MATH) [2](https://catalog.ramapo.edu/courses/MATH122)",
+  "answered_at": "2026-10-25T11:57-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-MATH",
+   "https://catalog.ramapo.edu/courses/MATH122"
+  ]
+ },
+ {
+  "id": "aq2-08",
+  "question": "do i need linear algebra for the cs major",
+  "answer": "I don’t have verified information on whether Linear Algebra is required for the Computer Science major. Contact the Center for Student Success (Academic Advising): success@ramapo.edu, (201) 684-7441, D-207.",
+  "answered_at": "2026-10-25T11:57-04:00",
+  "cited_urls": []
+ },
+ {
+  "id": "aq2-09",
+  "question": "Can I use a CMPS course to satisfy a gen ed requirement or do CS courses not count for gen ed at all?",
+  "answer": "Yes. The catalog lists CMPS 110 MODERN COMPUTER LITERACY: WEB, SECURITY AND AI and CMPS 147 COMPUTER SCIENCE I as Gen Ed 18-Quantitative Rsng (GEQR), so CS courses do count; those courses satisfy Quantitative Reasoning. [4] Not every CMPS course necessarily does: check the approved General Education course list in the College Catalog. [5]\n\nFor transfer courses, accepted credits’ specific use must be approved through transfer evaluation and advisement; generally, only credits accepted in your semester of matriculation may be considered for a Gen Ed waiver. [7] If equivalency for a Gen Ed requirement has not been established, contact the Vice Provost to have the course reviewed; if approved, the approval goes to Admissions to update the systems. [8]\n\nOffice of the Provost: provost@ramapo.edu; (201) 684-7330. [5]\n\nSources: [4](https://catalog.ramapo.edu/programs) [5](https://www.ramapo.edu/provost/curriculum-and-assessment/) [7](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#transferring-academic-credit1) [8](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#transferring-academic-credit1)",
+  "answered_at": "2026-10-25T11:57-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs",
+   "https://www.ramapo.edu/provost/curriculum-and-assessment/",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#transferring-academic-credit1",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#transferring-academic-credit1"
+  ]
+ },
+ {
+  "id": "aq2-10",
+  "question": "what's the prerequisite for math 301 and is it offered every semester or just fall",
+  "answer": "**School of Science, Nursing, and Health Office**\n\nWebsite: https://www.ramapo.edu/snh/ [campus-directory](https://www.ramapo.edu/snh/)\n\nContact note: I have no published information about this.\n\nHow-to and policies: I have no published information about this.\n\n**Registrar**\n\nWebsite: https://www.ramapo.edu/registrar/ [campus-directory](https://www.ramapo.edu/registrar/)\n\nContact note: After Hours Drop Box: Gray mailbox located outside D-224 E-mail: registrar@ramapo.edu Beth Foster Associate Registrar: bfoster@ramapo.edu Jill Pierson Assistant Registrar: jpierson@ramapo.edu Kathy Larsen Graduation Coordinator &amp; Transfer Evaluator: klarsen2@ramapo.edu Reilly Cox System / Curriculum Analyst: coxr@ramapo.edu Lillian R. Martinez Office Coordinator: marti17l@ramapo.edu Vanessa Ramos Support Representative: vramos1@ramapo.edu [campus-directory](https://www.ramapo.edu/registrar/)\n\nHow-to and policies: View course prerequisites: 1. Select a subject to see class prerequisites. \\(page: “Please select subject to see class prerequisites:”\\) (see https://www.ramapo.edu/registrar/course-prerequisites/) [office-pages](https://www.ramapo.edu/registrar/course-prerequisites/)\n\nHow-to and policies: View the schedule of classes: 1. View the Schedule of Classes for Fall 2026, Winter 2027, and Spring 2027. \\(page: “The Schedule of Classes \\(https://myssb.ramapo.edu/StudentRegistrationSsb/ssb/term/termSelection?mode=search\\) for Fall 2026, Winter 2027, and Spring 2027 terms are available for viewing.”\\) (see https://www.ramapo.edu/registrar/) [office-pages](https://www.ramapo.edu/registrar/)\n\nI don't have verified information about that part.",
+  "answered_at": "2026-10-25T11:49:39-04:00",
+  "cited_urls": [
+   "https://www.ramapo.edu/snh/",
+   "https://www.ramapo.edu/registrar/",
+   "https://www.ramapo.edu/registrar/course-prerequisites/",
+   "https://www.ramapo.edu/registrar/"
+  ]
+ },
+ {
+  "id": "aq2-11",
+  "question": "how many total credits do you need to graduate and how many of them have to be upper level (300-400)?",
+  "answer": "For an undergraduate degree, the minimum is 128 credits that count toward graduation; some degree programs may require more. [6] The pages also state a 128-credit minimum for students seeking a degree [10], for students generally [2, 7], and for transfer entrants (with minimum Ramapo credits depending on the type of college they enter from). [8] Review your credit requirements with your adviser. [2]\n\nI don’t have verified information about how many of those credits must be 300–400 level. Contact the Registrar at reg@ramapo.edu or (201) 684-7695 for guidance. [2]\n\nSources: [2](https://www.ramapo.edu/registrar/faq/) [6](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#graduation-requirements) [8](https://www.ramapo.edu/undergraduate/transfer/faqs/) [10](https://www.ramapo.edu/studentsuccess/policies/)",
+  "answered_at": "2026-10-25T11:57-04:00",
+  "cited_urls": [
+   "https://www.ramapo.edu/registrar/faq/",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#graduation-requirements",
+   "https://www.ramapo.edu/undergraduate/transfer/faqs/",
+   "https://www.ramapo.edu/studentsuccess/policies/"
+  ]
+ },
+ {
+  "id": "aq2-12",
+  "question": "is there a capstone or senior project required for computer science, and what's the course number",
+  "answer": "Yes. The Computer Science BS (Bachelor of Science) requires CMPS 450 SENIOR PROJECT. [1] It is 4 credits and serves as a capstone to the Computer Science major. [2] Prerequisites: CMPS 361 SOFTWARE DESIGN and CRWT 102 CRITICAL READING AND WRITING II or CRWT 102S CRITICAL READING AND WRITING II. [2]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-CMPS) [2](https://catalog.ramapo.edu/courses/CMPS450)",
+  "answered_at": "2026-10-25T11:57-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-CMPS",
+   "https://catalog.ramapo.edu/courses/CMPS450"
+  ]
+ },
+ {
+  "id": "aq2-13",
+  "question": "how many credits do i still need to graduate? im a junior cs major",
+  "answer": "I can’t tell how many credits you personally still need without your earned-credit and degree-audit records. The catalog lists Computer Science BS as a major [1]. Ramapo requires at least 128 credits to graduate [2, 5, 6]; section 5 notes that program credit requirements differ. You’re considered a senior after completing 96 credits [3]. Review your Degree Audit at https://web.ramapo.edu/degree-audit-tools/ and make an appointment with your faculty academic advisor to plan remaining requirements [8]. For help, contact the Center for Student Success (Academic Advising) at success@ramapo.edu or (201) 684-7441, D-207 [2].\n\nSources: [1](https://catalog.ramapo.edu/programs) [2](https://www.ramapo.edu/studentsuccess/policies/) [3](https://www.ramapo.edu/myadvisor/advisement-by-year/) [8](https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/)",
+  "answered_at": "2026-10-25T11:57-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs",
+   "https://www.ramapo.edu/studentsuccess/policies/",
+   "https://www.ramapo.edu/myadvisor/advisement-by-year/",
+   "https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/"
+  ]
+ },
+ {
+  "id": "aq2-14",
+  "question": "is there still room in cmps 364 this spring and who teaches it",
+  "answer": "I don’t have verified information about spring seat availability or the instructor for CMPS 364. Contact the Registrar to check the course schedule and seats: reg@ramapo.edu, (201) 684-7695. For the instructor, contact the School of Science, Nursing, and Health Office: SNHOffice@ramapo.edu, (201) 684-7734.",
+  "answered_at": "2026-10-25T11:57-04:00",
+  "cited_urls": []
+ },
+ {
+  "id": "aq2-15",
+  "question": "should i take operating systems or software engineering next semester, which one is easier",
+  "answer": "I don’t have verified information about which course is easier or which you should take; the pages provided don’t describe Software Engineering. CMPS 311 Operating Systems is 4 credits, has a required course fee, and is writing intensive. It covers operating-system design, use and analysis, including computer architecture, memory, processes, information, device control, structure and evaluation. Its prerequisites include CMPS 220, CMPS 231 (minimum grade C), CRWT 102 or CRWT 102S, and either MATH 205 or MATH 237. [1]\nFor advice comparing the courses, contact the Office of the Provost at provost@ramapo.edu or (201) 684-7330. [4]\n\nSources: [1](https://catalog.ramapo.edu/courses/CMPS311) [4](https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/)",
+  "answered_at": "2026-10-25T11:57-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/CMPS311",
+   "https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/"
+  ]
+ }
+]

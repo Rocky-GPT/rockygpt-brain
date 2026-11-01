@@ -1,0 +1,17 @@
+[
+  {"id": "er2-01", "question": "is there anything halloween themed happening on campus this weekend?? 🎃👻", "topic": "event"},
+  {"id": "er2-02", "question": "yo is there a costume contest for halloween and do u win anything lol 🧛‍♀️", "topic": "event"},
+  {"id": "er2-03", "question": "any movie nights tonight 🍿", "topic": "event"},
+  {"id": "er2-04", "question": "whats going on in the dorms friday night? like any res hall parties or game nights 🎉", "topic": "event"},
+  {"id": "er2-05", "question": "free candy or free food anywhere on campus today?? im starving fr 🍬🍕", "topic": "event"},
+  {"id": "er2-06", "question": "is the haunted house thing free and where is it at 😱", "topic": "event"},
+  {"id": "er2-07", "question": "r there any thanksgiving events b4 break? like a friendsgiving dinner or smth 🦃", "topic": "event"},
+  {"id": "er2-08", "question": "when is the tree lighting / holiday party in december and who's hosting it 🎄✨", "topic": "event"},
+  {"id": "er2-09", "question": "pumpkin carving or painting event next week?? 🎃🖌️", "topic": "event"},
+  {"id": "er2-10", "question": "is there like a party planning club or a club that throws themed events? how do i join 👀", "topic": "club"},
+  {"id": "er2-11", "question": "do yall have a horror movie club or film club 🔪🎬", "topic": "club"},
+  {"id": "er2-12", "question": "what cultural clubs r there that do holiday celebrations like diwali or lunar new year 🪔🏮", "topic": "club"},
+  {"id": "er2-13", "question": "how many ppl are going to the halloween dance tonight, is it gonna be packed 😬", "topic": "out_of_scope"},
+  {"id": "er2-14", "question": "which club should i join if i just wanna go to fun parties and meet ppl lmao", "topic": "out_of_scope"},
+  {"id": "er2-15", "question": "when does the anime club meet and who's the president? want to ask if theyre doing a cosplay night 🍥", "topic": "out_of_scope"}
+]

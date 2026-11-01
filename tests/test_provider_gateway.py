@@ -384,7 +384,7 @@ def test_a_strong_model_needs_its_full_prices() -> None:
         ProviderSettings.from_env(env)
     env.update({"BRAIN_OPENAI_STRONG_INPUT_NUSD_PER_TOKEN": "2500",
                 "BRAIN_OPENAI_STRONG_OUTPUT_NUSD_PER_TOKEN": "10000",
-                "BRAIN_OPENAI_STRONG_PRICE_VALID_UNTIL": "2026-11-01T00:00:00-04:00"})
+                "BRAIN_OPENAI_STRONG_PRICE_VALID_UNTIL": "2099-01-01T00:00:00+00:00"})
     settings = ProviderSettings.from_env(env)
     assert settings.strong_prices is not None and settings.strong_prices.model == "strong-model"
     assert settings.strong_prices.cached_input_nusd == 2_500

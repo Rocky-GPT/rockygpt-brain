@@ -1,0 +1,17 @@
+[
+  {"id": "ay2-01", "question": "I work full time and want to go back for a business degree. What are the required courses for the Business Administration major, and how many credits is the major in total?", "topic": "program"},
+  {"id": "ay2-02", "question": "Does Ramapo have a nursing program for adults who already have a bachelor's in another field, like an accelerated BSN?", "topic": "program"},
+  {"id": "ay2-03", "question": "what are the prereqs for cmps 147 and is it 4 credits?", "topic": "course"},
+  {"id": "ay2-04", "question": "Is there a minor in computer science, and if so which courses do I need for it?", "topic": "program"},
+  {"id": "ay2-05", "question": "For the nursing major, which science courses do I have to finish before I can start the clinical nursing courses?", "topic": "sequence"},
+  {"id": "ay2-06", "question": "What does ACCT 221 cover? Also does it count toward any gen ed category or only the business major", "topic": "course"},
+  {"id": "ay2-07", "question": "How many gen ed credits does a bachelors at Ramapo require in total, and what are the categories I have to cover?", "topic": "gen_ed"},
+  {"id": "ay2-08", "question": "If I start the Information Technology major as a first-year, what should I take in my first two semesters?", "topic": "sequence"},
+  {"id": "ay2-09", "question": "Is there a certificate program in data analytics or project management that someone could do part time?", "topic": "program"},
+  {"id": "ay2-10", "question": "Can you check my transcript from county college and tell me which of my credits will transfer into the business major?", "topic": "out_of_scope"},
+  {"id": "ay2-11", "question": "whats the difference between the computer science major and the information technology major in terms of required classes? i dont want a lot of heavy math if i can avoid it", "topic": "program"},
+  {"id": "ay2-12", "question": "Does a statistics course like MATH 108 satisfy the quantitative reasoning gen ed, and is it required for the business admin major?", "topic": "gen_ed"},
+  {"id": "ay2-13", "question": "Are there any evening sections of intro accounting open for spring? I can only take classes after 6pm", "topic": "out_of_scope"},
+  {"id": "ay2-14", "question": "What concentrations are offered within the business administration major, and how many credits is each concentration?", "topic": "program"},
+  {"id": "ay2-15", "question": "Honestly which would be a better fit for me as a 34 yr old working adult, nursing or computing? I'm worried about the clinical hours", "topic": "out_of_scope"}
+]

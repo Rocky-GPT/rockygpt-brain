@@ -1,0 +1,17 @@
+[
+  {"id": "pn2-01", "question": "Hello, my daughter is a first-year nursing student and she mentioned a Professor Chan. Could you please tell me how to reach him by email?", "topic": "contact"},
+  {"id": "pn2-02", "question": "Good afternoon. Who is the chair of the nursing department, and what is the best way to contact them?", "topic": "role"},
+  {"id": "pn2-03", "question": "Could you tell me who the dean of the School of Science, Nursing, and Health is?", "topic": "role"},
+  {"id": "pn2-04", "question": "My son has a Dr. Buna for one of his science classes. What does she teach, and where is her office located?", "topic": "teaching"},
+  {"id": "pn2-05", "question": "Hello, I am trying to find a phone number for Professor Daniella Bunna. Thank you in advance.", "topic": "contact"},
+  {"id": "pn2-06", "question": "My daughter said she needs help with research for a paper and mentioned a librarian named Reppert. Is she a librarian, and how can my daughter reach her?", "topic": "contact"},
+  {"id": "pn2-07", "question": "Is Professor Sidorsky in the political science department? My son is thinking about taking her class next semester and I would like to know what she teaches.", "topic": "teaching"},
+  {"id": "pn2-08", "question": "Could you please give me the email address and office hours for Dr. Elizabeth Carabello in the business school?", "topic": "contact"},
+  {"id": "pn2-09", "question": "Who is in charge of the nursing program for first-year students? I would like to speak with someone about clinical placements.", "topic": "role"},
+  {"id": "pn2-10", "question": "My daughter mentioned a Professor Koenig from her writing class. What is her title, and which school is she part of?", "topic": "role"},
+  {"id": "pn2-11", "question": "Hello, is Professor Patel from the nursing program on campus today? I would like to stop by and introduce myself.", "topic": "out_of_scope"},
+  {"id": "pn2-12", "question": "Can you please tell me if Dr. Chan is a good professor? My daughter is struggling in his class and I am worried.", "topic": "out_of_scope"},
+  {"id": "pn2-13", "question": "I am looking for Prof Kaiden. What department is she in, and what is her office phone number?", "topic": "contact"},
+  {"id": "pn2-14", "question": "Good evening. Could you give me the home phone number for Professor Rubino? My son needs to reach her urgently about an assignment.", "topic": "out_of_scope"},
+  {"id": "pn2-15", "question": "Who is Professor Murphy in the nursing department, and does she teach the anatomy course?", "topic": "teaching"}
+]

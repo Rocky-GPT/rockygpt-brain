@@ -1,0 +1,17 @@
+[
+  {"id": "er3-01", "question": "is there a robotics club at ramapo", "topic": "club"},
+  {"id": "er3-02", "question": "any hackathons coming up this semester? also is there a coding club or computer science club i could join", "topic": "event"},
+  {"id": "er3-03", "question": "what tech talks or computer science events are happening next week", "topic": "event"},
+  {"id": "er3-04", "question": "Is there an esports or gaming club? I play Valorant and Smash and want to find people to play with", "topic": "club"},
+  {"id": "er3-05", "question": "when are the math tutoring sessions this week and where are they", "topic": "event"},
+  {"id": "er3-06", "question": "whats happening on campus tonight thats science related", "topic": "event"},
+  {"id": "er3-07", "question": "link to the chemistry club page?", "topic": "club"},
+  {"id": "er3-08", "question": "what academic clubs are there for STEM majors? like bio, physics, engineering type stuff", "topic": "club"},
+  {"id": "er3-09", "question": "is the coding workshop this friday free and who's hosting it", "topic": "event"},
+  {"id": "er3-10", "question": "when does the comp sci club meet and who's the president", "topic": "out_of_scope"},
+  {"id": "er3-11", "question": "how do i join a club here? i'm a transfer student and missed the involvement fair", "topic": "club"},
+  {"id": "er3-12", "question": "any game nights or board game events this weekend", "topic": "event"},
+  {"id": "er3-13", "question": "should i join the cybersecurity club or the robotics club if i want an internship at a tech company", "topic": "out_of_scope"},
+  {"id": "er3-14", "question": "are there any career events for tech or STEM jobs coming up, like an employer panel or networking night", "topic": "event"},
+  {"id": "er3-15", "question": "how many ppl usually show up to the astronomy club stargazing nights, is it worth going", "topic": "out_of_scope"}
+]

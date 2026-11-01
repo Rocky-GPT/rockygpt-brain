@@ -1,0 +1,152 @@
+[
+ {
+  "id": "ax1-01",
+  "question": "My daughter is a senior in high school and is interested in nursing. Does Ramapo offer a four-year nursing degree for incoming freshmen, or is it only for people who already have an RN?",
+  "topic": "program"
+ },
+ {
+  "id": "ax1-02",
+  "question": "Could you tell me what courses are required for the Computer Science major, and roughly how many credits the major is in total?",
+  "topic": "program"
+ },
+ {
+  "id": "ax1-03",
+  "question": "We are comparing several colleges. What are the general education requirements at Ramapo, and how many credits do they add up to?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ax1-04",
+  "question": "Is there a minor in Spanish, and if so how many credits does it require?",
+  "topic": "program"
+ },
+ {
+  "id": "ax1-05",
+  "question": "My son wants to major in biology and possibly go on to medical school. What courses would he normally take in his first year?",
+  "topic": "sequence"
+ },
+ {
+  "id": "ax1-06",
+  "question": "Does Ramapo have an accounting major, and does it include the extra credits needed to sit for the CPA exam in New Jersey?",
+  "topic": "program"
+ },
+ {
+  "id": "ax1-07",
+  "question": "I saw a course listed as PSYC 101 on a brochure. What does that course cover and are there any prerequisites?",
+  "topic": "course"
+ },
+ {
+  "id": "ax1-08",
+  "question": "What is the difference between the Business Administration major and the Economics major in terms of the classes required?",
+  "topic": "program"
+ },
+ {
+  "id": "ax1-09",
+  "question": "Does Ramapo offer any certificate programs that a student could complete alongside their major?",
+  "topic": "program"
+ },
+ {
+  "id": "ax1-10",
+  "question": "Would the first year writing course count toward the general education requirements, and how many credits is it?",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ax1-11",
+  "question": "Is there an environmental science major, and does it require a lot of chemistry and math courses?",
+  "topic": "program"
+ },
+ {
+  "id": "ax1-12",
+  "question": "My daughter is torn between psychology and social work. Which major would you recommend for someone who wants to become a school counselor?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ax1-13",
+  "question": "Who teaches the introductory biology classes this coming spring, and are there still seats open?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ax1-14",
+  "question": "If my son takes AP Calculus in high school, what math course would he typically start with in the Computer Science major, and what does MATH 121 require as a prerequisite?",
+  "topic": "course"
+ },
+ {
+  "id": "ax1-15",
+  "question": "My daughter was admitted last week. Can you look up which classes she has been placed in for the fall and whether her AP credits have been applied to her record?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ax2-01",
+  "question": "how many credits is the psych minor? and can classes from my major double count for it",
+  "topic": "program"
+ },
+ {
+  "id": "ax2-02",
+  "question": "im a junior thinking abt switching from bio to environmental science, whats required for the env sci major",
+  "topic": "program"
+ },
+ {
+  "id": "ax2-03",
+  "question": "is there a data science minor or certificate at ramapo",
+  "topic": "program"
+ },
+ {
+  "id": "ax2-04",
+  "question": "prereqs for cmps 231?",
+  "topic": "course"
+ },
+ {
+  "id": "ax2-05",
+  "question": "what does stat 280 cover and how many credits is it",
+  "topic": "course"
+ },
+ {
+  "id": "ax2-06",
+  "question": "does intro to sociology count for gen ed? which category",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ax2-07",
+  "question": "how many total credits do u need to graduate from ramapo and how many of those are gen ed",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ax2-08",
+  "question": "what are the gen ed categories again, i forgot which ones i still need lol",
+  "topic": "gen_ed"
+ },
+ {
+  "id": "ax2-09",
+  "question": "if i switch to business admin as a junior what courses do they recommend taking first",
+  "topic": "sequence"
+ },
+ {
+  "id": "ax2-10",
+  "question": "whats the recommended order for the comp sci major courses? like what do ppl take sophomore vs junior yr",
+  "topic": "sequence"
+ },
+ {
+  "id": "ax2-11",
+  "question": "comm major reqs + is there a capstone or internship requirement",
+  "topic": "program"
+ },
+ {
+  "id": "ax2-12",
+  "question": "can u check my degree audit and tell me if i can still graduate in spring 2028 if i add a minor",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ax2-13",
+  "question": "is econ 101 open next semester and who's teaching it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ax2-14",
+  "question": "should i switch to psych or just add it as a minor? i dont want to graduate late",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ax2-15",
+  "question": "whats the difference between the marketing concentration in bus admin and the marketing minor",
+  "topic": "program"
+ }
+]

@@ -1935,6 +1935,9 @@ def course_property(row: dict[str, Any], now: datetime) -> tuple[dict[str, Any],
 
 MAX_EVENTS_READ = 40
 MAX_CLUBS_READ = 12
+# Another kind whose identity can also be an Archway group with a club directory entry (a school
+# or facility group is not read as a club: release graphs hold no records for those kinds).
+CLUB_DIRECTORY_KINDS = ("office",)
 
 
 def _listing(row: dict[str, Any]) -> dict[str, Any]:
@@ -1965,15 +1968,32 @@ def event_property(row: dict[str, Any], now: datetime) -> tuple[dict[str, Any], 
                          "source_ids": [source["id"]]}], "assertions": [assertion]}, source)
 
 
+# What a club's Archway listing says of itself, as written (its own heading dropped), cut at
+# CLUB_TEXT_CHARS: what it does, its own email, what members get.
+_CLUB_LISTING_TEXT = (("mission", "mission", "Mission"), ("email", "email", ""),
+                      ("member_benefits", "memberBenefits", "Membership Benefits"))
+CLUB_TEXT_CHARS = 400
+
+
+def _club_text(value: Any, label: str) -> str:
+    text = (clean(value) or "").replace("\u252c\u00e1", " ")  # A non-breaking space read as cp437.
+    if label and text.casefold().startswith(label.casefold()):
+        text = text[len(label):].strip()
+    return " ".join(text.split())[:CLUB_TEXT_CHARS]
+
+
 def club_property(row: dict[str, Any], now: datetime) -> tuple[dict[str, Any], dict[str, Any]]:
-    """A club's directory entry as published (name, category, page, membership note)."""
+    """A club's directory entry as published (name, category, page, membership note) and what
+    its own listing says of it (mission, email, member benefits)."""
     listing = _listing(row)
     url = _url(row.get("website_url"))
     source = _source({**row, "canonical_url": url}, now)
     source.update(collection="clubs", source_record_keys=[row["source_record_key"]],
                   record_ids=[row["id"]], content_hash=row.get("content_hash"))
     value = {"name": clean(row.get("name")), "category": clean(row.get("category")),
-             "membership": clean(listing.get("membershipInfo")), "url": url}
+             "membership": clean(listing.get("membershipInfo")), "url": url,
+             **{key: text for key, field, label in _CLUB_LISTING_TEXT
+                if (text := _club_text(listing.get(field), label))}}
     assertion = {"id": f"{source['id']}:club", "source_id": source["id"], "field": "club",
                  "raw_value": None, "value": _json_safe(value), "caveats": []}
     return ({"key": "club", "label": "Club", "category": "club", "status": "known",
@@ -1983,6 +2003,8 @@ def club_property(row: dict[str, Any], now: datetime) -> tuple[dict[str, Any], d
 
 MAX_PEOPLE_READ = 6
 _OFFICE_HOURS = re.compile(r"(?im)^\s*office hours?\s*:?.*$")
+# A profile's own "Office: AC-210B" line, for a person whose directory row lists no room.
+_OFFICE_ROOM = re.compile(r"(?im)^\s*office\s*:\s*([A-Z]{1,4}[- ]?\d{2,4}[A-Z]?)\s*$")
 
 
 def person_property(contact: dict[str, Any] | None, profile: dict[str, Any] | None,
@@ -2017,6 +2039,9 @@ def person_property(contact: dict[str, Any] | None, profile: dict[str, Any] | No
                      school=clean(record.get("school")),
                      office_hours=[" ".join(m.group(0).split()) for m in
                                    _OFFICE_HOURS.finditer(bio)][:3],
+                     **({} if value.get("office") or clean(record.get("office"))
+                        or not (room := _OFFICE_ROOM.search(bio))
+                        else {"office": room.group(1)}),
                      courses=[clean(c) for c in record.get("courses") or [] if isinstance(c, str)],
                      research_interests=[clean(c) for c in record.get("researchInterests") or []
                                          if isinstance(c, str)],
@@ -2634,6 +2659,15 @@ class EntityFacts:
                      "aliases": list(e["aliases"])}
                     for e in snapshot.entities if e["kind"] in kinds]
 
+    def club_directory_ids(self) -> list[str]:
+        """Every identity that links a club directory (Archway group) row: the clubs and
+        organizations, and the offices that are Archway groups too (Commuter Affairs,
+        Yearbook), so the club directory is read whole."""
+        kinds = ("club", "organization", *CLUB_DIRECTORY_KINDS)
+        with self.snapshot() as snapshot:
+            return [e["id"] for e in snapshot.entities if e["kind"] in kinds
+                    and any(link.get("collection") == "clubs" for link in e.get("links") or [])]
+
     def _batch_facts(
         self, entity_ids: Sequence[str], dataset_version: str, identity_hash: str | None,
         as_of: datetime | None, kinds: Sequence[str], collection: str, bound: int,
@@ -2716,9 +2750,11 @@ class EntityFacts:
     def get_club_facts(self, entity_ids: Sequence[str], dataset_version: str, *,
                        identity_hash: str | None = None,
                        as_of: datetime | None = None) -> list[dict[str, Any]]:
-        """Each named club or organization's directory entry, at most MAX_CLUBS_READ."""
+        """Each named club directory entry (a club, an organization, or an office, school or
+        facility that is an Archway group), at most MAX_CLUBS_READ."""
         return self._batch_facts(entity_ids, dataset_version, identity_hash, as_of,
-                                 ("club", "organization"), "clubs", MAX_CLUBS_READ,
+                                 ("club", "organization", *CLUB_DIRECTORY_KINDS), "clubs",
+                                 MAX_CLUBS_READ,
                                  club_property)
 
     def get_course_facts(

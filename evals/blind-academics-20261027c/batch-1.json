@@ -1,0 +1,157 @@
+[
+ {
+  "id": "az1-01",
+  "question": "whats the prereq for calc 2",
+  "answer": "MATH 122 CALCULUS II is 4 credits. Its prerequisite is completion of MATH 121 CALCULUS I. [1]\n\nSources: [1](https://catalog.ramapo.edu/courses/MATH122)",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/MATH122"
+  ]
+ },
+ {
+  "id": "az1-02",
+  "question": "can i take orgo 1 if i only finished gen chem 1 or do i need gen chem 2 too",
+  "answer": "[error, no answer: \"HTTP Error 504: Gateway Timeout\"]",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": []
+ },
+ {
+  "id": "az1-03",
+  "question": "how many credits is cmps 361 and what do u need before it",
+  "answer": "CMPS 361 SOFTWARE DESIGN is 4 credits. [1] Before taking it, complete CMPS 231 DATA STRUCTURES with a minimum grade of C. [1]\n\nSources: [1](https://catalog.ramapo.edu/courses/CMPS361)",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/CMPS361"
+  ]
+ },
+ {
+  "id": "az1-04",
+  "question": "is there a data science major or is it just a minor",
+  "answer": "Yes—Ramapo offers Data Science as a Bachelor of Science major (Data Science BS) [1][3][4][5][6] and as a minor (Data Science Minor) [2][3]. Data Science 4+1 and Data Science MS are also published [1][2].\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-DSCI) [2](https://catalog.ramapo.edu/programs/SN-MN-DSCI) [3](https://catalog.ramapo.edu/programs) [4](https://www.ramapo.edu/undergraduate/agenda/) [5](https://www.ramapo.edu/admitted-students/academics/) [6](https://www.ramapo.edu/learn/academics/)",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-DSCI",
+   "https://catalog.ramapo.edu/programs/SN-MN-DSCI",
+   "https://catalog.ramapo.edu/programs",
+   "https://www.ramapo.edu/undergraduate/agenda/",
+   "https://www.ramapo.edu/admitted-students/academics/",
+   "https://www.ramapo.edu/learn/academics/"
+  ]
+ },
+ {
+  "id": "az1-05",
+  "question": "what classes do i need for the bio major besides the bio ones like is physics and calc required",
+  "answer": "For the Biology BS, physics is required: PHYS 111 FUNDAMENTALS PHYSICS I LECTURE with PHYS 118L INTRODUCTORY PHYSICS I LAB, and PHYS 113 FUNDAMENTALS OF PHYSICS II LECTURE with PHYS 119L INTRODUCTORY PHYSICS II LAB. PHYS 116 Physics I with Calculus is not listed in the Biology BS requirements. [1][2]\n\nCalculus itself is not required by name. The math requirement is to select 2 courses from CMPS 147 COMPUTER SCIENCE I; BIOL 354 RESEARCH DESIGN & STATISTICS or PSYC 242 STATISTICS; MATH 110 PRECALCULUS; MATH 121 CALCULUS I; MATH 122 CALCULUS II. [1]\n\nOther non-biology requirements include CHEM 117 GENERAL CHEMISTRY II LECTURE and CHEM 117L GENERAL CHEMISTRY II LAB; choose either CHEM 206 and 206L, or CHEM 211 and 211L plus CHEM 213 and 213L, for organic chemistry. The ecology choice may be ENSC 220 THEORETICAL & APPLIED ECOLOGY LECTURE instead of BIOL 221. [1]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-BIOL) [2](https://catalog.ramapo.edu/courses/PHYS116)",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-BIOL",
+   "https://catalog.ramapo.edu/courses/PHYS116"
+  ]
+ },
+ {
+  "id": "az1-06",
+  "question": "does stats count for gen ed math",
+  "answer": "Yes—if you mean MATH 108 ELEMENTARY PROBABILITY AND STATISTICS, it is listed as Gen Ed 18-Quantitative Rsng (GEQR) [13]. The Testing Center also lists MATH-108 among college-level math courses that meet your General Education and/or major math requirement [8].\n\nSources: [8](https://www.ramapo.edu/testing/post-testing/) [13](https://catalog.ramapo.edu/programs)",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": [
+   "https://www.ramapo.edu/testing/post-testing/",
+   "https://catalog.ramapo.edu/programs"
+  ]
+ },
+ {
+  "id": "az1-07",
+  "question": "im a sophomore comp sci what should i be taking in the spring of 2nd year per the 4 yr plan",
+  "answer": "The Computer Science — Fall 2025 recommended graduation plan applies to students admitted to the major during the 2025–2026 academic year. For Second Year, Spring Semester, it lists [1]:\n- CMPS 311 – OPERATING SYSTEMS WI (4)\n- CMPS Elective (4)\n- General Education Requirement * (4)\n- General Education Requirement * (4)\n- PATH TS3 – CAREER PATHWAYS MODULE 3 FOR THEORETICAL & APPLIED SCIENCE\nTotal: 16 credits.\nThe plan also lists three other tracks for that admission year: Computer Science with MS in Applied Mathematics 4+1, Computer Science with MS in Computer Science 4+1, and Computer Science with MS in Data Science 4+1. [1]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-CMPS)",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-CMPS"
+  ]
+ },
+ {
+  "id": "az1-08",
+  "question": "how many credits is the math minor and does calc 1 count toward it",
+  "answer": "The Mathematics Minor (Minor) lists courses but no total credit count [1]. College minors must include between 16 and 24 credits, including non-General Education prerequisites and excluding lab science course credits [3]. Its required courses are MATH 122 CALCULUS II; MATH 237 DISCRETE STRUCTURES or MATH 205 MATHEMATICAL STRUCTURES; MATH 262 LINEAR ALGEBRA; and one elective from the listed options [1]. MATH 121 CALCULUS I is 4 credits [2], but it is not listed in the Mathematics Minor requirements [1], so it does not count toward the listed requirements.\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-MN-MATH) [2](https://catalog.ramapo.edu/courses/MATH121) [3](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1)",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-MN-MATH",
+   "https://catalog.ramapo.edu/courses/MATH121",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1"
+  ]
+ },
+ {
+  "id": "az1-09",
+  "question": "what does phys 1 cover is it calc based or algebra based",
+  "answer": "Ramapo lists two Physics I lectures:\n\n- PHYS 116 PHYSICS I WITH CALCULUS LECTURE is explicitly the calculus course. It covers Newtonian mechanics, relativity & waves and is the first semester of a two-semester sequence with laboratory. It is 4 credits, carries Gen Ed 18-Scientific Reasoning (GESR), and has this corequisite: “Corequisite Course be enrolled in: - PHYS 116L INTRODUCTORY PHYSICS I LAB.” [1] https://catalog.ramapo.edu/courses/PHYS116\n- PHYS 111 FUNDAMENTALS PHYSICS I LECTURE covers Newtonian mechanics & waves. It is 4 credits and carries Gen Ed 18-Scientific Reasoning (GESR) and WRITING INTENSIVE (WRIT). Its corequisite is “Corequisite Course be enrolled in: - PHYS 118L INTRODUCTORY PHYSICS I LAB.” [2] The catalog description does not label PHYS 111 algebra-based. https://catalog.ramapo.edu/courses/PHYS111\n\nSources: [1](https://catalog.ramapo.edu/courses/PHYS116) [2](https://catalog.ramapo.edu/courses/PHYS111)",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/PHYS116",
+   "https://catalog.ramapo.edu/courses/PHYS111"
+  ]
+ },
+ {
+  "id": "az1-10",
+  "question": "which gen ed categories do i still need to finish",
+  "answer": "I can’t tell which categories you personally still need from these pages; that depends on your degree evaluation. The College says students complete the four keystone courses and courses in the four keystone categories, plus one course in two of three distribution categories [5]. For Fall 2026, those distribution choices are Culture and Creativity, Values and Ethics, or Social Systems and Society [6].\n\nThe Center for Student Success (Academic Advising) provides degree-evaluation help: (201) 684-7441, success@ramapo.edu [15]. To check yours: visit web.ramapo.edu, click “Web for Students,” then “Web Registration”; enter the Secure Area with your Ramapo login and password; click “Student and Financial Aid,” “Student Records,” then “Degree Evaluation”; select the current term and click enter, then “Generate New Evaluation”; click the circle next to your major and “Generate Request”; select detail requirements and click “Submit” [15].\n\nSources: [5](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#general-education) [6](https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/) [15](https://www.ramapo.edu/studentsuccess/faq/)",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#general-education",
+   "https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/",
+   "https://www.ramapo.edu/studentsuccess/faq/"
+  ]
+ },
+ {
+  "id": "az1-11",
+  "question": "is data structures open for spring or is it full already",
+  "answer": "I don’t have verified information about whether a Spring section of Data Structures is being offered or whether it has seats available; that live availability isn’t shown in these pages. The Registrar’s Spring 2027 page says to register after your assigned window opens: in Experience, open the Registration Card, then the Registration Dashboard, and select “Register for Classes” [3]. If the course is closed, ask the instructor for an electronic override; tell them what kind of override you need. After the instructor enters it, you still register online [6].\n\nCMPS 231 DATA STRUCTURES is 4 credits. Prerequisite: “CMPS 148 COMPUTER SCIENCE II”; it “May be taken concurrently with CMPS 231.” [1]\n\nContact the Registrar: reg@ramapo.edu, (201) 684-7695 [2].\n\nSources: [1](https://catalog.ramapo.edu/courses/CMPS231) [2](https://www.ramapo.edu/registrar/faq/) [3](https://www.ramapo.edu/registrar/registrationinfo/) [6](https://www.ramapo.edu/registrar/faq/)",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/CMPS231",
+   "https://www.ramapo.edu/registrar/faq/",
+   "https://www.ramapo.edu/registrar/registrationinfo/",
+   "https://www.ramapo.edu/registrar/faq/"
+  ]
+ },
+ {
+  "id": "az1-12",
+  "question": "do i need discrete math before data structures or can i take them at the same time",
+  "answer": "The catalog does not list MATH 237 Discrete Structures as a prerequisite for CMPS 231 Data Structures. CMPS 231 requires CMPS 148 Computer Science II, which may be taken concurrently with CMPS 231; it does not say you can take MATH 237 and CMPS 231 concurrently as a pair. [2]\nMATH 237 is 4 credits and requires CRWT 102 or CRWT 102S and MATH 121; those courses may be taken concurrently with MATH 237. [1]\nThe Registrar says to “satisfactorily complete all prerequisites before registering,” and to review them in Web Self Service. [3]\n\nSources: [1](https://catalog.ramapo.edu/courses/MATH237) [2](https://catalog.ramapo.edu/courses/CMPS231) [3](https://www.ramapo.edu/registrar/registrationinfo/)",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/MATH237",
+   "https://catalog.ramapo.edu/courses/CMPS231",
+   "https://www.ramapo.edu/registrar/registrationinfo/"
+  ]
+ },
+ {
+  "id": "az1-13",
+  "question": "whats the difference between the bs in chemistry and the biochem major, like requirements wise",
+  "answer": "Both are Bachelor of Science degrees in the School of Science, Nursing, and Health; both require CHEM 117/117L, CHEM 211/211L, CHEM 213/213L, CHEM 324/324L, CHEM 350/350L, MATH 121 and 122, PHYS 116/116L and PHYS 117/117L, plus PATH 001, 002 and 003. [1][2]\n\nChemistry BS adds CHEM 352/352L, CHEM 427/427L, CHEM 451/451L and MATH 225. It also requires “Select a Minimum of 2 Courses” (6–8 credits) from BIIN 351 Protein Structure and Modeling; CHEM 400 Independent Study: Chemistry; CHEM 421 Advanced Organic Chemistry; CHEM 425 Biochemistry I; CHEM 430 Experimental Biochemistry; CHEM 435 Organic Spectroscopy; CHEM 445 Medicinal Chemistry; CHEM 446 Biochemistry II Lecture; CHEM 450 Special Topics; ENSC 343/343L Environmental Chemistry; PHYS 423 Quantum Mechanics I; SCIN 301, 302 or 401 Research Honors. [1]\n\nBiochemistry instead adds BIOL 111/111L, BIOL 113/113L, BIOL 332/332L and BIOL 407/407L, plus CHEM 425 Biochemistry I, CHEM 430 Experimental Biochemistry and CHEM 446 Biochemistry II Lecture. [2]\n\nBoth also publish a Chemistry Minor. [1][2]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-CHEM) [2](https://catalog.ramapo.edu/programs/SN-BS-BCHM)",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-CHEM",
+   "https://catalog.ramapo.edu/programs/SN-BS-BCHM"
+  ]
+ },
+ {
+  "id": "az1-14",
+  "question": "how many gen ed credits total do u need to graduate and is there a writing intensive requirement",
+  "answer": "Ramapo’s General Education curriculum is ten courses: four keystone courses, one course in each of four keystone categories, and one course in two of three distribution categories [1]. The catalog says the curriculum “should not exceed 41 credits”; it does not give an exact required total of General Education credits [2]. I don’t have verified information about the exact total for your requirements. The catalog in effect when you matriculated governs your requirements [6].\n\nThe pages provided do not state a general writing-intensive requirement for all students. If you have two majors, you must complete all writing-intensive courses required for the second major [13].\n\nFor clarification, contact the Office of the Provost: provost@ramapo.edu, (201) 684-7330 [1].\n\nSources: [1](https://www.ramapo.edu/provost/curriculum-and-assessment/) [2](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [6](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#graduation-requirements) [13](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1)",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": [
+   "https://www.ramapo.edu/provost/curriculum-and-assessment/",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#graduation-requirements",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1"
+  ]
+ },
+ {
+  "id": "az1-15",
+  "question": "should i do cs or IT if i want to get a job faster after graduating",
+  "answer": "The pages don’t compare CS and IT or say which leads to a job faster, so I can’t recommend one on that basis. They say a four-year degree itself does not guarantee career success, and career planning during college can put you at an advantage when seeking work immediately after college [10].\n\nUse FOCUS 2 to explore careers and select a major; its access code is ramapo430. The page also recommends connecting with faculty and visiting the Career Center to speak with a Career Advisor [5].\n\nCahill Career Development Center: careercenter@ramapo.edu; Main Office, C-209, (201) 684-7444; ASB Office, ASB-513, (201) 684-7675.\n\nSources: [5](https://www.ramapo.edu/careercenter/career-assessment/) [10](https://www.ramapo.edu/eof-program/highlights/)",
+  "answered_at": "2026-10-27T11:48-04:00",
+  "cited_urls": [
+   "https://www.ramapo.edu/careercenter/career-assessment/",
+   "https://www.ramapo.edu/eof-program/highlights/"
+  ]
+ }
+]

@@ -1,0 +1,17 @@
+[
+  {"id": "es2-01", "question": "any home games this weekend?", "topic": "event"},
+  {"id": "es2-02", "question": "what time is the mens soccer game tonight and is it home or away", "topic": "event"},
+  {"id": "es2-03", "question": "do students get in free to basketball games or do we gotta pay", "topic": "event"},
+  {"id": "es2-04", "question": "is there a watch party for the big game sunday anywhere on campus?", "topic": "event"},
+  {"id": "es2-05", "question": "how do i sign up for intramurals, tryna get a flag football squad together", "topic": "club"},
+  {"id": "es2-06", "question": "yo does ramapo have a club hockey team", "topic": "club"},
+  {"id": "es2-07", "question": "what club sports are there? looking for something competitive but not d3 varsity level", "topic": "club"},
+  {"id": "es2-08", "question": "volleyball game next friday where is it at and when does it start", "topic": "event"},
+  {"id": "es2-09", "question": "any sports events w free food this week lol", "topic": "event"},
+  {"id": "es2-10", "question": "when's the next womens bball home game, and is there like a student section thing or giveaway", "topic": "event"},
+  {"id": "es2-11", "question": "is there an esports club or gaming org i can join", "topic": "club"},
+  {"id": "es2-12", "question": "how many ppl usually show up to the football tailgates, is it lit?", "topic": "out_of_scope"},
+  {"id": "es2-13", "question": "who's the captain of the club soccer team and when do they practice", "topic": "out_of_scope"},
+  {"id": "es2-14", "question": "should i join club lacrosse or just do intramural, which one is more fun", "topic": "out_of_scope"},
+  {"id": "es2-15", "question": "anything going on at the rec center or bradley tmrw night? pickup or tourney or whatever", "topic": "event"}
+]

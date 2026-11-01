@@ -1,0 +1,302 @@
+[
+ {
+  "id": "pr1-01",
+  "question": "sineshaw office room and ext?",
+  "topic": "contact"
+ },
+ {
+  "id": "pr1-02",
+  "question": "prof Larson business school email",
+  "topic": "contact"
+ },
+ {
+  "id": "pr1-03",
+  "question": "what school is Dr. Kowal in",
+  "topic": "role"
+ },
+ {
+  "id": "pr1-04",
+  "question": "office hours for Donovan McFerron this semester",
+  "topic": "contact"
+ },
+ {
+  "id": "pr1-05",
+  "question": "Need to drop off graded exams for Loraine Tan. which building/room is her office and what's her phone extension",
+  "topic": "contact"
+ },
+ {
+  "id": "pr1-06",
+  "question": "is Juan Cabrera faculty in Anisfield or staff? whats his title",
+  "topic": "role"
+ },
+ {
+  "id": "pr1-07",
+  "question": "dr bacon nursing - email + office",
+  "topic": "contact"
+ },
+ {
+  "id": "pr1-08",
+  "question": "Mack Brandon what dept / what does he teach",
+  "topic": "teaching"
+ },
+ {
+  "id": "pr1-09",
+  "question": "karen lynch social work phone number",
+  "topic": "contact"
+ },
+ {
+  "id": "pr1-10",
+  "question": "who chairs the psychology dept and where's their office",
+  "topic": "role"
+ },
+ {
+  "id": "pr1-11",
+  "question": "prof Meredith Davis research area? and which school is she under",
+  "topic": "teaching"
+ },
+ {
+  "id": "pr1-12",
+  "question": "contact info for prof Patel in biology, need room # and ext",
+  "topic": "contact"
+ },
+ {
+  "id": "pr1-13",
+  "question": "is prof sineshaw on campus today? need to catch him before 3",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pr1-14",
+  "question": "cell number for Dr. Kowal, she said text her but i lost it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pr1-15",
+  "question": "which stats prof in SSHS is easiest to TA for",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pr2-01",
+  "question": "hi im a hs senior visiting next week and thinking about music, is prof gidal someone i could email? whats his email",
+  "topic": "contact"
+ },
+ {
+  "id": "pr2-02",
+  "question": "who is Straile Costa and what does she teach",
+  "topic": "teaching"
+ },
+ {
+  "id": "pr2-03",
+  "question": "dr sailer email and office number pls",
+  "topic": "contact"
+ },
+ {
+  "id": "pr2-04",
+  "question": "is there a professor named gronbeck tedesco? what department is he in",
+  "topic": "role"
+ },
+ {
+  "id": "pr2-05",
+  "question": "im considering nursing or maybe biology... what does professor shanta franks teach and how do i reach her",
+  "topic": "teaching"
+ },
+ {
+  "id": "pr2-06",
+  "question": "whats prof babakani's title and which school is she in",
+  "topic": "role"
+ },
+ {
+  "id": "pr2-07",
+  "question": "does Michael Unger have office hours? i want to stop by when i tour campus on friday",
+  "topic": "contact"
+ },
+ {
+  "id": "pr2-08",
+  "question": "how do i contact prof canaty in the business school, phone or email whatever works",
+  "topic": "contact"
+ },
+ {
+  "id": "pr2-09",
+  "question": "is professor Yeaton a good teacher?? thinking about doing accounting",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pr2-10",
+  "question": "who teaches creative writing at ramapo, is there a prof kiser or something like that",
+  "topic": "teaching"
+ },
+ {
+  "id": "pr2-11",
+  "question": "who is the chair of the psychology dept and whats their email",
+  "topic": "role"
+ },
+ {
+  "id": "pr2-12",
+  "question": "is dr johnson in the biology department? i want to ask about research for first years",
+  "topic": "role"
+ },
+ {
+  "id": "pr2-13",
+  "question": "which professors teach computer science? and how do i contact the department to set up a visit",
+  "topic": "teaching"
+ },
+ {
+  "id": "pr2-14",
+  "question": "is prof martinez on campus today, i wanna meet before my tour ends",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pr2-15",
+  "question": "can u give me paula straile-costa's cell number so i can text her about the language program",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pr3-01",
+  "question": "Good afternoon. Could you kindly provide me the email address of Professor Erin Augis? I would like to request a meeting regarding my course registration.",
+  "topic": "contact"
+ },
+ {
+  "id": "pr3-02",
+  "question": "Dear sir, may I know which department Dr. Varma belongs to, and where is his office located?",
+  "topic": "role"
+ },
+ {
+  "id": "pr3-03",
+  "question": "Who is the dean of the School of Science, Nursing and Health? Is Professor Kaneez Odger the dean or a faculty member?",
+  "topic": "role"
+ },
+ {
+  "id": "pr3-04",
+  "question": "Hello, I wish to contact Prof. Todd Barnes. What is his phone number and office hours please?",
+  "topic": "contact"
+ },
+ {
+  "id": "pr3-05",
+  "question": "Please tell me what subjects Professor Mustafa is teaching and what is his area of research.",
+  "topic": "teaching"
+ },
+ {
+  "id": "pr3-06",
+  "question": "Dr. Paul Campbell, School of Arts Humanities and Education - what is his official title?",
+  "topic": "role"
+ },
+ {
+  "id": "pr3-07",
+  "question": "I am an international student in Anisfield School of Business. Who will be my academic advisor? Is it Professor Edward Petit?",
+  "topic": "role"
+ },
+ {
+  "id": "pr3-08",
+  "question": "Good morning, I need assistance with research for my thesis. Could you share the contact details of Ms. Katie Cohen at the library?",
+  "topic": "contact"
+ },
+ {
+  "id": "pr3-09",
+  "question": "Respectfully, is Dr. Stackhouse the director of any program? I would like to know who leads the program she is in.",
+  "topic": "role"
+ },
+ {
+  "id": "pr3-10",
+  "question": "carew natasha email and office room number?",
+  "topic": "contact"
+ },
+ {
+  "id": "pr3-11",
+  "question": "Kindly inform me who is the chairperson of the Computer Science department and how I can reach him or her.",
+  "topic": "role"
+ },
+ {
+  "id": "pr3-12",
+  "question": "Is Professor Dr. Rajesh Kumar teaching in the economics program at Ramapo? I would like his email.",
+  "topic": "contact"
+ },
+ {
+  "id": "pr3-13",
+  "question": "Which professor is the best for Financial Accounting, Professor Varma or another one? I want the one who grades fairly.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pr3-14",
+  "question": "Is Professor Augis present in her office today? I wish to visit her this afternoon.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pr3-15",
+  "question": "Could you please give me the personal mobile number of Dr. Odgers? Her office phone is not answering and it is urgent.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pr4-01",
+  "question": "whats prof abzugs email",
+  "topic": "contact"
+ },
+ {
+  "id": "pr4-02",
+  "question": "need dr wiener office hours and his phone number asap",
+  "topic": "contact"
+ },
+ {
+  "id": "pr4-03",
+  "question": "lustiger thaler email? missing class thurs for an away game",
+  "topic": "contact"
+ },
+ {
+  "id": "pr4-04",
+  "question": "what room is prof fishkins office in",
+  "topic": "contact"
+ },
+ {
+  "id": "pr4-05",
+  "question": "eileen kline phone number",
+  "topic": "contact"
+ },
+ {
+  "id": "pr4-06",
+  "question": "is professor farrell in his office today? i need to drop off a doctor's note before practice",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pr4-07",
+  "question": "how do i contact dr bonilla bowman, email or phone whichever is faster",
+  "topic": "contact"
+ },
+ {
+  "id": "pr4-08",
+  "question": "steve anderson what department is he in and whats his email",
+  "topic": "role"
+ },
+ {
+  "id": "pr4-09",
+  "question": "prof dangelo office hours",
+  "topic": "contact"
+ },
+ {
+  "id": "pr4-10",
+  "question": "what does karl johnson teach",
+  "topic": "teaching"
+ },
+ {
+  "id": "pr4-11",
+  "question": "is prof martinez chill about excused absences for sports or nah",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "pr4-12",
+  "question": "who is the chair of the biology department and how do i email them",
+  "topic": "role"
+ },
+ {
+  "id": "pr4-13",
+  "question": "email for professor kowalski in the business school",
+  "topic": "contact"
+ },
+ {
+  "id": "pr4-14",
+  "question": "whats the athletic academic advisors name and office number",
+  "topic": "role"
+ },
+ {
+  "id": "pr4-15",
+  "question": "can u give me prof wieners cell number so i can text him",
+  "topic": "out_of_scope"
+ }
+]

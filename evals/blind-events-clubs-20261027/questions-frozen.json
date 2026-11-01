@@ -1,0 +1,152 @@
+[
+ {
+  "id": "ex1-01",
+  "question": "anything happening on campus tonight? i get out of work around 6",
+  "topic": "event"
+ },
+ {
+  "id": "ex1-02",
+  "question": "Is there a club or group for transfer students or commuters? I don't live on campus and kind of want to meet people",
+  "topic": "club"
+ },
+ {
+  "id": "ex1-03",
+  "question": "whats going on this weekend at ramapo",
+  "topic": "event"
+ },
+ {
+  "id": "ex1-04",
+  "question": "are there any events with free food this week",
+  "topic": "event"
+ },
+ {
+  "id": "ex1-05",
+  "question": "When is the next career fair or networking event? Is it free and do I need to register?",
+  "topic": "event"
+ },
+ {
+  "id": "ex1-06",
+  "question": "how do i join a club here, is there a list somewhere of all the orgs",
+  "topic": "club"
+ },
+ {
+  "id": "ex1-07",
+  "question": "what cultural clubs does ramapo have",
+  "topic": "club"
+ },
+ {
+  "id": "ex1-08",
+  "question": "is there a home basketball game next friday? what time and where",
+  "topic": "event"
+ },
+ {
+  "id": "ex1-09",
+  "question": "Is there an intramural or club soccer team? I played at my old school",
+  "topic": "club"
+ },
+ {
+  "id": "ex1-10",
+  "question": "any club meetings or events on tuesday or thursday afternoons? those are the only days im free before my shift",
+  "topic": "event"
+ },
+ {
+  "id": "ex1-11",
+  "question": "who runs the business club and when do they meet",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ex1-12",
+  "question": "what are some workshops coming up next week, like resume or study skills stuff",
+  "topic": "event"
+ },
+ {
+  "id": "ex1-13",
+  "question": "Which club would be best for someone who's shy and only on campus 3 days a week?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ex1-14",
+  "question": "how many people usually show up to the club fair, is it worth going",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ex1-15",
+  "question": "does ramapo have greek life? how do u rush if ur a transfer",
+  "topic": "club"
+ },
+ {
+  "id": "ex2-01",
+  "question": "whats going on tonight on campus",
+  "topic": "event"
+ },
+ {
+  "id": "ex2-02",
+  "question": "is there a gaming club or esports team here",
+  "topic": "club"
+ },
+ {
+  "id": "ex2-03",
+  "question": "any concerts or music stuff this week",
+  "topic": "event"
+ },
+ {
+  "id": "ex2-04",
+  "question": "free food anywhere tonight?? and where",
+  "topic": "event"
+ },
+ {
+  "id": "ex2-05",
+  "question": "is there like a smash bros tournament or game night this weekend",
+  "topic": "event"
+ },
+ {
+  "id": "ex2-06",
+  "question": "how do i join a club, do i just show up or sign up somewhere",
+  "topic": "club"
+ },
+ {
+  "id": "ex2-07",
+  "question": "when does the esports club meet and who's the president",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ex2-08",
+  "question": "r there any music clubs like a band or a dj club or something",
+  "topic": "club"
+ },
+ {
+  "id": "ex2-09",
+  "question": "whens the next mens basketball home game and is it free for students",
+  "topic": "event"
+ },
+ {
+  "id": "ex2-10",
+  "question": "anything happening next friday night",
+  "topic": "event"
+ },
+ {
+  "id": "ex2-11",
+  "question": "is there an open mic or karaoke thing coming up? where is it",
+  "topic": "event"
+ },
+ {
+  "id": "ex2-12",
+  "question": "which club should i join if i like music and video games but dont wanna commit a lot of time",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ex2-13",
+  "question": "whats on in the student center this week, like any events hosted by SGA or the programming board",
+  "topic": "event"
+ },
+ {
+  "id": "ex2-14",
+  "question": "how many ppl usually go to the friday night events, is it dead or worth going",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ex2-15",
+  "question": "do we have an anime club? send me their page link",
+  "topic": "club"
+ }
+]

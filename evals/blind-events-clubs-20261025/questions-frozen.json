@@ -1,0 +1,302 @@
+[
+ {
+  "id": "ec1-01",
+  "question": "anything fun going on tonight on campus? im so bored",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-02",
+  "question": "is there free food anywhere today",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-03",
+  "question": "whats happening this weekend at ramapo?? like saturday night specifically",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-04",
+  "question": "r there any game nights or trivia or smth like that this week",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-05",
+  "question": "is there a basketball or soccer game i can go watch this weekend and is it free for students",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-06",
+  "question": "any events next friday night? and do they have food lol",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-07",
+  "question": "where is the movie night thing happening and what time does it start",
+  "topic": "event"
+ },
+ {
+  "id": "ec1-08",
+  "question": "is there a gaming club or esports team here",
+  "topic": "club"
+ },
+ {
+  "id": "ec1-09",
+  "question": "how do i join a club im a freshman and dont rlly know anyone",
+  "topic": "club"
+ },
+ {
+  "id": "ec1-10",
+  "question": "what frats and sororities are there and when is rush",
+  "topic": "club"
+ },
+ {
+  "id": "ec1-11",
+  "question": "is there an anime club or like a dnd club? whos running it",
+  "topic": "club"
+ },
+ {
+  "id": "ec1-12",
+  "question": "list of cultural clubs pls",
+  "topic": "club"
+ },
+ {
+  "id": "ec1-13",
+  "question": "where r the parties at this weekend lmaooo",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec1-14",
+  "question": "how many ppl usually show up to the friday events, is it actually poppin or dead",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec1-15",
+  "question": "which club should i join to make friends fast",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec2-01",
+  "question": "anything happening on campus today around lunch time? like 12 to 2",
+  "topic": "event"
+ },
+ {
+  "id": "ec2-02",
+  "question": "Are there any events specifically for commuter students this week?",
+  "topic": "event"
+ },
+ {
+  "id": "ec2-03",
+  "question": "when is the next resume workshop or career fair? and is it during the day bc i work nights",
+  "topic": "event"
+ },
+ {
+  "id": "ec2-04",
+  "question": "is there free food anywhere on campus tmrw afternoon",
+  "topic": "event"
+ },
+ {
+  "id": "ec2-05",
+  "question": "Is there a commuter student club or organization I can join?",
+  "topic": "club"
+ },
+ {
+  "id": "ec2-06",
+  "question": "who's hosting the career event next tuesday and where is it",
+  "topic": "event"
+ },
+ {
+  "id": "ec2-07",
+  "question": "do u guys have a business or accounting club",
+  "topic": "club"
+ },
+ {
+  "id": "ec2-08",
+  "question": "what clubs meet during the day on weekdays? i cant do evenings at all",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec2-09",
+  "question": "Are there any networking events with employers next week, and do I need to register or can I just show up?",
+  "topic": "event"
+ },
+ {
+  "id": "ec2-10",
+  "question": "linkedin headshot event this semester?",
+  "topic": "event"
+ },
+ {
+  "id": "ec2-11",
+  "question": "how do i join a club if im a commuter and not really around much",
+  "topic": "club"
+ },
+ {
+  "id": "ec2-12",
+  "question": "whats going on next wednesday between classes, im free like 11-1",
+  "topic": "event"
+ },
+ {
+  "id": "ec2-13",
+  "question": "which club would look best on my resume for a finance job",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec2-14",
+  "question": "is there a cultural club for south asian students and do they have a page i can look at",
+  "topic": "club"
+ },
+ {
+  "id": "ec2-15",
+  "question": "how many people usually show up to the commuter lunch thing, is it worth going",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec3-01",
+  "question": "Hello, is there any Indian student association or South Asian club at Ramapo? I am new graduate student and want to meet people from my culture.",
+  "topic": "club"
+ },
+ {
+  "id": "ec3-02",
+  "question": "Are there any Diwali celebration happening on campus this year? When and where it will be?",
+  "topic": "event"
+ },
+ {
+  "id": "ec3-03",
+  "question": "what cultural clubs are exist at Ramapo, can you give me the list",
+  "topic": "club"
+ },
+ {
+  "id": "ec3-04",
+  "question": "Is there a resume workshop or career fair next week? I want to improve my resume for internship in US.",
+  "topic": "event"
+ },
+ {
+  "id": "ec3-05",
+  "question": "Do you know if the Chinese student club meets on which day and time? Also who is the president of it?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec3-06",
+  "question": "any language exchange or conversation partner event this week? i want to practice english speaking",
+  "topic": "event"
+ },
+ {
+  "id": "ec3-07",
+  "question": "How can I join a club as graduate student? Is it allowed or only for undergrad?",
+  "topic": "club"
+ },
+ {
+  "id": "ec3-08",
+  "question": "What events are happening tonight on campus, and is any of them free food?",
+  "topic": "event"
+ },
+ {
+  "id": "ec3-09",
+  "question": "Is there Spanish club or French club? I am interested to learn new language beside English.",
+  "topic": "club"
+ },
+ {
+  "id": "ec3-10",
+  "question": "Which cultural club is best for international student to join, which one is most active?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec3-11",
+  "question": "Is there any event for Hispanic Heritage Month or Black History Month? Who is organizing these?",
+  "topic": "event"
+ },
+ {
+  "id": "ec3-12",
+  "question": "networking events this weekend for grad students?",
+  "topic": "event"
+ },
+ {
+  "id": "ec3-13",
+  "question": "Please tell me the webpage of the Asian Student Association so I can see more informations about them.",
+  "topic": "club"
+ },
+ {
+  "id": "ec3-14",
+  "question": "How many people usually attend the international food festival? I want to know if it will be crowded.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec3-15",
+  "question": "Is the cultural dance performance next friday free for students, and in which building it is held?",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-01",
+  "question": "any concerts or live music on campus this weekend?",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-02",
+  "question": "is there a guitar club or like a music club i can join",
+  "topic": "club"
+ },
+ {
+  "id": "ec4-03",
+  "question": "when's the next home basketball game and is it free for students",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-04",
+  "question": "how do i join a club at ramapo? do i just show up or is there a sign up somewhere",
+  "topic": "club"
+ },
+ {
+  "id": "ec4-05",
+  "question": "whats happening tonight on campus",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-06",
+  "question": "Are there any theater or dance performances coming up next week? Where are they held?",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-07",
+  "question": "can u send me the link to the intramural sports page",
+  "topic": "club"
+ },
+ {
+  "id": "ec4-08",
+  "question": "what arts clubs are there? like painting, photography, that kind of stuff",
+  "topic": "club"
+ },
+ {
+  "id": "ec4-09",
+  "question": "soccer game next friday?? what time and where",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-10",
+  "question": "is there an open mic night anytime soon, i wanna play a couple songs",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-11",
+  "question": "when does the music club meet and who's the president",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec4-12",
+  "question": "list all the music related orgs and give me the page link for the a cappella one",
+  "topic": "club"
+ },
+ {
+  "id": "ec4-13",
+  "question": "should i join a band club or the intramural flag football team, i dont have time for both lol",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "ec4-14",
+  "question": "who's hosting the jazz show this month and do i need tickets",
+  "topic": "event"
+ },
+ {
+  "id": "ec4-15",
+  "question": "how many people usually go to the volleyball games, is it packed",
+  "topic": "out_of_scope"
+ }
+]

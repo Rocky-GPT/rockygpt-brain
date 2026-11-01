@@ -1,0 +1,17 @@
+[
+  {"id": "aq2-01", "question": "what are the prereqs for cmps 361", "topic": "course"},
+  {"id": "aq2-02", "question": "How many credits is the math minor and which classes are required for it?", "topic": "program"},
+  {"id": "aq2-03", "question": "im a junior in comp sci, what upper level electives can i pick from to finish the major?", "topic": "program"},
+  {"id": "aq2-04", "question": "does MATH 237 discrete math count toward the computer science major or is it only for math majors", "topic": "course"},
+  {"id": "aq2-05", "question": "what does data structures cover and how many credits is it", "topic": "course"},
+  {"id": "aq2-06", "question": "Is there a data science major or minor at Ramapo? I'm a CS major thinking about adding one", "topic": "program"},
+  {"id": "aq2-07", "question": "whats the recommended order for the math major courses after calc 2? like what do i take junior and senior year", "topic": "sequence"},
+  {"id": "aq2-08", "question": "do i need linear algebra for the cs major", "topic": "program"},
+  {"id": "aq2-09", "question": "Can I use a CMPS course to satisfy a gen ed requirement or do CS courses not count for gen ed at all?", "topic": "gen_ed"},
+  {"id": "aq2-10", "question": "what's the prerequisite for math 301 and is it offered every semester or just fall", "topic": "course"},
+  {"id": "aq2-11", "question": "how many total credits do you need to graduate and how many of them have to be upper level (300-400)?", "topic": "program"},
+  {"id": "aq2-12", "question": "is there a capstone or senior project required for computer science, and what's the course number", "topic": "course"},
+  {"id": "aq2-13", "question": "how many credits do i still need to graduate? im a junior cs major", "topic": "out_of_scope"},
+  {"id": "aq2-14", "question": "is there still room in cmps 364 this spring and who teaches it", "topic": "out_of_scope"},
+  {"id": "aq2-15", "question": "should i take operating systems or software engineering next semester, which one is easier", "topic": "out_of_scope"}
+]

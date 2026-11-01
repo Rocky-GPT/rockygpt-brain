@@ -1,0 +1,17 @@
+[
+  {"id": "eq2-01", "question": "is there a debate team or mock trial club at ramapo?", "topic": "club"},
+  {"id": "eq2-02", "question": "Are there any guest speakers or lectures on campus this week? Especially anything about law, politics, or the election", "topic": "event"},
+  {"id": "eq2-03", "question": "how do i join SGA", "topic": "club"},
+  {"id": "eq2-04", "question": "any volunteering events this weekend? need service hours", "topic": "event"},
+  {"id": "eq2-05", "question": "Is there a pre-law society or something like that? And if so do they have any events coming up?", "topic": "club"},
+  {"id": "eq2-06", "question": "what honor societies does ramapo have for poli sci", "topic": "club"},
+  {"id": "eq2-07", "question": "whats going on tonight on campus", "topic": "event"},
+  {"id": "eq2-08", "question": "When does the Model UN club meet and who's the president?", "topic": "out_of_scope"},
+  {"id": "eq2-09", "question": "is there a law school fair or any grad school info sessions coming up? where is it and is it free", "topic": "event"},
+  {"id": "eq2-10", "question": "list of service clubs? like habitat for humanity or circle k type stuff", "topic": "club"},
+  {"id": "eq2-11", "question": "Should I join student government or mock trial if I want to get into a good law school?", "topic": "out_of_scope"},
+  {"id": "eq2-12", "question": "anything happening next friday? who's hosting it", "topic": "event"},
+  {"id": "eq2-13", "question": "is there a young democrats or college republicans club here, and where can i find their page", "topic": "club"},
+  {"id": "eq2-14", "question": "how many ppl usually go to the SGA meetings? is it worth showing up", "topic": "out_of_scope"},
+  {"id": "eq2-15", "question": "any voter registration drives or civic engagement events coming up this month?", "topic": "event"}
+]

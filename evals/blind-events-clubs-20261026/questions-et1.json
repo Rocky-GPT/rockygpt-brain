@@ -1,0 +1,17 @@
+[
+  {"id": "et1-01", "question": "are there any cultural clubs at ramapo? like for south asian or caribbean students", "topic": "club"},
+  {"id": "et1-02", "question": "Is there a community service club or volunteering org I can join? I'm a junior and never did anything like that and want to before I graduate", "topic": "club"},
+  {"id": "et1-03", "question": "whats going on on campus this week", "topic": "event"},
+  {"id": "et1-04", "question": "what does the ski and snowboard club actualy do", "topic": "club"},
+  {"id": "et1-05", "question": "any professional clubs for business majors? and how do i join one", "topic": "club"},
+  {"id": "et1-06", "question": "is there a christian fellowship or any faith based groups on campus", "topic": "club"},
+  {"id": "et1-07", "question": "anything happening tonight w free food", "topic": "event"},
+  {"id": "et1-08", "question": "arts clubs? theater, a cappella, art club, anything like that", "topic": "club"},
+  {"id": "et1-09", "question": "Are there any career fairs or networking events coming up next week? Where are they and do I need to register", "topic": "event"},
+  {"id": "et1-10", "question": "when does the black student union meet and who is the president", "topic": "out_of_scope"},
+  {"id": "et1-11", "question": "is there a muslim student assocation, and do they have anything going on this weekend", "topic": "club"},
+  {"id": "et1-12", "question": "which club should i join if i want to look good for grad school apps", "topic": "out_of_scope"},
+  {"id": "et1-13", "question": "is there a performance or concert this weekend and is it free for students", "topic": "event"},
+  {"id": "et1-14", "question": "whats the link to the hillel page", "topic": "club"},
+  {"id": "et1-15", "question": "how many people usually show up to the club fair stuff, is it worth going", "topic": "out_of_scope"}
+]

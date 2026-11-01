@@ -1,0 +1,17 @@
+[
+  {"id": "eq3-01", "question": "is there a book club on campus?", "topic": "club"},
+  {"id": "eq3-02", "question": "um are there any wellness or mental health events this week", "topic": "event"},
+  {"id": "eq3-03", "question": "is there an lgbtq club at ramapo? and how do i join it", "topic": "club"},
+  {"id": "eq3-04", "question": "anything low key happening tonight? like not a party", "topic": "event"},
+  {"id": "eq3-05", "question": "are there any craft or art making things this weekend, like painting or knitting or something", "topic": "event"},
+  {"id": "eq3-06", "question": "what faith or religious groups are there? im catholic but kinda open to anything", "topic": "club"},
+  {"id": "eq3-07", "question": "sorry if this is dumb but is there a meditation or yoga thing i could go to next week", "topic": "event"},
+  {"id": "eq3-08", "question": "when does the pride club meet and who runs it", "topic": "out_of_scope"},
+  {"id": "eq3-09", "question": "is there a creative writing or poetry club", "topic": "club"},
+  {"id": "eq3-10", "question": "are there any stress relief events before finals? like therapy dogs maybe", "topic": "event"},
+  {"id": "eq3-11", "question": "i dont really know anyone here and im pretty shy. which club would be best for me to join?", "topic": "out_of_scope"},
+  {"id": "eq3-12", "question": "is the movie night on friday free? and where is it", "topic": "event"},
+  {"id": "eq3-13", "question": "is there a muslim student assocation or jewish group, hillel maybe?", "topic": "club"},
+  {"id": "eq3-14", "question": "how many ppl usually go to the board game nights, is it crowded", "topic": "out_of_scope"},
+  {"id": "eq3-15", "question": "where can i see a list of all the clubs? i want to look through them on my own first", "topic": "club"}
+]

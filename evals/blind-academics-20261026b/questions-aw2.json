@@ -1,0 +1,17 @@
+[
+  {"id": "aw2-01", "question": "Hi, my daughter is a high school senior who's interested in nursing. Does Ramapo have a nursing major for incoming freshmen, or is it only for people who are already RNs?", "topic": "program"},
+  {"id": "aw2-02", "question": "Is there a major in computer science, and if so what classes does a freshman usually take in the first semester?", "topic": "sequence"},
+  {"id": "aw2-03", "question": "What minors are available if I'm interested in environmental science or sustainability?", "topic": "program"},
+  {"id": "aw2-04", "question": "Can you explain how general education works at Ramapo? How many gen ed credits do students need and what categories do they have to cover?", "topic": "gen_ed"},
+  {"id": "aw2-05", "question": "does ramapo have any 5 year bachelors + masters programs? my son is thinking about accounting", "topic": "program"},
+  {"id": "aw2-06", "question": "We're looking at the psychology major. What are the required courses, and is there a recommended order for taking them over four years?", "topic": "sequence"},
+  {"id": "aw2-07", "question": "Are there any certificate programs undergrads can add on top of their major, like something in data analytics or business?", "topic": "program"},
+  {"id": "aw2-08", "question": "My son wants to be a high school teacher. Does Ramapo offer a teacher certification, and does he have to major in education or in the subject he wants to teach?", "topic": "program"},
+  {"id": "aw2-09", "question": "What is the first-year seminar that all freshmen take, and how many credits is it?", "topic": "gen_ed"},
+  {"id": "aw2-10", "question": "is there a film or communication major? what would the first year look like", "topic": "sequence"},
+  {"id": "aw2-11", "question": "What graduate programs does Ramapo offer? My daughter might want to stay for a master's after undergrad.", "topic": "program"},
+  {"id": "aw2-12", "question": "Do AP credits count toward gen ed requirements? She has AP Calc and AP English Lang.", "topic": "gen_ed"},
+  {"id": "aw2-13", "question": "Which major would be better for getting into medical school, biology or biochemistry?", "topic": "out_of_scope"},
+  {"id": "aw2-14", "question": "Who teaches the intro biology classes this fall and are there still seats open in them?", "topic": "out_of_scope"},
+  {"id": "aw2-15", "question": "My son already submitted his application. Can you check if he's been placed into the honors program and what his freshman schedule will be?", "topic": "out_of_scope"}
+]

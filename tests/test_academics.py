@@ -392,7 +392,9 @@ def test_code_works_out_published_programs_credits_and_gen_ed() -> None:
                          "MSW Traditional Track - 60 credit program"}]
     facts = [f["fact"] for f in computed_answers(evidence, programs,
                                                  "does bio 1 with lab count for gen ed", None)]
-    assert "BIOL 111 and BIOL 111L together are 5 credits (4 + 1)." in facts
+    # Each course's own credits; code never adds a lecture and its lab together.
+    assert "BIOL 111L FUNDAMENTALS OF BIOLOGY I LAB is 1 credit." in facts
+    assert not any("together" in f for f in facts)
     assert "BIOL 111 carries no Gen Ed attribute in the catalog." in facts
     assert "MATH 108 carries the Gen Ed attribute Gen Ed 18-Quantitative Rsng (GEQR)." in facts
     assert "The catalog gives MSW Traditional Track as 60 credits." in facts
@@ -425,3 +427,136 @@ def test_a_reply_stating_a_computed_sum_passes_the_evidence_check() -> None:
     assert unsupported_by("Together they are 15 credits. [1]", view) == [
         "a number the facts do not hold: 15"]
     assert unsupported_by("Together they are 5 credits. [1]", view) == []
+
+
+def test_only_a_subject_the_catalog_names_gets_a_listing_fact() -> None:
+    from rockygpt_brain.academics import class_standing, computed_answers
+    programs = [{"name": n} for n in ("International Business BA", "Healthcare Administration BS",
+                                      "Business Administration MBA", "History BA", "History Minor",
+                                      "Criminal Justice BA")]
+    assert computed_answers([], programs, "can you finish a business major in 4 years", 1) == []
+    assert computed_answers([], programs, "what minors pair well with a history major", 1) == []
+    (fact,) = computed_answers([], programs, "courses for the business administration major", 1)
+    assert fact["fact"] == ("The catalog lists no bachelor's major for 'business administration'."
+                            " Its bachelor's majors named for part of it: Healthcare "
+                            "Administration BS; International Business BA. It does list: "
+                            "Business Administration MBA.")
+    assert class_standing("I'm a junior. What do juniors and seniors take?") == 2
+    assert class_standing("im a sophomore, what should i take junior year") == 1
+
+
+def test_code_lists_a_level_and_places_a_course_in_a_program() -> None:
+    from rockygpt_brain.academics import computed_answers
+    programs = [{"name": n} for n in ("Computer Science 4+1", "Data Science 4+1",
+                                      "Nursing Generic BSN", "Data Analyst-Graduate Certificate",
+                                      "Teaching Certificate")]
+    listing = {"n": 5, "catalog_programs": {
+        "4+1 programs": ["Computer Science 4+1", "Data Science 4+1"],
+        "certificates": ["Data Analyst-Graduate Certificate", "Teaching Certificate"],
+        "majors": ["Nursing Generic BSN"]}}
+    facts = [f["fact"] for f in computed_answers(
+        [listing], programs, "is there an accelerated bachelor's to master's? which programs", 5)]
+    assert facts == ["The catalog's 4+1 programs: Computer Science 4+1; Data Science 4+1."]
+    facts = [f["fact"] for f in computed_answers([listing], programs,
+                                                 "what grad certificates do you have", 5)]
+    assert facts == ["The catalog's graduate certificates: Data Analyst-Graduate Certificate."]
+    program = {"n": 1, "program": "Computer Science BS", "requirements":
+               "Major Requirements\n  Required Courses all of:\n    - CMPS 147 CS I\n"
+               "Math Electives - Select 2\n  Select 2 Courses at least 2 of:\n"
+               "    - MATH 262 LINEAR ALGEBRA"}
+    course = {"n": 2, "course": "MATH 262 LINEAR ALGEBRA", "credits": 4}
+    facts = [f["fact"] for f in computed_answers([program, course], programs,
+                                                 "do i need linear algebra for cs", 3)]
+    assert ("In the Computer Science BS requirements, MATH 262 is listed under 'Math Electives "
+            "- Select 2' (Select 2 Courses at least 2 of): one of the courses to choose from, not "
+            "a required course by itself.") in facts
+
+
+def test_only_published_credit_totals_and_the_programs_own_plan() -> None:
+    from datetime import date
+
+    from rockygpt_brain.academics import choose_plan, computed_answers
+    program = {"n": 1, "program": "Theater Minor", "requirements":
+               "Minor Requirements\n  Required Course all of:\n    - THEA 220 ACTING"}
+    facts = [f["fact"] for f in computed_answers([program], [], "how many credits is it", 2)]
+    assert facts == ["The catalog publishes no total credit count for the Theater Minor; its "
+                     "requirements list the courses only."]
+    plans = [{"name": n, "cohort": "Fall 2026", "terms": [{}]} for n in (
+        "Biology: Ramapo/NYCPM 3+4 Podiatry", "Biology (General)",
+        "Biology: General Pre-Med Track")]
+    plans.append({"name": "Biology", "cohort": "Fall 2026", "terms": []})
+    plan = choose_plan(plans, "Biology BS", "what does a biology freshman take", date(2026, 10, 25))
+    assert plan is not None and plan["name"] == "Biology (General)"
+
+
+def test_course_talk_beside_a_program_word_still_asks_for_a_course() -> None:
+    from rockygpt_brain.academics import asks_course
+    assert asks_course("whats abnormal psychology about and how many credits is it")
+    assert asks_course("prereqs for drawing 2")
+    assert not asks_course("is there a psychology major")
+
+
+def test_published_credits_tracks_and_listing_names_are_found_by_code() -> None:
+    from datetime import date
+
+    from rockygpt_brain.academics import (
+        choose_plan,
+        computed_answers,
+        program_evidence,
+        programs_by_track,
+    )
+    # Credit counts anywhere in a program's description are stated; no "publishes no total".
+    description = "x" * 900 + " The MBA has two paths: 30-credit Advanced Standing Program."
+    facts = {"properties": [{"key": "program", "values": [{"value": {
+        "name": "Business Administration MBA", "description": description}}]}]}
+    item = program_evidence(facts, 1, [])
+    said = [f["fact"] for f in computed_answers([item], [], "how many credits is the mba", 1)]
+    assert said == ["The catalog's description of the Business Administration MBA says: "
+                    '"30-credit Advanced Standing Program."']
+    # A plan's track names its program; a track many programs share names none.
+    tracks = {"Law and Society/Criminal Justice": "Law and Society BA",
+              "Sociology/Criminology": "Sociology BA",
+              **{f"{p}/Pre-Medical Track": f"{p} BS" for p in ("Biology", "Neuroscience",
+                                                               "Biochemistry", "Chemistry")}}
+    assert programs_by_track(tracks, "junior and senior year in criminal justice") == [
+        "Law and Society BA"]
+    assert programs_by_track(tracks, "pre medical track courses") == []
+    plans = [{"name": n, "cohort": "Fall 2024", "terms": [{}]}
+             for n in ("Law and Society", "Law and Society/Criminal Justice")]
+    chosen = choose_plan(plans, "Law and Society BA", "a junior in criminal justice",
+                         date(2026, 10, 26))
+    assert chosen is not None and chosen["name"] == "Law and Society/Criminal Justice"
+    # A listing question names the programs at its level holding a rare word it uses.
+    listing = {"n": 3, "catalog_programs": {"minors": [
+        "Environmental Science Minor", "Environmental Studies Minor", "Sustainability Minor",
+        "History Minor"]}}
+    said = [f["fact"] for f in computed_answers(
+        [listing], [], "what minors are there if I'm into environmental stuff or sustainability",
+        3)]
+    assert said[-1] == ("Of the catalog's minors, these have a word of the question in their "
+                        "names: Environmental Science Minor; Environmental Studies Minor; "
+                        "Sustainability Minor.")
+
+
+def test_a_short_form_is_its_shortest_word_and_a_named_track_is_its_plan() -> None:
+    from datetime import date
+
+    from rockygpt_brain.academics import choose_plan, find_programs
+    programs = [{"id": str(k), "name": n} for k, n in enumerate((
+        "Biology BS", "Biochemistry BS", "Bioinformatics BS", "Environmental Science BS",
+        "History BA"))]
+    found = find_programs(programs, "switching from bio to environmental science, env sci reqs")
+    assert [p["name"] for p in found] == ["Biology BS", "Environmental Science BS"]
+    assert [p["name"] for p in find_programs(programs, "biology in his first year")] == [
+        "Biology BS"]
+    plans = [{"name": n, "cohort": c, "terms": [{}]} for n, c in (
+        ("Biology (General)", "Fall 2026"), ("Biology: General Pre-Med Track", "Fall 2026"),
+        ("Biology/Physical Therapy Track", "Fall 2025"))]
+    today = date(2026, 10, 27)
+    chosen = choose_plan(plans, "Biology BS", "biology and maybe medical school", today)
+    assert chosen is not None and chosen["name"] == "Biology: General Pre-Med Track"
+    # A track the current cohort has no plan for is read from the latest cohort that has one.
+    chosen = choose_plan(plans, "Biology BS", "biology physical therapy first year", today)
+    assert chosen is not None and chosen["cohort"] == "Fall 2025"
+    chosen = choose_plan(plans, "Biology BS", "biology first year", today)
+    assert chosen is not None and chosen["name"] == "Biology (General)"

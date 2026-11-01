@@ -1,0 +1,17 @@
+[
+  {"id": "pq2-01", "question": "whats dr kota's email? want to ask abt research in her lab", "topic": "contact"},
+  {"id": "pq2-02", "question": "who is the chair of bio dept", "topic": "role"},
+  {"id": "pq2-03", "question": "prof becker office room # and does he have office hrs", "topic": "contact"},
+  {"id": "pq2-04", "question": "what does victor miller research? is he chem or physics", "topic": "teaching"},
+  {"id": "pq2-05", "question": "transfer student here, who runs the chem lab sections / who are the lab instructors for gen chem 1", "topic": "teaching"},
+  {"id": "pq2-06", "question": "dr kotta phone number", "topic": "contact"},
+  {"id": "pq2-07", "question": "is prof becker any good? thinking of joining his lab", "topic": "out_of_scope"},
+  {"id": "pq2-08", "question": "susan kurzman librarian email - need help finding journal articles for my lit review", "topic": "contact"},
+  {"id": "pq2-09", "question": "who's the dean of the school of science nursing and health and where's their office", "topic": "role"},
+  {"id": "pq2-10", "question": "jess terrizzi what dept is she in and what's her title", "topic": "role"},
+  {"id": "pq2-11", "question": "prof mandel and prof skowronski - which one is in the business school? need a minor advisor", "topic": "role"},
+  {"id": "pq2-12", "question": "does dr patel teach orgo or is that someone else? also his email", "topic": "teaching"},
+  {"id": "pq2-13", "question": "is dr stephen becker on campus today", "topic": "out_of_scope"},
+  {"id": "pq2-14", "question": "who is dolly sacristan", "topic": "role"},
+  {"id": "pq2-15", "question": "which bio prof should i pick for undergrad research, i like microbio", "topic": "out_of_scope"}
+]

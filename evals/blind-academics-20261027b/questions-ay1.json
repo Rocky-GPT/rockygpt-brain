@@ -1,0 +1,17 @@
+[
+  {"id": "ay1-01", "question": "is there an art major at ramapo or just a minor", "topic": "program"},
+  {"id": "ay1-02", "question": "what classes do you need for the biology major", "topic": "program"},
+  {"id": "ay1-03", "question": "hi! im undeclared and kind of torn between environmental science and studio art. what are the main requirements for each one?", "topic": "program"},
+  {"id": "ay1-04", "question": "how many credits is the chemistry minor", "topic": "program"},
+  {"id": "ay1-05", "question": "does ramapo have anything like scientific illustration or a major that combines art and science", "topic": "program"},
+  {"id": "ay1-06", "question": "prereqs for bio 120?", "topic": "course"},
+  {"id": "ay1-07", "question": "what is intro to drawing about and how many credits is it", "topic": "course"},
+  {"id": "ay1-08", "question": "does an art class count for gen ed or do i need a specific category", "topic": "gen_ed"},
+  {"id": "ay1-09", "question": "what are the gen ed requirements i need to finish regardless of major", "topic": "gen_ed"},
+  {"id": "ay1-10", "question": "if i want to do bio what should i take freshman year so i dont fall behind", "topic": "sequence"},
+  {"id": "ay1-11", "question": "whats the order for the chem classes in the biochem major, like which one comes first", "topic": "sequence"},
+  {"id": "ay1-12", "question": "can a lab science class count for both gen ed and a minor at the same time", "topic": "gen_ed"},
+  {"id": "ay1-13", "question": "should i major in bio or art honestly i cant decide", "topic": "out_of_scope"},
+  {"id": "ay1-14", "question": "is there still room in the ceramics class this spring and who teaches it", "topic": "out_of_scope"},
+  {"id": "ay1-15", "question": "how many credits do i have so far, do i need to declare by the end of this yr", "topic": "out_of_scope"}
+]

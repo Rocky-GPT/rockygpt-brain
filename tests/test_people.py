@@ -1,12 +1,20 @@
 """Faculty and staff lookup: the people a question names (people.py), read through the reader."""
 
+from typing import Any
+
 from rockygpt_brain.people import (
+    asks_leadership,
     asks_people,
     asks_people_list,
     asks_people_topic,
     by_meaning,
+    computed_answers,
     find_people,
+    leaders,
     listed,
+    narrow,
+    schools_of,
+    teachers,
 )
 from rockygpt_brain.retrieval.entity_facts import MemoryEntityFacts
 from test_engine import NOW
@@ -102,3 +110,138 @@ def test_a_list_question_gives_everyone_in_the_field_named() -> None:
                                                                 "Julie Fitzgerald"]
     assert listed(directory, "list all faculty") == []
 
+
+
+DIRECTORY: list[dict[str, Any]] = [
+    {"id": "da", "name": "Lawrence D’Antonio", "title": "Professor of Mathematics",
+     "school": "School of Science, Nursing, and Health", "office": "G-128E", "n": 0},
+    {"id": "rc", "name": "Renée Cornell", "title": "Assistant Professor of Management",
+     "school": "Anisfield School of Business", "email": "rcornel1@ramapo.edu", "n": 0},
+    {"id": "mc", "name": "Michael Cornell", "title": "Professor of Accounting",
+     "school": "Anisfield School of Business", "email": "mcornell@ramapo.edu", "n": 0},
+    {"id": "jc", "name": "Jane Cornell", "title": "Professor of Chemistry",
+     "school": "School of Science, Nursing, and Health", "n": 0},
+    {"id": "cm", "name": "Catalin Martin", "title": "Professor of Physics",
+     "school": "School of Science, Nursing, and Health",
+     "office_hours": ["Office Hours: MR 1:00-2:00"], "n": 0},
+    {"id": "bc", "name": "Benny Chan", "title": "Dean of SNH / Professor of Chemistry",
+     "school": "School of Science, Nursing, and Health", "n": 0},
+    {"id": "kb", "name": "Kathleen M. Burke",
+     "title": "Assistant Dean of Nursing Programs / Professor of Nursing",
+     "school": "School of Science, Nursing, and Health", "n": 0},
+    {"id": "pb", "name": "Paramjeet Bagga", "title": "Professor of Biology",
+     "school": "School of Science, Nursing, and Health", "n": 0},
+    {"id": "sh", "name": "Susan Hangen",
+     "title": "Dean School of Social Sciences and Social Work/Professor of Anthropology",
+     "school": "School of Social Sciences and Social Work", "n": 0},
+    {"id": "kr", "name": "Kathleen Ray", "title": "Interim Dean and Director of MSW Program",
+     "school": "School of Social Sciences and Social Work", "n": 0}]
+OFFICES = [{"name": "School of Science, Nursing, and Health Office", "aliases": ["SNH Office"]},
+           {"name": "Anisfield School of Business", "aliases": ["ASB"]},
+           {"name": "School of Social Sciences and Social Work Office",
+            "aliases": ["SSSW Office"]}]
+
+
+def test_names_are_matched_as_typed_without_accents_apostrophes_or_possessives() -> None:
+    names = [{"id": p["id"], "name": p["name"]} for p in DIRECTORY]
+    assert [p["id"] for p in find_people(names, "where is professor dantonio's office")] == ["da"]
+    assert [p["id"] for p in find_people(names, "I heard Renee Cornell is good")] == ["rc"]
+    assert [p["id"] for p in find_people(names, "whats professor martins email")] == ["cm"]
+
+
+def test_a_shared_last_name_is_narrowed_by_the_school_or_field_asked() -> None:
+    schools = schools_of(DIRECTORY, OFFICES)
+    cornells = [{**p, "n": k + 1} for k, p in enumerate(DIRECTORY) if "Cornell" in p["name"]]
+    assert [p["id"] for p in narrow(cornells, "prof cornell from the business school email",
+                                    schools)] == ["rc", "mc"]
+    assert [p["id"] for p in narrow(cornells, "professor cornell in accounting",
+                                    schools)] == ["mc"]
+    (fact,) = computed_answers(cornells, "professor cornell email", DIRECTORY)
+    assert fact["fact"].startswith("3 people in the directory share the name asked") \
+        and fact["fact"].endswith("Ask which one the student means.")
+
+
+def test_the_fields_asked_are_stated_or_said_to_be_unpublished() -> None:
+    martin = [{**DIRECTORY[4], "n": 3}]
+    facts = [f["fact"] for f in computed_answers(
+        martin, "my son's chemistry professor martin, what are his office hours and email",
+        DIRECTORY)]
+    assert facts == [
+        "Catalin Martin's directory title is Professor of Physics, in the School of Science, "
+        "Nursing, and Health.",
+        "Catalin Martin's title does not name chemistry.",
+        "Neither the directory nor Catalin Martin's faculty profile publishes an email address.",
+        "Catalin Martin's office hours, on the faculty profile, as written: Office Hours: MR "
+        "1:00-2:00."]
+
+
+def test_deans_and_chairs_come_from_directory_titles() -> None:
+    schools = schools_of(DIRECTORY, OFFICES)
+    assert schools["School of Science, Nursing, and Health"] >= {"snh", "nursing"}
+    lines = [line for line, _ in leaders(DIRECTORY, "who is the dean of sssw", schools)]
+    assert lines[0].startswith("The dean of the School of Social Sciences and Social Work, by "
+                               "the directory, is Susan Hangen")
+    assert lines[1].startswith("Kathleen Ray is also listed in the directory, as Interim Dean")
+    nursing = [line for line, _ in leaders(DIRECTORY, "who is the chair of nursing", schools)]
+    assert nursing == ["Kathleen M. Burke's directory title names nursing with a leadership "
+                       "role: Assistant Dean of Nursing Programs / Professor of Nursing."]
+    biology = [line for line, _ in leaders(DIRECTORY, "biology department chair", schools)]
+    assert biology[:2] == [
+        "No directory title names a chair, head, convener, director or dean for biology.",
+        "The directory's biology faculty are in the School of Science, Nursing, and Health."]
+    assert biology[2].startswith("The dean of the School of Science, Nursing, and Health, by "
+                                 "the directory, is Benny Chan")
+    assert asks_leadership("who's the dean of the business school")
+    assert not asks_leadership("dean of students office hours")
+
+
+def test_ordinary_words_are_not_misspelt_names_and_two_people_can_be_named() -> None:
+    names = [{"id": "ll", "name": "Lisa Lutter"}, {"id": "rm", "name": "Robert Mentore"},
+             {"id": "mj", "name": "Matthew Jobrack"}, {"id": "cc", "name": "Christina Chung"},
+             {"id": "ab", "name": "Alexander Biagioli"}]
+    ordinary = frozenset({"letter", "mentor", "recommendation"})
+    assert find_people(names, "which prof should i ask for a recommendation letter",
+                       ordinary) == []
+    assert find_people(names, "is there a professor who could mentor me", ordinary) == []
+    assert [(p["id"], p.get("near_spelling")) for p in find_people(
+        names, "matt jobrak what does he teach", ordinary)] == [("mj", True)]
+    assert [p["id"] for p in find_people(
+        names, "who is the better advisor, Christina Chung or Alex Biagioli?")] == ["cc", "ab"]
+
+
+def test_who_teaches_a_subject_is_read_from_profile_courses() -> None:
+    directory: list[dict[str, Any]] = [
+        {"id": "a", "name": "Roark Atkinson", "title": "Associate Professor of History",
+         "courses": ["Introduction to U.S. History I"]},
+        {"id": "b", "name": "Stephen Anderson", "title": "Associate Professor of Chemistry",
+         "courses": ["Organic Chemistry I: Lecture and Lab"]},
+        {"id": "c", "name": "Jane Doe", "title": "Professor of History",
+         "courses": ["Ancient Rome"]},
+        *({"id": f"x{n}", "name": f"Person {n}", "title": "Professor of Art"} for n in range(8))]
+    assert [p["id"] for p in teachers(directory, "who teaches US history?")] == ["a"]
+    assert [p["id"] for p in teachers(directory, "who teaches organic chemistry")] == ["b"]
+
+
+def test_a_field_only_mentioned_is_not_reported_without_a_chair() -> None:
+    schools = schools_of(DIRECTORY, OFFICES)
+    lines = [line for line, _ in leaders(
+        [*DIRECTORY, {"id": "cp", "name": "Ann Clin", "title": "Professor of Clinical Psychology",
+                      "school": "School of Social Sciences and Social Work"}],
+        "who is in charge of nursing? it's about clinical placements", schools)]
+    assert lines == ["Kathleen M. Burke's directory title names nursing with a leadership "
+                     "role: Assistant Dean of Nursing Programs / Professor of Nursing."]
+
+
+def test_an_unusual_last_name_or_a_middle_initial_needs_no_people_word() -> None:
+    names = [{"id": "jt", "name": "Jessica Terrizzi"}, {"id": "kb", "name": "Kathleen M. Burke"},
+             {"id": "jn", "name": "Julie Norflus-Good"}]
+    ordinary = frozenset({"good", "food", "dining", "hall", "what", "her", "title"})
+    assert [p["id"] for p in find_people(
+        names, "jess terrizzi what dept is she in and what's her title", ordinary)] == ["jt"]
+    assert [p["id"] for p in find_people(names, "who is Kathleen Burke?", ordinary)] == ["kb"]
+    assert find_people(names, "is the food good at the dining hall", ordinary) == []
+    directory: list[dict[str, Any]] = [
+        {"id": "r", "name": "Paul Reck", "title": "Assistant Professor of Sociology",
+         "courses": ["Introduction to Sociology"]},
+        *({"id": f"x{n}", "name": f"P {n}", "title": "Professor of Art"} for n in range(6))]
+    assert [p["id"] for p in teachers(directory, "who teaches intro to sociology?")] == ["r"]

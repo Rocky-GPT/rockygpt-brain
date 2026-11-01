@@ -1,0 +1,17 @@
+[
+  {"id": "ar2-01", "question": "what are the prereqs for intermediate accounting 1", "topic": "course"},
+  {"id": "ar2-02", "question": "How many credits is Principles of Financial Accounting and is it required for the business administration major?", "topic": "course"},
+  {"id": "ar2-03", "question": "does macroeconomics count toward gen ed or only for the business major? i want to know if i can double count it", "topic": "gen_ed"},
+  {"id": "ar2-04", "question": "is there a finance major at ramapo or is it just a concentration under business", "topic": "program"},
+  {"id": "ar2-05", "question": "acct 221 prereq?", "topic": "course"},
+  {"id": "ar2-06", "question": "Whats the course code for microeconomics and how many credits is it", "topic": "course"},
+  {"id": "ar2-07", "question": "I'm an accounting major starting next fall. What accounting and econ classes should I take my first year and in what order?", "topic": "sequence"},
+  {"id": "ar2-08", "question": "what do i need to complete the economics minor? how many credits total", "topic": "program"},
+  {"id": "ar2-09", "question": "does business statistics count as my math gen ed or do i still need a separate math class", "topic": "gen_ed"},
+  {"id": "ar2-10", "question": "what is covered in corporate finance and do i need to take financial accounting before it", "topic": "course"},
+  {"id": "ar2-11", "question": "is there a 150 credit option or a masters in accounting so i can sit for the cpa exam", "topic": "program"},
+  {"id": "ar2-12", "question": "Can you check if I already have the prereqs done for Intermediate Accounting II? I took ACCT 1 last spring", "topic": "out_of_scope"},
+  {"id": "ar2-13", "question": "is anyone teaching investments in the spring and does it still have open seats", "topic": "out_of_scope"},
+  {"id": "ar2-14", "question": "should i major in finance or accounting, which one gets better jobs", "topic": "out_of_scope"},
+  {"id": "ar2-15", "question": "what are the core business courses everyone in the anisfield school has to take, like the ones that arent specific to accounting or finance", "topic": "program"}
+]

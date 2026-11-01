@@ -1,0 +1,17 @@
+[
+  {"id": "ec1-01", "question": "anything fun going on tonight on campus? im so bored", "topic": "event"},
+  {"id": "ec1-02", "question": "is there free food anywhere today", "topic": "event"},
+  {"id": "ec1-03", "question": "whats happening this weekend at ramapo?? like saturday night specifically", "topic": "event"},
+  {"id": "ec1-04", "question": "r there any game nights or trivia or smth like that this week", "topic": "event"},
+  {"id": "ec1-05", "question": "is there a basketball or soccer game i can go watch this weekend and is it free for students", "topic": "event"},
+  {"id": "ec1-06", "question": "any events next friday night? and do they have food lol", "topic": "event"},
+  {"id": "ec1-07", "question": "where is the movie night thing happening and what time does it start", "topic": "event"},
+  {"id": "ec1-08", "question": "is there a gaming club or esports team here", "topic": "club"},
+  {"id": "ec1-09", "question": "how do i join a club im a freshman and dont rlly know anyone", "topic": "club"},
+  {"id": "ec1-10", "question": "what frats and sororities are there and when is rush", "topic": "club"},
+  {"id": "ec1-11", "question": "is there an anime club or like a dnd club? whos running it", "topic": "club"},
+  {"id": "ec1-12", "question": "list of cultural clubs pls", "topic": "club"},
+  {"id": "ec1-13", "question": "where r the parties at this weekend lmaooo", "topic": "out_of_scope"},
+  {"id": "ec1-14", "question": "how many ppl usually show up to the friday events, is it actually poppin or dead", "topic": "out_of_scope"},
+  {"id": "ec1-15", "question": "which club should i join to make friends fast", "topic": "out_of_scope"}
+]

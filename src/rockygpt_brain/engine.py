@@ -13,12 +13,12 @@ import re
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from rockygpt_brain import academics, events, one_call
+from rockygpt_brain import academics, catalog, events, one_call
 from rockygpt_brain import people as people_module
 from rockygpt_brain.answers import (
     Rendered,
@@ -1220,6 +1220,9 @@ class ChatEngine:
         # Every person's and club's directory entry for list questions, read once per release.
         self._directory_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
+        self._upcoming_cache: tuple[tuple[str, str], list[dict[str, Any]]] | None = None
+        self._ordinary_words: tuple[str, frozenset[str]] | None = None
+        self._tracks: tuple[str, tuple[dict[str, str], dict[str, list[str]]]] | None = None
 
     def _json(self, result: ChatResult, parts: list[dict[str, Any]], turn: Turn) -> ChatResult:
         """In JSON output the written answer is dropped and the facts go out as they are: the full
@@ -1594,6 +1597,20 @@ class ChatEngine:
         programs = [e for e in named if e.get("kind") == "program"]
         codes = {str(e["name"]): e for e in named if e.get("kind") == "course"}
         found = academics.find_programs(programs, message)
+        by_name = {str(p["name"]): p for p in programs}
+        if not found:
+            # A subject asked at a level ("a minor in business") names the catalog's programs
+            # holding every word of it, read when there are at most three.
+            for level, asked in academics.asked_subjects(message):
+                if words := academics.subject_words(programs, asked, message, level):
+                    listed = academics.published_in(programs, level, words)
+                    if 0 < len(listed) <= 3:
+                        found += [by_name[n] for n in listed if by_name[n] not in found]
+        if not found and academics.asks_academics(message):
+            # A track of a program's recommended plans ("criminal justice" is Law and
+            # Society's) names that program.
+            found = [by_name[n] for n in academics.programs_by_track(self._plan_tracks(), message)
+                     if n in by_name]
         courses = [codes[code] for code in academics.course_codes(message, set(codes))]
         # Courses named by an everyday form of their title ("calc 2"), from the meaning index's
         # catalog titles when one is published.
@@ -1606,6 +1623,100 @@ class ChatEngine:
                 if i in by_id and by_id[i] not in courses]
         return found, academics.also_published(programs, found), courses
 
+    def _plan_tracks(self) -> dict[str, str]:
+        """Each recommended plan's name that has a track ("Law and Society/Criminal Justice")
+        and its program's name."""
+        return self._catalog_maps()[0]
+
+    def _catalog_maps(self) -> tuple[dict[str, str], dict[str, list[str]]]:
+        """Read once per release from every program's published record: each plan name that
+        has a track with its program's name, and each course code with the programs whose
+        requirements list it."""
+        version, identity_hash = self.facts.active_release()
+        if self._tracks is None or self._tracks[0] != version:
+            tracks: dict[str, str] = {}
+            listed_in: dict[str, list[str]] = {}
+            for program in self.facts.identities(("program",)):
+                facts = self.facts.get_program_facts(program["id"], version,
+                                                     identity_hash=identity_hash)
+                for prop in facts["properties"]:
+                    if prop["key"] == "plans":
+                        for value in prop["values"]:
+                            name = str(value["value"].get("name") or "")
+                            if academics.plan_track(name):
+                                tracks.setdefault(name, str(program["name"]))
+                    if prop["key"] == "requirements":
+                        text = academics.render_requirements(
+                            [value["value"] for value in prop["values"]])
+                        for code in catalog.courses_listed(text):
+                            listed_in.setdefault(code, []).append(str(program["name"]))
+            self._tracks = (version, (tracks, listed_in))
+        return self._tracks[1]
+
+    async def _pick_catalog(self, question: str, index: MeaningIndex,
+                            vectors: Sequence[Sequence[float]],
+                            hints: tuple[list[dict[str, Any]], list[str], list[dict[str, Any]]]
+                            | None, budget: TurnBudget) -> dict[str, Any] | None:
+        """The programs and courses the question means, picked by the model from every catalog
+        program name and the courses near the question (catalog.py); None when the pick fails."""
+        named = self.facts.identities(("program", "course"))
+        programs = {str(e["name"]): e for e in named if e.get("kind") == "program"}
+        courses = {str(e["name"]): e for e in named if e.get("kind") == "course"}
+        by_id = {str(e["id"]): e for e in courses.values()}
+        # The courses typed or named by an everyday title (code hints), then those whose cards
+        # are nearest each part of the question.
+        candidates = [str(c["name"]) for c in (hints[2] if hints else [])]
+        for vector in vectors:
+            candidates += [str(by_id[i]["name"]) for i, _ in
+                           index.academic_scores(vector, "course")[:catalog.MAX_CANDIDATES]
+                           if i in by_id]
+        candidates = list(dict.fromkeys(candidates))[:2 * catalog.MAX_CANDIDATES]
+        titles = {str(by_id[i]["name"]): t for i, t in index.course_titles.items() if i in by_id}
+        tracks: dict[str, list[str]] = {}
+        for plan, program in (await asyncio.to_thread(self._catalog_maps))[0].items():
+            track = academics.plan_track(plan)
+            if track not in tracks.setdefault(program, []):
+                tracks[program].append(track)
+        budget.max_calls = max(budget.max_calls, budget.calls + 1)
+        completion = await self.gateway.complete(
+            input=catalog.pick_messages(question, sorted(programs),
+                                        [(c, titles.get(c, "")) for c in candidates], tracks),
+            tools=[catalog.PICK_TOOL], budget=budget)
+        call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
+        return catalog.read_pick(call.arguments if call is not None
+                                 and call.name == "pick_catalog" else None, programs, courses)
+
+    def _read_picked(self, pick: dict[str, Any], message: str, today: date,
+                     numbered_from: int,
+                     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str,
+                                list[dict[str, Any]]]:
+        """The picked programs and courses read as numbered evidence (the catalog listing too
+        when programs at a level are asked for), and what code answers across the catalog: the
+        programs listing each picked course and which picked course comes first."""
+        all_programs = self.facts.identities(("program",))
+        level_word = {"special": "4+1", "graduate": "graduate"}.get(pick["level"] or "",
+                                                                     pick["level"] or "")
+        asked = " ".join(part for part in (message, pick["track"] or "") if part)
+        # A level asked about ("is there a physics major") gets that level's whole list, so a
+        # program the catalog does not have is said to be missing.
+        listing = "programs_at_level" in pick["find"] or pick["level"] is not None
+        evidence, sources, version = self._read_programs(
+            pick["programs"], academics.also_published(all_programs, pick["programs"]),
+            pick["courses"], asked, today, listing,
+            listing_message=f"{message} {level_word}".strip(), numbered_from=numbered_from)
+        catalog_n = next((e["n"] for e in evidence if "catalog_programs" in e), None)
+        courses = [{"code": " ".join(str(e["course"]).split()[:2]), "n": e["n"],
+                    "prerequisites": str(e.get("prerequisites") or "")}
+                   for e in evidence if e.get("course")]
+        facts: list[dict[str, Any]] = []
+        if "programs_listing_course" in pick["find"] and courses:
+            listed_in = self._catalog_maps()[1]
+            facts += catalog.listing_facts([c["code"] for c in courses], listed_in,
+                                           catalog_n or courses[0]["n"])
+        facts += catalog.order_facts(courses, {c["code"]: catalog.courses_listed(
+            c["prerequisites"]) for c in courses})
+        return evidence, sources, version, facts
+
     def _academics_by_meaning(self, index: MeaningIndex, vector: Sequence[float], message: str,
                               ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """The programs (at most two) and courses (at most three, near-tied: CMPS 320 and the
@@ -1616,21 +1727,29 @@ class ChatEngine:
                                         academics.PROGRAM_FLOOR, 2)
         courses = academics.by_meaning(index.academic_scores(vector, "course"), names, message,
                                        academics.COURSE_FLOOR, 3)
-        return programs, courses
+        # A lab found is read with its lecture ("Organic Chemistry I" found CHEM 211L first).
+        by_name = {name: entity_id for entity_id, name in names.items()}
+        for course in list(courses):
+            lecture = str(course["name"])[:-1] if str(course["name"]).endswith("L") else ""
+            if lecture in by_name and all(c["name"] != lecture for c in courses):
+                courses.append({"id": by_name[lecture], "name": lecture})
+        return programs, courses[:5]
 
     def _read_programs(self, programs: Sequence[dict[str, Any]], others: Sequence[str],
                        courses: Sequence[dict[str, Any]] = (), message: str = "",
                        today: date | None = None, listing: bool = False,
+                       listing_message: str | None = None, numbered_from: int = 0,
                        ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
         """Each named program's and course's facts through the shared reader, as numbered
-        evidence."""
+        evidence (numbered after the numbered_from sources before them)."""
         version, identity_hash = self.facts.active_release()
         evidence: list[dict[str, Any]] = []
         sources: list[dict[str, Any]] = []
         for program in programs:
             facts = self.facts.get_program_facts(program["id"], version,
                                                  identity_hash=identity_hash)
-            item = academics.program_evidence(facts, len(sources) + 1, others, message, today)
+            item = academics.program_evidence(facts, numbered_from + len(sources) + 1, others,
+                                              message, today)
             evidence.append(item)
             sources.append({"n": item["n"], "url": item.get("catalog_url"),
                             "title": item.get("program")})
@@ -1640,7 +1759,8 @@ class ChatEngine:
                                                      identity_hash=identity_hash):
                 code = str(facts["entity"]["name"])
                 item = academics.course_evidence(
-                    facts, len(sources) + 1, index.required_by.get(code, []) if index else [])
+                    facts, numbered_from + len(sources) + 1,
+                    index.required_by.get(code, []) if index else [])
                 evidence.append(item)
                 sources.append({"n": item["n"], "url": item.get("catalog_url"),
                                 "title": item.get("course")})
@@ -1648,8 +1768,9 @@ class ChatEngine:
             # Every published program by level, so "what majors are there" is answered and a
             # program the catalog does not list is said to be missing.
             programs = self.facts.identities(("program",))
-            item = {"n": len(sources) + 1,
-                    "catalog_programs": academics.catalog_listing(programs, message),
+            item = {"n": numbered_from + len(sources) + 1,
+                    "catalog_programs": academics.catalog_listing(
+                        programs, message if listing_message is None else listing_message),
                     "catalog_url": "https://catalog.ramapo.edu/programs"}
             evidence.append(item)
             sources.append({"n": item["n"], "url": item["catalog_url"],
@@ -1659,33 +1780,61 @@ class ChatEngine:
     def _read_calendar(self, message: str, now: datetime, numbered_from: int,
                        scores: Mapping[str, float] | None = None,
                        ) -> tuple[dict[str, Any] | None, list[dict[str, Any]],
-                                  list[dict[str, Any]]]:
+                                  list[dict[str, Any]], list[dict[str, Any]]]:
         """The calendar events in the question's window and the clubs it names, read through the
-        shared reader (events.py), numbered after the evidence before them; scores are the
+        shared reader (events.py), numbered after the evidence before them, and what code works
+        out from them (counts, food, the topic's other dates, a club's events); scores are the
         event cards' meaning, when the index has them."""
         version, identity_hash = self.facts.active_release()
         named = self.facts.identities(("event", "club", "organization"))
         sources: list[dict[str, Any]] = []
+        computed: list[dict[str, Any]] = []
         calendar: dict[str, Any] | None = None
+
+        def read(dated: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+            return [{**f["properties"][0]["values"][0]["value"], "_id": f["entity"]["id"]}
+                    for at in range(0, len(dated), 40)
+                    for f in self.facts.get_event_facts(
+                        [e["id"] for e in dated[at:at + 40]], version,
+                        identity_hash=identity_hash, as_of=now)]
+
+        def numbered(values: Sequence[dict[str, Any]], **extra: Any) -> list[dict[str, Any]]:
+            lines = []
+            for value in values:
+                line = {"n": numbered_from + len(sources) + 1, **events.event_line(value),
+                        **extra}
+                lines.append(line)
+                sources.append({"n": line["n"], "url": line.get("url"), "title": line["event"]})
+            return lines
+
+        def all_upcoming() -> list[dict[str, Any]]:
+            return self._upcoming_events(now)
         if events.asks_events(message):
+            sources.append({"n": numbered_from + 1, "url": events.CALENDAR_URL,
+                            "title": "Campus events calendar"})
             start, end, label = events.window(message, now)
             dated = events.events_in([e for e in named if e["kind"] == "event"], start, end)
-            values = [{**f["properties"][0]["values"][0]["value"], "_id": f["entity"]["id"]}
-                      for at in range(0, len(dated), 40)
-                      for f in self.facts.get_event_facts(
-                          [e["id"] for e in dated[at:at + 40]], version,
-                          identity_hash=identity_hash, as_of=now)]
-            chosen = []
-            ranked, matched = events.rank_events(values, message, start, end, scores)
-            for value in ranked:
-                line = {"n": numbered_from + len(sources) + 1, **events.event_line(value)}
-                chosen.append(line)
-                sources.append({"n": line["n"], "url": line.get("url"), "title": line["event"]})
+            values = read(dated)
+            ranked, matched = events.rank_events(values, message, start, end, scores,
+                                                 all_upcoming())
+            chosen = numbered(ranked)
+            outside: list[dict[str, Any]] = []
+            if matched is False:
+                window_ids = {v.get("_id") for v in values}
+                later = [v for v in all_upcoming() if v.get("_id") not in window_ids]
+                found, again = events.rank_events(later, message, now, now + timedelta(days=366),
+                                                  scores, all_upcoming(), by_share=True)
+                outside = numbered(found[:events.MAX_OUTSIDE], outside_window=True) \
+                    if again else []
+            words = events.asked_topic(message)
+            computed = events.computed_answers(
+                label, start, end, len(events.in_window(values, start, end)),
+                [{**line, "_value": value} for line, value in zip(chosen, ranked, strict=True)],
+                matched, words, events.asks_food(message), outside, numbered_from + 1)
             calendar = {"window": label, "events_on_the_calendar_in_it": len(dated),
-                        **({"topic_matched": matched,
-                            "topic_words": sorted(events.topic_words(message))}
+                        **({"topic_matched": matched, "topic_words": sorted(words)}
                            if matched is not None else {}),
-                        "events": chosen, "calendar_url": events.CALENDAR_URL}
+                        "events": [*chosen, *outside], "calendar_url": events.CALENDAR_URL}
         clubs: list[dict[str, Any]] = []
         found = events.find_clubs([e for e in named if e["kind"] in ("club", "organization")],
                                   message) if events.asks_clubs(message) else []
@@ -1696,7 +1845,70 @@ class ChatEngine:
                 item = {"n": numbered_from + len(sources) + 1, **value}
                 clubs.append(item)
                 sources.append({"n": item["n"], "url": value.get("url"), "title": value["name"]})
-        return calendar, clubs, sources
+            computed = [*computed, *events.club_answers(
+                clubs, message, True, len([e for e in named if e["kind"] != "event"]))]
+        return calendar, clubs, sources, computed
+
+    def _clubs_by_words(self, clubs: list[dict[str, Any]], message: str,
+                        sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """The clubs given, then the directory clubs whose own names hold a word asked ("arts",
+        "commuter", "democrats"), each numbered after the sources (which it extends)."""
+        given = {c.get("url") for c in clubs}
+        clubs = list(clubs)
+        for club in events.clubs_by_words(self._club_directory(), message):
+            if club.get("url") not in given:
+                clubs.append({"n": len(sources) + 1,
+                              **{k: v for k, v in club.items() if k != "id"}})
+                sources.append({"n": clubs[-1]["n"], "url": club.get("url"),
+                                "title": club.get("name")})
+        return clubs
+
+    def _upcoming_events(self, now: datetime) -> list[dict[str, Any]]:
+        """Every calendar event from now through the next year, as published, read through the
+        shared reader once per release and day."""
+        version, identity_hash = self.facts.active_release()
+        key = (version, now.date().isoformat())
+        if self._upcoming_cache is None or self._upcoming_cache[0] != key:
+            dated = events.events_in([e for e in self.facts.identities(("event",))],
+                                     now, now + timedelta(days=366))
+            values = [{**f["properties"][0]["values"][0]["value"], "_id": f["entity"]["id"]}
+                      for at in range(0, len(dated), 40)
+                      for f in self.facts.get_event_facts(
+                          [e["id"] for e in dated[at:at + 40]], version,
+                          identity_hash=identity_hash, as_of=now)]
+            self._upcoming_cache = (key, values)
+        return [v for v in self._upcoming_cache[1]
+                if datetime.fromisoformat(str(v.get("starts_at"))) >= now - timedelta(hours=3)]
+
+    def _club_events(self, clubs: Sequence[dict[str, Any]], now: datetime, numbered_from: int,
+                     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]],
+                                list[dict[str, Any]]]:
+        """The upcoming calendar events each club given hosts (the club as organizer), or that
+        the calendar lists none through its last date: event lines, facts and sources."""
+        upcoming = self._upcoming_events(now)
+        last = max((datetime.fromisoformat(str(v.get("starts_at"))) for v in upcoming),
+                   default=None)
+        lines: list[dict[str, Any]] = []
+        facts: list[dict[str, Any]] = []
+        for club in clubs[:3]:
+            hosted = sorted((v for v in upcoming if str(v.get("organizer") or "").casefold()
+                             == str(club.get("name") or "").casefold()),
+                            key=lambda v: str(v.get("starts_at")))[:events.MAX_OUTSIDE]
+            mine = [{"n": numbered_from + len(lines) + k + 1, **events.event_line(v),
+                     "hosted_by": club.get("name")} for k, v in enumerate(hosted)]
+            lines.extend(mine)
+            if mine:
+                facts.append({"fact": f"The calendar's upcoming events hosted by {club['name']}: "
+                                      + "; ".join(f"{line['event']} ({line['when']}) [{line['n']}]"
+                                                  for line in mine) + ".", "n": mine[0]["n"]})
+            else:
+                facts.append({"fact": f"The calendar lists no upcoming event hosted by "
+                                      f"{club['name']}" + (f" through {last:%B} {last.day}, "
+                                                           f"{last.year}, its last listed date."
+                                                           if last else "."),
+                              "n": club["n"]})
+        return lines, facts, [{"n": line["n"], "url": line.get("url"), "title": line["event"]}
+                              for line in lines]
 
     def _school_offices(self, schools: Sequence[Any]) -> list[str]:
         """The office identities of the schools a reply's people or programs belong to ("School
@@ -1710,10 +1922,9 @@ class ChatEngine:
                 if re.sub(r"\s+office$", "", str(o["name"]).strip(), flags=re.I).casefold()
                 in wanted]
 
-    def _people_listed(self, message: str, numbered_from: int,
-                       ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        """Everyone in the field a list question names, read through the shared reader once
-        per release (people.listed)."""
+    def _directory(self) -> list[dict[str, Any]]:
+        """Every person's directory and profile entry with its id, read through the shared
+        reader once per release."""
         version, identity_hash = self.facts.active_release()
         if self._directory_cache is None or self._directory_cache[0] != version:
             ids = [e["id"] for e in self.facts.identities(("person",))]
@@ -1724,7 +1935,12 @@ class ChatEngine:
                     entries.append({"id": facts["entity"]["id"],
                                     **people_module.person_evidence(facts, 0)})
             self._directory_cache = (version, entries)
-        found = people_module.listed(self._directory_cache[1], message)
+        return self._directory_cache[1]
+
+    def _people_listed(self, message: str, numbered_from: int,
+                       ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Everyone in the field a list question names (people.listed)."""
+        found = people_module.listed(self._directory(), message)
         items = [{"n": numbered_from + k + 1, **{x: y for x, y in entry.items() if x != "id"},
                   **({"listed_first_of": len(found)}
                      if k == 0 and len(found) > people_module.MAX_LISTED else {})}
@@ -1732,9 +1948,52 @@ class ChatEngine:
         return items, [{"n": i["n"], "url": i.get("profile_url"), "title": i.get("name")}
                        for i in items]
 
+    def _people_computed(self, message: str, people: list[dict[str, Any]],
+                         named: bool, numbered_from: int,
+                         ) -> tuple[list[dict[str, Any]], list[dict[str, Any]],
+                                    list[dict[str, Any]]]:
+        """What code works out for a people question (people.py): the people named, narrowed by
+        the school or field the question names, each with the fields asked; and who leads the
+        school or field a leadership question asks about, by directory titles, added to the
+        people given. The people, the facts, and the new people's sources."""
+        directory = self._directory()
+        schools = people_module.schools_of(directory, self.facts.identities(("office",)))
+        computed: list[dict[str, Any]] = []
+        sources: list[dict[str, Any]] = []
+        if named:
+            people = people_module.narrow(people, message, schools)
+            computed = people_module.computed_answers(people, message, directory)
+        if people_module.asks_leadership(message):
+            given = {p.get("profile_url") or p.get("name") for p in people}
+            for line, entry in people_module.leaders(directory, message, schools):
+                n = None
+                if entry is not None:
+                    key = entry.get("profile_url") or entry.get("name")
+                    n = next((p["n"] for p in people
+                              if (p.get("profile_url") or p.get("name")) == key), None)
+                    if n is None and key not in given:
+                        n = numbered_from + len(sources) + 1
+                        people = [*people, {"n": n, **{k: v for k, v in entry.items()
+                                                       if k not in ("id", "n")}}]
+                        sources.append({"n": n, "url": entry.get("profile_url"),
+                                        "title": entry.get("name")})
+                        given.add(key)
+                computed.append({"fact": line, **({"n": n} if n is not None else {})})
+        return people, computed, sources
+
     def _people_named(self, message: str) -> list[dict[str, Any]]:
-        """The people a message names by their directory names (people.py)."""
-        return people_module.find_people(self.facts.identities(("person",)), message)
+        """The people a message names by their directory names (people.py); the published
+        pages' own words (section headings, course titles) are never read as misspelt names."""
+        index = self.facts.meaning_index()
+        if index is not None and (self._ordinary_words is None
+                                  or self._ordinary_words[0] != index.dataset_version):
+            text = " ".join([*(" ".join(label) for label in index.labels.values()),
+                             *index.course_titles.values()])
+            self._ordinary_words = (index.dataset_version,
+                                    frozenset(re.findall(r"[a-z]{3,}", text.casefold())))
+        return people_module.find_people(
+            self.facts.identities(("person",)), message,
+            self._ordinary_words[1] if index is not None and self._ordinary_words else frozenset())
 
     def _read_people(self, people: Sequence[dict[str, Any]], numbered_from: int,
                      ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -1758,7 +2017,7 @@ class ChatEngine:
         """Every club's directory entry with its id, read once per release."""
         version, identity_hash = self.facts.active_release()
         if self._club_cache is None or self._club_cache[0] != version:
-            ids = [e["id"] for e in self.facts.identities(("club", "organization"))]
+            ids = self.facts.club_directory_ids()
             entries = [{"id": facts["entity"]["id"], **facts["properties"][0]["values"][0]["value"]}
                        for start in range(0, len(ids), 12)
                        for facts in self.facts.get_club_facts(ids[start:start + 12], version,
@@ -1824,9 +2083,13 @@ class ChatEngine:
         offices: list[dict[str, Any]] = []
         sources: list[dict[str, Any]] = []
         dataset_version = index.dataset_version if index else ""
+        # An academic question is read from what the model picks among the catalog's own names
+        # when the meaning index is published; the code-named programs are its hints.
+        pick_catalog = bool(searchable and index is not None and index.academic and (
+            (programs and (programs[0] or programs[2])) or academics.asks_academics(latest)))
         try:
             async with asyncio.timeout(self.turn_seconds):
-                if programs:
+                if programs and not pick_catalog:
                     with measure("Read the programs named"):
                         academic, sources, dataset_version = await asyncio.to_thread(
                             self._read_programs, *programs, latest, turn.campus_now.date())
@@ -1845,23 +2108,56 @@ class ChatEngine:
                     event_scores = (dict(index.academic_scores(vectors[0], "event"))
                                     if vectors and index is not None else None)
                     with measure("Read the calendar and clubs"):
-                        calendar, clubs, found_sources = await asyncio.to_thread(
+                        calendar, clubs, found_sources, calendar_facts = await asyncio.to_thread(
                             self._read_calendar, latest, turn.campus_now, len(sources),
                             event_scores)
                     sources = [*sources, *found_sources]
+                    computed = [*computed, *calendar_facts]
                     dataset_version = dataset_version or self.facts.active_release()[0]
                 if searchable:
                     assert index is not None
                     named = list(dict.fromkeys([*named, *one_call.card_offices(index, vectors)]))
                     # A program or course named only in part ("the english major") is found by
                     # its card's meaning when the question asks about programs or courses.
-                    if not programs and index.academic and academics.asks_academics(latest):
+                    # A course question naming a program word but no course ("abnormal
+                    # psychology" names the Psychology programs) still looks for the course.
+                    course_only = bool(programs and not programs[2]
+                                       and academics.asks_course(latest))
+                    picked = None
+                    if pick_catalog:
+                        with measure("Pick the catalog programs and courses"):
+                            picked = await self._pick_catalog(latest, index, vectors, programs,
+                                                              budget)
+                        trace["catalogPick"] = (
+                            {"programs": [p["name"] for p in picked["programs"]],
+                             "courses": [c["name"] for c in picked["courses"]],
+                             "find": picked["find"], "level": picked["level"],
+                             "track": picked["track"]} if picked is not None else None)
+                    if picked is not None:
+                        with measure("Read the catalog picks"):
+                            academic, found_sources, dataset_version, picked_facts = \
+                                await asyncio.to_thread(self._read_picked, picked, latest,
+                                                        turn.campus_now.date(), len(sources))
+                        sources = [*sources, *found_sources]
+                        computed = [*computed, *picked_facts]
+                    elif pick_catalog and programs:
+                        with measure("Read the programs named"):
+                            academic, found_sources, dataset_version = await asyncio.to_thread(
+                                self._read_programs, *programs, latest, turn.campus_now.date(),
+                                numbered_from=len(sources))
+                        sources = [*sources, *found_sources]
+                    elif (not programs or course_only) and index.academic \
+                            and academics.asks_academics(latest):
                         found_programs, found_courses = self._academics_by_meaning(
                             index, vectors[0], latest)
+                        if course_only and programs:
+                            found_programs, others = list(programs[0]), list(programs[1])
+                        else:
+                            others = []
                         with measure("Read the programs found by meaning"):
                             academic, sources, dataset_version = await asyncio.to_thread(
-                                self._read_programs, found_programs, [], found_courses,
-                                latest, turn.campus_now.date(), True)
+                                self._read_programs, found_programs, others, found_courses,
+                                latest, turn.campus_now.date(), not course_only)
                     # Clubs the question asks about but names by no directory name ("is there
                     # an anime club") are found by their cards' meaning.
                     # People the question asks about but names by no directory name ("who
@@ -1870,15 +2166,35 @@ class ChatEngine:
                         people, found_people = await asyncio.to_thread(
                             self._people_listed, latest, len(sources))
                         sources = [*sources, *found_people]
-                    if (people_asked and not people and index.academic
-                            and people_module.asks_people_topic(latest)):
-                        names = {e["id"]: str(e["name"])
-                                 for e in self.facts.identities(("person",))}
-                        found = people_module.by_meaning(
-                            index.academic_scores(vectors[0], "person"), names)
-                        people, found_people = await asyncio.to_thread(
-                            self._read_people, found, len(sources))
-                        sources = [*sources, *found_people]
+                    if (people_asked and index.academic
+                            and people_module.asks_people_topic(latest)
+                            and not people_module.asks_leadership(latest)):
+                        # Code first: the profiles whose own courses, interests or title hold
+                        # what was asked; else the people cards nearest in meaning.
+                        given = {p.get("name") for p in people}
+                        taught = [e for e in people_module.teachers(
+                            await asyncio.to_thread(self._directory), latest)
+                            if e.get("name") not in given]
+                        if taught:
+                            more = [{"n": len(sources) + k + 1,
+                                     **{x: y for x, y in e.items() if x not in ("id", "n")}}
+                                    for k, e in enumerate(taught)]
+                            people = [*people, *more]
+                            sources = [*sources, *({"n": p["n"], "url": p.get("profile_url"),
+                                                    "title": p.get("name")} for p in more)]
+                            computed = [*computed, {
+                                "fact": "By their own profiles' courses, interests and titles, "
+                                        "these people teach or study what was asked: "
+                                        + "; ".join(f"{p['name']} [{p['n']}]" for p in more)
+                                        + "."}]
+                        elif not people:
+                            names = {e["id"]: str(e["name"])
+                                     for e in self.facts.identities(("person",))}
+                            found = people_module.by_meaning(
+                                index.academic_scores(vectors[0], "person"), names)
+                            people, found_people = await asyncio.to_thread(
+                                self._read_people, found, len(sources))
+                            sources = [*sources, *found_people]
                     if calendar_asked and not clubs and events.asks_clubs(latest):
                         # Each interest a question lists ("anime and community service") is
                         # searched on its own as well as the whole question.
@@ -1890,6 +2206,28 @@ class ChatEngine:
                         clubs, club_sources = await asyncio.to_thread(
                             self._clubs_by_meaning, index, club_vectors, len(sources))
                         sources = [*sources, *club_sources]
+                        clubs = self._clubs_by_words(clubs, latest, sources)
+                        computed = [*computed, *events.club_answers(
+                            clubs, latest, False, len(self._club_directory()))]
+                    elif calendar_asked and clubs and events.asks_clubs(latest):
+                        # A club named ("College Republicans") does not hide the others the
+                        # question names by a word ("young democrats").
+                        clubs = self._clubs_by_words(clubs, latest, sources)
+                if people_asked or named_people:
+                    with measure("Work out the people facts"):
+                        people, people_facts, found_people = await asyncio.to_thread(
+                            self._people_computed, latest, people, bool(named_people),
+                            len(sources))
+                    sources = [*sources, *found_people]
+                    computed = [*computed, *people_facts]
+                if clubs and len(clubs) <= 3 and events.asks_club_events(latest):
+                    club_lines, club_facts, found_events = await asyncio.to_thread(
+                        self._club_events, clubs, turn.campus_now, len(sources))
+                    sources = [*sources, *found_events]
+                    computed = [*computed, *club_facts]
+                    calendar = {**(calendar or {"window": "upcoming",
+                                                "calendar_url": events.CALENDAR_URL}),
+                                "events": [*((calendar or {}).get("events") or []), *club_lines]}
                 # The school offices of the people and programs given come first among the
                 # offices read, so "who do I talk to" reaches the right school.
                 named = list(dict.fromkeys([*self._school_offices(
@@ -1915,8 +2253,8 @@ class ChatEngine:
                             index.dataset_version, index.identity_hash, named, seen=seen,
                             chosen=chosen, numbered_from=len(sources))
                     sources = [*sources, *found]
-                # What code works out from the catalog (published or not, credits and their
-                # sums, Gen Ed attributes, catalog credit totals) for the reply to state as is.
+                # What code works out from the catalog (published or not, each course's credits,
+                # Gen Ed attributes, published credit totals) for the reply to state as is.
                 gen_ed_lines = (academics.gen_ed_courses(
                     index.course_titles, index.course_gen_ed,
                     {e["id"]: str(e["name"]) for e in self.facts.identities(("course",))},
@@ -1927,9 +2265,33 @@ class ChatEngine:
                         catalog_n = len(sources) + 1
                         sources = [*sources, {"n": catalog_n, "url": CATALOG_URL,
                                               "title": "Programs in the college catalog"}]
-                    computed = academics.computed_answers(
+                    computed = [*academics.computed_answers(
                         academic, self.facts.identities(("program",)), latest, catalog_n,
-                        gen_ed_lines)
+                        gen_ed_lines), *computed]
+                if calendar_asked and events.asks_clubs(latest) and offices:
+                    # A group a page given names is checked against the club directory by code.
+                    given = {c.get("url") for c in clubs}
+                    text = " ".join(str(section.get(k) or "") for office in offices
+                                    for section in office.get("sections") or []
+                                    for k in ("text", "section_words"))
+                    on_pages = [c for c in events.clubs_on_pages(
+                        self._club_directory(), text, self._ordinary_words[1]
+                        if self._ordinary_words else frozenset())
+                        if c.get("url") not in given][:events.MAX_CATEGORY_CLUBS]
+                    lines = []
+                    for club in on_pages:
+                        clubs.append({"n": len(sources) + 1,
+                                      **{k: v for k, v in club.items() if k != "id"}})
+                        sources.append({"n": clubs[-1]["n"], "url": club.get("url"),
+                                        "title": club.get("name")})
+                        lines.append(f"{club.get('name')} [{clubs[-1]['n']}]")
+                    if lines:
+                        computed = [*computed, {"fact": "The club directory also lists these "
+                                                        "groups the pages name: "
+                                                        + "; ".join(lines) + "."}]
+                computed = [*computed, *one_call.dated_statements(
+                    offices, turn.campus_now.date(), latest,
+                    [str(p.get("name") or "") for p in people])]
                 budget.max_calls = max(budget.max_calls, budget.calls + 1)
                 with measure("Write the answer from the evidence"):
                     completion = await self.gateway.complete(

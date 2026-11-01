@@ -173,3 +173,37 @@ def test_with_headings_published_the_pick_comes_before_the_answer() -> None:
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     assert gateway.inputs[0][1]["content"].startswith("Question: how do i become a peer tutor")
     assert result.trace is not None and result.trace["decidedBy"] == "one_call"
+
+
+def test_a_dated_change_on_a_page_is_judged_against_today() -> None:
+    from datetime import date
+
+    from rockygpt_brain.one_call import dated_statements
+    offices = [{"sections": [{"n": 3, "text": "SSSW Interim Dean Kathleen Ray. Effective July 1, "
+                                              "2026 – Dean Susan Hangen"},
+                             {"n": 4, "text": "Chess Club is not currently active as of 6/12/25."},
+                             {"n": 5, "text": "Starting January 5, 2027 parking forms move "
+                                              "online."}]}]
+    today = date(2026, 10, 25)
+    facts = [f["fact"] for f in dated_statements(offices, today, "who is the sssw dean",
+                                                 ["Susan Hangen"])]
+    assert facts == ['Section [3] says "Effective July 1, 2026 – Dean Susan Hangen": July 1, '
+                     '2026 has passed, so this is in effect now.']
+    facts = [f["fact"] for f in dated_statements(offices, today,
+                                                 "is the chess club active? parking forms")]
+    assert facts == [
+        'Section [4] says "Chess Club is not currently active as of 6/12/25": June 12, 2025 has '
+        'passed, so this is in effect now.',
+        'Section [5] says "Starting January 5, 2027 parking forms move online": January 5, 2027 '
+        'is still to come, so this is not in effect yet.']
+
+
+def test_a_reply_naming_a_course_the_facts_do_not_hold_is_not_sent() -> None:
+    from rockygpt_brain.writer import unsupported_by
+    view = {"facts": "CHEM 425 prerequisites: complete any of BIOL 332 and CHEM 205; CHEM 213",
+            "sources": [{"n": 1}]}
+    assert unsupported_by("Take CHEM 213 before CHEM 425 [1].", view) == []
+    assert unsupported_by("CHEM 425 needs CHEM 211 first.", view) == [
+        "a course the facts do not hold: CHEM 211"]
+    # A word of no subject the facts hold ("room 425") is not checked as a course.
+    assert unsupported_by("It meets in room 425.", view) == []

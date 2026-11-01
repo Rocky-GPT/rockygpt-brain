@@ -1,0 +1,166 @@
+[
+ {
+  "id": "as3-01",
+  "question": "how many credits is the psych major vs the sociology major? trying to decide between them",
+  "answer": "Psychology BA and Sociology BA are both listed as requiring 128 credits for the degree [1][2]—that is not a separate major-credit total. The catalog says major requirements must total at least 40 and no more than 64 credits, including major-specific concentrations, tracks, and prerequisites [6]. The pages provided don’t give the specific major-credit total for either major, so I can’t compare those totals precisely. For help deciding, the Center for Student Success advises choosing classes that help you decide and talking with faculty in those majors [10]. Contact the Center for Student Success at success@ramapo.edu or (201) 684-7441 [10].\n\nSources: [1](https://catalog.ramapo.edu/programs/SO-BA-PSYC) [2](https://catalog.ramapo.edu/programs/SO-BA-SOCI) [6](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [10](https://www.ramapo.edu/studentsuccess/major/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SO-BA-PSYC",
+   "https://catalog.ramapo.edu/programs/SO-BA-SOCI",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://www.ramapo.edu/studentsuccess/major/"
+  ]
+ },
+ {
+  "id": "as3-02",
+  "question": "im undeclared and stuck between computer science and information technology, which classes overlap between the two majors?",
+  "answer": "I don’t have verified information about classes shared by the two majors. The provided catalog lists Computer Science BS requirements, but not Information Technology requirements, so it can’t establish overlap [1].\n\nFor help deciding, the Center for Student Success advises choosing classes that help you decide and talking with faculty in those majors [2]. As an undeclared student, contact the Center for Student Success for advisement at (201) 684-7441 or success@ramapo.edu [3].\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-CMPS) [2](https://www.ramapo.edu/studentsuccess/major/) [3](https://www.ramapo.edu/myadvisor/school-liaisons/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-CMPS",
+   "https://www.ramapo.edu/studentsuccess/major/",
+   "https://www.ramapo.edu/myadvisor/school-liaisons/"
+  ]
+ },
+ {
+  "id": "as3-03",
+  "question": "does ramapo have a data science major or is it just a minor",
+  "answer": "Ramapo has a Data Science BS major (Bachelor of Science), not just a minor. [13] The catalog also lists Data Science Minor, Data Science MS, and Data Science 4+1. [1]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-DSCI) [13](https://catalog.ramapo.edu/programs)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-DSCI",
+   "https://catalog.ramapo.edu/programs"
+  ]
+ },
+ {
+  "id": "as3-04",
+  "question": "what are the prereqs for cmps 147 and is it required for both comp sci and math majors?",
+  "answer": "CMPS 147 prerequisites: complete one of MATH 021, MATH 022, MATH 024, MATH 100T, MATH 101, MATH 104, MATH 108, MATH 110, or MATH 121; **or** meet one placement-test score: ACCUPLACER Quantitative Reasoning 258, ACCUPLACER Advanced Algebra and Functions 260, ACT Composite 26, or SAT MATH 580. [3]\n\nIt is required for the Computer Science BS. [1] For the Mathematics BS, it is an option—not required by itself—in both the Traditional and Teacher Education tracks: each allows CMPS 130 or CMPS 147. [2]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-CMPS) [2](https://catalog.ramapo.edu/programs/SN-BS-MATH) [3](https://catalog.ramapo.edu/courses/CMPS147)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-CMPS",
+   "https://catalog.ramapo.edu/programs/SN-BS-MATH",
+   "https://catalog.ramapo.edu/courses/CMPS147"
+  ]
+ },
+ {
+  "id": "as3-05",
+  "question": "how many credits do you need total to graduate and how many of those are gen eds",
+  "answer": "For undergraduate graduation, you need at least 128 credits [3]. The Registrar FAQ also says 128 credits overall and notes program requirements differ [2]; the student-success page says a minimum of 128 graduation credits [9]. At least 48 credits must be completed at Ramapo, including your final 32 in residence [3].\n\nThe General Education curriculum should not exceed 41 credits [5]. Students take ten General Education courses [4], but the pages do not state a specific Gen Ed credit total. The exact requirements depend on your program [2]. Review the number of classes and credits with your adviser [2].\n\nRegistrar: reg@ramapo.edu, (201) 684-7695, D-224 [2][3].\n\nSources: [2](https://www.ramapo.edu/registrar/faq/) [3](https://www.ramapo.edu/registrar/graduation-commencement/) [4](https://www.ramapo.edu/provost/curriculum-and-assessment/) [5](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [9](https://www.ramapo.edu/studentsuccess/policies/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://www.ramapo.edu/registrar/faq/",
+   "https://www.ramapo.edu/registrar/graduation-commencement/",
+   "https://www.ramapo.edu/provost/curriculum-and-assessment/",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://www.ramapo.edu/studentsuccess/policies/"
+  ]
+ },
+ {
+  "id": "as3-06",
+  "question": "im a sophmore with no major yet, if i declare biology now can i still finish in 4 years? whats the course sequence look like for bio",
+  "answer": "The pages can’t confirm whether you personally can finish in four years; that depends on your completed credits and coursework. They advise declaring in sophomore year for a four-year goal, and note that some sequential science majors should be started right away. Declare before completing 64 credits. [4][7] After 64 credits, you are considered a junior and must have a declared major. [8]\n\nFor your credit-by-credit assessment, contact the Center for Student Success (Academic Advising): (201) 684-7441 or success@ramapo.edu. [9]\n\nBiology BS (General) recommended plan: it applies to students admitted to the major in 2026–2027, so it may not match your catalog year. [3]\n• First Year Fall (18 credits): BIOL 111/111L, CHEM 116/116L, CRWT 102, INTD 101.\n• First Year Spring (18): BIOL 113/113L, CHEM 117/117L, MATH 110 or 121 or CMPS 147, Gen Ed; PATH 001.\n• Second Year Fall (17): BIOL 221, CHEM 211/211L or 206/206L, MATH 122 or statistics option, Gen Ed; PATH 002.\n• Second Year Spring (no total listed): Bio Elective I, BIOL 332/332L, CHEM 213/213L or specified Gen Ed if CHEM 206 was taken, Gen Ed; PATH 003.\n• Third Year Fall (14.5): BIOL 356, PHYS 111/118L, Bio Elective II w/lab.\n• Third Year Spring (17): Bio Elective III, PHYS 113/119L, two Gen Eds.\n• Fourth Year Fall (13.5): Bio Elective 4, BIOL 407/407L, Gen Ed.\n• Fourth Year Spring (16): four free electives. Total required: 128 credits. [3]\nThe Student Success page recommends using Recommended Graduation Plans to plan. [7]\n\nSources: [3](https://catalog.ramapo.edu/programs/SN-BS-BIOL) [4](https://www.ramapo.edu/registrar/declare-major-minor-certificate/) [7](https://www.ramapo.edu/studentsuccess/major/) [8](https://www.ramapo.edu/myadvisor/advisement-by-year/) [9](https://www.ramapo.edu/myadvisor/school-liaisons/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-BIOL",
+   "https://www.ramapo.edu/registrar/declare-major-minor-certificate/",
+   "https://www.ramapo.edu/studentsuccess/major/",
+   "https://www.ramapo.edu/myadvisor/advisement-by-year/",
+   "https://www.ramapo.edu/myadvisor/school-liaisons/"
+  ]
+ },
+ {
+  "id": "as3-07",
+  "question": "does econ 101 count toward gen ed and also toward the business admin major",
+  "answer": "ECON 101 has no General Education attribute in the catalog, so it does not count as a General Education course [3]. I don’t have verified information about whether it counts toward the undergraduate Business Administration major. Contact the Anisfield School of Business: asb@ramapo.edu or (201) 684-7379 [1].\n\nSources: [1](https://catalog.ramapo.edu/programs/SB-MBA-MBAD) [3](https://catalog.ramapo.edu/courses/ECON101)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SB-MBA-MBAD",
+   "https://catalog.ramapo.edu/courses/ECON101"
+  ]
+ },
+ {
+  "id": "as3-08",
+  "question": "comparing communication arts, english, and journalism majors - how many credits is each one and do any of them share core courses",
+  "answer": "The available pages don’t give exact major-credit totals for all three. The general catalog rule says major requirements must total at least 40 and no more than 64 credits, including major-specific concentrations, tracks, and prerequisites [7]. Communication Arts is a B.A.; its recommended plan says 128 credits total for the degree, not the major alone [1]. The pages list Journalism and English and Literary Studies, but don’t state their individual major-credit totals [19].\n\nCommunication Arts lists COMM 204 Media Literacy and COMM 221 Speech for Communication Arts as foundation courses in both concentrations shown [1]. The pages provided don’t establish whether these or other courses are core requirements shared with Journalism or English and Literary Studies [1, 19]. For confirmed major totals and course overlap, contact the School of Arts, Humanities, and Education Office: AHEOffice@ramapo.edu or (201) 684-7365 [1].\n\nSources: [1](https://catalog.ramapo.edu/programs/AH-BA-COMM) [7](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [19](https://www.ramapo.edu/undergraduate/agenda/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/AH-BA-COMM",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://www.ramapo.edu/undergraduate/agenda/"
+  ]
+ },
+ {
+  "id": "as3-09",
+  "question": "what does psyc 101 actually cover",
+  "answer": "PSYC 101 Introduction to Psychology is 4 credits and has no published prerequisites. [2] It introduces psychology as a field of study and practice, exploring its history, methods, and scope. Topics include learning, perception, cognition, emotion, motivation, abnormal behavior, psychotherapy, social behavior, personality, development across the lifespan, and the biological bases of thought, feeling, and action. [2]\n\nSources: [2](https://catalog.ramapo.edu/courses/PSYC101)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/courses/PSYC101"
+  ]
+ },
+ {
+  "id": "as3-10",
+  "question": "can i double major in psychology and criminal justice or is that too many credits? how much do the requirements overlap",
+  "answer": "Ramapo allows undergraduates to pursue a second major [4]. For students with two majors, “no more than half the courses can double-count in both majors,” and all writing-intensive courses required for the second major must also be completed [2]. This is the overlap limit—not a calculation of how much Psychology and Criminal Justice actually share. The pages provided don’t verify whether Criminal Justice is offered as a major or give its requirements, so I can’t confirm that specific pairing or determine whether it would add too many credits.\n\nFor help comparing the requirements and planning your credits, contact the Center for Student Success (Academic Advising): success@ramapo.edu, (201) 684-7441, D-207 [20].\n\nSources: [2](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [4](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1) [20](https://www.ramapo.edu/studentsuccess/major/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1",
+   "https://www.ramapo.edu/studentsuccess/major/"
+  ]
+ },
+ {
+  "id": "as3-11",
+  "question": "whats the recommended first year sequence for nursing, is it too late to start it as a sophomore",
+  "answer": "For the Nursing Generic BSN, the recommended plan is for students admitted in 2025–2026 [2]. First Year, Fall Semester (total 17 credits): INTD 101 - FIRST YEAR SEMINAR (4); CHEM 111 - PRINCIPLES OF CHEMISTRY LECTURE (4); CHEM 111L - PRINCIPLES OF CHEM LAB/RECITAT (1); CRWT 102 - CRITICAL READING AND WRITING II (4); General Education Requirement * (4); PATH TS1 - CAREER PATHWAYS MODULE 1 FOR THEORETICAL & APPLIED SCIENCE [2]. First Year, Spring Semester (total 16 credits): General Education Requirement * (4) twice; PSYC 101 - INTRODUCTION TO PSYCHOLOGY (4); Quantitative Reasoning – MATH 108 - ELEMENTARY PROBABILITY AND STATISTICS (4) [2]. The plan says CRWT placement is CRWT 101 to CRWT 102; CRWT 101S to CRWT 102S, and Math placement is MATH 021/022 to MATH 108-121 [2].\n\nThe Generic BSN plan places general education and science requirements in the first two years, then a two-year nursing sequence [2]. The pages don’t establish whether it’s too late for you personally. One advising page says some large, sequentially designed science majors should be started right away [7]. Students with 32 or more completed credits are considered second-year students; declared students are assigned a faculty advisor in their major [8]. Contact the School of Science, Nursing, and Health Office at SNHOffice@ramapo.edu or (201) 684-7734, or the Center for Student Success (Academic Advising) at success@ramapo.edu or (201) 684-7441 [8].\n\nSources: [2](https://catalog.ramapo.edu/programs/SN-BSN-NURG) [7](https://www.ramapo.edu/studentsuccess/major/) [8](https://www.ramapo.edu/myadvisor/advisement-by-year/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BSN-NURG",
+   "https://www.ramapo.edu/studentsuccess/major/",
+   "https://www.ramapo.edu/myadvisor/advisement-by-year/"
+  ]
+ },
+ {
+  "id": "as3-12",
+  "question": "how many credits have i already done toward gen ed? my degree audit is confusing",
+  "answer": "I don’t have verified information about your completed General Education credits or what your individual audit shows. [2][6][7]\n\nThe Registrar recommends reviewing your degree audit and meeting with your adviser. [2] The Center for Student Success (Academic Advising) provides guides for running a DegreeWorks audit: https://www.ramapo.edu/myadvisor/wp-content/uploads/sites/133/2025/06/How-to-Run-a-DegreeWorks-Audit.pdf [3] Continuing students use DegreeWorks; review the audit to see how courses apply to requirements. [6][7]\n\nFor degree-audit questions, email degreeaudit@ramapo.edu. [6] If you believe courses are being applied incorrectly to General Education Distribution requirements, email the Registrar’s office at degreeaudit@ramapo.edu. [9]\n\nSources: [2](https://www.ramapo.edu/registrar/faq/) [3](https://www.ramapo.edu/myadvisor/how-to-guides/) [6](https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/) [7](https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/) [9](https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://www.ramapo.edu/registrar/faq/",
+   "https://www.ramapo.edu/myadvisor/how-to-guides/",
+   "https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/",
+   "https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/",
+   "https://www.ramapo.edu/provost/home/comprehensive-academic-plan/resources/"
+  ]
+ },
+ {
+  "id": "as3-13",
+  "question": "is there an open section of stat 2xx this spring and whos teaching it",
+  "answer": "I don’t have verified information on whether a STAT 2xx section is open this spring or who is teaching it. Contact the School of Science, Nursing, and Health Office at SNHOffice@ramapo.edu or (201) 684-7734.",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": []
+ },
+ {
+  "id": "as3-14",
+  "question": "which major should i pick, environmental science or biology, i like both lol",
+  "answer": "I can’t tell you which one you should pick—that depends on your interests, and the pages don’t make that decision for you. [1][2] Biology emphasizes life processes, from molecular to community and evolutionary perspectives, with flexibility to pursue interests. [1] Environmental Science emphasizes multidisciplinary environmental problem-solving; its core includes GIS, sustainable natural resources, environmental chemistry and ecological field research. [2]\n\nTo decide, Ramapo suggests: define the decision; gather information by reading the catalog, attending School events, asking questions, and talking with advisors and students; try career-center computer tests; consider the PLACE course, talking with juniors/seniors and professional advisors, and a related summer job; focus on your top choices by taking helpful classes and talking with faculty; consider risks and costs, and get co-op or internship experience before graduating. The page says you should have a pretty clear idea by sophomore year. [3]\n\nThe Center for Student Success specializes in helping students choose majors. Contact it at success@ramapo.edu or (201) 684-7441, D-207. [3]\n\nSources: [1](https://catalog.ramapo.edu/programs/SN-BS-BIOL) [2](https://catalog.ramapo.edu/programs/SN-BS-ENSC) [3](https://www.ramapo.edu/studentsuccess/major/)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SN-BS-BIOL",
+   "https://catalog.ramapo.edu/programs/SN-BS-ENSC",
+   "https://www.ramapo.edu/studentsuccess/major/"
+  ]
+ },
+ {
+  "id": "as3-15",
+  "question": "how many credits is the business minor and do the intro accounting classes count for it if i end up majoring in econ instead",
+  "answer": "The Accounting minor is 24 credits [2]. It requires ACCT 221 (Principles of Financial Accounting) and ACCT 222 (Principles of Managerial Accounting) [2]. Both are also required ASB courses for the Economics BA [3], so they can count toward the minor; courses required for your major may overlap with a minor, up to half of the minor’s credits [4].\n\nSources: [2](https://catalog.ramapo.edu/programs/SB-MN-ACCT) [3](https://catalog.ramapo.edu/programs/SB-BA-ECON) [4](https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1)",
+  "answered_at": "2026-10-25T13:14-04:00",
+  "cited_urls": [
+   "https://catalog.ramapo.edu/programs/SB-MN-ACCT",
+   "https://catalog.ramapo.edu/programs/SB-BA-ECON",
+   "https://catalog.ramapo.edu/pages/R532kjMfIcfnIkM0srb3#integrity-of-degree-programs1"
+  ]
+ }
+]

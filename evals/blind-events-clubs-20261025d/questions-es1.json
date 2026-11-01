@@ -1,0 +1,17 @@
+[
+  {"id": "es1-01", "question": "hi im a transfer student just started this week and dont know anyone. whats going on on campus this week?", "topic": "event"},
+  {"id": "es1-02", "question": "is there a hiking or outdoors club at ramapo?", "topic": "club"},
+  {"id": "es1-03", "question": "photography club?? how do i join", "topic": "club"},
+  {"id": "es1-04", "question": "Are there any events tonight that are good for meeting people? Something low key, not a party", "topic": "event"},
+  {"id": "es1-05", "question": "what religious or faith based student orgs are there? im catholic but would be open to interfaith stuff too", "topic": "club"},
+  {"id": "es1-06", "question": "Is there a Spanish club or a language exchange type thing? I'm trying to practice my Spanish and maybe pick up some Japanese", "topic": "club"},
+  {"id": "es1-07", "question": "anything happening this weekend? i'm staying on campus and dont want to sit in my room all weekend", "topic": "event"},
+  {"id": "es1-08", "question": "is there free food anywhere today lol", "topic": "event"},
+  {"id": "es1-09", "question": "when does the photography club meet and who do i email to get added", "topic": "out_of_scope"},
+  {"id": "es1-10", "question": "where can i see a list of all the clubs on campus", "topic": "club"},
+  {"id": "es1-11", "question": "Can I still join clubs if I'm transfering in the middle of the semester or did I miss the involvement fair?", "topic": "club"},
+  {"id": "es1-12", "question": "are there any home games next friday? and are they free for students", "topic": "event"},
+  {"id": "es1-13", "question": "which club would be best for someone who's kind of shy and likes nature and taking pictures", "topic": "out_of_scope"},
+  {"id": "es1-14", "question": "any career events or workshops next week? also where are they held", "topic": "event"},
+  {"id": "es1-15", "question": "how many people usually show up to the hiking club trips, is it a big group?", "topic": "out_of_scope"}
+]

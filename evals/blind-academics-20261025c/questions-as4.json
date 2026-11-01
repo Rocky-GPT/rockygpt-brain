@@ -1,0 +1,17 @@
+[
+  {"id": "as4-01", "question": "I work full time during the day. Are there any majors at Ramapo that can be completed entirely online or through evening classes?", "topic": "program"},
+  {"id": "as4-02", "question": "I am transferring in about 45 credits from a community college. How does the general education requirement work for transfer students, and do I still have to take the first-year seminar?", "topic": "gen_ed"},
+  {"id": "as4-03", "question": "What are the prerequisites for ACCT 222, and how many credits is it?", "topic": "course"},
+  {"id": "as4-04", "question": "Could you tell me what the Business Administration major requires in terms of core courses and total credits?", "topic": "program"},
+  {"id": "as4-05", "question": "Does Ramapo offer a degree completion program for adults who already have an associate's degree? If so, what are the requirements?", "topic": "program"},
+  {"id": "as4-06", "question": "If I already completed English Composition at my county college, does that satisfy the writing requirement in Ramapo's gen ed?", "topic": "gen_ed"},
+  {"id": "as4-07", "question": "What does CMPS 147 cover, and is there a prerequisite I need before enrolling in it?", "topic": "course"},
+  {"id": "as4-08", "question": "Are any sections of statistics being offered in the evening this spring, and who is teaching them?", "topic": "out_of_scope"},
+  {"id": "as4-09", "question": "How many credits is the minor in psychology, and which courses are required for it?", "topic": "program"},
+  {"id": "as4-10", "question": "I am interested in nursing but I can only attend part time. What is the recommended sequence of courses for someone starting the nursing program?", "topic": "sequence"},
+  {"id": "as4-11", "question": "Does Ramapo have any certificate programs that a working adult could finish without completing a full bachelor's degree?", "topic": "program"},
+  {"id": "as4-12", "question": "Can you look at my transcript and tell me which of my old credits from 2009 will still count toward a degree?", "topic": "out_of_scope"},
+  {"id": "as4-13", "question": "Which gen ed categories can be satisfied by a single course, and is there a limit on how many gen ed courses can also count toward my major?", "topic": "gen_ed"},
+  {"id": "as4-14", "question": "What are the prereqs for PSYC 201 Research Methods, and does it count toward the psych major or only as an elective?", "topic": "course"},
+  {"id": "as4-15", "question": "Given my schedule, should I major in information technology or in business? Which one would be easier to finish while working?", "topic": "out_of_scope"}
+]

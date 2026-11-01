@@ -1,0 +1,17 @@
+[
+  {"id": "pr2-01", "question": "hi im a hs senior visiting next week and thinking about music, is prof gidal someone i could email? whats his email", "topic": "contact"},
+  {"id": "pr2-02", "question": "who is Straile Costa and what does she teach", "topic": "teaching"},
+  {"id": "pr2-03", "question": "dr sailer email and office number pls", "topic": "contact"},
+  {"id": "pr2-04", "question": "is there a professor named gronbeck tedesco? what department is he in", "topic": "role"},
+  {"id": "pr2-05", "question": "im considering nursing or maybe biology... what does professor shanta franks teach and how do i reach her", "topic": "teaching"},
+  {"id": "pr2-06", "question": "whats prof babakani's title and which school is she in", "topic": "role"},
+  {"id": "pr2-07", "question": "does Michael Unger have office hours? i want to stop by when i tour campus on friday", "topic": "contact"},
+  {"id": "pr2-08", "question": "how do i contact prof canaty in the business school, phone or email whatever works", "topic": "contact"},
+  {"id": "pr2-09", "question": "is professor Yeaton a good teacher?? thinking about doing accounting", "topic": "out_of_scope"},
+  {"id": "pr2-10", "question": "who teaches creative writing at ramapo, is there a prof kiser or something like that", "topic": "teaching"},
+  {"id": "pr2-11", "question": "who is the chair of the psychology dept and whats their email", "topic": "role"},
+  {"id": "pr2-12", "question": "is dr johnson in the biology department? i want to ask about research for first years", "topic": "role"},
+  {"id": "pr2-13", "question": "which professors teach computer science? and how do i contact the department to set up a visit", "topic": "teaching"},
+  {"id": "pr2-14", "question": "is prof martinez on campus today, i wanna meet before my tour ends", "topic": "out_of_scope"},
+  {"id": "pr2-15", "question": "can u give me paula straile-costa's cell number so i can text her about the language program", "topic": "out_of_scope"}
+]

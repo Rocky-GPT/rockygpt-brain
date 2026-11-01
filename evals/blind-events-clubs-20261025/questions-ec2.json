@@ -1,0 +1,17 @@
+[
+  {"id": "ec2-01", "question": "anything happening on campus today around lunch time? like 12 to 2", "topic": "event"},
+  {"id": "ec2-02", "question": "Are there any events specifically for commuter students this week?", "topic": "event"},
+  {"id": "ec2-03", "question": "when is the next resume workshop or career fair? and is it during the day bc i work nights", "topic": "event"},
+  {"id": "ec2-04", "question": "is there free food anywhere on campus tmrw afternoon", "topic": "event"},
+  {"id": "ec2-05", "question": "Is there a commuter student club or organization I can join?", "topic": "club"},
+  {"id": "ec2-06", "question": "who's hosting the career event next tuesday and where is it", "topic": "event"},
+  {"id": "ec2-07", "question": "do u guys have a business or accounting club", "topic": "club"},
+  {"id": "ec2-08", "question": "what clubs meet during the day on weekdays? i cant do evenings at all", "topic": "out_of_scope"},
+  {"id": "ec2-09", "question": "Are there any networking events with employers next week, and do I need to register or can I just show up?", "topic": "event"},
+  {"id": "ec2-10", "question": "linkedin headshot event this semester?", "topic": "event"},
+  {"id": "ec2-11", "question": "how do i join a club if im a commuter and not really around much", "topic": "club"},
+  {"id": "ec2-12", "question": "whats going on next wednesday between classes, im free like 11-1", "topic": "event"},
+  {"id": "ec2-13", "question": "which club would look best on my resume for a finance job", "topic": "out_of_scope"},
+  {"id": "ec2-14", "question": "is there a cultural club for south asian students and do they have a page i can look at", "topic": "club"},
+  {"id": "ec2-15", "question": "how many people usually show up to the commuter lunch thing, is it worth going", "topic": "out_of_scope"}
+]

@@ -1,0 +1,17 @@
+[
+  {"id": "es3-01", "question": "Are there any events for Native American Heritage Month happening on campus in November?", "topic": "event"},
+  {"id": "es3-02", "question": "Which cultural clubs are hosting events this week, and are any of them open to students who aren't members?", "topic": "event"},
+  {"id": "es3-03", "question": "Is there a Latinx or Hispanic student organization at Ramapo, and how would I get in touch with them?", "topic": "club"},
+  {"id": "es3-04", "question": "I'm looking for wellness or mental health workshops happening next week. Are any of them specifically for students of color?", "topic": "event"},
+  {"id": "es3-05", "question": "Who is the guest speaker coming for the diversity lecture this month, and where is the talk being held?", "topic": "event"},
+  {"id": "es3-06", "question": "Can you list all of the cultural and identity-based student organizations on campus?", "topic": "club"},
+  {"id": "es3-07", "question": "Is there anything happening tonight that's hosted by the Black Student Union or the African Student Association?", "topic": "event"},
+  {"id": "es3-08", "question": "When does the Asian Student Association usually hold its general body meetings, and who is the current president?", "topic": "out_of_scope"},
+  {"id": "es3-09", "question": "Are there any Diwali celebrations or South Asian cultural events coming up, and is there food?", "topic": "event"},
+  {"id": "es3-10", "question": "Is there a club for LGBTQ+ students?", "topic": "club"},
+  {"id": "es3-11", "question": "What workshops is the Center for Student Involvement or the multicultural office running this weekend?", "topic": "event"},
+  {"id": "es3-12", "question": "How many people usually show up to the Caribbean Student Association's events? I'm trying to estimate how much food to order for a collaboration.", "topic": "out_of_scope"},
+  {"id": "es3-13", "question": "Is the cultural showcase next friday free to attend, and what time does it start?", "topic": "event"},
+  {"id": "es3-14", "question": "Where can I find the club page for the Muslim Student Association, and does it list how to join?", "topic": "club"},
+  {"id": "es3-15", "question": "I lead a small heritage club and want to co-host an event with a bigger organization. Which group do you think would be the best partner for us?", "topic": "out_of_scope"}
+]

@@ -1,0 +1,17 @@
+[
+  {"id": "az2-01", "question": "I'm transferring in as a junior with an associate's degree from a NJ community college. Does that mean my general education requirements are already done, or are there Ramapo-specific gen eds I still have to take?", "topic": "gen_ed"},
+  {"id": "az2-02", "question": "how many credits is the history major and how many of those have to be upper level (300/400)?", "topic": "program"},
+  {"id": "az2-03", "question": "Is there a sociology major at Ramapo, and if so what are the required core courses?", "topic": "program"},
+  {"id": "az2-04", "question": "what are the prereqs for the senior seminar in political science? i want to make sure i can fit it in within 2 years", "topic": "course"},
+  {"id": "az2-05", "question": "Can a course count toward both my major and a minor at the same time, or is there a limit on how many credits can overlap?", "topic": "program"},
+  {"id": "az2-06", "question": "how many credits is the minor in philosophy and which classes are required for it", "topic": "program"},
+  {"id": "az2-07", "question": "I'm a literature major transfer. Is there a recommended sequence for juniors entering the English major, like which courses should I take first semester vs second?", "topic": "sequence"},
+  {"id": "az2-08", "question": "does the writing intensive requirement apply to transfer students and which courses count as writing intensive?", "topic": "gen_ed"},
+  {"id": "az2-09", "question": "what does psyc 101 cover and how many credits is it? also is it a prereq for research methods", "topic": "course"},
+  {"id": "az2-10", "question": "Is there a certificate or minor in women's and gender studies, and what are the requirements?", "topic": "program"},
+  {"id": "az2-11", "question": "Can you check whether my Intro to Sociology credits from Bergen CC transferred in as SOC 101 or just as an elective?", "topic": "out_of_scope"},
+  {"id": "az2-12", "question": "what's the total number of credits needed to graduate from Ramapo and is there a minimum number I have to take at Ramapo itself as a transfer?", "topic": "program"},
+  {"id": "az2-13", "question": "Which sections of the history methods course are still open for spring and who's teaching them?", "topic": "out_of_scope"},
+  {"id": "az2-14", "question": "does the international studies major require a foreign language, and if so how many semesters?", "topic": "program"},
+  {"id": "az2-15", "question": "Should I do a double major in poli sci and history or just add a minor? I only have 4 semesters left and want to graduate on time", "topic": "out_of_scope"}
+]

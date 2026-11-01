@@ -1,0 +1,17 @@
+[
+  {"id": "at1-01", "question": "what does abnormal psych cover and do i need intro psych before i can take it", "topic": "course"},
+  {"id": "at1-02", "question": "how many credits is intro to stats", "topic": "course"},
+  {"id": "at1-03", "question": "is orgo 1 a prereq for orgo 2 or can i take them at the same time? also does orgo have a lab you take seperately", "topic": "course"},
+  {"id": "at1-04", "question": "does psych 101 count for gen ed or only for the psych major", "topic": "gen_ed"},
+  {"id": "at1-05", "question": "I'm a sophomore thinking about switching into the biology major. What are all the required courses and how many credits is the major total?", "topic": "program"},
+  {"id": "at1-06", "question": "can intro to stats count toward the psychology major or do psych majors have to take a different stats class", "topic": "program"},
+  {"id": "at1-07", "question": "what gen ed categories do i still need to fill if ive already done comp 1 and a math class", "topic": "out_of_scope"},
+  {"id": "at1-08", "question": "is there a minor in creative writing and how many classes is it", "topic": "program"},
+  {"id": "at1-09", "question": "whats the difference between developmental psych and child psych, are they the same class", "topic": "course"},
+  {"id": "at1-10", "question": "cmps 147 prerequisites?", "topic": "course"},
+  {"id": "at1-11", "question": "is there still room in abnormal psych for spring and who's teaching it", "topic": "out_of_scope"},
+  {"id": "at1-12", "question": "for the psych major what order should i take research methods and stats in, like which one comes first", "topic": "sequence"},
+  {"id": "at1-13", "question": "what are the gen ed requirements at ramapo, like how many credits total and what categories", "topic": "gen_ed"},
+  {"id": "at1-14", "question": "should i take orgo or physics next semester if i want to do pre med? which is easier", "topic": "out_of_scope"},
+  {"id": "at1-15", "question": "does micro econ count as a social science gen ed and is it 4 credits?", "topic": "gen_ed"}
+]

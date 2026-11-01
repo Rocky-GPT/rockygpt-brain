@@ -1,0 +1,17 @@
+[
+  {"id": "as2-01", "question": "does ramapo have a teacher education program? like can i get certified to teach elementary school there", "topic": "program"},
+  {"id": "as2-02", "question": "If I want to teach high school English, do I major in English and also do the education program, or is there a separate secondary ed major? How many credits is the education part?", "topic": "program"},
+  {"id": "as2-03", "question": "what are the prereqs for educ 210", "topic": "course"},
+  {"id": "as2-04", "question": "is there a minor in education studies or something similar for people who arent sure about full certification", "topic": "program"},
+  {"id": "as2-05", "question": "What courses are required for the psychology major, and is there a specific stats or research methods sequence I have to take in order?", "topic": "program"},
+  {"id": "as2-06", "question": "psych 101 does that count for a gen ed requirement? which category", "topic": "gen_ed"},
+  {"id": "as2-07", "question": "Does Ramapo offer a master's in educational leadership or school counseling? I want to be a school counselor eventually.", "topic": "program"},
+  {"id": "as2-08", "question": "what should a freshman psych major who wants to go into counseling take in their first year", "topic": "sequence"},
+  {"id": "as2-09", "question": "how many credits is the special ed / teacher of students with disabilities part and what classes are in it", "topic": "program"},
+  {"id": "as2-10", "question": "whats abnormal psychology about and how many credits is it", "topic": "course"},
+  {"id": "as2-11", "question": "Is there a minor in human development or child psychology? I'm in the elementary ed track and want something related.", "topic": "program"},
+  {"id": "as2-12", "question": "when do education students do student teaching, like what semester, and what classes do you have to finish before that", "topic": "sequence"},
+  {"id": "as2-13", "question": "did i pass the gpa requirement to get into the teacher ed program? i have like a 2.9 i think", "topic": "out_of_scope"},
+  {"id": "as2-14", "question": "who is teaching developmental psych this spring and are there seats left in the tuesday thursday section", "topic": "out_of_scope"},
+  {"id": "as2-15", "question": "should i do the psych major or the education major if i want to be a school counselor? which one is better", "topic": "out_of_scope"}
+]

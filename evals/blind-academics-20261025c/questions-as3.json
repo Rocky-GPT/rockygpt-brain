@@ -1,0 +1,17 @@
+[
+  {"id": "as3-01", "question": "how many credits is the psych major vs the sociology major? trying to decide between them", "topic": "program"},
+  {"id": "as3-02", "question": "im undeclared and stuck between computer science and information technology, which classes overlap between the two majors?", "topic": "program"},
+  {"id": "as3-03", "question": "does ramapo have a data science major or is it just a minor", "topic": "program"},
+  {"id": "as3-04", "question": "what are the prereqs for cmps 147 and is it required for both comp sci and math majors?", "topic": "course"},
+  {"id": "as3-05", "question": "how many credits do you need total to graduate and how many of those are gen eds", "topic": "gen_ed"},
+  {"id": "as3-06", "question": "im a sophmore with no major yet, if i declare biology now can i still finish in 4 years? whats the course sequence look like for bio", "topic": "sequence"},
+  {"id": "as3-07", "question": "does econ 101 count toward gen ed and also toward the business admin major", "topic": "course"},
+  {"id": "as3-08", "question": "comparing communication arts, english, and journalism majors - how many credits is each one and do any of them share core courses", "topic": "program"},
+  {"id": "as3-09", "question": "what does psyc 101 actually cover", "topic": "course"},
+  {"id": "as3-10", "question": "can i double major in psychology and criminal justice or is that too many credits? how much do the requirements overlap", "topic": "program"},
+  {"id": "as3-11", "question": "whats the recommended first year sequence for nursing, is it too late to start it as a sophomore", "topic": "sequence"},
+  {"id": "as3-12", "question": "how many credits have i already done toward gen ed? my degree audit is confusing", "topic": "out_of_scope"},
+  {"id": "as3-13", "question": "is there an open section of stat 2xx this spring and whos teaching it", "topic": "out_of_scope"},
+  {"id": "as3-14", "question": "which major should i pick, environmental science or biology, i like both lol", "topic": "out_of_scope"},
+  {"id": "as3-15", "question": "how many credits is the business minor and do the intro accounting classes count for it if i end up majoring in econ instead", "topic": "program"}
+]

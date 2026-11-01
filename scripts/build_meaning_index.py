@@ -200,8 +200,8 @@ def academic_cards(facts: GraphOnlyFacts, version: str,
             if course.get("description"):
                 card += f"\n{str(course['description'])[:400]}"
             cards.append((found["entity"]["id"], "course", card))
-    # Each club's or student organization's directory name and category ("is there a club for
-    # anime", "cultural clubs").
+    # Each club's or student organization's directory name, category and its own mission ("is
+    # there a club for anime", "cultural clubs", "service clubs").
     clubs = [e["id"] for e in facts.identities(("club", "organization"))]
     for start in range(0, len(clubs), 12):
         for found in facts.get_club_facts(clubs[start:start + 12], version,
@@ -209,7 +209,8 @@ def academic_cards(facts: GraphOnlyFacts, version: str,
             club = found["properties"][0]["values"][0]["value"]
             cards.append((found["entity"]["id"], "club",
                           f"Ramapo College student club: {club.get('name')}"
-                          + (f" ({club['category']})" if club.get("category") else "")))
+                          + (f" ({club['category']})" if club.get("category") else "")
+                          + (f"\n{str(club['mission'])[:300]}" if club.get("mission") else "")))
     # Each person's name, title, school and interests ("who researches machine learning").
     people = [e["id"] for e in facts.identities(("person",))]
     for start in range(0, len(people), 6):

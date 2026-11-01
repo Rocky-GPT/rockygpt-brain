@@ -394,6 +394,14 @@ window on the campus clock and the calendar events dated in it (their identity n
 date) are read; a club is named by every word of its directory name, or found by its card's
 meaning (name and category). Naming an event or club establishes none of its facts.
 
+What a reply states about them is worked out by code (`events.computed_answers`,
+`events.club_answers`), as for the shuttle: the window's dates; how many events it holds, how
+many have listings naming the topic (each topic word weighted by how rare it is on the calendar,
+so "basketball game" is not any game night), which are only near it in meaning, or that none is
+and the topic's next events after the window; for a food question, which listings mention food
+and the sentence that does; whether any directory club has the asked words in its name; and a
+club's upcoming events with the club as organizer. The writer states these facts as given.
+
 ## People (entity-facts-7)
 
 A `person` identity links its faculty `contacts` row (directory name, title, department, email,
@@ -404,4 +412,17 @@ derives office hours). Discovery (`people.py`) is by name: every word of a direc
 last name that is exactly one person's (title words such as "professor" or "dr" ignored). A
 question asking who teaches or researches a topic finds people by their card's meaning (name,
 title, school, interests, courses) above a floor; a name no one in the directory has is never
-answered by meaning. Naming a person establishes none of their facts.
+answered by meaning. Naming a person establishes none of their facts. Names are compared as
+typed: accents and marks dropped, an apostrophe inside a name joined ("dantonio"), a possessive
+dropped with or without its apostrophe.
+
+What a reply states is worked out by code (`people.computed_answers`, `people.leaders`): each
+person's directory title and school, every field asked as published or that neither the
+directory nor the profile publishes it, and a field the question names that the title does not
+("chemistry professor" for a professor of physics). People sharing the last name asked are
+narrowed by the school (its name words and its office's other names, such as "SNH") or field
+the question names, else listed and the reply asks which. A dean or chair question reads
+directory titles: each school's dean (a permanent Dean before an Interim one in the same
+school), every title naming the field with a leadership word, else that none does and the dean
+of the school that field's faculty belong to. A page's dated change ("Effective July 1, 2026 –
+Dean ...") is judged against today by code (`one_call.dated_statements`).

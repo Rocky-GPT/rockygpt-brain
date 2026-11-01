@@ -1,0 +1,302 @@
+[
+ {
+  "id": "es1-01",
+  "question": "hi im a transfer student just started this week and dont know anyone. whats going on on campus this week?",
+  "topic": "event"
+ },
+ {
+  "id": "es1-02",
+  "question": "is there a hiking or outdoors club at ramapo?",
+  "topic": "club"
+ },
+ {
+  "id": "es1-03",
+  "question": "photography club?? how do i join",
+  "topic": "club"
+ },
+ {
+  "id": "es1-04",
+  "question": "Are there any events tonight that are good for meeting people? Something low key, not a party",
+  "topic": "event"
+ },
+ {
+  "id": "es1-05",
+  "question": "what religious or faith based student orgs are there? im catholic but would be open to interfaith stuff too",
+  "topic": "club"
+ },
+ {
+  "id": "es1-06",
+  "question": "Is there a Spanish club or a language exchange type thing? I'm trying to practice my Spanish and maybe pick up some Japanese",
+  "topic": "club"
+ },
+ {
+  "id": "es1-07",
+  "question": "anything happening this weekend? i'm staying on campus and dont want to sit in my room all weekend",
+  "topic": "event"
+ },
+ {
+  "id": "es1-08",
+  "question": "is there free food anywhere today lol",
+  "topic": "event"
+ },
+ {
+  "id": "es1-09",
+  "question": "when does the photography club meet and who do i email to get added",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "es1-10",
+  "question": "where can i see a list of all the clubs on campus",
+  "topic": "club"
+ },
+ {
+  "id": "es1-11",
+  "question": "Can I still join clubs if I'm transfering in the middle of the semester or did I miss the involvement fair?",
+  "topic": "club"
+ },
+ {
+  "id": "es1-12",
+  "question": "are there any home games next friday? and are they free for students",
+  "topic": "event"
+ },
+ {
+  "id": "es1-13",
+  "question": "which club would be best for someone who's kind of shy and likes nature and taking pictures",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "es1-14",
+  "question": "any career events or workshops next week? also where are they held",
+  "topic": "event"
+ },
+ {
+  "id": "es1-15",
+  "question": "how many people usually show up to the hiking club trips, is it a big group?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "es2-01",
+  "question": "any home games this weekend?",
+  "topic": "event"
+ },
+ {
+  "id": "es2-02",
+  "question": "what time is the mens soccer game tonight and is it home or away",
+  "topic": "event"
+ },
+ {
+  "id": "es2-03",
+  "question": "do students get in free to basketball games or do we gotta pay",
+  "topic": "event"
+ },
+ {
+  "id": "es2-04",
+  "question": "is there a watch party for the big game sunday anywhere on campus?",
+  "topic": "event"
+ },
+ {
+  "id": "es2-05",
+  "question": "how do i sign up for intramurals, tryna get a flag football squad together",
+  "topic": "club"
+ },
+ {
+  "id": "es2-06",
+  "question": "yo does ramapo have a club hockey team",
+  "topic": "club"
+ },
+ {
+  "id": "es2-07",
+  "question": "what club sports are there? looking for something competitive but not d3 varsity level",
+  "topic": "club"
+ },
+ {
+  "id": "es2-08",
+  "question": "volleyball game next friday where is it at and when does it start",
+  "topic": "event"
+ },
+ {
+  "id": "es2-09",
+  "question": "any sports events w free food this week lol",
+  "topic": "event"
+ },
+ {
+  "id": "es2-10",
+  "question": "when's the next womens bball home game, and is there like a student section thing or giveaway",
+  "topic": "event"
+ },
+ {
+  "id": "es2-11",
+  "question": "is there an esports club or gaming org i can join",
+  "topic": "club"
+ },
+ {
+  "id": "es2-12",
+  "question": "how many ppl usually show up to the football tailgates, is it lit?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "es2-13",
+  "question": "who's the captain of the club soccer team and when do they practice",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "es2-14",
+  "question": "should i join club lacrosse or just do intramural, which one is more fun",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "es2-15",
+  "question": "anything going on at the rec center or bradley tmrw night? pickup or tourney or whatever",
+  "topic": "event"
+ },
+ {
+  "id": "es3-01",
+  "question": "Are there any events for Native American Heritage Month happening on campus in November?",
+  "topic": "event"
+ },
+ {
+  "id": "es3-02",
+  "question": "Which cultural clubs are hosting events this week, and are any of them open to students who aren't members?",
+  "topic": "event"
+ },
+ {
+  "id": "es3-03",
+  "question": "Is there a Latinx or Hispanic student organization at Ramapo, and how would I get in touch with them?",
+  "topic": "club"
+ },
+ {
+  "id": "es3-04",
+  "question": "I'm looking for wellness or mental health workshops happening next week. Are any of them specifically for students of color?",
+  "topic": "event"
+ },
+ {
+  "id": "es3-05",
+  "question": "Who is the guest speaker coming for the diversity lecture this month, and where is the talk being held?",
+  "topic": "event"
+ },
+ {
+  "id": "es3-06",
+  "question": "Can you list all of the cultural and identity-based student organizations on campus?",
+  "topic": "club"
+ },
+ {
+  "id": "es3-07",
+  "question": "Is there anything happening tonight that's hosted by the Black Student Union or the African Student Association?",
+  "topic": "event"
+ },
+ {
+  "id": "es3-08",
+  "question": "When does the Asian Student Association usually hold its general body meetings, and who is the current president?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "es3-09",
+  "question": "Are there any Diwali celebrations or South Asian cultural events coming up, and is there food?",
+  "topic": "event"
+ },
+ {
+  "id": "es3-10",
+  "question": "Is there a club for LGBTQ+ students?",
+  "topic": "club"
+ },
+ {
+  "id": "es3-11",
+  "question": "What workshops is the Center for Student Involvement or the multicultural office running this weekend?",
+  "topic": "event"
+ },
+ {
+  "id": "es3-12",
+  "question": "How many people usually show up to the Caribbean Student Association's events? I'm trying to estimate how much food to order for a collaboration.",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "es3-13",
+  "question": "Is the cultural showcase next friday free to attend, and what time does it start?",
+  "topic": "event"
+ },
+ {
+  "id": "es3-14",
+  "question": "Where can I find the club page for the Muslim Student Association, and does it list how to join?",
+  "topic": "club"
+ },
+ {
+  "id": "es3-15",
+  "question": "I lead a small heritage club and want to co-host an event with a bigger organization. Which group do you think would be the best partner for us?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "es4-01",
+  "question": "anything going on nov 5",
+  "topic": "event"
+ },
+ {
+  "id": "es4-02",
+  "question": "free food today?",
+  "topic": "event"
+ },
+ {
+  "id": "es4-03",
+  "question": "events next tuesday after 7pm",
+  "topic": "event"
+ },
+ {
+  "id": "es4-04",
+  "question": "any study sessions or tutoring workshops this week",
+  "topic": "event"
+ },
+ {
+  "id": "es4-05",
+  "question": "is there a nursing club",
+  "topic": "club"
+ },
+ {
+  "id": "es4-06",
+  "question": "whats happening tmrw morning, i get off clinicals at 11",
+  "topic": "event"
+ },
+ {
+  "id": "es4-07",
+  "question": "snacks at any events tonight? where",
+  "topic": "event"
+ },
+ {
+  "id": "es4-08",
+  "question": "anything on campus sat nov 8 and is it free",
+  "topic": "event"
+ },
+ {
+  "id": "es4-09",
+  "question": "finals study night w free food?? when is it",
+  "topic": "event"
+ },
+ {
+  "id": "es4-10",
+  "question": "pre health or healthcare clubs list",
+  "topic": "club"
+ },
+ {
+  "id": "es4-11",
+  "question": "how do i join a club if i cant make meetings bc of shifts",
+  "topic": "club"
+ },
+ {
+  "id": "es4-12",
+  "question": "when does the student nurses association meet",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "es4-13",
+  "question": "will the pizza be gone if i show up 30 min late to the 6pm thing",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "es4-14",
+  "question": "career fair or resume workshop thurs? who's running it",
+  "topic": "event"
+ },
+ {
+  "id": "es4-15",
+  "question": "which club should i join if i only have like 1 hr a week",
+  "topic": "out_of_scope"
+ }
+]

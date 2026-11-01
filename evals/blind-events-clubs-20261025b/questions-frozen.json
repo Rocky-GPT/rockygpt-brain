@@ -1,0 +1,302 @@
+[
+ {
+  "id": "eq1-01",
+  "question": "whats happening on campus tonight",
+  "topic": "event"
+ },
+ {
+  "id": "eq1-02",
+  "question": "any events with free food this week?",
+  "topic": "event"
+ },
+ {
+  "id": "eq1-03",
+  "question": "I'm an RA and want to take my floor to something next friday night, what's on the calendar and is it free?",
+  "topic": "event"
+ },
+ {
+  "id": "eq1-04",
+  "question": "is there a home basketball game this weekend? what time",
+  "topic": "event"
+ },
+ {
+  "id": "eq1-05",
+  "question": "anything going on saturday afternoon that a group of 15 freshmen could go to",
+  "topic": "event"
+ },
+ {
+  "id": "eq1-06",
+  "question": "free events tmrw?",
+  "topic": "event"
+ },
+ {
+  "id": "eq1-07",
+  "question": "where is the next comedy show or performance and who's hosting it",
+  "topic": "event"
+ },
+ {
+  "id": "eq1-08",
+  "question": "are there any workshops next week on stress or time management, and do they have snacks",
+  "topic": "event"
+ },
+ {
+  "id": "eq1-09",
+  "question": "what events are on wednesday in the student center",
+  "topic": "event"
+ },
+ {
+  "id": "eq1-10",
+  "question": "is there a club that does game nights or board games? my residents keep asking",
+  "topic": "club"
+ },
+ {
+  "id": "eq1-11",
+  "question": "list of cultural clubs? want to bring my floor to one of their events",
+  "topic": "club"
+ },
+ {
+  "id": "eq1-12",
+  "question": "how do my residents join a club, is there a page with all of them",
+  "topic": "club"
+ },
+ {
+  "id": "eq1-13",
+  "question": "how many people usually show up to the friday night events, will it be packed",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "eq1-14",
+  "question": "when does the hiking/outdoors club meet and who's the president",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "eq1-15",
+  "question": "which club would be best for a shy freshman who likes art",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "eq2-01",
+  "question": "is there a debate team or mock trial club at ramapo?",
+  "topic": "club"
+ },
+ {
+  "id": "eq2-02",
+  "question": "Are there any guest speakers or lectures on campus this week? Especially anything about law, politics, or the election",
+  "topic": "event"
+ },
+ {
+  "id": "eq2-03",
+  "question": "how do i join SGA",
+  "topic": "club"
+ },
+ {
+  "id": "eq2-04",
+  "question": "any volunteering events this weekend? need service hours",
+  "topic": "event"
+ },
+ {
+  "id": "eq2-05",
+  "question": "Is there a pre-law society or something like that? And if so do they have any events coming up?",
+  "topic": "club"
+ },
+ {
+  "id": "eq2-06",
+  "question": "what honor societies does ramapo have for poli sci",
+  "topic": "club"
+ },
+ {
+  "id": "eq2-07",
+  "question": "whats going on tonight on campus",
+  "topic": "event"
+ },
+ {
+  "id": "eq2-08",
+  "question": "When does the Model UN club meet and who's the president?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "eq2-09",
+  "question": "is there a law school fair or any grad school info sessions coming up? where is it and is it free",
+  "topic": "event"
+ },
+ {
+  "id": "eq2-10",
+  "question": "list of service clubs? like habitat for humanity or circle k type stuff",
+  "topic": "club"
+ },
+ {
+  "id": "eq2-11",
+  "question": "Should I join student government or mock trial if I want to get into a good law school?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "eq2-12",
+  "question": "anything happening next friday? who's hosting it",
+  "topic": "event"
+ },
+ {
+  "id": "eq2-13",
+  "question": "is there a young democrats or college republicans club here, and where can i find their page",
+  "topic": "club"
+ },
+ {
+  "id": "eq2-14",
+  "question": "how many ppl usually go to the SGA meetings? is it worth showing up",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "eq2-15",
+  "question": "any voter registration drives or civic engagement events coming up this month?",
+  "topic": "event"
+ },
+ {
+  "id": "eq3-01",
+  "question": "is there a book club on campus?",
+  "topic": "club"
+ },
+ {
+  "id": "eq3-02",
+  "question": "um are there any wellness or mental health events this week",
+  "topic": "event"
+ },
+ {
+  "id": "eq3-03",
+  "question": "is there an lgbtq club at ramapo? and how do i join it",
+  "topic": "club"
+ },
+ {
+  "id": "eq3-04",
+  "question": "anything low key happening tonight? like not a party",
+  "topic": "event"
+ },
+ {
+  "id": "eq3-05",
+  "question": "are there any craft or art making things this weekend, like painting or knitting or something",
+  "topic": "event"
+ },
+ {
+  "id": "eq3-06",
+  "question": "what faith or religious groups are there? im catholic but kinda open to anything",
+  "topic": "club"
+ },
+ {
+  "id": "eq3-07",
+  "question": "sorry if this is dumb but is there a meditation or yoga thing i could go to next week",
+  "topic": "event"
+ },
+ {
+  "id": "eq3-08",
+  "question": "when does the pride club meet and who runs it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "eq3-09",
+  "question": "is there a creative writing or poetry club",
+  "topic": "club"
+ },
+ {
+  "id": "eq3-10",
+  "question": "are there any stress relief events before finals? like therapy dogs maybe",
+  "topic": "event"
+ },
+ {
+  "id": "eq3-11",
+  "question": "i dont really know anyone here and im pretty shy. which club would be best for me to join?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "eq3-12",
+  "question": "is the movie night on friday free? and where is it",
+  "topic": "event"
+ },
+ {
+  "id": "eq3-13",
+  "question": "is there a muslim student assocation or jewish group, hillel maybe?",
+  "topic": "club"
+ },
+ {
+  "id": "eq3-14",
+  "question": "how many ppl usually go to the board game nights, is it crowded",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "eq3-15",
+  "question": "where can i see a list of all the clubs? i want to look through them on my own first",
+  "topic": "club"
+ },
+ {
+  "id": "eq4-01",
+  "question": "We're visiting for family weekend, what events are open to parents this saturday?",
+  "topic": "event"
+ },
+ {
+  "id": "eq4-02",
+  "question": "is there a home football game this weekend",
+  "topic": "event"
+ },
+ {
+  "id": "eq4-03",
+  "question": "Are there any home soccer or volleyball games next friday? What time and where are they played?",
+  "topic": "event"
+ },
+ {
+  "id": "eq4-04",
+  "question": "does ramapo have a robotics club",
+  "topic": "club"
+ },
+ {
+  "id": "eq4-05",
+  "question": "My daughter loves to cook - is there a cooking or culinary club on campus and how would she join?",
+  "topic": "club"
+ },
+ {
+  "id": "eq4-06",
+  "question": "outdoors club? like hiking camping that kind of thing",
+  "topic": "club"
+ },
+ {
+  "id": "eq4-07",
+  "question": "Touring campus tomorrow with my son. Anything going on tomorrow afternoon that visitors can stop by, and is it free?",
+  "topic": "event"
+ },
+ {
+  "id": "eq4-08",
+  "question": "any concerts or theater performances tonight that the public can attend",
+  "topic": "event"
+ },
+ {
+  "id": "eq4-09",
+  "question": "what sports teams have home games this week and do we need tickets",
+  "topic": "event"
+ },
+ {
+  "id": "eq4-10",
+  "question": "How many clubs does Ramapo have and where can I see the full list?",
+  "topic": "club"
+ },
+ {
+  "id": "eq4-11",
+  "question": "is there an engineering or computer science club? also what about esports",
+  "topic": "club"
+ },
+ {
+  "id": "eq4-12",
+  "question": "when does the robotics club meet and who runs it",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "eq4-13",
+  "question": "My kid is shy and into science and video games. Which club do you think she should join to make friends?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "eq4-14",
+  "question": "how crowded do the basketball games usually get, will we find seats if we show up late?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "eq4-15",
+  "question": "are there cultural clubs or greek life here? whats the process to rush a sorority",
+  "topic": "club"
+ }
+]

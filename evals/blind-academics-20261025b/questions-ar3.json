@@ -1,0 +1,17 @@
+[
+  {"id": "ar3-01", "question": "what are all the required courses for the music major", "topic": "program"},
+  {"id": "ar3-02", "question": "Is there a film major at Ramapo or is it only a minor? and if theres a major what concentrations does it have", "topic": "program"},
+  {"id": "ar3-03", "question": "how many credits is the theater minor", "topic": "program"},
+  {"id": "ar3-04", "question": "what are the prereqs for drawing 2? do i need drawing 1 first or can i take them together", "topic": "course"},
+  {"id": "ar3-05", "question": "Im a freshman in visual arts, what studio classes should I take my first semester vs second semester?", "topic": "sequence"},
+  {"id": "ar3-06", "question": "does acting 1 count for gen ed", "topic": "gen_ed"},
+  {"id": "ar3-07", "question": "how many credits are studio art courses usually? is it 4 like everything else", "topic": "course"},
+  {"id": "ar3-08", "question": "what's the recommended order of courses for the communication arts major, like which ones in sophomore year and which in junior year", "topic": "sequence"},
+  {"id": "ar3-09", "question": "is there a senior capstone or thesis project required for the visual arts BA and what's it called", "topic": "program"},
+  {"id": "ar3-10", "question": "what does music theory 1 cover and does it need a placement test", "topic": "course"},
+  {"id": "ar3-11", "question": "which gen ed category do art history classes fulfill", "topic": "gen_ed"},
+  {"id": "ar3-12", "question": "who's teaching intro to digital photography next spring and is there still room", "topic": "out_of_scope"},
+  {"id": "ar3-13", "question": "do i have enough credits to take the upper level film production class? i finished like 3 comm courses already", "topic": "out_of_scope"},
+  {"id": "ar3-14", "question": "should I double major in music and theater or just minor in one, which is better for getting into grad school", "topic": "out_of_scope"},
+  {"id": "ar3-15", "question": "are there any certificates in graphic design or video production I can add on top of my major", "topic": "program"}
+]
