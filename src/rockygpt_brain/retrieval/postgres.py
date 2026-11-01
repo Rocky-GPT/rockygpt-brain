@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import threading
 import time
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager, suppress
@@ -26,6 +27,7 @@ from rockygpt_brain.retrieval.entity_facts import (
     linked_records,
     validate_entities,
 )
+from rockygpt_brain.retrieval.meaning import MeaningIndex
 
 LOG = logging.getLogger(__name__)
 
@@ -63,6 +65,17 @@ FROM rockygpt_v2.release_artifacts a
 WHERE a.dataset_version_id = %s::uuid AND a.artifact_key = 'campus-identities'
   AND a.content_hash = %s AND pg_column_size(a.payload) <= 16000000
 """
+
+# The meaning index the publisher stored beside the active release (scripts/
+# publish_meaning_index.py), only when it was built for the same identity publication.
+_MEANING_INDEX = """
+SELECT m.meta::text AS meta, m.vectors, m.scales
+FROM rockygpt_v2.release_meaning_indexes m
+JOIN rockygpt_v2.dataset_versions v ON v.id = m.dataset_version_id
+WHERE v.version = %s AND m.identity_hash = %s
+"""
+MEANING_CHECK_SECONDS = 60.0  # How often the active release is checked for a new index.
+MEANING_RETRY_SECONDS = 300.0  # After a failed or missing load.
 
 # Which publication is active, without its alias sources.
 _ACTIVE_RELEASE = """
@@ -497,6 +510,11 @@ class PostgresEntityFacts(EntityFacts):
         self._idle: list[tuple[psycopg.Connection[dict[str, Any]], float]] = []
         self._idle_lock = Lock()
         self._registry: tuple[str, str, str] | None = None  # dataset id, hash, registry JSON
+        # The active release's meaning index: (release, index), loaded in the background.
+        self._meaning: tuple[tuple[str, str], MeaningIndex | None] | None = None
+        self._meaning_checked = float("-inf")
+        self._meaning_loading = False
+        self._meaning_lock = Lock()
 
     def _open(self, operation_seconds: float) -> psycopg.Connection[dict[str, Any]]:
         # A URL that asks for certificate checks (Neon's sslmode=verify-full) needs trusted roots;
@@ -590,6 +608,54 @@ class PostgresEntityFacts(EntityFacts):
                 self._keep(connection, reuse)
             raise
         self._keep(connection, reuse)
+
+    def meaning_index(self) -> MeaningIndex | None:
+        """The meaning index stored for the active release, or None while it loads, when none
+        was stored, or when it was built for another release. Loading never holds a question:
+        it runs on its own thread, and until it finishes questions are read without it."""
+        now = time.monotonic()
+        with self._meaning_lock:
+            cached, due = self._meaning, now >= self._meaning_checked
+            if due:
+                self._meaning_checked = now + MEANING_CHECK_SECONDS
+        if not due:
+            return cached[1] if cached else None
+        try:
+            release = self.active_release()
+        except EvidenceUnavailable:
+            return None
+        if cached and cached[0] == release and cached[1] is not None:
+            return cached[1]
+        with self._meaning_lock:
+            if self._meaning_loading:
+                return None
+            self._meaning_loading = True
+        threading.Thread(target=self._load_meaning, args=(release,), daemon=True,
+                         name="meaning-index-load").start()
+        return None
+
+    def _load_meaning(self, release: tuple[str, str]) -> None:
+        index: MeaningIndex | None = None
+        try:
+            with self._connect(BUILD_SECONDS, BUILD_STATEMENT_MS) as connection:
+                rows = connection.execute(_MEANING_INDEX, release).fetchall()
+            if len(rows) == 1:
+                index = MeaningIndex.from_quantized(json.loads(rows[0]["meta"]),
+                                                    bytes(rows[0]["vectors"]),
+                                                    bytes(rows[0]["scales"]))
+                LOG.info("brain_meaning_index_loaded release=%s vectors=%d", release[0],
+                         len(index.owner))
+            else:
+                LOG.warning("brain_meaning_index_missing release=%s", release[0])
+        except (psycopg.Error, ValueError, KeyError) as error:
+            LOG.warning("brain_meaning_index_unavailable error=%s", type(error).__name__)
+        with self._meaning_lock:
+            self._meaning_loading = False
+            if index is not None:
+                self._meaning = (release, index)
+            else:
+                self._meaning = (release, None)
+                self._meaning_checked = time.monotonic() + MEANING_RETRY_SECONDS
 
     def active_release(self) -> tuple[str, str]:
         try:

@@ -414,6 +414,10 @@ class ReleaseGraphFacts(EntityFacts):
     def active_release(self) -> tuple[str, str]:
         return self.source.active_release()
 
+    def meaning_index(self) -> MeaningIndex | None:
+        """The source's index for the active release (Postgres stores it beside the release)."""
+        return self.source.meaning_index()
+
     def evidence_fingerprint(self) -> str:
         return self.source.evidence_fingerprint()
 
