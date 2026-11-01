@@ -13,12 +13,20 @@ evidence: what a unit says still comes from the release's own records.
 """
 
 import array
+import importlib
 import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+numpy: Any
+try:  # Scoring every vector at once; the pure-Python loop is the fallback. Imported by name so
+    # the type check never reads numpy's own stubs (written for a newer Python than its target).
+    numpy = importlib.import_module("numpy")
+except ImportError:  # pragma: no cover - numpy is a dependency; the fallback is for old envs.
+    numpy = None
 
 
 def _dot(left: Sequence[float], right: Sequence[float]) -> float:
@@ -30,6 +38,7 @@ dot: Any = getattr(math, "sumprod", _dot)
 
 # The vectors file holds float32 values, DIMENSIONS per vector, each vector of length one.
 MEANING_SUFFIX, VECTORS_SUFFIX = ".meaning.json", ".meaning.f32"
+MATRIX_CHUNK = 4096  # Vectors widened to float32 at a time (8 MB at 512 dimensions).
 
 
 @dataclass(frozen=True)
@@ -93,9 +102,30 @@ class MeaningIndex:
                                                        and len(scales) != count):
             raise ValueError("The meaning index vectors do not match its units.")
         self._vectors = memoryview(vectors)
+        # The same vectors as one matrix, when numpy is installed: Render's free CPU took
+        # 0.6-1.5 s for each in-process step, so the 47,000 dot products are done at once.
+        self._matrix = (numpy.frombuffer(vectors, dtype=numpy.int8 if scales is not None
+                                         else numpy.float32).reshape(count, self.dimensions)
+                        if numpy is not None and count else None)
+        self._matrix_scales = (numpy.frombuffer(scales, dtype=numpy.float32)
+                               if numpy is not None and scales is not None and count else None)
         # An index stored in 8 bits (quantize()) keeps each vector's scale: its score is the dot
         # product with the stored integers times that scale.
         self._scales = scales
+
+    def _all_scores(self, unit_query: Sequence[float]) -> Any:
+        """Every vector's score as one array (numpy), in chunks so an 8-bit index is never
+        widened whole; None without numpy."""
+        if self._matrix is None:
+            return None
+        query = numpy.asarray(unit_query, dtype=numpy.float32)
+        out = numpy.empty(len(self._matrix), dtype=numpy.float32)
+        for start in range(0, len(self._matrix), MATRIX_CHUNK):
+            chunk = self._matrix[start:start + MATRIX_CHUNK]
+            out[start:start + len(chunk)] = chunk.astype(numpy.float32) @ query
+        if self._matrix_scales is not None:
+            out *= self._matrix_scales
+        return out
 
     def _score(self, unit_query: Sequence[float], k: int) -> float:
         size = self.dimensions
@@ -147,10 +177,20 @@ class MeaningIndex:
         unit_query = [value / norm for value in query]
         best = [-2.0] * len(self.units)
         where = [0] * len(self.units)
-        for k, unit in enumerate(self.owner):
-            score = self._score(unit_query, k)
-            if score > best[unit]:
-                best[unit], where[unit] = score, self.offsets[k]
+        every = self._all_scores(unit_query)
+        if every is not None and self.owner:
+            owner = numpy.asarray(self.owner)
+            values = every[:len(owner)]
+            # Each unit's best vector: sorted by unit, then best first; the first of each unit.
+            order = numpy.lexsort((-values, owner))
+            units, first = numpy.unique(owner[order], return_index=True)
+            for unit, k in zip(units.tolist(), order[first].tolist(), strict=True):
+                best[unit], where[unit] = float(values[k]), self.offsets[k]
+        else:
+            for k, unit in enumerate(self.owner):
+                score = self._score(unit_query, k)
+                if score > best[unit]:
+                    best[unit], where[unit] = score, self.offsets[k]
         order = sorted(range(len(best)), key=best.__getitem__, reverse=True)
         scores = MeaningScores(
             ((self.units[u].record_id, self.units[u].index), best[u]) for u in order)
@@ -166,7 +206,9 @@ class MeaningIndex:
         norm = math.sqrt(dot(query, query)) or 1.0
         unit_query = [value / norm for value in query]
         first = len(self.owner)
-        found = [(entity_id, self._score(unit_query, first + k))
+        every = self._all_scores(unit_query)
+        found = [(entity_id, float(every[first + k]) if every is not None
+                  else self._score(unit_query, first + k))
                  for k, entity_id in enumerate(self.cards)]
         return sorted(found, key=lambda pair: pair[1], reverse=True)
 
@@ -178,7 +220,9 @@ class MeaningIndex:
         norm = math.sqrt(dot(query, query)) or 1.0
         unit_query = [value / norm for value in query]
         first = len(self.owner) + len(self.cards)
-        found = [(entity_id, self._score(unit_query, first + k))
+        every = self._all_scores(unit_query)
+        found = [(entity_id, float(every[first + k]) if every is not None
+                  else self._score(unit_query, first + k))
                  for k, (entity_id, card_kind) in enumerate(self.academic) if card_kind == kind]
         return sorted(found, key=lambda pair: pair[1], reverse=True)
 
