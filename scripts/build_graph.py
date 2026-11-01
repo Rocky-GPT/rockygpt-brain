@@ -20,7 +20,7 @@ from pathlib import Path
 
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
-from rockygpt_brain.retrieval import EvidenceUnavailable, PostgresEntityFacts
+from rockygpt_brain.retrieval import EvidenceUnavailable, PostgresEntityFacts, postgres
 from rockygpt_brain.retrieval.graph_store import (
     GraphEntityFacts,
     GraphUnavailable,
@@ -32,7 +32,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Publish the active campus release as a graph.")
     parser.add_argument("--out", required=True, type=Path, help="directory the Brain will serve")
     parser.add_argument("--dbname", help="read this database instead of the one DATABASE_URL names")
+    # Read from far away (a scheduled job reading production's database), the whole release
+    # took longer than the Brain's own one-minute build limit (11-01).
+    parser.add_argument("--read-seconds", type=float, default=postgres.BUILD_SECONDS,
+                        help="how long the whole release read may take")
     args = parser.parse_args(argv)
+    postgres.BUILD_SECONDS = args.read_seconds
+    postgres.BUILD_STATEMENT_MS = max(postgres.BUILD_STATEMENT_MS,
+                                      int(min(args.read_seconds, 600) * 1_000))
     url = os.environ.get("DATABASE_URL", "").strip()
     if not url:
         print("DATABASE_URL is not set.", file=sys.stderr)
