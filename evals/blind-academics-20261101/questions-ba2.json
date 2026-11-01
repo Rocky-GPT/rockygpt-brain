@@ -1,0 +1,17 @@
+[
+  {"id": "ba2-01", "question": "does ramapo have a nursing major or is it only for ppl who already have an rn", "topic": "program"},
+  {"id": "ba2-02", "question": "what classes do u need for the business admin major", "topic": "program"},
+  {"id": "ba2-03", "question": "is bio 101 a prereq for anatomy and physiology or can i take a&p first semester", "topic": "course"},
+  {"id": "ba2-04", "question": "how many credits is the minor in public health", "topic": "program"},
+  {"id": "ba2-05", "question": "im an incoming freshman thinking about pre med, what should i take my first semester for the bio major", "topic": "sequence"},
+  {"id": "ba2-06", "question": "does stats count for a gen ed? like the intro statistics class", "topic": "gen_ed"},
+  {"id": "ba2-07", "question": "whats the difference between the exercise science major and the health science one and which has more chem", "topic": "program"},
+  {"id": "ba2-08", "question": "how many credits is gen chem 1 and does it have a lab with it", "topic": "course"},
+  {"id": "ba2-09", "question": "is there a marketing concentration or is marketing its own major at ramapo", "topic": "program"},
+  {"id": "ba2-10", "question": "what are all the gen ed requirements i need to graduate, like how many categories are there", "topic": "gen_ed"},
+  {"id": "ba2-11", "question": "what do you learn in principles of accounting 1 and is it required for all bussiness majors", "topic": "course"},
+  {"id": "ba2-12", "question": "can u check if i got placed into calc or precalc", "topic": "out_of_scope"},
+  {"id": "ba2-13", "question": "who teaches micro econ this spring and are there any seats left", "topic": "out_of_scope"},
+  {"id": "ba2-14", "question": "should i do nursing or business tbh i cant decide", "topic": "out_of_scope"},
+  {"id": "ba2-15", "question": "is there a recommended 4 year plan for the accounting major, what do u take sophomore year", "topic": "sequence"}
+]
