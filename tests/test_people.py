@@ -1,5 +1,7 @@
 """Faculty and staff lookup: the people a question names (people.py), read through the reader."""
 
+from typing import Any
+
 from rockygpt_brain.people import (
     asks_leadership,
     asks_people,
@@ -110,7 +112,7 @@ def test_a_list_question_gives_everyone_in_the_field_named() -> None:
 
 
 
-DIRECTORY = [
+DIRECTORY: list[dict[str, Any]] = [
     {"id": "da", "name": "Lawrence D’Antonio", "title": "Professor of Mathematics",
      "school": "School of Science, Nursing, and Health", "office": "G-128E", "n": 0},
     {"id": "rc", "name": "Renée Cornell", "title": "Assistant Professor of Management",
@@ -208,7 +210,7 @@ def test_ordinary_words_are_not_misspelt_names_and_two_people_can_be_named() -> 
 
 
 def test_who_teaches_a_subject_is_read_from_profile_courses() -> None:
-    directory = [
+    directory: list[dict[str, Any]] = [
         {"id": "a", "name": "Roark Atkinson", "title": "Associate Professor of History",
          "courses": ["Introduction to U.S. History I"]},
         {"id": "b", "name": "Stephen Anderson", "title": "Associate Professor of Chemistry",
@@ -238,8 +240,8 @@ def test_an_unusual_last_name_or_a_middle_initial_needs_no_people_word() -> None
         names, "jess terrizzi what dept is she in and what's her title", ordinary)] == ["jt"]
     assert [p["id"] for p in find_people(names, "who is Kathleen Burke?", ordinary)] == ["kb"]
     assert find_people(names, "is the food good at the dining hall", ordinary) == []
-    directory = [{"id": "r", "name": "Paul Reck", "title": "Assistant Professor of Sociology",
-                  "courses": ["Introduction to Sociology"]},
-                 *({"id": f"x{n}", "name": f"P {n}", "title": "Professor of Art"}
-                   for n in range(6))]
+    directory: list[dict[str, Any]] = [
+        {"id": "r", "name": "Paul Reck", "title": "Assistant Professor of Sociology",
+         "courses": ["Introduction to Sociology"]},
+        *({"id": f"x{n}", "name": f"P {n}", "title": "Professor of Art"} for n in range(6))]
     assert [p["id"] for p in teachers(directory, "who teaches intro to sociology?")] == ["r"]
