@@ -560,3 +560,19 @@ def test_a_short_form_is_its_shortest_word_and_a_named_track_is_its_plan() -> No
     assert chosen is not None and chosen["cohort"] == "Fall 2025"
     chosen = choose_plan(plans, "Biology BS", "biology first year", today)
     assert chosen is not None and chosen["name"] == "Biology (General)"
+
+
+def test_a_plans_own_notes_are_written_out() -> None:
+    from rockygpt_brain.academics import render_plan
+    text = render_plan({"name": "History", "cohort": "Fall 2026", "terms": [],
+                        "notes": ["WI: Writing Intensive-3 required in the major", "  "]})
+    assert text.endswith("Plan notes:\n  - WI: Writing Intensive-3 required in the major")
+
+
+def test_a_rule_name_that_counts_differently_from_the_rule_is_left_out() -> None:
+    from rockygpt_brain.academics import render_rule
+    items = [{"courses": [{"code": f"ACCT 22{k}", "name": "X"}]} for k in range(3)]
+    lines = render_rule({"name": "Select 1 Course", "choose": {"all": True}, "items": items})
+    assert lines[0] == "all of:"
+    lines = render_rule({"name": "Select 1 Course", "choose": {"at_least": 1}, "items": items})
+    assert lines[0] == "Select 1 Course at least 1 of:"

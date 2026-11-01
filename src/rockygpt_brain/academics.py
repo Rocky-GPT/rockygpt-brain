@@ -316,7 +316,19 @@ def render_plan(plan: dict[str, Any]) -> str:
                   for g in gen_ed]
     if plan.get("placementText"):
         lines.append(f"Placement: {' '.join(str(plan['placementText']).split())}")
+    notes = [" ".join(str(note).split()) for note in plan.get("notes") or [] if str(note).strip()]
+    if notes:
+        lines.append("Plan notes:")
+        room = MAX_PLAN_NOTES
+        for note in notes:
+            if room <= 0:
+                break
+            lines.append(f"  - {note[:room]}")
+            room -= len(note)
     return "\n".join(lines)
+
+
+MAX_PLAN_NOTES = 3000  # Characters of a plan's notes given (the median plan has ~1,100).
 
 
 def program_evidence(facts: dict[str, Any], n: int, others: Sequence[str],
@@ -365,8 +377,16 @@ def render_rule(rule: dict[str, Any], depth: int = 0) -> list[str]:
     """A published rule as lines: its name and how many of its items it asks for, its note, its
     courses (an item's courses joined by its own and/or), then its sub-rules, each indented."""
     pad = "  " * depth
-    head = " ".join(part for part in (str(rule.get("name") or "").strip(), _how_many(rule))
-                    if part)
+    name = str(rule.get("name") or "").strip()
+    # A name that counts differently from the rule ("Select 1 Course" over twelve courses all
+    # required, the ASB Requirements) is left out: the rule's own choose is what it asks.
+    named = re.match(r"select (\d+)\b", name, re.I)
+    choose = rule.get("choose") or {}
+    if named and (choose.get("all") and len(rule.get("items") or []) > int(named.group(1))
+                  or isinstance(choose.get("at_least"), int)
+                  and choose["at_least"] != int(named.group(1))):
+        name = ""
+    head = " ".join(part for part in (name, _how_many(rule)) if part)
     lines = [f"{pad}{head}:"] if head else []
     if isinstance(rule.get("credits"), int | float):
         lines.append(f"{pad}  (credits: {rule['credits']:g})")

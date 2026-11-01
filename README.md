@@ -145,6 +145,17 @@ On Render's free tier the disk is erased on every sleep, so a graph-only Brain t
 published directory delivered to it (nothing does that yet); the self-building copy simply
 rebuilds after each wake.
 
+### Meaning index on Postgres
+
+A Brain reading Postgres finds programs, courses, people, events and how-to sections by meaning
+only with the release's meaning index. The data repository's daily job (`meaning-index` in
+rockygpt-data's Daily Data Update) builds the graph and the index from the active release and
+stores the index beside it (`rockygpt_v2.release_meaning_indexes`, data migration 034) with
+`scripts/publish_meaning_index.py`: 8-bit vectors with one scale each, about 26 MB for 47,000
+vectors (on 400 written questions it kept 99.5% of the float index's ten best units). The Brain
+loads it on its own thread for the active release and identity publication; until it has, and
+when none is stored, questions are answered without it.
+
 ## Fact Packet output (optional, off by default)
 
 The design is two steps with a hard wall between them: the Brain understands the question,

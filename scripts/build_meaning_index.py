@@ -197,6 +197,9 @@ def academic_cards(facts: GraphOnlyFacts, version: str,
                       if "gen ed" in str(a).casefold()]
             if gen_ed:
                 titles[found["entity"]["id"] + "#gen_ed"] = "; ".join(gen_ed)
+            if any("writing intensive" in str(a).casefold()
+                   for a in course.get("attributes") or []):
+                titles[found["entity"]["id"] + "#writing_intensive"] = "yes"
             if course.get("description"):
                 card += f"\n{str(course['description'])[:400]}"
             cards.append((found["entity"]["id"], "course", card))
@@ -298,6 +301,36 @@ def embed_all(texts: list[str], cache: dict[str, list[float]]) -> int:
     return len(due)
 
 
+def load_vectors(cache_dir: Path) -> dict[str, list[float]]:
+    """The embedding cache: the JSON one a laptop keeps, else the compact one a scheduled job
+    keeps (the digests in .keys.json, their vectors in .f32, in the same order)."""
+    path = cache_dir / f"vectors-{EMBED_MODEL}-{DIMENSIONS}"
+    if path.with_suffix(".json").exists():
+        return json.loads(path.with_suffix(".json").read_text())  # type: ignore[no-any-return]
+    if not path.with_suffix(".keys.json").exists():
+        return {}
+    keys = json.loads(path.with_suffix(".keys.json").read_text())
+    flat = array.array("f")
+    flat.frombytes(path.with_suffix(".f32").read_bytes())
+    return {key: flat[k * DIMENSIONS:(k + 1) * DIMENSIONS].tolist()
+            for k, key in enumerate(keys)}
+
+
+def save_vectors(cache_dir: Path, cache: dict[str, list[float]], used: list[str]) -> None:
+    """The JSON cache whole when one is kept; else the compact one with only this index's texts
+    (about 105 MB, small enough for a scheduled job's cache)."""
+    path = cache_dir / f"vectors-{EMBED_MODEL}-{DIMENSIONS}"
+    if path.with_suffix(".json").exists():
+        path.with_suffix(".json").write_text(json.dumps(cache))
+        return
+    keys = list(dict.fromkeys(used))
+    flat = array.array("f")
+    for key in keys:
+        flat.extend(cache[key])
+    path.with_suffix(".f32").write_bytes(flat.tobytes())
+    path.with_suffix(".keys.json").write_text(json.dumps(keys))
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build the meaning index for the active release.")
     parser.add_argument("--dir", required=True, type=Path, help="the published graph directory")
@@ -316,7 +349,6 @@ def main(argv: list[str] | None = None) -> int:
     names.update({entity_id: name for entity_id, name, _ in cards})
     args.cache.mkdir(parents=True, exist_ok=True)
     questions_path = args.cache / "questions.json"
-    vectors_path = args.cache / f"vectors-{EMBED_MODEL}-{DIMENSIONS}.json"
     questions: dict[str, list[str]] = (json.loads(questions_path.read_text())
                                        if questions_path.exists() else {})
     read = write_questions(units, questions)
@@ -337,11 +369,11 @@ def main(argv: list[str] | None = None) -> int:
             asked = questions.get(_digest(unit["heading"], unit["text"]), [])
             texts += [(n, q) for q in asked]
             offsets += [-1] * len(asked)
-    cache: dict[str, list[float]] = (json.loads(vectors_path.read_text())
-                                     if vectors_path.exists() else {})
-    embedded = embed_all([t for _, t in texts] + [card for _, _, card in cards]
-                         + [card for _, _, card in academic], cache)
-    vectors_path.write_text(json.dumps(cache))
+    cache = load_vectors(args.cache)
+    every = ([t for _, t in texts] + [card for _, _, card in cards]
+             + [card for _, _, card in academic])
+    embedded = embed_all(every, cache)
+    save_vectors(args.cache, cache, [_digest(EMBED_MODEL, str(DIMENSIONS), t) for t in every])
     flat = array.array("f")
     # The office cards' vectors follow the units' vectors, in the order of "cards"; then the
     # program and course cards, in the order of "academic".

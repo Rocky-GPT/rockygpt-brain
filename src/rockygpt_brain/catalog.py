@@ -121,6 +121,32 @@ def listing_facts(codes: Sequence[str], listed_in: Mapping[str, Sequence[str]],
     return facts
 
 
+_WRITING_INTENSIVE_ASK = re.compile(r"\bwriting[- ]intensive\b|\bwi\b", re.I)
+
+
+def asks_writing_intensive(message: str) -> bool:
+    return bool(_WRITING_INTENSIVE_ASK.search(message))
+
+
+def writing_intensive_facts(evidence: Sequence[dict[str, Any]], marked: set[str],
+                            n: int | None) -> list[dict[str, Any]]:
+    """For each program given, the courses its requirements list that the catalog marks
+    Writing Intensive; for each course given, whether it is marked."""
+    facts = []
+    for item in evidence:
+        if item.get("program") and item.get("requirements"):
+            listed = sorted(courses_listed(str(item["requirements"])) & marked)
+            facts.append({"fact": f"Of the courses the {item['program']} requirements list, the "
+                                  "catalog marks these Writing Intensive: "
+                                  + ("; ".join(listed) if listed else "none") + ".",
+                          "n": item["n"]})
+        elif item.get("course"):
+            code = " ".join(str(item["course"]).split()[:2])
+            facts.append({"fact": f"The catalog {'marks' if code in marked else 'does not mark'} "
+                                  f"{code} Writing Intensive.", "n": item["n"]})
+    return facts
+
+
 def order_facts(courses: Sequence[dict[str, Any]],
                 requisites: Mapping[str, set[str]]) -> list[dict[str, Any]]:
     """For each pair of courses given, whether one's published prerequisites name the other, so

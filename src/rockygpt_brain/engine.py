@@ -1715,6 +1715,11 @@ class ChatEngine:
                                            catalog_n or courses[0]["n"])
         facts += catalog.order_facts(courses, {c["code"]: catalog.courses_listed(
             c["prerequisites"]) for c in courses})
+        index = self.facts.meaning_index()
+        if catalog.asks_writing_intensive(message) and index is not None:
+            names = {str(e["id"]): str(e["name"]) for e in self.facts.identities(("course",))}
+            marked = {names[i] for i in index.course_writing_intensive if i in names}
+            facts += catalog.writing_intensive_facts(evidence, marked, catalog_n)
         return evidence, sources, version, facts
 
     def _academics_by_meaning(self, index: MeaningIndex, vector: Sequence[float], message: str,

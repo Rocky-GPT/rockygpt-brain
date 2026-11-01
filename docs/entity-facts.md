@@ -357,7 +357,8 @@ artifact), in the catalog's section order; one group may be listed by several pr
 (`requirements`: label, shape, note, choose, rule, course_list), cited to the program's
 catalog page with the programs artifact's capture time, and its recommended graduation plans
 (`plans`, from the graduation-plans artifact: one per admission cohort and variant, as
-published; `multiple` when cohorts differ, a dated boundary). No group is a `not_published` claim:
+published, with the plan's own notes, which hold requirements its semesters do not, such as the
+major's Writing Intensive count; `multiple` when cohorts differ, a dated boundary). No group is a `not_published` claim:
 a program with none linked is `unknown`; a linked group the release lacks is a caveat.
 
 Discovery (`academics.find_programs`) names a program by its catalog name without its level

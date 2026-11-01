@@ -259,3 +259,28 @@ def test_a_text_whose_every_deadline_date_has_passed_is_past() -> None:
     assert past_dates("The Spring 2027 payment deadline is December 16, 2026.", today) is None
     # An effective or revision date is not a deadline.
     assert past_dates("Effective date: July 1, 2019. Revised March 3, 2021.", today) is None
+
+
+def test_an_index_stored_in_8_bits_ranks_as_the_float_index_does() -> None:
+    index = index_of([("page-a", "0", ["advising"], [[1, 0.2, 0]]),
+                      ("page-b", "e0", ["tutoring"], [[0, 1, 0.1], [0.7, 0.3, 0]]),
+                      ("page-c", "0", ["library"], [[0, 0.1, 1]])],
+                     cards=[("athletics", [0, 1, 0])],
+                     academic=[("biology", "program", [0.2, 0, 1])])
+    vectors, scales = index.quantize()
+    assert len(vectors) == 6 * 3 and len(scales) == 6 * 4
+    meta = {"dataset_version": "release-1", "identity_hash": "identities-1", "model": "m",
+            "dimensions": 3, "units": [["page-a", "0", ["advising"]],
+                                       ["page-b", "e0", ["tutoring"]],
+                                       ["page-c", "0", ["library"]]],
+            "owner": [0, 1, 1, 2], "cards": ["athletics"], "academic": [["biology", "program"]]}
+    stored = MeaningIndex.from_quantized(meta, vectors, scales)
+    for query in ([1, 0, 0], [0, 1, 0], [0, 0, 1], [0.5, 0.5, 0.1]):
+        assert list(stored.scores(query)) == list(index.scores(query))
+        for (a, x), (b, y) in zip(stored.scores(query).items(), index.scores(query).items(),
+                                  strict=True):
+            assert a == b and abs(x - y) < 0.02
+    assert stored.office_scores([0, 1, 0])[0][0] == "athletics"
+    assert stored.academic_scores([0, 0, 1], "program")[0][0] == "biology"
+    # Stored again, it is the same bytes.
+    assert stored.quantize() == (vectors, scales)

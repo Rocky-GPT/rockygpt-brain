@@ -38,3 +38,16 @@ def test_code_answers_which_programs_list_a_course_and_which_comes_first() -> No
     (fact,) = order_facts(courses, {"CMPS 361": {"CMPS 231"}, "CMPS 231": {"CMPS 148"}})
     assert fact["fact"].startswith("CMPS 361's published prerequisites name CMPS 231")
     assert fact["n"] == 2
+
+
+def test_code_says_which_listed_courses_are_writing_intensive() -> None:
+    from rockygpt_brain.catalog import asks_writing_intensive, writing_intensive_facts
+    assert asks_writing_intensive("how many WI courses do i need")
+    assert not asks_writing_intensive("is wifi free")
+    evidence = [{"n": 1, "program": "History BA",
+                 "requirements": "Core\n  - HIST 201 Historiography\n  - HIST 410 Capstone"},
+                {"n": 2, "course": "HIST 201 HISTORIOGRAPHY"}]
+    facts = [f["fact"] for f in writing_intensive_facts(evidence, {"HIST 201"}, None)]
+    assert facts == ["Of the courses the History BA requirements list, the catalog marks these "
+                     "Writing Intensive: HIST 201.",
+                     "The catalog marks HIST 201 Writing Intensive."]
