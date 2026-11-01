@@ -148,15 +148,13 @@ rebuilds after each wake.
 ### Meaning index on Postgres
 
 A Brain reading Postgres finds programs, courses, people, events and how-to sections by meaning
-only with the release's meaning index. The scheduled `Meaning index` workflow builds the graph
-and the index after the daily data publish and stores the index beside its release
-(`rockygpt_v2.release_meaning_indexes`, data migration 034) with
+only with the release's meaning index. The data repository's daily job (`meaning-index` in
+rockygpt-data's Daily Data Update) builds the graph and the index from the active release and
+stores the index beside it (`rockygpt_v2.release_meaning_indexes`, data migration 034) with
 `scripts/publish_meaning_index.py`: 8-bit vectors with one scale each, about 26 MB for 47,000
 vectors (on 400 written questions it kept 99.5% of the float index's ten best units). The Brain
 loads it on its own thread for the active release and identity publication; until it has, and
-when none is stored, questions are answered without it. The workflow needs the secrets
-`MEANING_INDEX_DATABASE_URL` (a login that reads the release and may write that table) and
-`MEANING_INDEX_OPENAI_API_KEY` / `MEANING_INDEX_OPENAI_PROJECT`.
+when none is stored, questions are answered without it.
 
 ## Fact Packet output (optional, off by default)
 
