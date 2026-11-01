@@ -197,6 +197,9 @@ def academic_cards(facts: GraphOnlyFacts, version: str,
                       if "gen ed" in str(a).casefold()]
             if gen_ed:
                 titles[found["entity"]["id"] + "#gen_ed"] = "; ".join(gen_ed)
+            if any("writing intensive" in str(a).casefold()
+                   for a in course.get("attributes") or []):
+                titles[found["entity"]["id"] + "#writing_intensive"] = "yes"
             if course.get("description"):
                 card += f"\n{str(course['description'])[:400]}"
             cards.append((found["entity"]["id"], "course", card))

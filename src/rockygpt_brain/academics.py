@@ -316,7 +316,19 @@ def render_plan(plan: dict[str, Any]) -> str:
                   for g in gen_ed]
     if plan.get("placementText"):
         lines.append(f"Placement: {' '.join(str(plan['placementText']).split())}")
+    notes = [" ".join(str(note).split()) for note in plan.get("notes") or [] if str(note).strip()]
+    if notes:
+        lines.append("Plan notes:")
+        room = MAX_PLAN_NOTES
+        for note in notes:
+            if room <= 0:
+                break
+            lines.append(f"  - {note[:room]}")
+            room -= len(note)
     return "\n".join(lines)
+
+
+MAX_PLAN_NOTES = 3000  # Characters of a plan's notes given (the median plan has ~1,100).
 
 
 def program_evidence(facts: dict[str, Any], n: int, others: Sequence[str],

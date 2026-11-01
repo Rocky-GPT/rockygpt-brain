@@ -1833,8 +1833,10 @@ def trips_property(
 
 MAX_REQUIREMENT_GROUPS = 32
 REQUIREMENT_FIELDS = ("label", "shape", "note", "choose", "rule", "course_list")
+# The plan's own notes hold requirements its semesters do not ("WI: Writing Intensive-3 required
+# in the major", language proficiency, placement).
 PLAN_FIELDS = ("name", "cohort", "applicability", "totalCredits", "totals", "terms",
-               "generalEducation", "placementText", "variantOf")
+               "generalEducation", "placementText", "variantOf", "notes")
 
 
 def program_properties(

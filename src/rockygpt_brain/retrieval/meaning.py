@@ -84,6 +84,9 @@ class MeaningIndex:
         # Each course's Gen Ed attributes by entity id, for "does statistics count for Gen Ed".
         self.course_gen_ed: dict[str, str] = {k.split("#")[0]: v for k, v in titles.items()
                                               if k.endswith("#gen_ed")}
+        # The courses whose attributes mark them Writing Intensive, by entity id.
+        self.course_writing_intensive: frozenset[str] = frozenset(
+            k.split("#")[0] for k in titles if k.endswith("#writing_intensive"))
         if len(vectors) != (len(self.owner) + len(self.cards)
                             + len(self.academic)) * self.dimensions:
             raise ValueError("The meaning index vectors do not match its units.")
