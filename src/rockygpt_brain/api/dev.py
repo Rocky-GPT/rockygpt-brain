@@ -100,8 +100,10 @@ def add_dev_routes(application: FastAPI) -> None:
         node_id: Annotated[str, Query(min_length=1, max_length=160)] = "ramapo",
         dataset_version: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
         identity_hash: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
+        on: date | None = None,
     ) -> JSONResponse:
-        """The whole release graph as published: every node type and link, read from the data."""
+        """The whole release graph as published: every node type and link, read from the data.
+        `on` picks the day a venue's menu shows (default: today on campus)."""
         engine = application.state.engine
         if engine is None:
             return failure(503, "data_unavailable", "Campus data is unavailable.", new_id())
@@ -112,7 +114,7 @@ def add_dev_routes(application: FastAPI) -> None:
             async with asyncio.timeout(10):
                 node = await asyncio.to_thread(browse, engine.facts, node_id,
                                                dataset_version=dataset_version,
-                                               identity_hash=identity_hash)
+                                               identity_hash=identity_hash, on=on)
         except DatasetChanged:
             return failure(409, "dataset_changed",
                            "This publication is no longer active; open the current root.",
