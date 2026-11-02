@@ -583,9 +583,28 @@ _TEACH_FILLER = discovery_tokens(
     "runs run whos who's give get help")
 
 
-def _profile_words(entry: dict[str, Any]) -> frozenset[str]:
-    return name_tokens(" ".join(str(x) for key in ("courses", "teaching_interests",
-                                                   "research_interests", "title")
+_TEACH_ASK = re.compile(r"\bteach\w*|\btaught\b|\bclass(?:es)?\b|\bcourses?\b|\binstructors?\b")
+_RESEARCH_ASK = re.compile(r"\bresearch\w*|\bstud(?:y|ies)\b|\bworks? on\b|\bexperts?\b|"
+                           r"\bspeciali\w*|\binterest\w*")
+
+
+def _profile_fields(message: str) -> tuple[str, ...]:
+    """The profile fields a "who teaches or researches" question is matched on: what people
+    teach for a teaching question, what they research for a research one ("I collaborate with
+    Computer Science faculty" in a biologist's research is not teaching computer science)."""
+    text = fold(message).casefold()
+    teaching, research = bool(_TEACH_ASK.search(text)), bool(_RESEARCH_ASK.search(text))
+    if teaching and not research:
+        return ("courses", "teaching_interests", "title")
+    if research and not teaching:
+        return ("research_interests", "teaching_interests", "title")
+    return ("courses", "teaching_interests", "research_interests", "title")
+
+
+def _profile_words(entry: dict[str, Any],
+                   fields: tuple[str, ...] = ("courses", "teaching_interests",
+                                              "research_interests", "title")) -> frozenset[str]:
+    return name_tokens(" ".join(str(x) for key in fields
                                 for x in (entry.get(key) or [] if key != "title"
                                           else [entry.get("title") or ""])).replace(".", ""))
 
@@ -599,7 +618,8 @@ def teachers(directory: Sequence[dict[str, Any]], message: str) -> list[dict[str
     words = {w for w in words if len(w) > 1}
     if not words:
         return []
-    abouts = [(_profile_words(e), e) for e in directory
+    fields = _profile_fields(message)
+    abouts = [(_profile_words(e, fields), e) for e in directory
               if "retired" not in str(e.get("school") or "").casefold()]
 
     def holds(word: str, about: frozenset[str]) -> bool:
@@ -610,4 +630,39 @@ def teachers(directory: Sequence[dict[str, Any]], message: str) -> list[dict[str
     total = sum(weight.values()) or 1.0
     scored = sorted(((sum(weight[w] for w in words if holds(w, a)) / total, e)
                      for a, e in abouts), key=lambda pair: -pair[0])
-    return [e for share, e in scored if share >= TEACHES_SHARE][:MAX_TEACHERS]
+    found = [e for share, e in scored if share >= TEACHES_SHARE]
+    # A subject of two or more words ("computer science", "data structures") is the whole
+    # phrase when any profile has it: the rare word alone matched "Computer Music".
+    phrase = _topic_phrase(message)
+    if len(phrase.split()) >= 2:
+        whole = [e for e in found if f" {phrase} " in _profile_text(e, fields)]
+        found = whole or found
+    return found[:MAX_TEACHERS]
+
+
+def _plain_words(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", fold(text).casefold().replace(".", ""))
+
+
+def _topic_phrase(message: str) -> str:
+    """The longest run of a question's subject words, as a phrase ("computer science")."""
+    runs: list[list[str]] = [[]]
+    for word in _plain_words(message):
+        if len(word) > 1 and word not in _TEACH_FILLER | _QUESTION_WORDS | _DISCOVERY_SKIP:
+            runs[-1].append(word)
+        elif runs[-1]:
+            runs.append([])
+    longest: list[str] = []
+    for run in runs:
+        longest = run if len(run) > len(longest) else longest
+    return " ".join(longest)
+
+
+_DISCOVERY_SKIP = frozenset({"a", "an", "the", "of", "for", "and"})
+
+
+def _profile_text(entry: dict[str, Any], fields: tuple[str, ...]) -> str:
+    """A profile's fields as plain words, each item apart ("Data Structures | Calculus II")."""
+    items = [str(x) for key in fields
+             for x in (entry.get(key) or [] if key != "title" else [entry.get("title") or ""])]
+    return " " + " | ".join(" ".join(_plain_words(item)) for item in items) + " "

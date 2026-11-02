@@ -311,3 +311,19 @@ def test_a_person_named_dean_or_a_dean_named_by_title_is_not_a_question_about_de
     assert not asks_leadership(about_named("Who is Dean Hangen?", [hangen]))
     assert asks_leadership(about_named("Who is the dean of SSSW, Susan Hangen?", [hangen]))
     assert only_who("Who is Dean Hangen?", hangen) and only_who("Who is Dean Chen?", chen)
+
+
+def test_who_teaches_a_subject_matches_what_people_teach_and_the_whole_phrase() -> None:
+    directory = [
+        {"name": "Ann Byte", "title": "Professor of Computer Science",
+         "courses": ["Data Structures"]},
+        {"name": "Bo Cell", "title": "Professor of Biology", "courses": ["Microbiology"],
+         "research_interests": ["I collaborate with Computer Science faculty."]},
+        {"name": "Cy Tune", "title": "Professor of Music", "courses": ["Computer Music"]},
+        {"name": "Di Learn", "title": "Professor of Data Science",
+         "research_interests": ["Machine Learning"]}]
+    # A teaching question reads what people teach; the whole phrase wins over one rare word.
+    assert [e["name"] for e in teachers(directory, "Who teaches computer science?")] == [
+        "Ann Byte"]
+    assert [e["name"] for e in teachers(directory, "Who researches machine learning?")] == [
+        "Di Learn"]
