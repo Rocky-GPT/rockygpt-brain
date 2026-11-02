@@ -3,7 +3,8 @@
 Dan 11-02: when a question names one office or dining venue by its published name (or one of its
 listed other names) and asks only for its contacts, its place, its hours or its menu, code picks
 the lookup the model would have picked, and code writes the answer too: no AI call at all.
-Anything else is left to the model: no name or two, a name two places share, a word left over
+A name a few offices share ("Public Safety", emergency and non-emergency) looks up each. Anything
+else is left to the model: no name or two, a name an office and a venue share, a word left over
 that this does not understand, an earlier message the question could refer back to. Code routes
 only what it is sure of.
 """
@@ -69,15 +70,19 @@ def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
                 spans.append((start, start + len(key), owners))
     spans.sort(key=lambda span: span[0] - span[1])
     covered: set[int] = set()
-    found: set[tuple[str, str]] = set()
+    said: list[set[tuple[str, str]]] = []
     for start, end, owners in spans:
         if covered & set(range(start, end)):
             continue
         covered.update(range(start, end))
-        found |= owners
-    if len(found) != 1:
-        return None  # No name, two places, or a name two places share.
-    (kind, name), = found
+        said.append(owners)
+    # One name said, of one place or of a few offices that share it ("Public Safety" is both
+    # its emergency and non-emergency lines, and both are looked up); two names, or an office
+    # and a venue sharing one, go to the model.
+    if len(said) != 1 or not 1 <= len(said[0]) <= 3 or len({k for k, _ in said[0]}) != 1:
+        return None
+    places = sorted(said[0])
+    kind = places[0][0]
     rest = [w for k, w in enumerate(words) if k not in covered]
     if any(w not in _PLAIN and w not in _WEEKDAYS for w in rest):
         return None
@@ -94,14 +99,14 @@ def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
     day = (days[0] if len(days) == 1 else None if days else
            "tomorrow" if "tomorrow" in rest else "today" if _TODAY & set(rest) else None)
     meal = next((m for m in _MEALS if re.search(rf"\b{m}\b", text)), None)
-    request: dict[str, Any] = {"query": name, "fields": fields}
+    request: dict[str, Any] = {"fields": fields}
     if day or ("menu" in fields and meal):
         request["day"] = day or "today"
     if "fax" in asked:
         request["phone_kind"] = "fax"
     if meal and "menu" in fields:
         request["meal"] = meal
-    return {"requests": [request]}
+    return {"requests": [{"query": name, **request} for _, name in places]}
 
 
 # A plain shuttle question naming no stop or route ("when is the last shuttle tonight?", "what

@@ -47,7 +47,6 @@ def test_a_possessive_name_and_two_fields_of_one_place_are_routed_by_code() -> N
 
 def test_anything_code_is_not_sure_of_is_left_to_the_model() -> None:
     assert route("Can I book an appointment with the Registrar?") is None  # words left over
-    assert route("What is the phone number for Public Safety?") is None  # a shared name
     assert route("Registrar and Financial Aid phone numbers") is None  # two places
     assert route("Tell me about the Registrar") is None  # nothing it routes is asked
     assert route("What is the menu at the Library?") is None  # an office has no menu
@@ -67,3 +66,9 @@ def test_a_plain_next_first_or_last_shuttle_question_is_routed_by_code() -> None
                  "When does the shuttle run?",  # No next, first or last.
                  "What's the first and last shuttle today?"):
         assert shuttle_route(more) is None, more
+
+
+def test_a_name_offices_share_looks_up_each_of_them() -> None:
+    assert code_route("What is the phone number for Public Safety?", OFFICES, VENUES) == {
+        "requests": [{"query": "Public Safety (Emergency)", "fields": ["phones"]},
+                     {"query": "Public Safety (Non-Emergency)", "fields": ["phones"]}]}
