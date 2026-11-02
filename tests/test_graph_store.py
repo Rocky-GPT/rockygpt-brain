@@ -809,7 +809,7 @@ class FakeDatabase:
         self.registry = {"dataset_id": "dataset-uuid", "dataset_version": "r1",
                          "identity_hash": "h1", "registry": {"schema_version": 1,
                                                              "entities": [entity]},
-                         "alias_sources": []}
+                         "coverage_hash": None}
 
     closed = False
 

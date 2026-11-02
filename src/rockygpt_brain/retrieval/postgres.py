@@ -47,7 +47,7 @@ _idle_clock = time.monotonic  # Its own clock: tests replace `time` to move read
 _RELEASE = """
 SELECT v.id::text AS dataset_id, v.version AS dataset_version,
        a.content_hash AS identity_hash,
-       coverage.payload->'alias_sources' AS alias_sources
+       coverage.content_hash AS coverage_hash
 FROM rockygpt_v2.dataset_versions v
 JOIN rockygpt_v2.release_artifacts a ON a.dataset_version_id = v.id
   AND a.artifact_key = 'campus-identities'
@@ -361,27 +361,45 @@ ORDER BY w.ord
 LIMIT %s
 """
 
-# The academic-programs capture a catalog course comes from: the courses and the course
-# identities (each course's own catalog page), the capture time, and the source's freshness.
-_COURSE_CATALOG = """
-SELECT c.payload AS courses, i.payload AS identities,
-       (p.payload->>'generatedAt')::timestamptz AS collected_at,
-       (SELECT s.freshness_sla_hours FROM rockygpt_v2.sources s
-        WHERE s.source_key = 'academic-programs') AS freshness_sla_hours
-FROM rockygpt_v2.release_artifacts c
-JOIN rockygpt_v2.release_artifacts i ON i.dataset_version_id = c.dataset_version_id
-  AND i.artifact_key = 'catalog-course-identities'
-JOIN rockygpt_v2.release_artifacts p ON p.dataset_version_id = c.dataset_version_id
-  AND p.artifact_key = 'programs'
-WHERE c.dataset_version_id = %s::uuid AND c.artifact_key = 'courses'
+# Whole release artifacts the Brain keeps in memory between questions: the course catalog (about
+# 3 MB of JSON), the graduation plans (about 8 MB), the faculty profiles and the identity
+# coverage. A question used to read the ones it needed from the database every time, which made
+# questions about majors and courses the largest share of the free database's monthly 5 GB of
+# network transfer. Each is kept as text with its content hash (as the registry is), read again
+# only when the active release or the artifact's hash changes, and decoded per snapshot.
+_ARTIFACT_HASH = """
+SELECT a.content_hash FROM rockygpt_v2.release_artifacts a
+WHERE a.dataset_version_id = %s::uuid AND a.artifact_key = %s
+"""
+_ARTIFACT_TEXT = """
+SELECT a.payload::text AS payload_text, a.content_hash
+FROM rockygpt_v2.release_artifacts a
+WHERE a.dataset_version_id = %s::uuid AND a.artifact_key = %s
+  AND pg_column_size(a.payload) <= 16000000
 """
 
-_GRADUATION_PLANS = """
-SELECT a.payload, a.content_hash,
+# The academic-programs capture time a catalog course carries, and the source's freshness; the
+# programs artifact must be published beside the courses.
+_COURSE_CATALOG_META = """
+SELECT (p.payload->>'generatedAt')::timestamptz AS collected_at,
        (SELECT s.freshness_sla_hours FROM rockygpt_v2.sources s
+        WHERE s.source_key = 'academic-programs') AS freshness_sla_hours
+FROM rockygpt_v2.release_artifacts p
+WHERE p.dataset_version_id = %s::uuid AND p.artifact_key = 'programs'
+"""
+
+_GRADUATION_PLANS_META = """
+SELECT (SELECT s.freshness_sla_hours FROM rockygpt_v2.sources s
         WHERE s.source_key = 'graduation-plans') AS freshness_sla_hours
-FROM rockygpt_v2.release_artifacts a
-WHERE a.dataset_version_id = %s::uuid AND a.artifact_key = 'graduation-plans'
+"""
+
+# The faculty source's capture time (its directory rows') and freshness.
+_FACULTY_META = """
+SELECT (SELECT max(c.collected_at) FROM rockygpt_v2.campus_contacts c
+        JOIN rockygpt_v2.sources s ON s.id = c.source_id
+        WHERE c.dataset_version_id = %s::uuid AND s.source_key = 'faculty') AS collected_at,
+       (SELECT s.freshness_sla_hours FROM rockygpt_v2.sources s
+        WHERE s.source_key = 'faculty') AS freshness_sla_hours
 """
 
 # A calendar event's row, with the location, tags and ticket status its Archway listing entry
@@ -443,19 +461,6 @@ ORDER BY c.source_record_key, c.id
 LIMIT %s
 """
 
-# The faculty profiles, with the faculty source's capture time (its directory rows') and freshness.
-_FACULTY = """
-SELECT a.payload, a.content_hash,
-       (SELECT max(c.collected_at) FROM rockygpt_v2.campus_contacts c
-        JOIN rockygpt_v2.sources s ON s.id = c.source_id
-        WHERE c.dataset_version_id = a.dataset_version_id AND s.source_key = 'faculty')
-         AS collected_at,
-       (SELECT s.freshness_sla_hours FROM rockygpt_v2.sources s
-        WHERE s.source_key = 'faculty') AS freshness_sla_hours
-FROM rockygpt_v2.release_artifacts a
-WHERE a.dataset_version_id = %s::uuid AND a.artifact_key = 'faculty'
-"""
-
 _RECORD_SQL = {"programs": _PROGRAMS, "events": _EVENTS, "clubs": _CLUBS,
                "requirement_groups": _REQUIREMENT_GROUPS,
                "dining_hours": _DINING, "menu": _MENU, "shuttle_trips": _TRIPS,
@@ -511,6 +516,9 @@ class PostgresEntityFacts(EntityFacts):
         self._idle: list[tuple[psycopg.Connection[dict[str, Any]], float]] = []
         self._idle_lock = Lock()
         self._registry: tuple[str, str, str] | None = None  # dataset id, hash, registry JSON
+        # Whole artifacts kept between questions: key -> (dataset id, content hash, JSON text).
+        self._artifacts: dict[str, tuple[str, str, str]] = {}
+        self._artifacts_lock = Lock()
         # The active release's meaning index: (release, index), loaded in the background.
         self._meaning: tuple[tuple[str, str], MeaningIndex | None] | None = None
         self._meaning_checked = float("-inf")
@@ -773,6 +781,53 @@ class PostgresEntityFacts(EntityFacts):
                 entities = validate_entities(registry.get("entities"))
                 self._registry = kept  # Kept only once it has been read whole and checked.
 
+                def artifact(key: str, content_hash: str | None = None) -> tuple[Any, str] | None:
+                    """A whole release artifact and its content hash, from memory when this
+                    release's copy with that hash was read before; None when not published."""
+                    dataset_id = release["dataset_id"]
+                    if content_hash is None:
+                        hashes = read(_ARTIFACT_HASH, (dataset_id, key))
+                        if len(hashes) != 1:
+                            return None
+                        content_hash = hashes[0]["content_hash"]
+                    with self._artifacts_lock:
+                        kept_artifact = self._artifacts.get(key)
+                    if kept_artifact is None or kept_artifact[:2] != (dataset_id, content_hash):
+                        found = read(_ARTIFACT_TEXT, (dataset_id, key))
+                        if len(found) != 1 or not isinstance(found[0]["payload_text"], str):
+                            return None
+                        kept_artifact = (dataset_id, found[0]["content_hash"],
+                                         found[0]["payload_text"])
+                    try:
+                        payload = json.loads(kept_artifact[2])
+                    except ValueError as exc:
+                        raise EvidenceUnavailable(f"Unreadable {key} artifact.") from exc
+                    with self._artifacts_lock:  # Kept once read whole and decoded.
+                        self._artifacts[key] = kept_artifact
+                    return payload, kept_artifact[1]
+
+                # Only the coverage report's alias sources are used; they are kept as their own
+                # text, so a question decodes them alone and not the whole report.
+                alias_sources: Any = None
+                coverage_key = (release["dataset_id"], release["coverage_hash"])
+                if coverage_key[1] is not None:
+                    with self._artifacts_lock:
+                        kept_aliases = self._artifacts.get("alias_sources")
+                    if kept_aliases is None or kept_aliases[:2] != coverage_key:
+                        found = read(_ARTIFACT_TEXT, (coverage_key[0], "campus-identity-coverage"))
+                        if len(found) == 1 and isinstance(found[0]["payload_text"], str):
+                            try:
+                                coverage = json.loads(found[0]["payload_text"])
+                            except ValueError as exc:
+                                raise EvidenceUnavailable("Unreadable identity coverage.") from exc
+                            kept_aliases = (coverage_key[0], found[0]["content_hash"], json.dumps(
+                                coverage.get("alias_sources") if isinstance(coverage, dict)
+                                else None))
+                            with self._artifacts_lock:
+                                self._artifacts["alias_sources"] = kept_aliases
+                    if kept_aliases is not None and kept_aliases[0] == coverage_key[0]:
+                        alias_sources = json.loads(kept_aliases[2])
+
                 def contacts(entity: dict[str, Any]) -> list[dict[str, Any]]:
                     links = [
                         link for link in entity["links"] if link.get("collection") == "contacts"
@@ -802,7 +857,7 @@ class PostgresEntityFacts(EntityFacts):
                             "Office schedule evidence exceeds the bounded read.")
                     return result
 
-                # The course catalog is read once per snapshot: 2,658 courses are one 3 MB payload.
+                # The course catalog (2,658 courses, one 3 MB payload) is kept between questions.
                 catalog: dict[str, Any] = {}
 
                 def courses(entity: dict[str, Any]) -> list[dict[str, Any]]:
@@ -813,12 +868,16 @@ class PostgresEntityFacts(EntityFacts):
                     if not keys:
                         return []
                     if not catalog:
-                        rows = read(_COURSE_CATALOG, (release["dataset_id"],))
-                        if len(rows) != 1 or not isinstance(rows[0]["courses"], dict):
+                        meta = read(_COURSE_CATALOG_META, (release["dataset_id"],))
+                        course_list = artifact("courses")
+                        identities = artifact("catalog-course-identities")
+                        if (len(meta) != 1 or course_list is None or identities is None
+                                or not isinstance(course_list[0], dict)):
                             raise EvidenceUnavailable("The course catalog is not published.")
-                        catalog.update(rows[0], urls={
+                        catalog.update(meta[0], courses=course_list[0],
+                                       identities=identities[0], urls={
                             c.get("source_record_key"): c.get("url")
-                            for c in (rows[0]["identities"] or {}).get("courses", [])})
+                            for c in (identities[0] or {}).get("courses", [])})
                     return [{"id": f"course:{key}", "source_key": "academic-programs",
                              "source_record_key": key, "course": catalog["courses"][key],
                              "url": catalog["urls"].get(key),
@@ -827,7 +886,7 @@ class PostgresEntityFacts(EntityFacts):
                             for key in keys[:RECORD_COLLECTIONS["courses"] + 1]
                             if isinstance(catalog["courses"].get(key), dict)]
 
-                # The recommended graduation plans are one 8 MB payload, read once per snapshot.
+                # The recommended graduation plans (one 8 MB payload) are kept between questions.
                 plans_read: dict[str, Any] = {}
 
                 def plans(entity: dict[str, Any]) -> list[dict[str, Any]]:
@@ -838,12 +897,15 @@ class PostgresEntityFacts(EntityFacts):
                     if not keys:
                         return []
                     if not plans_read:
-                        rows = read(_GRADUATION_PLANS, (release["dataset_id"],))
-                        if len(rows) != 1 or not isinstance(rows[0]["payload"], dict):
+                        found_plans = artifact("graduation-plans")
+                        if found_plans is None or not isinstance(found_plans[0], dict):
                             raise EvidenceUnavailable("The graduation plans are not published.")
-                        plans_read.update(rows[0], by_id={
-                            p.get("id"): p for p in rows[0]["payload"].get("plans", [])
-                            if isinstance(p, dict)})
+                        meta = read(_GRADUATION_PLANS_META)
+                        plans_read.update(
+                            payload=found_plans[0], content_hash=found_plans[1],
+                            freshness_sla_hours=meta[0]["freshness_sla_hours"] if meta else None,
+                            by_id={p.get("id"): p for p in found_plans[0].get("plans", [])
+                                   if isinstance(p, dict)})
                     return [{"id": f"plan:{key}", "source_key": "graduation-plans",
                              "source_record_key": key, "plan": plans_read["by_id"][key],
                              "collected_at": plans_read["payload"].get("captured_at"),
@@ -852,7 +914,7 @@ class PostgresEntityFacts(EntityFacts):
                             for key in keys[:RECORD_COLLECTIONS["graduation_plans"] + 1]
                             if key in plans_read["by_id"]]
 
-                # The faculty profiles are one payload, read once per snapshot; a profile is
+                # The faculty profiles are one payload, kept between questions; a profile is
                 # keyed by its page and email (or name, where none is published).
                 profiles: dict[str, Any] = {}
 
@@ -864,17 +926,22 @@ class PostgresEntityFacts(EntityFacts):
                     if not keys:
                         return []
                     if not profiles:
-                        rows = read(_FACULTY, (release["dataset_id"],))
-                        if len(rows) != 1 or not isinstance(rows[0]["payload"], list):
+                        found_profiles = artifact("faculty")
+                        if found_profiles is None or not isinstance(found_profiles[0], list):
                             raise EvidenceUnavailable("The faculty profiles are not published.")
+                        meta = read(_FACULTY_META, (release["dataset_id"],))
                         by_key: dict[str, Any] = {}
-                        for item in rows[0]["payload"]:
+                        for item in found_profiles[0]:
                             page = str(item.get("profileUrl") or "").rstrip("/")
                             if item.get("email"):
                                 by_key[f"{page}#email={item['email']}"] = item
                             if item.get("name"):
                                 by_key[f"{page}#name={quote(str(item['name']))}"] = item
-                        profiles.update(rows[0], by_key=by_key)
+                        profiles.update(
+                            payload=found_profiles[0], content_hash=found_profiles[1],
+                            collected_at=meta[0]["collected_at"] if meta else None,
+                            freshness_sla_hours=meta[0]["freshness_sla_hours"] if meta else None,
+                            by_key=by_key)
                     return [{"id": f"faculty:{key}", "source_key": "faculty",
                              "source_record_key": key, "profile": profiles["by_key"][key],
                              "collected_at": profiles["collected_at"],
@@ -913,7 +980,7 @@ class PostgresEntityFacts(EntityFacts):
                     release["identity_hash"],
                     entities,
                     contacts,
-                    release["alias_sources"] or [],
+                    alias_sources or [],
                     schedules,
                     fingerprint,
                     records,
