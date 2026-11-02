@@ -290,6 +290,10 @@ def test_a_dean_a_persons_details_or_a_courses_facts_are_answered_by_code() -> N
     assert code_kind("Who is the dean of the School of Science and Health?", [], None) \
         == "leaders"
     assert code_kind("How do I email Professor Hangen?", [{"id": "p"}], None) is None
+    hangen = [{"id": "p", "name": "Susan Hangen"}]
+    assert code_kind("Who is Professor Hangen?", hangen, None) == "person"
+    assert code_kind("What does Professor Hangen teach?", hangen, None) == "person"
+    assert code_kind("Who is Professor Hangen's advisee?", hangen, None) is None
     assert code_kind("Is CMPS 147 hard?", [], course) is None
     assert code_text([{"fact": "CMPS 147 is 4 credits.", "n": 1},
                       {"fact": "CMPS 147 has no published prerequisites.", "n": 1}]) == (

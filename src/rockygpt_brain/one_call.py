@@ -24,7 +24,7 @@ from rockygpt_brain.events import (
     asks_events,
     plain_window,
 )
-from rockygpt_brain.people import asks_leadership, asks_people
+from rockygpt_brain.people import asks_leadership, asks_people, only_who
 from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 from rockygpt_brain.writer import cited
 
@@ -164,7 +164,8 @@ def routes_here(message: str) -> bool:
 _WHO = re.compile(r"^\W*(?:who|who's|whos)\b")
 _PERSON_ASK = re.compile(r"^\W*(?:what|what's|whats|where|when)\b")
 _PERSON_FIELD = re.compile(
-    r"\b(?:e-?mail|phone|number|office|room|hours|title|department|school)\b")
+    r"\b(?:e-?mail|phone|number|office|room|hours|title|department|school|teach\w*|courses?|"
+    r"class(?:es)?|research\w*|interests?)\b")
 _COURSE_ASK = re.compile(r"^\W*(?:what|what's|whats|how many|does|is|are)\b")
 _COURSE_FACT = re.compile(r"\b(?:credits?|prerequisites?|prereqs?|requisites?|gen ?ed)\b")
 # A how or why asks for more than the facts, as does a second clause ("... and is it hard"); an
@@ -191,7 +192,9 @@ def code_kind(question: str, named_people: Sequence[Any],
         return "club"
     if asks_leadership(text) and _WHO.search(text):
         return "leaders"
-    if len(named_people) == 1 and _PERSON_ASK.search(text) and _PERSON_FIELD.search(text):
+    if len(named_people) == 1 and (
+            (_PERSON_ASK.search(text) and _PERSON_FIELD.search(text))
+            or (_WHO.search(text) and only_who(question, named_people[0]))):
         return "person"
     if (programs and not programs[0] and len(programs[2]) == 1 and _COURSE_ASK.search(text)
             and _COURSE_FACT.search(text)):

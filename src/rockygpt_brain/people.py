@@ -12,6 +12,7 @@ from collections import Counter
 from collections.abc import Sequence
 from typing import Any
 
+from rockygpt_brain.plain_writer import literal
 from rockygpt_brain.retrieval.entity_facts import discovery_tokens
 
 MAX_PEOPLE = 4
@@ -399,11 +400,55 @@ def computed_answers(items: Sequence[dict[str, Any]], message: str,
                 facts.append({"fact": f"{name}'s {label}, {where}: {_value(item[key])}.", "n": n})
             elif key == "office_hours":
                 facts.append({"fact": f"{name}'s faculty profile lists no office hours.", "n": n})
+            elif key in _PROFILE_FIELDS:
+                facts.append({"fact": f"{name}'s faculty profile lists no {label}.", "n": n})
             else:
                 facts.append({"fact": f"Neither the directory nor {name}'s faculty profile "
                                       f"publishes {'an' if label[0] in 'aeiou' else 'a'} "
                                       f"{label}.", "n": n})
     return facts
+
+
+# A question saying nothing but who one named person is ("Who is Professor Haase?") is answered
+# by code, as are the fields a question names (person_text).
+_WHO_FILLER = name_tokens("who whos is was are professor prof dr doctor mr mrs ms miss the at "
+                          "ramapo college here")
+_FIELD_LABELS = {"email": "Email", "phone": "Phone", "office": "Office",
+                 "office_hours": "Office hours", "courses": "Courses on the faculty profile",
+                 "research_interests": "Research interests on the faculty profile"}
+_PROFILE_FIELDS = ("office_hours", "courses", "research_interests")
+
+
+def only_who(message: str, person: dict[str, Any]) -> bool:
+    """Whether a question asks only who one named person is: its words are their name and
+    filler."""
+    return not name_tokens(message) - name_tokens(_name(person)) - _WHO_FILLER
+
+
+def person_text(item: dict[str, Any], message: str) -> str | None:
+    """Code's answer about one person a question names: who they are by the directory (title and
+    school), then each field asked as published, or that it is not published [their number].
+    None for a name only near one in the directory, which the student is asked to confirm."""
+    if item.get("near_spelling_of_asked_name") or not item.get("name"):
+        return None
+    title, school = item.get("title"), _school(item.get("school"))
+    said = [(f"{literal(_name(item))} is {literal(title)}" if title
+             else f"The directory lists {literal(_name(item))} with no title")
+            + (f" in the {literal(school)}." if school else ".")]
+    for key, label in _asked(message):
+        value = item.get(key)
+        if value:
+            shown = "; ".join(re.sub(r"^\s*office hours\s*:\s*", "", str(v), flags=re.I)
+                              for v in (value if isinstance(value, list) else [value]))
+            shown = shown.strip().rstrip(".")
+            said.append(f"{_FIELD_LABELS[key]}: "
+                        f"{shown if key in ('email', 'phone') else literal(shown)}.")
+        elif key in _PROFILE_FIELDS:
+            said.append(f"The faculty profile lists no {label}.")
+        else:
+            said.append(f"Neither the directory nor the faculty profile lists "
+                        f"{'an' if label[0] in 'aeiou' else 'a'} {label}.")
+    return " ".join(said) + f" [{item['n']}]"
 
 
 # A question about who leads a school or a field: its dean, or a department's chair or head.

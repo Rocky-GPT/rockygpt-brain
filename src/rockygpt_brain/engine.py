@@ -2246,6 +2246,20 @@ class ChatEngine:
                             self._read_people, named_people, len(sources))
                     sources = [*sources, *found_people]
                     dataset_version = dataset_version or self.facts.active_release()[0]
+                # A dean, or one person's title and fields: said by code before any search.
+                if kind in ("leaders", "person"):
+                    with measure("Work out the people facts"):
+                        found, people_facts, found_people = await asyncio.to_thread(
+                            self._people_computed, latest, people, bool(named_people),
+                            len(sources))
+                    said = (one_call.code_text(people_facts) if kind == "leaders" else
+                            people_module.person_text(found[0], latest)
+                            if len(found) == 1 and one_call.code_text(people_facts) else None)
+                    if done := self._code_answer(
+                            turn, trace, said, [*sources, *found_people],
+                            dataset_version or self.facts.active_release()[0], people=found,
+                            computed=people_facts):
+                        return done
                 if searchable:
                     assert index is not None and embed_many is not None
                     with measure("Embed the question's parts"):
@@ -2367,11 +2381,6 @@ class ChatEngine:
                             len(sources))
                     sources = [*sources, *found_people]
                     computed = [*computed, *people_facts]
-                    if kind in ("leaders", "person") and (done := self._code_answer(
-                            turn, trace, one_call.code_text(people_facts), sources,
-                            dataset_version or self.facts.active_release()[0], people=people,
-                            computed=people_facts)):
-                        return done
                 if clubs and len(clubs) <= 3 and events.asks_club_events(latest):
                     club_lines, club_facts, found_events = await asyncio.to_thread(
                         self._club_events, clubs, turn.campus_now, len(sources))

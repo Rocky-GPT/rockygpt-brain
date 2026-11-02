@@ -13,6 +13,8 @@ from rockygpt_brain.people import (
     leaders,
     listed,
     narrow,
+    only_who,
+    person_text,
     schools_of,
     teachers,
 )
@@ -278,3 +280,25 @@ def test_an_unusual_last_name_or_a_middle_initial_needs_no_people_word() -> None
          "courses": ["Introduction to Sociology"]},
         *({"id": f"x{n}", "name": f"P {n}", "title": "Professor of Art"} for n in range(6))]
     assert [p["id"] for p in teachers(directory, "who teaches intro to sociology?")] == ["r"]
+
+
+def test_who_a_person_is_and_the_fields_asked_are_said_neatly_by_code() -> None:
+    abzug = {"n": 1, "name": "Rikki Abzug", "title": "Professor of Management",
+             "school": "Anisfield School of Business", "email": "rabzug@ramapo.edu",
+             "phone": "(201) 684-7392", "office": "ASB-107",
+             "office_hours": ["Office Hours: Monday 10:30 AM-1:00 PM."]}
+    assert only_who("Who is Professor Abzug?", abzug)
+    assert not only_who("Who is Rikki Abzug's advisor?", abzug)  # Something more is asked.
+    assert person_text(abzug, "Who is Rikki Abzug?") == (
+        "Rikki Abzug is Professor of Management in the Anisfield School of Business. Email: "
+        "rabzug@ramapo.edu. Phone: (201) 684-7392. Office: ASB-107. [1]")
+    assert person_text(abzug, "What are Professor Abzug's office hours?") == (
+        "Rikki Abzug is Professor of Management in the Anisfield School of Business. Office "
+        "hours: Monday 10:30 AM-1:00 PM. [1]")
+    assert person_text(abzug, "What does Professor Abzug teach?") == (
+        "Rikki Abzug is Professor of Management in the Anisfield School of Business. The "
+        "faculty profile lists no courses. [1]")
+    # A name only near one in the directory is confirmed with the student first.
+    assert person_text({**abzug, "near_spelling_of_asked_name": True}, "Who is Abzog?") is None
+    facts = [f["fact"] for f in computed_answers([abzug], "what does abzug teach", [])]
+    assert facts[-1] == "Rikki Abzug's faculty profile lists no courses."
