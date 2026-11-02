@@ -391,8 +391,10 @@ INACTIVE = {"state": "inactive", "as_of": "2025-06-12", "evidence": [
 
 
 def test_whether_a_club_exists_says_the_directory_and_an_inactive_page_beside_it() -> None:
-    clubs = [{"id": "m", "name": "Math Club"}, {"id": "c", "name": "Chess Club"}]
+    clubs = [{"id": "m", "name": "Math Club"}, {"id": "c", "name": "Ramapo College Chess Club"}]
     assert club_named("Is there a math club?", clubs) == {"id": "m", "name": "Math Club"}
+    # The college's own name before a club's is not needed to name it.
+    assert club_named("Is there a chess club?", clubs) == clubs[1]
     assert club_named("Is there a math club for girls?", clubs) is None  # Asks more.
     math = {"n": 1, "name": "Math Club", "category": "Student Organization",
             "mission": "We share an interest in the mathematical sciences. We meet.",

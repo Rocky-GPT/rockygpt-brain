@@ -128,11 +128,27 @@ def _day(value: str) -> str:
     return f"{day:%A, %B} {day.day}, {day.year}"
 
 
+# An entry's time as the calendar publishes it: a whole day ("12:00 am - 11:59 pm") says nothing
+# its day does not, and a span of days ("December 09, 12:00 am -- December 15, 11:59 pm") is
+# said by its last day.
+_WHOLE_DAY = re.compile(r"^12:00 am(?:\s*-\s*11:59 pm)?$", re.I)
+_DAY_SPAN = re.compile(r"^\w+ \d{1,2}, 12:00 am\s*--\s*(\w+) 0?(\d{1,2}), 11:59 pm$", re.I)
+
+
+def _time(value: Any) -> str:
+    text = " ".join(str(value or "").split())
+    if not text or _WHOLE_DAY.match(text):
+        return ""
+    if span := _DAY_SPAN.match(text):
+        return f" (through {span.group(1)} {span.group(2)})"
+    return f" ({literal(text)})"
+
+
 def calendar_text(term: dict[str, Any], entries: Sequence[dict[str, Any]]) -> str | None:
     """Code's answer: the entries asked, each with its day, title and time as the term's academic
     calendar lists them [1]. None when there are none (the model reads the pages then)."""
     if not entries:
         return None
-    lines = [f"- {_day(str(e['date']))}: {literal(e['title'])}"
-             + (f" ({literal(e['time'])})" if e.get("time") else "") for e in entries]
+    lines = [f"- {_day(str(e['date']))}: {literal(e['title'])}{_time(e.get('time'))}"
+             for e in entries]
     return "\n".join([f"The {literal(term['name'])} academic calendar lists [1]:", *lines])
