@@ -48,6 +48,7 @@ from rockygpt_brain.contract import (
 )
 from rockygpt_brain.fact_packet import PacketInvalid, build_packet
 from rockygpt_brain.hours_on import DAY_CHOICES, target_date
+from rockygpt_brain.plain_writer import plain_text
 from rockygpt_brain.provider import Completion, GatewayError, TurnBudget
 from rockygpt_brain.retrieval import (
     DatasetChanged,
@@ -1222,7 +1223,7 @@ class ChatEngine:
     def __init__(self, gateway: ModelGateway, facts: EntityFacts, *,
                  turn_seconds: float = TURN_SECONDS, max_turn_nusd: int = 25_000_000,
                  output: Literal["text", "json", "written"] = "text",
-                 howto_one_call: bool | None = None) -> None:
+                 howto_one_call: bool | None = None, lookup_writer: bool | None = None) -> None:
         self.gateway, self.facts = gateway, facts
         # A how-to or policy question answered by one model call from code-found evidence
         # (one_call.py) instead of the four-call loop; off unless BRAIN_HOWTO_ONE_CALL=1.
@@ -1233,6 +1234,11 @@ class ChatEngine:
         # "written": the same, and a writer with only the writer view says them; a reply the
         # verifier cannot hold to the view is replaced by the code-written text.
         self.output = output
+        # Who writes a lookup answer (hours, contacts, rooms, menus): code's plain sentences from
+        # the writer view (plain_writer.py), or a model with BRAIN_LOOKUP_WRITER=1. Dan 11-02: code,
+        # the same every time and never a made-up word; an AI layer can come back later.
+        self.lookup_writer = (os.environ.get("BRAIN_LOOKUP_WRITER") == "1"
+                              if lookup_writer is None else lookup_writer)
         # Every person's and club's directory entry for list questions, read once per release.
         self._directory_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
@@ -3342,7 +3348,8 @@ class ChatEngine:
     async def _written(self, result: ChatResult, code_text: str, budget: TurnBudget,
                        trace: dict[str, Any], language: str | None = None,
                        lead: str = "") -> ChatResult:
-        """Let a writer with only the writer view say the facts; keep the code's text if it slips.
+        """Let a writer with only the writer view say the facts (code's plain sentences, or a model
+        with lookup_writer); keep the code's evidence text if it slips or cannot say them.
 
         An emergency, a question back and fixed wording stay the code's own words. An emergency
         beside facts the student asked for (Dan 10-20: crisis first, then policy) keeps its text
@@ -3364,18 +3371,25 @@ class ChatEngine:
         emergency = packet.get("status") == "emergency"
         if not says_something(view) or emergency and not lead:
             return keep("nothing_to_write")
-        # The writer's one call is its own: lookups that used the turn's calls leave it one more
-        # (the cost limit still holds), so a long how-to turn is still written, not the code's text.
-        budget.max_calls = max(budget.max_calls, budget.calls + 1)
-        with measure("Write the answer from the facts"):
-            try:
-                completion = await self.gateway.complete(
-                    input=writer_messages(view, language), tools=[WRITE_TOOL], budget=budget)
-                call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
-                said = call.arguments.get("text") if call and call.name == "write_answer" else None
-            except (GatewayError, TimeoutError) as error:
-                # Which failure, for the inspector: a timeout, the turn's deadline, a cut reply.
-                return keep("writer_unavailable", error=getattr(error, "code", "timeout"))
+        if not self.lookup_writer:
+            with measure("Write the answer from the facts in code's words"):
+                said = plain_text(view)
+            if said is None:
+                return keep("plain_writer_cannot_say")
+        else:
+            # The writer's one call is its own: lookups that used the turn's calls leave it one
+            # more (the cost limit still holds), so a long how-to turn is still written.
+            budget.max_calls = max(budget.max_calls, budget.calls + 1)
+            with measure("Write the answer from the facts"):
+                try:
+                    completion = await self.gateway.complete(
+                        input=writer_messages(view, language), tools=[WRITE_TOOL], budget=budget)
+                    call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
+                    said = (call.arguments.get("text")
+                            if call and call.name == "write_answer" else None)
+                except (GatewayError, TimeoutError) as error:
+                    # Which failure, for the inspector: a timeout, the turn's deadline, a cut reply.
+                    return keep("writer_unavailable", error=getattr(error, "code", "timeout"))
         if not isinstance(said, str) or not said.strip():
             return keep("no_text")
         if len(said) >= WRITER_TEXT_LIMIT:
@@ -3394,7 +3408,7 @@ class ChatEngine:
         sources = [f"[{s['n']}]({s['urls'][0]})" for s in view.get("sources", []) if s.get("urls")]
         text = "\n\n".join([*([lead] if emergency else []), said.strip(), *fixed,
                             *([("Sources: " + " ".join(sources))] if sources else [])])
-        trace["writer"] = {"used": True}
+        trace["writer"] = {"used": True, **({} if self.lookup_writer else {"by": "code"})}
         return replace(result, body={**result.body, "answer": text})
 
     @measure("Compose partial or failed response")

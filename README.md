@@ -202,7 +202,13 @@ writing model yet). `answer` is `""`; `status`, `citations`, `datasetVersion` an
 as in text mode, and the body gains `facts` (the packet). Errors are unchanged, and text mode stays
 the default, so the student UI is unaffected. `GET /v1/dev/runtime` reports `output`.
 
-With `BRAIN_OUTPUT=written` the same packet is said by a writer (`src/rockygpt_brain/writer.py`):
+With `BRAIN_OUTPUT=written` the same packet is said by a writer. Since 2026-11-02 (Dan: plain code
+sentences now, an AI layer later if needed) that writer is code: `src/rockygpt_brain/plain_writer.py`
+says the shapes it knows (a day's hours and whether it is open now, a week, phones, emails, rooms,
+contact notes, a menu, what is not published or unknown) in plain sentences with their source
+marks, and leaves anything else (a conflict, an ambiguity, the shuttle, a menu filter) to the
+code-written evidence text. With `BRAIN_LOOKUP_WRITER=1` the writer is a model
+(`src/rockygpt_brain/writer.py`):
 one model call that is handed only `writerInput` (no tools, no conversation, not even the
 question) and returns text. A verifier then holds the text to the view: every email and web
 address must be in it, every phone number must be one it holds (in any punctuation), and every
