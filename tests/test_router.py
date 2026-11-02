@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from rockygpt_brain.router import code_route
+from rockygpt_brain.router import code_route, shuttle_route
 
 OFFICES: list[dict[str, Any]] = [
     {"name": "Registrar"}, {"name": "Library"}, {"name": "Counseling Center"},
@@ -53,3 +53,17 @@ def test_anything_code_is_not_sure_of_is_left_to_the_model() -> None:
     assert route("What is the menu at the Library?") is None  # an office has no menu
     assert route("How do I apply for Scholarships?") is None  # a topic's page is read
     assert route("What is for dinner tonight?") is None  # no place named
+
+
+def test_a_plain_next_first_or_last_shuttle_question_is_routed_by_code() -> None:
+    assert shuttle_route("When is the last shuttle tonight?") == {
+        "requests": [{"stop": None, "which": "last", "day": None}]}
+    assert shuttle_route("What time does the first bus leave campus tomorrow?") == {
+        "requests": [{"stop": None, "which": "first", "day": "tomorrow"}]}
+    assert shuttle_route("when is the next shuttle on saturday") == {
+        "requests": [{"stop": None, "which": "next", "day": "saturday"}]}
+    for more in ("When is the last shuttle to the train station?",  # A stop: the model matches it.
+                 "When is the last shuttle after my 6pm class?",
+                 "When does the shuttle run?",  # No next, first or last.
+                 "What's the first and last shuttle today?"):
+        assert shuttle_route(more) is None, more

@@ -102,3 +102,30 @@ def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
     if meal and "menu" in fields:
         request["meal"] = meal
     return {"requests": [request]}
+
+
+# A plain shuttle question naming no stop or route ("when is the last shuttle tonight?", "what
+# time does the first bus leave campus tomorrow?"): the timetable lookup the model would pick.
+# Every trip leaves from campus, so no stop is any trip. A stop, a route, a clock time or any other
+# word is left to the model, which matches places to the published stops.
+_SHUTTLE = re.compile(r"\b(?:shuttles?|bus|buses)\b")
+_WHICH = (("next", re.compile(r"\bnext\b")), ("first", re.compile(r"\b(?:first|earliest)\b")),
+          ("last", re.compile(r"\b(?:last|latest)\b")))
+_SHUTTLE_PLAIN = frozenset("""
+when what whats is are does do the a time shuttle shuttles bus buses next first last earliest
+latest leave leaves leaving depart departs departure come comes run runs running from campus
+ramapo college today tonight tomorrow on this
+""".split())
+
+
+def shuttle_route(message: str) -> dict[str, Any] | None:
+    """The shuttle_lookup arguments for a plain next, first or last shuttle question, or None."""
+    words = _words(message)
+    text = " ".join(words)
+    which = [name for name, pattern in _WHICH if pattern.search(text)]
+    days = [w for w in words if w in _WEEKDAYS]
+    if (not _SHUTTLE.search(text) or len(which) != 1 or len(days) > 1
+            or any(w not in _SHUTTLE_PLAIN and w not in _WEEKDAYS for w in words)):
+        return None
+    day = days[0] if days else "tomorrow" if "tomorrow" in words else None
+    return {"requests": [{"stop": None, "which": which[0], "day": day}]}
