@@ -2259,6 +2259,10 @@ class ChatEngine:
                     said = (one_call.code_text(people_facts) if kind == "leaders" else
                             people_module.person_text(found[0], latest)
                             if len(found) == 1 and one_call.code_text(people_facts) else None)
+                    if said and kind == "leaders" and one_call.asks_reach(latest):
+                        led = {f.get("n") for f in people_facts}
+                        reach = [people_module.contact_text(p) for p in found if p.get("n") in led]
+                        said = " ".join([said, *(r for r in reach if r)]) if any(reach) else None
                     if done := self._code_answer(
                             turn, trace, said, [*sources, *found_people],
                             dataset_version or self.facts.active_release()[0], people=found,

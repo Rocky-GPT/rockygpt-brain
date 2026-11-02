@@ -169,6 +169,17 @@ _PERSON_FIELD = re.compile(
 _COURSE_ASK = re.compile(r"^\W*(?:what|what's|whats|how many|does|is|are)\b")
 _COURSE_WHAT = re.compile(r"^\W*(?:what(?:'s|’s|s| is)|tell me about|describe)\b")
 _COURSE_FACT = re.compile(r"\b(?:credits?|prerequisites?|prereqs?|requisites?|gen ?ed)\b")
+# "...and how do I reach them?" after a leadership question asks for the leader's contacts.
+_REACH = re.compile(r"\band (?:how (?:do|can|would|should) i (?:reach|contact|email|call|get in "
+                    r"touch with) (?:them|him|her|the dean|the chair)|what(?:'s| is| are) "
+                    r"(?:their|his|her) (?:e-?mail|phone(?: number)?|number|office|contact"
+                    r"(?: info(?:rmation)?)?))\W*$")
+
+
+def asks_reach(question: str) -> bool:
+    return bool(_REACH.search(question.casefold()))
+
+
 # A how or why asks for more than the facts, as does a second clause ("... and is it hard"); an
 # "and" inside a name does not ("School of Social Science and Human Services").
 _MORE = re.compile(r"\b(?:how do|how can|why|should|can i|could i)\b|\b(?:and|also|plus)\s+"
@@ -183,6 +194,11 @@ def code_kind(question: str, named_people: Sequence[Any],
               programs: tuple[Sequence[Any], Sequence[Any], Sequence[Any]] | None) -> str | None:
     """Which code-answered question this is, or None when the model should write it."""
     text = question.casefold()
+    # Who leads a school, and how to reach them: the dean's directory contacts are code's too.
+    if ((reach := _REACH.search(text)) and _WHO.search(text)
+            and asks_leadership(about_named(question, named_people))
+            and not _MORE.search(text[:reach.start()])):
+        return "leaders"
     # Only what is on in a window ("what can I do this weekend"): its every word is a plain one.
     if not named_people and not (programs and any(programs)) and plain_window(question):
         return "events"

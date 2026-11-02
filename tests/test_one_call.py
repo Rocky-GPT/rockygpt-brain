@@ -287,7 +287,9 @@ def test_a_dean_a_persons_details_or_a_courses_facts_are_answered_by_code() -> N
     assert code_kind("What is Professor Hangen's email?", [{"id": "p"}], None) == "person"
     assert code_kind("How many credits is CMPS 147?", [], course) == "course"
     # Asked with something more, or how to do something, the model writes it.
-    assert code_kind("Who is the dean and how do I reach them?", [], None) is None
+    # How to reach the dean is the dean's directory contacts, which code says too.
+    assert code_kind("Who is the dean and how do I reach them?", [], None) == "leaders"
+    assert code_kind("Who is the dean and how do I get a waiver?", [], None) is None
     assert code_kind("Who is the dean of the School of Science and Health?", [], None) \
         == "leaders"
     assert code_kind("How do I email Professor Hangen?", [{"id": "p"}], None) is None

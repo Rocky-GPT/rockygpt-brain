@@ -425,6 +425,14 @@ def only_who(message: str, person: dict[str, Any]) -> bool:
     return not name_tokens(about_named(message, [person])) - _WHO_FILLER
 
 
+def contact_text(item: dict[str, Any]) -> str | None:
+    """A person's directory contacts in code's words ("Email: ... Phone: ... Office: ... [n]"),
+    or None when the directory publishes none."""
+    said = [f"{_FIELD_LABELS[key]}: {item[key] if key != 'office' else literal(item[key])}."
+            for key in _CONTACT_FIELDS if item.get(key)]
+    return " ".join(said) + f" [{item['n']}]" if said else None
+
+
 def person_text(item: dict[str, Any], message: str) -> str | None:
     """Code's answer about one person a question names: who they are by the directory (title and
     school), then each field asked as published, or that it is not published [their number].
@@ -521,8 +529,7 @@ def leaders(directory: Sequence[dict[str, Any]], message: str,
             return [(f"The directory lists no one with the title Dean of the {of}.", None),
                     *[(f"{_name(e)} has the directory title {e['title']}.", e) for e in titled]]
         heads: list[tuple[str, dict[str, Any] | None]] = [
-            (f"The dean of the {of}, by the directory, is {_name(e)} (directory title: "
-             f"{e['title']}).", e) for e in lead]
+            (f"The dean of the {of} is {_name(e)} ({e['title']}).", e) for e in lead]
         return heads + out
     dean_asked = bool(re.search(r"\bdeans?\b", fold(message).casefold()))
     if named and dean_asked:

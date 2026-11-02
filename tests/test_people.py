@@ -10,6 +10,7 @@ from rockygpt_brain.people import (
     asks_people_topic,
     by_meaning,
     computed_answers,
+    contact_text,
     find_people,
     leaders,
     listed,
@@ -182,8 +183,8 @@ def test_deans_and_chairs_come_from_directory_titles() -> None:
     schools = schools_of(DIRECTORY, OFFICES)
     assert schools["School of Science, Nursing, and Health"] >= {"snh", "nursing"}
     lines = [line for line, _ in leaders(DIRECTORY, "who is the dean of sssw", schools)]
-    assert lines[0].startswith("The dean of the School of Social Sciences and Social Work, by "
-                               "the directory, is Susan Hangen")
+    assert lines[0].startswith("The dean of the School of Social Sciences and Social Work is "
+                               "Susan Hangen (")
     assert lines[1].startswith("Kathleen Ray is also listed in the directory, as Interim Dean")
     nursing = [line for line, _ in leaders(DIRECTORY, "who is the chair of nursing", schools)]
     assert nursing == ["Kathleen M. Burke's directory title names nursing with a leadership "
@@ -192,8 +193,8 @@ def test_deans_and_chairs_come_from_directory_titles() -> None:
     assert biology[:2] == [
         "No directory title names a chair, head, convener, director or dean for biology.",
         "The directory's biology faculty are in the School of Science, Nursing, and Health."]
-    assert biology[2].startswith("The dean of the School of Science, Nursing, and Health, by "
-                                 "the directory, is Benny Chan")
+    assert biology[2].startswith("The dean of the School of Science, Nursing, and Health is "
+                                 "Benny Chan (")
     assert asks_leadership("who's the dean of the business school")
     assert asks_people("professor abzug office hours")
     assert not asks_people("What are the Student Accounts office hours?")
@@ -219,10 +220,10 @@ def test_a_school_named_by_another_name_its_identity_has_gets_its_deans() -> Non
     assert lines[0] == ('"School of Social Science and Human Services" is another name the '
                         "college's records give 2 schools: the School of Social Sciences and "
                         "Social Work and the School of Arts, Humanities, and Education.")
-    assert lines[1].startswith("The dean of the School of Social Sciences and Social Work, by "
-                               "the directory, is Susan Hangen")
-    assert any(line.startswith("The dean of the School of Arts, Humanities, and Education, by "
-                               "the directory, is Ken Goldstein") for line in lines)
+    assert lines[1].startswith("The dean of the School of Social Sciences and Social Work is "
+                               "Susan Hangen (")
+    assert any(line.startswith("The dean of the School of Arts, Humanities, and Education is "
+                               "Ken Goldstein (") for line in lines)
     assert not any("Benny Chan" in line for line in lines)
     # A school's own name is no other name.
     named = [line for line, _ in leaders(
@@ -327,3 +328,11 @@ def test_who_teaches_a_subject_matches_what_people_teach_and_the_whole_phrase() 
         "Ann Byte"]
     assert [e["name"] for e in teachers(directory, "Who researches machine learning?")] == [
         "Di Learn"]
+
+
+def test_a_persons_directory_contacts_are_said_by_code() -> None:
+    petkus = {"n": 2, "name": "Ed Petkus", "email": "epetkus@ramapo.edu",
+              "phone": "(201) 684-7377", "office": "ASB-333"}
+    assert contact_text(petkus) == (
+        "Email: epetkus@ramapo.edu. Phone: (201) 684-7377. Office: ASB-333. [2]")
+    assert contact_text({"n": 3, "name": "No Contacts"}) is None
