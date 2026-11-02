@@ -574,6 +574,10 @@ page pages section sections site sites source sources verified information offic
 publish publishes college ramapo office offices contact contacts email phone call visit student
 students you're it's don't doesn't isn't aren't can't won't i'm we our us please need needs
 able like way ways first next last new also yes include includes including part parts asked ask
+handle handles handled handling offer offers offered provide provides provided describe describes
+described mean means meaning allow allows tell tells told try tries help helps helping her his
+him she hers own well officially according different differ differs difference either whether
+regarding related another both
 """.split())
 
 
@@ -594,16 +598,20 @@ def unbacked(text: str, evidence: dict[int, str], shared: str) -> list[dict[str,
     the question, fixed wording) hold: what the every-word check would cut."""
     held_shared = _content(shared)
     found = []
-    for piece in statements(text):
-        statement = piece.strip()
-        if not statement or statement.startswith("Sources:"):
-            continue
-        marks = cited(statement)
-        held = held_shared.union(*(_content(evidence.get(n, "")) for n in marks))
-        words = sorted(_content(re.sub(r"\[[\d,\s–-]+\]", "", statement)) - held)
-        if words:
-            found.append({"statement": statement[:240], "words": words[:12],
-                          **({} if marks else {"uncited": True})})
+    # A mark covers its paragraph or list: the model cites a list's steps or a paragraph's
+    # sentences once, at its end (88 of 124 statements flagged on 11-02 had no mark of their own).
+    for paragraph in text.split("\n\n"):
+        block = cited(paragraph)
+        for piece in statements(paragraph):
+            statement = piece.strip()
+            if not statement or statement.startswith("Sources:"):
+                continue
+            marks = cited(statement) or block
+            held = held_shared.union(*(_content(evidence.get(n, "")) for n in marks))
+            words = sorted(_content(re.sub(r"\[[\d,\s–-]+\]", "", statement)) - held)
+            if words:
+                found.append({"statement": statement[:240], "words": words[:12],
+                              **({} if marks else {"uncited": True})})
     return found
 
 

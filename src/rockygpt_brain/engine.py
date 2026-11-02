@@ -2459,7 +2459,8 @@ class ChatEngine:
         flagged = one_call.unbacked(text.split("\n\nSources:")[0], one_call.evidence_by_mark(
             offices, computed, people, academic, calendar_events, clubs), shared)
         trace["wordCheck"] = {"statements": sum(1 for p in one_call.statements(text)
-                                                if p.strip()), "flagged": flagged[:10]}
+                                                if p.strip()),
+                              "flaggedTotal": len(flagged), "flagged": flagged[:10]}
         trace.update(decidedBy="one_call", modelCalls=budget.calls,
                      committedNusd=budget.committed_nusd, writer={"used": True},
                      oneCall={"parts": len(vectors), "sections": len(sources),

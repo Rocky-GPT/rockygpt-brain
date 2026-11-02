@@ -318,4 +318,15 @@ def test_the_every_word_check_lists_words_the_cited_facts_do_not_hold() -> None:
     # A word no cited fact holds ("free") is listed, and so is an uncited statement's.
     assert unbacked("Transcripts are free. [1] Pickup is same day.", evidence, shared) == [
         {"statement": "Transcripts are free. [1]", "words": ["free"]},
-        {"statement": "Pickup is same day.", "words": ["day", "pickup"], "uncited": True}]
+        {"statement": "Pickup is same day.", "words": ["day", "pickup"]}]
+
+
+def test_a_mark_covers_its_paragraph_and_rewording_words_do_not_count() -> None:
+    from rockygpt_brain.one_call import evidence_by_mark, unbacked
+    offices = [{"office": "Registrar", "email": [], "phones": [], "rooms": [], "sections": [
+        {"n": 1, "heading": "Steps", "text": "Fill out the form. Email it to the office."}]}]
+    evidence = evidence_by_mark(offices, [])
+    assert unbacked("The Registrar handles it.\n1. Fill out the form.\n2. Email it. [1]",
+                    evidence, "") == []
+    assert unbacked("Fill out the form. [1]\n\nIt costs nothing.", evidence, "") == [
+        {"statement": "It costs nothing.", "words": ["cost", "noth"], "uncited": True}]
