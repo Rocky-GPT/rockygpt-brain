@@ -34,8 +34,11 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'  # what the production image runs (Dockerfile)
+      - run: pip install --require-hashes -r requirements.lock
       - run: pip install -e '.[dev,graph]'
+      - name: Same Python and package versions as production
+        run: python scripts/check_environment.py
       - run: ruff check .
       - run: mypy src tests scripts
       - run: pytest -q

@@ -5,10 +5,13 @@ FROM python:3.13-slim AS builder
 
 WORKDIR /build
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md requirements.lock ./
 COPY src ./src
 
-RUN python -m pip install --no-cache-dir --prefix=/install .
+# Exactly the locked versions (hash-checked), the same ones the laptop and CI install, then the
+# Brain itself without letting pip pick any newer dependency.
+RUN python -m pip install --no-cache-dir --prefix=/install --require-hashes -r requirements.lock \
+ && python -m pip install --no-cache-dir --prefix=/install --no-deps .
 
 FROM python:3.13-slim AS runtime
 
