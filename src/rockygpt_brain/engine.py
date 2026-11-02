@@ -49,7 +49,7 @@ from rockygpt_brain.contract import (
 from rockygpt_brain.fact_packet import PacketInvalid, build_packet
 from rockygpt_brain.hours_on import DAY_CHOICES, target_date
 from rockygpt_brain.plain_writer import plain_text
-from rockygpt_brain.provider import Completion, GatewayError, TurnBudget
+from rockygpt_brain.provider import Completion, GatewayError, ToolCall, TurnBudget
 from rockygpt_brain.retrieval import (
     DatasetChanged,
     EntityFacts,
@@ -60,6 +60,7 @@ from rockygpt_brain.retrieval import (
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
 from rockygpt_brain.retrieval.entity_facts import discovery_tokens
 from rockygpt_brain.retrieval.meaning import MeaningIndex
+from rockygpt_brain.router import code_route
 from rockygpt_brain.shuttle import (
     SCOPE_TEXT,
     SPECIAL_TEXT,
@@ -2885,17 +2886,32 @@ class ChatEngine:
                 [context.latest_message, *(m.content for m in context.recent_messages[-2:])])
         attempts = 0
         finish: Finish | None = None
+        # A plain lookup of one listed office or venue is routed by code, and its one lookup is
+        # all that is asked, so no model call is made (router.py; Dan 11-02).
+        plan = (code_route(context.latest_message, offices, venues)
+                if self.output == "written" and not context.recent_messages
+                and floor_situation is None and not names_a_danger(context.latest_message)
+                else None)
+        if plan is not None:
+            trace["decidedBy"] = "code"
         try:
             async with asyncio.timeout(self.turn_seconds):
                 while finish is None:
-                    with measure(f"Model call {budget.calls + 1}"):
-                        completion = await self.gateway.complete(
-                            input=inputs, tools=TOOLS, budget=budget)
-                    with measure("Validate model decision and tool arguments"):
+                    if plan is not None and results:
+                        finish = Finish(parts=[])
+                        trace["finish"] = []
+                        continue
+                    if plan is not None:
+                        call = ToolCall("code-route", "graph_lookup", plan)
+                    else:
+                        with measure(f"Model call {budget.calls + 1}"):
+                            completion = await self.gateway.complete(
+                                input=inputs, tools=TOOLS, budget=budget)
                         if len(completion.tool_calls) != 1 or completion.text.strip():
                             raise GatewayError("provider_invalid_response")
                         call = completion.tool_calls[0]
                         inputs.extend(completion.output)
+                    with measure("Validate model decision and tool arguments"):
                         if call.name == "finish":
                             finish = Finish.model_validate(call.arguments)
                             trace["finish"] = [part.kind for part in finish.parts]
