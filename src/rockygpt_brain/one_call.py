@@ -18,7 +18,7 @@ from datetime import date
 from typing import Any
 
 from rockygpt_brain.academics import asks_academics
-from rockygpt_brain.events import asks_clubs, asks_events
+from rockygpt_brain.events import asks_clubs, asks_events, plain_window
 from rockygpt_brain.people import asks_leadership, asks_people
 from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 from rockygpt_brain.writer import cited
@@ -176,6 +176,9 @@ def code_kind(question: str, named_people: Sequence[Any],
               programs: tuple[Sequence[Any], Sequence[Any], Sequence[Any]] | None) -> str | None:
     """Which code-answered question this is, or None when the model should write it."""
     text = question.casefold()
+    # Only what is on in a window ("what can I do this weekend"): its every word is a plain one.
+    if not named_people and not (programs and any(programs)) and plain_window(question):
+        return "events"
     if _MORE.search(text):
         return None
     if asks_leadership(text) and _WHO.search(text):
