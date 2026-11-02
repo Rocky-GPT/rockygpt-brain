@@ -7,7 +7,8 @@ the graph never chooses, merges, or normalizes a value; the reader still resolve
 unknowns, and date boundaries. A file is built once per release, never edited, and opened
 read-only, so a turn's release pins mean what they mean on Postgres.
 
-Only entity kinds the reader serves get evidence (see BUILT_KINDS). Asking the graph for the
+Every entity kind the release holds gets evidence (BUILT_KINDS is None: no hand-written list, so
+a kind the data adds is never left out). Asking the graph for the
 evidence of any other kind fails loudly instead of answering "none".
 
 The copy is built in the background. Until it is ready, and whenever it cannot be built or read,
@@ -43,8 +44,8 @@ from rockygpt_brain.retrieval.meaning import MEANING_SUFFIX, VECTORS_SUFFIX, Mea
 LOG = logging.getLogger(__name__)
 
 GRAPH_FORMAT = "2"
-BUILT_KINDS = ("office", "venue", "route", "topic", "program", "course", "event", "club",
-               "organization", "person")
+# None: every kind in the release. A graph built from an explicit list holds only those kinds.
+BUILT_KINDS: tuple[str, ...] | None = None
 CONTACTS = "contacts"
 SCHEDULES = "campus_hours"
 RETRY_SECONDS = 60.0  # After a failed build or read, answer from the source for this long.
@@ -169,7 +170,7 @@ def _remove(path: Path) -> None:
 
 
 def build_release_graph(
-    source: EntityFacts, directory: Path | str, *, kinds: tuple[str, ...] = BUILT_KINDS,
+    source: EntityFacts, directory: Path | str, *, kinds: tuple[str, ...] | None = BUILT_KINDS,
 ) -> Path:
     """Write the source's active release as one graph file and return its path.
 
@@ -204,7 +205,10 @@ def build_release_graph(
     meta = {
         "format": GRAPH_FORMAT, "dataset_version": inputs.dataset_version,
         "identity_hash": inputs.identity_hash, "fingerprint": inputs.fingerprint,
-        "kinds": json.dumps(list(kinds)), "alias_sources": _dumps(inputs.alias_sources),
+        "kinds": json.dumps(sorted(kinds) if kinds is not None
+                            else sorted({entity["kind"] for entity in inputs.entities})),
+        "all_kinds": "1" if kinds is None else "0",
+        "alias_sources": _dumps(inputs.alias_sources),
         "entity_count": str(len(inputs.entities)), "record_count": str(len(records)),
         "built_at": datetime.now(UTC).isoformat(),
     }
@@ -282,6 +286,8 @@ class GraphEntityFacts(EntityFacts):
             self.identity_hash: str = meta["identity_hash"]
             self.fingerprint: str = meta["fingerprint"]
             self.kinds: tuple[str, ...] = tuple(json.loads(meta["kinds"]))
+            # Built for every kind in its release, not a chosen few (older files say nothing).
+            self.all_kinds = meta.get("all_kinds") == "1"
             self._alias_sources = meta["alias_sources"]
         except (KeyError, ValueError) as exc:
             raise GraphUnavailable("The release graph is missing its release details.") from exc
@@ -359,7 +365,7 @@ class ReleaseGraphFacts(EntityFacts):
 
     def __init__(
         self, source: EntityFacts, directory: Path | str, *,
-        kinds: tuple[str, ...] = BUILT_KINDS, fallback: bool = True,
+        kinds: tuple[str, ...] | None = BUILT_KINDS, fallback: bool = True,
         wait_seconds: float = STRICT_WAIT_SECONDS,
         clock: Callable[[], float] = time.monotonic,
         now: Callable[[], datetime] | None = None,
@@ -476,7 +482,8 @@ class ReleaseGraphFacts(EntityFacts):
             LOG.warning("brain_graph_unreadable_file_rebuilt")
             return None
         if ((graph.dataset_version, graph.identity_hash) != release
-                or not set(self.kinds) <= set(graph.kinds)
+                or (not graph.all_kinds if self.kinds is None
+                    else not set(self.kinds) <= set(graph.kinds))
                 or graph.fingerprint != self.source.evidence_fingerprint()):
             return None
         return graph
@@ -552,7 +559,7 @@ class ReleaseGraphFacts(EntityFacts):
 
 
 def publish_release_graph(
-    source: EntityFacts, directory: Path | str, *, kinds: tuple[str, ...] = BUILT_KINDS,
+    source: EntityFacts, directory: Path | str, *, kinds: tuple[str, ...] | None = BUILT_KINDS,
 ) -> Path:
     """Build the source's active release and make it the one a graph-only Brain serves.
 

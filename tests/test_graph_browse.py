@@ -85,3 +85,29 @@ def test_unknown_nodes_and_old_pins_are_refused() -> None:
             browse(graph, node)
     with pytest.raises(DatasetChanged):
         browse(graph, "ramapo", dataset_version="old", identity_hash="identities-1")
+
+
+def test_a_node_card_shows_the_facts_in_every_record_it_links() -> None:
+    page = "https://www.ramapo.edu/faculty/pat/"
+    graph = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        contacts=[{"id": "c1", "source_key": "faculty", "source_record_key": "pat",
+                   "name": "Pat", "email": "pat@ramapo.edu", "office": "A-207", "phone": None,
+                   "content_hash": "x", "source_url": page}],
+        records={"courses": [{"source_key": "c", "source_record_key": "MATH 101",
+                              "title": "Calculus I", "credits": 4}]},
+        entities=[
+            {"id": PERSON, "kind": "person", "name": "Pat", "aliases": [], "links": [
+                {"collection": "contacts", "source_key": "faculty", "source_record_keys": ["pat"]},
+                {"collection": "buildings", "source_key": "m", "source_record_keys": ["1"]}]},
+            {"id": COURSE, "kind": "course", "name": "MATH 101", "aliases": [],
+             "links": [{"collection": "courses", "source_key": "c",
+                        "source_record_keys": ["MATH 101"]}]},
+        ])
+    # The person's directory row, minus bookkeeping and empty fields. A collection with no
+    # reader (buildings) is left off rather than shown as empty.
+    assert browse(graph, f"entity:{PERSON}")["facts"] == [{"collection": "contacts", "total": 1,
+        "rows": [{"name": "Pat", "email": "pat@ramapo.edu", "office": "A-207",
+                  "source_url": page}]}]
+    assert browse(graph, f"entity:{COURSE}")["facts"] == [{"collection": "courses", "total": 1,
+        "rows": [{"title": "Calculus I", "credits": 4}]}]
