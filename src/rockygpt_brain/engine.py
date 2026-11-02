@@ -2237,9 +2237,12 @@ class ChatEngine:
                         course_facts = one_call.course_facts_asked(
                             latest, academics.computed_answers(
                                 academic, self.facts.identities(("program",)), latest, None, []))
+                        named_course = [e for e in academic if e.get("course")]
+                        said = (academics.course_text(named_course[0], latest)
+                                if len(named_course) == 1 else None)
                         if done := self._code_answer(
-                                turn, trace, one_call.code_text(course_facts), sources,
-                                dataset_version, programs=academic, computed=course_facts):
+                                turn, trace, said, sources, dataset_version, programs=academic,
+                                computed=course_facts):
                             return done
                 if named_people:
                     with measure("Read the people named"):

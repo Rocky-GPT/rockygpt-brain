@@ -167,6 +167,7 @@ _PERSON_FIELD = re.compile(
     r"\b(?:e-?mail|phone|number|office|room|hours|title|department|school|teach\w*|courses?|"
     r"class(?:es)?|research\w*|interests?)\b")
 _COURSE_ASK = re.compile(r"^\W*(?:what|what's|whats|how many|does|is|are)\b")
+_COURSE_WHAT = re.compile(r"^\W*(?:what(?:'s|’s|s| is)|tell me about|describe)\b")
 _COURSE_FACT = re.compile(r"\b(?:credits?|prerequisites?|prereqs?|requisites?|gen ?ed)\b")
 # A how or why asks for more than the facts, as does a second clause ("... and is it hard"); an
 # "and" inside a name does not ("School of Social Science and Human Services").
@@ -198,8 +199,8 @@ def code_kind(question: str, named_people: Sequence[Any],
         return "person"
     if asks_leadership(about_named(question, named_people)) and _WHO.search(text):
         return "leaders"
-    if (programs and not programs[0] and len(programs[2]) == 1 and _COURSE_ASK.search(text)
-            and _COURSE_FACT.search(text)):
+    if programs and not programs[0] and len(programs[2]) == 1 and (
+            (_COURSE_ASK.search(text) and _COURSE_FACT.search(text)) or _COURSE_WHAT.search(text)):
         return "course"
     return None
 
@@ -448,7 +449,8 @@ def messages(question: str, earlier_user: str | None, offices: list[dict[str, An
     given = {"today": f"{today:%A, %B} {today.day}, {today.year}", "question": question,
              **({"earlier_question": earlier_user} if earlier_user else {}),
              **({"computed": list(computed)} if computed else {}),
-             **({"programs": list(programs)} if programs else {}),
+             **({"programs": [{k: v for k, v in p.items() if not k.startswith("_")}
+                              for p in programs]} if programs else {}),
              **({"calendar": calendar} if calendar else {}),
              **({"clubs": list(clubs)} if clubs else {}),
              **({"people": list(people)} if people else {}), "offices": offices}
