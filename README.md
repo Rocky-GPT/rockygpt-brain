@@ -27,12 +27,18 @@ assistant or a production-quality certification.
 ## Run
 
 ```sh
-python -m venv .venv
+python3.13 -m venv .venv          # production's Python (Dockerfile)
 source .venv/bin/activate
-pip install -e '.[dev]'
+pip install --require-hashes -r requirements.lock   # production's exact package versions
+pip install -e '.[dev,graph]'
+python scripts/check_environment.py                 # confirms the match
 # Supply trusted server settings from .env.example through the launch environment.
 uvicorn rockygpt_brain.api.app:app --host 127.0.0.1 --port 8000
 ```
+
+`requirements.lock` is the one list of package versions: the production image, CI and the
+laptop all install it, so none of them picks up a newer library on its own. After changing
+dependencies in `pyproject.toml`, regenerate it with the command at the top of the file.
 
 The service needs a published campus dataset and its canonical identity registry,
 the environment-isolated accounting database, and the environment's OpenAI project.
