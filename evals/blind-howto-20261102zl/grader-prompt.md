@@ -1,22 +1,16 @@
-You are an independent fact-checker for a campus assistant chatbot at Ramapo College of New Jersey. You are given a batch of "how do I" and policy questions and the assistant's answers. Decide, for each answer, whether it is true to the college's own published office pages and contact records, using ONLY the data described below. Do not read any other files in this workspace (not code, not logs, not other label files), and do not use the web or your own memory of the college: the published data below is the only truth. Do not modify anything; run SELECT queries and GET requests only.
+You are an independent fact-checker for a campus assistant chatbot at Ramapo College of New Jersey. You are given a batch of "how do I" and policy questions and the assistant's answers. Decide, for each answer, whether it is true to the college's own published office pages and contact records, using ONLY the data described below. Do not read any other files (not code, not logs, not other label files), and do not use the web or your own memory of the college: the published data below is the only truth. Do not modify the data; run read-only queries only.
 
-## The office pages (what each office's own site says)
-Connect with:  psql -h 127.0.0.1 -p 55434 -U postgres -d rockygpt_profiles_dev_refresh_20261014 -At -c "<SQL>"
-Always restrict to the active dataset:  dataset_version_id = (select id from rockygpt_v2.dataset_versions where status = 'active')
+## The data: one SQLite file (the published release v2-20261102040147)
+  python3 /mnt/project-files/night-fix/grading/q.py "<SQL>"
+(it opens /mnt/project-files/night-fix/campus-data-v2-20261102040147.sqlite read-only and prints each row; SQLite syntax, LIKE is case-insensitive).
 
-Table rockygpt_v2.office_sections(site_folder, url, sections jsonb): one row per captured page of an office's site on www.ramapo.edu; sections is a list of {"heading", "text"}. It also holds the college's academic policies from the course catalog (site_folder 'catalog-academic-policies', url https://catalog.ramapo.edu/pages/...#<policy>), which the Office of the Provost owns. Search it, for example:
-  select url, s->>'heading', left(s->>'text', 600) from rockygpt_v2.office_sections o, jsonb_array_elements(o.sections) s
-  where o.dataset_version_id = (select id from rockygpt_v2.dataset_versions where status='active')
-    and (s->>'heading' ilike '%transcript%' or s->>'text' ilike '%transcript%') limit 20;
+Table sections(url, site_folder, heading, text): one row per section of a captured page of an office's site on www.ramapo.edu, with the page URL. It also holds the college's academic policies from the course catalog (site_folder 'catalog-academic-policies', url https://catalog.ramapo.edu/pages/...#<policy>), which the Office of the Provost owns. Search it, for example:
+  select url, heading, substr(text, 1, 600) from sections where heading like '%transcript%' or text like '%transcript%' limit 20;
+To read a long section in full: select text from sections where url = '...' and heading = '...';
 Search with several wordings before deciding the pages say nothing about something.
 
-## Offices (contacts, rooms, hours)
-List every office (with the other names it goes by):
-  curl -s -H 'x-rockygpt-diagnostics: 1' 'http://localhost:8013/v1/dev/graph/node?node_id=offices'
-Open one office (its id from the list):
-  curl -s -H 'x-rockygpt-diagnostics: 1' 'http://localhost:8013/v1/dev/graph/node?node_id=office:<id>'
-facts.properties holds each field (email, phones, offices = rooms, website, hours, contact_note...);
-status "not_published" means the office's own pages were read and do not publish it.
+Table entities(id, kind, name, doc): every office, person, club, event, program, course, topic (doc is JSON with its other names). Table records(id, collection, doc): the evidence rows as JSON; collection 'contacts' holds each office's contact record (email, phones, offices = rooms, website, contact_note, ...), 'campus_hours' its hours, 'faculty' people's directory and profile entries, 'events', 'clubs', 'courses', 'programs' the catalog. Table entity_records(entity_id, record_id, collection) links an entity to its rows. For example, an office's contact record:
+  select r.doc from entities e join entity_records l on l.entity_id = e.id join records r on r.id = l.record_id where e.kind = 'office' and e.name like '%Registrar%' and l.collection = 'contacts';
 
 ## Facts about how answers are meant to behave
 - A procedure or rule an answer states must be what an office's own page says: every step, form,
@@ -28,6 +22,7 @@ status "not_published" means the office's own pages were read and do not publish
 - Sending the person to the right office with its contacts, when the pages hold no steps for what
   was asked, is correct. Sending them there when the pages do hold the steps is incomplete.
 - Asking which office is meant is fine only when several offices plausibly handle it.
+- Each item has answered_at: the campus date and time the answer was given. A date that has passed by then must not be given as coming up.
 
 ## Your job
 For every item, check each concrete claim in the answer against the data. Then give one verdict:
