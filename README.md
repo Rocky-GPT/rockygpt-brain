@@ -131,6 +131,23 @@ boundary. Install the extra first: `pip install -e '.[graph]'`. There are two wa
    or a failed read is an error for the question, `/readiness` fails, and the log says why. A
    graph that failed a read is opened afresh for the next question.
 
+### One shared copy: production and the laptop serve the same file
+
+Production and the laptop both run graph only, on the same bytes. The daily data run builds the
+graph and meaning index once, then `python scripts/publish_graph.py --dir DIR` puts them in a
+file store (an S3-style bucket, under `brain-graph/`), the pointer last, each file listed with its
+size and sha256. `retrieval/graph_sync.py` downloads that copy into `BRAIN_GRAPH_ONLY_DIR`, checks
+every sha256, and renames `active.json` into place last; the store and each Brain keep the
+release before it too.
+
+- **Production** sets `BRAIN_GRAPH_STORE_BUCKET`, `_ENDPOINT`, `_REGION`, `_ACCESS_KEY_ID` and
+  `_SECRET_ACCESS_KEY` beside `BRAIN_GRAPH_ONLY_DIR`. It downloads before it takes questions
+  (`/readiness` fails until a release is in), then checks the store every 5 minutes and warms a
+  new release's reads as soon as it is in.
+- **The laptop** gives its Brain no store keys, so its copy changes only when synced by hand:
+  `python -m rockygpt_brain.retrieval.graph_sync DIR [--force] [--events]` (the workspace's
+  `./run-local.sh sync-prod` and the dev UI's "Sync from production").
+
 ### Self-building copy: the Brain follows Postgres
 
 With `BRAIN_GRAPH_DIR=DIR` the Brain keeps a copy of the active release itself, reading Postgres to
