@@ -20,6 +20,7 @@ from typing import Any
 from rockygpt_brain.academics import asks_academics
 from rockygpt_brain.events import (
     asks_club_events,
+    asks_club_exists,
     asks_clubs,
     asks_events,
     plain_window,
@@ -204,8 +205,8 @@ def code_kind(question: str, named_people: Sequence[Any],
         return "events"
     if _MORE.search(text):
         return None
-    # What a club hosts next: code checks the name it gives against the directory.
-    if asks_clubs(text) and asks_club_events(text):
+    # Whether a club exists, or what it hosts next: code checks the name it gives.
+    if asks_clubs(text) and (asks_club_events(text) or asks_club_exists(question)):
         return "club"
     # One person named and nothing else asked comes first: "Who is Dean Chen?" asks about
     # Professor Dean Chen, not about deans.

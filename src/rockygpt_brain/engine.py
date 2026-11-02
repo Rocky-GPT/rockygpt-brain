@@ -1969,10 +1969,32 @@ class ChatEngine:
 
     def _club_listing(self, message: str, now: datetime,
                       ) -> tuple[str, list[dict[str, Any]], str, dict[str, Any]] | None:
-        """A question asking only what one club the directory names in full hosts next,
-        answered in code's own words from the calendar (events.club_meets). None for any other
-        question, and when the calendar lists no event it hosts (its meetings may be on its
-        pages, which the model reads)."""
+        """A question about one club named in full, answered in code's own words: whether it
+        exists (the directory's listing, and a ramapo.edu page that marks it inactive, once the
+        release carries those marks), or what it hosts next by the calendar (events.club_meets).
+        None for any other question, a release without inactive marks, and a club the calendar
+        lists no event for (its meetings may be on its pages, which the model reads)."""
+        version, identity_hash = self.facts.active_release()
+        if events.asks_club_exists(message):
+            statuses = self.facts.identity_statuses(("club", "organization"), version,
+                                                    identity_hash=identity_hash)
+            named = events.club_named(message, self.facts.identities(("club", "organization")))
+            if not statuses or named is None:
+                return None
+            listed = next((e for e in self._club_directory() if e.get("id") == named["id"]), None)
+            entry = {"n": 1, **{k: v for k, v in listed.items() if k != "id"}} if listed else None
+            status = statuses.get(named["id"])
+            if status is not None:
+                status = {**status, "n": 2 if entry else 1}
+            sources = [*([{"n": 1, "url": entry.get("url"), "title": entry.get("name")}]
+                         if entry else []),
+                       *([{"n": status["n"], "url": status["source_url"],
+                           "title": f"{named['name']} (ramapo.edu)"}]
+                         if status and status.get("source_url") else [])]
+            said = events.club_text(str(named["name"]), entry, status)
+            return (said, sources, version, {"clubs": [entry] if entry else [],
+                                             "computed": [status] if status else []}
+                    ) if said else None
         found = events.club_meets(message, self._club_directory())
         if found is None:
             return None
@@ -1982,8 +2004,7 @@ class ChatEngine:
             return None
         return (events.club_events_text(club, lines),
                 [{"n": 1, "url": club.get("url"), "title": club.get("name")}, *hosted],
-                self.facts.active_release()[0],
-                {"clubs": [club], "calendar": {"events": lines}, "computed": facts})
+                version, {"clubs": [club], "calendar": {"events": lines}, "computed": facts})
 
     def _upcoming_events(self, now: datetime) -> list[dict[str, Any]]:
         """Every calendar event from now through the next year, as published, read through the

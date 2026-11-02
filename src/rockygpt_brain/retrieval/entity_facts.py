@@ -2764,6 +2764,24 @@ class EntityFacts:
                 })
             return found
 
+    def identity_statuses(self, kinds: Sequence[str], dataset_version: str, *,
+                          identity_hash: str | None = None) -> dict[str, dict[str, Any]]:
+        """The published status of each identity of the given kinds that has one ("inactive" as
+        of a date, by the page that says so), by id: its state, date and the page it cites."""
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            found: dict[str, dict[str, Any]] = {}
+            for entity in snapshot.entities:
+                status = entity.get("status")
+                if entity["kind"] not in kinds or not isinstance(status, dict):
+                    continue
+                evidence = [e for e in status.get("evidence") or [] if isinstance(e, dict)]
+                found[entity["id"]] = {
+                    "state": clean(status.get("state")), "as_of": clean(status.get("as_of")),
+                    "source_url": next((_url(e.get("source_url")) for e in evidence
+                                        if e.get("source_url")), None)}
+            return found
+
     def academic_calendar(self, dataset_version: str, *, identity_hash: str | None = None,
                           ) -> dict[str, list[dict[str, Any]]]:
         """Every academic term and calendar date in the release, each its one record as published

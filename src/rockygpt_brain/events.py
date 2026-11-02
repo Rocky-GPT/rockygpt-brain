@@ -613,9 +613,7 @@ MAX_CLUB_LINES = 6
 
 # A question asking only what a club the directory names in full hosts next ("when does the
 # Hiking Club meet", "what events does the Math Club have coming up") is answered by code when the
-# calendar lists events it hosts (club_events_text). Whether a club exists is left to the model:
-# ramapo.edu marks some directory clubs as not active (Garden Club, Movie Club, as of 6/12/25), and
-# that page is not yet linked to the club, so code alone cannot say yes.
+# calendar lists events it hosts (club_events_text).
 _CLUB_FILLER = discovery_tokens("when what does do is are there any you we they have ramapo "
                                 "college rcnj school campus on at here in its next upcoming "
                                 "coming up meet meets meeting meetings event events hold holds "
@@ -633,6 +631,74 @@ def club_meets(message: str, directory: Sequence[dict[str, Any]]) -> dict[str, A
                 and discovery_tokens(message) - discovery_tokens(str(club["name"]))
                 <= _CLUB_FILLER):
             return club
+    return None
+
+
+# Whether a club a question names in full exists ("is there a math club?", "does Ramapo have a
+# Black Student Union?") is code's once the release marks inactive clubs: ramapo.edu says some clubs
+# the directory still lists are not active (Garden Club, Movie Club, as of 6/12/25), and both are
+# said when they differ (club_text). A club named in part or a kind of club goes to the model.
+_CLUB_EXISTS = re.compile(r"^\W*(?:is there|are there|does (?:ramapo|the college|rcnj|the school|"
+                          r"campus) have|do (?:you|we|they) have)\b")
+_EXISTS_FILLER = discovery_tokens("is are there any does do you we they have ramapo college rcnj "
+                                  "school campus on at here in called named still active "
+                                  "anymore") | _GENERIC_CLUB
+
+
+def asks_club_exists(message: str) -> bool:
+    return bool(_CLUB_EXISTS.search(message.casefold()) and asks_clubs(message))
+
+
+def club_named(message: str, clubs: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
+    """The one club an existence question names by every word of its name and asks nothing
+    else of; None otherwise."""
+    if not _CLUB_EXISTS.search(message.casefold()):
+        return None
+    for club in find_clubs(clubs, message)[:1]:
+        rest = re.sub(re.escape(str(club["name"]).casefold()), " ", message.casefold())
+        if (not re.search(r"\b(?:and|also|plus|or|how|why|who|when|where)\b", rest)
+                and discovery_tokens(message) - discovery_tokens(str(club["name"]))
+                <= _EXISTS_FILLER):
+            return club
+    return None
+
+
+def _first_sentence(text: Any) -> str | None:
+    """The first whole sentence of a published text (the directory cuts its missions short)."""
+    found = re.match(r"\s*(.{20,300}?(?<!\bInc)(?<!\bDr)(?<!\bSt)(?<!\bvs)[.!?])(?=\s|$)",
+                     " ".join(str(text or "").split()))
+    return found.group(1) if found else None
+
+
+def _as_of(value: str) -> str:
+    day = date.fromisoformat(value)
+    return f"{day:%B} {day.day}, {day.year}"
+
+
+def club_text(name: str, entry: dict[str, Any] | None,
+              status: dict[str, Any] | None) -> str | None:
+    """Code's answer to whether a club exists: the directory's listing [its number] (its category,
+    the first sentence of its mission and its email), and when a ramapo.edu page marks the club
+    inactive, that page's word [its number] beside it. None when neither says anything."""
+    inactive = (status or {}).get("state") == "inactive" and (status or {}).get("as_of")
+    said: list[str] = []
+    if entry is not None:
+        listing = (f"The club directory lists {literal(entry['name'])}"
+                   + (f" ({literal(entry['category'])})" if entry.get("category") else "")
+                   + f" [{entry['n']}]")
+        if inactive and status is not None:
+            return (f"{listing}, but Ramapo's page for it says it is not currently an active club, "
+                    f"as of {_as_of(str(status['as_of']))} [{status['n']}].")
+        said.append(f"Yes. {listing}.")
+        if sentence := _first_sentence(entry.get("mission")):
+            said.append(f'Its page says: "{literal(sentence)}" [{entry["n"]}]')
+        if entry.get("email"):
+            said.append(f"Email: {entry['email']} [{entry['n']}].")
+        return " ".join(said)
+    if inactive and status is not None:
+        return (f"Ramapo's page for {literal(name)} says it is not currently an active club, as of "
+                f"{_as_of(str(status['as_of']))} [{status['n']}]. The club directory does not "
+                f"list it.")
     return None
 
 

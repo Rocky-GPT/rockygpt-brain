@@ -14,6 +14,8 @@ from rockygpt_brain.events import (
     asks_events,
     club_category,
     club_meets,
+    club_named,
+    club_text,
     clubs_by_meaning,
     events_in,
     find_clubs,
@@ -110,7 +112,8 @@ def test_a_club_is_named_by_every_word_of_its_directory_name() -> None:
     assert find_clubs(clubs, "is there a knitting club") == []
 
 
-def calendar(organizer: str = "CPB") -> MemoryEntityFacts:
+def calendar(organizer: str = "CPB",
+             club_status: dict[str, Any] | None = None) -> MemoryEntityFacts:
     row = {"id": "row-v", "source_key": "archway-events",
            "source_record_key": "Fri, Oct 23, 2026:Trivia Night", "title": "Trivia Night",
            "date_label": "Fri, Oct 23, 2026", "starts_at": "2026-10-23T20:00:00-04:00",
@@ -131,7 +134,8 @@ def calendar(organizer: str = "CPB") -> MemoryEntityFacts:
                                                  "Fri, Oct 23, 2026:Trivia Night"]}]},
                   {"id": "cl", "name": "Chess Club", "kind": "club", "aliases": [],
                    "links": [{"collection": "clubs", "source_key": "archway-clubs",
-                              "source_record_keys": ["Chess Club"]}]}],
+                              "source_record_keys": ["Chess Club"]}],
+                   **({"status": club_status} if club_status else {})}],
         contacts=[], records={"events": [row], "clubs": [club]}, now=lambda: WEDNESDAY)
 
 
@@ -378,3 +382,46 @@ def test_what_a_club_hosts_next_is_answered_by_code_from_the_calendar() -> None:
         "[2](https://archway.ramapo.edu/rsvp_boot?id=1)")
     assert gateway.inputs == [] and result.trace is not None
     assert result.trace["decidedBy"] == "code"
+
+
+INACTIVE = {"state": "inactive", "as_of": "2025-06-12", "evidence": [
+    {"collection": "office_sections", "source_key": "office-pages", "field": "status",
+     "source_record_key": "www.ramapo.edu/clubs/organization/chess-club/",
+     "source_url": "https://www.ramapo.edu/clubs/organization/chess-club/"}]}
+
+
+def test_whether_a_club_exists_says_the_directory_and_an_inactive_page_beside_it() -> None:
+    clubs = [{"id": "m", "name": "Math Club"}, {"id": "c", "name": "Chess Club"}]
+    assert club_named("Is there a math club?", clubs) == {"id": "m", "name": "Math Club"}
+    assert club_named("Is there a math club for girls?", clubs) is None  # Asks more.
+    math = {"n": 1, "name": "Math Club", "category": "Student Organization",
+            "mission": "We share an interest in the mathematical sciences. We meet.",
+            "email": "mathclub@ramapo.edu"}
+    assert club_text("Math Club", math, None) == (
+        "Yes. The club directory lists Math Club (Student Organization) [1]. Its page says: "
+        '"We share an interest in the mathematical sciences." [1] Email: mathclub@ramapo.edu [1].')
+    status = {"state": "inactive", "as_of": "2025-06-12", "n": 2}
+    assert club_text("Math Club", math, status) == (
+        "The club directory lists Math Club (Student Organization) [1], but Ramapo's page for it "
+        "says it is not currently an active club, as of June 12, 2025 [2].")
+    assert club_text("Chess Club", None, {**status, "n": 1}) == (
+        "Ramapo's page for Chess Club says it is not currently an active club, as of June 12, "
+        "2025 [1]. The club directory does not list it.")
+
+
+def test_whether_a_club_exists_is_codes_only_once_the_release_marks_inactive_clubs() -> None:
+    gateway = ScriptedGateway()  # Any model call would fail: none is scripted.
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "Is there a chess club?"}]})
+    engine = ChatEngine(gateway, calendar(club_status=INACTIVE), output="written")
+    result = asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
+    assert result.body["answer"] == (
+        "The club directory lists Chess Club (Recreation) [1], but Ramapo's page for it says it is "
+        "not currently an active club, as of June 12, 2025 [2].\n\nSources: "
+        "[1](https://archway.ramapo.edu/chess/) "
+        "[2](https://www.ramapo.edu/clubs/organization/chess-club/)")
+    assert gateway.inputs == [] and result.trace is not None
+    assert result.trace["decidedBy"] == "code"
+    # A release with no inactive marks cannot tell an active club from one ramapo.edu says is not.
+    plain = ChatEngine(ScriptedGateway(), calendar(), output="written")
+    assert plain._club_listing("Is there a chess club?", WEDNESDAY) is None
