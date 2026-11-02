@@ -76,13 +76,19 @@ def _facts(snapshot: Snapshot, entity: dict[str, Any], on: date | None, today: d
     facts: list[dict[str, Any]] = []
     links = entity.get("links") or []
     for collection in dict.fromkeys(link.get("collection", "") for link in links):
-        if collection == "contacts":
-            rows = snapshot.contact_reader(entity)
-        elif collection == "campus_hours":
-            rows = snapshot.schedule_reader(entity)
-        elif collection in RECORD_COLLECTIONS:
-            rows = snapshot.record_reader(entity, collection)
-        else:
+        if collection not in {"contacts", "campus_hours", *RECORD_COLLECTIONS}:
+            continue
+        try:
+            if collection == "contacts":
+                rows = snapshot.contact_reader(entity)
+            elif collection == "campus_hours":
+                rows = snapshot.schedule_reader(entity)
+            else:
+                rows = snapshot.record_reader(entity, collection)
+        except EvidenceUnavailable:
+            # A release can hold a node before it holds that kind's records (buildings did): the
+            # card still opens, and says the rows are missing instead of failing the whole page.
+            facts.append({"collection": collection, "total": 0, "rows": [], "unavailable": True})
             continue
         if collection == "menu" and rows:
             days = sorted({_day(row) for row in rows} - {""})

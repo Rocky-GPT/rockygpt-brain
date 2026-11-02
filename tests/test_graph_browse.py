@@ -187,3 +187,29 @@ def test_a_venue_card_shows_one_whole_menu_day_and_the_days_it_has() -> None:
     assert [row["name"] for row in menu(on=date(2026, 11, 4))["rows"]] == ["Tacos"]
     # A day with no menu opens today's instead.
     assert menu(on=date(2026, 11, 3))["date"] == "2026-11-02"
+
+
+def test_a_node_whose_kind_has_no_records_in_the_release_still_opens() -> None:
+    from collections.abc import Iterator
+    from contextlib import contextmanager
+    from dataclasses import replace
+
+    from rockygpt_brain.retrieval import EvidenceUnavailable
+    from rockygpt_brain.retrieval.entity_facts import Snapshot
+
+    class NoEvents:
+        """A release that holds event nodes but none of their records, as buildings once were."""
+
+        @contextmanager
+        def snapshot(self) -> Iterator[Snapshot]:
+            def read(entity: dict[str, Any], collection: str) -> list[dict[str, Any]]:
+                if entity["kind"] == "event":
+                    raise EvidenceUnavailable("This release graph holds no evidence for that kind.")
+                return inner.record_reader(entity, collection)
+            with card_graph().snapshot() as inner:
+                yield replace(inner, record_reader=read)
+
+    found = browse(NoEvents(), f"entity:{EVENT}")  # type: ignore[arg-type]
+    assert found["facts"] == [
+        {"collection": "events", "total": 0, "rows": [], "unavailable": True}]
+    assert found["outgoing"][0]["node"]["entity_id"] == PERSON
