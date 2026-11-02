@@ -321,10 +321,11 @@ def test_code_lists_a_windows_events_by_day_with_their_time_title_and_place() ->
     assert listing_text(label, start, end, [], 0) == (
         "The calendar lists no events tonight, Wednesday, October 21 [1].")
     start, end, label = window("what's on friday night", WEDNESDAY)
-    one = [on("Moonlight Masquerade", "2026-10-23T19:00:00-04:00", "7 PM", "9 PM", "-")]
+    one = [{**on("Moonlight Masquerade", "2026-10-23T19:00:00-04:00", "7 PM", "9 PM", "-"),
+            "organizer": "The Overlook"}]
     assert listing_text(label, start, end, one, 1) == (
         "The calendar lists 1 event on Friday, October 23, in the evening [1]:\n\n"
-        "- 7 PM to 9 PM: Moonlight Masquerade [2]")
+        "- 7 PM to 9 PM: Moonlight Masquerade (The Overlook) [2]")
     assert listing_text(label, start, end, [{**one[0], "title": ""}], 1) is None
 
 
@@ -345,7 +346,8 @@ def test_a_window_question_is_answered_by_code_with_no_model_call() -> None:
     result = asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
     assert result.body["answer"] == (
         "The calendar lists 1 event this weekend, Friday, October 23 to Sunday, October 25 "
-        "[1]:\n\nFriday, October 23:\n- 8 PM to 10 PM: Trivia Night, at Student Center (SC) [2]"
+        "[1]:\n\nFriday, October 23:\n- 8 PM to 10 PM: Trivia Night (CPB), at Student Center (SC) "
+        "[2]"
         "\n\nSources: [1](https://archway.ramapo.edu/home/events/) "
         "[2](https://archway.ramapo.edu/rsvp_boot?id=1)")
     assert gateway.inputs == []

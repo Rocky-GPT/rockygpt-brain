@@ -539,8 +539,8 @@ def listing_text(label: str, start: datetime, end: datetime, shown: Sequence[dic
                  listed: int) -> str | None:
     """A window question's answer in code's own words (Dan 11-02: code works out the answer):
     how many events the calendar lists in the window [1], then those shown in time order, under
-    their day when the window spans several, each with its time, title and place as published
-    [its own number, from 2]. None when an event has no title to say."""
+    their day when the window spans several, each with its time, title, host and place as
+    published [its own number, from 2]. None when an event has no title to say."""
     phrase = _phrase(label, start, end)
     if not listed:
         return f"The calendar lists no events {phrase} [1]."
@@ -559,8 +559,10 @@ def listing_text(label: str, start: datetime, end: datetime, shown: Sequence[dic
         place = " ".join(str(value.get("location") or "").split())
         at = "" if not place or place == "-" else (
             f", {literal(place)}" if _ONLINE.match(place) else f", at {literal(place)}")
+        host = " ".join(str(value.get("organizer") or "").split())
         days.setdefault(heading, []).append(
-            "- " + (f"{when}: " if when else "") + literal(value["title"]) + at + f" [{n}]")
+            "- " + (f"{when}: " if when else "") + literal(value["title"])
+            + (f" ({literal(host)})" if host else "") + at + f" [{n}]")
     return "\n\n".join([head, *("\n".join([heading, *lines]) if heading else "\n".join(lines)
                                 for heading, lines in days.items())])
 
