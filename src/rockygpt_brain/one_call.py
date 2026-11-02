@@ -19,7 +19,7 @@ from typing import Any
 
 from rockygpt_brain.academics import asks_academics
 from rockygpt_brain.events import asks_clubs, asks_events
-from rockygpt_brain.people import asks_people
+from rockygpt_brain.people import asks_leadership, asks_people
 from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 from rockygpt_brain.writer import cited
 
@@ -152,6 +152,58 @@ def routes_here(message: str) -> bool:
     if (_HOURS.search(text) or _CONTACT.search(text)) and not howto:
         return False
     return True
+
+
+# Questions code answers alone from the facts it works out, the model writing nothing (Dan 11-02):
+# who leads a school or field, one named person's details, one catalog course's facts.
+_WHO = re.compile(r"^\W*(?:who|who's|whos)\b")
+_PERSON_ASK = re.compile(r"^\W*(?:what|what's|whats|where|when)\b")
+_PERSON_FIELD = re.compile(
+    r"\b(?:e-?mail|phone|number|office|room|hours|title|department|school)\b")
+_COURSE_ASK = re.compile(r"^\W*(?:what|what's|whats|how many|does|is|are)\b")
+_COURSE_FACT = re.compile(r"\b(?:credits?|prerequisites?|prereqs?|requisites?|gen ?ed)\b")
+# A how or why asks for more than the facts, as does a second clause ("... and is it hard"); an
+# "and" inside a name does not ("School of Social Science and Human Services").
+_MORE = re.compile(r"\b(?:how do|how can|why|should|can i|could i)\b|\b(?:and|also|plus)\s+"
+                   r"(?:what|how|who|when|where|can|do|does|will|is|are|should)\b")
+# A course fact by the words that ask for it: only those facts are said.
+_COURSE_WANTS = ((re.compile(r"\bcredits?\b"), " credit"),
+                 (re.compile(r"\b(?:prerequisites?|prereqs?|requisites?)\b"), "prerequisite"),
+                 (re.compile(r"\bgen ?ed\b"), "Gen Ed"))
+
+
+def code_kind(question: str, named_people: Sequence[Any],
+              programs: tuple[Sequence[Any], Sequence[Any], Sequence[Any]] | None) -> str | None:
+    """Which code-answered question this is, or None when the model should write it."""
+    text = question.casefold()
+    if _MORE.search(text):
+        return None
+    if asks_leadership(text) and _WHO.search(text):
+        return "leaders"
+    if len(named_people) == 1 and _PERSON_ASK.search(text) and _PERSON_FIELD.search(text):
+        return "person"
+    if (programs and not programs[0] and len(programs[2]) == 1 and _COURSE_ASK.search(text)
+            and _COURSE_FACT.search(text)):
+        return "course"
+    return None
+
+
+def course_facts_asked(question: str, facts: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The course facts a question asks for ("how many credits" is the credits line), or all."""
+    text = question.casefold()
+    wanted = [word for pattern, word in _COURSE_WANTS if pattern.search(text)]
+    kept = [f for f in facts if any(w in str(f.get("fact", "")) for w in wanted)]
+    return kept or list(facts)
+
+
+def code_text(facts: Sequence[dict[str, Any]]) -> str | None:
+    """The facts code worked out, said as they are with their marks; None when one of them is
+    written for a writer rather than a student ("Ask which one the student means")."""
+    lines = [f"{fact['fact']} [{fact['n']}]" if fact.get("n") else str(fact["fact"])
+             for fact in facts if isinstance(fact, dict) and fact.get("fact")]
+    if not lines or any("the student" in line for line in lines):
+        return None
+    return " ".join(lines)
 
 
 def parts_of(question: str) -> list[str]:

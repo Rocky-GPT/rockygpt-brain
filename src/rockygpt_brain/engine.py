@@ -2162,14 +2162,25 @@ class ChatEngine:
         dataset_version = index.dataset_version if index else ""
         # An academic question is read from what the model picks among the catalog's own names
         # when the meaning index is published; the code-named programs are its hints.
+        # A question code answers alone (one_call.code_kind): its facts are read by code and said
+        # as code wrote them, with no pick and no writer.
+        kind = one_call.code_kind(latest, named_people, programs)
         pick_catalog = bool(searchable and index is not None and index.academic and (
-            (programs and (programs[0] or programs[2])) or academics.asks_academics(latest)))
+            (programs and (programs[0] or programs[2])) or academics.asks_academics(latest))
+            and kind != "course")
         try:
             async with asyncio.timeout(self.turn_seconds):
                 if programs and not pick_catalog:
                     with measure("Read the programs named"):
                         academic, sources, dataset_version = await asyncio.to_thread(
                             self._read_programs, *programs, latest, turn.campus_now.date())
+                    if kind == "course" and (done := self._code_answer(
+                            turn, trace, one_call.course_facts_asked(
+                                latest, academics.computed_answers(
+                                    academic, self.facts.identities(("program",)), latest, None,
+                                    [])),
+                            sources, dataset_version, academic, [])):
+                        return done
                 if named_people:
                     with measure("Read the people named"):
                         people, found_people = await asyncio.to_thread(
@@ -2297,6 +2308,10 @@ class ChatEngine:
                             len(sources))
                     sources = [*sources, *found_people]
                     computed = [*computed, *people_facts]
+                    if kind in ("leaders", "person") and (done := self._code_answer(
+                            turn, trace, people_facts, sources,
+                            dataset_version or self.facts.active_release()[0], [], people)):
+                        return done
                 if clubs and len(clubs) <= 3 and events.asks_club_events(latest):
                     club_lines, club_facts, found_events = await asyncio.to_thread(
                         self._club_events, clubs, turn.campus_now, len(sources))
@@ -2443,6 +2458,25 @@ class ChatEngine:
                               **({"academics": [p.get("program") or p.get("course")
                                                  for p in academic]}
                                  if academic else {})})
+        return answered(turn, text, "answered", citations, dataset_version)
+
+    def _code_answer(self, turn: Turn, trace: dict[str, Any], facts: Sequence[dict[str, Any]],
+                     sources: list[dict[str, Any]], dataset_version: str,
+                     academic: Sequence[dict[str, Any]], people: Sequence[dict[str, Any]],
+                     ) -> ChatResult | None:
+        """The facts code worked out (a dean, a person's details, a course's credits and
+        prerequisites), said as code wrote them with their sources, with no model call; None when
+        they cannot be said that way or the check finds something they do not hold."""
+        said = one_call.code_text(facts)
+        if said is None:
+            return None
+        text, citations = one_call.reply({"text": said}, sources)
+        view = {"today": turn.campus_now.date().isoformat(), "programs": list(academic),
+                "people": list(people), "computed": list(facts),
+                "sources": [{"n": s["n"], "urls": [s["url"]]} for s in sources if s.get("url")]}
+        if not citations or unsupported_by(text, view):
+            return None
+        trace.update(decidedBy="code", writer={"used": True, "by": "code"})
         return answered(turn, text, "answered", citations, dataset_version)
 
     async def _pick_procedures(self, looked_up: list[tuple[str, int, OfficeRequest]],

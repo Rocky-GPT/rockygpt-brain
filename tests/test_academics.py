@@ -239,9 +239,18 @@ def test_a_question_naming_a_course_code_is_answered_from_its_catalog_record() -
         {"role": "user", "content": "how many credits is cmps147"}]})
     engine = ChatEngine(gateway, course_catalog(), output="written")
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    # Dan 11-02: a course's credits are worked out and said by code; no model call is made.
+    assert gateway.inputs == [] and result.trace is not None
+    assert result.trace["decidedBy"] == "code"
+    assert result.body["answer"].startswith("CMPS 147 COMPUTER SCIENCE I is 4 credits. [1]")
+    assert "Sources: [1](https://catalog.ramapo.edu/courses/CMPS147)" in result.body["answer"]
+    # Asked with something more, the model still writes it from the same catalog record.
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "how many credits is cmps147 and is it hard"}]})
+    engine = ChatEngine(gateway, course_catalog(), output="written")
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     (course,) = json.loads(gateway.inputs[0][1]["content"])["programs"]
     assert course["course"] == "CMPS 147 COMPUTER SCIENCE I" and course["credits"] == 4
-    assert "Sources: [1](https://catalog.ramapo.edu/courses/CMPS147)" in result.body["answer"]
 
 
 def plan(name: str, cohort: str) -> dict[str, Any]:

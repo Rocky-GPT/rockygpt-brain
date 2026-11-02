@@ -277,3 +277,29 @@ def test_a_reply_naming_a_course_the_facts_do_not_hold_is_not_sent() -> None:
         "a course the facts do not hold: CHEM 211"]
     # A word of no subject the facts hold ("room 425") is not checked as a course.
     assert unsupported_by("It meets in room 425.", view) == []
+
+
+def test_a_dean_a_persons_details_or_a_courses_facts_are_answered_by_code() -> None:
+    from rockygpt_brain.one_call import code_kind, code_text
+    course = ([], [], [{"id": "c1", "name": "CMPS 147"}])
+    assert code_kind("Who is the dean of the Anisfield School of Business?", [], None) == "leaders"
+    assert code_kind("What is Professor Hangen's email?", [{"id": "p"}], None) == "person"
+    assert code_kind("How many credits is CMPS 147?", [], course) == "course"
+    # Asked with something more, or how to do something, the model writes it.
+    assert code_kind("Who is the dean and how do I reach them?", [], None) is None
+    assert code_kind("Who is the dean of the School of Science and Health?", [], None) \
+        == "leaders"
+    assert code_kind("How do I email Professor Hangen?", [{"id": "p"}], None) is None
+    assert code_kind("Is CMPS 147 hard?", [], course) is None
+    assert code_text([{"fact": "CMPS 147 is 4 credits.", "n": 1},
+                      {"fact": "CMPS 147 has no published prerequisites.", "n": 1}]) == (
+        "CMPS 147 is 4 credits. [1] CMPS 147 has no published prerequisites. [1]")
+    # A fact written for a writer, not a student, is never said as it is.
+    assert code_text([{"fact": "3 people share the name. Ask which one the student means."}]) \
+        is None
+
+    from rockygpt_brain.one_call import course_facts_asked
+    facts = [{"fact": "CMPS 147 is 4 credits.", "n": 1},
+             {"fact": "CMPS 147 prerequisites, as the catalog states them: MATH 101", "n": 1}]
+    assert course_facts_asked("How many credits is CMPS 147?", facts) == facts[:1]
+    assert course_facts_asked("What is CMPS 147 about?", facts) == facts
