@@ -869,6 +869,9 @@ def test_every_new_kind_reads_its_records_from_the_one_graph_records_artifact(
            "links": [{"collection": "calendar_dates", "source_key": "academic-calendar",
                       "source_record_keys": ["2026-09-01:Last Day to Drop"]}],
            "relationships": [{"type": "in_term", "target_entity_id": "fall", "evidence": []}]}
+    room = {"id": "york", "kind": "facility", "name": "York Room", "aliases": [], "links": [
+        {"collection": "map_places", "source_key": "campus-map",
+         "source_record_keys": ["office_york-room"]}]}
     records = {"schema_version": 1, "collections": {
         "terms": {"source_key": "academic-calendar", "collected_at": "2026-11-02T10:00:00Z",
                   "rows": [{"source_record_key": "fall-2026", "name": "Fall 2026",
@@ -877,6 +880,10 @@ def test_every_new_kind_reads_its_records_from_the_one_graph_records_artifact(
                            "rows": [{"source_record_key": "2026-09-01:Last Day to Drop",
                                      "date": "2026-09-01", "kind": "add_drop_deadline",
                                      "source_url": "https://www.ramapo.edu/academic-calendars/"}]},
+        "map_places": {"source_key": "campus-map", "collected_at": "",
+                       "rows": [{"source_record_key": "office_york-room", "name": "York Room",
+                                 "building": "Birch Mansion",
+                                 "source_url": "https://map.ramapo.edu/?id=2292#!m/1133345"}]},
     }}
     reads: list[str] = []
 
@@ -899,7 +906,7 @@ def test_every_new_kind_reads_its_records_from_the_one_graph_records_artifact(
         def execute(self, query: str, params: Any = None) -> Cursor:
             if "AS registry_text" in query:
                 return Cursor([{"registry_text": json.dumps(
-                    {"schema_version": 1, "entities": [office(), term, day]})}])
+                    {"schema_version": 1, "entities": [office(), term, day, room]})}])
             if "AS payload_text" in query:
                 reads.append(params[1])
                 return Cursor([{"payload_text": json.dumps(records), "content_hash": "g-1"}])
@@ -923,9 +930,11 @@ def test_every_new_kind_reads_its_records_from_the_one_graph_records_artifact(
         assert dated[0]["kind"] == "add_drop_deadline" and dated[0]["collected_at"] is None
         # A kind with no link to a collection reads nothing from it.
         assert snapshot.record_reader(found["fall"], "calendar_dates") == []
+        assert [r["building"] for r in snapshot.record_reader(found["york"], "map_places")] \
+            == ["Birch Mansion"]
     assert reads == ["graph-records"]  # One read of the artifact serves every collection.
     with service.snapshot() as snapshot:
-        assert {e["id"] for e in linked_records_of(snapshot)} == {"fall", "drop"}
+        assert {e["id"] for e in linked_records_of(snapshot)} == {"fall", "drop", "york"}
 
 
 def linked_records_of(snapshot: Any) -> list[dict[str, Any]]:

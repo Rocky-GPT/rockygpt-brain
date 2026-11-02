@@ -99,13 +99,13 @@ def test_a_node_card_shows_the_facts_in_every_record_it_links() -> None:
         entities=[
             {"id": PERSON, "kind": "person", "name": "Pat", "aliases": [], "links": [
                 {"collection": "contacts", "source_key": "faculty", "source_record_keys": ["pat"]},
-                {"collection": "buildings", "source_key": "m", "source_record_keys": ["1"]}]},
+                {"collection": "schools", "source_key": "m", "source_record_keys": ["1"]}]},
             {"id": COURSE, "kind": "course", "name": "MATH 101", "aliases": [],
              "links": [{"collection": "courses", "source_key": "c",
                         "source_record_keys": ["MATH 101"]}]},
         ])
     # The person's directory row, minus bookkeeping and empty fields. A collection with no
-    # reader (buildings) is left off rather than shown as empty.
+    # reader (schools) is left off rather than shown as empty.
     assert browse(graph, f"entity:{PERSON}")["facts"] == [{"collection": "contacts", "total": 1,
         "rows": [{"name": "Pat", "email": "pat@ramapo.edu", "office": "A-207",
                   "source_url": page}]}]
