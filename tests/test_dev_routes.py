@@ -211,3 +211,17 @@ def test_a_truncated_search_always_asks_even_with_one_exact_match() -> None:
         body = http.get("/v1/dev/offices/search", params={"q": "student office"},
                         headers=ASKED).json()
     assert body["truncated"] is True and body["outcome"] == "asks" and body["chosen"] == []
+
+
+def test_the_graph_browser_lists_every_kind_the_release_holds() -> None:
+    with client() as http:
+        assert http.get("/v1/dev/graph/browse").status_code == 404
+        root = http.get("/v1/dev/graph/browse", headers=ASKED).json()
+        assert {k["label"] for k in root["kinds"]} == {"office", "person"}
+        person = http.get("/v1/dev/graph/browse?node_id=kind:person", headers=ASKED).json()
+        assert [c["label"] for c in person["children"]] == ["A Person"]
+        assert http.get("/v1/dev/graph/browse?node_id=kind:none",
+                        headers=ASKED).status_code == 422
+        stale = http.get("/v1/dev/graph/browse?dataset_version=old&identity_hash=identities-1",
+                         headers=ASKED)
+        assert stale.status_code == 409

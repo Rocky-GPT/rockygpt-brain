@@ -20,6 +20,7 @@ from rockygpt_brain.retrieval import (
     UnknownEntity,
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, lookup_choice
+from rockygpt_brain.retrieval.graph_browse import browse
 from rockygpt_brain.turn import new_id
 
 DIAGNOSTICS_HEADER = "x-rockygpt-diagnostics"
@@ -89,6 +90,35 @@ def add_dev_routes(application: FastAPI) -> None:
         except (InvalidFactRequest, UnknownEntity):
             return failure(422, "invalid_request", "The node or requested fields are unavailable.",
                            new_id())
+        except (EvidenceUnavailable, TimeoutError):
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
+                           retryable=True)
+        return JSONResponse(node, headers=NO_STORE)
+
+    @router.get("/graph/browse")
+    async def graph_browse(
+        node_id: Annotated[str, Query(min_length=1, max_length=160)] = "ramapo",
+        dataset_version: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
+        identity_hash: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
+    ) -> JSONResponse:
+        """The whole release graph as published: every node type and link, read from the data."""
+        engine = application.state.engine
+        if engine is None:
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id())
+        if (dataset_version is None) != (identity_hash is None):
+            return failure(422, "invalid_request", "Supply both publication pins or neither.",
+                           new_id())
+        try:
+            async with asyncio.timeout(10):
+                node = await asyncio.to_thread(browse, engine.facts, node_id,
+                                               dataset_version=dataset_version,
+                                               identity_hash=identity_hash)
+        except DatasetChanged:
+            return failure(409, "dataset_changed",
+                           "This publication is no longer active; open the current root.",
+                           new_id())
+        except InvalidFactRequest:
+            return failure(422, "invalid_request", "The node is not in this release.", new_id())
         except (EvidenceUnavailable, TimeoutError):
             return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
                            retryable=True)
