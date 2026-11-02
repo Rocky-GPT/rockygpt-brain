@@ -10,8 +10,9 @@ OFFICES: list[dict[str, Any]] = [
     {"name": "Public Safety (Emergency)", "also_called": ["Public Safety"]},
     {"name": "Public Safety (Non-Emergency)", "also_called": ["Public Safety"]},
     {"name": "Scholarships", "topic": True}]
-VENUES: list[dict[str, Any]] = [{"name": "Dunkin'"},
-                                {"name": "Birch Tree Inn", "also_called": ["Birch"]}]
+VENUES: list[dict[str, Any]] = [{"name": "Dunkin'", "publishes": ["hours"]},
+                                {"name": "Birch Tree Inn", "also_called": ["Birch"],
+                                 "publishes": ["hours", "menu"]}]
 
 
 def route(message: str) -> dict[str, Any] | None:
@@ -51,7 +52,7 @@ def test_anything_code_is_not_sure_of_is_left_to_the_model() -> None:
     assert route("Tell me about the Registrar") is None  # nothing it routes is asked
     assert route("What is the menu at the Library?") is None  # an office has no menu
     assert route("How do I apply for Scholarships?") is None  # a topic's page is read
-    assert route("What is for dinner tonight?") is None  # no place named
+    assert route("Is anything open tonight?") is None  # no place named, and not a menu
 
 
 def test_a_plain_next_first_or_last_shuttle_question_is_routed_by_code() -> None:
@@ -72,3 +73,10 @@ def test_a_name_offices_share_looks_up_each_of_them() -> None:
     assert code_route("What is the phone number for Public Safety?", OFFICES, VENUES) == {
         "requests": [{"query": "Public Safety (Emergency)", "fields": ["phones"]},
                      {"query": "Public Safety (Non-Emergency)", "fields": ["phones"]}]}
+
+
+def test_a_menu_asked_of_no_place_is_the_menu_of_every_venue_that_publishes_one() -> None:
+    assert route("What's on the menu for lunch today?") == {
+        "query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "lunch"}
+    assert route("What is for dinner tonight?") == {
+        "query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "dinner"}

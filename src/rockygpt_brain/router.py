@@ -25,6 +25,7 @@ _ASKS = (
     ("contact", re.compile(r"\b(?:contact|reach)\b")),
 )
 _MEALS = ("late night", "breakfast", "brunch", "lunch", "dinner")
+_MENU_ONLY = re.compile(r"\b(?:menu|menus|breakfast|brunch|lunch|dinner|late night)\b")
 _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 _TODAY = frozenset({"today", "tonight", "now"})
 # Words a plain lookup question is made of besides the name and the day. Any other word means it
@@ -76,6 +77,12 @@ def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
             continue
         covered.update(range(start, end))
         said.append(owners)
+    # A menu asked of no place ("what's for lunch today?") is every venue's that publishes one,
+    # as the lookups read it for the model too.
+    menus = {("venue", str(v["name"])) for v in venues or []
+             if "menu" in (v.get("publishes") or [])}
+    if not said and menus and _MENU_ONLY.search(" ".join(words)):
+        said = [menus]
     # One name said, of one place or of a few offices that share it ("Public Safety" is both
     # its emergency and non-emergency lines, and both are looked up); two names, or an office
     # and a venue sharing one, go to the model.
@@ -93,7 +100,8 @@ def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
         fields += (["email", "phones", "offices"] if field == "contact" else
                    ["phones"] if field == "fax" else [field])
     fields = list(dict.fromkeys(fields))
-    if not fields or ("menu" in fields and kind != "venue"):
+    if not fields or ("menu" in fields and kind != "venue") or (
+            not covered and fields != ["menu"]):
         return None
     days = [w for w in rest if w in _WEEKDAYS]
     day = (days[0] if len(days) == 1 else None if days else
