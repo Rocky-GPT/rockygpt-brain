@@ -200,6 +200,20 @@ def _configured_engine() -> ChatEngine:
                       output=output)
 
 
+WARM_SECONDS = 120.0
+
+
+async def _warm(engine: ChatEngine) -> None:
+    """Fill the engine's per-release reads before the server takes questions. Render keeps the
+    old instance serving until this one answers its health check, so students never wait on
+    it; past WARM_SECONDS the server starts anyway and the rest fills on first use."""
+    try:
+        async with asyncio.timeout(WARM_SECONDS):
+            await asyncio.to_thread(engine.warm)
+    except TimeoutError:
+        LOG.warning("brain_warm_timeout seconds=%s", WARM_SECONDS)
+
+
 def _log_info_lines() -> None:
     """Send the Brain's own INFO lines (brain_timing, brain_turn) to stderr.
 
@@ -234,6 +248,8 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
             application.state.engine = active
             if isinstance(active.gateway, Gateway):
                 await active.gateway.open()
+            if engine is None and os.getenv("BRAIN_WARM_AT_START", "1") != "0":
+                await _warm(active)
         except ConfigurationError:
             application.state.startup_error = "model_not_configured"
         except SpendingError:
