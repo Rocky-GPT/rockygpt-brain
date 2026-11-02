@@ -558,3 +558,71 @@ def dated_statements(offices: Sequence[dict[str, Any]], today: date, question: s
                 if len(facts) >= MAX_DATED:
                     return facts
     return facts
+
+
+# The every-word check (Dan 11-02, "no made-up facts"): each statement of a reply may use only words
+# the facts it cites hold. Report only for now: it lists what it would cut, and cuts nothing.
+_GRAMMAR = frozenset("""
+the and for with from that this these those you your yours are was were been being can could will
+would must may might not have has had into onto over under than then there their they them its
+also only just more most less such each every any all both either neither but nor yet some same
+about after before during while when where which who whom whose what why how here very much many
+other another one ones per via within without upon among between because since until unless
+though although whether does did done doing make makes made get gets got use used using say says
+said see listed lists list given gives give note notes noted states stated state shows show
+page pages section sections site sites source sources verified information official published
+publish publishes college ramapo office offices contact contacts email phone call visit student
+students you're it's don't doesn't isn't aren't can't won't i'm we our us please need needs
+able like way ways first next last new also yes include includes including part parts asked ask
+""".split())
+
+
+def _stem(word: str) -> str:
+    for suffix in ("ing", "ies", "ed", "es", "s", "ly"):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            return word[: -len(suffix)] + ("y" if suffix == "ies" else "")
+    return word
+
+
+def _content(text: str) -> set[str]:
+    return {_stem(w) for w in re.findall(r"[a-z]+", text.casefold().replace("’", "'"))
+            if len(w) >= 3 and w not in _GRAMMAR}
+
+
+def unbacked(text: str, evidence: dict[int, str], shared: str) -> list[dict[str, Any]]:
+    """Each statement's words that neither the facts its marks cite nor the shared words (names,
+    the question, fixed wording) hold: what the every-word check would cut."""
+    held_shared = _content(shared)
+    found = []
+    for piece in statements(text):
+        statement = piece.strip()
+        if not statement or statement.startswith("Sources:"):
+            continue
+        marks = cited(statement)
+        held = held_shared.union(*(_content(evidence.get(n, "")) for n in marks))
+        words = sorted(_content(re.sub(r"\[[\d,\s–-]+\]", "", statement)) - held)
+        if words:
+            found.append({"statement": statement[:240], "words": words[:12],
+                          **({} if marks else {"uncited": True})})
+    return found
+
+
+def evidence_by_mark(offices: Sequence[dict[str, Any]], computed: Sequence[dict[str, Any]],
+                     *entries: Sequence[dict[str, Any]]) -> dict[int, str]:
+    """Everything each source number stands for, as text: a section with its office's name and
+    contacts, a computed fact, a person's, program's, event's or club's entry."""
+    by_n: dict[int, list[str]] = {}
+    for office in offices:
+        contacts = json.dumps({k: office.get(k) for k in ("office", "email", "phones", "rooms")},
+                              ensure_ascii=False)
+        for section in office.get("sections") or []:
+            by_n.setdefault(section["n"], []).append(
+                json.dumps(section, ensure_ascii=False) + contacts)
+    for fact in computed:
+        if isinstance(fact, dict) and isinstance(fact.get("n"), int):
+            by_n.setdefault(fact["n"], []).append(str(fact.get("fact", "")))
+    for listed in entries:
+        for entry in listed or []:
+            if isinstance(entry, dict) and isinstance(entry.get("n"), int):
+                by_n.setdefault(entry["n"], []).append(json.dumps(entry, ensure_ascii=False))
+    return {n: " ".join(texts) for n, texts in by_n.items()}
