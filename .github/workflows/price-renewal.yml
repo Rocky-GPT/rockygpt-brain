@@ -1,0 +1,125 @@
+name: Price renewal
+
+# The bundled gpt-6-luna price (src/rockygpt_brain/provider-release.json) expires monthly, and
+# an expired price stops the Brain (2026-11-01: production down 17 hours). Every day this checks
+# OpenAI's model page. When the price is unchanged and the expiry is 10 days away or closer, it
+# opens a renewal pull request into main (and the same branch into dev) for Dan to merge. A
+# changed price, an unreadable page, or 5 days or fewer left opens an issue and fails the run,
+# so GitHub emails about it.
+on:
+  schedule:
+    - cron: '17 13 * * *'  # 09:17 New York (EDT), before the day's traffic
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/price-renewal.yml
+      - scripts/check_provider_price.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: price-renewal
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # A pull request only proves the page can be read; it never renews or alerts.
+      REPORT_ONLY: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.sha || 'main' }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Check the published price
+        id: price
+        run: |
+          args=()
+          if [ "$REPORT_ONLY" != true ]; then args+=(--write); fi
+          python scripts/check_provider_price.py "${args[@]}" | tee price-check.txt
+
+      - name: A pull request that changes the check must still read the page
+        if: env.REPORT_ONLY == 'true' && steps.price.outputs.status == 'unreadable'
+        run: |
+          echo "::error::The check could not read OpenAI's page; see the step above."
+          exit 1
+
+      - name: Open the renewal pull requests
+        id: renew
+        if: steps.price.outputs.status == 'renew' && env.REPORT_ONLY != 'true'
+        env:
+          UNTIL: ${{ steps.price.outputs.valid_until }}
+        run: |
+          branch="price-renewal/${UNTIL%%T*}"
+          if gh pr list --head "$branch" --state open --json number --jq '.[].number' | grep -q .; then
+            echo "Renewal pull request for $branch is already open."
+            echo "opened=existing" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add src/rockygpt_brain/provider-release.json
+          git commit -m "Renew the bundled gpt-6-luna price until ${UNTIL%%T*}" \
+            -m "OpenAI's model page still shows the bundled Standard prices, so only the dates move." \
+            -m "$(cat price-check.txt)"
+          git push --force origin "$branch"
+          body=$(printf '%s\n\n```\n%s\n```\n\n%s\n' \
+            "The daily price check found OpenAI's gpt-6-luna prices unchanged, so this only moves the dates. Merging into main renews production; the dev pull request keeps dev in step." \
+            "$(cat price-check.txt)" \
+            "Brain checks run on this branch by dispatch (pull requests opened by Actions do not start them).")
+          for base in main dev; do
+            if ! gh pr create --base "$base" --head "$branch" \
+                --title "Renew the gpt-6-luna price until ${UNTIL%%T*} ($base)" \
+                --body "$body" --assignee daniel-rajakumar; then
+              echo "::warning::Could not open the $base pull request (Actions may not be allowed to create pull requests)."
+              echo "failed=true" >> "$GITHUB_OUTPUT"
+            fi
+          done
+          gh workflow run ci.yml --ref "$branch" || echo "::warning::Could not start Brain checks on $branch."
+          echo "opened=new" >> "$GITHUB_OUTPUT"
+
+      - name: Alert by issue when a person is needed
+        if: env.REPORT_ONLY != 'true'
+        env:
+          STATUS: ${{ steps.price.outputs.status }}
+          DAYS_LEFT: ${{ steps.price.outputs.days_left }}
+          PR_FAILED: ${{ steps.renew.outputs.failed }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          case "$STATUS" in
+            changed) title="gpt-6-luna price changed on OpenAI's page: review the bundled price" ;;
+            unreadable) title="Price check could not read OpenAI's gpt-6-luna page" ;;
+            *) title="" ;;
+          esac
+          # An unreadable page alone is noise until the expiry is close; a change is not.
+          if [ "$STATUS" = unreadable ] && [ "$DAYS_LEFT" -gt 10 ]; then title=""; fi
+          if [ "$PR_FAILED" = true ]; then title="Price renewal is due but its pull request could not be opened"; fi
+          if [ -z "$title" ] && [ "$DAYS_LEFT" -le 5 ]; then
+            title="gpt-6-luna price expires in $DAYS_LEFT days: merge the renewal into main"
+          fi
+          if [ -z "$title" ]; then echo "No alert needed ($STATUS, $DAYS_LEFT days left)."; exit 0; fi
+          body=$(printf '%s\n\n```\n%s\n```\n\n%s\n' \
+            "The Brain stops answering when the bundled price in \`src/rockygpt_brain/provider-release.json\` expires. Days left: $DAYS_LEFT." \
+            "$(cat price-check.txt)" "Run: $RUN_URL")
+          existing=$(gh issue list --state open --label price-check --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$title"$'\n\n'"$body"
+          else
+            gh label create price-check --color B60205 --description "Daily price renewal check" 2>/dev/null || true
+            gh issue create --title "$title" --body "$body" --label price-check \
+              --assignee daniel-rajakumar
+          fi
+          echo "::error::$title"
+          exit 1

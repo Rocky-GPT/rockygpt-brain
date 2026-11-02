@@ -634,6 +634,16 @@ class PostgresEntityFacts(EntityFacts):
                          name="meaning-index-load").start()
         return None
 
+    def warm_meaning_index(self) -> None:
+        """Load the active release's index now, on this thread (startup), unless a load runs."""
+        release = self.active_release()
+        with self._meaning_lock:
+            if self._meaning_loading:
+                return
+            self._meaning_loading = True
+            self._meaning_checked = time.monotonic() + MEANING_CHECK_SECONDS
+        self._load_meaning(release)
+
     def _load_meaning(self, release: tuple[str, str]) -> None:
         index: MeaningIndex | None = None
         try:

@@ -11,7 +11,7 @@ import logging
 import os
 import re
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from typing import Any, Literal, Protocol, get_args
@@ -1246,6 +1246,35 @@ class ChatEngine:
         answer = result.body["answer"] if self.output == "written" else ""
         return replace(result, body={**result.body, "answer": answer, "facts": packet,
                                      "writerInput": writer_input})
+
+    def warm(self) -> dict[str, float]:
+        """Read, before the first question, what questions otherwise read on first use: the
+        meaning index and the once-per-release lists (directory, clubs, events, venues, stops,
+        office labels, catalog tracks). After a deploy the first answer took ~24 s, and how-to
+        questions asked before the meaning index loaded were searched by words alone.
+
+        Each step stands alone: one that fails is logged and the Brain starts anyway, reading
+        it on first use as before. Returns the seconds each step took."""
+        steps: list[tuple[str, Callable[[], object]]] = [
+            ("meaning_index", self.facts.warm_meaning_index),
+            ("directory", self._directory),
+            ("clubs", self._club_directory),
+            ("events", lambda: self._upcoming_events(datetime.now(CAMPUS_TZ))),
+            ("venues", self._published_venues),
+            ("stops", self._published_stops),
+            ("office_labels", lambda: self._offices_by_service("")),
+            ("catalog", self._catalog_maps),
+        ]
+        seconds: dict[str, float] = {}
+        for name, step in steps:
+            started = time.monotonic()
+            try:
+                step()
+            except Exception as error:  # noqa: BLE001 (warming must never stop the Brain)
+                LOG.warning("brain_warm_failed step=%s error=%s", name, type(error).__name__)
+            seconds[name] = round(time.monotonic() - started, 2)
+        LOG.info("brain_warm %s", " ".join(f"{k}={v}" for k, v in seconds.items()))
+        return seconds
 
     async def readiness(self) -> bool:
         try:

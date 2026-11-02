@@ -418,6 +418,9 @@ class ReleaseGraphFacts(EntityFacts):
         """The source's index for the active release (Postgres stores it beside the release)."""
         return self.source.meaning_index()
 
+    def warm_meaning_index(self) -> None:
+        self.source.warm_meaning_index()
+
     def evidence_fingerprint(self) -> str:
         return self.source.evidence_fingerprint()
 
