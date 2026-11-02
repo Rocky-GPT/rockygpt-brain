@@ -17,6 +17,8 @@ from psycopg.conninfo import conninfo_to_dict
 from psycopg.rows import dict_row
 
 from rockygpt_brain.retrieval.entity_facts import (
+    GRAPH_RECORD_COLLECTIONS,
+    GRAPH_RECORDS_ARTIFACT,
     MAX_CONTACTS,
     MAX_SCHEDULE_ROWS,
     RECORD_COLLECTIONS,
@@ -722,10 +724,11 @@ class PostgresEntityFacts(EntityFacts):
             raise EvidenceUnavailable("No unique active identity publication is available.")
         return str(rows[0]["fingerprint"])
 
-    def release_inputs(self, kinds: Sequence[str]) -> ReleaseInputs:
+    def release_inputs(self, kinds: Sequence[str] | None) -> ReleaseInputs:
         """One transaction with its own limits: the whole release for a derived copy."""
         with self._snapshot(BUILD_SECONDS, BUILD_STATEMENT_MS) as snapshot:
-            wanted = [entity for entity in snapshot.entities if entity["kind"] in kinds]
+            wanted = [entity for entity in snapshot.entities
+                      if kinds is None or entity["kind"] in kinds]
             evidence = {
                 entity["id"]: (snapshot.contact_reader(entity), snapshot.schedule_reader(entity))
                 for entity in wanted
@@ -950,7 +953,42 @@ class PostgresEntityFacts(EntityFacts):
                             for key in keys[:RECORD_COLLECTIONS["faculty"] + 1]
                             if key in profiles["by_key"]]
 
+                # Every kind added since 11-02 keeps its records in one artifact, read once.
+                graph_read: dict[str, Any] = {}
+
+                def graph_records(entity: dict[str, Any], collection: str
+                                  ) -> list[dict[str, Any]]:
+                    links = [link for link in entity["links"]
+                             if link.get("collection") == collection]
+                    if not links:
+                        return []
+                    if not graph_read:
+                        found_records = artifact(GRAPH_RECORDS_ARTIFACT)
+                        if found_records is None or not isinstance(found_records[0], dict):
+                            raise EvidenceUnavailable("The graph records are not published.")
+                        graph_read.update(payload=found_records[0],
+                                          content_hash=found_records[1])
+                    held = (graph_read["payload"].get("collections") or {}).get(collection)
+                    if not isinstance(held, dict) or not isinstance(held.get("rows"), list):
+                        raise EvidenceUnavailable(f"The {collection} records are not published.")
+                    by_key = {row.get("source_record_key"): row for row in held["rows"]
+                              if isinstance(row, dict)}
+                    keys = [key for link in links
+                            if link.get("source_key") == held.get("source_key")
+                            for key in link.get("source_record_keys", [])]
+                    limit = RECORD_COLLECTIONS[collection]
+                    if len(keys) > limit:
+                        raise EvidenceUnavailable(
+                            "Campus record evidence exceeds the bounded read.")
+                    return [{**by_key[key], "id": f"{collection}:{key}",
+                             "source_key": held.get("source_key"),
+                             "collected_at": held.get("collected_at") or None,
+                             "content_hash": graph_read["content_hash"]}
+                            for key in keys if key in by_key]
+
                 def records(entity: dict[str, Any], collection: str) -> list[dict[str, Any]]:
+                    if collection in GRAPH_RECORD_COLLECTIONS:
+                        return graph_records(entity, collection)
                     if collection == "faculty":
                         return faculty(entity)
                     if collection == "courses":

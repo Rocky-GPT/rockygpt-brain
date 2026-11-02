@@ -16,12 +16,14 @@ from rockygpt_brain.academics import (
     choose_plan,
     course_codes,
     course_evidence,
+    course_text,
     find_programs,
     program_level,
     render_plan,
     render_requirements,
     render_requisites,
     requisite_codes,
+    requisites_text,
 )
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
@@ -239,9 +241,18 @@ def test_a_question_naming_a_course_code_is_answered_from_its_catalog_record() -
         {"role": "user", "content": "how many credits is cmps147"}]})
     engine = ChatEngine(gateway, course_catalog(), output="written")
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    # Dan 11-02: a course's credits are worked out and said by code; no model call is made.
+    assert gateway.inputs == [] and result.trace is not None
+    assert result.trace["decidedBy"] == "code"
+    assert result.body["answer"].startswith("CMPS 147 COMPUTER SCIENCE I is 4 credits. [1]")
+    assert "Sources: [1](https://catalog.ramapo.edu/courses/CMPS147)" in result.body["answer"]
+    # Asked with something more, the model still writes it from the same catalog record.
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "how many credits is cmps147 and is it hard"}]})
+    engine = ChatEngine(gateway, course_catalog(), output="written")
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     (course,) = json.loads(gateway.inputs[0][1]["content"])["programs"]
     assert course["course"] == "CMPS 147 COMPUTER SCIENCE I" and course["credits"] == 4
-    assert "Sources: [1](https://catalog.ramapo.edu/courses/CMPS147)" in result.body["answer"]
 
 
 def plan(name: str, cohort: str) -> dict[str, Any]:
@@ -576,3 +587,58 @@ def test_a_rule_name_that_counts_differently_from_the_rule_is_left_out() -> None
     assert lines[0] == "all of:"
     lines = render_rule({"name": "Select 1 Course", "choose": {"at_least": 1}, "items": items})
     assert lines[0] == "Select 1 Course at least 1 of:"
+
+
+def test_an_office_named_in_the_question_is_not_read_as_a_program() -> None:
+    # 11-02: "the Student Accounts office hours" named Accounting ("accounts" is its short form)
+    # and went to the catalog instead of the office's hours.
+    facts = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "acct", "name": "Accounting BS", "kind": "program", "aliases": [],
+                   "links": []},
+                  {"id": "sa", "name": "Student Accounts", "kind": "office", "aliases": [],
+                   "links": []}],
+        contacts=[], now=lambda: NOW)
+    engine = ChatEngine(ScriptedGateway(), facts)
+    assert engine._programs_named("What are the Student Accounts office hours?")[0] == []
+    assert [p["name"] for p in engine._programs_named("What is the accounting major?")[0]] == [
+        "Accounting BS"]
+
+
+def test_code_says_a_courses_requisites_and_facts_in_plain_sentences() -> None:
+    one = [{"section": "Prerequisite", "rule": {
+        "name": "Prerequisite Course", "condition": "minimumGrade", "constraints": {"grade": "C"},
+        "items": [{"logic": "and", "codes": [{"code": "CMPS 231", "name": "DATA STRUCTURES"}]}]}}]
+    assert requisites_text(one) == "Prerequisite: CMPS 231 DATA STRUCTURES (minimum grade C)."
+    two = [{"section": "Prerequiste", "rule": {
+        "name": "Prerequisite Courses", "condition": "completedAllOf",
+        "note": "CRWT 102 may be taken concurrently.",
+        "items": [{"logic": "and", "codes": [{"code": "CMPS 361", "name": "SOFTWARE DESIGN"}]},
+                  {"logic": "or", "codes": [
+                      {"code": "CRWT 102", "name": "CRITICAL READING II"},
+                      {"code": "CRWT 102S", "name": "CRITICAL READING II"}]}]}},
+           {"section": "Corequisite", "rule": {"condition": "enrolledIn", "items": [
+               {"logic": "and", "codes": [{"code": "CMPS 451", "name": "LAB"}]}]}}]
+    # A misspelt section name is said as the catalog means it.
+    assert requisites_text(two) == (
+        "Prerequisites, all of: CMPS 361 SOFTWARE DESIGN; CRWT 102 CRITICAL READING II or "
+        'CRWT 102S CRITICAL READING II. The catalog adds: "CRWT 102 may be taken concurrently." '
+        "Corequisite: CMPS 451 LAB.")
+    # A free-text rule (a placement test) is left to the model, which reads it as published.
+    assert requisites_text([{"section": "Prerequisite", "rule": {
+        "condition": "freeformText", "text": "Complete one Placement Test"}}]) is None
+    item = {"n": 1, "course": "CMPS 361 SOFTWARE DESIGN", "credits": 4,
+            "description": "A study of large programming systems.",
+            "attributes": ["WRITING INTENSIVE (WRIT)"], "_requisites": one}
+    assert course_text(item, "What are the prerequisites for Software Design?") == (
+        "CMPS 361 SOFTWARE DESIGN is 4 credits. Prerequisite: CMPS 231 DATA STRUCTURES "
+        "(minimum grade C). [1]")
+    assert course_text(item, "what is cmps361") == (
+        'CMPS 361 SOFTWARE DESIGN is 4 credits. The catalog says: "A study of large programming '
+        'systems." Prerequisite: CMPS 231 DATA STRUCTURES (minimum grade C). Attributes: '
+        "WRITING INTENSIVE (WRIT). [1]")
+    assert course_text(item, "Is CMPS 361 hard to pass?") is None  # Asks more than the facts.
+    # The rules themselves never reach the model.
+    from rockygpt_brain.one_call import messages
+    given = json.loads(messages("q", None, [], NOW.date(), [item])[1]["content"])
+    assert "_requisites" not in given["programs"][0]

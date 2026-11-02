@@ -277,3 +277,64 @@ def test_a_reply_naming_a_course_the_facts_do_not_hold_is_not_sent() -> None:
         "a course the facts do not hold: CHEM 211"]
     # A word of no subject the facts hold ("room 425") is not checked as a course.
     assert unsupported_by("It meets in room 425.", view) == []
+
+
+def test_a_dean_a_persons_details_or_a_courses_facts_are_answered_by_code() -> None:
+    from rockygpt_brain.one_call import code_kind, code_text
+    course: tuple[list[Any], list[Any], list[dict[str, Any]]] = (
+        [], [], [{"id": "c1", "name": "CMPS 147"}])
+    assert code_kind("Who is the dean of the Anisfield School of Business?", [], None) == "leaders"
+    assert code_kind("What is Professor Hangen's email?", [{"id": "p"}], None) == "person"
+    assert code_kind("How many credits is CMPS 147?", [], course) == "course"
+    # Asked with something more, or how to do something, the model writes it.
+    # How to reach the dean is the dean's directory contacts, which code says too.
+    assert code_kind("Who is the dean and how do I reach them?", [], None) == "leaders"
+    assert code_kind("Who is the dean and how do I get a waiver?", [], None) is None
+    assert code_kind("Who is the dean of the School of Science and Health?", [], None) \
+        == "leaders"
+    assert code_kind("How do I email Professor Hangen?", [{"id": "p"}], None) is None
+    hangen = [{"id": "p", "name": "Susan Hangen"}]
+    assert code_kind("Who is Professor Hangen?", hangen, None) == "person"
+    assert code_kind("What does Professor Hangen teach?", hangen, None) == "person"
+    assert code_kind("Who is Professor Hangen's advisee?", hangen, None) is None
+    assert code_kind("Who is Dean Chen?", [{"id": "c", "name": "Dean Chen"}], None) == "person"
+    assert code_kind("Is CMPS 147 hard?", [], course) is None
+    assert code_text([{"fact": "CMPS 147 is 4 credits.", "n": 1},
+                      {"fact": "CMPS 147 has no published prerequisites.", "n": 1}]) == (
+        "CMPS 147 is 4 credits. [1] CMPS 147 has no published prerequisites. [1]")
+    # A fact written for a writer, not a student, is never said as it is.
+    assert code_text([{"fact": "3 people share the name. Ask which one the student means."}]) \
+        is None
+
+    from rockygpt_brain.one_call import course_facts_asked
+    facts = [{"fact": "CMPS 147 is 4 credits.", "n": 1},
+             {"fact": "CMPS 147 prerequisites, as the catalog states them: MATH 101", "n": 1}]
+    assert course_facts_asked("How many credits is CMPS 147?", facts) == facts[:1]
+    assert course_facts_asked("What is CMPS 147 about?", facts) == facts
+
+
+def test_the_every_word_check_lists_words_the_cited_facts_do_not_hold() -> None:
+    from rockygpt_brain.one_call import evidence_by_mark, unbacked
+    offices = [{"office": "Registrar", "email": ["reg@example.edu"], "phones": [], "rooms": [],
+                "sections": [{"n": 1, "heading": "Transcripts",
+                              "text": "Order official transcripts online through the "
+                                      "Clearinghouse."}]}]
+    evidence = evidence_by_mark(offices, [])
+    shared = "How do I get a transcript?"
+    assert unbacked("Order official transcripts online through the Clearinghouse. [1]",
+                    evidence, shared) == []
+    # A word no cited fact holds ("free") is listed, and so is an uncited statement's.
+    assert unbacked("Transcripts are free. [1] Pickup is same day.", evidence, shared) == [
+        {"statement": "Transcripts are free. [1]", "words": ["free"]},
+        {"statement": "Pickup is same day.", "words": ["day", "pickup"]}]
+
+
+def test_a_mark_covers_its_paragraph_and_rewording_words_do_not_count() -> None:
+    from rockygpt_brain.one_call import evidence_by_mark, unbacked
+    offices = [{"office": "Registrar", "email": [], "phones": [], "rooms": [], "sections": [
+        {"n": 1, "heading": "Steps", "text": "Fill out the form. Email it to the office."}]}]
+    evidence = evidence_by_mark(offices, [])
+    assert unbacked("The Registrar handles it.\n1. Fill out the form.\n2. Email it. [1]",
+                    evidence, "") == []
+    assert unbacked("Fill out the form. [1]\n\nIt costs nothing.", evidence, "") == [
+        {"statement": "It costs nothing.", "words": ["cost", "noth"], "uncited": True}]

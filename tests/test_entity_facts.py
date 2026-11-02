@@ -856,3 +856,88 @@ def test_a_group_or_facility_with_a_reviewed_contact_is_read_like_an_office() ->
     assert [entry["name"] for entry in listed] == ["Pine Hall"]
     read = facts.get_office_facts("pine", ["email"], "test-release", as_of=NOW)
     assert read["entity"]["kind"] == "office" and prop(read, "email")["status"] == "known"
+
+
+def test_every_new_kind_reads_its_records_from_the_one_graph_records_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Terms, calendar dates and every later kind live in one artifact with one reader."""
+    term = {"id": "fall", "kind": "term", "name": "Fall 2026", "aliases": [], "links": [
+        {"collection": "terms", "source_key": "academic-calendar",
+         "source_record_keys": ["fall-2026"]}]}
+    day = {"id": "drop", "kind": "calendar_date", "name": "Last Day to Drop", "aliases": [],
+           "links": [{"collection": "calendar_dates", "source_key": "academic-calendar",
+                      "source_record_keys": ["2026-09-01:Last Day to Drop"]}],
+           "relationships": [{"type": "in_term", "target_entity_id": "fall", "evidence": []}]}
+    room = {"id": "york", "kind": "facility", "name": "York Room", "aliases": [], "links": [
+        {"collection": "map_places", "source_key": "campus-map",
+         "source_record_keys": ["office_york-room"]}]}
+    records = {"schema_version": 1, "collections": {
+        "terms": {"source_key": "academic-calendar", "collected_at": "2026-11-02T10:00:00Z",
+                  "rows": [{"source_record_key": "fall-2026", "name": "Fall 2026",
+                            "source_url": "https://www.ramapo.edu/academic-calendars/"}]},
+        "calendar_dates": {"source_key": "academic-calendar", "collected_at": "",
+                           "rows": [{"source_record_key": "2026-09-01:Last Day to Drop",
+                                     "date": "2026-09-01", "kind": "add_drop_deadline",
+                                     "source_url": "https://www.ramapo.edu/academic-calendars/"}]},
+        "map_places": {"source_key": "campus-map", "collected_at": "",
+                       "rows": [{"source_record_key": "office_york-room", "name": "York Room",
+                                 "building": "Birch Mansion",
+                                 "source_url": "https://map.ramapo.edu/?id=2292#!m/1133345"}]},
+    }}
+    reads: list[str] = []
+
+    class Cursor:
+        def __init__(self, result: list[dict[str, Any]]) -> None:
+            self.result = result
+
+        def fetchall(self) -> list[dict[str, Any]]:
+            return deepcopy(self.result)
+
+    class Connection:
+        closed = False
+
+        def rollback(self) -> None:
+            pass
+
+        def close(self) -> None:
+            self.closed = True
+
+        def execute(self, query: str, params: Any = None) -> Cursor:
+            if "AS registry_text" in query:
+                return Cursor([{"registry_text": json.dumps(
+                    {"schema_version": 1, "entities": [office(), term, day, room]})}])
+            if "AS payload_text" in query:
+                reads.append(params[1])
+                return Cursor([{"payload_text": json.dumps(records), "content_hash": "g-1"}])
+            if query.lstrip().startswith("SELECT a.content_hash"):
+                return Cursor([{"content_hash": "g-1"}] if params[1] == "graph-records" else [])
+            if "dataset_versions v" in query:
+                return Cursor([{"dataset_id": "dataset-uuid", "dataset_version": "test-release",
+                                "identity_hash": "identity-hash", "coverage_hash": None}])
+            return Cursor([])
+
+    monkeypatch.setattr(psycopg, "connect", lambda *args, **kwargs: Connection())
+    service = PostgresEntityFacts("postgresql://example.invalid/test")
+    with service.snapshot() as snapshot:
+        found = {e["id"]: e for e in snapshot.entities}
+        assert snapshot.record_reader(found["fall"], "terms") == [{
+            "source_record_key": "fall-2026", "name": "Fall 2026",
+            "source_url": "https://www.ramapo.edu/academic-calendars/",
+            "id": "terms:fall-2026", "source_key": "academic-calendar",
+            "collected_at": "2026-11-02T10:00:00Z", "content_hash": "g-1"}]
+        dated = snapshot.record_reader(found["drop"], "calendar_dates")
+        assert dated[0]["kind"] == "add_drop_deadline" and dated[0]["collected_at"] is None
+        # A kind with no link to a collection reads nothing from it.
+        assert snapshot.record_reader(found["fall"], "calendar_dates") == []
+        assert [r["building"] for r in snapshot.record_reader(found["york"], "map_places")] \
+            == ["Birch Mansion"]
+    assert reads == ["graph-records"]  # One read of the artifact serves every collection.
+    with service.snapshot() as snapshot:
+        assert {e["id"] for e in linked_records_of(snapshot)} == {"fall", "drop", "york"}
+
+
+def linked_records_of(snapshot: Any) -> list[dict[str, Any]]:
+    from rockygpt_brain.retrieval.entity_facts import linked_records
+    held = linked_records(snapshot, snapshot.entities)
+    return [e for e in snapshot.entities if e["id"] in held]

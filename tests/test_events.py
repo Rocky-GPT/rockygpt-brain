@@ -13,10 +13,16 @@ from rockygpt_brain.events import (
     asks_clubs,
     asks_events,
     club_category,
+    club_meets,
+    club_named,
+    club_text,
     clubs_by_meaning,
     events_in,
     find_clubs,
+    in_window,
     interests,
+    listing_text,
+    plain_window,
     rank_events,
     window,
 )
@@ -106,11 +112,12 @@ def test_a_club_is_named_by_every_word_of_its_directory_name() -> None:
     assert find_clubs(clubs, "is there a knitting club") == []
 
 
-def calendar() -> MemoryEntityFacts:
+def calendar(organizer: str = "CPB",
+             club_status: dict[str, Any] | None = None) -> MemoryEntityFacts:
     row = {"id": "row-v", "source_key": "archway-events",
            "source_record_key": "Fri, Oct 23, 2026:Trivia Night", "title": "Trivia Night",
            "date_label": "Fri, Oct 23, 2026", "starts_at": "2026-10-23T20:00:00-04:00",
-           "start_time": "8 PM", "end_time": "10 PM", "organizer": "CPB",
+           "start_time": "8 PM", "end_time": "10 PM", "organizer": organizer,
            "event_url": "https://archway.ramapo.edu/rsvp_boot?id=1", "collected_at": WEDNESDAY,
            "freshness_sla_hours": 36,
            "listing": {"location": "Student Center (SC)", "tags": ["Social"],
@@ -127,7 +134,8 @@ def calendar() -> MemoryEntityFacts:
                                                  "Fri, Oct 23, 2026:Trivia Night"]}]},
                   {"id": "cl", "name": "Chess Club", "kind": "club", "aliases": [],
                    "links": [{"collection": "clubs", "source_key": "archway-clubs",
-                              "source_record_keys": ["Chess Club"]}]}],
+                              "source_record_keys": ["Chess Club"]}],
+                   **({"status": club_status} if club_status else {})}],
         contacts=[], records={"events": [row], "clubs": [club]}, now=lambda: WEDNESDAY)
 
 
@@ -281,3 +289,139 @@ def test_function_words_and_term_words_are_not_what_an_event_is_about() -> None:
     words = asked_topic("finals week destress events like therapy dogs or pancakes")
     assert {"therapy", "dog"} in alternatives("finals week destress events like therapy dogs or "
                                               "pancakes", words)
+
+
+def test_a_question_asking_only_what_is_on_in_one_window_is_plain() -> None:
+    for plain in ("What events are happening this weekend?", "anything to do tonight?",
+                  "What's going on Friday night?", "What can I do this weekend?",
+                  "Any events on Nov 12?", "events on 11/12", "what events are coming up"):
+        assert plain_window(plain), plain
+    for more in ("Are there any parties this weekend?", "free events this weekend",
+                 "What's happening today and tomorrow?", "anything fun this weekend? also is "
+                 "there a chess club", "Who is hosting events tonight?",
+                 "What's for dinner at the Birch tonight?", "events in December",
+                 "What time is the event tonight?"):
+        assert not plain_window(more), more  # A topic, two windows, or not the calendar.
+
+
+def test_code_lists_a_windows_events_by_day_with_their_time_title_and_place() -> None:
+    def on(title: str, at: str, start_time: str, end_time: str | None,
+           location: str) -> dict[str, Any]:
+        return {"title": title, "starts_at": at, "start_time": start_time, "end_time": end_time,
+                "location": location}
+    start, end, label = window("what's happening this weekend", WEDNESDAY)
+    shown = [on("Trivia #2", "2026-10-24T00:00:00+00:00", "8 PM", "10 PM", "Student Center (SC)"),
+             on("Cocoa and Crafts", "2026-10-24T11:00:00-04:00", "11 AM", None, "-"),
+             on("Avoiding Plagiarism", "2026-10-25T13:00:00-04:00", "1 PM", "2 PM",
+                "Online Event")]
+    # Trivia starts at midnight UTC: Friday, 8 PM on campus.
+    assert listing_text(label, start, end, shown, 5) == (
+        "The calendar lists 5 events this weekend, Friday, October 23 to Sunday, October 25; "
+        "here are the first 3 by time [1]:\n\n"
+        "Friday, October 23:\n- 8 PM to 10 PM: Trivia \\#2, at Student Center (SC) [2]\n\n"
+        "Saturday, October 24:\n- 11 AM: Cocoa and Crafts [3]\n\n"
+        "Sunday, October 25:\n- 1 PM to 2 PM: Avoiding Plagiarism, Online Event [4]")
+    start, end, label = window("anything going on tonight", WEDNESDAY)
+    assert listing_text(label, start, end, [], 0) == (
+        "The calendar lists no events tonight, Wednesday, October 21 [1].")
+    start, end, label = window("what's on friday night", WEDNESDAY)
+    one = [{**on("Moonlight Masquerade", "2026-10-23T19:00:00-04:00", "7 PM", "9 PM", "-"),
+            "organizer": "The Overlook"}]
+    assert listing_text(label, start, end, one, 1) == (
+        "The calendar lists 1 event on Friday, October 23, in the evening [1]:\n\n"
+        "- 7 PM to 9 PM: Moonlight Masquerade (The Overlook) [2]")
+    assert listing_text(label, start, end, [{**one[0], "title": ""}], 1) is None
+
+
+def test_an_event_still_on_when_the_window_opens_ends_on_the_campus_clock() -> None:
+    start, end, _ = window("what's happening this weekend", WEDNESDAY)  # Friday 5 PM on.
+    # Published in UTC: 12:15-3:45 PM and 4-5:30 PM on campus, Friday October 23.
+    ended = {"title": "Service", "starts_at": "2026-10-23T16:15:00+00:00", "end_time": "3:45 PM"}
+    still_on = {"title": "Reading", "starts_at": "2026-10-23T20:00:00+00:00",
+                "end_time": "5:30 PM"}
+    assert in_window([ended, still_on], start, end) == [still_on]
+
+
+def test_a_window_question_is_answered_by_code_with_no_model_call() -> None:
+    gateway = ScriptedGateway()  # Any model call would fail: none is scripted.
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "What events are happening this weekend?"}]})
+    engine = ChatEngine(gateway, calendar(), output="written")
+    result = asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
+    assert result.body["answer"] == (
+        "The calendar lists 1 event this weekend, Friday, October 23 to Sunday, October 25 "
+        "[1]:\n\nFriday, October 23:\n- 8 PM to 10 PM: Trivia Night (CPB), at Student Center (SC) "
+        "[2]"
+        "\n\nSources: [1](https://archway.ramapo.edu/home/events/) "
+        "[2](https://archway.ramapo.edu/rsvp_boot?id=1)")
+    assert gateway.inputs == []
+    assert result.trace is not None and result.trace["decidedBy"] == "code"
+
+
+def test_a_question_only_about_what_a_named_club_hosts_next_is_the_clubs() -> None:
+    directory = [{"name": "Chess Club"}, {"name": "Math Club"}]
+    for asked in ("When does the Chess Club meet?",
+                  "What events does the Chess Club have coming up?"):
+        assert club_meets(asked, directory) == {"name": "Chess Club"}, asked
+    for more in ("Where does the Chess Club meet?", "Is there a chess club?",
+                 "When does the Chess Club meet and how do I join?",
+                 "When does the chess team meet?"):
+        assert club_meets(more, directory) is None, more  # A place, existence, more, no name.
+
+
+def test_what_a_club_hosts_next_is_answered_by_code_from_the_calendar() -> None:
+    gateway = ScriptedGateway()  # Any model call would fail: none is scripted.
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "When does the Chess Club meet?"}]})
+    engine = ChatEngine(gateway, calendar(organizer="Chess Club"), output="written")
+    result = asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
+    assert result.body["answer"] == (
+        "The calendar's next events hosted by Chess Club [1]:\n\n"
+        "- Fri, Oct 23, 2026 8 PM to 10 PM: Trivia Night, at Student Center (SC) [2]"
+        "\n\nSources: [1](https://archway.ramapo.edu/chess/) "
+        "[2](https://archway.ramapo.edu/rsvp_boot?id=1)")
+    assert gateway.inputs == [] and result.trace is not None
+    assert result.trace["decidedBy"] == "code"
+
+
+INACTIVE = {"state": "inactive", "as_of": "2025-06-12", "evidence": [
+    {"collection": "office_sections", "source_key": "office-pages", "field": "status",
+     "source_record_key": "www.ramapo.edu/clubs/organization/chess-club/",
+     "source_url": "https://www.ramapo.edu/clubs/organization/chess-club/"}]}
+
+
+def test_whether_a_club_exists_says_the_directory_and_an_inactive_page_beside_it() -> None:
+    clubs = [{"id": "m", "name": "Math Club"}, {"id": "c", "name": "Chess Club"}]
+    assert club_named("Is there a math club?", clubs) == {"id": "m", "name": "Math Club"}
+    assert club_named("Is there a math club for girls?", clubs) is None  # Asks more.
+    math = {"n": 1, "name": "Math Club", "category": "Student Organization",
+            "mission": "We share an interest in the mathematical sciences. We meet.",
+            "email": "mathclub@ramapo.edu"}
+    assert club_text("Math Club", math, None) == (
+        "Yes. The club directory lists Math Club (Student Organization) [1]. Its page says: "
+        '"We share an interest in the mathematical sciences." [1] Email: mathclub@ramapo.edu [1].')
+    status = {"state": "inactive", "as_of": "2025-06-12", "n": 2}
+    assert club_text("Math Club", math, status) == (
+        "The club directory lists Math Club (Student Organization) [1], but Ramapo's page for it "
+        "says it is not currently an active club, as of June 12, 2025 [2].")
+    assert club_text("Chess Club", None, {**status, "n": 1}) == (
+        "Ramapo's page for Chess Club says it is not currently an active club, as of June 12, "
+        "2025 [1]. The club directory does not list it.")
+
+
+def test_whether_a_club_exists_is_codes_only_once_the_release_marks_inactive_clubs() -> None:
+    gateway = ScriptedGateway()  # Any model call would fail: none is scripted.
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "Is there a chess club?"}]})
+    engine = ChatEngine(gateway, calendar(club_status=INACTIVE), output="written")
+    result = asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
+    assert result.body["answer"] == (
+        "The club directory lists Chess Club (Recreation) [1], but Ramapo's page for it says it is "
+        "not currently an active club, as of June 12, 2025 [2].\n\nSources: "
+        "[1](https://archway.ramapo.edu/chess/) "
+        "[2](https://www.ramapo.edu/clubs/organization/chess-club/)")
+    assert gateway.inputs == [] and result.trace is not None
+    assert result.trace["decidedBy"] == "code"
+    # A release with no inactive marks cannot tell an active club from one ramapo.edu says is not.
+    plain = ChatEngine(ScriptedGateway(), calendar(), output="written")
+    assert plain._club_listing("Is there a chess club?", WEDNESDAY) is None

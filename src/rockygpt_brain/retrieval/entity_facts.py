@@ -38,6 +38,18 @@ MAX_MENU_ROWS = 1_500
 MAX_TRIP_ROWS = 128
 # The record collections a derived copy of a release carries beside contacts and campus hours,
 # with the most rows one entity may link to.
+# Collections the release stores in its generic `graph-records` artifact (rockygpt-data
+# graph-records.ts): every node kind added since 11-02, read by one reader, each its own bound.
+# A term's record, and a calendar date's.
+GRAPH_RECORDS_ARTIFACT = "graph-records"
+# The most academic calendar dates one read returns (about 300 across the published terms).
+MAX_CALENDAR_DATES = 2_000
+# A building's map row (or its group's), and the places the campus map lists that a node is: one
+# office can be several map places (Admissions is both "Campus Tours" and the admissions office).
+# A staff person's record: the names, addresses and titles their offices' own pages print.
+# A parking lot's record: who may park there and its notes, each quoting the parking pages.
+GRAPH_RECORD_COLLECTIONS = {"terms": 1, "calendar_dates": 1, "buildings": 1, "map_places": 8,
+                            "club_categories": 1, "stops": 1, "staff": 1, "parking_lots": 1}
 RECORD_COLLECTIONS = {
     "dining_hours": MAX_DINING_ROWS, "menu": MAX_MENU_ROWS, "shuttle_trips": MAX_TRIP_ROWS,
     "menu_documents": 10, "menu_listings": 2, "shuttle_stops": 40, "campus_topics": 1,
@@ -52,6 +64,7 @@ RECORD_COLLECTIONS = {
     "events": 1, "clubs": 8,
     # A faculty member's profile (the faculty artifact entry the link's key names).
     "faculty": 1,
+    **{collection: bound for collection, bound in GRAPH_RECORD_COLLECTIONS.items()},
 }
 # Entities a student can ask about by name: offices and dining venues. A route is not named by
 # students; it is read through the shuttle timetable.
@@ -2103,10 +2116,11 @@ class EntityFacts:
         with self.snapshot() as snapshot:
             return snapshot.fingerprint_reader()
 
-    def release_inputs(self, kinds: Sequence[str]) -> ReleaseInputs:
+    def release_inputs(self, kinds: Sequence[str] | None) -> ReleaseInputs:
         """The active release and the evidence of every entity of the given kinds."""
         with self.snapshot() as snapshot:
-            wanted = [entity for entity in snapshot.entities if entity["kind"] in kinds]
+            wanted = [entity for entity in snapshot.entities
+                      if kinds is None or entity["kind"] in kinds]
             evidence = {
                 entity["id"]: (snapshot.contact_reader(entity), snapshot.schedule_reader(entity))
                 for entity in wanted
@@ -2750,6 +2764,47 @@ class EntityFacts:
                     "properties": [prop], "sources": sources,
                     "evidence_count": len(sources), "caveats": [], "complete": bool(sources),
                 })
+            return found
+
+    def identity_statuses(self, kinds: Sequence[str], dataset_version: str, *,
+                          identity_hash: str | None = None) -> dict[str, dict[str, Any]]:
+        """The published status of each identity of the given kinds that has one ("inactive" as
+        of a date, by the page that says so), by id: its state, date and the page it cites."""
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            found: dict[str, dict[str, Any]] = {}
+            for entity in snapshot.entities:
+                status = entity.get("status")
+                if entity["kind"] not in kinds or not isinstance(status, dict):
+                    continue
+                evidence = [e for e in status.get("evidence") or [] if isinstance(e, dict)]
+                found[entity["id"]] = {
+                    "state": clean(status.get("state")), "as_of": clean(status.get("as_of")),
+                    "source_url": next((_url(e.get("source_url")) for e in evidence
+                                        if e.get("source_url")), None)}
+            return found
+
+    def academic_calendar(self, dataset_version: str, *, identity_hash: str | None = None,
+                          ) -> dict[str, list[dict[str, Any]]]:
+        """Every academic term and calendar date in the release, each its one record as published
+        (rockygpt-data campus-calendar.ts) with its identity's id; empty lists when the release
+        has none. A date's record names the terms whose pages list it."""
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            found: dict[str, list[dict[str, Any]]] = {"terms": [], "dates": []}
+            for entity in snapshot.entities:
+                collection = {"term": "terms", "calendar_date": "calendar_dates"}.get(
+                    entity["kind"])
+                if collection is None:
+                    continue
+                rows = snapshot.record_reader(entity, collection)
+                if len(rows) != 1:
+                    raise EvidenceUnavailable(
+                        "An academic calendar identity has no single exact record.")
+                found["terms" if collection == "terms" else "dates"].append(
+                    {**rows[0], "_id": entity["id"]})
+            if len(found["dates"]) > MAX_CALENDAR_DATES:
+                raise EvidenceUnavailable("The academic calendar exceeds the bounded read.")
             return found
 
     def get_event_facts(self, entity_ids: Sequence[str], dataset_version: str, *,

@@ -3,16 +3,20 @@
 from typing import Any
 
 from rockygpt_brain.people import (
+    about_named,
     asks_leadership,
     asks_people,
     asks_people_list,
     asks_people_topic,
     by_meaning,
     computed_answers,
+    contact_text,
     find_people,
     leaders,
     listed,
     narrow,
+    only_who,
+    person_text,
     schools_of,
     teachers,
 )
@@ -179,19 +183,21 @@ def test_deans_and_chairs_come_from_directory_titles() -> None:
     schools = schools_of(DIRECTORY, OFFICES)
     assert schools["School of Science, Nursing, and Health"] >= {"snh", "nursing"}
     lines = [line for line, _ in leaders(DIRECTORY, "who is the dean of sssw", schools)]
-    assert lines[0].startswith("The dean of the School of Social Sciences and Social Work, by "
-                               "the directory, is Susan Hangen")
+    assert lines[0].startswith("The dean of the School of Social Sciences and Social Work is "
+                               "Susan Hangen (")
     assert lines[1].startswith("Kathleen Ray is also listed in the directory, as Interim Dean")
     nursing = [line for line, _ in leaders(DIRECTORY, "who is the chair of nursing", schools)]
-    assert nursing == ["Kathleen M. Burke's directory title names nursing with a leadership "
-                       "role: Assistant Dean of Nursing Programs / Professor of Nursing."]
+    assert nursing == ["Kathleen M. Burke leads in nursing by their directory title: "
+                       "Assistant Dean of Nursing Programs / Professor of Nursing."]
     biology = [line for line, _ in leaders(DIRECTORY, "biology department chair", schools)]
     assert biology[:2] == [
-        "No directory title names a chair, head, convener, director or dean for biology.",
+        "The directory lists no chair, head, convener, director or dean for biology.",
         "The directory's biology faculty are in the School of Science, Nursing, and Health."]
-    assert biology[2].startswith("The dean of the School of Science, Nursing, and Health, by "
-                                 "the directory, is Benny Chan")
+    assert biology[2].startswith("The dean of the School of Science, Nursing, and Health is "
+                                 "Benny Chan (")
     assert asks_leadership("who's the dean of the business school")
+    assert asks_people("professor abzug office hours")
+    assert not asks_people("What are the Student Accounts office hours?")
     assert not asks_leadership("dean of students office hours")
 
 
@@ -214,10 +220,10 @@ def test_a_school_named_by_another_name_its_identity_has_gets_its_deans() -> Non
     assert lines[0] == ('"School of Social Science and Human Services" is another name the '
                         "college's records give 2 schools: the School of Social Sciences and "
                         "Social Work and the School of Arts, Humanities, and Education.")
-    assert lines[1].startswith("The dean of the School of Social Sciences and Social Work, by "
-                               "the directory, is Susan Hangen")
-    assert any(line.startswith("The dean of the School of Arts, Humanities, and Education, by "
-                               "the directory, is Ken Goldstein") for line in lines)
+    assert lines[1].startswith("The dean of the School of Social Sciences and Social Work is "
+                               "Susan Hangen (")
+    assert any(line.startswith("The dean of the School of Arts, Humanities, and Education is "
+                               "Ken Goldstein (") for line in lines)
     assert not any("Benny Chan" in line for line in lines)
     # A school's own name is no other name.
     named = [line for line, _ in leaders(
@@ -259,8 +265,8 @@ def test_a_field_only_mentioned_is_not_reported_without_a_chair() -> None:
         [*DIRECTORY, {"id": "cp", "name": "Ann Clin", "title": "Professor of Clinical Psychology",
                       "school": "School of Social Sciences and Social Work"}],
         "who is in charge of nursing? it's about clinical placements", schools)]
-    assert lines == ["Kathleen M. Burke's directory title names nursing with a leadership "
-                     "role: Assistant Dean of Nursing Programs / Professor of Nursing."]
+    assert lines == ["Kathleen M. Burke leads in nursing by their directory title: "
+                     "Assistant Dean of Nursing Programs / Professor of Nursing."]
 
 
 def test_an_unusual_last_name_or_a_middle_initial_needs_no_people_word() -> None:
@@ -276,3 +282,57 @@ def test_an_unusual_last_name_or_a_middle_initial_needs_no_people_word() -> None
          "courses": ["Introduction to Sociology"]},
         *({"id": f"x{n}", "name": f"P {n}", "title": "Professor of Art"} for n in range(6))]
     assert [p["id"] for p in teachers(directory, "who teaches intro to sociology?")] == ["r"]
+
+
+def test_who_a_person_is_and_the_fields_asked_are_said_neatly_by_code() -> None:
+    abzug = {"n": 1, "name": "Rikki Abzug", "title": "Professor of Management",
+             "school": "Anisfield School of Business", "email": "rabzug@ramapo.edu",
+             "phone": "(201) 684-7392", "office": "ASB-107",
+             "office_hours": ["Office Hours: Monday 10:30 AM-1:00 PM."]}
+    assert only_who("Who is Professor Abzug?", abzug)
+    assert not only_who("Who is Rikki Abzug's advisor?", abzug)  # Something more is asked.
+    assert person_text(abzug, "Who is Rikki Abzug?") == (
+        "Rikki Abzug is Professor of Management in the Anisfield School of Business. Email: "
+        "rabzug@ramapo.edu. Phone: (201) 684-7392. Office: ASB-107. [1]")
+    assert person_text(abzug, "What are Professor Abzug's office hours?") == (
+        "Rikki Abzug is Professor of Management in the Anisfield School of Business. Office "
+        "hours: Monday 10:30 AM-1:00 PM. [1]")
+    assert person_text(abzug, "What does Professor Abzug teach?") == (
+        "Rikki Abzug is Professor of Management in the Anisfield School of Business. The "
+        "faculty profile lists no courses. [1]")
+    # A name only near one in the directory is confirmed with the student first.
+    assert person_text({**abzug, "near_spelling_of_asked_name": True}, "Who is Abzog?") is None
+    facts = [f["fact"] for f in computed_answers([abzug], "what does abzug teach", [])]
+    assert facts[-1] == "Rikki Abzug's faculty profile lists no courses."
+
+
+def test_a_person_named_dean_or_a_dean_named_by_title_is_not_a_question_about_deans() -> None:
+    chen, hangen = {"name": "Dean Chen"}, {"name": "Susan Hangen"}
+    assert not asks_leadership(about_named("Who is Dean Chen?", [chen]))
+    assert not asks_leadership(about_named("Who is Dean Hangen?", [hangen]))
+    assert asks_leadership(about_named("Who is the dean of SSSW, Susan Hangen?", [hangen]))
+    assert only_who("Who is Dean Hangen?", hangen) and only_who("Who is Dean Chen?", chen)
+
+
+def test_who_teaches_a_subject_matches_what_people_teach_and_the_whole_phrase() -> None:
+    directory = [
+        {"name": "Ann Byte", "title": "Professor of Computer Science",
+         "courses": ["Data Structures"]},
+        {"name": "Bo Cell", "title": "Professor of Biology", "courses": ["Microbiology"],
+         "research_interests": ["I collaborate with Computer Science faculty."]},
+        {"name": "Cy Tune", "title": "Professor of Music", "courses": ["Computer Music"]},
+        {"name": "Di Learn", "title": "Professor of Data Science",
+         "research_interests": ["Machine Learning"]}]
+    # A teaching question reads what people teach; the whole phrase wins over one rare word.
+    assert [e["name"] for e in teachers(directory, "Who teaches computer science?")] == [
+        "Ann Byte"]
+    assert [e["name"] for e in teachers(directory, "Who researches machine learning?")] == [
+        "Di Learn"]
+
+
+def test_a_persons_directory_contacts_are_said_by_code() -> None:
+    petkus = {"n": 2, "name": "Ed Petkus", "email": "epetkus@ramapo.edu",
+              "phone": "(201) 684-7377", "office": "ASB-333"}
+    assert contact_text(petkus) == (
+        "Email: epetkus@ramapo.edu. Phone: (201) 684-7377. Office: ASB-333. [2]")
+    assert contact_text({"n": 3, "name": "No Contacts"}) is None

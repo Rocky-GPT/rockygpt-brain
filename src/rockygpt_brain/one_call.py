@@ -18,8 +18,14 @@ from datetime import date
 from typing import Any
 
 from rockygpt_brain.academics import asks_academics
-from rockygpt_brain.events import asks_clubs, asks_events
-from rockygpt_brain.people import asks_people
+from rockygpt_brain.events import (
+    asks_club_events,
+    asks_club_exists,
+    asks_clubs,
+    asks_events,
+    plain_window,
+)
+from rockygpt_brain.people import about_named, asks_leadership, asks_people, only_who
 from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 from rockygpt_brain.writer import cited
 
@@ -152,6 +158,86 @@ def routes_here(message: str) -> bool:
     if (_HOURS.search(text) or _CONTACT.search(text)) and not howto:
         return False
     return True
+
+
+# Questions code answers alone from the facts it works out, the model writing nothing (Dan 11-02):
+# who leads a school or field, one named person's details, one catalog course's facts.
+_WHO = re.compile(r"^\W*(?:who|who's|whos)\b")
+_PERSON_ASK = re.compile(r"^\W*(?:what|what's|whats|where|when)\b")
+_PERSON_FIELD = re.compile(
+    r"\b(?:e-?mail|phone|number|office|room|hours|title|department|school|teach\w*|courses?|"
+    r"class(?:es)?|research\w*|interests?)\b")
+_COURSE_ASK = re.compile(r"^\W*(?:what|what's|whats|how many|does|is|are)\b")
+_COURSE_WHAT = re.compile(r"^\W*(?:what(?:'s|’s|s| is)|tell me about|describe)\b")
+_COURSE_FACT = re.compile(r"\b(?:credits?|prerequisites?|prereqs?|requisites?|gen ?ed)\b")
+# "...and how do I reach them?" after a leadership question asks for the leader's contacts.
+_REACH = re.compile(r"\band (?:how (?:do|can|would|should) i (?:reach|contact|email|call|get in "
+                    r"touch with) (?:them|him|her|the dean|the chair)|what(?:'s| is| are) "
+                    r"(?:their|his|her) (?:e-?mail|phone(?: number)?|number|office|contact"
+                    r"(?: info(?:rmation)?)?))\W*$")
+
+
+def asks_reach(question: str) -> bool:
+    return bool(_REACH.search(question.casefold()))
+
+
+# A how or why asks for more than the facts, as does a second clause ("... and is it hard"); an
+# "and" inside a name does not ("School of Social Science and Human Services").
+_MORE = re.compile(r"\b(?:how do|how can|why|should|can i|could i)\b|\b(?:and|also|plus)\s+"
+                   r"(?:what|how|who|when|where|can|do|does|will|is|are|should)\b")
+# A course fact by the words that ask for it: only those facts are said.
+_COURSE_WANTS = ((re.compile(r"\bcredits?\b"), " credit"),
+                 (re.compile(r"\b(?:prerequisites?|prereqs?|requisites?)\b"), "prerequisite"),
+                 (re.compile(r"\bgen ?ed\b"), "Gen Ed"))
+
+
+def code_kind(question: str, named_people: Sequence[Any],
+              programs: tuple[Sequence[Any], Sequence[Any], Sequence[Any]] | None) -> str | None:
+    """Which code-answered question this is, or None when the model should write it."""
+    text = question.casefold()
+    # Who leads a school, and how to reach them: the dean's directory contacts are code's too.
+    if ((reach := _REACH.search(text)) and _WHO.search(text)
+            and asks_leadership(about_named(question, named_people))
+            and not _MORE.search(text[:reach.start()])):
+        return "leaders"
+    # Only what is on in a window ("what can I do this weekend"): its every word is a plain one.
+    if not named_people and not (programs and any(programs)) and plain_window(question):
+        return "events"
+    if _MORE.search(text):
+        return None
+    # Whether a club exists, or what it hosts next: code checks the name it gives.
+    if asks_clubs(text) and (asks_club_events(text) or asks_club_exists(question)):
+        return "club"
+    # One person named and nothing else asked comes first: "Who is Dean Chen?" asks about
+    # Professor Dean Chen, not about deans.
+    if len(named_people) == 1 and (
+            (_PERSON_ASK.search(text) and _PERSON_FIELD.search(text))
+            or (_WHO.search(text) and only_who(question, named_people[0]))):
+        return "person"
+    if asks_leadership(about_named(question, named_people)) and _WHO.search(text):
+        return "leaders"
+    if programs and not programs[0] and len(programs[2]) == 1 and (
+            (_COURSE_ASK.search(text) and _COURSE_FACT.search(text)) or _COURSE_WHAT.search(text)):
+        return "course"
+    return None
+
+
+def course_facts_asked(question: str, facts: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The course facts a question asks for ("how many credits" is the credits line), or all."""
+    text = question.casefold()
+    wanted = [word for pattern, word in _COURSE_WANTS if pattern.search(text)]
+    kept = [f for f in facts if any(w in str(f.get("fact", "")) for w in wanted)]
+    return kept or list(facts)
+
+
+def code_text(facts: Sequence[dict[str, Any]]) -> str | None:
+    """The facts code worked out, said as they are with their marks; None when one of them is
+    written for a writer rather than a student ("Ask which one the student means")."""
+    lines = [f"{fact['fact']} [{fact['n']}]" if fact.get("n") else str(fact["fact"])
+             for fact in facts if isinstance(fact, dict) and fact.get("fact")]
+    if not lines or any("the student" in line for line in lines):
+        return None
+    return " ".join(lines)
 
 
 def parts_of(question: str) -> list[str]:
@@ -380,7 +466,8 @@ def messages(question: str, earlier_user: str | None, offices: list[dict[str, An
     given = {"today": f"{today:%A, %B} {today.day}, {today.year}", "question": question,
              **({"earlier_question": earlier_user} if earlier_user else {}),
              **({"computed": list(computed)} if computed else {}),
-             **({"programs": list(programs)} if programs else {}),
+             **({"programs": [{k: v for k, v in p.items() if not k.startswith("_")}
+                              for p in programs]} if programs else {}),
              **({"calendar": calendar} if calendar else {}),
              **({"clubs": list(clubs)} if clubs else {}),
              **({"people": list(people)} if people else {}), "offices": offices}
@@ -506,3 +593,79 @@ def dated_statements(offices: Sequence[dict[str, Any]], today: date, question: s
                 if len(facts) >= MAX_DATED:
                     return facts
     return facts
+
+
+# The every-word check (Dan 11-02, "no made-up facts"): each statement of a reply may use only words
+# the facts it cites hold. Report only for now: it lists what it would cut, and cuts nothing.
+_GRAMMAR = frozenset("""
+the and for with from that this these those you your yours are was were been being can could will
+would must may might not have has had into onto over under than then there their they them its
+also only just more most less such each every any all both either neither but nor yet some same
+about after before during while when where which who whom whose what why how here very much many
+other another one ones per via within without upon among between because since until unless
+though although whether does did done doing make makes made get gets got use used using say says
+said see listed lists list given gives give note notes noted states stated state shows show
+page pages section sections site sites source sources verified information official published
+publish publishes college ramapo office offices contact contacts email phone call visit student
+students you're it's don't doesn't isn't aren't can't won't i'm we our us please need needs
+able like way ways first next last new also yes include includes including part parts asked ask
+handle handles handled handling offer offers offered provide provides provided describe describes
+described mean means meaning allow allows tell tells told try tries help helps helping her his
+him she hers own well officially according different differ differs difference either whether
+regarding related another both
+""".split())
+
+
+def _stem(word: str) -> str:
+    for suffix in ("ing", "ies", "ed", "es", "s", "ly"):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            return word[: -len(suffix)] + ("y" if suffix == "ies" else "")
+    return word
+
+
+def _content(text: str) -> set[str]:
+    return {_stem(w) for w in re.findall(r"[a-z]+", text.casefold().replace("’", "'"))
+            if len(w) >= 3 and w not in _GRAMMAR}
+
+
+def unbacked(text: str, evidence: dict[int, str], shared: str) -> list[dict[str, Any]]:
+    """Each statement's words that neither the facts its marks cite nor the shared words (names,
+    the question, fixed wording) hold: what the every-word check would cut."""
+    held_shared = _content(shared)
+    found = []
+    # A mark covers its paragraph or list: the model cites a list's steps or a paragraph's
+    # sentences once, at its end (88 of 124 statements flagged on 11-02 had no mark of their own).
+    for paragraph in text.split("\n\n"):
+        block = cited(paragraph)
+        for piece in statements(paragraph):
+            statement = piece.strip()
+            if not statement or statement.startswith("Sources:"):
+                continue
+            marks = cited(statement) or block
+            held = held_shared.union(*(_content(evidence.get(n, "")) for n in marks))
+            words = sorted(_content(re.sub(r"\[[\d,\s–-]+\]", "", statement)) - held)
+            if words:
+                found.append({"statement": statement[:240], "words": words[:12],
+                              **({} if marks else {"uncited": True})})
+    return found
+
+
+def evidence_by_mark(offices: Sequence[dict[str, Any]], computed: Sequence[dict[str, Any]],
+                     *entries: Sequence[dict[str, Any]]) -> dict[int, str]:
+    """Everything each source number stands for, as text: a section with its office's name and
+    contacts, a computed fact, a person's, program's, event's or club's entry."""
+    by_n: dict[int, list[str]] = {}
+    for office in offices:
+        contacts = json.dumps({k: office.get(k) for k in ("office", "email", "phones", "rooms")},
+                              ensure_ascii=False)
+        for section in office.get("sections") or []:
+            by_n.setdefault(section["n"], []).append(
+                json.dumps(section, ensure_ascii=False) + contacts)
+    for fact in computed:
+        if isinstance(fact, dict) and isinstance(fact.get("n"), int):
+            by_n.setdefault(fact["n"], []).append(str(fact.get("fact", "")))
+    for listed in entries:
+        for entry in listed or []:
+            if isinstance(entry, dict) and isinstance(entry.get("n"), int):
+                by_n.setdefault(entry["n"], []).append(json.dumps(entry, ensure_ascii=False))
+    return {n: " ".join(texts) for n, texts in by_n.items()}

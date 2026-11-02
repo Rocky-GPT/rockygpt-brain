@@ -4,7 +4,8 @@ Code reads the question's time words into a window on the campus clock ("tonight
 weekend", "next friday", "oct 30"; the next two weeks when none), keeps the calendar events whose
 date (in their identity's name) falls in it, and ranks them by the question's other words against
 each event's title, tags, organizer and location. A club is named by its directory name. The
-events and clubs are then read through the shared reader; the model only words the reply.
+events and clubs are then read through the shared reader. A question asking only what is on in a
+window is answered in code's own words (listing_text); otherwise the model only words the reply.
 """
 
 import math
@@ -13,6 +14,7 @@ from collections.abc import Mapping, Sequence
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
+from rockygpt_brain.plain_writer import literal
 from rockygpt_brain.retrieval.entity_facts import discovery_tokens
 
 CALENDAR_URL = "https://archway.ramapo.edu/home/events/"
@@ -68,6 +70,38 @@ def asks_events(message: str) -> bool:
 
 def asks_clubs(message: str) -> bool:
     return bool(_CLUB_WORDS.search(message.casefold()))
+
+
+# A question asking only what is on in one time window ("what's happening this weekend", "any
+# events tonight?") is answered by code, with no model (listing_text). Any other word ("free",
+# "parties", "where", "club") asks for more, and the model reads it.
+_WINDOW_ONLY = frozenset("""
+what whats which is are there any anything something events event happening going on tonight
+today tomorrow tmrw tmr this next weekend week month campus at ramapo college upcoming coming up
+soon things thing to do fun for me i can we go all the a an of in around here please calendar
+list show tell planned scheduled student students morning afternoon evening night
+""".split()) | frozenset(_DAYS) | frozenset(day + "s" for day in _DAYS)
+_MONTH_WORDS = frozenset("""
+jan january feb february mar march apr april may jun june jul july aug august sep sept september
+oct october nov november dec december
+""".split())
+_WINDOW_WORD = re.compile(r"\b(?:tonight|today|tomorrow|tmrw|tmr|weekend|week|month|"
+                          + "|".join(_DAYS) + r")s?\b")
+
+
+def plain_window(message: str) -> bool:
+    """Whether a question asks only what the calendar lists in one time window (one: "today and
+    tomorrow" is two, and the model reads it)."""
+    text = message.casefold().replace("’", "'").replace("'", "")
+    words = re.findall(r"[a-z0-9]+", text)
+    dated = bool(_MONTH_DAY.search(text) or _NUMERIC_DAY.search(text))
+    times = len(_WINDOW_WORD.findall(text)) + len(_MONTH_DAY.findall(text)) \
+        + len(_NUMERIC_DAY.findall(text))
+    if not words or times > 1 or not asks_events(message):
+        return False
+    return all(w in _WINDOW_ONLY or (dated and (w.isdigit() or w in _MONTH_WORDS
+                                               or re.fullmatch(r"\d{1,2}(?:st|nd|rd|th)", w)))
+               for w in words)
 
 
 def _end(day: date, now: datetime) -> datetime:
@@ -247,12 +281,15 @@ def _starts(value: dict[str, Any]) -> datetime | None:
         return None
 
 
-def _ends(value: dict[str, Any]) -> datetime | None:
+def _ends(value: dict[str, Any], clock: Any = None) -> datetime | None:
     """When an event ends: its listed end time on its start day, else three hours after it
-    starts."""
+    starts. The listed time is the campus clock's, so the start is read on that clock first (a
+    start published in UTC once made a 12:15-3:45 PM event end at 10:45 AM the next day)."""
     began = _starts(value)
     if began is None:
         return None
+    if clock is not None:
+        began = began.astimezone(clock)
     found = re.match(r"\s*(\d{1,2})(?::(\d{2}))?\s*([AP]M)", str(value.get("end_time") or ""), re.I)
     if not found:
         return began + timedelta(hours=3)
@@ -265,7 +302,7 @@ def in_window(values: Sequence[dict[str, Any]], start: datetime,
               end: datetime) -> list[dict[str, Any]]:
     """The events that start in the window or are still on when it opens, in time order."""
     timed = [v for v in values if (at := _starts(v)) is not None and at <= end
-             and (at >= start or ((ends := _ends(v)) is not None and ends > start))]
+             and (at >= start or ((ends := _ends(v, start.tzinfo)) is not None and ends > start))]
     return sorted(timed, key=lambda v: _starts(v) or start)
 
 
@@ -484,6 +521,57 @@ def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
     return facts
 
 
+def _phrase(label: str, start: datetime, end: datetime) -> str:
+    """The window as the reply says it: "this weekend, Friday, November 6 to Sunday, November 8",
+    "tonight, Monday, November 2", "on Friday, November 6, in the evening"."""
+    span = _day(start) if start.date() == end.date() else f"{_day(start)} to {_day(end)}"
+    base, part = label, ""
+    for _, _, _, name in _PART_OF_DAY:
+        if label.endswith(f", {name}"):
+            base, part = label[: -len(name) - 2], f", in the {name}"
+    if base.split(",")[0].casefold() in _DAYS:
+        return f"on {span}{part}"
+    lead = {"the next": "in ", "the rest": "for "}.get(" ".join(base.split()[:2]), "")
+    return f"{lead}{base}, {span}{part}"
+
+
+def listing_text(label: str, start: datetime, end: datetime, shown: Sequence[dict[str, Any]],
+                 listed: int) -> str | None:
+    """A window question's answer in code's own words (Dan 11-02: code works out the answer):
+    how many events the calendar lists in the window [1], then those shown in time order, under
+    their day when the window spans several, each with its time, title, host and place as
+    published [its own number, from 2]. None when an event has no title to say."""
+    phrase = _phrase(label, start, end)
+    if not listed:
+        return f"The calendar lists no events {phrase} [1]."
+    if any(not value.get("title") for value in shown):
+        return None
+    head = (f"The calendar lists {listed} event{'s' if listed != 1 else ''} {phrase}"
+            + (f"; here are the first {len(shown)} by time [1]:" if len(shown) < listed
+               else " [1]:"))
+    days: dict[str, list[str]] = {}
+    for n, value in enumerate(shown, start=2):
+        began = _starts(value)
+        on = began.astimezone(start.tzinfo).date() if began is not None else None
+        heading = (f"{on:%A, %B} {on.day}:" if on is not None and start.date() != end.date()
+                   else "")
+        when = " to ".join(str(t) for t in (value.get("start_time"), value.get("end_time")) if t)
+        place = " ".join(str(value.get("location") or "").split())
+        at = "" if not place or place == "-" else (
+            f", {literal(place)}" if _ONLINE.match(place) else f", at {literal(place)}")
+        host = " ".join(str(value.get("organizer") or "").split())
+        days.setdefault(heading, []).append(
+            "- " + (f"{when}: " if when else "") + literal(value["title"])
+            + (f" ({literal(host)})" if host else "") + at + f" [{n}]")
+    return "\n\n".join([head, *("\n".join([heading, *lines]) if heading else "\n".join(lines)
+                                for heading, lines in days.items())])
+
+
+# A place that is no room ("Online Event", "Virtual (Register on Handshake for Details)") is said
+# without "at".
+_ONLINE = re.compile(r"(?:online|virtual|zoom|remote)\b", re.I)
+
+
 _CLUB_TIME_ASK = re.compile(r"\b(?:when|meet|meets|meeting|meetings|perform\w*|events?|"
                             r"schedule|next|upcoming|coming up)\b")
 
@@ -521,6 +609,108 @@ def club_answers(clubs: Sequence[dict[str, Any]], message: str, by_name: bool,
 
 
 MAX_CLUB_LINES = 6
+
+
+# A question asking only what a club the directory names in full hosts next ("when does the
+# Hiking Club meet", "what events does the Math Club have coming up") is answered by code when the
+# calendar lists events it hosts (club_events_text).
+_CLUB_FILLER = discovery_tokens("when what does do is are there any you we they have ramapo "
+                                "college rcnj school campus on at here in its next upcoming "
+                                "coming up meet meets meeting meetings event events hold holds "
+                                "host hosting") | _GENERIC_CLUB
+
+
+def club_meets(message: str, directory: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
+    """The club a question only asks the meetings or next events of, when it names the club by
+    every word of its directory name and asks nothing else; None otherwise."""
+    if not asks_club_events(message):
+        return None
+    for club in find_clubs(directory, message)[:1]:
+        rest = re.sub(re.escape(str(club["name"]).casefold()), " ", message.casefold())
+        if (not re.search(r"\b(?:and|also|plus|or|where|how|why|who)\b", rest)
+                and discovery_tokens(message) - discovery_tokens(str(club["name"]))
+                <= _CLUB_FILLER):
+            return club
+    return None
+
+
+# Whether a club a question names in full exists ("is there a math club?", "does Ramapo have a
+# Black Student Union?") is code's once the release marks inactive clubs: ramapo.edu says some clubs
+# the directory still lists are not active (Garden Club, Movie Club, as of 6/12/25), and both are
+# said when they differ (club_text). A club named in part or a kind of club goes to the model.
+_CLUB_EXISTS = re.compile(r"^\W*(?:is there|are there|does (?:ramapo|the college|rcnj|the school|"
+                          r"campus) have|do (?:you|we|they) have)\b")
+_EXISTS_FILLER = discovery_tokens("is are there any does do you we they have ramapo college rcnj "
+                                  "school campus on at here in called named still active "
+                                  "anymore") | _GENERIC_CLUB
+
+
+def asks_club_exists(message: str) -> bool:
+    return bool(_CLUB_EXISTS.search(message.casefold()) and asks_clubs(message))
+
+
+def club_named(message: str, clubs: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
+    """The one club an existence question names by every word of its name and asks nothing
+    else of; None otherwise."""
+    if not _CLUB_EXISTS.search(message.casefold()):
+        return None
+    for club in find_clubs(clubs, message)[:1]:
+        rest = re.sub(re.escape(str(club["name"]).casefold()), " ", message.casefold())
+        if (not re.search(r"\b(?:and|also|plus|or|how|why|who|when|where)\b", rest)
+                and discovery_tokens(message) - discovery_tokens(str(club["name"]))
+                <= _EXISTS_FILLER):
+            return club
+    return None
+
+
+def _first_sentence(text: Any) -> str | None:
+    """The first whole sentence of a published text (the directory cuts its missions short)."""
+    found = re.match(r"\s*(.{20,300}?(?<!\bInc)(?<!\bDr)(?<!\bSt)(?<!\bvs)[.!?])(?=\s|$)",
+                     " ".join(str(text or "").split()))
+    return found.group(1) if found else None
+
+
+def _as_of(value: str) -> str:
+    day = date.fromisoformat(value)
+    return f"{day:%B} {day.day}, {day.year}"
+
+
+def club_text(name: str, entry: dict[str, Any] | None,
+              status: dict[str, Any] | None) -> str | None:
+    """Code's answer to whether a club exists: the directory's listing [its number] (its category,
+    the first sentence of its mission and its email), and when a ramapo.edu page marks the club
+    inactive, that page's word [its number] beside it. None when neither says anything."""
+    inactive = (status or {}).get("state") == "inactive" and (status or {}).get("as_of")
+    said: list[str] = []
+    if entry is not None:
+        listing = (f"The club directory lists {literal(entry['name'])}"
+                   + (f" ({literal(entry['category'])})" if entry.get("category") else "")
+                   + f" [{entry['n']}]")
+        if inactive and status is not None:
+            return (f"{listing}, but Ramapo's page for it says it is not currently an active club, "
+                    f"as of {_as_of(str(status['as_of']))} [{status['n']}].")
+        said.append(f"Yes. {listing}.")
+        if sentence := _first_sentence(entry.get("mission")):
+            said.append(f'Its page says: "{literal(sentence)}" [{entry["n"]}]')
+        if entry.get("email"):
+            said.append(f"Email: {entry['email']} [{entry['n']}].")
+        return " ".join(said)
+    if inactive and status is not None:
+        return (f"Ramapo's page for {literal(name)} says it is not currently an active club, as of "
+                f"{_as_of(str(status['as_of']))} [{status['n']}]. The club directory does not "
+                f"list it.")
+    return None
+
+
+def club_events_text(club: dict[str, Any], lines: Sequence[dict[str, Any]]) -> str:
+    """Code's answer to what a club hosts next: the calendar's upcoming events it hosts, each with
+    its date and time, title and place as published [its number]."""
+    listed = [f"- {line['when']}: {literal(line['event'])}"
+              + (f", at {literal(place)}" if (place := " ".join(
+                  str(line.get("location") or "").split())) and place != "-" else "")
+              + f" [{line['n']}]" for line in lines]
+    return "\n\n".join([f"The calendar's next events hosted by {literal(club['name'])} "
+                          f"[{club['n']}]:", "\n".join(listed)])
 MAX_OUTSIDE = 3
 
 

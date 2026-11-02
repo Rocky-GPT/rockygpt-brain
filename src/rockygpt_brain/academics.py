@@ -12,6 +12,7 @@ from collections.abc import Sequence, Set
 from datetime import date
 from typing import Any
 
+from rockygpt_brain.plain_writer import literal
 from rockygpt_brain.retrieval.entity_facts import discovery_tokens
 
 # A catalog name ends in its level: "Psychology BA", "Accounting 4+1", "Data Analyst - Graduate
@@ -513,6 +514,110 @@ def render_requisites(requisites: Sequence[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+# A course's requisites in code's own plain sentences, for the answers code writes alone; the
+# model is given them as published (render_requisites).
+_SECTION_LABELS = (("prereq", "Prerequisite"), ("coreq", "Corequisite"))
+
+
+def _rule_phrase(rule: dict[str, Any], depth: int) -> tuple[str, bool] | None:
+    """One requisite rule as a phrase, and whether it is a list: its courses and sub-rules (one
+    level deep) under its condition in words, with a minimum grade. None for a shape code does
+    not say (a catalog block, a free-text rule, a note inside a sub-rule, a deeper tree)."""
+    condition = str(rule.get("condition") or "")
+    how = ("all of" if condition in ("completedAllOf", "allOf", "minimumGrade", "enrolledIn")
+           else "one of" if condition in ("completedAnyOf", "anyOf")
+           else f"at least {rule['count']} of"
+           if condition == "completedAtLeastXOf" and isinstance(rule.get("count"), int) else None)
+    if how is None or rule.get("text") or (depth and rule.get("note")):
+        return None
+    parts = []
+    for item in rule.get("items") or []:
+        codes = [c for c in item.get("codes") or [] if isinstance(c, dict)]
+        if codes:
+            joiner = " or " if item.get("logic") == "or" and len(codes) > 1 else " and "
+            parts.append(joiner.join(literal(_course(c)) for c in codes))
+    for sub in rule.get("subRules") or rule.get("sub_rules") or []:
+        said = _rule_phrase(sub, depth + 1) if isinstance(sub, dict) and not depth else None
+        if said is None:
+            return None
+        parts.append(f"({said[0]})" if said[1] else said[0])
+    if not parts:
+        return None
+    constraints = rule.get("constraints") if isinstance(rule.get("constraints"), dict) else {}
+    grade = (constraints or {}).get("grade") or rule.get("minimumGrade")
+    graded = f" (minimum grade {grade})" if grade else ""
+    if len(parts) == 1:
+        return parts[0] + graded, False
+    return f"{how}{graded}: " + "; ".join(parts), True
+
+
+def requisites_text(requisites: Sequence[dict[str, Any]]) -> str | None:
+    """A course's published prerequisites and corequisites in plain sentences ("Prerequisite:
+    CMPS 231 DATA STRUCTURES (minimum grade C)."), with a rule's note quoted; None when one of
+    them has a shape code does not say, which the model then words as published."""
+    said = []
+    for section in requisites:
+        if not isinstance(section, dict) or not isinstance(section.get("rule"), dict):
+            return None
+        name = str(section.get("section") or "").casefold()
+        label = next((proper for start, proper in _SECTION_LABELS if name.startswith(start)),
+                     None)
+        phrase = _rule_phrase(section["rule"], 0)
+        if label is None or phrase is None:
+            return None
+        said.append(f"{label}{'s, ' if phrase[1] else ': '}{phrase[0]}.")
+        if note := " ".join(str(section["rule"].get("note") or "").split()):
+            said.append(f'The catalog adds: "{literal(note)}"')
+    return " ".join(said) or None
+
+
+_COURSE_CODE = re.compile(r"\b[a-z]{2,5}\s*-?\s*\d{3}[a-z]?\b")
+_COURSE_FILLER = discovery_tokens(
+    "what whats is are does do how many credits credit worth prerequisites prerequisite prereqs "
+    "prereq requisites requisite gen ed course class about tell me describe it its this need "
+    "take before at ramapo there any cover covers")
+_COURSE_WANTS = (("credits", re.compile(r"\bcredits?\b|\bworth\b")),
+                 ("prerequisites", re.compile(r"\b(?:pre|co)-?req\w*|\brequisites?\b|"
+                                              r"\btake before\b|\bneed before\b")),
+                 ("gen_ed", re.compile(r"\bgen ?eds?\b|general education")))
+
+
+def course_text(item: dict[str, Any], message: str) -> str | None:
+    """Code's answer about one catalog course a question names and asks nothing else of: its code,
+    title and credits, then what is asked (its prerequisites, its Gen Ed attribute), or for
+    "what is it" its description, prerequisites and attributes, as the catalog publishes them
+    [its number]. None when the question asks more, or its requisites are a shape code does not
+    say."""
+    title = str(item.get("course") or "")
+    text = message.casefold().replace("’", "'")
+    left = discovery_tokens(_COURSE_CODE.sub(" ", text)) - discovery_tokens(title.casefold()) \
+        - _COURSE_FILLER
+    if not title or left:
+        return None
+    wants = {key for key, pattern in _COURSE_WANTS if pattern.search(text)} or {
+        "credits", "description", "prerequisites", "attributes"}
+    credits = item.get("credits")
+    said = [f"{literal(title)} is {credits:g} credit{'' if credits == 1 else 's'}."
+            if isinstance(credits, int | float) else
+            f"The catalog lists no credit count for {literal(title)}."]
+    if "description" in wants and item.get("description"):
+        said.append(f'The catalog says: "{literal(" ".join(str(item["description"]).split()))}"')
+    if "prerequisites" in wants:
+        requisites = item.get("_requisites") or []
+        plain = requisites_text(requisites) if requisites else "It has no published prerequisites."
+        if plain is None:
+            return None
+        said.append(plain)
+    attributes = [str(a) for a in item.get("attributes") or []]
+    gen_ed = [a for a in attributes if "gen ed" in a.casefold()]
+    if "gen_ed" in wants:
+        said.append(f"Gen Ed: {literal('; '.join(gen_ed))}." if gen_ed
+                    else "It carries no Gen Ed attribute in the catalog.")
+    elif "attributes" in wants and attributes:
+        said.append(f"Attributes: {literal('; '.join(attributes))}.")
+    return " ".join(said) + f" [{item['n']}]"
+
+
 MAX_REQUIRED_BY = 20
 
 
@@ -528,6 +633,8 @@ def course_evidence(facts: dict[str, Any], n: int,
             "description": course.get("description") or None,
             "attributes": course.get("attributes") or [],
             "prerequisites": render_requisites(requisites) if requisites else "none published",
+            # The rules themselves, for the answers code writes; never given to the model.
+            **({"_requisites": requisites} if requisites else {}),
             **({"is_a_prerequisite_for": later,
                 **({"more_courses_list_it": len(required_by) - len(later)}
                    if len(required_by) > len(later) else {})} if later else {}),

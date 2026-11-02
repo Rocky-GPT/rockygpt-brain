@@ -18,7 +18,7 @@ from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from rockygpt_brain import academics, catalog, events, one_call
+from rockygpt_brain import academic_calendar, academics, catalog, events, one_call
 from rockygpt_brain import people as people_module
 from rockygpt_brain.answers import (
     Rendered,
@@ -48,7 +48,8 @@ from rockygpt_brain.contract import (
 )
 from rockygpt_brain.fact_packet import PacketInvalid, build_packet
 from rockygpt_brain.hours_on import DAY_CHOICES, target_date
-from rockygpt_brain.provider import Completion, GatewayError, TurnBudget
+from rockygpt_brain.plain_writer import plain_text
+from rockygpt_brain.provider import Completion, GatewayError, ToolCall, TurnBudget
 from rockygpt_brain.retrieval import (
     DatasetChanged,
     EntityFacts,
@@ -59,6 +60,7 @@ from rockygpt_brain.retrieval import (
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
 from rockygpt_brain.retrieval.entity_facts import discovery_tokens
 from rockygpt_brain.retrieval.meaning import MeaningIndex
+from rockygpt_brain.router import code_route, shuttle_route
 from rockygpt_brain.shuttle import (
     SCOPE_TEXT,
     SPECIAL_TEXT,
@@ -1044,6 +1046,19 @@ def keep_named_day(requests: list[Any], message: str, today: Any) -> list[Any]:
     return out
 
 
+def with_meal_hours(requests: list[Any]) -> list[Any]:
+    """A meal's menu ("what is for dinner") is read with that day's hours, so the answer starts
+    with when the meal is served (Dan 11-02); code adds them, the model need not ask."""
+    out = []
+    for item in requests:
+        if (isinstance(item, OfficeRequest) and "menu" in item.fields and item.meal
+                and "hours" not in item.fields and len(item.fields) < 10):
+            item = item.model_copy(update={"fields": [*item.fields, "hours"],
+                                           "day": item.day or "today"})
+        out.append(item)
+    return out
+
+
 def names_a_dining_kind(query: str) -> bool:
     """Whether a lookup's query is a kind of place to eat ("the cafe") and nothing more."""
     words = [w for w in _words(query) if w not in _KIND_FILLER]
@@ -1222,7 +1237,7 @@ class ChatEngine:
     def __init__(self, gateway: ModelGateway, facts: EntityFacts, *,
                  turn_seconds: float = TURN_SECONDS, max_turn_nusd: int = 25_000_000,
                  output: Literal["text", "json", "written"] = "text",
-                 howto_one_call: bool | None = None) -> None:
+                 howto_one_call: bool | None = None, lookup_writer: bool | None = None) -> None:
         self.gateway, self.facts = gateway, facts
         # A how-to or policy question answered by one model call from code-found evidence
         # (one_call.py) instead of the four-call loop; off unless BRAIN_HOWTO_ONE_CALL=1.
@@ -1233,6 +1248,11 @@ class ChatEngine:
         # "written": the same, and a writer with only the writer view says them; a reply the
         # verifier cannot hold to the view is replaced by the code-written text.
         self.output = output
+        # Who writes a lookup answer (hours, contacts, rooms, menus): code's plain sentences from
+        # the writer view (plain_writer.py), or a model with BRAIN_LOOKUP_WRITER=1. Dan 11-02: code,
+        # the same every time and never a made-up word; an AI layer can come back later.
+        self.lookup_writer = (os.environ.get("BRAIN_LOOKUP_WRITER") == "1"
+                              if lookup_writer is None else lookup_writer)
         # Every person's and club's directory entry for list questions, read once per release.
         self._directory_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
@@ -1641,6 +1661,12 @@ class ChatEngine:
         named = self.facts.identities(("program", "course"))
         programs = [e for e in named if e.get("kind") == "program"]
         codes = {str(e["name"]): e for e in named if e.get("kind") == "course"}
+        # The words of an office the message names are not a program's short form: "the Student
+        # Accounts office hours" was read as Accounting and sent to the catalog (11-02).
+        for office in self.facts.identities(("office",)):
+            for name in [office["name"], *office.get("aliases", [])]:
+                if len(str(name).split()) >= 2:
+                    message = re.sub(rf"(?i)\b{re.escape(str(name))}\b", " ", message)
         found = academics.find_programs(programs, message)
         by_name = {str(p["name"]): p for p in programs}
         if not found:
@@ -1842,11 +1868,7 @@ class ChatEngine:
         calendar: dict[str, Any] | None = None
 
         def read(dated: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
-            return [{**f["properties"][0]["values"][0]["value"], "_id": f["entity"]["id"]}
-                    for at in range(0, len(dated), 40)
-                    for f in self.facts.get_event_facts(
-                        [e["id"] for e in dated[at:at + 40]], version,
-                        identity_hash=identity_hash, as_of=now)]
+            return self._event_values(dated, version, identity_hash, now)
 
         def numbered(values: Sequence[dict[str, Any]], **extra: Any) -> list[dict[str, Any]]:
             lines = []
@@ -1913,6 +1935,77 @@ class ChatEngine:
                                 "title": club.get("name")})
         return clubs
 
+    def _event_values(self, dated: Sequence[dict[str, Any]], version: str, identity_hash: str,
+                      now: datetime) -> list[dict[str, Any]]:
+        """Each dated calendar event as published, with its identity's id, read through the
+        shared reader 40 at a time."""
+        return [{**f["properties"][0]["values"][0]["value"], "_id": f["entity"]["id"]}
+                for at in range(0, len(dated), 40)
+                for f in self.facts.get_event_facts([e["id"] for e in dated[at:at + 40]],
+                                                    version, identity_hash=identity_hash,
+                                                    as_of=now)]
+
+    def _window_listing(self, message: str, now: datetime,
+                        ) -> tuple[str | None, list[dict[str, Any]], str, dict[str, Any]]:
+        """A question asking only what is on in a window, answered from the calendar in code's
+        own words (events.listing_text): the text, its sources (the calendar page is 1), the
+        release, and the facts the reply's check holds it to."""
+        version, identity_hash = self.facts.active_release()
+        start, end, label = events.window(message, now)
+        dated = events.events_in(list(self.facts.identities(("event",))), start, end)
+        timed = events.in_window(self._event_values(dated, version, identity_hash, now),
+                                 start, end)
+        shown = timed[:events.MAX_EVENTS]
+        lines = [{"n": n, **events.event_line(value)} for n, value in enumerate(shown, start=2)]
+        sources = [{"n": 1, "url": events.CALENDAR_URL, "title": "Campus events calendar"},
+                   *({"n": line["n"], "url": line.get("url"), "title": line["event"]}
+                     for line in lines)]
+        computed = events.computed_answers(
+            label, start, end, len(timed), [{**line, "_value": value}
+                                            for line, value in zip(lines, shown, strict=True)],
+            None, set(), False, (), 1)
+        return (events.listing_text(label, start, end, shown, len(timed)), sources, version,
+                {"calendar": {"window": label, "events": lines}, "computed": computed})
+
+    def _club_listing(self, message: str, now: datetime,
+                      ) -> tuple[str, list[dict[str, Any]], str, dict[str, Any]] | None:
+        """A question about one club named in full, answered in code's own words: whether it
+        exists (the directory's listing, and a ramapo.edu page that marks it inactive, once the
+        release carries those marks), or what it hosts next by the calendar (events.club_meets).
+        None for any other question, a release without inactive marks, and a club the calendar
+        lists no event for (its meetings may be on its pages, which the model reads)."""
+        version, identity_hash = self.facts.active_release()
+        if events.asks_club_exists(message):
+            statuses = self.facts.identity_statuses(("club", "organization"), version,
+                                                    identity_hash=identity_hash)
+            named = events.club_named(message, self.facts.identities(("club", "organization")))
+            if not statuses or named is None:
+                return None
+            listed = next((e for e in self._club_directory() if e.get("id") == named["id"]), None)
+            entry = {"n": 1, **{k: v for k, v in listed.items() if k != "id"}} if listed else None
+            status = statuses.get(named["id"])
+            if status is not None:
+                status = {**status, "n": 2 if entry else 1}
+            sources = [*([{"n": 1, "url": entry.get("url"), "title": entry.get("name")}]
+                         if entry else []),
+                       *([{"n": status["n"], "url": status["source_url"],
+                           "title": f"{named['name']} (ramapo.edu)"}]
+                         if status and status.get("source_url") else [])]
+            said = events.club_text(str(named["name"]), entry, status)
+            return (said, sources, version, {"clubs": [entry] if entry else [],
+                                             "computed": [status] if status else []}
+                    ) if said else None
+        found = events.club_meets(message, self._club_directory())
+        if found is None:
+            return None
+        club = {"n": 1, **{k: v for k, v in found.items() if k != "id"}}
+        lines, facts, hosted = self._club_events([club], now, 1)
+        if not lines:
+            return None
+        return (events.club_events_text(club, lines),
+                [{"n": 1, "url": club.get("url"), "title": club.get("name")}, *hosted],
+                version, {"clubs": [club], "calendar": {"events": lines}, "computed": facts})
+
     def _upcoming_events(self, now: datetime) -> list[dict[str, Any]]:
         """Every calendar event from now through the next year, as published, read through the
         shared reader once per release and day."""
@@ -1921,14 +2014,9 @@ class ChatEngine:
         if self._upcoming_cache is None or self._upcoming_cache[0] != key:
             dated = events.events_in([e for e in self.facts.identities(("event",))],
                                      now, now + timedelta(days=366))
-            values = [{**f["properties"][0]["values"][0]["value"], "_id": f["entity"]["id"]}
-                      for at in range(0, len(dated), 40)
-                      for f in self.facts.get_event_facts(
-                          [e["id"] for e in dated[at:at + 40]], version,
-                          identity_hash=identity_hash, as_of=now)]
-            self._upcoming_cache = (key, values)
-        return [v for v in self._upcoming_cache[1]
-                if datetime.fromisoformat(str(v.get("starts_at"))) >= now - timedelta(hours=3)]
+            self._upcoming_cache = (key, self._event_values(dated, version, identity_hash, now))
+        # Still to come, or still on now by its end time on the campus clock.
+        return events.in_window(self._upcoming_cache[1], now, now + timedelta(days=366))
 
     def _club_events(self, clubs: Sequence[dict[str, Any]], now: datetime, numbered_from: int,
                      ) -> tuple[list[dict[str, Any]], list[dict[str, Any]],
@@ -2013,7 +2101,8 @@ class ChatEngine:
         if named:
             people = people_module.narrow(people, message, schools)
             computed = people_module.computed_answers(people, message, directory)
-        if people_module.asks_leadership(message):
+        if people_module.asks_leadership(people_module.about_named(message, people)
+                                         if named else message):
             given = {p.get("profile_url") or p.get("name") for p in people}
             for line, entry in people_module.leaders(directory, message, schools,
                                                      self.facts.identities(("school",))):
@@ -2136,20 +2225,70 @@ class ChatEngine:
         dataset_version = index.dataset_version if index else ""
         # An academic question is read from what the model picks among the catalog's own names
         # when the meaning index is published; the code-named programs are its hints.
+        # A question code answers alone (one_call.code_kind): its facts are read by code and said
+        # as code wrote them, with no pick and no writer.
+        kind = one_call.code_kind(latest, named_people, programs)
         pick_catalog = bool(searchable and index is not None and index.academic and (
-            (programs and (programs[0] or programs[2])) or academics.asks_academics(latest)))
+            (programs and (programs[0] or programs[2])) or academics.asks_academics(latest))
+            and kind != "course")
         try:
             async with asyncio.timeout(self.turn_seconds):
+                # Only what is on in a window: code lists the calendar's events, with no model
+                # call and no search (Dan 11-02: code works out the answer).
+                if kind == "events" and calendar_asked and earlier is None and not people_asked:
+                    with measure("Read the calendar"):
+                        said, found_sources, version, checked = await asyncio.to_thread(
+                            self._window_listing, latest, turn.campus_now)
+                    if done := self._code_answer(turn, trace, said, found_sources, version,
+                                                 **checked):
+                        return done
+                # What a club named in full hosts next, when the calendar lists it.
+                if kind == "club" and earlier is None and not people_asked:
+                    with measure("Read the club directory"):
+                        listed = await asyncio.to_thread(self._club_listing, latest,
+                                                         turn.campus_now)
+                    if listed is not None and (done := self._code_answer(turn, trace, *listed[:3],
+                                                                         **listed[3])):
+                        return done
                 if programs and not pick_catalog:
                     with measure("Read the programs named"):
                         academic, sources, dataset_version = await asyncio.to_thread(
                             self._read_programs, *programs, latest, turn.campus_now.date())
+                    if kind == "course":
+                        course_facts = one_call.course_facts_asked(
+                            latest, academics.computed_answers(
+                                academic, self.facts.identities(("program",)), latest, None, []))
+                        named_course = [e for e in academic if e.get("course")]
+                        said = (academics.course_text(named_course[0], latest)
+                                if len(named_course) == 1 else None)
+                        if done := self._code_answer(
+                                turn, trace, said, sources, dataset_version, programs=academic,
+                                computed=course_facts):
+                            return done
                 if named_people:
                     with measure("Read the people named"):
                         people, found_people = await asyncio.to_thread(
                             self._read_people, named_people, len(sources))
                     sources = [*sources, *found_people]
                     dataset_version = dataset_version or self.facts.active_release()[0]
+                # A dean, or one person's title and fields: said by code before any search.
+                if kind in ("leaders", "person"):
+                    with measure("Work out the people facts"):
+                        found, people_facts, found_people = await asyncio.to_thread(
+                            self._people_computed, latest, people, bool(named_people),
+                            len(sources))
+                    said = (one_call.code_text(people_facts) if kind == "leaders" else
+                            people_module.person_text(found[0], latest)
+                            if len(found) == 1 and one_call.code_text(people_facts) else None)
+                    if said and kind == "leaders" and one_call.asks_reach(latest):
+                        led = {f.get("n") for f in people_facts}
+                        reach = [people_module.contact_text(p) for p in found if p.get("n") in led]
+                        said = " ".join([said, *(r for r in reach if r)]) if any(reach) else None
+                    if done := self._code_answer(
+                            turn, trace, said, [*sources, *found_people],
+                            dataset_version or self.facts.active_release()[0], people=found,
+                            computed=people_facts):
+                        return done
                 if searchable:
                     assert index is not None and embed_many is not None
                     with measure("Embed the question's parts"):
@@ -2410,6 +2549,16 @@ class ChatEngine:
                 return fallback("not_in_the_evidence")
             trace["oneCallDropped"] = kept[1]
             text, citations = one_call.reply({**arguments, "text": kept[0]}, sources)
+        # The every-word check, report only: what it would cut, for measuring before it cuts.
+        calendar_events = (calendar or {}).get("events") or []
+        shared = " ".join([latest, *(o["office"] for o in offices),
+                           *(str(c.get("fact", "")) for c in computed if not c.get("n")),
+                           UNSUPPORTED_PART_MESSAGE, "differ different"])
+        flagged = one_call.unbacked(text.split("\n\nSources:")[0], one_call.evidence_by_mark(
+            offices, computed, people, academic, calendar_events, clubs), shared)
+        trace["wordCheck"] = {"statements": sum(1 for p in one_call.statements(text)
+                                                if p.strip()),
+                              "flaggedTotal": len(flagged), "flagged": flagged[:10]}
         trace.update(decidedBy="one_call", modelCalls=budget.calls,
                      committedNusd=budget.committed_nusd, writer={"used": True},
                      oneCall={"parts": len(vectors), "sections": len(sources),
@@ -2417,6 +2566,47 @@ class ChatEngine:
                               **({"academics": [p.get("program") or p.get("course")
                                                  for p in academic]}
                                  if academic else {})})
+        return answered(turn, text, "answered", citations, dataset_version)
+
+    def _calendar_answer(self, turn: Turn, trace: dict[str, Any], message: str,
+                         kind: str) -> ChatResult | None:
+        """Every entry of the kind of date asked in the term asked, from the academic calendar,
+        said by code (academic_calendar.py); None when the release has no calendar, no term or
+        entry fits, or the check finds something the entries do not hold."""
+        version, identity_hash = self.facts.active_release()
+        try:
+            calendar = self.facts.academic_calendar(version, identity_hash=identity_hash)
+        except (EvidenceUnavailable, DatasetChanged):
+            return None
+        spans = academic_calendar.term_spans(calendar["dates"])
+        term = academic_calendar.term_asked(message, calendar["terms"], spans,
+                                            turn.campus_now.date())
+        if term is None:
+            return None
+        entries = academic_calendar.entries_asked(message, kind, term, calendar["dates"])
+        url = term.get("source_url") or next((e.get("source_url") for e in entries), None)
+        if not url:
+            return None
+        return self._code_answer(
+            turn, trace, academic_calendar.calendar_text(term, entries),
+            [{"n": 1, "url": url, "title": f"{term['name']} academic calendar"}], version,
+            calendar={"term": term, "entries": entries})
+
+    def _code_answer(self, turn: Turn, trace: dict[str, Any], said: str | None,
+                     sources: list[dict[str, Any]], dataset_version: str, **facts: Any,
+                     ) -> ChatResult | None:
+        """What code worked out (a dean, a person's details, a course's credits and
+        prerequisites, a window's events), said as code wrote it with its sources, with no model
+        call; None when it cannot be said that way or the check finds something the facts
+        (programs, people, calendar, computed) do not hold."""
+        if said is None:
+            return None
+        text, citations = one_call.reply({"text": said}, sources)
+        view = {"today": turn.campus_now.date().isoformat(), **facts,
+                "sources": [{"n": s["n"], "urls": [s["url"]]} for s in sources if s.get("url")]}
+        if not citations or unsupported_by(text, view):
+            return None
+        trace.update(decidedBy="code", writer={"used": True, "by": "code"})
         return answered(turn, text, "answered", citations, dataset_version)
 
     async def _pick_procedures(self, looked_up: list[tuple[str, int, OfficeRequest]],
@@ -2817,6 +3007,17 @@ class ChatEngine:
             identity_hash: str | None = None
             graph = CampusGraph(self.facts)
             trace["root"] = graph.root()
+        # When one kind of academic calendar date is ("when are finals?"): code's answer from the
+        # term's own calendar entries, when the release has them (academic_calendar.py).
+        calendar_kind = (academic_calendar.kind_asked(context.latest_message)
+                         if self.output == "written" and floor_situation is None
+                         and not context.recent_messages else None)
+        if calendar_kind is not None:
+            with measure("Read the academic calendar"):
+                done = await asyncio.to_thread(self._calendar_answer, turn, trace,
+                                               context.latest_message, calendar_kind)
+            if done is not None:
+                return done
         # A question naming a major, minor or certificate is answered from the catalog's own
         # requirements, read through the program's identity (academics.py).
         named_programs = (await asyncio.to_thread(self._programs_named, context.latest_message)
@@ -2860,17 +3061,34 @@ class ChatEngine:
                 [context.latest_message, *(m.content for m in context.recent_messages[-2:])])
         attempts = 0
         finish: Finish | None = None
+        # A plain lookup of one listed office or venue is routed by code, and its one lookup is
+        # all that is asked, so no model call is made (router.py; Dan 11-02).
+        plain = (self.output == "written" and not context.recent_messages
+                 and floor_situation is None and not names_a_danger(context.latest_message))
+        plan, plan_tool = (code_route(context.latest_message, offices, venues) if plain
+                           else None), "graph_lookup"
+        if plan is None and plain:
+            plan, plan_tool = shuttle_route(context.latest_message), "shuttle_lookup"
+        if plan is not None:
+            trace["decidedBy"] = "code"
         try:
             async with asyncio.timeout(self.turn_seconds):
                 while finish is None:
-                    with measure(f"Model call {budget.calls + 1}"):
-                        completion = await self.gateway.complete(
-                            input=inputs, tools=TOOLS, budget=budget)
-                    with measure("Validate model decision and tool arguments"):
+                    if plan is not None and results:
+                        finish = Finish(parts=[])
+                        trace["finish"] = []
+                        continue
+                    if plan is not None:
+                        call = ToolCall("code-route", plan_tool, plan)
+                    else:
+                        with measure(f"Model call {budget.calls + 1}"):
+                            completion = await self.gateway.complete(
+                                input=inputs, tools=TOOLS, budget=budget)
                         if len(completion.tool_calls) != 1 or completion.text.strip():
                             raise GatewayError("provider_invalid_response")
                         call = completion.tool_calls[0]
                         inputs.extend(completion.output)
+                    with measure("Validate model decision and tool arguments"):
                         if call.name == "finish":
                             finish = Finish.model_validate(call.arguments)
                             trace["finish"] = [part.kind for part in finish.parts]
@@ -2884,8 +3102,8 @@ class ChatEngine:
                             requests = GraphRequests.model_validate(call.arguments).requests
                             requests = self._every_venue(self._dining_kind(requests),
                                                          context.latest_message)
-                        requests = keep_named_day(requests, context.latest_message,
-                                                  turn.campus_now.date())
+                        requests = with_meal_hours(keep_named_day(
+                            requests, context.latest_message, turn.campus_now.date()))
                         requests, situational = with_situation_procedures(
                             requests, context.latest_message)
                         attempts += len(requests)
@@ -3342,7 +3560,8 @@ class ChatEngine:
     async def _written(self, result: ChatResult, code_text: str, budget: TurnBudget,
                        trace: dict[str, Any], language: str | None = None,
                        lead: str = "") -> ChatResult:
-        """Let a writer with only the writer view say the facts; keep the code's text if it slips.
+        """Let a writer with only the writer view say the facts (code's plain sentences, or a model
+        with lookup_writer); keep the code's evidence text if it slips or cannot say them.
 
         An emergency, a question back and fixed wording stay the code's own words. An emergency
         beside facts the student asked for (Dan 10-20: crisis first, then policy) keeps its text
@@ -3364,18 +3583,25 @@ class ChatEngine:
         emergency = packet.get("status") == "emergency"
         if not says_something(view) or emergency and not lead:
             return keep("nothing_to_write")
-        # The writer's one call is its own: lookups that used the turn's calls leave it one more
-        # (the cost limit still holds), so a long how-to turn is still written, not the code's text.
-        budget.max_calls = max(budget.max_calls, budget.calls + 1)
-        with measure("Write the answer from the facts"):
-            try:
-                completion = await self.gateway.complete(
-                    input=writer_messages(view, language), tools=[WRITE_TOOL], budget=budget)
-                call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
-                said = call.arguments.get("text") if call and call.name == "write_answer" else None
-            except (GatewayError, TimeoutError) as error:
-                # Which failure, for the inspector: a timeout, the turn's deadline, a cut reply.
-                return keep("writer_unavailable", error=getattr(error, "code", "timeout"))
+        if not self.lookup_writer:
+            with measure("Write the answer from the facts in code's words"):
+                said = plain_text(view)
+            if said is None:
+                return keep("plain_writer_cannot_say")
+        else:
+            # The writer's one call is its own: lookups that used the turn's calls leave it one
+            # more (the cost limit still holds), so a long how-to turn is still written.
+            budget.max_calls = max(budget.max_calls, budget.calls + 1)
+            with measure("Write the answer from the facts"):
+                try:
+                    completion = await self.gateway.complete(
+                        input=writer_messages(view, language), tools=[WRITE_TOOL], budget=budget)
+                    call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
+                    said = (call.arguments.get("text")
+                            if call and call.name == "write_answer" else None)
+                except (GatewayError, TimeoutError) as error:
+                    # Which failure, for the inspector: a timeout, the turn's deadline, a cut reply.
+                    return keep("writer_unavailable", error=getattr(error, "code", "timeout"))
         if not isinstance(said, str) or not said.strip():
             return keep("no_text")
         if len(said) >= WRITER_TEXT_LIMIT:
@@ -3394,7 +3620,7 @@ class ChatEngine:
         sources = [f"[{s['n']}]({s['urls'][0]})" for s in view.get("sources", []) if s.get("urls")]
         text = "\n\n".join([*([lead] if emergency else []), said.strip(), *fixed,
                             *([("Sources: " + " ".join(sources))] if sources else [])])
-        trace["writer"] = {"used": True}
+        trace["writer"] = {"used": True, **({} if self.lookup_writer else {"by": "code"})}
         return replace(result, body={**result.body, "answer": text})
 
     @measure("Compose partial or failed response")

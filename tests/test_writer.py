@@ -73,8 +73,10 @@ def writing(text: str | None) -> Completion:
 
 def turn(*steps: Completion, output: str = "written") -> tuple[dict[str, Any], dict[str, Any]]:
     request = ChatRequest.model_validate(
-        {"messages": [{"role": "user", "content": "What is the Registrar email?"}]})
-    engine = ChatEngine(ScriptedGateway(*steps), facts(), output=output)  # type: ignore[arg-type]
+        {"messages": [{"role": "user",
+                       "content": "What is the Registrar email for a transcript?"}]})
+    engine = ChatEngine(ScriptedGateway(*steps), facts(), output=output,  # type: ignore[arg-type]
+                        lookup_writer=True)
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     assert result.trace is not None
     return result.body, result.trace
@@ -113,6 +115,20 @@ def test_a_writer_that_fails_leaves_the_codes_text() -> None:
     assert trace["writer"] == {"used": False, "why": "writer_unavailable",
                                "error": "provider_unavailable"}
     assert "published@example.edu" in body["answer"]
+
+
+def test_a_lookup_answer_is_written_by_code_unless_the_model_writer_is_turned_on() -> None:
+    # Dan 11-02: lookup answers are code's plain sentences, the same every time, with no AI call.
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "What is the Registrar email?"}]})
+    gateway = ScriptedGateway()
+    engine = ChatEngine(gateway, facts(), output="written")
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    assert result.body["answer"] == ("Registrar email: published@example.edu. [1]\n\n"
+                                     "Sources: [1](https://example.edu/registrar)")
+    assert result.trace is not None and result.trace["writer"] == {"used": True, "by": "code"}
+    # A plain lookup of a listed office is routed by code too: no model call at all.
+    assert gateway.inputs == [] and result.trace["decidedBy"] == "code"
 
 
 def test_the_writer_is_not_asked_when_the_turn_is_not_a_written_one() -> None:
@@ -154,7 +170,7 @@ def test_a_fixed_notice_the_writer_already_said_is_not_shown_twice() -> None:
         engine = ChatEngine(
             ScriptedGateway(LOOKUP, finish("unsupported", student_words="book an appointment"),
                             writing(said)),
-            facts(), output="written")
+            facts(), output="written", lookup_writer=True)
         result = asyncio.run(engine.answer(intake(request, now=NOW), request))
         return str(result.body["answer"])
 
@@ -206,11 +222,12 @@ def test_a_turn_that_used_every_call_still_gets_its_writer() -> None:
             return await super().complete(input=input, tools=tools, budget=budget)
 
     request = ChatRequest.model_validate(
-        {"messages": [{"role": "user", "content": "What is the Registrar email?"}]})
+        {"messages": [{"role": "user",
+                       "content": "What is the Registrar email for a transcript?"}]})
     # Four lookup rounds and the finish use all five calls; the writer is a sixth.
     steps = [LOOKUP, LOOKUP, LOOKUP, LOOKUP, finish(),
              writing("The Registrar's email is published@example.edu [1].")]
-    engine = ChatEngine(Counting(*steps), facts(), output="written")
+    engine = ChatEngine(Counting(*steps), facts(), output="written", lookup_writer=True)
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     assert result.trace is not None and result.trace["writer"] == {"used": True}
 
@@ -239,7 +256,7 @@ def test_an_emergency_beside_asked_facts_keeps_its_text_first_and_writes_the_fac
         {"messages": [{"role": "user", "content": "registrar email, not 911 obviously lol"}]})
     engine = ChatEngine(ScriptedGateway(
         LOOKUP, finish(), writing("The Registrar's email is published@example.edu [1].")),
-        facts(), output="written")
+        facts(), output="written", lookup_writer=True)
     result = asyncio.run(engine.answer(intake(request, now=NOW), request, floor_situation="other"))
     text = result.body["answer"]
     # Dan 10-20: crisis first, then the facts, in the writer's words, said once.
