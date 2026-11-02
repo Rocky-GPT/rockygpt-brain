@@ -199,7 +199,28 @@ _PHONE = re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}
 _NUMBER = re.compile(r"\d+")
 _COURSE = re.compile(r"\b([a-z]{2,6}) ?(\d{3}[a-z]?)\b")
 _LIST_ITEM = re.compile(r"(?m)^[ \t]*\d{1,2}[.)][ \t]")
-_MARKER = re.compile(r"\[(\d+)\]")
+# A citation mark: one source's number ("[3]"), or several written together ("[3, 4]", "[4–6]").
+# Models group them though asked for one: on 11-02 15 of 100 replies had grouped marks, read as
+# citing nothing, so their sources were never shown.
+_MARKER = re.compile(r"\[(\d+(?:\s*[,–-]\s*\d+)*)\]")
+MAX_MARK_RANGE = 12
+
+
+def marked(mark: str) -> list[int]:
+    """The source numbers a mark's inside stands for: "3, 4" is 3 and 4, "4–6" is 4 to 6."""
+    numbers: list[int] = []
+    for piece in mark.split(","):
+        ends = [int(n) for n in re.split(r"\s*[–-]\s*", piece.strip()) if n]
+        if len(ends) == 2 and 0 < ends[1] - ends[0] <= MAX_MARK_RANGE:
+            numbers.extend(range(ends[0], ends[1] + 1))
+        else:
+            numbers.extend(ends)
+    return numbers
+
+
+def cited(text: str) -> list[int]:
+    """Every source number the text's citation marks stand for, once each, in order."""
+    return list(dict.fromkeys(n for m in _MARKER.finditer(text) for n in marked(m.group(1))))
 
 
 def writer_messages(view: dict[str, Any], language: str | None = None) -> list[dict[str, Any]]:
@@ -268,7 +289,8 @@ def unsupported_by(text: str, view: dict[str, Any]) -> list[str]:
         if m.group(1) in subjects and f"{m.group(1)} {m.group(2)}" not in codes:
             problems.append(f"a course the facts do not hold: {m.group(0).upper()}")
     rest = _COURSE.sub(lambda m: " " if m.group(1) in subjects else m.group(0), rest)
-    rest = _MARKER.sub(lambda m: " " if m.group(1) in sources else m.group(0), rest)
+    rest = _MARKER.sub(lambda m: " " if all(str(n) in sources for n in marked(m.group(1)))
+                       else m.group(0), rest)
     # A numbered step ("2. Submit the form") numbers the reply's own list, not a fact.
     rest = _LIST_ITEM.sub(" ", rest)
     for number in _NUMBER.findall(rest):
