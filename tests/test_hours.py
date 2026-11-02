@@ -446,7 +446,7 @@ def test_postgres_reads_schedules_by_exact_link_only_when_hours_are_asked(
             if "dataset_versions v" in query:
                 return Cursor([{
                     "dataset_id": "dataset-uuid", "dataset_version": "release-1",
-                    "identity_hash": "identities-1", "alias_sources": []}])
+                    "identity_hash": "identities-1", "coverage_hash": None}])
             if "campus_contacts c" in query:
                 return Cursor([contact()])
             if "campus_hours h" in query:
