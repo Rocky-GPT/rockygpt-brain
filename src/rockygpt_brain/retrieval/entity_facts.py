@@ -42,6 +42,8 @@ MAX_TRIP_ROWS = 128
 # graph-records.ts): every node kind added since 11-02, read by one reader, each its own bound.
 # A term's record, and a calendar date's.
 GRAPH_RECORDS_ARTIFACT = "graph-records"
+# The most academic calendar dates one read returns (about 300 across the published terms).
+MAX_CALENDAR_DATES = 2_000
 # A building's map row (or its group's), and the places the campus map lists that a node is: one
 # office can be several map places (Admissions is both "Campus Tours" and the admissions office).
 GRAPH_RECORD_COLLECTIONS = {"terms": 1, "calendar_dates": 1, "buildings": 1, "map_places": 8,
@@ -2760,6 +2762,29 @@ class EntityFacts:
                     "properties": [prop], "sources": sources,
                     "evidence_count": len(sources), "caveats": [], "complete": bool(sources),
                 })
+            return found
+
+    def academic_calendar(self, dataset_version: str, *, identity_hash: str | None = None,
+                          ) -> dict[str, list[dict[str, Any]]]:
+        """Every academic term and calendar date in the release, each its one record as published
+        (rockygpt-data campus-calendar.ts) with its identity's id; empty lists when the release
+        has none. A date's record names the terms whose pages list it."""
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            found: dict[str, list[dict[str, Any]]] = {"terms": [], "dates": []}
+            for entity in snapshot.entities:
+                collection = {"term": "terms", "calendar_date": "calendar_dates"}.get(
+                    entity["kind"])
+                if collection is None:
+                    continue
+                rows = snapshot.record_reader(entity, collection)
+                if len(rows) != 1:
+                    raise EvidenceUnavailable(
+                        "An academic calendar identity has no single exact record.")
+                found["terms" if collection == "terms" else "dates"].append(
+                    {**rows[0], "_id": entity["id"]})
+            if len(found["dates"]) > MAX_CALENDAR_DATES:
+                raise EvidenceUnavailable("The academic calendar exceeds the bounded read.")
             return found
 
     def get_event_facts(self, entity_ids: Sequence[str], dataset_version: str, *,

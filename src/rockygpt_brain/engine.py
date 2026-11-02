@@ -18,7 +18,7 @@ from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from rockygpt_brain import academics, catalog, events, one_call
+from rockygpt_brain import academic_calendar, academics, catalog, events, one_call
 from rockygpt_brain import people as people_module
 from rockygpt_brain.answers import (
     Rendered,
@@ -2547,6 +2547,30 @@ class ChatEngine:
                                  if academic else {})})
         return answered(turn, text, "answered", citations, dataset_version)
 
+    def _calendar_answer(self, turn: Turn, trace: dict[str, Any], message: str,
+                         kind: str) -> ChatResult | None:
+        """Every entry of the kind of date asked in the term asked, from the academic calendar,
+        said by code (academic_calendar.py); None when the release has no calendar, no term or
+        entry fits, or the check finds something the entries do not hold."""
+        version, identity_hash = self.facts.active_release()
+        try:
+            calendar = self.facts.academic_calendar(version, identity_hash=identity_hash)
+        except (EvidenceUnavailable, DatasetChanged):
+            return None
+        spans = academic_calendar.term_spans(calendar["dates"])
+        term = academic_calendar.term_asked(message, calendar["terms"], spans,
+                                            turn.campus_now.date())
+        if term is None:
+            return None
+        entries = academic_calendar.entries_asked(message, kind, term, calendar["dates"])
+        url = term.get("source_url") or next((e.get("source_url") for e in entries), None)
+        if not url:
+            return None
+        return self._code_answer(
+            turn, trace, academic_calendar.calendar_text(term, entries),
+            [{"n": 1, "url": url, "title": f"{term['name']} academic calendar"}], version,
+            calendar={"term": term, "entries": entries})
+
     def _code_answer(self, turn: Turn, trace: dict[str, Any], said: str | None,
                      sources: list[dict[str, Any]], dataset_version: str, **facts: Any,
                      ) -> ChatResult | None:
@@ -2962,6 +2986,17 @@ class ChatEngine:
             identity_hash: str | None = None
             graph = CampusGraph(self.facts)
             trace["root"] = graph.root()
+        # When one kind of academic calendar date is ("when are finals?"): code's answer from the
+        # term's own calendar entries, when the release has them (academic_calendar.py).
+        calendar_kind = (academic_calendar.kind_asked(context.latest_message)
+                         if self.output == "written" and floor_situation is None
+                         and not context.recent_messages else None)
+        if calendar_kind is not None:
+            with measure("Read the academic calendar"):
+                done = await asyncio.to_thread(self._calendar_answer, turn, trace,
+                                               context.latest_message, calendar_kind)
+            if done is not None:
+                return done
         # A question naming a major, minor or certificate is answered from the catalog's own
         # requirements, read through the program's identity (academics.py).
         named_programs = (await asyncio.to_thread(self._programs_named, context.latest_message)
