@@ -561,11 +561,11 @@ def leaders(directory: Sequence[dict[str, Any]], message: str,
         leading = [e for e in titled if _LEAD_TITLE.search(str(e.get("title") or ""))
                    and id(e) not in listed]
         for entry in leading:
-            lines.append((f"{_name(entry)}'s directory title names {field} with a leadership "
-                          f"role: {entry['title']}.", entry))
+            lines.append((f"{_name(entry)} leads in {field} by their directory title: "
+                          f"{entry['title']}.", entry))
         if not leading and not ((school or named) and dean_asked):
-            lines.append((f"No directory title names a chair, head, convener, director or "
-                          f"dean for {field}.", None))
+            lines.append((f"The directory lists no chair, head, convener, director or dean for "
+                          f"{field}.", None))
             home = Counter(_school(e.get("school")) for e in titled if e.get("school"))
             if home:
                 of = home.most_common(1)[0][0]

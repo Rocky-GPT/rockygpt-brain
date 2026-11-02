@@ -187,11 +187,11 @@ def test_deans_and_chairs_come_from_directory_titles() -> None:
                                "Susan Hangen (")
     assert lines[1].startswith("Kathleen Ray is also listed in the directory, as Interim Dean")
     nursing = [line for line, _ in leaders(DIRECTORY, "who is the chair of nursing", schools)]
-    assert nursing == ["Kathleen M. Burke's directory title names nursing with a leadership "
-                       "role: Assistant Dean of Nursing Programs / Professor of Nursing."]
+    assert nursing == ["Kathleen M. Burke leads in nursing by their directory title: "
+                       "Assistant Dean of Nursing Programs / Professor of Nursing."]
     biology = [line for line, _ in leaders(DIRECTORY, "biology department chair", schools)]
     assert biology[:2] == [
-        "No directory title names a chair, head, convener, director or dean for biology.",
+        "The directory lists no chair, head, convener, director or dean for biology.",
         "The directory's biology faculty are in the School of Science, Nursing, and Health."]
     assert biology[2].startswith("The dean of the School of Science, Nursing, and Health is "
                                  "Benny Chan (")
@@ -265,8 +265,8 @@ def test_a_field_only_mentioned_is_not_reported_without_a_chair() -> None:
         [*DIRECTORY, {"id": "cp", "name": "Ann Clin", "title": "Professor of Clinical Psychology",
                       "school": "School of Social Sciences and Social Work"}],
         "who is in charge of nursing? it's about clinical placements", schools)]
-    assert lines == ["Kathleen M. Burke's directory title names nursing with a leadership "
-                     "role: Assistant Dean of Nursing Programs / Professor of Nursing."]
+    assert lines == ["Kathleen M. Burke leads in nursing by their directory title: "
+                     "Assistant Dean of Nursing Programs / Professor of Nursing."]
 
 
 def test_an_unusual_last_name_or_a_middle_initial_needs_no_people_word() -> None:
