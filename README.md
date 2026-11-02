@@ -54,9 +54,12 @@ does not erase them.
 The bundled [provider release](src/rockygpt_brain/provider-release.json) records the
 model, pricing evidence, and expiry. Expired pricing blocks readiness and provider
 calls. An override must provide the model, input rate, output rate, and expiry
-together; changing only the model is rejected. There is no automatic deployed-price
-monitor: CI checks the configuration contract, and operators must renew the release
-before its expiry. The obsolete workflow reading a missing `prices.json` is removed.
+together; changing only the model is rejected. The `Price renewal` workflow checks
+OpenAI's model page every day (`scripts/check_provider_price.py`). When the published
+price still matches and the expiry is 10 days away or closer, it opens a renewal pull
+request into `main` (and the same branch into `dev`) that only moves the dates; merging
+it renews production. A changed price, an unreadable page, or 5 days or fewer left opens
+a `price-check` issue and fails the run. It never merges anything itself.
 
 ## Check
 
