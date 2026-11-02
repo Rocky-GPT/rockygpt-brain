@@ -47,8 +47,9 @@ MAX_CALENDAR_DATES = 2_000
 # A building's map row (or its group's), and the places the campus map lists that a node is: one
 # office can be several map places (Admissions is both "Campus Tours" and the admissions office).
 # A staff person's record: the names, addresses and titles their offices' own pages print.
+# A parking lot's record: who may park there and its notes, each quoting the parking pages.
 GRAPH_RECORD_COLLECTIONS = {"terms": 1, "calendar_dates": 1, "buildings": 1, "map_places": 8,
-                            "club_categories": 1, "stops": 1, "staff": 1}
+                            "club_categories": 1, "stops": 1, "staff": 1, "parking_lots": 1}
 RECORD_COLLECTIONS = {
     "dining_hours": MAX_DINING_ROWS, "menu": MAX_MENU_ROWS, "shuttle_trips": MAX_TRIP_ROWS,
     "menu_documents": 10, "menu_listings": 2, "shuttle_stops": 40, "campus_topics": 1,
