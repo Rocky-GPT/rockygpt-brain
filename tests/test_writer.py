@@ -247,3 +247,13 @@ def test_an_emergency_beside_asked_facts_keeps_its_text_first_and_writes_the_fac
     assert "The Registrar's email is published@example.edu [1]." in text
     assert text.count(SAFETY_MESSAGE) == 1
     assert result.trace is not None and result.trace["writer"] == {"used": True}
+
+
+def test_a_number_the_pages_spell_out_and_a_phone_with_unicode_dashes_are_held() -> None:
+    view = {"offices": [{"sections": [{"n": 1, "text": "Appeal within twenty calendar days, "
+                                                      "or call (201) 684-7495."}]}],
+            "sources": [{"n": 1, "urls": ["https://www.ramapo.edu/x/"]}]}
+    assert unsupported_by("Appeal within 20 calendar days or call (201) 684\u20117495. [1]",
+                          view) == []
+    assert unsupported_by("Appeal within 21 days. [1]", view) == [
+        "a number the facts do not hold: 21"]

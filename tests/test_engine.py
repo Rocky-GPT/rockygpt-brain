@@ -393,14 +393,19 @@ def test_an_empty_finish_right_after_a_safety_reply_repeats_the_safety_text() ->
     assert ordinary.body["status"] == "clarification"
 
 
-def test_a_reply_cut_short_by_a_provider_failure_still_carries_the_emergency_numbers() -> None:
+def test_a_reply_cut_short_carries_the_emergency_numbers_only_after_a_danger() -> None:
     def provider_down() -> Completion:
         raise GatewayError("provider_unavailable")
 
     result = answer(ScriptedGateway(LOOKUP, provider_down))
     assert result.body["status"] == "partial"
     assert "published@example.edu" in result.body["answer"]
-    assert result.body["answer"].endswith(SAFETY_MESSAGE)
+    assert SAFETY_MESSAGE not in result.body["answer"]  # A plain question gets no crisis line.
+    after = answer(ScriptedGateway(LOOKUP, provider_down), messages=[
+        {"role": "user", "content": "someone is following me"},
+        {"role": "assistant", "content": SAFETY_MESSAGE},
+        {"role": "user", "content": "What is the Registrar email?"}])
+    assert after.body["answer"].endswith(SAFETY_MESSAGE)
 
 
 def test_a_lookup_that_already_asks_which_office_is_not_asked_twice() -> None:
@@ -826,7 +831,7 @@ def test_an_emergency_reply_adds_the_published_campus_numbers_with_sources() -> 
                     messages=[{"role": "user", "content": "there is smoke"}])
     text = result.body["answer"]
     assert text.startswith(SAFETY_TEXTS["fire"] + "\n\n" + HELP_TEXT)
-    assert "Public Safety \\(Emergency\\)" in text and "+12015556666" in text
+    assert "Public Safety \\(Emergency\\)" in text and "\\(201\\) 555-6666" in text
     assert "Counseling" not in text and "+12015557522" not in text
     assert [c["id"] for c in result.body["citations"]] == ["source-public-safety"]
     assert result.body["status"] == "partial"
@@ -842,7 +847,7 @@ def test_a_self_harm_reply_also_points_to_the_counseling_center() -> None:
                     service=campus_help_facts(),
                     messages=[{"role": "user", "content": "i want to disappear"}])
     text = result.body["answer"]
-    assert text.index("988") < text.index("+12015557522") < text.index("+12015556666")
+    assert text.index("988") < text.index("\\(201\\) 555-7522") < text.index("\\(201\\) 555-6666")
     assert {c["id"] for c in result.body["citations"]} == {"source-counseling",
                                                           "source-public-safety"}
 
@@ -853,7 +858,8 @@ def test_the_rest_of_the_request_follows_the_emergency_text_and_numbers() -> Non
                     service=campus_help_facts(),
                     messages=[{"role": "user", "content": "she fainted, also registrar email"}])
     text = result.body["answer"]
-    assert text.index("Call 911") < text.index("+12015556666") < text.index("registrar@example.edu")
+    assert (text.index("Call 911") < text.index("\\(201\\) 555-6666")
+            < text.index("registrar@example.edu"))
 
 
 def test_an_office_the_model_already_looked_up_is_not_looked_up_twice() -> None:
@@ -928,7 +934,7 @@ def test_the_phrase_floor_reply_has_its_own_text_and_the_campus_numbers() -> Non
     result = asyncio.run(engine_.safety_reply(turn, boundary.situation))
     assert boundary.situation == "fire"
     assert result.body["answer"].startswith(SAFETY_TEXTS["fire"] + "\n\n" + HELP_TEXT)
-    assert "+12015556666" in result.body["answer"]
+    assert "\\(201\\) 555-6666" in result.body["answer"]
     assert result.trace is not None
     assert (result.trace["decidedBy"], result.trace["modelCalls"],
             result.trace["situation"]) == ("phrase_floor", 0, "fire")
@@ -1130,7 +1136,7 @@ def test_campus_numbers_still_come_when_the_models_own_lookup_left_out_the_phone
     result = answer(ScriptedGateway(email_only, finish("safety", situation="danger")),
                     service=campus_help_facts(),
                     messages=[{"role": "user", "content": "someone is following me"}])
-    assert HELP_TEXT in result.body["answer"] and "+12015556666" in result.body["answer"]
+    assert HELP_TEXT in result.body["answer"] and "\\(201\\) 555-6666" in result.body["answer"]
     phones = completion("graph_lookup", {"requests": [
         {"query": "Public Safety (Emergency)", "fields": ["email", "phones"]}]})
     again = answer(ScriptedGateway(phones, finish("safety", situation="danger")),
@@ -1981,3 +1987,36 @@ def test_a_situation_beside_a_contact_question_also_reads_the_offices_how_to() -
     for plain in ("registrar email", "Is the email you gave me still correct?"):
         same, none = with_situation_procedures([ask], plain)
         assert none == set() and same[0].fields == ["phones", "hours"]
+
+
+def test_one_offices_two_lines_under_one_name_are_both_given_not_asked_about() -> None:
+    names = (("ps-e", "Public Safety (Emergency)", "(201) 555-6666"),
+             ("ps-n", "Public Safety (Non-Emergency)", "(201) 555-7432"))
+    service = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": key, "name": name, "kind": "office", "aliases": [],
+                   "links": [{"collection": "contacts", "source_key": "directory",
+                              "source_record_keys": [key]}]} for key, name, _ in names],
+        contacts=[{"id": f"source-{key}", "source_key": "directory", "source_record_key": key,
+                   "name": name, "email": f"{key}@example.edu", "phone": phone,
+                   "canonical_url": f"https://example.edu/{key}", "collected_at": NOW,
+                   "freshness_sla_hours": 24} for key, name, phone in names],
+        now=lambda: NOW)
+    lookup = completion("graph_lookup", {"requests": [{"query": "Public Safety",
+                                                       "fields": ["phones"]}]})
+    gateway = ScriptedGateway(lookup, finish())
+    result = answer(gateway, service=service, messages=[
+        {"role": "user", "content": "What is the Public Safety phone number?"}])
+    text = result.body["answer"]
+    assert "+12015556666" in text and "+12015557432" in text
+    assert "Which office do you mean" not in text and result.body["status"] == "answered"
+    assert result.trace is not None
+    assert [e.get("foundBy") for e in result.trace["lookups"]] == [
+        None, "office_family", "office_family"]
+    # Two offices with different names are still asked about.
+    from rockygpt_brain.answers import Rendered
+    from rockygpt_brain.engine import OfficeResult, office_family
+    asked = OfficeResult(Rendered("?"), clarification=True, part={
+        "kind": "ambiguous", "truncated": False,
+        "candidates": [{"name": "Student Accounts"}, {"name": "Student Conduct"}]})
+    assert office_family(asked) == []

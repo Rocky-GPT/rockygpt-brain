@@ -345,6 +345,58 @@ def messages(question: str, earlier_user: str | None, offices: list[dict[str, An
             {"role": "user", "content": json.dumps(given, ensure_ascii=False)}]
 
 
+# A reply with one or two statements the evidence does not hold keeps the rest: the statements
+# are dropped, not the whole reply. Throwing the reply away sent the question to the four-call
+# loop, which took 35-45 s and ran out of time on 11-02 ("deadline to withdraw from a class").
+MAX_DROPPED = 2
+MAX_DROPPED_SHARE = 0.35
+_NOT_AN_END = re.compile(r"^(?:(?:[A-Za-z]\.){1,3}|(?:dr|mr|mrs|ms|prof|st|no|rm|vs|etc|e\.g|i\.e|"
+                         r"ext|approx|dept|jr|sr|inc)\.)$", re.IGNORECASE)
+_STATEMENT = re.compile(r"(?<=[.!?])(?:\s*\[[\d,\s–-]+\])*\s+(?=[A-Z(\"“])")
+
+
+def statements(text: str) -> list[str]:
+    """The reply's statements in order: each line, split after a full stop that ends a sentence
+    (its citation marks stay with it). Joining them with their separators gives the text back."""
+    pieces: list[str] = []
+    for line in text.split("\n"):
+        start = 0
+        for m in _STATEMENT.finditer(line):
+            before = line[start:m.start()].split()
+            # "2. Submit", "Dr. Reck", "4:30 P.M. Monday" end no sentence.
+            if not before or _NOT_AN_END.search(before[-1]) or (
+                    len(before) == 1 and re.fullmatch(r"\d{1,2}[.)]", before[0])):
+                continue
+            pieces.append(line[start:m.start()] + line[m.start():m.end()].rstrip())
+            pieces.append(" ")
+            start = m.end()
+        pieces.append(line[start:])
+        pieces.append("\n")
+    return pieces[:-1]
+
+
+def without_unsupported(text: str, check: Any) -> tuple[str, list[str]] | None:
+    """The reply with each statement `check` finds a problem in removed, and the removed ones;
+    None when more than MAX_DROPPED statements (or more than MAX_DROPPED_SHARE of the text)
+    would go, when nothing cited is left, or when what is left still has a problem."""
+    pieces = statements(text)
+    kept: list[str] = []
+    dropped: list[str] = []
+    for piece in pieces:
+        if piece.strip() and check(piece):
+            dropped.append(piece.strip())
+            if kept and kept[-1] == " ":
+                kept.pop()
+            continue
+        kept.append(piece)
+    left = re.sub(r"\n{3,}", "\n\n", "".join(kept)).strip()
+    if (not dropped or len(dropped) > MAX_DROPPED
+            or sum(map(len, dropped)) > MAX_DROPPED_SHARE * len(text)
+            or not re.search(r"\[\d+\]", left) or check(left)):
+        return None
+    return left, dropped
+
+
 def reply(arguments: dict[str, Any], sources: list[dict[str, Any]],
           ) -> tuple[str, list[dict[str, Any]]]:
     """The reply with the sources it cited (its [n] marks), and those as citations."""

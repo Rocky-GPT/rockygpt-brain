@@ -405,3 +405,60 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
             # with its date, so a second line saying the same thing would only repeat it.
             complete = False
     return Rendered("\n\n".join(lines), list(citations.values()), supported, complete)
+
+
+def us_phone(number: str) -> str:
+    """A published US number as a student reads it: +12016846666 is (201) 684-6666; anything
+    else stays as published."""
+    digits = re.sub(r"\D", "", number)
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    if len(digits) != 10 or not re.fullmatch(r"[+\d\s().-]+", number.strip()):
+        return number
+    return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+
+
+def phone_lines(facts: dict[str, Any]) -> Rendered:
+    """An office's phone lines in plain words, for text shown without a writer (the campus numbers
+    under an emergency reply): "**Public Safety (Emergency)**: (201) 684-6666; (201) 684-7789
+    (Director of Public Safety)", then one link to the page they are published on. Every value
+    still comes from its own assertions; nothing is shown that render_facts would not show."""
+    entity = facts["entity"]
+    sources = {s["id"]: s for s in facts["sources"]}
+    said: list[str] = []
+    citations: dict[str, dict[str, Any]] = {}
+    current = True
+    for prop in facts["properties"]:
+        if prop["key"] != "phones" or prop["status"] not in {"known", "multiple"}:
+            continue
+        for value in prop["values"]:
+            valid = _asserted_sources(value, prop, sources)
+            urls = [url for source in valid for candidate in source["citation_urls"]
+                    if (url := citation_url(candidate))]
+            if not urls:
+                continue
+            for source in valid:
+                citations[source["id"]] = {
+                    "id": source["id"], "title": str(source["source_key"]), "url": urls[0],
+                    "urls": list(dict.fromkeys(urls)), "collection": source["collection"],
+                    "collected_at": source["collected_at"], "freshness": source["freshness"],
+                    "valid_from": source["valid_from"], "valid_until": source["valid_until"],
+                    "limitations": source["caveats"], "record_title": str(entity["name"])}
+                current &= _current(source)
+            for phone in value["value"] if isinstance(value["value"], list) else []:
+                if not isinstance(phone, dict) or not (phone.get("number") or phone.get("text")):
+                    continue
+                text = literal(us_phone(str(phone.get("number") or phone.get("text"))))
+                if phone.get("extension") is not None:
+                    text += " extension " + literal(phone["extension"])
+                if phone.get("label"):
+                    text += " (" + literal(phone["label"]) + ")"
+                said.append(text)
+    said = list(dict.fromkeys(said))
+    if not said or not citations:
+        return Rendered("", [], False, False)
+    first = next(iter(citations.values()))
+    line = f"**{literal(entity['name'])}**: {'; '.join(said)}. [Source]({first['url']})"
+    if not current:
+        line += f" (as last read on {literal(str(first['collected_at'])[:10])})"
+    return Rendered(line, list(citations.values()), True, current)

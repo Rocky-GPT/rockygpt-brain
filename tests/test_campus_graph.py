@@ -244,6 +244,8 @@ def test_a_follow_up_about_a_parking_ticket_reaches_the_office_that_lists_it() -
         {"role": "user", "content": "whats the number tho"}])
     assert ticket["status"] == "ok" and ticket["office"] == "Public Safety (Non-Emergency)"
     assert ticket["resolvedBy"] == "conversation"
-    # With nothing in the conversation to say which, the student is still asked.
+    # With nothing in the conversation to say which, both lines are read and given (11-01 bulk
+    # run: asking "Emergency or Non-Emergency?" for a phone number was the weak answer).
     plain = turn([{"role": "user", "content": "whats the public safety number"}])
-    assert plain["status"] == "ambiguous" and "resolvedBy" not in plain
+    assert plain["status"] == "expanded" and "resolvedBy" not in plain
+    assert plain["family"] == ["Public Safety (Emergency)", "Public Safety (Non-Emergency)"]

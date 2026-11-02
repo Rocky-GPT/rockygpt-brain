@@ -487,3 +487,19 @@ def test_a_schedule_with_one_published_date_says_which_is_missing() -> None:
     assert note(["start", "end"]) == DATES_NOT_PUBLISHED_NOTE
     assert note(["end"]) == "The page gives when this schedule starts but not when it ends."
     assert note(["start"]) == "The page gives when this schedule ends but not when it starts."
+
+
+def test_an_office_with_no_how_to_beside_one_that_answers_it_is_no_gap_to_tell() -> None:
+    packet = deepcopy(contact_packet())
+    answered = deepcopy(packet["facts"][0])
+    answered.update(id="f-how", predicate="procedures",
+                    value={"heading": "Grade Appeals", "text": "Meet the instructor first."})
+    packet["facts"].append(answered)
+    other = {"subject": {"id": "dean", "name": "Dean of Students", "kind": "office"},
+             "predicate": "procedures", "reason": "unknown"}
+    packet["missing"].append(other)
+    assert "missing" not in writer_view(packet)
+    # Alone, an office whose pages hold no how-to is still said to have none.
+    packet["facts"] = [f for f in packet["facts"] if f["predicate"] != "procedures"]
+    assert writer_view(packet)["missing"] == [
+        {"subject": "Dean of Students", "predicate": "procedures"}]

@@ -89,6 +89,33 @@ def test_a_reply_the_evidence_does_not_hold_goes_to_the_four_call_loop() -> None
     assert "tutors@example.com" not in result.body["answer"]
 
 
+def test_one_statement_the_evidence_does_not_hold_is_dropped_and_the_rest_kept() -> None:
+    gateway = PartsGateway(one_reply(
+        "Center for Reading and Writing: Apply with the online form by March 1. [1] "
+        "Email tutors@example.com with questions.", [1]))
+    result = ask(gateway, "how do i become a peer tutor")
+    text = result.body["answer"]
+    assert result.trace is not None and result.trace["decidedBy"] == "one_call"
+    assert "by March 1. [1]" in text and "tutors@example.com" not in text
+    assert result.trace["oneCallDropped"] == ["Email tutors@example.com with questions."]
+    assert len(gateway.inputs) == 1  # No four-call loop after it.
+
+
+def test_statements_split_after_sentences_not_after_steps_titles_or_times() -> None:
+    from rockygpt_brain.one_call import statements, without_unsupported
+    text = ("Meet Dr. Reck within 20 days. [1] Hours are 8:30 A.M. – 4:30 P.M. Monday. [2]\n\n"
+            "1. Call (201) 684-9999 now. [2]\n2. Submit the form. [1]")
+    pieces = statements(text)
+    assert "".join(pieces) == text
+    assert [p for p in pieces if p.strip()] == [
+        "Meet Dr. Reck within 20 days. [1]", "Hours are 8:30 A.M. – 4:30 P.M. Monday. [2]",
+        "1. Call (201) 684-9999 now. [2]", "2. Submit the form. [1]"]
+    kept = without_unsupported(text, lambda said: ["x"] if "9999" in said else [])
+    assert kept is not None and "9999" not in kept[0] and "2. Submit the form. [1]" in kept[0]
+    # More than two statements to drop, or everything cited, is not a reply worth keeping.
+    assert without_unsupported(text, lambda said: ["x"] if "[" in said else []) is None
+
+
 def test_a_part_no_section_answers_gets_a_second_look_and_one_more_reply() -> None:
     gateway = PartsGateway(
         one_reply("I don't have verified information about that.", []),
