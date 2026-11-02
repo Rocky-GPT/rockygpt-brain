@@ -44,6 +44,10 @@ The service needs a published campus dataset and its canonical identity registry
 the environment-isolated accounting database, and the environment's OpenAI project.
 Missing configuration or dependencies make `/readiness` fail. `/health` only
 establishes that the process is running. Neither probe calls a paid model.
+Before it takes questions the server reads what the first questions would otherwise wait
+for (the meaning index and the once-per-release lists), for at most two minutes; a step
+that fails is logged as `brain_warm_failed` and read on first use instead. The log line
+`brain_warm` gives each step's seconds. `BRAIN_WARM_AT_START=0` turns it off.
 
 All model calls go through the same gateway. It reserves against the durable
 environment allowance before sending, accounts for returned usage, and keeps a
