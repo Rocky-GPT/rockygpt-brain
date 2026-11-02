@@ -586,7 +586,7 @@ def test_postgres_read_is_parameterized_read_only_and_deadline_bounded(
                             "dataset_id": "dataset-uuid",
                             "dataset_version": "test-release",
                             "identity_hash": "identity-hash",
-                            "alias_sources": [],
+                            "coverage_hash": None,
                         }
                     ]
                 )
@@ -669,7 +669,7 @@ def test_question_reads_keep_their_connection_and_the_registry_of_a_publication(
                     {"schema_version": 1, "entities": [office()]})}])
             if "dataset_versions v" in query:
                 return Cursor([{"dataset_id": "dataset-uuid", "dataset_version": "test-release",
-                                "identity_hash": identity_hash[0], "alias_sources": []}])
+                                "identity_hash": identity_hash[0], "coverage_hash": None}])
             if "campus_contacts c" in query:
                 return Cursor([contact()])
             return Cursor([])
@@ -703,6 +703,133 @@ def test_question_reads_keep_their_connection_and_the_registry_of_a_publication(
     with service.snapshot() as snapshot:
         assert snapshot.dataset_version == "test-release"
     assert len(opened) == 2 and opened[0].closed
+
+
+def test_whole_artifacts_are_read_once_per_release_and_hash(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The course catalog, plans, profiles and alias sources were the free database's largest
+    monthly transfer: each question read them whole. They are read again only when the active
+    release or the artifact changes."""
+    queries: list[tuple[str, Any]] = []
+    release = {"dataset_id": "dataset-uuid", "coverage_hash": "coverage-1"}
+    hashes = {"courses": "courses-1", "catalog-course-identities": "ids-1",
+              "graduation-plans": "plans-1", "faculty": "faculty-1",
+              "campus-identity-coverage": "coverage-1"}
+    payloads: dict[str, Any] = {
+        "courses": {"CMPS 147": {"code": "CMPS 147", "credits": 4}},
+        "catalog-course-identities": {"courses": [
+            {"source_record_key": "CMPS 147", "url": "https://www.ramapo.edu/c/cmps-147"}]},
+        "graduation-plans": {"captured_at": "2026-11-01T00:00:00Z",
+                             "plans": [{"id": "cs-bs", "title": "Computer Science"}]},
+        "faculty": [{"name": "Ada Lovelace", "email": "ada@ramapo.edu",
+                     "profileUrl": "https://www.ramapo.edu/ada/"}],
+        "campus-identity-coverage": {"alias_sources": [{"alias": "CS", "source": "x"}],
+                                     "large": "x" * 1000},
+    }
+    entity = {"id": "cs", "kind": "program", "name": "Computer Science", "aliases": [],
+              "links": [
+                  {"collection": "courses", "source_key": "academic-programs",
+                   "source_record_keys": ["CMPS 147"]},
+                  {"collection": "graduation_plans", "source_key": "graduation-plans",
+                   "source_record_keys": ["cs-bs"]},
+                  {"collection": "faculty", "source_key": "faculty",
+                   "source_record_keys": ["https://www.ramapo.edu/ada#email=ada@ramapo.edu"]}]}
+
+    class Cursor:
+        def __init__(self, result: list[dict[str, Any]]) -> None:
+            self.result = result
+
+        def fetchall(self) -> list[dict[str, Any]]:
+            return deepcopy(self.result)
+
+    class Connection:
+        closed = False
+
+        def rollback(self) -> None:
+            pass
+
+        def close(self) -> None:
+            self.closed = True
+
+        def execute(self, query: str, params: Any = None) -> Cursor:
+            queries.append((query, params))
+            if "AS registry_text" in query:
+                return Cursor([{"registry_text": json.dumps(
+                    {"schema_version": 1, "entities": [office(), entity]})}])
+            if "AS payload_text" in query:
+                key = params[1]
+                return Cursor([{"payload_text": json.dumps(payloads[key]),
+                                "content_hash": hashes[key]}])
+            if query.lstrip().startswith("SELECT a.content_hash"):
+                return Cursor([{"content_hash": hashes[params[1]]}])
+            if "dataset_versions v" in query:
+                return Cursor([{"dataset_id": release["dataset_id"],
+                                "dataset_version": "test-release",
+                                "identity_hash": "identity-hash",
+                                "coverage_hash": release["coverage_hash"]}])
+            if "AS collected_at" in query and "programs" in query:
+                return Cursor([{"collected_at": NOW, "freshness_sla_hours": 24}])
+            if "AS collected_at" in query:
+                return Cursor([{"collected_at": NOW, "freshness_sla_hours": 72}])
+            if "AS freshness_sla_hours" in query:
+                return Cursor([{"freshness_sla_hours": 168}])
+            return Cursor([])
+
+    monkeypatch.setattr(psycopg, "connect", lambda *args, **kwargs: Connection())
+    service = PostgresEntityFacts("postgresql://example.invalid/test")
+
+    def read_all() -> dict[str, Any]:
+        with service.snapshot() as snapshot:
+            return {"aliases": snapshot.alias_sources,
+                    **{c: snapshot.record_reader(entity, c)
+                       for c in ("courses", "graduation_plans", "faculty")}}
+
+    def whole_reads() -> list[str]:
+        return [params[1] for query, params in queries if "AS payload_text" in query]
+
+    first = read_all()
+    assert first["aliases"] == [{"alias": "CS", "source": "x"}]
+    assert first["courses"] == [{
+        "id": "course:CMPS 147", "source_key": "academic-programs",
+        "source_record_key": "CMPS 147", "course": {"code": "CMPS 147", "credits": 4},
+        "url": "https://www.ramapo.edu/c/cmps-147", "collected_at": NOW,
+        "freshness_sla_hours": 24}]
+    assert first["graduation_plans"] == [{
+        "id": "plan:cs-bs", "source_key": "graduation-plans", "source_record_key": "cs-bs",
+        "plan": {"id": "cs-bs", "title": "Computer Science"},
+        "collected_at": "2026-11-01T00:00:00Z", "freshness_sla_hours": 168,
+        "content_hash": "plans-1"}]
+    assert first["faculty"][0]["profile"]["email"] == "ada@ramapo.edu"
+    assert first["faculty"][0]["content_hash"] == "faculty-1"
+    assert sorted(whole_reads()) == sorted(hashes)
+
+    # The next questions read only the small hashes and capture times.
+    queries.clear()
+    for _ in range(3):
+        assert read_all() == first
+    assert whole_reads() == []
+
+    # A question that changes what it was given does not change the kept copy.
+    with service.snapshot() as snapshot:
+        snapshot.record_reader(entity, "courses")[0]["course"]["credits"] = 99
+        snapshot.alias_sources.clear()
+    assert read_all() == first
+
+    # A changed artifact, the same release: only that one is read again.
+    payloads["graduation-plans"]["plans"][0]["title"] = "Computer Science, B.S."
+    hashes["graduation-plans"] = "plans-2"
+    queries.clear()
+    changed = read_all()
+    assert whole_reads() == ["graduation-plans"]
+    assert changed["graduation_plans"][0]["plan"]["title"] == "Computer Science, B.S."
+    assert changed["graduation_plans"][0]["content_hash"] == "plans-2"
+
+    # A new release: everything is read again, even where the hashes are the same.
+    release.update(dataset_id="dataset-uuid-2", coverage_hash="coverage-1")
+    queries.clear()
+    assert read_all()["courses"] == first["courses"]
+    assert sorted(whole_reads()) == sorted(hashes)
 
 
 def test_database_failure_is_sanitized_and_readiness_fails(
