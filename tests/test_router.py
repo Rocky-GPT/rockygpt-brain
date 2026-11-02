@@ -6,7 +6,7 @@ from rockygpt_brain.router import code_route
 
 OFFICES: list[dict[str, Any]] = [
     {"name": "Registrar"}, {"name": "Library"}, {"name": "Counseling Center"},
-    {"name": "IT Help Desk", "also_called": ["Help Desk"]}, {"name": "Financial Aid"},
+    {"name": "IT Help Desk", "also_called": ["Help Desk", "ITS"]}, {"name": "Financial Aid"},
     {"name": "Public Safety (Emergency)", "also_called": ["Public Safety"]},
     {"name": "Public Safety (Non-Emergency)", "also_called": ["Public Safety"]},
     {"name": "Scholarships", "topic": True}]
@@ -34,6 +34,15 @@ def test_a_listed_name_and_plain_words_for_what_is_asked_are_routed_by_code() ->
         "query": "Dunkin'", "fields": ["hours"], "day": "saturday"}
     assert route("What's for dinner at the Birch Tree Inn tonight?") == {
         "query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "dinner"}
+
+
+def test_a_possessive_name_and_two_fields_of_one_place_are_routed_by_code() -> None:
+    assert route("Where is the Registrar's office and what are its hours?") == {
+        "query": "Registrar", "fields": ["offices", "hours"]}
+    assert route("What is the Registrar’s email?") == {"query": "Registrar", "fields": ["email"]}
+    # "its" is a word, not the IT Help Desk's acronym ITS, which is a name only in capitals.
+    assert route("What is the phone number for ITS?") == {"query": "IT Help Desk",
+                                                          "fields": ["phones"]}
 
 
 def test_anything_code_is_not_sure_of_is_left_to_the_model() -> None:

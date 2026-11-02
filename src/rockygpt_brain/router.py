@@ -33,12 +33,14 @@ a an the is are what whats when where how do does did can could i me my for of a
 there please ramapo college office offices right now today tonight tomorrow s time number numbers
 phone phones telephone email e mail address hours open opens close closes closing closed contact
 reach located location room building menu menus serving serve serves breakfast brunch lunch dinner
-late night fax call get find
+late night fax call get find and its their
 """.split())
 
 
 def _words(text: str) -> list[str]:
-    return re.findall(r"[a-z0-9]+", text.casefold().replace("’", "'").replace("'", ""))
+    """A text's words, a possessive dropped ("the Registrar's office" names the Registrar)."""
+    folded = re.sub(r"(?<=\w)'s\b", "", text.casefold().replace("’", "'"))
+    return re.findall(r"[a-z0-9]+", folded.replace("'", ""))
 
 
 def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
@@ -53,6 +55,10 @@ def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
             if entry.get("topic"):
                 continue  # A subject with no office of its own: the model reads its page.
             for name in [entry["name"], *entry.get("also_called", [])]:
+                # An acronym ("ITS", "EHS") is a name only in capitals: "its hours" is not ITS.
+                if re.fullmatch(r"[A-Z]{2,6}", str(name).strip()) and not re.search(
+                        rf"\b{re.escape(str(name).strip())}\b", message):
+                    continue
                 if key := tuple(_words(str(name))):
                     names.setdefault(key, set()).add((kind, str(entry["name"])))
     # Every place a name is said, the longest first; a name inside a longer one is not a name.
