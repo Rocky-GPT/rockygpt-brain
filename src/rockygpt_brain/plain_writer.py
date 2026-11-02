@@ -30,7 +30,10 @@ _DAY_KEYS = frozenset({"schedule", "hours", "periods", "notes", "season", "statu
 _OPEN_KEYS = frozenset({"state", "now", "closes", "meal", "meal_ends", "then_meal", "reopens",
                         "reopens_meal", "last_closes", "next_meal", "next_opens"})
 _WEEK_KEYS = frozenset({"schedule", "days", "notes", "season", "dates_not_published"})
-_MENU_KEYS = frozenset({"date", "meals", "meal_asked"})
+_MENU_KEYS = frozenset({"date", "meals", "meal_asked", "filter", "matched", "on_menu",
+                        "matches_cut", "stations_listed", "details_asked", "rest_of_menu",
+                        "rest_of_menu_cut", "whole_menu_asked", "meal_not_listed",
+                        "meals_listed"})
 _ABSENCE_KEYS = frozenset({"subject", "predicate", "checked_at", "pages", "sources", "current",
                            "scope", "reason", "purpose"})
 # What a confirmed absence says is not published, and what missing evidence leaves unknown.
@@ -42,7 +45,15 @@ _NOT_PUBLISHED = {"email": "a general email address", "phones": "a general phone
 _UNKNOWN = {"email": "email address", "phones": "phone number", "offices": "location",
             "hours": "hours", "website": "website", "contact_note": "contact instructions",
             "department": "department", "menu": "menu", "name": "name"}
-WHOLE_DAY_ITEMS = 3  # A whole day's menu names a few items of each station, as the writer did.
+# A menu names at most this many items of each station, then "and N more" (Dan 11-02: a dinner
+# answer was about 70 items, toppings and repeats included).
+MENU_ITEMS = 4
+# An office's phone lines said, its own first as published, then "and N more on its page" (the
+# Registrar lists eight, six of them staff members').
+PHONE_LINES = 4
+# The menu marks no item a topping or a condiment, so an item under this many calories (onions,
+# lettuce, pickle chips, ginger) is left out, unless the student named that food.
+TOPPING_CALORIES = 50
 # A location published as a phrase ("Near the campus South Gate entrance") is said as one.
 _PLACE_WORDS = frozenset({"near", "at", "in", "on", "behind", "next", "across", "inside",
                           "outside", "off", "beside", "between", "above", "below"})
@@ -55,6 +66,16 @@ def literal(value: Any) -> str:
     text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", str(value))
     text = text.replace("<", "&lt;").replace(">", "&gt;")
     return re.sub(r"([\\`*_\[\]#|])", r"\\\1", text)
+
+
+_COUNTS = ("zero one two three four five six seven eight nine ten eleven twelve thirteen "
+           "fourteen fifteen sixteen seventeen eighteen nineteen twenty").split()
+
+
+def _count(n: int) -> str:
+    """A count code made ("and four more") in words: it is no number of the facts, and the
+    reply's check holds every digit to them. Past twenty the check sends code's evidence text."""
+    return _COUNTS[n] if 0 <= n < len(_COUNTS) else str(n)
 
 
 def _when(value: str, *, year: bool = False) -> str:
@@ -90,6 +111,14 @@ def _numbers(text: str) -> set[str]:
     return {str(int(n)) for n in re.findall(r"\d+", text)}
 
 
+def _joined(sentences: list[str]) -> str:
+    """Sentences one after another; one of several lines (a menu) starts on a line of its own."""
+    text = ""
+    for sentence in sentences:
+        text += ("" if not text else "\n\n" if "\n" in sentence else " ") + sentence
+    return text
+
+
 class _Reply:
     """Sentences by subject in the order first said, each with its source marks merged."""
 
@@ -109,10 +138,10 @@ class _Reply:
         for said in self.subjects.values():
             marks = {tuple(m) for m in said.values()}
             if len(marks) == 1:
-                paragraphs.append(f"{' '.join(said)} {_marks(list(marks.pop()))}".strip())
+                paragraphs.append(f"{_joined(list(said))} {_marks(list(marks.pop()))}".strip())
             elif said:
-                paragraphs.append(" ".join(f"{sentence} {_marks(m)}".strip()
-                                           for sentence, m in said.items()))
+                paragraphs.append(_joined([f"{sentence} {_marks(m)}".strip()
+                                           for sentence, m in said.items()]))
         if self.dates_note:
             paragraphs.append(f"{self.dates_note} {_marks(self.dates_sources)}".strip())
         return "\n\n".join(paragraphs)
@@ -166,8 +195,9 @@ def _open_now(subject: str, now: dict[str, Any], listed: bool) -> list[str]:
     return said
 
 
-def _day_hours(reply: _Reply, entry: dict[str, Any]) -> None:
-    """One office's or venue's hours on the day asked (a derived hours_on fact)."""
+def _day_hours(reply: _Reply, entry: dict[str, Any], brief: bool = False) -> None:
+    """One office's or venue's hours on the day asked (a derived hours_on fact). Beside its menu
+    (`brief`) only when the meal asked is served, not whether the venue is open now."""
     _known(entry, _DERIVED_KEYS)
     if entry.get("applies") is False:
         return  # A schedule for other dates: it is not that day's.
@@ -199,7 +229,7 @@ def _day_hours(reply: _Reply, entry: dict[str, Any]) -> None:
         raise CannotSay
     later: list[str] = []
     for key, listed in (("open_now", False), ("listed_open_now", True)):
-        if key in entry:
+        if key in entry and not brief:
             first, *later = _open_now(subject, entry[key], listed)
             reply.say(subject, first, sources)
     periods = value.get("periods") or []
@@ -207,8 +237,8 @@ def _day_hours(reply: _Reply, entry: dict[str, Any]) -> None:
         raise CannotSay
     if value.get("meal_asked") and periods and all(p.get("label") for p in periods):
         for period in periods:
-            reply.say(subject, f"{literal(period['label'])} on {day}: {period['opens']} to "
-                               f"{period['closes']}.", sources)
+            reply.say(subject, f"{literal(period['label'])} at {named} on {day}: "
+                               f"{period['opens']} to {period['closes']}.", sources)
     elif periods and not any(p.get("label") for p in periods):
         spans = ", ".join(f"{p['opens']} to {p['closes']}" for p in periods)
         reply.say(subject, f"{named} on {day}: {spans}.", sources)
@@ -267,6 +297,8 @@ def _phones(value: Any) -> str:
             text += f" extension {literal(phone['extension'])}"
         label = phone.get("type") or phone.get("label")
         said.append(f"{literal(label)}: {text}" if label else text)
+    if len(said) > PHONE_LINES:
+        said = [*said[:PHONE_LINES], f"and {_count(len(said) - PHONE_LINES)} more on its page"]
     return "; ".join(said)
 
 
@@ -286,29 +318,110 @@ def _rooms(value: Any) -> tuple[list[str], list[str]]:
     return plain, labelled
 
 
+def _item(item: dict[str, Any], details: frozenset[str] = frozenset()) -> str:
+    """A menu item by its published name and its vegan or vegetarian label, with the details
+    asked (calories, portion, allergens) as the menu gives them."""
+    name = literal(item.get("name", ""))
+    label = ("vegan" if item.get("vegan") is True else
+             "vegetarian" if item.get("vegetarian") is True else None)
+    said = f"{name} ({label})" if label else name
+    facts = []
+    if "calories" in details and isinstance(item.get("calories"), int):
+        facts.append(f"{item['calories']} calories")
+    if "portion" in details and item.get("portion"):
+        facts.append(f"portion {literal(item['portion'])}")
+    if "allergens" in details:
+        allergens = item.get("allergens")
+        facts.append(f"contains {', '.join(literal(a) for a in allergens)}" if allergens
+                     else "no allergens listed")
+    return said + (": " + "; ".join(facts) if facts else "")
+
+
+def _topping(item: dict[str, Any]) -> bool:
+    calories = item.get("calories")
+    return not isinstance(calories, int) or calories < TOPPING_CALORIES
+
+
 def _menu(subject: str, value: dict[str, Any]) -> list[str]:
+    """A date's menu: each meal's stations, one line each, with their first few dishes. Items the
+    student named (a filter's foods) are all said, with their details."""
     _known(value, _MENU_KEYS)
-    meals = value.get("meals")
-    if not isinstance(meals, list) or not meals or not isinstance(value.get("date"), str):
+    if not isinstance(value.get("date"), str):
         raise CannotSay
-    when = _when(value["date"])
+    when = _day({"day": f"{date.fromisoformat(value['date']):%A}", "date": value["date"]})
+    asked = literal(value["meal_asked"]).lower() + " " if value.get("meal_asked") else ""
+    if value.get("meal_not_listed"):
+        listed = ", ".join(literal(m) for m in value.get("meals_listed") or [])
+        return [f"{subject}'s menu for {when} lists no {literal(value['meal_not_listed'])}"
+                + (f"; it lists {listed}." if listed else ".")]
+    filter_ = value.get("filter")
+    if filter_ is not None and (not isinstance(filter_, dict)
+                                or set(filter_) - {"diet", "contains"}):
+        raise CannotSay
+    named = bool(filter_ and filter_.get("contains"))
+    if filter_ and value.get("matched") == 0:
+        stations = ", ".join(literal(st) for st in value.get("stations_listed") or [])
+        return [f"Nothing on {subject}'s {asked}menu for {when} matches"
+                + (f"; its stations are {stations}." if stations else ".")]
+    meals = value.get("meals")
+    if not isinstance(meals, list) or not meals:
+        raise CannotSay
+    asked_details = value.get("details_asked") or []
+    if not isinstance(asked_details, list):
+        raise CannotSay
+    details = frozenset(asked_details) | (frozenset({"calories", "allergens"}) if named
+                                          else frozenset())
     said = []
-    for meal in meals:
-        stations = []
-        for station in meal.get("stations") or []:
-            items = []
-            for item in station.get("items") or []:
-                name = literal(item.get("name", ""))
-                label = ("vegan" if item.get("vegan") is True else
-                         "vegetarian" if item.get("vegetarian") is True else None)
-                items.append(f"{name} ({label})" if label else name)
-            if not value.get("meal_asked") and len(items) > WHOLE_DAY_ITEMS:
-                items = [*items[:WHOLE_DAY_ITEMS], f"and {len(items) - WHOLE_DAY_ITEMS} more"]
-            stations.append(f"{literal(station.get('station', ''))}: {', '.join(items)}")
-        if not stations:
+    if named and filter_:
+        # The foods the student named: each once, with the meals it is served at.
+        served: dict[str, tuple[dict[str, Any], list[str]]] = {}
+        for meal in meals:
+            for station in meal.get("stations") or []:
+                for item in station.get("items") or []:
+                    if isinstance(item, dict) and item.get("name"):
+                        first, at = served.setdefault(str(item["name"]), (item, []))
+                        if meal.get("meal") not in at:
+                            at.append(meal.get("meal"))
+        if not served:
             raise CannotSay
-        said.append(f"{subject} {literal(meal.get('meal', ''))} menu for {when}: "
-                    + "; ".join(stations) + ".")
+        foods = " or ".join(literal(f) for f in filter_["contains"])
+        said.append(f"{subject}'s items with {foods} on {when}:\n" + "\n".join(
+            f"- {_item(item, details)} ({', '.join(literal(m).lower() for m in at)})"
+            for item, at in served.values()))
+        if value.get("matches_cut"):
+            said.append(f"These are some of the {value.get('matched')} items that match.")
+        return said
+    for meal in meals:
+        lines = []
+        for station in meal.get("stations") or []:
+            items, seen = [], set()
+            for item in station.get("items") or []:
+                if not isinstance(item, dict) or item.get("name") in seen:
+                    continue
+                seen.add(item.get("name"))
+                if _topping(item):
+                    continue
+                items.append(_item(item, details))
+            if not items:
+                continue
+            if len(items) > MENU_ITEMS:
+                items = [*items[:MENU_ITEMS], f"and {_count(len(items) - MENU_ITEMS)} more"]
+            lines.append(f"- {literal(station.get('station', ''))}: {', '.join(items)}")
+        if not lines:
+            raise CannotSay
+        meal_name = literal(meal.get("meal", ""))
+        if filter_ and filter_.get("diet"):
+            head = (f"{subject}'s {meal_name.lower()} on {when} has {value.get('matched')} "
+                    f"{literal(filter_['diet'])} items (of {value.get('on_menu')}), such as:")
+        else:
+            head = f"{subject} {meal_name.lower()} menu for {when}:"
+        said.append(head + "\n" + "\n".join(lines))
+    if value.get("whole_menu_asked") and value.get("rest_of_menu"):
+        rest = [literal(n) for n in value["rest_of_menu"]]
+        said.append("Also on the menu: " + ", ".join(rest[:MENU_ITEMS * 3])
+                    + (f", and {_count(len(rest) - MENU_ITEMS * 3)} more."
+                       if len(rest) > MENU_ITEMS * 3
+                       else "."))
     return said
 
 
@@ -377,6 +490,33 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
         raise CannotSay
 
 
+def _conflicts(reply: _Reply, facts: list[Any]) -> list[Any]:
+    """Hours the office's pages give differently (status conflicting), said as each page gives
+    them, schedule by schedule, with no winner picked; the other facts are returned to be said."""
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    rest = []
+    for fact in facts:
+        if isinstance(fact, dict) and fact.get("status") == "conflicting" \
+                and fact.get("predicate") == "hours" and isinstance(fact.get("value"), dict):
+            groups.setdefault((str(fact["subject"]), str(fact["value"].get("schedule"))),
+                              []).append(fact)
+        else:
+            rest.append(fact)
+    for (subject_name, schedule), group in groups.items():
+        subject = literal(subject_name)
+        season = group[0]["value"].get("season")
+        named = literal(schedule) + (f" ({literal(season)})" if season and season not in schedule
+                                     else "")
+        reply.say(subject, f"The pages list different {named} hours.", [])
+        for n, fact in enumerate(group):
+            value = {k: v for k, v in fact["value"].items() if k not in ("schedule", "season")}
+            reply.say(subject, f"{'One page' if n == 0 else 'Another page'}: {_week(value)}.",
+                      fact["sources"])
+            if value.get("dates_not_published") or fact.get("current") is False:
+                _undated(reply, {}, fact["sources"])
+    return rest
+
+
 def plain_text(view: dict[str, Any]) -> str | None:
     """The reply in plain sentences with source marks, or None when the view holds a shape this
     writer does not know (an ambiguity, a conflict, a shuttle timetable, a menu filter...)."""
@@ -384,11 +524,14 @@ def plain_text(view: dict[str, Any]) -> str | None:
         if not isinstance(view, dict) or set(view) - _VIEW_KEYS:
             raise CannotSay
         reply = _Reply()
+        facts = view.get("facts") or []
+        menus = {f.get("subject") for f in facts if isinstance(f, dict)
+                 and f.get("predicate") == "menu"}
+        facts = _conflicts(reply, facts)
         for entry in view.get("derived_facts") or []:
             if not isinstance(entry, dict) or entry.get("predicate") != "hours_on":
                 raise CannotSay
-            _day_hours(reply, entry)
-        facts = view.get("facts") or []
+            _day_hours(reply, entry, brief=entry.get("subject") in menus)
         for fact in facts:
             if fact.get("purpose") != "also_published":
                 _fact(reply, fact)

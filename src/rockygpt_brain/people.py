@@ -15,9 +15,11 @@ from typing import Any
 from rockygpt_brain.retrieval.entity_facts import discovery_tokens
 
 MAX_PEOPLE = 4
+# "Office hours" alone is not one: offices have office hours too ("the Student Accounts office
+# hours" went to the faculty path on 11-02); a person's are asked with a title or their name.
 _PEOPLE_WORDS = re.compile(
     r"\b(?:professors?|prof|profs|dr|doctor|teachers?|instructors?|faculty|lecturers?|"
-    r"office hours|teach(?:es|ing)?|taught|chair|advisors?|advisers?|dean|researcher|"
+    r"teach(?:es|ing)?|taught|chair|advisors?|advisers?|dean|researcher|"
     r"research(?:es)?|in charge|who runs|head of"
     r"|staff)\b")
 _TITLES = discovery_tokens("professor prof dr doctor mr mrs ms miss dean")

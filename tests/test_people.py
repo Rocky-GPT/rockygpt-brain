@@ -192,6 +192,8 @@ def test_deans_and_chairs_come_from_directory_titles() -> None:
     assert biology[2].startswith("The dean of the School of Science, Nursing, and Health, by "
                                  "the directory, is Benny Chan")
     assert asks_leadership("who's the dean of the business school")
+    assert asks_people("professor abzug office hours")
+    assert not asks_people("What are the Student Accounts office hours?")
     assert not asks_leadership("dean of students office hours")
 
 

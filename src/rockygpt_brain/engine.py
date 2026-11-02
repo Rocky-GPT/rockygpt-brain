@@ -1045,6 +1045,19 @@ def keep_named_day(requests: list[Any], message: str, today: Any) -> list[Any]:
     return out
 
 
+def with_meal_hours(requests: list[Any]) -> list[Any]:
+    """A meal's menu ("what is for dinner") is read with that day's hours, so the answer starts
+    with when the meal is served (Dan 11-02); code adds them, the model need not ask."""
+    out = []
+    for item in requests:
+        if (isinstance(item, OfficeRequest) and "menu" in item.fields and item.meal
+                and "hours" not in item.fields and len(item.fields) < 10):
+            item = item.model_copy(update={"fields": [*item.fields, "hours"],
+                                           "day": item.day or "today"})
+        out.append(item)
+    return out
+
+
 def names_a_dining_kind(query: str) -> bool:
     """Whether a lookup's query is a kind of place to eat ("the cafe") and nothing more."""
     words = [w for w in _words(query) if w not in _KIND_FILLER]
@@ -1647,6 +1660,12 @@ class ChatEngine:
         named = self.facts.identities(("program", "course"))
         programs = [e for e in named if e.get("kind") == "program"]
         codes = {str(e["name"]): e for e in named if e.get("kind") == "course"}
+        # The words of an office the message names are not a program's short form: "the Student
+        # Accounts office hours" was read as Accounting and sent to the catalog (11-02).
+        for office in self.facts.identities(("office",)):
+            for name in [office["name"], *office.get("aliases", [])]:
+                if len(str(name).split()) >= 2:
+                    message = re.sub(rf"(?i)\b{re.escape(str(name))}\b", " ", message)
         found = academics.find_programs(programs, message)
         by_name = {str(p["name"]): p for p in programs}
         if not found:
@@ -2890,8 +2909,8 @@ class ChatEngine:
                             requests = GraphRequests.model_validate(call.arguments).requests
                             requests = self._every_venue(self._dining_kind(requests),
                                                          context.latest_message)
-                        requests = keep_named_day(requests, context.latest_message,
-                                                  turn.campus_now.date())
+                        requests = with_meal_hours(keep_named_day(
+                            requests, context.latest_message, turn.campus_now.date()))
                         requests, situational = with_situation_procedures(
                             requests, context.latest_message)
                         attempts += len(requests)

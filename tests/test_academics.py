@@ -576,3 +576,19 @@ def test_a_rule_name_that_counts_differently_from_the_rule_is_left_out() -> None
     assert lines[0] == "all of:"
     lines = render_rule({"name": "Select 1 Course", "choose": {"at_least": 1}, "items": items})
     assert lines[0] == "Select 1 Course at least 1 of:"
+
+
+def test_an_office_named_in_the_question_is_not_read_as_a_program() -> None:
+    # 11-02: "the Student Accounts office hours" named Accounting ("accounts" is its short form)
+    # and went to the catalog instead of the office's hours.
+    facts = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "acct", "name": "Accounting BS", "kind": "program", "aliases": [],
+                   "links": []},
+                  {"id": "sa", "name": "Student Accounts", "kind": "office", "aliases": [],
+                   "links": []}],
+        contacts=[], now=lambda: NOW)
+    engine = ChatEngine(ScriptedGateway(), facts)
+    assert engine._programs_named("What are the Student Accounts office hours?")[0] == []
+    assert [p["name"] for p in engine._programs_named("What is the accounting major?")[0]] == [
+        "Accounting BS"]
