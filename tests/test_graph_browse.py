@@ -1,5 +1,7 @@
 """The dev UI's whole-graph reader lists whatever node and link types the release holds."""
 
+from typing import Any
+
 import pytest
 
 from rockygpt_brain.retrieval import MemoryEntityFacts
@@ -111,3 +113,77 @@ def test_a_node_card_shows_the_facts_in_every_record_it_links() -> None:
                   "source_url": page}]}]
     assert browse(graph, f"entity:{COURSE}")["facts"] == [{"collection": "courses", "total": 1,
         "rows": [{"title": "Calculus I", "credits": 4}]}]
+
+
+VENUE = "77777777-7777-7777-7777-777777777777"
+EVENT = "88888888-8888-8888-8888-888888888888"
+
+
+def card_graph() -> MemoryEntityFacts:
+    def menu(day: str, name: str) -> dict[str, object]:
+        return {"source_key": "dining", "source_record_key": f"{day}:Lunch:Grill:{name}",
+                "meal": "Lunch", "station": "Grill", "name": name, "valid_from": day,
+                "valid_until": day}
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1", contacts=[],
+        records={
+            "faculty": [{"source_key": "faculty", "source_record_key": "pat",
+                         "profile": {"title": "Professor of Math",
+                                     "imageUrl": "https://www.ramapo.edu/pat.jpg"}}],
+            "courses": [{"source_key": "c", "source_record_key": "MATH 101",
+                         "course": {"code": "MATH 101", "name": "CALCULUS I", "credits": 4}}],
+            "events": [{"source_key": "e", "source_record_key": "e1", "date_label":
+                        "Thu, Nov 5, 2026", "start_time": "7 PM", "end_time": "9 PM",
+                        "listing": {"location": "C-220"}}],
+            "menu": [menu("2026-11-01", "Soup"), menu("2026-11-02", "Burger"),
+                     menu("2026-11-02", "Fries"), menu("2026-11-04", "Tacos")]},
+        entities=[
+            {"id": PERSON, "kind": "person", "name": "Pat", "aliases": [], "links": [
+                {"collection": "faculty", "source_key": "faculty", "source_record_keys": ["pat"]}],
+             "relationships": [{"type": "teaches_course", "target_entity_id": COURSE,
+                                "evidence": []}]},
+            {"id": COURSE, "kind": "course", "name": "MATH 101", "aliases": [],
+             "links": [{"collection": "courses", "source_key": "c",
+                        "source_record_keys": ["MATH 101"]}]},
+            {"id": EVENT, "kind": "event", "name": "Game Night", "aliases": [],
+             "links": [{"collection": "events", "source_key": "e", "source_record_keys": ["e1"]}],
+             "relationships": [{"type": "organized_by", "target_entity_id": PERSON,
+                                "evidence": []}]},
+            {"id": VENUE, "kind": "venue", "name": "Birch", "aliases": [], "links": [
+                {"collection": "menu", "source_key": "dining", "source_record_keys": [
+                    "2026-11-01:Lunch:Grill:Soup", "2026-11-02:Lunch:Grill:Burger",
+                    "2026-11-02:Lunch:Grill:Fries", "2026-11-04:Lunch:Grill:Tacos"]}]},
+        ])
+
+
+def test_each_linked_node_carries_a_brief_from_its_own_record() -> None:
+    from datetime import UTC, datetime
+    pat = browse(card_graph(), f"entity:{PERSON}", now=datetime(2026, 11, 2, 17, tzinfo=UTC))
+    assert pat["outgoing"][0]["node"]["brief"] == {"title": "CALCULUS I", "credits": 4}
+    assert pat["incoming"][0]["node"]["brief"] == {
+        "date": "Thu, Nov 5, 2026", "start": "7 PM", "end": "9 PM", "where": "C-220"}
+    course = browse(card_graph(), f"entity:{COURSE}")
+    assert course["incoming"][0]["node"]["brief"] == {
+        "title": "Professor of Math", "image_url": "https://www.ramapo.edu/pat.jpg"}
+
+
+def test_a_node_can_be_opened_by_its_kind_and_exact_name() -> None:
+    assert browse(card_graph(), "name:course:math 101")["node"]["entity_id"] == COURSE
+    with pytest.raises(InvalidFactRequest):
+        browse(card_graph(), "name:course:MATH 999")
+
+
+def test_a_venue_card_shows_one_whole_menu_day_and_the_days_it_has() -> None:
+    from datetime import UTC, date, datetime
+    monday = datetime(2026, 11, 2, 17, tzinfo=UTC)
+
+    def menu(on: date | None = None) -> dict[str, Any]:
+        found = browse(card_graph(), f"entity:{VENUE}", now=monday, on=on)["facts"]
+        return next(f for f in found if f["collection"] == "menu")
+    today = menu()
+    assert today["dates"] == ["2026-11-01", "2026-11-02", "2026-11-04"]
+    assert today["date"] == "2026-11-02" and today["total"] == 4
+    assert [row["name"] for row in today["rows"]] == ["Burger", "Fries"]
+    assert [row["name"] for row in menu(on=date(2026, 11, 4))["rows"]] == ["Tacos"]
+    # A day with no menu opens today's instead.
+    assert menu(on=date(2026, 11, 3))["date"] == "2026-11-02"
