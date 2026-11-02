@@ -129,9 +129,22 @@ _HOWTO = re.compile(
     r"transfer|declare|change|replace|lost|report|reserve|book|get|need|happens)\b")
 
 
+# "What is the Birch Tree Inn?", "what does OSS do?": what a place or an office is, which only its
+# own pages say. The services and contact lookups read hours, menus and contacts, never that (11-02:
+# "The name is Birch Tree Inn."), so it is read here unless the question also asks one of those.
+_WHAT_IS = re.compile(r"^\W*(?:what(?:'s|’s| is| are)\b|what does\b.+\bdo\b|tell me about\b)")
+_A_DETAIL = re.compile(
+    r"\b(menus?|eat|food|lunch|dinner|breakfast|brunch|vegan|vegetarian|allerg\w*|gluten|"
+    r"serve[sd]?|serving|shuttle|bus|buses|train|route|stop|hours|open|opens|close|closes|"
+    r"closing|closed|time|email|e-mail|phone|number|call|fax|where|located|location|room|"
+    r"address|today|tonight|tomorrow|now)\b")
+
+
 def routes_here(message: str) -> bool:
-    """Whether a message is a how-to or policy question for the one-call path."""
+    """Whether a message is a how-to, policy or what-is question for the one-call path."""
     text = message.casefold()
+    if _WHAT_IS.search(text) and not _A_DETAIL.search(text):
+        return True
     if _SERVICES.search(text) and not _MEAL_PLAN.search(text) and not asks_academics(text) \
             and not asks_events(text) and not asks_clubs(text) and not asks_people(text):
         return False

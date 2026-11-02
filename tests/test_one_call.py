@@ -55,6 +55,12 @@ def test_a_how_to_is_routed_here_and_menus_shuttles_and_plain_contacts_are_not()
     assert not routes_here("when is the next shuttle to the train station")
     assert not routes_here("registrar email")
     assert not routes_here("library hours")
+    # What a place or office is, only its own pages say (11-02: "The name is Birch Tree Inn.").
+    assert routes_here("What is the Birch Tree Inn?")
+    assert routes_here("what does the office of specialized services do")
+    assert not routes_here("What is the Birch Tree Inn serving for dinner?")
+    assert not routes_here("What is the phone number for Public Safety?")
+    assert not routes_here("What's on the menu for lunch today?")
     # A question's parts are searched apart, and a short follow-up with the question before it.
     assert parts_of("how do I apply for summer housing? and what does it cost") == [
         "how do I apply for summer housing? and what does it cost",
