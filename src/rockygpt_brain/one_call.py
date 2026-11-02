@@ -26,7 +26,7 @@ PER_PART = 10  # Each part's own best units: a "how do I apply" part keeps its a
 PER_PAGE = 2  # At most this many from one page, so its near-copies don't crowd out the next page.
 MAX_UNITS = 24
 MAX_PARTS = 3
-SECTION_WORDS_CHARS = 2000
+SECTION_WORDS_CHARS = 3200
 
 ONE_CALL_PROMPT = """You answer a Ramapo College student from the college's own published pages,
 given as JSON. You know nothing beyond the JSON and cannot look anything up.
@@ -312,20 +312,47 @@ SECOND_LOOK_UNITS = 12
 _GAVE_UP = re.compile(r"don.t have verified")
 
 
+# A reply that says the pages are silent on something it was asked ("The pages don't say how to
+# check for a hold"): on the graded misses of sets zi-zk (10-21) that was the most common miss,
+# 20 of 45, and in most of them another page did say it. The sentence itself is searched.
+_NOT_SAID = re.compile(
+    r"\b(?:pages?|sections?|sources?|it|they|this|that|which|none of (?:them|these))\s+"
+    r"(?:do(?:es)?n['’]t|do(?:es)? not|did(?:n['’]t| not))\s+(?:\w+\s+)?"
+    r"(?:say|state|specify|list|give|mention|name|include|describe|cover|address|explain|"
+    r"confirm|show|provide|publish|tell)\b"
+    r"|\bno (?:page|section|source)s? (?:says?|gives?|lists?|describes?|covers?|states?|names?)\b"
+    r"|\b(?:isn['’]t|is not|aren['’]t|are not|wasn['’]t|was not) (?:stated|specified|listed|"
+    r"published|given|covered|described|mentioned)\b",
+    re.IGNORECASE)
+MAX_SECOND_LOOKS = 2
+
+
+def not_said(text: str) -> list[str]:
+    """The reply's sentences that say the pages are silent on something, at most two."""
+    found = [" ".join(piece.split()) for piece in statements(text)
+             if piece.strip() and _NOT_SAID.search(piece)]
+    return [re.sub(r"\s*\[[\d,\s–-]+\]", "", f) for f in found][:MAX_SECOND_LOOKS]
+
+
 def gave_up(arguments: dict[str, Any], question: str) -> list[str]:
     """The parts a reply found no section for, for a second look with only their own search (at
-    most two); the whole question when the reply says it has no verified information but names
-    no such part; none when it answered every part. A part no page can hold (the student's own
-    records, something live, an opinion) is never looked for again."""
+    most two); else the reply's own sentences saying the pages do not say something; the whole
+    question when the reply says it has no verified information but names no such part; none
+    when it answered every part. A part no page can hold (the student's own records, something
+    live, an opinion) is never looked for again."""
     parts = [p for p in arguments.get("parts") or [] if isinstance(p, dict)]
     if parts and all(p.get("not_on_pages") for p in parts):
         return []
     empty = [str(p.get("asked") or "").strip() for p in parts
              if not p.get("sections") and not p.get("not_on_pages")]
-    empty = [a for a in empty if a][:2]
+    empty = [a for a in empty if a][:MAX_SECOND_LOOKS]
     if empty:
         return empty
-    return [question] if _GAVE_UP.search(str(arguments.get("text") or "")) else []
+    text = str(arguments.get("text") or "")
+    silent = not_said(text)
+    if silent:
+        return silent
+    return [question] if _GAVE_UP.search(text) else []
 
 
 def messages(question: str, earlier_user: str | None, offices: list[dict[str, Any]],

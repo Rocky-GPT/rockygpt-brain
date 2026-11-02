@@ -1735,7 +1735,7 @@ def test_a_how_do_i_question_reads_the_offices_procedures_end_to_end() -> None:
 
 def test_a_long_faq_section_says_the_question_that_matches_and_short_names_count() -> None:
     from rockygpt_brain.retrieval.entity_facts import MAX_PROCEDURE_CHARS, procedures_property
-    filler = "How do I visit campus? Tours run daily from the welcome center. " * 40
+    filler = "How do I visit campus? Tours run daily from the welcome center. " * 60
     faq = (filler + "Will my county college credits be accepted? We accept up to the maximum 65 "
            "transfer credits from a two-year school. " + "Is housing available? Yes. " * 20)
     assert len(faq) > MAX_PROCEDURE_CHARS
