@@ -255,6 +255,29 @@ def test_evidence_for_a_kind_the_graph_did_not_build_fails_instead_of_saying_non
         assert [e["id"] for e in snapshot.entities] == ["a", "b", "p"]
 
 
+def test_a_default_build_holds_every_kind_the_release_has_with_its_records(
+        folder: Path) -> None:
+    # No hand-written list of kinds: a kind the data adds (a term) is built with its records.
+    term = {"id": "fall", "kind": "term", "name": "Fall 2026", "aliases": [], "links": [
+        {"collection": "terms", "source_key": "academic-calendar",
+         "source_record_keys": ["fall-2026"]}]}
+    row = {"id": "terms:fall-2026", "source_key": "academic-calendar",
+           "source_record_key": "fall-2026", "name": "Fall 2026",
+           "source_url": "https://www.ramapo.edu/academic-calendars/"}
+    memory = MemoryEntityFacts(
+        dataset_version=VERSION, identity_hash=IDENTITY,
+        entities=[office("registrar", "Registrar"), term], contacts=[contact("r1")],
+        records={"terms": [row]}, now=lambda: NOW)
+    built = opened(memory, folder)
+    assert built.kinds == ("office", "term") and built.all_kinds
+    with built.snapshot() as snapshot:
+        found = next(e for e in snapshot.entities if e["kind"] == "term")
+        assert snapshot.record_reader(found, "terms") == [row]
+    # A file built for chosen kinds is not taken for an every-kind build.
+    chosen = GraphEntityFacts(build_release_graph(memory, folder / "chosen", kinds=("office",)))
+    assert not chosen.all_kinds
+
+
 class OddZone(tzinfo):
     def utcoffset(self, dt: datetime | None) -> timedelta:
         return timedelta(hours=1)

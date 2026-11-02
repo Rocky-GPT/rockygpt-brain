@@ -38,6 +38,11 @@ MAX_MENU_ROWS = 1_500
 MAX_TRIP_ROWS = 128
 # The record collections a derived copy of a release carries beside contacts and campus hours,
 # with the most rows one entity may link to.
+# Collections the release stores in its generic `graph-records` artifact (rockygpt-data
+# graph-records.ts): every node kind added since 11-02, read by one reader, each its own bound.
+# A term's record, and a calendar date's.
+GRAPH_RECORDS_ARTIFACT = "graph-records"
+GRAPH_RECORD_COLLECTIONS = {"terms": 1, "calendar_dates": 1}
 RECORD_COLLECTIONS = {
     "dining_hours": MAX_DINING_ROWS, "menu": MAX_MENU_ROWS, "shuttle_trips": MAX_TRIP_ROWS,
     "menu_documents": 10, "menu_listings": 2, "shuttle_stops": 40, "campus_topics": 1,
@@ -52,6 +57,7 @@ RECORD_COLLECTIONS = {
     "events": 1, "clubs": 8,
     # A faculty member's profile (the faculty artifact entry the link's key names).
     "faculty": 1,
+    **{collection: bound for collection, bound in GRAPH_RECORD_COLLECTIONS.items()},
 }
 # Entities a student can ask about by name: offices and dining venues. A route is not named by
 # students; it is read through the shuttle timetable.
@@ -2103,10 +2109,11 @@ class EntityFacts:
         with self.snapshot() as snapshot:
             return snapshot.fingerprint_reader()
 
-    def release_inputs(self, kinds: Sequence[str]) -> ReleaseInputs:
+    def release_inputs(self, kinds: Sequence[str] | None) -> ReleaseInputs:
         """The active release and the evidence of every entity of the given kinds."""
         with self.snapshot() as snapshot:
-            wanted = [entity for entity in snapshot.entities if entity["kind"] in kinds]
+            wanted = [entity for entity in snapshot.entities
+                      if kinds is None or entity["kind"] in kinds]
             evidence = {
                 entity["id"]: (snapshot.contact_reader(entity), snapshot.schedule_reader(entity))
                 for entity in wanted
