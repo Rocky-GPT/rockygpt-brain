@@ -281,7 +281,8 @@ def test_a_reply_naming_a_course_the_facts_do_not_hold_is_not_sent() -> None:
 
 def test_a_dean_a_persons_details_or_a_courses_facts_are_answered_by_code() -> None:
     from rockygpt_brain.one_call import code_kind, code_text
-    course = ([], [], [{"id": "c1", "name": "CMPS 147"}])
+    course: tuple[list[Any], list[Any], list[dict[str, Any]]] = (
+        [], [], [{"id": "c1", "name": "CMPS 147"}])
     assert code_kind("Who is the dean of the Anisfield School of Business?", [], None) == "leaders"
     assert code_kind("What is Professor Hangen's email?", [{"id": "p"}], None) == "person"
     assert code_kind("How many credits is CMPS 147?", [], course) == "course"

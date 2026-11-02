@@ -1,16 +1,20 @@
 """Plain lookups routed by code with no model call (router.py)."""
 
+from typing import Any
+
 from rockygpt_brain.router import code_route
 
-OFFICES = [{"name": "Registrar"}, {"name": "Library"}, {"name": "Counseling Center"},
-           {"name": "IT Help Desk", "also_called": ["Help Desk"]}, {"name": "Financial Aid"},
-           {"name": "Public Safety (Emergency)", "also_called": ["Public Safety"]},
-           {"name": "Public Safety (Non-Emergency)", "also_called": ["Public Safety"]},
-           {"name": "Scholarships", "topic": True}]
-VENUES = [{"name": "Dunkin'"}, {"name": "Birch Tree Inn", "also_called": ["Birch"]}]
+OFFICES: list[dict[str, Any]] = [
+    {"name": "Registrar"}, {"name": "Library"}, {"name": "Counseling Center"},
+    {"name": "IT Help Desk", "also_called": ["Help Desk"]}, {"name": "Financial Aid"},
+    {"name": "Public Safety (Emergency)", "also_called": ["Public Safety"]},
+    {"name": "Public Safety (Non-Emergency)", "also_called": ["Public Safety"]},
+    {"name": "Scholarships", "topic": True}]
+VENUES: list[dict[str, Any]] = [{"name": "Dunkin'"},
+                                {"name": "Birch Tree Inn", "also_called": ["Birch"]}]
 
 
-def route(message: str) -> dict | None:
+def route(message: str) -> dict[str, Any] | None:
     found = code_route(message, OFFICES, VENUES)
     return found["requests"][0] if found else None
 
