@@ -420,9 +420,9 @@ _PROFILE_FIELDS = ("office_hours", "courses", "research_interests")
 
 
 def only_who(message: str, person: dict[str, Any]) -> bool:
-    """Whether a question asks only who one named person is: its words are their name and
-    filler."""
-    return not name_tokens(message) - name_tokens(_name(person)) - _WHO_FILLER
+    """Whether a question asks only who one named person is: its words are their name, a title
+    said before it ("Dean Hangen") and filler."""
+    return not name_tokens(about_named(message, [person])) - _WHO_FILLER
 
 
 def person_text(item: dict[str, Any], message: str) -> str | None:
@@ -461,6 +461,18 @@ _DEAN_TITLE = re.compile(r"\b(?:(assistant|associate|vice)\s+)?(interim\s+)?dean
 def asks_leadership(message: str) -> bool:
     text = fold(message).casefold()
     return bool(_LEAD_ASK.search(text)) and "dean of students" not in text
+
+
+def about_named(message: str, people: Sequence[dict[str, Any]]) -> str:
+    """A message with the people it names taken out, with any title said before their name:
+    what it asks besides them. "Who is Dean Chen?" names Professor Dean Chen, and "Who is Dean
+    Hangen?" names Susan Hangen by her title: neither asks who a school's dean is."""
+    text = fold(message).casefold()
+    for person in people:
+        for token in sorted(name_tokens(_name(person)), key=len, reverse=True):
+            text = re.sub(rf"\b(?:(?:dean|professor|prof|dr|chair)\.?\s+)?{re.escape(token)}\b",
+                          " ", text)
+    return text
 
 
 def _dean_of_school(title: str) -> tuple[bool, bool] | None:

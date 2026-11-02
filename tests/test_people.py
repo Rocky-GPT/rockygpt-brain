@@ -3,6 +3,7 @@
 from typing import Any
 
 from rockygpt_brain.people import (
+    about_named,
     asks_leadership,
     asks_people,
     asks_people_list,
@@ -302,3 +303,11 @@ def test_who_a_person_is_and_the_fields_asked_are_said_neatly_by_code() -> None:
     assert person_text({**abzug, "near_spelling_of_asked_name": True}, "Who is Abzog?") is None
     facts = [f["fact"] for f in computed_answers([abzug], "what does abzug teach", [])]
     assert facts[-1] == "Rikki Abzug's faculty profile lists no courses."
+
+
+def test_a_person_named_dean_or_a_dean_named_by_title_is_not_a_question_about_deans() -> None:
+    chen, hangen = {"name": "Dean Chen"}, {"name": "Susan Hangen"}
+    assert not asks_leadership(about_named("Who is Dean Chen?", [chen]))
+    assert not asks_leadership(about_named("Who is Dean Hangen?", [hangen]))
+    assert asks_leadership(about_named("Who is the dean of SSSW, Susan Hangen?", [hangen]))
+    assert only_who("Who is Dean Hangen?", hangen) and only_who("Who is Dean Chen?", chen)

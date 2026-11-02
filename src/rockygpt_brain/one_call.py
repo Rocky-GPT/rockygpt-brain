@@ -24,7 +24,7 @@ from rockygpt_brain.events import (
     asks_events,
     plain_window,
 )
-from rockygpt_brain.people import asks_leadership, asks_people, only_who
+from rockygpt_brain.people import about_named, asks_leadership, asks_people, only_who
 from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 from rockygpt_brain.writer import cited
 
@@ -190,12 +190,14 @@ def code_kind(question: str, named_people: Sequence[Any],
     # What a club hosts next: code checks the name it gives against the directory.
     if asks_clubs(text) and asks_club_events(text):
         return "club"
-    if asks_leadership(text) and _WHO.search(text):
-        return "leaders"
+    # One person named and nothing else asked comes first: "Who is Dean Chen?" asks about
+    # Professor Dean Chen, not about deans.
     if len(named_people) == 1 and (
             (_PERSON_ASK.search(text) and _PERSON_FIELD.search(text))
             or (_WHO.search(text) and only_who(question, named_people[0]))):
         return "person"
+    if asks_leadership(about_named(question, named_people)) and _WHO.search(text):
+        return "leaders"
     if (programs and not programs[0] and len(programs[2]) == 1 and _COURSE_ASK.search(text)
             and _COURSE_FACT.search(text)):
         return "course"

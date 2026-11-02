@@ -2080,7 +2080,8 @@ class ChatEngine:
         if named:
             people = people_module.narrow(people, message, schools)
             computed = people_module.computed_answers(people, message, directory)
-        if people_module.asks_leadership(message):
+        if people_module.asks_leadership(people_module.about_named(message, people)
+                                         if named else message):
             given = {p.get("profile_url") or p.get("name") for p in people}
             for line, entry in people_module.leaders(directory, message, schools,
                                                      self.facts.identities(("school",))):
