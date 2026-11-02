@@ -9,22 +9,53 @@ change. It reads, never answers: nothing here feeds a chat reply.
 Node ids:
     ramapo          every node type with its count, and every link type with its count
     kind:<kind>     every node of one type, by name
-    entity:<id>     one node: its names, the source records it links to, and its links out and in
+    entity:<id>     one node: its names, the facts in the source records it links to, and its
+                    links out and in
 """
 
 from collections import Counter, defaultdict
 from typing import Any
 
 from rockygpt_brain.retrieval.entity_facts import (
+    RECORD_COLLECTIONS,
     DatasetChanged,
     EntityFacts,
     InvalidFactRequest,
+    Snapshot,
+    _json_safe,
 )
 
 ROOT = "ramapo"
 # The chat lookup's own view of a node, which shows its published evidence (contacts, hours,
 # menus, a topic's offices, a route's trips). Only these kinds have one.
 EVIDENCE_VIEW = {"office": "office", "venue": "office", "topic": "topic", "route": "route"}
+# A node's card shows at most this many rows of each collection it links, with the full count.
+MAX_CARD_ROWS = 50
+# Bookkeeping columns a person reading the card has no use for.
+_HIDDEN_FIELDS = {"id", "content_hash", "normalization_metadata",
+                  "contact_observation_artifact_hash", "freshness_sla_hours", "source_key",
+                  "source_record_key"}
+
+
+def _facts(snapshot: Snapshot, entity: dict[str, Any]) -> list[dict[str, Any]]:
+    """The rows behind every source record the node links, read with the same readers chat uses:
+    a person's directory contact and faculty profile, an office's hours, a course's catalog row."""
+    facts: list[dict[str, Any]] = []
+    links = entity.get("links") or []
+    for collection in dict.fromkeys(link.get("collection", "") for link in links):
+        if collection == "contacts":
+            rows = snapshot.contact_reader(entity)
+        elif collection == "campus_hours":
+            rows = snapshot.schedule_reader(entity)
+        elif collection in RECORD_COLLECTIONS:
+            rows = snapshot.record_reader(entity, collection)
+        else:
+            continue
+        shown = [{key: _json_safe(value) for key, value in row.items()
+                  if key not in _HIDDEN_FIELDS and value not in (None, "", [], {})}
+                 for row in rows[:MAX_CARD_ROWS]]
+        facts.append({"collection": collection, "total": len(rows), "rows": shown})
+    return facts
 
 
 def _relationships(entity: dict[str, Any]) -> list[dict[str, Any]]:
@@ -75,6 +106,8 @@ def browse(facts: EntityFacts, node_id: str, *, dataset_version: str | None = No
             raise DatasetChanged("The active dataset changed; open the current root.")
         entities = list(snapshot.entities)
         version, identity = snapshot.dataset_version, snapshot.identity_hash
+        wanted = next((e for e in entities if node_id == f"entity:{e['id']}"), None)
+        card_facts = _facts(snapshot, wanted) if wanted is not None else []
     by_id = {entity["id"]: entity for entity in entities}
     owners = _record_owners(entities)
     root = {"id": ROOT, "label": "Ramapo", "kind": "root"}
@@ -143,6 +176,7 @@ def browse(facts: EntityFacts, node_id: str, *, dataset_version: str | None = No
                              "source_key": link.get("source_key"),
                              "count": len(link.get("source_record_keys") or [])}
                             for link in chosen.get("links") or []],
+                "facts": card_facts,
                 "outgoing": outgoing, "incoming": incoming,
                 "evidence_node": f"{view}:{chosen['id']}" if view else None}
 
