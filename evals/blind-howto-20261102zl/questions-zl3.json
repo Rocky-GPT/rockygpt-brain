@@ -1,0 +1,17 @@
+[
+{"id": "zl3-01", "question": "my roommate keeps having his girlfriend sleep over like 5 nights a week. is there a guest policy and who do i talk to about it", "topic": "policy"},
+{"id": "zl3-02", "question": "how do i switch roommates? we're not getting along at all", "topic": "procedure"},
+{"id": "zl3-03", "question": "I think I have the flu, where do I go on campus to get seen and do I need to make an appointment", "topic": "procedure"},
+{"id": "zl3-04", "question": "my heater in my room doesnt work and its getting cold. how do i put in a maintenance request", "topic": "procedure"},
+{"id": "zl3-05", "question": "Missed 3 classes last week because I was in the hospital. How do I get my professors to excuse the absences, is there an office that sends a note or something?", "topic": "procedure"},
+{"id": "zl3-06", "question": "can freshmen have a car on campus", "topic": "policy"},
+{"id": "zl3-07", "question": "how do i get a parking permit and how much does it cost", "topic": "procedure"},
+{"id": "zl3-08", "question": "do the dorms close for thanksgiving break? can i stay", "topic": "policy"},
+{"id": "zl3-09", "question": "lost my id card in the caf. how do I get a new one", "topic": "procedure"},
+{"id": "zl3-10", "question": "is it too late to withdraw from a class this semester and what happens to my transcript if i do", "topic": "policy"},
+{"id": "zl3-11", "question": "something fell off the ceiling in my bathroom and theres a leak. who do I call at night, public safety or facilities?", "topic": "contact"},
+{"id": "zl3-12", "question": "whats my current balance and do i have any holds on my account", "topic": "out_of_scope"},
+{"id": "zl3-13", "question": "My RA wrote me up for a candle. what happens now? do i have to go to a hearing", "topic": "policy"},
+{"id": "zl3-14", "question": "is the health center open right now?", "topic": "out_of_scope"},
+{"id": "zl3-15", "question": "Should I move off campus next year or stay in the dorms? Which is cheaper and better for a sophomore?", "topic": "out_of_scope"}
+]

@@ -1,0 +1,297 @@
+[
+ {
+  "id": "zl1-01",
+  "question": "how do i find out why my financial aid hasnt shown up yet and who do i talk to",
+  "topic": "contact"
+ },
+ {
+  "id": "zl1-02",
+  "question": "How do I set up a payment plan for spring semester tuition? and is there a fee to enroll in it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl1-03",
+  "question": "refund",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl1-04",
+  "question": "I got a credit balance on my student account after my aid posted, how do I get that money sent to me? Do I need to sign up for direct deposit or does it just get mailed?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl1-05",
+  "question": "whats the deadline to file the FAFSA for next year and what does ramapo need from me besides that",
+  "topic": "policy"
+ },
+ {
+  "id": "zl1-06",
+  "question": "how do i get a work study job on campus? i have it in my aid package but idk where to apply",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl1-07",
+  "question": "can i appeal my financial aid if my family's income changed this year? how",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl1-08",
+  "question": "I need to submit a verification form for fafsa, they said i got selected. where do i upload it and how long does it take",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl1-09",
+  "question": "what is the policy on withdrawing from a class after the deadline and does it affect my aid/satisfactory academic progress",
+  "topic": "policy"
+ },
+ {
+  "id": "zl1-10",
+  "question": "do i get my tuition money back if i drop a class this week",
+  "topic": "policy"
+ },
+ {
+  "id": "zl1-11",
+  "question": "my work study timesheet is wrong and my supervisor isnt answering, who do i contact about getting paid",
+  "topic": "contact"
+ },
+ {
+  "id": "zl1-12",
+  "question": "How much do I currently owe on my account and when is my payment due?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zl1-13",
+  "question": "how do i add my parent as an authorized user so they can pay my bill",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl1-14",
+  "question": "Should I take out a private loan or just work more hours to cover the gap this semester? i have like $2k left",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zl1-15",
+  "question": "is my 1098-T available yet? need it for taxes and cant find where to get it. also how do i get a copy of last years",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl2-01",
+  "question": "im a transfer student and i commute, how do i get a parking permit and where do i park",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl2-02",
+  "question": "How do I get my student ID card? I just transferred in this fall and nobody told me where to go.",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl2-03",
+  "question": "do commuters have to buy a meal plan",
+  "topic": "policy"
+ },
+ {
+  "id": "zl2-04",
+  "question": "how do I find out if my credits from my old community college transferred and who do I talk to if some of them didnt count",
+  "topic": "contact"
+ },
+ {
+  "id": "zl2-05",
+  "question": "I lost my ID card, how do I get a replacement",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl2-06",
+  "question": "can i park in the resident lots if i commute? i got to campus at 9am and every commuter lot was full",
+  "topic": "policy"
+ },
+ {
+  "id": "zl2-07",
+  "question": "whats the shuttle schedule from the train station",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zl2-08",
+  "question": "I'm a commuter student and I have a 3 hour gap between classes. Is there somewhere on campus I can study or hang out, like a commuter lounge, and is there a way to store my stuff?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl2-09",
+  "question": "how do i set up my campus email and wifi login",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl2-10",
+  "question": "what is the deadline to drop a class without a W and how do i do it",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl2-11",
+  "question": "which office do i go to for financial aid questions and are they open in person or just online",
+  "topic": "contact"
+ },
+ {
+  "id": "zl2-12",
+  "question": "do transfer students need to take all the gen ed / Intellectual Inquiry requirements again or do some get waived?",
+  "topic": "policy"
+ },
+ {
+  "id": "zl2-13",
+  "question": "how many credits do I have left to graduate",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zl2-14",
+  "question": "I got a parking ticket yesterday because my permit was still processing. how do I appeal it and who do I email",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl2-15",
+  "question": "what will the parking permit cost next semester",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zl3-01",
+  "question": "my roommate keeps having his girlfriend sleep over like 5 nights a week. is there a guest policy and who do i talk to about it",
+  "topic": "policy"
+ },
+ {
+  "id": "zl3-02",
+  "question": "how do i switch roommates? we're not getting along at all",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl3-03",
+  "question": "I think I have the flu, where do I go on campus to get seen and do I need to make an appointment",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl3-04",
+  "question": "my heater in my room doesnt work and its getting cold. how do i put in a maintenance request",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl3-05",
+  "question": "Missed 3 classes last week because I was in the hospital. How do I get my professors to excuse the absences, is there an office that sends a note or something?",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl3-06",
+  "question": "can freshmen have a car on campus",
+  "topic": "policy"
+ },
+ {
+  "id": "zl3-07",
+  "question": "how do i get a parking permit and how much does it cost",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl3-08",
+  "question": "do the dorms close for thanksgiving break? can i stay",
+  "topic": "policy"
+ },
+ {
+  "id": "zl3-09",
+  "question": "lost my id card in the caf. how do I get a new one",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl3-10",
+  "question": "is it too late to withdraw from a class this semester and what happens to my transcript if i do",
+  "topic": "policy"
+ },
+ {
+  "id": "zl3-11",
+  "question": "something fell off the ceiling in my bathroom and theres a leak. who do I call at night, public safety or facilities?",
+  "topic": "contact"
+ },
+ {
+  "id": "zl3-12",
+  "question": "whats my current balance and do i have any holds on my account",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zl3-13",
+  "question": "My RA wrote me up for a candle. what happens now? do i have to go to a hearing",
+  "topic": "policy"
+ },
+ {
+  "id": "zl3-14",
+  "question": "is the health center open right now?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zl3-15",
+  "question": "Should I move off campus next year or stay in the dorms? Which is cheaper and better for a sophomore?",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zl4-01",
+  "question": "how do i apply to graduate? i'm a senior finishing in december",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl4-02",
+  "question": "What's the deadline to submit my application for graduation for spring 2027 and who do I contact if I missed it?",
+  "topic": "contact"
+ },
+ {
+  "id": "zl4-04",
+  "question": "Can I walk in commencement if I'm still 3 credits short and finishing over the summer?",
+  "topic": "policy"
+ },
+ {
+  "id": "zl4-05",
+  "question": "im a grad student and need to submit my thesis, whats the process for that and who approves the final copy",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl4-06",
+  "question": "do I get to keep my ramapo email after I graduate",
+  "topic": "policy"
+ },
+ {
+  "id": "zl4-07",
+  "question": "how do I get credit for my internship? I need to register for it but dont know where to start",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl4-08",
+  "question": "What do I need to do to move out of my dorm when I graduate? is there a checkout process and what happens if I'm late",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl4-09",
+  "question": "who do i talk to about getting my diploma mailed to a different address",
+  "topic": "contact"
+ },
+ {
+  "id": "zl4-10",
+  "question": "can alumni still use career services and the library after graduating",
+  "topic": "policy"
+ },
+ {
+  "id": "zl4-11",
+  "question": "how can i see if I've met all my graduation requirements? is there a degree audit thing",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl4-12",
+  "question": "Do I still owe anything to the college? I need to clear my balance before graduation",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zl4-13",
+  "question": "what's my gpa right now and will I graduate with honors",
+  "topic": "out_of_scope"
+ },
+ {
+  "id": "zl4-14",
+  "question": "how to get my cap and gown and how many guest tickets do I get for commencement",
+  "topic": "procedure"
+ },
+ {
+  "id": "zl4-15",
+  "question": "Should I do a master's right after graduating or work for a year first? what would you recommend",
+  "topic": "out_of_scope"
+ }
+]
