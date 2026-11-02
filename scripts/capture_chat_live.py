@@ -25,7 +25,7 @@ import psycopg
 from fastapi.testclient import TestClient
 from psycopg.rows import dict_row
 
-from rockygpt_brain.api.app import create_app
+from rockygpt_brain.api.app import create_app, service_token_from_env
 from rockygpt_brain.engine import SYSTEM_PROMPT, TOOLS, ChatEngine
 from rockygpt_brain.provider import Completion, Gateway, TurnBudget
 from rockygpt_brain.retrieval import DatasetChanged, PostgresEntityFacts
@@ -375,7 +375,7 @@ def main(argv: list[str] | None = None) -> int:
                 facts = PinnedFacts(database_url, oracle)
                 gateway = CaptureGateway(settings)
                 engine = ChatEngine(gateway, facts, max_turn_nusd=settings.max_turn_nusd)
-                token = os.environ.get("STAGING_SERVICE_TOKEN", "").strip()
+                token = service_token_from_env() or ""
                 headers = {"x-rockygpt-environment-token": token} if token else {}
                 with TestClient(create_app(engine, environment="development",
                                            service_token=token),

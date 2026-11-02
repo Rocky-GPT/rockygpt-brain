@@ -36,7 +36,7 @@ of this office-facts slice.
 
 `x-rockygpt-conversation-id` optionally supplies 1–64 letters, digits, hyphens or
 underscores. Every turn receives a new request ID. Protected environments require
-`x-rockygpt-environment-token` matching `STAGING_SERVICE_TOKEN`; this token is
+`x-rockygpt-environment-token` matching `SERVICE_TOKEN` (formerly `STAGING_SERVICE_TOKEN`, still read); this token is
 required in production and optional in development. Production without a configured
 token returns 503; a missing or incorrect configured token returns 401. A model
 cannot grant authentication or select a spending environment.

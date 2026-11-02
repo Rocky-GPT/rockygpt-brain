@@ -6,7 +6,7 @@ import logging
 import os
 import secrets
 import sys
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import datetime
@@ -203,6 +203,14 @@ def _configured_engine() -> ChatEngine:
 WARM_SECONDS = 120.0
 
 
+def service_token_from_env(environ: Mapping[str, str] | None = None) -> str | None:
+    """The shared service token. SERVICE_TOKEN is its name; STAGING_SERVICE_TOKEN, the old one, is
+    still read while hosting moves over to the new name."""
+    env = os.environ if environ is None else environ
+    return (env.get("SERVICE_TOKEN", "").strip()
+            or env.get("STAGING_SERVICE_TOKEN", "").strip() or None)
+
+
 async def _warm(engine: ChatEngine) -> None:
     """Fill the engine's per-release reads before the server takes questions. Render keeps the
     old instance serving until this one answers its health check, so students never wait on
@@ -235,7 +243,7 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
     active_environment = environment or os.getenv("BRAIN_ENVIRONMENT", "development")
     if active_environment not in ("development", "production"):
         raise ValueError("Invalid Brain environment")
-    token = service_token if service_token is not None else os.getenv("STAGING_SERVICE_TOKEN")
+    token = service_token if service_token is not None else service_token_from_env()
     token = token.strip() if token else None
     _log_info_lines()
 
