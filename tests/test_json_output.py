@@ -14,7 +14,6 @@ import pytest
 
 import rockygpt_brain.api.app as app_module
 import rockygpt_brain.engine as engine_module
-from rockygpt_brain.boundary import SAFETY_MESSAGE
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine, ChatResult
 from rockygpt_brain.fact_packet import PacketInvalid, build_packet, validate_packet
@@ -247,10 +246,10 @@ def test_a_turn_cut_short_keeps_its_facts_and_says_why_without_calling_it_an_eme
     assert result.status_code == 200 and result.body["status"] == "partial"
     assert result.body["limitation"] == {"code": "provider_unavailable"}
     assert found["status"] == "partial" and len(found["facts"]) == 1
-    assert [n["type"] for n in found["notices"]] == ["incomplete", "emergency_reminder"]
+    # No emergency reminder: the question names no danger (it would only after one).
+    assert [n["type"] for n in found["notices"]] == ["incomplete"]
     assert found["notices"][0]["code"] == "provider_unavailable"
     assert found["notices"][0]["approved_text"] == engine_module.INCOMPLETE_TEXT
-    assert found["notices"][1]["approved_text"] == SAFETY_MESSAGE
 
 
 def test_a_packet_that_breaks_the_contract_is_an_error_never_sent_to_a_writer(

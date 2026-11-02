@@ -1,0 +1,198 @@
+[
+ {
+  "id": "h010",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "Location (South Gate/South Entrance), Fall Mon-Fri 8:30-4:30, 201-684-7536, Save Your Spot and drop-ins welcome all match the July 14, 2026 announcement (https://www.ramapo.edu/student-affairs/student-communications/official-announcement-health-services-at-ramapo-college-july-14-2026/) and the Health Services contact record; the appointment-only wording is accurately attributed to https://www.ramapo.edu/oss/campus-resources/ and the emergency symptoms match the Feb 2026 update page."
+ },
+ {
+  "id": "h005",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "Commencement page and Registrar graduation page say January graduates and June/August candidates are invited and participation does not guarantee graduation; Registrar FAQ confirms post-ceremony checkout and email notice (https://www.ramapo.edu/commencement/, https://www.ramapo.edu/registrar/faq/). Registrar contacts match the contact record."
+ },
+ {
+  "id": "h056",
+  "verdict": "declined_ok",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "Individual balance is a personal record; it gives Student Accounts contacts from the contact record, and the Hold Flag/diploma and $100 graduation fee statements match https://www.ramapo.edu/student-accounts/payment-policies/ and https://www.ramapo.edu/registrar/graduation-commencement/."
+ },
+ {
+  "id": "h064",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "Parking regulations say commuters are authorized in B1-B3, Village lots A-4/B-4/C-3/C-4 are Village-only, and all students may use C1, C2 or D lots as overflow when their lot is full (https://www.ramapo.edu/publicsafety/parking-regulations/, https://www.ramapo.edu/publicsafety/parking-maps/); Public Safety contacts match the record."
+ },
+ {
+  "id": "h042",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": true,
+  "note": "Registration steps, Handshake request, Pass/Fail form, J1 authorization, Self Service registration, 2/4-credit hour rules and 8-credit cap match https://www.ramapo.edu/careercenter/get-started/ and the catalog co-op policy; it does not spell out the 32-credit/2.0 GPA eligibility, and the employer-side NACE criteria and Experience Request parts are extra detail."
+ },
+ {
+  "id": "h077",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "Pending/Authorized aid, memo handling, four-week disbursement and prior-term memo rule match the Billing and Financial Aid Terminology section of https://www.ramapo.edu/student-accounts/billpolicies/; Financial Aid office and counselor contacts (Brener K-Z, Vasquez A-J) match https://www.ramapo.edu/finaid/."
+ },
+ {
+  "id": "h090",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "Declines the personal balance appropriately; Spring 2027 payment deadline December 16, 2026, pay-on-day rule after that, and $200 late fee/deregistration/dehousing match https://www.ramapo.edu/student-accounts/future-deadlines/; Bill & Payment Suite and 'AMOUNT TO BE PAID' wording match the billpolicies page."
+ },
+ {
+  "id": "h114",
+  "verdict": "declined_ok",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "Balance and hold status are personal records; Hold Flag removal on payment and possible holds from other offices match https://www.ramapo.edu/student-accounts/payment-policies/, and Student Accounts contacts match the contact record."
+ },
+ {
+  "id": "h044",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "Setup steps (RCNJ Experience, Student Account Info card, Bill & Payment Suite, Authorized Users, Add Authorized User, email, I Agree) match https://www.ramapo.edu/student-accounts/users/; the 'No' radio buttons and emailed login match the eBill Q&A on billpolicies, and the FERPA waiver discrepancy is real (users page vs FAQ)."
+ },
+ {
+  "id": "h109",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "At 00:25 Monday it is outside the Fall Mon-Fri 8:30am-4:30pm hours in the Health Services campus_hours record and the July 14, 2026 announcement; it correctly says it is closed and gives Monday's hours."
+ },
+ {
+  "id": "h047",
+  "verdict": "incomplete",
+  "severity": "minor",
+  "unasked_noise": false,
+  "note": "The $250 Fall/Spring permit (valid through Spring 2027), $125 Spring-only new-student permit, tax and resident supplement amounts match https://www.ramapo.edu/student-accounts/costinfo/, and the 6.63% vs 7% discrepancy is real; it leaves out that students charged in Fall are not recharged in Spring (https://www.ramapo.edu/student-accounts/parking/), which is the actual next-semester cost for a continuing student."
+ },
+ {
+  "id": "h007",
+  "verdict": "declined_ok",
+  "severity": "none",
+  "unasked_noise": true,
+  "note": "Declining to recommend is appropriate (advice); quotes match https://www.ramapo.edu/careercenter/four-year-plan/ and https://www.ramapo.edu/studentsuccess/major/, but the 'job experience will get you a job' and decision-making quotes come from choosing-a-major advice and add clutter."
+ },
+ {
+  "id": "h045",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "Adult-students FAQ says attendance is determined by the instructor and to speak with instructors after an emergency; OSS Health Impairments section says students account to instructors for absences and OSS consults (https://www.ramapo.edu/oss/disabilities-and-teaching-strategies-accommodations/). No page describes an office sending absence notes, so saying so is accurate; OSS contacts match the record."
+ },
+ {
+  "id": "h081",
+  "verdict": "incomplete",
+  "severity": "minor",
+  "unasked_noise": true,
+  "note": "The pages clearly say emergencies such as plumbing leaks between 4:30 p.m. and 7:30 a.m. or on weekends go to Public Safety ext. 6666 (https://www.ramapo.edu/facilities/service-guide/, https://www.ramapo.edu/reslife/gtcl/); the answer lists both offices and pastes a truncated fragment mentioning only weekends, never directly answering 'at night call Public Safety', and adds Receiving/Storeroom, helpdesk and secdesk clutter."
+ },
+ {
+  "id": "h096",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "Fall 2026 refund deadlines (100% Sept 1, 50% Sept 8; 7-week Oct 19 session Oct 21/Oct 25) all passed before Nov 2 per https://www.ramapo.edu/student-accounts/deadlines/; no-refund-after-deadline statement matches the deposits page, and drop/withdraw procedures match registrationinfo and the catalog."
+ },
+ {
+  "id": "h057",
+  "verdict": "incomplete",
+  "severity": "minor",
+  "unasked_noise": false,
+  "note": "Transfer Credit Worksheet, Convener review and orientation review match https://www.ramapo.edu/undergraduate/transfer/faqs/ and Admissions contacts match the record; it omits that general-education equivalencies not yet established go to the Vice Provost for review (catalog Transferring Academic Credit policy), part of 'who do I talk to if some didn't count'."
+ },
+ {
+  "id": "h008",
+  "verdict": "incomplete",
+  "severity": "minor",
+  "unasked_noise": false,
+  "note": "The 7-week session deadlines (Oct 2, Nov 24) and W/no-refund rules match https://www.ramapo.edu/student-accounts/deadlines/ and https://www.ramapo.edu/registrar/withdrawing-leave-of-absence/, but it says the pages give no full-semester deadline when the same cited deadlines page lists the Fall 2026 Withdrawal Deadline of November 6, 2026."
+ },
+ {
+  "id": "h024",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "No page explicitly states halls close or stay open over Thanksgiving; the Guest Restrictions table (Thanksgiving Break: guests permitted, revised office schedule) and Dec 15 move-out match https://www.ramapo.edu/reslife/gtcl/ and the critical dates page, and it refers to Housing & Residence Life with record contacts."
+ },
+ {
+  "id": "h060",
+  "verdict": "declined_ok",
+  "severity": "none",
+  "unasked_noise": true,
+  "note": "Choosing between a loan and more work is advice the pages do not give; loan limits, work-study and 15/29-hour limits match https://www.ramapo.edu/finaid/faqs/, understanding-your-financial-aid-award and on-campus-employment FAQs, but the full Student Accounts staff phone list and trailing boilerplate are clutter."
+ },
+ {
+  "id": "h013",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "Student Conduct FAQ/hearing pages describe the Hearing Officer/Board meeting, statement submission and file review (https://www.ramapo.edu/student-conduct/hearing/); the $150 fine plus fire safety reflection for alarm activation due to candles matches the sanctions and fire-safety pages, correctly conditioned on an alarm; contacts match the record."
+ },
+ {
+  "id": "h026",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": true,
+  "note": "No freshman-specific vehicle restriction appears; permits required for all students and the application steps and contacts (parking@ramapo.edu, 201-684-7432, parkingpermits@ramapo.edu) match https://www.ramapo.edu/orientation/faq-2/ and https://www.ramapo.edu/reslife/new-student-guide/; the full step list goes beyond the yes/no question."
+ },
+ {
+  "id": "h113",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "https://www.ramapo.edu/reslife/gtcl/ says a dining plan is not required for commuters but highly encouraged, and to email mealplan@ramapo.edu with name, R number and plan; plans can be bought any time and are valid to semester end."
+ },
+ {
+  "id": "h085",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "Finaid FAQ says the 2027-2028 FAFSA is open, returning students apply by April 1 and new students by May 1, code 009344 and no other forms required (https://www.ramapo.edu/finaid/faqs/); the March 15 date (finaid/fafsa page) and EOF March 1 deadline and document list (EOF page) are real and labeled as conflicting/EOF-specific."
+ },
+ {
+  "id": "h093",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "The 48-credit waiver list, remaining CRW 102/QR/SR plus two distribution categories, advisement note and matriculation-semester rule match the catalog waiver and transfer policies; the A.A./A.S. full waiver and A.A.S. course-by-course rule match https://www.ramapo.edu/undergraduate/transfer/admission-requirements/; Provost and Admissions contacts match records."
+ },
+ {
+  "id": "h030",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "Submission in person/mail to E-210 or secure email to finaiddocs@ramapo.edu with name and R# matches https://www.ramapo.edu/finaid/submit-docs/; dashboard steps match https://www.ramapo.edu/finaid/financial-aid-forms/; no processing time is published, so declining that part is fine."
+ },
+ {
+  "id": "h107",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "https://www.ramapo.edu/finaid/ says to email or call Financial Aid about changed family circumstances and possible re-evaluation, with appointments Mon-Fri 8:30-4:30 via email or chat; FAFSA based on prior-year taxes matches the FAQ. (The forms page lists Request For Review forms but does not describe their use.)"
+ },
+ {
+  "id": "h043",
+  "verdict": "incomplete",
+  "severity": "minor",
+  "unasked_noise": false,
+  "note": "It cites the host-to-host rule, opt-out roommate contract via RA and formal complaint process from https://www.ramapo.edu/reslife/gtcl/, but leaves out the directly relevant rule that each registered guest may stay no more than three nights within a seven-day period (and that longer stays make them prohibited residents to report to the hall office), which answers the 5-nights-a-week situation."
+ },
+ {
+  "id": "h082",
+  "verdict": "correct",
+  "severity": "none",
+  "unasked_noise": false,
+  "note": "Handshake registration, 'RCNJ' keyword search, applying to hiring units, FWS priority, employment form and New hire packet/W-4/I-9 to D-119, and FWS questions to finaid@ramapo.edu match https://www.ramapo.edu/on-campus-employment/ and its policies/FAQ pages; contacts match the record."
+ }
+]

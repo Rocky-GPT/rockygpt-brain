@@ -26,7 +26,7 @@ PER_PART = 10  # Each part's own best units: a "how do I apply" part keeps its a
 PER_PAGE = 2  # At most this many from one page, so its near-copies don't crowd out the next page.
 MAX_UNITS = 24
 MAX_PARTS = 3
-SECTION_WORDS_CHARS = 2000
+SECTION_WORDS_CHARS = 3200
 
 ONE_CALL_PROMPT = """You answer a Ramapo College student from the college's own published pages,
 given as JSON. You know nothing beyond the JSON and cannot look anything up.
@@ -312,20 +312,47 @@ SECOND_LOOK_UNITS = 12
 _GAVE_UP = re.compile(r"don.t have verified")
 
 
+# A reply that says the pages are silent on something it was asked ("The pages don't say how to
+# check for a hold"): on the graded misses of sets zi-zk (10-21) that was the most common miss,
+# 20 of 45, and in most of them another page did say it. The sentence itself is searched.
+_NOT_SAID = re.compile(
+    r"\b(?:pages?|sections?|sources?|it|they|this|that|which|none of (?:them|these))\s+"
+    r"(?:do(?:es)?n['’]t|do(?:es)? not|did(?:n['’]t| not))\s+(?:\w+\s+)?"
+    r"(?:say|state|specify|list|give|mention|name|include|describe|cover|address|explain|"
+    r"confirm|show|provide|publish|tell)\b"
+    r"|\bno (?:page|section|source)s? (?:says?|gives?|lists?|describes?|covers?|states?|names?)\b"
+    r"|\b(?:isn['’]t|is not|aren['’]t|are not|wasn['’]t|was not) (?:stated|specified|listed|"
+    r"published|given|covered|described|mentioned)\b",
+    re.IGNORECASE)
+MAX_SECOND_LOOKS = 2
+
+
+def not_said(text: str) -> list[str]:
+    """The reply's sentences that say the pages are silent on something, at most two."""
+    found = [" ".join(piece.split()) for piece in statements(text)
+             if piece.strip() and _NOT_SAID.search(piece)]
+    return [re.sub(r"\s*\[[\d,\s–-]+\]", "", f) for f in found][:MAX_SECOND_LOOKS]
+
+
 def gave_up(arguments: dict[str, Any], question: str) -> list[str]:
     """The parts a reply found no section for, for a second look with only their own search (at
-    most two); the whole question when the reply says it has no verified information but names
-    no such part; none when it answered every part. A part no page can hold (the student's own
-    records, something live, an opinion) is never looked for again."""
+    most two); else the reply's own sentences saying the pages do not say something; the whole
+    question when the reply says it has no verified information but names no such part; none
+    when it answered every part. A part no page can hold (the student's own records, something
+    live, an opinion) is never looked for again."""
     parts = [p for p in arguments.get("parts") or [] if isinstance(p, dict)]
     if parts and all(p.get("not_on_pages") for p in parts):
         return []
     empty = [str(p.get("asked") or "").strip() for p in parts
              if not p.get("sections") and not p.get("not_on_pages")]
-    empty = [a for a in empty if a][:2]
+    empty = [a for a in empty if a][:MAX_SECOND_LOOKS]
     if empty:
         return empty
-    return [question] if _GAVE_UP.search(str(arguments.get("text") or "")) else []
+    text = str(arguments.get("text") or "")
+    silent = not_said(text)
+    if silent:
+        return silent
+    return [question] if _GAVE_UP.search(text) else []
 
 
 def messages(question: str, earlier_user: str | None, offices: list[dict[str, Any]],
@@ -343,6 +370,58 @@ def messages(question: str, earlier_user: str | None, offices: list[dict[str, An
              **({"people": list(people)} if people else {}), "offices": offices}
     return [{"role": "system", "content": ONE_CALL_PROMPT},
             {"role": "user", "content": json.dumps(given, ensure_ascii=False)}]
+
+
+# A reply with one or two statements the evidence does not hold keeps the rest: the statements
+# are dropped, not the whole reply. Throwing the reply away sent the question to the four-call
+# loop, which took 35-45 s and ran out of time on 11-02 ("deadline to withdraw from a class").
+MAX_DROPPED = 2
+MAX_DROPPED_SHARE = 0.35
+_NOT_AN_END = re.compile(r"^(?:(?:[A-Za-z]\.){1,3}|(?:dr|mr|mrs|ms|prof|st|no|rm|vs|etc|e\.g|i\.e|"
+                         r"ext|approx|dept|jr|sr|inc)\.)$", re.IGNORECASE)
+_STATEMENT = re.compile(r"(?<=[.!?])(?:\s*\[[\d,\s–-]+\])*\s+(?=[A-Z(\"“])")
+
+
+def statements(text: str) -> list[str]:
+    """The reply's statements in order: each line, split after a full stop that ends a sentence
+    (its citation marks stay with it). Joining them with their separators gives the text back."""
+    pieces: list[str] = []
+    for line in text.split("\n"):
+        start = 0
+        for m in _STATEMENT.finditer(line):
+            before = line[start:m.start()].split()
+            # "2. Submit", "Dr. Reck", "4:30 P.M. Monday" end no sentence.
+            if not before or _NOT_AN_END.search(before[-1]) or (
+                    len(before) == 1 and re.fullmatch(r"\d{1,2}[.)]", before[0])):
+                continue
+            pieces.append(line[start:m.start()] + line[m.start():m.end()].rstrip())
+            pieces.append(" ")
+            start = m.end()
+        pieces.append(line[start:])
+        pieces.append("\n")
+    return pieces[:-1]
+
+
+def without_unsupported(text: str, check: Any) -> tuple[str, list[str]] | None:
+    """The reply with each statement `check` finds a problem in removed, and the removed ones;
+    None when more than MAX_DROPPED statements (or more than MAX_DROPPED_SHARE of the text)
+    would go, when nothing cited is left, or when what is left still has a problem."""
+    pieces = statements(text)
+    kept: list[str] = []
+    dropped: list[str] = []
+    for piece in pieces:
+        if piece.strip() and check(piece):
+            dropped.append(piece.strip())
+            if kept and kept[-1] == " ":
+                kept.pop()
+            continue
+        kept.append(piece)
+    left = re.sub(r"\n{3,}", "\n\n", "".join(kept)).strip()
+    if (not dropped or len(dropped) > MAX_DROPPED
+            or sum(map(len, dropped)) > MAX_DROPPED_SHARE * len(text)
+            or not re.search(r"\[\d+\]", left) or check(left)):
+        return None
+    return left, dropped
 
 
 def reply(arguments: dict[str, Any], sources: list[dict[str, Any]],

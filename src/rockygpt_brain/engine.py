@@ -24,6 +24,7 @@ from rockygpt_brain.answers import (
     Rendered,
     citation_url,
     literal,
+    phone_lines,
     readable_quote,
     render_facts,
 )
@@ -1192,6 +1193,21 @@ def fixed_texts() -> list[dict[str, Any]]:
         entry("recall_omitted", model, "Added to a recall when older messages are unavailable.",
               RECALL_OMITTED_TEXT),
     ]
+
+
+def office_family(result: OfficeResult) -> list[str]:
+    """The offices an ambiguous lookup found when they are one office's lines under one name
+    ("Public Safety (Emergency)", "Public Safety (Non-Emergency)"): two or three candidates whose
+    names differ only in a last bracketed part. Empty for any other question back."""
+    if not result.clarification or not result.part or result.part.get("kind") != "ambiguous" \
+            or result.part.get("truncated"):
+        return []
+    names = [str(c["name"]) for c in result.part.get("candidates", [])]
+    bases = {re.sub(r"\s*\([^()]*\)\s*$", "", name).casefold().strip() for name in names}
+    if not 2 <= len(names) <= 3 or len(bases) != 1 or not all(n.rstrip().endswith(")")
+                                                             for n in names):
+        return []
+    return names
 
 
 def _lookup_status(result: OfficeResult) -> str:
@@ -2386,7 +2402,13 @@ class ChatEngine:
         problems = unsupported_by(text, view)
         if problems:
             trace["oneCallProblems"] = problems[:5]
-            return fallback("not_in_the_evidence")
+            kept = one_call.without_unsupported(str(arguments.get("text") or ""),
+                                                lambda said: unsupported_by(said, view))
+            if kept is None:
+                trace["oneCallRejected"] = text[:3000]  # For the inspector: what was refused.
+                return fallback("not_in_the_evidence")
+            trace["oneCallDropped"] = kept[1]
+            text, citations = one_call.reply({**arguments, "text": kept[0]}, sources)
         trace.update(decidedBy="one_call", modelCalls=budget.calls,
                      committedNusd=budget.committed_nusd, writer={"used": True},
                      oneCall={"parts": len(vectors), "sections": len(sources),
@@ -2945,6 +2967,35 @@ class ChatEngine:
                                          dataset_version=traversal.version,
                                          identity_hash=traversal.identity_hash)
                         version, identity_hash = traversal.version, traversal.identity_hash
+                        family = office_family(result) if not item.about else []
+                        if family:
+                            # "The Public Safety phone": two offices are the one named, an
+                            # emergency line and a non-emergency one. Both are read and given,
+                            # not asked about (11-01 bulk run).
+                            entry["status"] = "expanded"
+                            entry["family"] = family
+                            for name in family:
+                                with measure(f"Lookup {len(trace['lookups'])} · {name}"):
+                                    each = await asyncio.to_thread(
+                                        self._lookup, item.model_copy(update={"query": name}),
+                                        CampusGraph(self.facts, dataset_version=version,
+                                                    identity_hash=identity_hash),
+                                        turn.campus_now, exact_name_only=True,
+                                        latest=context.latest_message)
+                                rid = f"r{len(results) + 1}"
+                                results[rid] = each
+                                trace["lookups"].append({
+                                    "tool": "graph_lookup", "traversedBy": "code",
+                                    "status": _lookup_status(each), "foundBy": "office_family",
+                                    "arguments": {**item.model_dump(), "query": name},
+                                    **each.detail})
+                                output.append({"query": name, "rendered": each.rendered.text,
+                                               "supported": each.rendered.supported,
+                                               "complete": each.rendered.complete,
+                                               "clarification": each.clarification,
+                                               "error": each.error_code})
+                                looked_up.append((rid, len(output) - 1, item))
+                            continue
                         rid = f"r{len(results) + 1}"
                         results[rid] = result
                         entry["status"] = _lookup_status(result)
@@ -2982,11 +3033,17 @@ class ChatEngine:
                     trace["lookups"] = [*trace.get("lookups", []), *floor.get("lookups", [])]
                     return replace(reply, trace=trace)
         except TimeoutError:
-            return self._fallback(turn, results, version, "model_timeout")
+            return self._fallback(turn, results, version, "model_timeout",
+                                  danger=names_a_danger(context.latest_message)
+                                  or earlier_emergency(context))
         except ValidationError:
-            return self._fallback(turn, results, version, "provider_invalid_response")
+            return self._fallback(turn, results, version, "provider_invalid_response",
+                                  danger=names_a_danger(context.latest_message)
+                                  or earlier_emergency(context))
         except GatewayError as error:
-            return self._fallback(turn, results, version, error.code)
+            return self._fallback(turn, results, version, error.code,
+                                  danger=names_a_danger(context.latest_message)
+                                  or earlier_emergency(context))
         finally:
             trace["modelCalls"], trace["committedNusd"] = budget.calls, budget.committed_nusd
             LOG.info("brain_turn request_id=%s model_calls=%d committed_nusd=%d tools=%d",
@@ -3046,6 +3103,13 @@ class ChatEngine:
         for entry, (update, _) in zip(entries, read_results, strict=True):
             entry.update(update)
         helped = [result for _, result in read_results if result is not None]
+        # The numbers go out in the code's own words, never through a writer: said plainly, not
+        # as the inspector's lines ("+12016846666 [campus-directory](...)", 11-01).
+        for result in helped:
+            if result.part is not None and result.part.get("kind") == "office_facts":
+                plain = phone_lines(result.part["facts"])
+                if plain.text:
+                    result.rendered = plain
         return ([result.rendered for result in helped],
                 [result.part for result in helped if result.part is not None])
 
@@ -3334,21 +3398,27 @@ class ChatEngine:
 
     @measure("Compose partial or failed response")
     def _fallback(self, turn: Turn, results: dict[str, OfficeResult], version: str | None,
-                  code: str) -> ChatResult:
+                  code: str, *, danger: bool = True) -> ChatResult:
         # Keep independently retrieved requested facts even if a later provider call fails.
         found = [r for r in results.values() if r.rendered.supported or r.rendered.citations]
         usable = [r.rendered for r in found]
         if usable and code != "dataset_changed":
             text = "\n\n".join(r.text for r in usable)
             text += "\n\n" + INCOMPLETE_TEXT
-            text += "\n\n" + SAFETY_MESSAGE  # Every incomplete reply carries the emergency numbers.
+            # The emergency numbers close an incomplete reply only when the conversation names a
+            # danger: under "what's the deadline to withdraw from a class" they read as a crisis
+            # line nobody asked for (graders, set zk; 11-02 run). The phrase floor and the model's
+            # safety parts still answer every message that names one.
+            if danger:
+                text += "\n\n" + SAFETY_MESSAGE
             if len(text) <= MAX_ANSWER_CHARS:
                 citations = {c["id"]: c for r in usable for c in r.citations}
                 result = answered(turn, text, "partial", list(citations.values()), version)
                 result.body["limitation"] = {"code": code}
                 parts = [*(r.part for r in found if r.part is not None),
                          {"kind": "incomplete", "code": code, "approved_text": INCOMPLETE_TEXT},
-                         {"kind": "emergency_reminder", "approved_text": SAFETY_MESSAGE}]
+                         *([{"kind": "emergency_reminder", "approved_text": SAFETY_MESSAGE}]
+                           if danger else [])]
                 try:
                     return self._json(result, parts, turn)
                 except GatewayError as error:

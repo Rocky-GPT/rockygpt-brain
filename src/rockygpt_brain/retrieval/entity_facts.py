@@ -1354,7 +1354,7 @@ _PROCEDURE_FILLER = frozenset(
     "ramapo college campus student students".split())
 # The sections a procedure read offers (the engine keeps the few that answer), and the most of
 # one section's text that is said.
-MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 16, 1800
+MAX_PROCEDURES, MAX_PROCEDURE_CHARS = 16, 3000
 # The most of a how-to entry's page said beside its steps, the part matching what was asked.
 MAX_PAGE_WORDS_CHARS = 1400
 # The most of the entry's own section said beside its steps (whole when shorter).

@@ -30,5 +30,5 @@ services:
       - key: DATABASE_URL
         sync: false
       # Required server-to-server ingress authentication in production.
-      - key: STAGING_SERVICE_TOKEN
+      - key: SERVICE_TOKEN
         sync: false
