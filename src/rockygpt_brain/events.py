@@ -649,17 +649,24 @@ def asks_club_exists(message: str) -> bool:
     return bool(_CLUB_EXISTS.search(message.casefold()) and asks_clubs(message))
 
 
+# A club's name may start with the college's own ("Ramapo College Chess Club"); a student says
+# "chess club".
+_CAMPUS_PREFIX = re.compile(r"^(?:ramapo college(?: of new jersey)?|ramapo|rcnj)\s+", re.I)
+
+
 def club_named(message: str, clubs: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
-    """The one club an existence question names by every word of its name and asks nothing
-    else of; None otherwise."""
+    """The one club an existence question names by every word of its name (the college's own
+    name before it optional) and asks nothing else of; None otherwise."""
     if not _CLUB_EXISTS.search(message.casefold()):
         return None
-    for club in find_clubs(clubs, message)[:1]:
+    short = [{**club, "name": _CAMPUS_PREFIX.sub("", str(club["name"])) or club["name"],
+              "_named": club} for club in clubs]
+    for club in find_clubs(short, message)[:1]:
         rest = re.sub(re.escape(str(club["name"]).casefold()), " ", message.casefold())
         if (not re.search(r"\b(?:and|also|plus|or|how|why|who|when|where)\b", rest)
-                and discovery_tokens(message) - discovery_tokens(str(club["name"]))
+                and discovery_tokens(message) - discovery_tokens(str(club["_named"]["name"]))
                 <= _EXISTS_FILLER):
-            return club
+            return dict(club["_named"])
     return None
 
 

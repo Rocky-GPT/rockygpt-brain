@@ -96,7 +96,7 @@ def test_when_finals_are_is_answered_by_code_from_the_terms_calendar() -> None:
     result = asyncio.run(engine.answer(intake(request, now=MONDAY), request))
     assert result.body["answer"] == (
         "The Fall 2026 academic calendar lists [1]:\n"
-        "- Wednesday, December 9, 2026: Full and Session II Courses - Final Exams (December 09, "
-        f"12:00 am -- December 15, 11:59 pm)\n\nSources: [1]({URL})")
+        "- Wednesday, December 9, 2026: Full and Session II Courses - Final Exams (through "
+        f"December 15)\n\nSources: [1]({URL})")
     assert gateway.inputs == [] and result.trace is not None
     assert result.trace["decidedBy"] == "code"
