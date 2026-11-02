@@ -490,3 +490,27 @@ def test_two_conflicting_statements_of_one_schedule_stay_each_their_own_week() -
         assert len(published) == 1, published  # One statement's week, never a mix of both.
     assert {next(d["hours"] for d in item["value"]["days"] if d["hours"])
             for item in prop["values"]} == {"8:00am-5:00pm", "9:00am-6:00pm"}
+
+
+def test_a_facility_that_publishes_only_its_hours_is_read_like_an_office() -> None:
+    # 11-02: the gym, pool and weight room hours were in the release, linked to their facilities,
+    # but a facility was read only with a directory contact, so "Bradley Center gym hours" was
+    # answered from the Athletics office, which publishes none.
+    gym = {"id": "aux-gym", "kind": "facility", "name": "Auxiliary Gym", "aliases": [],
+           "links": [{"collection": "campus_hours", "source_key": "campus-hours",
+                      "source_record_keys": [f"Auxiliary Gym:{day}" for day in DAYS]}]}
+    service = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1", entities=[office(), gym],
+        contacts=[contact()], schedules=[*schedule_rows(), *schedule_rows(
+            "Auxiliary Gym", {**WEEK, "Sunday": "12:00pm-4:00pm"}, url=None, tag="g")],
+        now=lambda: NOW)
+    assert [o["name"] for o in service.list_offices()["offices"]] == ["Auxiliary Gym", "Registrar"]
+    assert service.search_offices("auxiliary gym")["candidates"][0]["entity_id"] == "aux-gym"
+    result = service.get_office_facts("aux-gym", ["hours"], "release-1",
+                                      identity_hash="identities-1", as_of=NOW)
+    days = hours_property(result)["values"][0]["value"]["days"]
+    assert days[6] == {"day": "Sunday", "hours": "12:00pm-4:00pm"}
+    # A facility with neither a contact nor hours stays out of the names a student can ask.
+    bare = {"id": "wall", "kind": "facility", "name": "Rock Climbing Wall", "aliases": [],
+            "links": []}
+    assert validate_entities([bare])[0]["kind"] == "facility"
