@@ -48,6 +48,8 @@ Before it takes questions the server reads what the first questions would otherw
 for (the meaning index and the once-per-release lists), for at most two minutes; a step
 that fails is logged as `brain_warm_failed` and read on first use instead. The log line
 `brain_warm` gives each step's seconds. `BRAIN_WARM_AT_START=0` turns it off.
+When the nightly data update makes a new release active, a running Brain reads that release's
+meaning index before the next question goes on, rather than answering without it while it loads.
 
 All model calls go through the same gateway. It reserves against the durable
 environment allowance before sending, accounts for returned usage, and keeps a

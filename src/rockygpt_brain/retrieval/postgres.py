@@ -7,7 +7,7 @@ import threading
 import time
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager, suppress
-from threading import Lock
+from threading import Event, Lock
 from typing import Any
 from urllib.parse import quote
 
@@ -76,6 +76,7 @@ WHERE v.version = %s AND m.identity_hash = %s
 """
 MEANING_CHECK_SECONDS = 60.0  # How often the active release is checked for a new index.
 MEANING_RETRY_SECONDS = 300.0  # After a failed or missing load.
+MEANING_WAIT_SECONDS = 30.0  # How long a question waits for another thread's load of a new index.
 
 # Which publication is active, without its alias sources.
 _ACTIVE_RELEASE = """
@@ -514,6 +515,8 @@ class PostgresEntityFacts(EntityFacts):
         self._meaning: tuple[tuple[str, str], MeaningIndex | None] | None = None
         self._meaning_checked = float("-inf")
         self._meaning_loading = False
+        self._meaning_done = Event()  # Set whenever no load is running.
+        self._meaning_done.set()
         self._meaning_lock = Lock()
 
     def _open(self, operation_seconds: float) -> psycopg.Connection[dict[str, Any]]:
@@ -610,9 +613,13 @@ class PostgresEntityFacts(EntityFacts):
         self._keep(connection, reuse)
 
     def meaning_index(self) -> MeaningIndex | None:
-        """The meaning index stored for the active release, or None while it loads, when none
-        was stored, or when it was built for another release. Loading never holds a question:
-        it runs on its own thread, and until it finishes questions are read without it."""
+        """The meaning index stored for the active release, or None when none was stored or it
+        could not be read. An index built for another release is never used.
+
+        A new release's index (the first question, or the first after the nightly update) is
+        read before the question goes on, so no question is searched by words alone while it
+        loads; a question asked meanwhile waits for that load. Retrying a release that had no
+        readable index runs in the background, so a missing index never holds questions."""
         now = time.monotonic()
         with self._meaning_lock:
             cached, due = self._meaning, now >= self._meaning_checked
@@ -624,25 +631,40 @@ class PostgresEntityFacts(EntityFacts):
             release = self.active_release()
         except EvidenceUnavailable:
             return None
-        if cached and cached[0] == release and cached[1] is not None:
+        if cached and cached[0] == release:
+            if cached[1] is None:
+                self._load_in_background(release)
             return cached[1]
-        with self._meaning_lock:
-            if self._meaning_loading:
-                return None
-            self._meaning_loading = True
-        threading.Thread(target=self._load_meaning, args=(release,), daemon=True,
-                         name="meaning-index-load").start()
-        return None
+        return self._load_now(release)
 
     def warm_meaning_index(self) -> None:
-        """Load the active release's index now, on this thread (startup), unless a load runs."""
-        release = self.active_release()
+        """Load the active release's index now, on this thread (startup)."""
+        self._load_now(self.active_release())
+
+    def _load_now(self, release: tuple[str, str]) -> MeaningIndex | None:
+        """Read the release's index on this thread, or wait for the load already running."""
+        with self._meaning_lock:
+            running = self._meaning_loading
+            if not running:
+                self._meaning_loading = True
+                self._meaning_done.clear()
+                self._meaning_checked = time.monotonic() + MEANING_CHECK_SECONDS
+        if running:
+            self._meaning_done.wait(MEANING_WAIT_SECONDS)
+        else:
+            self._load_meaning(release)
+        with self._meaning_lock:
+            cached = self._meaning
+        return cached[1] if cached and cached[0] == release else None
+
+    def _load_in_background(self, release: tuple[str, str]) -> None:
         with self._meaning_lock:
             if self._meaning_loading:
                 return
             self._meaning_loading = True
-            self._meaning_checked = time.monotonic() + MEANING_CHECK_SECONDS
-        self._load_meaning(release)
+            self._meaning_done.clear()
+        threading.Thread(target=self._load_meaning, args=(release,), daemon=True,
+                         name="meaning-index-load").start()
 
     def _load_meaning(self, release: tuple[str, str]) -> None:
         index: MeaningIndex | None = None
@@ -657,7 +679,7 @@ class PostgresEntityFacts(EntityFacts):
                          len(index.owner))
             else:
                 LOG.warning("brain_meaning_index_missing release=%s", release[0])
-        except (psycopg.Error, ValueError, KeyError) as error:
+        except Exception as error:  # noqa: BLE001 (a question may run this load: never fail it)
             LOG.warning("brain_meaning_index_unavailable error=%s", type(error).__name__)
         with self._meaning_lock:
             self._meaning_loading = False
@@ -666,6 +688,7 @@ class PostgresEntityFacts(EntityFacts):
             else:
                 self._meaning = (release, None)
                 self._meaning_checked = time.monotonic() + MEANING_RETRY_SECONDS
+            self._meaning_done.set()
 
     def active_release(self) -> tuple[str, str]:
         try:

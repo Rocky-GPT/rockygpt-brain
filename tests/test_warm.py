@@ -76,15 +76,82 @@ def test_memory_reader_warms_without_a_meaning_index() -> None:
     facts().warm_meaning_index()  # The base hook only asks; a reader without an index is fine.
 
 
-def test_postgres_loads_the_index_on_the_calling_thread(monkeypatch: pytest.MonkeyPatch) -> None:
+def _postgres_reader(monkeypatch: pytest.MonkeyPatch, release: tuple[str, str],
+                     indexes: dict[str, Any], loaded: list[tuple[str, str]]) -> Any:
+    """A Postgres reader whose active release and stored indexes are given, not queried."""
     from rockygpt_brain.retrieval.postgres import PostgresEntityFacts
 
     reader = PostgresEntityFacts("postgresql://unused.invalid/db")
+    monkeypatch.setattr(reader, "active_release", lambda: release)
+
+    def load(wanted: tuple[str, str]) -> None:  # The real load's bookkeeping, without a database.
+        loaded.append(wanted)
+        with reader._meaning_lock:
+            reader._meaning = (wanted, indexes.get(wanted[0]))
+            reader._meaning_loading = False
+            reader._meaning_done.set()
+
+    monkeypatch.setattr(reader, "_load_meaning", load)
+    return reader
+
+
+def test_postgres_loads_the_index_on_the_calling_thread(monkeypatch: pytest.MonkeyPatch) -> None:
     loaded: list[tuple[str, str]] = []
-    monkeypatch.setattr(reader, "active_release", lambda: ("release-1", "identities-1"))
-    monkeypatch.setattr(reader, "_load_meaning", lambda release: loaded.append(release))
+    index = object()
+    reader = _postgres_reader(monkeypatch, ("release-1", "identities-1"), {"release-1": index},
+                              loaded)
     reader.warm_meaning_index()
     assert loaded == [("release-1", "identities-1")]
-    reader._meaning_loading = True  # A background load already running is not doubled.
-    reader.warm_meaning_index()
+    assert reader.meaning_index() is index  # Checked a moment ago: no second read.
     assert len(loaded) == 1
+
+
+def test_a_new_release_index_is_read_before_the_question_goes_on(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """After the nightly update a running Brain reads the new index for the first question,
+    instead of searching by words alone while it loads in the background."""
+    loaded: list[tuple[str, str]] = []
+    old, new = object(), object()
+    reader = _postgres_reader(monkeypatch, ("release-2", "identities-2"), {"release-2": new},
+                              loaded)
+    reader._meaning = (("release-1", "identities-1"), old)
+    reader._meaning_checked = float("-inf")  # The minute-long check interval has passed.
+    assert reader.meaning_index() is new
+    assert loaded == [("release-2", "identities-2")]
+
+
+def test_a_question_waits_for_the_new_index_another_thread_is_loading(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+
+    loaded: list[tuple[str, str]] = []
+    new = object()
+    release = ("release-2", "identities-2")
+    reader = _postgres_reader(monkeypatch, release, {}, loaded)
+    reader._meaning_loading = True
+    reader._meaning_done.clear()
+
+    def finish() -> None:
+        with reader._meaning_lock:
+            reader._meaning = (release, new)
+            reader._meaning_loading = False
+            reader._meaning_done.set()
+
+    threading.Timer(0.05, finish).start()
+    assert reader.meaning_index() is new
+    assert loaded == []  # The running load was not doubled.
+
+
+def test_a_release_without_an_index_is_retried_in_the_background(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    loaded: list[tuple[str, str]] = []
+    release = ("release-1", "identities-1")
+    reader = _postgres_reader(monkeypatch, release, {}, loaded)
+    reader._meaning = (release, None)
+    reader._meaning_checked = float("-inf")
+    retried: list[tuple[str, str]] = []
+    monkeypatch.setattr(reader, "_load_in_background", retried.append)
+    assert reader.meaning_index() is None
+    assert retried == [release] and loaded == []
+
+
