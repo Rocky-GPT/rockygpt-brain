@@ -36,6 +36,7 @@ from rockygpt_brain.retrieval import (
     UnknownEntity,
 )
 from rockygpt_brain.retrieval.graph_store import GraphOnlyFacts, GraphUnavailable, ReleaseGraphFacts
+from rockygpt_brain.retrieval.graph_sync import GraphFollower, GraphStore, SyncError
 from rockygpt_brain.settings import ConfigurationError, ProviderSettings
 from rockygpt_brain.spending import SpendingError
 from rockygpt_brain.timing import measure, request_timing
@@ -201,6 +202,31 @@ def _configured_engine() -> ChatEngine:
 
 
 WARM_SECONDS = 120.0
+FIRST_SYNC_SECONDS = 300.0
+
+
+def _configured_follower() -> GraphFollower | None:
+    """Production's Brain: download the shared release graph into BRAIN_GRAPH_ONLY_DIR and keep
+    following it. Only when both are set; the laptop sets no store keys on its Brain, because
+    its copy changes only when Dan syncs it by hand."""
+    only_directory = os.getenv("BRAIN_GRAPH_ONLY_DIR", "").strip()
+    try:
+        store = GraphStore.from_env()
+    except SyncError as error:
+        raise ConfigurationError(str(error)) from error
+    if not only_directory or store is None:
+        return None
+    return GraphFollower(store, Path(only_directory))
+
+
+async def _first_sync(follower: GraphFollower) -> None:
+    """The first download, before the server takes questions. A failure leaves the Brain not
+    ready (no release file yet, or the copy already on disk); the follower keeps retrying."""
+    try:
+        async with asyncio.timeout(FIRST_SYNC_SECONDS):
+            await asyncio.to_thread(follower.sync_once)
+    except TimeoutError:
+        LOG.warning("brain_graph_first_sync_timeout seconds=%s", FIRST_SYNC_SECONDS)
 
 
 def service_token_from_env(environ: Mapping[str, str] | None = None) -> str | None:
@@ -250,14 +276,20 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         active = engine
+        follower: GraphFollower | None = None
         try:
             if active is None:
+                follower = _configured_follower()
+                if follower is not None:
+                    await _first_sync(follower)
                 active = _configured_engine()
             application.state.engine = active
             if isinstance(active.gateway, Gateway):
                 await active.gateway.open()
             if engine is None and os.getenv("BRAIN_WARM_AT_START", "1") != "0":
                 await _warm(active)
+            if follower is not None:
+                follower.start(on_new_release=active.warm)
         except ConfigurationError:
             application.state.startup_error = "model_not_configured"
         except SpendingError:
@@ -265,6 +297,8 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
         try:
             yield
         finally:
+            if follower is not None:
+                follower.stop()
             if active is not None and isinstance(active.gateway, Gateway):
                 await active.gateway.close()
 

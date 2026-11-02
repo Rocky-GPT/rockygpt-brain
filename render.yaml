@@ -26,8 +26,21 @@ services:
       # Never use a database owner or a login holding both environment roles.
       - key: BRAIN_LEDGER_DATABASE_URL
         sync: false
-      # Read-only campus data and published canonical identity release.
-      - key: DATABASE_URL
+      # Campus data: the same release graph file the laptop serves. The Brain downloads the
+      # shared copy (graph + meaning index) from the file store into this folder at start, then
+      # checks for a newer release every 5 minutes (retrieval/graph_sync.py). It never reads the
+      # campus database. Public values come from rockygpt-infra environment-sync.json.
+      - key: BRAIN_GRAPH_ONLY_DIR
+        sync: false
+      - key: BRAIN_GRAPH_STORE_ENDPOINT
+        sync: false
+      - key: BRAIN_GRAPH_STORE_BUCKET
+        sync: false
+      - key: BRAIN_GRAPH_STORE_REGION
+        sync: false
+      - key: BRAIN_GRAPH_STORE_ACCESS_KEY_ID
+        sync: false
+      - key: BRAIN_GRAPH_STORE_SECRET_ACCESS_KEY
         sync: false
       # Required server-to-server ingress authentication in production.
       - key: SERVICE_TOKEN
