@@ -209,14 +209,44 @@ def writer_messages(view: dict[str, Any], language: str | None = None) -> list[d
             {"role": "user", "content": json.dumps(given, ensure_ascii=False)}]
 
 
+# A number the pages spell out ("within twenty calendar days") is the same number a reply writes
+# as digits ("20 calendar days"); on 11-01 two good grade-appeal replies were thrown away for it.
+_NUMBER_WORDS = {
+    word: value for value, word in enumerate(
+        "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen "
+        "fifteen sixteen seventeen eighteen nineteen".split())}
+_NUMBER_WORDS.update({"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+                      "seventy": 70, "eighty": 80, "ninety": 90, "hundred": 100,
+                      "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
+                      "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10,
+                      "twice": 2, "once": 1, "dozen": 12})
+_TENS = ("twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety")
+_SPELLED = re.compile(r"\b(" + "|".join(_TENS) + r")[\s-]+(one|two|three|four|five|six|seven|"
+                      r"eight|nine)\b|\b(" + "|".join(sorted(_NUMBER_WORDS, key=len, reverse=True))
+                      + r")\b")
+# Dashes and spaces a model writes inside a phone number or a range ("684‑7495", "9–5").
+_DASHES = str.maketrans({c: "-" for c in "\u2010\u2011\u2012\u2013\u2014\u2015\u2212"}
+                        | {c: " " for c in "\u00a0\u2007\u202f\u2009"})
+
+
+def _spelled_numbers(text: str) -> set[str]:
+    found: set[str] = set()
+    for m in _SPELLED.finditer(text):
+        if m.group(1):
+            found.add(str(_NUMBER_WORDS[m.group(1)] + _NUMBER_WORDS[m.group(2)]))
+        else:
+            found.add(str(_NUMBER_WORDS[m.group(3)]))
+    return found
+
+
 def unsupported_by(text: str, view: dict[str, Any]) -> list[str]:
     """What in the reply the view does not hold; empty means the reply may be sent."""
-    held = json.dumps(view, ensure_ascii=False).casefold()
+    held = json.dumps(view, ensure_ascii=False).casefold().translate(_DASHES)
     digits = re.sub(r"\D", "", held)
     # 07 in a date and the 7 a person writes are the same number.
-    numbers = {str(int(n)) for n in _NUMBER.findall(held)}
+    numbers = {str(int(n)) for n in _NUMBER.findall(held)} | _spelled_numbers(held)
     sources = {str(source["n"]) for source in view.get("sources", [])}
-    rest = text.casefold()
+    rest = text.casefold().translate(_DASHES)
     problems: list[str] = []
     for email in _EMAIL.findall(rest):
         if email not in held:

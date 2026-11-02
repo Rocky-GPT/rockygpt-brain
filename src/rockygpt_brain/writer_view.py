@@ -244,7 +244,13 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
         if entry["predicate"] == "hours_on" and entry.get("applies"):
             answered_days.setdefault(entry["subject"]["id"], set()).add(entry["day"])
     missing = []
+    # When one office's pages answer the how-to, another office looked up beside it whose pages
+    # do not is no gap to tell the student about: "I have no verified information about
+    # grade-appeal procedures from the Dean of Students" closed a correct Provost answer (11-02).
+    answered_how = any(fact["predicate"] == "procedures" for fact in packet["facts"])
     for entry in packet["missing"]:
+        if answered_how and entry["predicate"] == "procedures":
+            continue
         days = entry.get("days")
         if (entry["predicate"] == "hours" and days and answered_days.get(entry["subject"]["id"])
                 and not answered_days[entry["subject"]["id"]] & set(days)):
