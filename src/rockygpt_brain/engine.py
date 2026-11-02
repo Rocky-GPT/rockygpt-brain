@@ -1967,6 +1967,24 @@ class ChatEngine:
         return (events.listing_text(label, start, end, shown, len(timed)), sources, version,
                 {"calendar": {"window": label, "events": lines}, "computed": computed})
 
+    def _club_listing(self, message: str, now: datetime,
+                      ) -> tuple[str, list[dict[str, Any]], str, dict[str, Any]] | None:
+        """A question asking only what one club the directory names in full hosts next,
+        answered in code's own words from the calendar (events.club_meets). None for any other
+        question, and when the calendar lists no event it hosts (its meetings may be on its
+        pages, which the model reads)."""
+        found = events.club_meets(message, self._club_directory())
+        if found is None:
+            return None
+        club = {"n": 1, **{k: v for k, v in found.items() if k != "id"}}
+        lines, facts, hosted = self._club_events([club], now, 1)
+        if not lines:
+            return None
+        return (events.club_events_text(club, lines),
+                [{"n": 1, "url": club.get("url"), "title": club.get("name")}, *hosted],
+                self.facts.active_release()[0],
+                {"clubs": [club], "calendar": {"events": lines}, "computed": facts})
+
     def _upcoming_events(self, now: datetime) -> list[dict[str, Any]]:
         """Every calendar event from now through the next year, as published, read through the
         shared reader once per release and day."""
@@ -1976,8 +1994,8 @@ class ChatEngine:
             dated = events.events_in([e for e in self.facts.identities(("event",))],
                                      now, now + timedelta(days=366))
             self._upcoming_cache = (key, self._event_values(dated, version, identity_hash, now))
-        return [v for v in self._upcoming_cache[1]
-                if datetime.fromisoformat(str(v.get("starts_at"))) >= now - timedelta(hours=3)]
+        # Still to come, or still on now by its end time on the campus clock.
+        return events.in_window(self._upcoming_cache[1], now, now + timedelta(days=366))
 
     def _club_events(self, clubs: Sequence[dict[str, Any]], now: datetime, numbered_from: int,
                      ) -> tuple[list[dict[str, Any]], list[dict[str, Any]],
@@ -2201,6 +2219,14 @@ class ChatEngine:
                             self._window_listing, latest, turn.campus_now)
                     if done := self._code_answer(turn, trace, said, found_sources, version,
                                                  **checked):
+                        return done
+                # What a club named in full hosts next, when the calendar lists it.
+                if kind == "club" and earlier is None and not people_asked:
+                    with measure("Read the club directory"):
+                        listed = await asyncio.to_thread(self._club_listing, latest,
+                                                         turn.campus_now)
+                    if listed is not None and (done := self._code_answer(turn, trace, *listed[:3],
+                                                                         **listed[3])):
                         return done
                 if programs and not pick_catalog:
                     with measure("Read the programs named"):

@@ -607,6 +607,42 @@ def club_answers(clubs: Sequence[dict[str, Any]], message: str, by_name: bool,
 
 
 MAX_CLUB_LINES = 6
+
+
+# A question asking only what a club the directory names in full hosts next ("when does the
+# Hiking Club meet", "what events does the Math Club have coming up") is answered by code when the
+# calendar lists events it hosts (club_events_text). Whether a club exists is left to the model:
+# ramapo.edu marks some directory clubs as not active (Garden Club, Movie Club, as of 6/12/25), and
+# that page is not yet linked to the club, so code alone cannot say yes.
+_CLUB_FILLER = discovery_tokens("when what does do is are there any you we they have ramapo "
+                                "college rcnj school campus on at here in its next upcoming "
+                                "coming up meet meets meeting meetings event events hold holds "
+                                "host hosting") | _GENERIC_CLUB
+
+
+def club_meets(message: str, directory: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
+    """The club a question only asks the meetings or next events of, when it names the club by
+    every word of its directory name and asks nothing else; None otherwise."""
+    if not asks_club_events(message):
+        return None
+    for club in find_clubs(directory, message)[:1]:
+        rest = re.sub(re.escape(str(club["name"]).casefold()), " ", message.casefold())
+        if (not re.search(r"\b(?:and|also|plus|or|where|how|why|who)\b", rest)
+                and discovery_tokens(message) - discovery_tokens(str(club["name"]))
+                <= _CLUB_FILLER):
+            return club
+    return None
+
+
+def club_events_text(club: dict[str, Any], lines: Sequence[dict[str, Any]]) -> str:
+    """Code's answer to what a club hosts next: the calendar's upcoming events it hosts, each with
+    its date and time, title and place as published [its number]."""
+    listed = [f"- {line['when']}: {literal(line['event'])}"
+              + (f", at {literal(place)}" if (place := " ".join(
+                  str(line.get("location") or "").split())) and place != "-" else "")
+              + f" [{line['n']}]" for line in lines]
+    return "\n\n".join([f"The calendar's next events hosted by {literal(club['name'])} "
+                          f"[{club['n']}]:", "\n".join(listed)])
 MAX_OUTSIDE = 3
 
 

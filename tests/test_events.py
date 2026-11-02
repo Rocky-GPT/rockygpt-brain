@@ -13,6 +13,7 @@ from rockygpt_brain.events import (
     asks_clubs,
     asks_events,
     club_category,
+    club_meets,
     clubs_by_meaning,
     events_in,
     find_clubs,
@@ -109,11 +110,11 @@ def test_a_club_is_named_by_every_word_of_its_directory_name() -> None:
     assert find_clubs(clubs, "is there a knitting club") == []
 
 
-def calendar() -> MemoryEntityFacts:
+def calendar(organizer: str = "CPB") -> MemoryEntityFacts:
     row = {"id": "row-v", "source_key": "archway-events",
            "source_record_key": "Fri, Oct 23, 2026:Trivia Night", "title": "Trivia Night",
            "date_label": "Fri, Oct 23, 2026", "starts_at": "2026-10-23T20:00:00-04:00",
-           "start_time": "8 PM", "end_time": "10 PM", "organizer": "CPB",
+           "start_time": "8 PM", "end_time": "10 PM", "organizer": organizer,
            "event_url": "https://archway.ramapo.edu/rsvp_boot?id=1", "collected_at": WEDNESDAY,
            "freshness_sla_hours": 36,
            "listing": {"location": "Student Center (SC)", "tags": ["Social"],
@@ -349,3 +350,29 @@ def test_a_window_question_is_answered_by_code_with_no_model_call() -> None:
         "[2](https://archway.ramapo.edu/rsvp_boot?id=1)")
     assert gateway.inputs == []
     assert result.trace is not None and result.trace["decidedBy"] == "code"
+
+
+def test_a_question_only_about_what_a_named_club_hosts_next_is_the_clubs() -> None:
+    directory = [{"name": "Chess Club"}, {"name": "Math Club"}]
+    for asked in ("When does the Chess Club meet?",
+                  "What events does the Chess Club have coming up?"):
+        assert club_meets(asked, directory) == {"name": "Chess Club"}, asked
+    for more in ("Where does the Chess Club meet?", "Is there a chess club?",
+                 "When does the Chess Club meet and how do I join?",
+                 "When does the chess team meet?"):
+        assert club_meets(more, directory) is None, more  # A place, existence, more, no name.
+
+
+def test_what_a_club_hosts_next_is_answered_by_code_from_the_calendar() -> None:
+    gateway = ScriptedGateway()  # Any model call would fail: none is scripted.
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "When does the Chess Club meet?"}]})
+    engine = ChatEngine(gateway, calendar(organizer="Chess Club"), output="written")
+    result = asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
+    assert result.body["answer"] == (
+        "The calendar's next events hosted by Chess Club [1]:\n\n"
+        "- Fri, Oct 23, 2026 8 PM to 10 PM: Trivia Night, at Student Center (SC) [2]"
+        "\n\nSources: [1](https://archway.ramapo.edu/chess/) "
+        "[2](https://archway.ramapo.edu/rsvp_boot?id=1)")
+    assert gateway.inputs == [] and result.trace is not None
+    assert result.trace["decidedBy"] == "code"

@@ -18,7 +18,12 @@ from datetime import date
 from typing import Any
 
 from rockygpt_brain.academics import asks_academics
-from rockygpt_brain.events import asks_clubs, asks_events, plain_window
+from rockygpt_brain.events import (
+    asks_club_events,
+    asks_clubs,
+    asks_events,
+    plain_window,
+)
 from rockygpt_brain.people import asks_leadership, asks_people
 from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 from rockygpt_brain.writer import cited
@@ -181,6 +186,9 @@ def code_kind(question: str, named_people: Sequence[Any],
         return "events"
     if _MORE.search(text):
         return None
+    # What a club hosts next: code checks the name it gives against the directory.
+    if asks_clubs(text) and asks_club_events(text):
+        return "club"
     if asks_leadership(text) and _WHO.search(text):
         return "leaders"
     if len(named_people) == 1 and _PERSON_ASK.search(text) and _PERSON_FIELD.search(text):
