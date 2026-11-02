@@ -229,3 +229,12 @@ def test_every_production_chat_turn_logs_its_steps_by_name(
         {"label": "Settle model usage", "durationUs": 600_000}]}
     assert app_module.timing_summary(report) == (
         "total_ms=9000 Write the answer from the evidence=8000 | Settle model usage=1000")
+
+
+def test_service_token_reads_the_new_name_first_then_the_old_one() -> None:
+    from rockygpt_brain.api.app import service_token_from_env
+
+    both = {"SERVICE_TOKEN": " new ", "STAGING_SERVICE_TOKEN": "old"}
+    assert service_token_from_env(both) == "new"
+    assert service_token_from_env({"STAGING_SERVICE_TOKEN": "old"}) == "old"
+    assert service_token_from_env({"SERVICE_TOKEN": " ", "STAGING_SERVICE_TOKEN": ""}) is None
