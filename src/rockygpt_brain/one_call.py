@@ -21,6 +21,7 @@ from rockygpt_brain.academics import asks_academics
 from rockygpt_brain.events import asks_clubs, asks_events
 from rockygpt_brain.people import asks_people
 from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
+from rockygpt_brain.writer import cited
 
 PER_PART = 10  # Each part's own best units: a "how do I apply" part keeps its application section.
 PER_PAGE = 2  # At most this many from one page, so its near-copies don't crowd out the next page.
@@ -39,8 +40,9 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   page words in quotes are the page's own). Never add, compute or guess anything the JSON does not
   say.
 - When sections disagree about the same date, amount or rule for the same people, place and term,
-  give each with its section number and say the pages differ; never pick one silently. Different
-  values for different groups, places or terms are not a disagreement: say which applies to whom.
+  give each with its mark, naming its page by office or title, and say the pages differ; never
+  pick one silently. Different values for different groups, places or terms are not a
+  disagreement: say which applies to whom.
 - Name the office before its steps and contacts. Give contacts only of offices whose sections you
   used, or the right office when no section answers.
 - Answer every part of the question. Before saying a part is not covered, check every section
@@ -85,8 +87,9 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   If the named person is not among them, say the directory lists no one by that name. Never guess
   a person, email or room.
 - Write a phone number as (XXX) XXX-XXXX with its own digits.
-- Cite each statement with its section number like [3]. Short plain sentences; numbered steps are
-  fine. Under 1,600 characters. No greeting.
+- Cite each statement with its section number like [3]. Numbers are only marks: never write
+  "section 4" in the text. Short plain sentences; numbered steps are fine. Under 1,600
+  characters. No greeting.
 Work in this order: list each part the student asked (parts.asked); for each, whether it asks for
 something no college page holds: the student's own records or status, something live right now,
 or an opinion (parts.not_on_pages), and the numbers of every section that answers it, read in full
@@ -126,9 +129,22 @@ _HOWTO = re.compile(
     r"transfer|declare|change|replace|lost|report|reserve|book|get|need|happens)\b")
 
 
+# "What is the Birch Tree Inn?", "what does OSS do?": what a place or an office is, which only its
+# own pages say. The services and contact lookups read hours, menus and contacts, never that (11-02:
+# "The name is Birch Tree Inn."), so it is read here unless the question also asks one of those.
+_WHAT_IS = re.compile(r"^\W*(?:what(?:'s|’s| is| are)\b|what does\b.+\bdo\b|tell me about\b)")
+_A_DETAIL = re.compile(
+    r"\b(menus?|eat|food|lunch|dinner|breakfast|brunch|vegan|vegetarian|allerg\w*|gluten|"
+    r"serve[sd]?|serving|shuttle|bus|buses|train|route|stop|hours|open|opens|close|closes|"
+    r"closing|closed|time|email|e-mail|phone|number|call|fax|where|located|location|room|"
+    r"address|today|tonight|tomorrow|now)\b")
+
+
 def routes_here(message: str) -> bool:
-    """Whether a message is a how-to or policy question for the one-call path."""
+    """Whether a message is a how-to, policy or what-is question for the one-call path."""
     text = message.casefold()
+    if _WHAT_IS.search(text) and not _A_DETAIL.search(text):
+        return True
     if _SERVICES.search(text) and not _MEAL_PLAN.search(text) and not asks_academics(text) \
             and not asks_events(text) and not asks_clubs(text) and not asks_people(text):
         return False
@@ -419,22 +435,23 @@ def without_unsupported(text: str, check: Any) -> tuple[str, list[str]] | None:
     left = re.sub(r"\n{3,}", "\n\n", "".join(kept)).strip()
     if (not dropped or len(dropped) > MAX_DROPPED
             or sum(map(len, dropped)) > MAX_DROPPED_SHARE * len(text)
-            or not re.search(r"\[\d+\]", left) or check(left)):
+            or not cited(left) or check(left)):
         return None
     return left, dropped
 
 
 def reply(arguments: dict[str, Any], sources: list[dict[str, Any]],
           ) -> tuple[str, list[dict[str, Any]]]:
-    """The reply with the sources it cited (its [n] marks), and those as citations."""
+    """The reply with the sources it cited (its [n] marks, grouped ones too), and those as
+    citations."""
     text = re.sub(r"\s*\[(?!\d)[A-Za-z][\w ,.&'-]*\](?!\()", "",
                   str(arguments.get("text") or "")).strip()
-    used = sorted({int(n) for n in re.findall(r"\[(\d+)\]", text) if 1 <= int(n) <= len(sources)})
-    cited = [sources[n - 1] for n in used if sources[n - 1].get("url")]
-    if cited:
-        text += "\n\nSources: " + " ".join(f"[{s['n']}]({s['url']})" for s in cited)
+    used = sorted({n for n in cited(text) if 1 <= n <= len(sources)})
+    linked = [sources[n - 1] for n in used if sources[n - 1].get("url")]
+    if linked:
+        text += "\n\nSources: " + " ".join(f"[{s['n']}]({s['url']})" for s in linked)
     return text, [{"id": f"section-{s['n']}", "title": str(s.get("title") or ""),
-                   "url": s["url"]} for s in cited]
+                   "url": s["url"]} for s in linked]
 
 
 _MONTH_NAMES = ("january february march april may june july august september october november "
@@ -480,7 +497,7 @@ def dated_statements(offices: Sequence[dict[str, Any]], today: date, question: s
                                                                          said.casefold())):
                     continue
                 seen.add(said.casefold())
-                facts.append({"fact": f'Section [{section["n"]}] says "{said}": '
+                facts.append({"fact": f'A page says "{said}" [{section["n"]}]: '
                                       f"{when:%B} {when.day}, {when.year} "
                                       + ("has passed, so this is in effect now."
                                          if when <= today else

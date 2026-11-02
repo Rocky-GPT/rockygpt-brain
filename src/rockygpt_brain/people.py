@@ -261,6 +261,33 @@ def _school(value: Any) -> str:
     return re.sub(r"\s*\([^)]*\)\s*$", "", str(value or "")).strip()
 
 
+def _phrase(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", fold(text).casefold()))
+
+
+def schools_by_name(message: str, identities: Sequence[dict[str, Any]],
+                    schools: Sequence[str]) -> list[tuple[str, list[str]]]:
+    """The schools a question names by a whole name of two or more words that their identities
+    have, other names included, with the name used: "School of Social Science and Human
+    Services" was one school and is now another name of two (its site moved to SSSW; AHE took its
+    education programs), which word counts cannot tell from the School of Science."""
+    asked = f" {_phrase(message)} "
+    current = {s.casefold(): s for s in schools}
+    found: dict[str, list[str]] = {}
+    for identity in identities:
+        school = current.get(str(identity.get("name") or "").casefold())
+        if school is None:
+            continue
+        for name in [identity["name"], *(identity.get("aliases") or [])]:
+            words = _phrase(str(name))
+            if len(words.split()) >= 2 and f" {words} " in asked:
+                found.setdefault(str(name), []).append(school)
+    # A name inside a longer one named ("School of Business" in "Anisfield School of Business").
+    return [(name, of) for name, of in found.items()
+            if not any(f" {_phrase(name)} " in f" {_phrase(other)} " and other != name
+                       for other in found)]
+
+
 def school_asked(message: str, schools: dict[str, frozenset[str]]) -> str | None:
     """The school a question names by its words ("the business school", "SNH"), the one with
     the most of them; None when it names none."""
@@ -401,16 +428,20 @@ def _dean_of_school(title: str) -> tuple[bool, bool] | None:
 
 
 def leaders(directory: Sequence[dict[str, Any]], message: str,
-            schools: dict[str, frozenset[str]]) -> list[tuple[str, dict[str, Any] | None]]:
+            schools: dict[str, frozenset[str]], identities: Sequence[dict[str, Any]] = (),
+            ) -> list[tuple[str, dict[str, Any] | None]]:
     """Who leads what a leadership question asks about, by directory titles: each school's
-    dean (the school named, else every school), a permanent Dean before an Interim one for the
-    same school; for a field ("chair of nursing"), every title naming the field with a
-    leadership word, else that no title does and the dean of the school its faculty belong to.
-    Lines with the directory entry they are about."""
+    dean (the school named, by a whole name its identity has or else by its words, else every
+    school), a permanent Dean before an Interim one for the same school; for a field ("chair of
+    nursing"), every title naming the field with a leadership word, else that no title does and
+    the dean of the school its faculty belong to. Lines with the directory entry they are
+    about."""
     lines: list[tuple[str, dict[str, Any] | None]] = []
+    named = schools_by_name(message, identities, list(schools))
     fields = fields_asked(message, directory) - {w for t in schools.values() for w in t
-                                                 if len(w) <= 4}
-    school = school_asked(message, schools)
+                                                 if len(w) <= 4} - {
+        w for name, _ in named for w in name_tokens(name)}
+    school = None if named else school_asked(message, schools)
 
     def deans(of: str) -> list[tuple[str, dict[str, Any] | None]]:
         found = [(e, kind) for e in directory if _school(e.get("school")) == of
@@ -435,7 +466,18 @@ def leaders(directory: Sequence[dict[str, Any]], message: str,
              f"{e['title']}).", e) for e in lead]
         return heads + out
     dean_asked = bool(re.search(r"\bdeans?\b", fold(message).casefold()))
-    if school and dean_asked:
+    if named and dean_asked:
+        for name, named_schools in named:
+            # The name the question used is said to be another name of the school(s) it stands
+            # for, so a page under that name is read as about them.
+            if name.casefold() not in {s.casefold() for s in named_schools}:
+                lines.append((f'"{name}" is another name the college\'s records give '
+                              + (f"the {named_schools[0]}." if len(named_schools) == 1 else
+                                 f"{len(named_schools)} schools: "
+                                 + " and ".join(f"the {s}" for s in named_schools) + "."), None))
+            for each in named_schools:
+                lines.extend(deans(each))
+    elif school and dean_asked:
         lines.extend(deans(school))
     listed = {id(entry) for _, entry in lines if entry is not None}
 
@@ -455,7 +497,7 @@ def leaders(directory: Sequence[dict[str, Any]], message: str,
         for entry in leading:
             lines.append((f"{_name(entry)}'s directory title names {field} with a leadership "
                           f"role: {entry['title']}.", entry))
-        if not leading and not (school and dean_asked):
+        if not leading and not ((school or named) and dean_asked):
             lines.append((f"No directory title names a chair, head, convener, director or "
                           f"dean for {field}.", None))
             home = Counter(_school(e.get("school")) for e in titled if e.get("school"))

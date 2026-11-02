@@ -60,6 +60,9 @@ NAMED_KINDS = ("office", "venue")
 FACT_KINDS = (*NAMED_KINDS, "topic")
 # An Archway group (a residence hall desk, a center) or a campus facility that a reviewed
 # directory contact belongs to is read like an office: it has the same contact and hours records.
+# So is a facility whose only records are its published hours (the gym, the pool, the weight room):
+# on 11-02 every "Bradley Center gym hours" question was answered "not published" while the
+# Athletics site's hours for them sat in the release unread.
 DESK_KINDS = ("club", "organization", "facility")
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 MAX_EVIDENCE_BYTES = 128_000
@@ -675,7 +678,9 @@ def validate_entities(entities: Any) -> list[dict[str, Any]]:
         raise EvidenceUnavailable(f"Invalid record identity link: {'; '.join(oversized[:6])}.")
     for entity in entities:
         if entity["kind"] in DESK_KINDS and any(
-                link.get("collection") == "contacts" and link.get("source_record_keys")
+                link.get("source_record_keys") and (
+                    link.get("collection") == "contacts"
+                    or (entity["kind"] == "facility" and link.get("collection") == "campus_hours"))
                 for link in entity["links"]):
             entity["desk_kind"], entity["kind"] = entity["kind"], "office"
     return entities

@@ -2015,7 +2015,8 @@ class ChatEngine:
             computed = people_module.computed_answers(people, message, directory)
         if people_module.asks_leadership(message):
             given = {p.get("profile_url") or p.get("name") for p in people}
-            for line, entry in people_module.leaders(directory, message, schools):
+            for line, entry in people_module.leaders(directory, message, schools,
+                                                     self.facts.identities(("school",))):
                 n = None
                 if entry is not None:
                     key = entry.get("profile_url") or entry.get("name")

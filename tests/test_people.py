@@ -195,6 +195,37 @@ def test_deans_and_chairs_come_from_directory_titles() -> None:
     assert not asks_leadership("dean of students office hours")
 
 
+def test_a_school_named_by_another_name_its_identity_has_gets_its_deans() -> None:
+    # 11-02: "School of Social Science and Human Services" matched no school by its words (a tie
+    # of "social" and "science"), so every dean was listed and an old page's dean was named.
+    directory = [*DIRECTORY, {"id": "kg", "name": "Ken Goldstein",
+                              "title": "Dean of Arts, Humanities, and Education",
+                              "school": "School of Arts, Humanities, and Education", "n": 0}]
+    schools = schools_of(directory, OFFICES)
+    identities = [
+        {"name": "School of Social Sciences and Social Work",
+         "aliases": ["SSSW", "School of Social Science and Human Services"]},
+        {"name": "School of Arts, Humanities, and Education",
+         "aliases": ["AHE", "School of Social Science and Human Services"]},
+        {"name": "School of Science, Nursing, and Health", "aliases": ["SNH"]}]
+    lines = [line for line, _ in leaders(
+        directory, "Who is the dean of the School of Social Science and Human Services?",
+        schools, identities)]
+    assert lines[0] == ('"School of Social Science and Human Services" is another name the '
+                        "college's records give 2 schools: the School of Social Sciences and "
+                        "Social Work and the School of Arts, Humanities, and Education.")
+    assert lines[1].startswith("The dean of the School of Social Sciences and Social Work, by "
+                               "the directory, is Susan Hangen")
+    assert any(line.startswith("The dean of the School of Arts, Humanities, and Education, by "
+                               "the directory, is Ken Goldstein") for line in lines)
+    assert not any("Benny Chan" in line for line in lines)
+    # A school's own name is no other name.
+    named = [line for line, _ in leaders(
+        directory, "who is the dean of the school of science, nursing, and health", schools,
+        identities)]
+    assert named[0].startswith("The dean of the School of Science, Nursing, and Health")
+
+
 def test_ordinary_words_are_not_misspelt_names_and_two_people_can_be_named() -> None:
     names = [{"id": "ll", "name": "Lisa Lutter"}, {"id": "rm", "name": "Robert Mentore"},
              {"id": "mj", "name": "Matthew Jobrack"}, {"id": "cc", "name": "Christina Chung"},

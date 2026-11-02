@@ -55,6 +55,12 @@ def test_a_how_to_is_routed_here_and_menus_shuttles_and_plain_contacts_are_not()
     assert not routes_here("when is the next shuttle to the train station")
     assert not routes_here("registrar email")
     assert not routes_here("library hours")
+    # What a place or office is, only its own pages say (11-02: "The name is Birch Tree Inn.").
+    assert routes_here("What is the Birch Tree Inn?")
+    assert routes_here("what does the office of specialized services do")
+    assert not routes_here("What is the Birch Tree Inn serving for dinner?")
+    assert not routes_here("What is the phone number for Public Safety?")
+    assert not routes_here("What's on the menu for lunch today?")
     # A question's parts are searched apart, and a short follow-up with the question before it.
     assert parts_of("how do I apply for summer housing? and what does it cost") == [
         "how do I apply for summer housing? and what does it cost",
@@ -230,15 +236,36 @@ def test_a_dated_change_on_a_page_is_judged_against_today() -> None:
     today = date(2026, 10, 25)
     facts = [f["fact"] for f in dated_statements(offices, today, "who is the sssw dean",
                                                  ["Susan Hangen"])]
-    assert facts == ['Section [3] says "Effective July 1, 2026 – Dean Susan Hangen": July 1, '
+    assert facts == ['A page says "Effective July 1, 2026 – Dean Susan Hangen" [3]: July 1, '
                      '2026 has passed, so this is in effect now.']
     facts = [f["fact"] for f in dated_statements(offices, today,
                                                  "is the chess club active? parking forms")]
     assert facts == [
-        'Section [4] says "Chess Club is not currently active as of 6/12/25": June 12, 2025 has '
+        'A page says "Chess Club is not currently active as of 6/12/25" [4]: June 12, 2025 has '
         'passed, so this is in effect now.',
-        'Section [5] says "Starting January 5, 2027 parking forms move online": January 5, 2027 '
+        'A page says "Starting January 5, 2027 parking forms move online" [5]: January 5, 2027 '
         'is still to come, so this is not in effect yet.']
+
+
+def test_grouped_marks_cite_every_source_they_name() -> None:
+    from rockygpt_brain.one_call import reply, without_unsupported
+    from rockygpt_brain.writer import cited, unsupported_by
+    # 11-02: "[4,7]" was read as citing nothing, so the parking reply showed 2 of its 6 pages.
+    sources = [{"n": n, "url": f"https://www.ramapo.edu/p{n}/", "title": f"Page {n}"}
+               for n in range(1, 7)]
+    text, citations = reply({"text": "Apply online. [3,6] Pick it up at C-102. [1, 4] "
+                                     "The fee is on the term bill. [4–5]"}, sources)
+    assert [c["id"] for c in citations] == [f"section-{n}" for n in (1, 3, 4, 5, 6)]
+    assert text.endswith("Sources: " + " ".join(f"[{n}](https://www.ramapo.edu/p{n}/)"
+                                                 for n in (1, 3, 4, 5, 6)))
+    assert cited("[2] then [2, 3] then [7-9]") == [2, 3, 7, 8, 9]
+    # A reply whose only marks are grouped still has cited statements left after a drop.
+    kept = without_unsupported("Apply online through the parking portal and choose your status. "
+                               "[3, 6] Call 555-0100. [1]", lambda said: "555" in said)
+    assert kept == ("Apply online through the parking portal and choose your status. [3, 6]",
+                    ["Call 555-0100. [1]"])
+    view = {"facts": "Apply online.", "sources": [{"n": 3}, {"n": 6}]}
+    assert unsupported_by("Apply online. [3, 6]", view) == []
 
 
 def test_a_reply_naming_a_course_the_facts_do_not_hold_is_not_sent() -> None:
