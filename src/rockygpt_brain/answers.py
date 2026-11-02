@@ -451,8 +451,9 @@ def phone_lines(facts: dict[str, Any]) -> Rendered:
                 text = literal(us_phone(str(phone.get("number") or phone.get("text"))))
                 if phone.get("extension") is not None:
                     text += " extension " + literal(phone["extension"])
-                if phone.get("label"):
-                    text += " (" + literal(phone["label"]) + ")"
+                for name in ("type", "label"):
+                    if phone.get(name):
+                        text += " (" + literal(phone[name]) + ")"
                 said.append(text)
     said = list(dict.fromkeys(said))
     if not said or not citations:

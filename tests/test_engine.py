@@ -2020,3 +2020,24 @@ def test_one_offices_two_lines_under_one_name_are_both_given_not_asked_about() -
         "kind": "ambiguous", "truncated": False,
         "candidates": [{"name": "Student Accounts"}, {"name": "Student Conduct"}]})
     assert office_family(asked) == []
+
+
+def test_emergency_numbers_keep_the_name_of_each_extra_line() -> None:
+    # 11-02: the fire reply listed "(201) 684-6666; (201) 684-7789; (201) 684-7011" with no
+    # names, so the director's desk and the TDD line read like more emergency numbers.
+    service = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "ps", "name": "Public Safety (Emergency)", "kind": "office",
+                   "aliases": [], "links": [{"collection": "contacts", "source_key": "directory",
+                                             "source_record_keys": ["ps"]}]}],
+        contacts=[{"id": "source-ps", "source_key": "directory", "source_record_key": "ps",
+                   "name": "Public Safety (Emergency)", "email": "ps@example.edu",
+                   "phones": [{"number": "201-555-6666"},
+                              {"type": "Director of Public Safety", "number": "201-555-7789"}],
+                   "canonical_url": "https://example.edu/ps", "collected_at": NOW,
+                   "freshness_sla_hours": 24}],
+        now=lambda: NOW)
+    result = answer(ScriptedGateway(finish("safety", situation="fire")), service=service,
+                    messages=[{"role": "user", "content": "there's a fire in my dorm"}])
+    text = result.body["answer"]
+    assert "\\(201\\) 555-6666; \\(201\\) 555-7789 (Director of Public Safety)." in text
