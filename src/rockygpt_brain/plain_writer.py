@@ -51,12 +51,19 @@ MENU_ITEMS = 4
 # An office's phone lines said, its own first as published, then "and N more on its page" (the
 # Registrar lists eight, six of them staff members').
 PHONE_LINES = 4
+# A building's places are named up to this many, then "and N more" (the Student Center has 15).
+PLACES_SAID = 8
+# A building's own facts (11-03): where the campus map shows it, its room numbers, its places.
+_BUILDING_KEYS = ("map", "room_prefixes", "places_in")
 # The menu marks no item a topping or a condiment, so an item under this many calories (onions,
 # lettuce, pickle chips, ginger) is left out, unless the student named that food.
 TOPPING_CALORIES = 50
 # A location published as a phrase ("Near the campus South Gate entrance") is said as one.
 _PLACE_WORDS = frozenset({"near", "at", "in", "on", "behind", "next", "across", "inside",
                           "outside", "off", "beside", "between", "above", "below"})
+# A room given as a floor ("First floor", "2nd Floor"): it is on that floor, not in it.
+_FLOOR = re.compile(r"(?:first|second|third|fourth|fifth|ground|main|lower|upper|top|"
+                    r"\d+(?:st|nd|rd|th))\s+(?:floor|level)\b", re.IGNORECASE)
 
 
 def literal(value: Any) -> str:
@@ -149,6 +156,15 @@ class _Reply:
         asked = view.get("asked") if isinstance(view.get("asked"), dict) else {}
         as_of = asked.get("asOf") if isinstance(asked, dict) else None
         self.year = as_of[:4] if isinstance(as_of, str) and as_of[:4].isdigit() else None
+        fields = asked.get("fields") if isinstance(asked, dict) else None
+        self.fields = {str(f) for f in fields} if isinstance(fields, list) else set()
+        # Whose hours the view holds: a building's hours are said by its places' own.
+        self.with_hours = {str(entry.get("subject")) for kind in ("derived_facts", "facts")
+                           for entry in view.get(kind) or [] if isinstance(entry, dict)
+                           and entry.get("predicate") in ("hours", "hours_on")}
+        # The buildings the view says (an office of the same name is the building's office).
+        self.buildings = {literal(entry.get("subject")) for entry in view.get("facts") or []
+                          if isinstance(entry, dict) and entry.get("predicate") in _BUILDING_KEYS}
 
     def say(self, subject: str, sentence: str, sources: list[int]) -> None:
         said = self.subjects.setdefault(subject, {})
@@ -701,12 +717,11 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
                   sources)
     elif key == "offices":
         plain, labelled = _rooms(value)
+        # An office named like its building (a residence hall's): the room is its office's, and
+        # the building is where the campus map shows it (11-03: "Pine Hall is in First floor").
+        owner = f"{subject}'s office" if subject in reply.buildings else subject
         if plain:
-            where = "; ".join(plain)
-            first = where.split(" ", 1)[0].casefold()
-            phrase = first in _PLACE_WORDS
-            reply.say(subject, (f"{subject} is {where[0].lower()}{where[1:]}." if phrase
-                                else f"{subject} is in {where}."), sources)
+            reply.say(subject, f"{owner} {_located('; '.join(plain))}.", sources)
         if labelled and plain:
             reply.say(subject, "; ".join(f"{label}: {room}" for label, room in labelled) + ".",
                       sources)
@@ -714,13 +729,13 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
             # Rooms that are all labelled still say whose they are (11-03: "Main Office: C-209;
             # ASB Office: ASB-513." never named the Career Center).
             where = "; ".join(f"{room} ({label})" for label, room in labelled)
-            phrase = where.split(" ", 1)[0].casefold() in _PLACE_WORDS
-            reply.say(subject, (f"{subject} is {where[0].lower()}{where[1:]}." if phrase
-                                else f"{subject} is in {where}."), sources)
+            reply.say(subject, f"{owner} {_located(where)}.", sources)
     elif key == "website":
         if not isinstance(value, str) or citation_url(value) is None:
             raise CannotSay
         reply.say(subject, f"{subject} website: {value}.", sources)
+    elif key in _BUILDING_KEYS:
+        _building(reply, subject, key, value, sources)
     elif key in ("contact_note", "department", "name", "preferred_contact"):
         if not isinstance(value, str):
             raise CannotSay
@@ -753,6 +768,50 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
             reply.say(subject, sentence, sources)
     else:
         raise CannotSay
+
+
+def _located(where: str) -> str:
+    """Where a room is, as a sentence's end: "is in C-209", a place phrase as written ("is
+    near the Atrium"), or a floor ("is on the first floor")."""
+    lowered = f"{where[0].lower()}{where[1:]}"
+    if where.split(" ", 1)[0].casefold() in _PLACE_WORDS:
+        return f"is {lowered}"
+    if _FLOOR.match(where):
+        return f"is on the {lowered}"
+    return f"is in {where}"
+
+
+def _building(reply: _Reply, subject: str, key: str, value: Any, sources: list[int]) -> None:
+    """A building's facts (11-03): where the campus map shows it, the room numbers that are in
+    it, and its places. A building publishes no hours: asked them, it says so, and its places'
+    own hours are said after it."""
+    where = "hours" not in reply.fields or "offices" in reply.fields
+    if key == "map":
+        if not isinstance(value, str) or citation_url(value) is None:
+            raise CannotSay
+        if where:
+            reply.say(subject, f"{subject} is on the campus map: {value}.", sources)
+    elif key == "room_prefixes":
+        if not isinstance(value, list) or not value or not all(isinstance(p, str) for p in value):
+            raise CannotSay
+        said = [literal(p) for p in value]
+        prefixes = said[0] if len(said) == 1 else f"{', '.join(said[:-1])} or {said[-1]}"
+        if where:
+            reply.say(subject, f"Room numbers in {subject} start with {prefixes}.", sources)
+    else:
+        if not isinstance(value, list) or not value or not all(
+                isinstance(p, dict) and isinstance(p.get("name"), str) for p in value):
+            raise CannotSay
+        names = [str(p["name"]) for p in value]
+        if "hours" in reply.fields:
+            reply.say(subject, (f"I don't have hours for {subject} as a whole, but places in it "
+                                "list their own." if reply.with_hours & set(names)
+                                else f"I don't have hours for {subject}."), sources)
+        if where:
+            shown = [literal(n) for n in names[:PLACES_SAID]]
+            if len(names) > PLACES_SAID:
+                shown.append(f"{_count(len(names) - PLACES_SAID)} more")
+            reply.say(subject, f"Places in {subject} include {_and(shown)}.", sources)
 
 
 def _old_page(value: dict[str, Any]) -> str:
@@ -950,6 +1009,11 @@ def plain_text(view: dict[str, Any]) -> str | None:
         menus = {f.get("subject") for f in facts if isinstance(f, dict)
                  and f.get("predicate") == "menu"}
         facts = _conflicts(reply, facts)
+        # A building is said before the places in it whose hours follow.
+        _facts(reply, [f for f in facts if isinstance(f, dict)
+                       and f.get("predicate") in _BUILDING_KEYS], also=False)
+        facts = [f for f in facts if not isinstance(f, dict)
+                 or f.get("predicate") not in _BUILDING_KEYS]
         for entry in _day_conflicts(reply, view.get("derived_facts") or [], menus):
             if not isinstance(entry, dict) or entry.get("predicate") != "hours_on":
                 raise CannotSay

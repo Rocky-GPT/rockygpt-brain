@@ -103,6 +103,12 @@ def _value_text(key: str, value: Any) -> str:
         more = "…" if len(value["text"]) > PROCEDURE_TEXT_CHARS or value.get("text_cut") else ""
         return (f"{literal(value.get('heading', ''))}: {literal(start)}{more} "
                 f"(see {literal(value.get('page', ''))})")
+    if key == "places_in" and isinstance(value, list):
+        # A building's places, by their published names.
+        return "; ".join(literal(place["name"]) if isinstance(place, dict) and "name" in place
+                         else literal(place) for place in value)
+    if key == "room_prefixes" and isinstance(value, list):
+        return ", ".join(literal(prefix) for prefix in value)
     if isinstance(value, bool):
         return "Yes" if value else "No"
     return literal(value)
