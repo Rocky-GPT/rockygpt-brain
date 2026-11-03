@@ -18,6 +18,8 @@ from rockygpt_brain.people import (
     only_who,
     person_text,
     schools_of,
+    stand_in_fact,
+    stand_ins,
     teachers,
 )
 from rockygpt_brain.retrieval.entity_facts import MemoryEntityFacts
@@ -336,3 +338,24 @@ def test_a_persons_directory_contacts_are_said_by_code() -> None:
     assert contact_text(petkus) == (
         "Email: epetkus@ramapo.edu. Phone: (201) 684-7377. Office: ASB-333. [2]")
     assert contact_text({"n": 3, "name": "No Contacts"}) is None
+
+
+def test_a_letter_standing_in_for_a_name_names_no_one() -> None:
+    # 11-03 repeat test: "who's better for cs, professor A or professor B?" was answered every
+    # time with two real computer science professors found by meaning, as if they were A and B.
+    assert stand_ins("who's better for cs, professor A or professor B? be fr") == [
+        "professor A", "professor B"]
+    assert stand_ins("prof x or prof y for calc") == ["prof x", "prof y"]
+    assert stand_ins("Professor X's class") == ["Professor X"]
+    # "a" and "I" are words, and an initial before a name is part of the name.
+    assert stand_ins("professor a or professor b") == ["professor b"]
+    assert stand_ins("is there a professor a student can see") == []
+    assert stand_ins("Is Dr. J. Smith in today?") == []
+    assert stand_ins("Professor Brisson email") == []
+    assert find_people(PEOPLE, "professor A or professor B") == []
+    assert stand_in_fact(["Professor A", "Professor B"]) == (
+        "The question names no one: Professor A and Professor B are letters standing in for "
+        "names, so no person in the directory may be said to be any of them.")
+    assert stand_in_fact(["Dr. X"]) == (
+        "The question names no one: Dr. X is a letter standing in for a name, so no person in "
+        "the directory may be said to be that person.")

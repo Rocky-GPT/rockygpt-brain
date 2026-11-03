@@ -64,6 +64,29 @@ def asks_people_topic(message: str) -> bool:
     return asks_people(message) and bool(_TOPIC_ASK.search(message.casefold()))
 
 
+# A title before one letter that stands in for a name ("Professor A or Professor B", "prof x"):
+# the student named no one, so no one in the directory is that person. 11-03 repeat test: "who's
+# better for cs, professor A or professor B?" was answered every time with two real computer
+# science professors found by meaning, as if they were A and B. An initial before a name ("Dr. J.
+# Smith") is not one, and neither are "a" and "I" ("a professor a student can see").
+_STAND_IN = re.compile(r"\b(?i:professor|prof|dr|doctor|mr|mrs|ms|miss|dean)\.?\s+"
+                       r"(?:[A-HJ-Z]|[b-hj-z])\b(?!\.?\s*[A-Z][a-z])")
+
+
+def stand_ins(message: str) -> list[str]:
+    """The people a message names only by a letter standing in for a name, as written."""
+    return list(dict.fromkeys(" ".join(m.group(0).split()) for m in _STAND_IN.finditer(message)))
+
+
+def stand_in_fact(said: Sequence[str]) -> str:
+    """What code tells the writer of stand-in names: they name no one, and no one is them."""
+    one = len(said) == 1
+    names = said[0] if one else f"{', '.join(said[:-1])} and {said[-1]}"
+    return (f"The question names no one: {names} {'is a letter' if one else 'are letters'} "
+            f"standing in for {'a name' if one else 'names'}, so no person in the directory "
+            f"may be said to be {'that person' if one else 'any of them'}.")
+
+
 # Degrees after a directory name ("Joyce Shim, Ph.D., MIA, MSW") are not part of what a
 # student types.
 _CREDENTIALS = re.compile(r"(?:,\s*[A-Z][A-Za-z.]{0,7})+\s*$")
