@@ -18,7 +18,7 @@ from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from rockygpt_brain import academic_calendar, academics, catalog, events, one_call
+from rockygpt_brain import academic_calendar, academics, catalog, contacts, events, one_call
 from rockygpt_brain import people as people_module
 from rockygpt_brain.answers import (
     Rendered,
@@ -614,7 +614,9 @@ heading, the page and the start of the text). Pick the sections that directly an
 student wants, best first, at most six. Prefer a section that gives the steps or the rule asked
 over one that only mentions the topic or lists resources. A page about a past term or a previous
 deadline is not today's rule when a current one is offered; a section with past_term is for that
-term: pick it only when the student asks about that term or no current section answers. term
+term: pick it only when the student asks about that term or no current section answers. When
+two sections say the same thing differently, prefer the one whose page_updated (the day its page
+last changed) is later. term
 names the term or year a section is for: "this semester" or "next semester" is the one around
 today or the next one after it. When the student asks two things (how to do it and what happens
 if not), pick a section for each. A section about a different task that
@@ -691,7 +693,8 @@ def pick_messages(asked: list[tuple[str, str, dict[str, Any]]],
                 **({"other_office": True} if k >= first_other else {}), "sections": [
         {"n": n, "heading": v["value"].get("heading"), "page": v["value"].get("page"),
          "start": str(v["value"].get("match") or v["value"].get("text", ""))[:280],
-         **{key: v["value"][key] for key in ("applies_to", "handled_by", "term", "past_term")
+         **{key: v["value"][key] for key in ("applies_to", "handled_by", "term", "past_term",
+                                             "page_updated")
             if v["value"].get(key)}}
         for n, v in enumerate(prop["values"][:OTHER_SECTIONS if k >= first_other else None])]}
         for k, (about, office, prop) in enumerate(asked)]
@@ -1962,6 +1965,57 @@ class ChatEngine:
                 clubs, message, True, len([e for e in named if e["kind"] != "event"]))]
         return calendar, clubs, sources, computed, said
 
+    def _cited_offices(self, written: str, offices: Sequence[Mapping[str, Any]],
+                       ) -> list[dict[str, Any]]:
+        """The offices whose sections a reply cites, in the order it first cites them, at most
+        two."""
+        office_of = {section.get("n"): office.get("office") for office in offices
+                     for section in office.get("sections") or []}
+        marks = [int(n) for group in re.findall(r"\[([\d,\s–-]+)\]", written)
+                 for n in re.findall(r"\d+", group)]
+        names = list(dict.fromkeys(office_of[n] for n in marks if office_of.get(n)))
+        by_name = {str(o["name"]): o for o in self.facts.identities(("office",))}
+        return [dict(by_name[str(name)]) for name in names if str(name) in by_name][:2]
+
+    def _office_contacts(self, offices: Sequence[Mapping[str, Any]], numbered_from: int,
+                         ) -> tuple[str | None, list[dict[str, Any]], list[dict[str, Any]]]:
+        """The offices' published contacts (phones, email, room) in code's words, each office's
+        line citing the directory page its contacts are from; with the sources and the facts
+        said, for the check."""
+        dataset_version, identity_hash = self.facts.active_release()
+        lines: list[str] = []
+        sources: list[dict[str, Any]] = []
+        listed: list[dict[str, Any]] = []
+        for office in list(offices)[:contacts.MAX_OFFICES]:
+            found = self.facts.get_office_facts(str(office["id"]), ["email", "phones", "offices"],
+                                                dataset_version, identity_hash=identity_hash)
+            urls = {s["id"]: s.get("url") for s in found.get("sources") or []}
+            said: dict[str, list[Any]] = {}
+            cited: list[str] = []
+            for prop in found["properties"]:
+                if prop.get("status") != "known":
+                    continue
+                said[prop["key"]] = [v["value"] for v in prop.get("values") or []]
+                cited += [urls[i] for v in prop.get("values") or []
+                          for i in v.get("source_ids") or [] if urls.get(i)]
+            if not cited:
+                continue
+            url = cited[0]
+            n = next((s["n"] for s in sources if s["url"] == url),
+                     numbered_from + len(sources) + 1)
+            name = str((found.get("entity") or {}).get("name") or office.get("name"))
+            line = contacts.contact_text(name, said.get("email", []), said.get("phones", []),
+                                         said.get("offices", []), n)
+            if line is None:
+                continue
+            if not any(s["url"] == url for s in sources):
+                sources.append({"n": n, "url": url, "title": "Campus directory"})
+            lines.append(line)
+            listed.append({"office": name, **said})
+        if len(lines) > 1:
+            lines = [f"- {line}" for line in lines]
+        return ("\n".join(lines) if lines else None), sources, listed
+
     def _faculty_part(self, found: Sequence[dict[str, Any]], numbered_from: int,
                       conveners_only: bool = False,
                       ) -> tuple[str | None, list[dict[str, Any]], list[dict[str, Any]]]:
@@ -2378,6 +2432,21 @@ class ChatEngine:
                     if listed is not None and (done := self._code_answer(turn, trace, *listed[:3],
                                                                          **listed[3])):
                         return done
+                # How to reach offices the question names, and nothing more: each office's
+                # phones, email and room as the directory publishes them, said by code.
+                reached, reached_by = contacts.offices_named(
+                    self.facts.identities(("office",)), latest)
+                if (reached and len(reached) <= contacts.MAX_OFFICES and earlier is None
+                        and not named_people and not people_asked
+                        and not (programs and any(programs))
+                        and contacts.asks_contact_only(latest, reached_by)):
+                    with measure("Read the offices' contacts"):
+                        said, found_sources, reached_facts = await asyncio.to_thread(
+                            self._office_contacts, reached, 0)
+                    if done := self._code_answer(turn, trace, said, found_sources,
+                                                 self.facts.active_release()[0],
+                                                 offices=reached_facts):
+                        return done
                 # A program's faculty asked as a list, or who leads it, and nothing more: every
                 # person the catalog links to the program (or its conveners), said by code.
                 if (programs and programs[0] and not named_people and earlier is None
@@ -2664,7 +2733,8 @@ class ChatEngine:
                     completion = await self.gateway.complete(
                         input=one_call.messages(latest, earlier if question != latest else None,
                                                 offices, turn.campus_now.date(), academic,
-                                                calendar, clubs, people, computed, code_parts),
+                                                calendar, clubs, people, computed, code_parts,
+                                                contacts_by_code=contacts.asks_who(latest)),
                         tools=[one_call.ONE_CALL_TOOL], budget=budget)
         except GatewayError as error:
             return fallback(error.code)
@@ -2697,7 +2767,8 @@ class ChatEngine:
                                                     earlier if question != latest else None,
                                                     [*offices, *more], turn.campus_now.date(),
                                                     academic, calendar, clubs, people,
-                                                    computed, code_parts),
+                                                    computed, code_parts,
+                                                    contacts_by_code=contacts.asks_who(latest)),
                             tools=[one_call.ONE_CALL_TOOL], budget=budget)
                 second = again.tool_calls[0] if len(again.tool_calls) == 1 else None
                 if second is not None and second.name == "write_answer":
@@ -2710,7 +2781,23 @@ class ChatEngine:
                 LOG.warning("brain_one_call_second_look_failed error=%s",
                             getattr(error, "code", type(error).__name__))
         written = str(arguments.get("text") or "").strip()
-        text, citations = one_call.reply({"text": "\n\n".join([*code_parts, written])}, sources)
+        # Who to go to: the contacts of the offices the reply sends the student to, as the
+        # directory publishes them, written by code after the model's words.
+        after: list[str] = []
+        if contacts.asks_who(latest) and offices and written:
+            try:
+                said, found_sources, contact_facts = await asyncio.to_thread(
+                    self._office_contacts, self._cited_offices(written, offices), len(sources))
+            except (DatasetChanged, EvidenceUnavailable, InvalidFactRequest,
+                    UnknownEntity) as error:
+                LOG.warning("brain_office_contacts_failed error=%s", type(error).__name__)
+                said = None
+            if said:
+                sources = [*sources, *found_sources]
+                after.append(said)
+                code_view["contacts"] = contact_facts
+        text, citations = one_call.reply({"text": "\n\n".join([*code_parts, written, *after])},
+                                         sources)
         if not text:
             return fallback("no_text")
         view = {"today": turn.campus_now.date().isoformat(), "offices": offices,
@@ -2727,10 +2814,10 @@ class ChatEngine:
             # What code wrote stands alone when none of the model's words can be kept.
             trace["oneCallDropped"] = kept[1] if kept is not None else [written]
             text, citations = one_call.reply(
-                {"text": "\n\n".join([*code_parts, kept[0] if kept is not None else ""])
+                {"text": "\n\n".join([*code_parts, kept[0] if kept is not None else "", *after])
                  .strip()}, sources)
-        if code_parts:
-            trace["codeParts"] = len(code_parts)
+        if code_parts or after:
+            trace["codeParts"] = len(code_parts) + len(after)
         # The every-word check, report only: what it would cut, for measuring before it cuts.
         calendar_events = (calendar or {}).get("events") or []
         shared = " ".join([latest, *(o["office"] for o in offices),

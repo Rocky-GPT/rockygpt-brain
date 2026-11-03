@@ -373,7 +373,10 @@ def test_a_reply_that_says_call_911_also_gives_public_safetys_published_line() -
     text = result.body["answer"]
     assert result.trace is not None and result.trace["decidedBy"] == "one_call"
     body, sources = text.split("\n\nSources: ")
-    assert body.startswith("If the student is in danger right now, call 911. [2]\n\n" + HELP_TEXT)
+    # "Who do I contact?": the cited office's contacts come next, written by code, then the line.
+    assert body.startswith("If the student is in danger right now, call 911. [2]\n\n"
+                           "**Center for Reading and Writing**: ")
+    assert result.trace["codeParts"] == 1 and "\n\n" + HELP_TEXT in body
     assert "**Public Safety \\(Emergency\\)**: \\(201\\) 555-6666." in body
     assert "https://example.edu/publicsafety" in body and sources.startswith("[2](")
     assert "https://example.edu/publicsafety" in {c["url"] for c in result.body["citations"]}
