@@ -170,6 +170,11 @@ class _Reply:
             if isinstance(source, dict) and isinstance(source.get("n"), int)
             and isinstance(source.get("valid_from"), str)
             and isinstance(source.get("valid_until"), str)}
+        # When each source was read: a page section that may have changed since is said with it.
+        self.read_on: dict[int, str] = {
+            source["n"]: source["captured_at"] for source in view.get("sources") or []
+            if isinstance(source, dict) and isinstance(source.get("n"), int)
+            and isinstance(source.get("captured_at"), str)}
         asked = view.get("asked") if isinstance(view.get("asked"), dict) else {}
         as_of = asked.get("asOf") if isinstance(asked, dict) else None
         self.year = as_of[:4] if isinstance(as_of, str) and as_of[:4].isdigit() else None
@@ -783,7 +788,7 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
         raise CannotSay
     subject, key, value, sources = (literal(fact["subject"]), fact["predicate"], fact["value"],
                                     fact["sources"])
-    if fact.get("current") is False and key != "hours":
+    if fact.get("current") is False and key not in ("hours", "procedures"):
         raise CannotSay  # A value that may not be current is said with its dates by code's text.
     if key == "hours":
         if not isinstance(value, dict):
@@ -865,13 +870,17 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
         reply.sections_said.add(said)
         chars = reply.quotes[subject in reply.quoted]
         reply.quoted.add(subject)
+        page = f'{subject}\'s page "{literal(heading)}"' if heading else f"{subject}'s page"
+        # A page not read again since its freshness ran out (11-03: the clubs pages were last
+        # read September 26) is said with the day it was read, never as today's words.
+        read = f", as read on {_read_on(reply, sources)}," if fact.get("current") is False else ""
         if not chars:  # A long reply names the page; its words are on it.
-            reply.say(subject, (f'See {subject}\'s page "{literal(heading)}"' if heading
-                                else f"See {subject}'s page") + _old_page(value) + ".", sources)
+            reply.say(subject, f"See {page}" + (f" (read on {_read_on(reply, sources)})"
+                                                if read else "") + _old_page(value) + ".",
+                      sources)
             return
         excerpt, cut = _excerpt(said[1], chars)
-        reply.say(subject, (f'{subject}\'s page "{literal(heading)}" says: ' if heading
-                            else f"{subject}'s page says: ")
+        reply.say(subject, f"{page}{read} says: "
                   + f'"{literal(excerpt)}"' + (" (more on its page)" if cut
                                                 or value.get("text_cut") else "")
                   + _old_page(value),
@@ -948,6 +957,14 @@ def _building(reply: _Reply, subject: str, key: str, value: Any, sources: list[i
             if cut is not None and len(names) > cut:
                 shown.append(f"{_count(len(names) - cut)} more")
             reply.say(subject, f"Places in {subject} include {_and(shown)}.", sources)
+
+
+def _read_on(reply: _Reply, sources: list[int]) -> str:
+    """The day a fact's pages were read, the earliest of them, as a student reads a date."""
+    read = sorted(reply.read_on[n] for n in sources if n in reply.read_on)
+    if not read:
+        raise CannotSay  # Undated, it is left to code's evidence text, which says what it can.
+    return _when(read[0], year=reply.year is not None and read[0][:4] != reply.year)
 
 
 def _old_page(value: dict[str, Any]) -> str:
