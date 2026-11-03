@@ -195,7 +195,9 @@ model's rules (`RULES`: a club by its main purpose, a room booking has no kind) 
 are versioned together, so rewording either gives every card its kinds again. A
 question naming a kind ("any art events", "cultural clubs") lists every event or club of it and
 of the narrower kinds it includes (international includes study abroad, academic includes study
-help); a question naming a member of a kind ("painting") is still matched on the listings' words.
+help), in code's own words: a club directory entry named for its category ("Honor Societies")
+stands for every club listed under it, and a club a ramapo.edu page marks inactive says so in the
+list. A question naming a member of a kind ("painting") is still matched on the listings' words.
 An index built before kinds has none, and kind questions are then answered as before.
 `build_meaning_index.py --kinds-only` gives an index already built its kinds (a laptop's copy of
 production's, for testing).

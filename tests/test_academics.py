@@ -361,6 +361,11 @@ def test_a_course_is_named_by_an_everyday_form_of_its_title() -> None:
     # "gen ed" is not Genetics, the pronoun "I" is not Roman one, "for" is not Forensic.
     assert courses_by_title(titles, "do the bio labs count as natural science gen ed") == []
     assert courses_by_title(titles, "how do i apply for financial aid") == []
+    # A question's "is" is a verb, a title's "IS" Independent Study's code (11-03: "is there an
+    # honor society" named IS-HONORS).
+    studies = {"ih": "IS-HONORS", "id": "IS-DATA SCIENCE"}
+    assert courses_by_title(studies, "is there an honor society") == []
+    assert courses_by_title(studies, "is there a data science club") == []
 
 
 def test_programs_are_named_by_short_forms_each_with_its_own_level() -> None:
