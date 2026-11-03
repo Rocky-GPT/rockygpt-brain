@@ -15,6 +15,9 @@ Node ids:
     name:<kind>:<name>
                     the same, for the node of that kind with that exact name (a course's code
                     in a prerequisite list has no node id)
+    unlinked        every node with no link in or out, with the data build's note on why. It is
+                    a check, not part of the graph: no link reaches these nodes from the root,
+                    so the dev UI lists them here to keep their facts in view.
 """
 
 from collections import Counter, defaultdict
@@ -33,6 +36,7 @@ from rockygpt_brain.retrieval.entity_facts import (
 )
 
 ROOT = "ramapo"
+UNLINKED = "unlinked"
 # The chat lookup's own view of a node, which shows its published evidence (contacts, hours,
 # menus, a topic's offices, a route's trips). Only these kinds have one.
 EVIDENCE_VIEW = {"office": "office", "venue": "office", "topic": "topic", "route": "route"}
@@ -201,21 +205,49 @@ def browse(facts: EntityFacts, node_id: str, *, dataset_version: str | None = No
         by_id = {entity["id"]: entity for entity in entities}
         owners = _record_owners(entities)
         result: dict[str, Any] = {"dataset_version": version, "identity_hash": identity}
+        linked = _linked_ids(entities, by_id, owners)
         if node_id == ROOT:
-            return {**result, **_root(entities, by_id, owners)}
+            return {**result, **_root(entities, by_id, owners, linked)}
+        if node_id == UNLINKED:
+            return {**result, **_unlinked_list(entities, linked)}
         if node_id.startswith("kind:"):
             return {**result, **_kind(entities, node_id)}
         chosen = _chosen(entities, node_id)
         if chosen is None:
             raise InvalidFactRequest("This node is not in the release.")
-        return {**result, **_entity(snapshot, chosen, entities, by_id, owners, on, today)}
+        return {**result, **_entity(snapshot, chosen, entities, by_id, owners, on, today),
+                "unlinked": None if chosen["id"] in linked else _why_unlinked(chosen)}
+
+
+def _linked_ids(entities: list[dict[str, Any]], by_id: dict[str, dict[str, Any]],
+                owners: dict[tuple[str, str], list[str]]) -> set[str]:
+    """Every node with at least one link in or out to a node in the release. A link to a record
+    no node owns, or to a node that is missing, links nothing (same rule as the data build's
+    unlinked count)."""
+    linked: set[str] = set()
+    for entity in entities:
+        for relationship in _relationships(entity):
+            for target in _targets(relationship, owners)[0]:
+                if target in by_id:
+                    linked.update((entity["id"], target))
+    return linked
+
+
+def _why_unlinked(entity: dict[str, Any]) -> dict[str, Any]:
+    """The data build's note on an unlinked node: why, and whether it is alone on purpose. A
+    release built before the note existed still lists the node, with no reason."""
+    note = entity.get("unlinked")
+    note = note if isinstance(note, dict) else {}
+    reason = note.get("reason")
+    return {"reason": reason.strip() if isinstance(reason, str) and reason.strip() else None,
+            "on_purpose": note.get("on_purpose") is True}
 
 
 ROOT_NODE = {"id": ROOT, "label": "Ramapo", "kind": "root"}
 
 
 def _root(entities: list[dict[str, Any]], by_id: dict[str, dict[str, Any]],
-          owners: dict[tuple[str, str], list[str]]) -> dict[str, Any]:
+          owners: dict[tuple[str, str], list[str]], linked: set[str]) -> dict[str, Any]:
     kinds = Counter(entity["kind"] for entity in entities)
     links: Counter[tuple[str, str, str]] = Counter()
     unresolved: Counter[str] = Counter()
@@ -227,6 +259,7 @@ def _root(entities: list[dict[str, Any]], by_id: dict[str, dict[str, Any]],
                        by_id[target]["kind"] if target in by_id else "missing")] += 1
             if record is not None:
                 unresolved[relationship["type"]] += 1
+    alone = [entity for entity in entities if entity["id"] not in linked]
     return {"node": ROOT_NODE, "path": [ROOT_NODE],
             "kinds": [{"id": f"kind:{kind}", "label": kind, "kind": "type", "count": count}
                       for kind, count in sorted(kinds.items(), key=lambda k: (-k[1], k[0]))],
@@ -234,7 +267,19 @@ def _root(entities: list[dict[str, Any]], by_id: dict[str, dict[str, Any]],
                            for (a, t, b), n in sorted(links.items(),
                                                       key=lambda k: (-k[1], k[0]))],
             "unlinked_targets": dict(sorted(unresolved.items())),
+            "unlinked": {"total": len(alone), "on_purpose": sum(
+                _why_unlinked(entity)["on_purpose"] for entity in alone)},
             "entity_count": len(entities)}
+
+
+UNLINKED_NODE = {"id": UNLINKED, "label": "Not linked to anything", "kind": "check"}
+
+
+def _unlinked_list(entities: list[dict[str, Any]], linked: set[str]) -> dict[str, Any]:
+    alone = sorted((e for e in entities if e["id"] not in linked),
+                   key=lambda e: (e["kind"], e["name"].casefold(), e["id"]))
+    return {"node": UNLINKED_NODE, "path": [ROOT_NODE, UNLINKED_NODE],
+            "unlinked_nodes": [{**_node(e), **_why_unlinked(e)} for e in alone]}
 
 
 def _kind(entities: list[dict[str, Any]], node_id: str) -> dict[str, Any]:

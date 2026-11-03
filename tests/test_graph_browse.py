@@ -213,3 +213,40 @@ def test_a_node_whose_kind_has_no_records_in_the_release_still_opens() -> None:
     assert found["facts"] == [
         {"collection": "events", "total": 0, "rows": [], "unavailable": True}]
     assert found["outgoing"][0]["node"]["entity_id"] == PERSON
+
+
+ALONE = "99999999-9999-9999-9999-999999999999"
+RETIRED = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+
+
+def test_nodes_with_no_link_in_or_out_are_listed_with_the_data_builds_reason() -> None:
+    base = facts()
+    with base.snapshot() as snapshot:
+        entities = [*snapshot.entities]
+    graph = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1", contacts=[],
+        entities=[*entities,
+                  {"id": ALONE, "kind": "office", "name": "ResNET", "aliases": [], "links": [],
+                   "unlinked": {"reason": "No page says where it is.", "on_purpose": False}},
+                  # A note left from an older build, and no note at all, both still list.
+                  {"id": RETIRED, "kind": "topic", "name": "Old Program", "aliases": [],
+                   "links": [], "relationships": [
+                       {"type": "includes_course", "evidence": [],
+                        "target_record": {"collection": "courses", "source_key": "c",
+                                          "source_record_key": "NONE 1"}}],
+                   "unlinked": {"reason": "Discontinued.", "on_purpose": True}}])
+    root = browse(graph, "ramapo")
+    assert root["unlinked"] == {"total": 2, "on_purpose": 1}
+    found = browse(graph, "unlinked")
+    assert [p["id"] for p in found["path"]] == ["ramapo", "unlinked"]
+    assert [(n["label"], n["kind"], n["reason"], n["on_purpose"])
+            for n in found["unlinked_nodes"]] == [
+        ("ResNET", "office", "No page says where it is.", False),
+        ("Old Program", "topic", "Discontinued.", True)]
+    assert browse(graph, f"entity:{ALONE}")["unlinked"] == {
+        "reason": "No page says where it is.", "on_purpose": False}
+    # A linked node says nothing, even if an old note says it was alone.
+    assert browse(graph, f"entity:{HALL}")["unlinked"] is None
+    # The base graph has none.
+    assert browse(base, "ramapo")["unlinked"] == {"total": 0, "on_purpose": 0}
+    assert browse(base, "unlinked")["unlinked_nodes"] == []

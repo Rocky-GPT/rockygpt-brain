@@ -10,6 +10,7 @@ import json
 import logging
 import math
 import re
+import unicodedata
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from copy import deepcopy
@@ -1091,8 +1092,9 @@ def dining_property(
 
 
 def _publishes(entity: dict[str, Any]) -> list[str]:
-    """What a venue publishes, from the records linked to it: hours, a menu."""
-    named = {"dining_hours": "hours", "menu": "menu"}
+    """What a venue publishes, from the records linked to it: hours, a dated menu, a menu board
+    (items read from the menu file it posts, with no date: never "what's for lunch today")."""
+    named = {"dining_hours": "hours", "menu": "menu", "menu_board_items": "menu board"}
     return sorted({named[link["collection"]] for link in entity.get("links", [])
                    if link.get("collection") in named})
 
@@ -1363,6 +1365,220 @@ def menu_property(
                          "source_ids": [source["id"]]}],
              "assertions": [assertion], "dates_published": [d.isoformat() for d in dates]},
             [source])
+
+
+# A venue that posts its menu as a board (The Atrium's "Atrium Menu Boards 2026" PDF) rather than
+# as dated menus: its items are graph records read from that file, each as the board prints it.
+# The board marks a few items vegan (VG) or vegetarian (V); the reviewed list keeps that mark as
+# one of these exact notes, and no other note is ever said (the rest are the reviewer's own).
+_BOARD_MARKS = {"Marked vegan (VG) on the board.": "vegan",
+                "Marked vegetarian (V) on the board.": "vegetarian"}
+# A filter that keeps more board items than a reply can say in full lists them by name and price.
+MAX_BOARD_DETAILED = 8
+
+
+def _board_allergens(text: Any) -> list[str]:
+    """The allergens a board item says it contains ("Milk, Eggs, Wheat, Soy and Gluten"), each once,
+    for matching a student's word; the item's own words are what is said."""
+    if not isinstance(text, str):
+        return []
+    parts = re.split(r",|\band\b", text)
+    return list(dict.fromkeys(word for part in parts if (word := " ".join(part.split()))))
+
+
+def _board_text(item: dict[str, Any], *fields: str) -> str:
+    """An item's words a food is matched on: its name, station, section and description, and the
+    names of its options ("burrito" is a style of the Taqueria's Build Your Own Entree)."""
+    words = [clean(item.get(key)) for key in fields]
+    words += [clean(option.get("name")) for option in item.get("options") or []
+              if isinstance(option, dict)]
+    return " ".join(str(word) for word in words if isinstance(word, str))
+
+
+def _unaccented(text: str) -> str:
+    """"Açaí" as "Acai", so a student's plain spelling finds it."""
+    return "".join(ch for ch in unicodedata.normalize("NFKD", text)
+                   if not unicodedata.combining(ch))
+
+
+def _board_food(item: dict[str, Any], asked: list[str]) -> list[str] | None:
+    """Whether a board item is one of the foods asked, and which of its options are: None when it
+    is not, [] when the item itself is (its name, station, section or description names it)."""
+    def names(text: str) -> bool:
+        folded = _unaccented(text).casefold()
+        squashed = "".join(ch for ch in folded if ch.isalnum())
+        return any(_squash(_unaccented(w)) and _squash(_unaccented(w)) in squashed
+                   or _unaccented(w).casefold() in folded
+                   or _all_words_in(_unaccented(w), folded) for w in asked)
+    if names(_board_text({**item, "options": []}, "name", "station", "section", "description")):
+        return []
+    picked = [str(clean(option.get("name"))) for option in item.get("options") or []
+              if isinstance(option, dict) and names(str(clean(option.get("name")) or ""))]
+    return picked or None
+
+
+def _board_item(row: dict[str, Any], full: bool) -> dict[str, Any]:
+    """One board item as the board prints it: its name, prices (with sizes and calories), and, in
+    full, its description, options and the allergens it says it contains."""
+    item: dict[str, Any] = {"name": clean(row["name"])}
+    prices = [{key: clean(price[key]) for key in ("size", "price", "calories") if price.get(key)}
+              for price in row.get("prices") or [] if isinstance(price, dict)]
+    if prices := [price for price in prices if price]:
+        item["prices"] = prices
+    if isinstance(row.get("calories"), str) and row["calories"].strip():
+        item["calories"] = clean(row["calories"])
+    if mark := _BOARD_MARKS.get(clean(row.get("note")) or ""):
+        item["marked"] = mark
+    if isinstance(row.get("contains"), str) and row["contains"].strip():
+        item["contains"] = clean(row["contains"])
+    if full:
+        if isinstance(row.get("description"), str) and row["description"].strip():
+            item["description"] = clean(row["description"])
+        options = []
+        for option in row.get("options") or []:
+            if not isinstance(option, dict) or not clean(option.get("name")):
+                continue
+            kept = {key: clean(option[key]) for key in ("group", "name", "price", "calories")
+                    if isinstance(option.get(key), str) and option[key].strip()}
+            sized = [{key: clean(p[key]) for key in ("size", "price", "calories") if p.get(key)}
+                     for p in option.get("prices") or [] if isinstance(p, dict)]
+            if sized := [p for p in sized if p]:
+                kept["prices"] = sized
+            options.append(kept)
+        if options:
+            item["options"] = options
+    return item
+
+
+def menu_board_property(
+    rows: Sequence[dict[str, Any]], documents: Sequence[dict[str, Any]], now: datetime,
+    meal: str | None = None, query: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+    """A venue's menu board: its items by station and section, in the board's own order.
+
+    The board is not dated: its items stand while the dining site links the file they were read
+    from (the build publishes them only then), and it names no lunch or dinner. A meal asked is
+    the board's sections that name it ("Breakfast"); a board with none says so and is read whole.
+    Filters keep the items a student asks about: foods by name, station, section, description or
+    option; vegan or vegetarian by the board's own marks; allergens by what an item says it
+    contains, where the board lists that at all. None when the rows are not a readable board."""
+    board = [row for row in rows if isinstance(row, dict) and clean(row.get("name"))]
+    if not board or len(board) != len(rows):
+        return None
+    titles = {clean(row.get("document_title")) for row in board}
+    urls = {_url(row.get("source_url")) for row in board}
+    if len(titles) != 1 or len(urls) != 1 or None in urls or not all(titles):
+        return None
+    (title,), (url,) = titles, urls
+    # The menu file the venue's listing links: it carries the dining capture's time and freshness.
+    listed = [doc for doc in documents if _url(clean(doc.get("url"))) == url]
+    ordered = sorted(board, key=lambda r: r["page"] if isinstance(r.get("page"), int) else 0)
+    vocabulary = list(dict.fromkeys(
+        a for r in ordered for a in _board_allergens(r.get("contains"))))
+    value: dict[str, Any] = {"board": title, "on_board": len(ordered),
+                             "allergens_listed": sum(1 for r in ordered
+                                                     if _board_allergens(r.get("contains"))),
+                             "allergens_published": vocabulary}
+    value["allergens_not_listed"] = value["on_board"] - value["allergens_listed"]
+    if isinstance(ordered[0].get("read_at"), str):
+        value["read_at"] = ordered[0]["read_at"]
+    picked = ordered
+    if meal:
+        asked = " ".join(meal.casefold().split())
+        named = [r for r in ordered if asked in str(clean(r.get("section")) or "").casefold()]
+        if named:
+            picked = named
+            value["meal_asked"] = " ".join(meal.split())
+        else:
+            value["meal_not_on_board"] = " ".join(meal.split())
+    query = dict(query or {})
+    nutrients = [w for w in query.get("contains") or [] if set(w.casefold().split()) & _NUTRIENTS]
+    if nutrients:
+        query["contains"] = [w for w in query["contains"] if w not in nutrients]
+        value["nutrients_unlisted"] = nutrients
+    unlabelled = [a for key in ("with_allergens", "without_allergens")
+                  for a in query.get(key) or [] if not _labels_for(a, vocabulary)]
+    if unlabelled:
+        value["allergens_unlabelled"] = unlabelled
+        for key in ("with_allergens", "without_allergens"):
+            query[key] = [a for a in query.get(key) or [] if a not in unlabelled]
+    filter_ = {key: query[key] for key in ("diet", "contains", "with_allergens",
+                                           "without_allergens") if query.get(key)}
+    options: dict[int, list[str]] = {}
+    if unlabelled and not filter_:
+        # "Anything with nuts": no item's allergens name nuts, so none can be said to contain them
+        # or be free of them. No item is listed; the board's allergen words are said instead.
+        picked = []
+    if filter_:
+        kept = []
+        for row in picked:
+            if filter_.get("diet"):
+                mark = _BOARD_MARKS.get(clean(row.get("note")) or "")
+                wanted = {"vegan"} if filter_["diet"] == "vegan" else {"vegan", "vegetarian"}
+                if mark not in wanted:
+                    continue
+            if filter_.get("contains"):
+                words = [term for w in filter_["contains"]
+                         for term in (w, *_FOOD_WORDS.get(_squash(w), ()), _main_food(w)) if term]
+                found = _board_food(row, words)
+                if found is None:
+                    continue
+                if found:
+                    options[id(row)] = found
+            listed_allergens = _board_allergens(row.get("contains"))
+            if filter_.get("with_allergens") and not any(
+                    _labels_for(a, listed_allergens) for a in filter_["with_allergens"]):
+                continue
+            if filter_.get("without_allergens") and (not listed_allergens or any(
+                    _labels_for(a, listed_allergens) for a in filter_["without_allergens"])):
+                continue
+            kept.append(row)
+        picked = kept
+        value["filter"] = filter_
+        value["matched"] = len(picked)
+        if filter_.get("with_allergens") or filter_.get("without_allergens"):
+            value["allergen_words"] = {
+                asked: _labels_for(asked, vocabulary)
+                for asked in [*filter_.get("with_allergens", []),
+                              *filter_.get("without_allergens", [])]}
+        if not picked:
+            # Each station, or the section itself where the board names no station (its
+            # entrées and sides), so no part of the board is left out of "it has these".
+            value["stations_listed"] = list(dict.fromkeys(
+                str(clean(r.get("station")) or clean(r.get("section"))) for r in ordered
+                if clean(r.get("station")) or clean(r.get("section"))))
+    full = bool(filter_) and len(picked) <= MAX_BOARD_DETAILED or bool(value.get("meal_asked"))
+    sections: list[dict[str, Any]] = []
+    for row in picked:
+        station, section = clean(row.get("station")) or None, clean(row.get("section")) or None
+        if not sections or (sections[-1]["station"], sections[-1]["section"]) != (station, section):
+            sections.append({"station": station, "section": section, "items": []})
+        item = _board_item(row, full)
+        if options.get(id(row)):
+            item["options_matched"] = options[id(row)]
+        sections[-1]["items"].append(item)
+    value["sections"] = sections
+    value["detailed"] = full
+    cited = picked or ordered
+    first = listed[0] if listed else cited[0]
+    reading = hashlib.sha256("|".join(sorted(str(r["id"]) for r in cited)).encode()).hexdigest()
+    source = _source({
+        "id": f"{cited[0]['id']}:board:{reading[:16]}", "source_key": cited[0]["source_key"],
+        "source_record_key": cited[0]["source_record_key"], "canonical_url": url,
+        "collected_at": first.get("collected_at") or cited[0].get("collected_at"),
+        "freshness_sla_hours": first.get("freshness_sla_hours"),
+        "valid_from": None, "valid_until": None}, now)
+    source.update(
+        collection="menu_board_items", source_record_keys=[r["source_record_key"] for r in cited],
+        record_ids=[r["id"] for r in cited],
+        content_hash=hashlib.sha256(
+            "|".join(sorted(str(r.get("content_hash")) for r in cited)).encode()).hexdigest())
+    assertion = {"id": f"{source['id']}:menu", "source_id": source["id"], "field": "menu",
+                 "raw_value": {"rows": len(cited)}, "value": _json_safe(value), "caveats": []}
+    return ({"key": "menu", "label": "Menu", "category": "menu", "status": "known",
+             "values": [{"value": _json_safe(value), "assertion_ids": [assertion["id"]],
+                         "source_ids": [source["id"]]}],
+             "assertions": [assertion]}, [source])
 
 
 # What a student's words about a procedure are matched on: the content words, without question
@@ -2407,8 +2623,12 @@ class EntityFacts:
             # What the venue's listing names as its menus: no menu page means no dated menu.
             menu_listings = (snapshot.record_reader(entity, "menu_listings")
                              if "menu" in selected and venue else [])
+            # The items of that menu file, read from it (The Atrium's menu board).
+            board_rows = (snapshot.record_reader(entity, "menu_board_items")
+                          if "menu" in selected and venue else [])
             for collection, found in (("dining_hours", dining_rows), ("menu", menu_rows),
-                                      ("menu_listings", menu_listings)):
+                                      ("menu_listings", menu_listings),
+                                      ("menu_board_items", board_rows)):
                 if len(found) > RECORD_COLLECTIONS[collection]:
                     raise EvidenceUnavailable("Venue evidence exceeds the bounded read.")
                 if len(linked_rows(entity, found, collection)) != len(found):
@@ -2460,6 +2680,11 @@ class EntityFacts:
             if "menu" in selected:
                 if venue:
                     menu, menu_sources = menu_property(menu_rows, now, on, meal, menu_query)
+                    if (menu["status"] == "unknown" and not menu_rows and board_rows
+                            and (board := menu_board_property(board_rows, menu_files, now, meal,
+                                                              menu_query))):
+                        # No dated menu, and the venue's menu file has been read: its board.
+                        menu, menu_sources = board
                     if menu["status"] == "unknown" and menu_files:
                         menu = {**menu, "documents_published": [
                             {"title": clean(row.get("title")), "url": clean(row.get("url"))}
@@ -2543,7 +2768,7 @@ class EntityFacts:
                 "properties": properties,
                 "sources": sources,
                 "evidence_count": (len(rows) + len(schedule_rows) + len(dining_rows)
-                                   + len(menu_rows)),
+                                   + len(menu_rows) + len(board_rows)),
                 "caveats": caveats,
                 "complete": not caveats,
             }
