@@ -194,14 +194,36 @@ class MeaningIndex:
 
     @classmethod
     def load(cls, release_file: Path) -> "MeaningIndex | None":
-        """The index published beside a release graph file, or None when there is none."""
+        """The index published beside a release graph file, or None when there is none.
+
+        Its float vectors are kept in 8 bits, exactly as quantize() stores them, read and turned
+        into 8 bits MATRIX_CHUNK vectors at a time. Render gives the Brain 512 MB, and since 11-03
+        every page section also has three written questions: about 51,000 vectors, 104 MB as
+        floats and 26 MB in 8 bits. On the 11-03 index, 8 bits kept the same best unit for 298 of
+        300 test questions and 99.3% of the ten best units, and scored faster."""
         meta_path = release_file.with_suffix(MEANING_SUFFIX)
         vectors_path = release_file.with_suffix(VECTORS_SUFFIX)
         if not meta_path.is_file() or not vectors_path.is_file():
             return None
-        vectors = array.array("f")
-        vectors.frombytes(vectors_path.read_bytes())
-        return cls(json.loads(meta_path.read_text()), vectors)
+        meta = json.loads(meta_path.read_text())
+        if numpy is None:
+            vectors = array.array("f")
+            vectors.frombytes(vectors_path.read_bytes())
+            return cls(meta, vectors)
+        size = int(meta["dimensions"])
+        stored, scales = array.array("b"), array.array("f")
+        with vectors_path.open("rb") as file:
+            while len(floats := numpy.fromfile(file, dtype=numpy.float32,
+                                               count=MATRIX_CHUNK * size)):
+                # quantize()'s own arithmetic (float64, ties to even), so the index loaded here
+                # and the one the database stores are the same bytes.
+                chunk = floats.astype(numpy.float64).reshape(-1, size)
+                scale = numpy.abs(chunk).max(axis=1) / 127.0
+                scale[scale == 0] = 1.0
+                stored.frombytes(numpy.clip(numpy.rint(chunk / scale[:, None]), -127, 127)
+                                 .astype(numpy.int8).tobytes())
+                scales.frombytes(scale.astype(numpy.float32).tobytes())
+        return cls(meta, stored, scales)
 
     def scores(self, query: Sequence[float]) -> MeaningScores:
         """Every unit's similarity to the query (its best vector), best first."""

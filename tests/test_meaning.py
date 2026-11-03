@@ -1,10 +1,15 @@
 import array
+import json
 import math
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
+
+import pytest
 
 from rockygpt_brain.engine import meaning_query
 from rockygpt_brain.provider import TurnBudget
+from rockygpt_brain.retrieval import meaning
 from rockygpt_brain.retrieval.entity_facts import procedures_property
 from rockygpt_brain.retrieval.meaning import MeaningIndex, standout_bar
 from test_engine import (
@@ -286,6 +291,50 @@ def test_an_index_stored_in_8_bits_ranks_as_the_float_index_does() -> None:
     assert stored.quantize() == (vectors, scales)
 
 
+def test_an_index_file_is_loaded_in_8_bits_as_the_database_stores_it(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    vectors: list[list[float]] = [
+        [1, 0.2, 0], [0.3, -0.9, 0.1],  # page-a
+        [0, 1, 0.1], [0.7, 0.3, 0], [0, 0, 0],  # page-b, a vector of zeros included
+        [0, 0.1, 1],  # page-c
+        [0, 1, 0], [0.2, 0, 1]]  # the athletics card, the biology card
+    flat = array.array("f")
+    for vector in vectors:
+        norm = math.sqrt(sum(x * x for x in vector)) or 1.0
+        flat.extend(x / norm for x in vector)
+    meta = {"dataset_version": "release-1", "identity_hash": "identities-1", "model": "m",
+            "dimensions": 3, "entities": {},
+            "units": [["page-a", "0", ["advising"]], ["page-b", "e0", ["tutoring"]],
+                      ["page-c", "0", ["library"]]],
+            "owner": [0, 0, 1, 1, 1, 2], "cards": ["athletics"],
+            "academic": [["biology", "program"]]}
+    index = MeaningIndex(meta, flat)
+    release = tmp_path / "release-1.lbug"
+    release.with_suffix(".meaning.json").write_text(json.dumps(meta))
+    release.with_suffix(".meaning.f32").write_bytes(flat.tobytes())  # As the build writes it.
+    # Read two vectors at a time, so a chunk ends inside a unit's vectors.
+    monkeypatch.setattr(meaning, "MATRIX_CHUNK", 2)
+    loaded = MeaningIndex.load(release)
+    assert loaded is not None
+    # The same bytes the database stores (a vector of zeros is scaled by one).
+    assert loaded.quantize() == index.quantize()
+    for query in ([1, 0, 0], [0, 1, 0], [0, 0, 1], [0.5, 0.5, 0.1]):
+        assert list(loaded.scores(query)) == list(index.scores(query))
+    assert loaded.office_scores([0, 1, 0])[0][0] == "athletics"
+    assert loaded.academic_scores([0, 0, 1], "program")[0][0] == "biology"
+    # Without numpy, the floats are kept as they are.
+    expected = dict(index.scores([0.5, 0.5, 0.1]))
+    monkeypatch.setattr(meaning, "numpy", None)
+    plain = MeaningIndex.load(release)
+    assert plain is not None and plain.quantize() == index.quantize()
+    assert dict(plain.scores([0.5, 0.5, 0.1])) == pytest.approx(expected)
+    # A file cut inside a vector is not an index.
+    monkeypatch.undo()
+    release.with_suffix(".meaning.f32").write_bytes(flat.tobytes()[:-4])
+    with pytest.raises(ValueError):
+        MeaningIndex.load(release)
+
+
 def test_a_card_stands_out_from_its_kind_by_the_questions_own_bar() -> None:
     # Each question's own bar: the median card plus three spreads. The same 0.47 stands out
     # among cards at 0.28-0.36 and is one of the crowd among cards at 0.38-0.49.
@@ -305,3 +354,63 @@ def test_a_card_stands_out_from_its_kind_by_the_questions_own_bar() -> None:
     assert mean + 3 * sd > 0.60
     # Too few cards, or all alike, tell nothing.
     assert standout_bar([0.5] * 10) is None and standout_bar([0.5] * 40) is None
+
+
+def test_every_page_section_is_given_student_questions_until_the_build_spends_its_budget(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    import build_meaning_index as build
+
+    asked: list[dict[str, Any]] = []
+
+    def post(path: str, body: dict[str, Any]) -> dict[str, Any]:
+        sent = json.loads(body["input"][1]["content"])
+        asked.append(sent)
+        assert path == "responses" and body["reasoning"] == {"effort": "low"}
+        assert body["text"]["format"]["schema"] == build.QUESTIONS_SCHEMA
+        if "broken" in sent["page"]:
+            raise RuntimeError("OpenAI responses failed with HTTP 500")
+        items = [{"n": x["n"],
+                  "questions": [f"how do i {x['heading'].lower()}", " ", "b", "c", "d"]}
+                 for x in sent["sections"]]
+        return {"output": [{"type": "message", "content": [
+                    {"type": "output_text", "text": json.dumps({"items": items})}]}],
+                "usage": {"input_tokens": 1000, "input_tokens_details": {"cached_tokens": 200},
+                          "output_tokens": 300}}
+
+    monkeypatch.setattr(build, "_post", post)
+    call = 800 * 125 + 200 * 10 + 300 * 500  # nUSD: uncached input, cached input, output.
+    assert build.cost_nusd({"usage": {"input_tokens": 1000, "output_tokens": 300,
+                                      "input_tokens_details": {"cached_tokens": 200}}}) == call
+    # Every section is asked, a how-to entry or not: 14 on one page (two calls), 1 on another.
+    units = [{"page": "https://www.ramapo.edu/bursar/", "heading": f"Section {n}",
+              "text": f"What section {n} says.", "entry": False} for n in range(14)]
+    units.append({"page": "https://www.ramapo.edu/cardservices/", "heading": "Buy Ramapo Dollars",
+                  "text": "Add money to your ID card online.", "entry": False})
+    cache: dict[str, list[str]] = {}
+    saved: list[int] = []
+    assert build.write_questions(units, cache, lambda: saved.append(len(cache))) == (15, 3 * call)
+    assert sorted(len(x["sections"]) for x in asked) == [1, 2, 12]
+    first = next(x for x in asked if len(x["sections"]) == 12)
+    assert first["page"] == "https://www.ramapo.edu/bursar/"
+    assert first["sections"][0] == {"n": 0, "heading": "Section 0", "text": "What section 0 says."}
+    # Three questions a section, blank ones dropped; kept under the section's own text.
+    assert cache[build._digest("Buy Ramapo Dollars", "Add money to your ID card online.")] == [
+        "how do i buy ramapo dollars", "b", "c"]
+    assert saved == [15]
+    # The next build asks for none of them again.
+    assert build.write_questions(units, cache) == (0, 0) and len(asked) == 3
+
+    # A build stops asking once its calls cost its budget; the sections left wait for the next
+    # build. 16 calls are asked at once, so the first build asks 16 of 40 one-section pages.
+    asked.clear()
+    pages = [{"page": f"https://www.ramapo.edu/page-{n}/", "heading": f"Heading {n}",
+              "text": f"Text {n}.", "entry": False} for n in range(40)]
+    assert build.write_questions(pages, cache, budget_nusd=1) == (16, 16 * call)
+    assert len(asked) == 16
+    assert build.write_questions(pages, cache) == (24, 24 * call) and len(asked) == 40
+    # A call that fails costs nothing, and its sections are asked again by the next build.
+    broken = [{"page": "https://www.ramapo.edu/broken/", "heading": "Hours",
+               "text": "Open 9 to 5.", "entry": False}]
+    assert build.write_questions(broken, cache) == (1, 0)
+    assert build._digest("Hours", "Open 9 to 5.") not in cache
+    assert build.write_questions(broken, cache) == (1, 0) and len(asked) == 42
