@@ -197,7 +197,9 @@ question naming a kind ("any art events", "cultural clubs") lists every event or
 of the narrower kinds it includes (international includes study abroad, academic includes study
 help), in code's own words: a club directory entry named for its category ("Honor Societies")
 stands for every club listed under it, and a club a ramapo.edu page marks inactive says so in the
-list. A question naming a member of a kind ("painting") is still matched on the listings' words.
+list. A question naming a member of a kind ("painting") is still matched on the listings' words,
+and the clubs its meaning finds keep the kind most of them share, so a club near only in its
+words (the Balkan Club for "ballet") is left out.
 An index built before kinds has none, and kind questions are then answered as before.
 `build_meaning_index.py --kinds-only` gives an index already built its kinds (a laptop's copy of
 production's, for testing).

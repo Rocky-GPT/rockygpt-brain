@@ -41,7 +41,7 @@ _SHOWS = ("show", "shows", "performance", "performances", "perform", "performing
 KINDS: tuple[Kind, ...] = (
     Kind("arts", "art and crafts",
          "making or viewing visual art: painting, drawing, crafts and DIY, decorating, ceramics, "
-         "photography, design, art exhibits and galleries",
+         "photography, design, animation and digital art, art exhibits and galleries",
          ("art", "arts", "artsy", "artistic", "artwork", "artworks", "craft", "crafts",
           "crafting", "crafty", "creative", "diy", "arts and crafts")),
     Kind("music", "music",
@@ -149,7 +149,9 @@ KINDS: tuple[Kind, ...] = (
          ("environment", "environmental", "sustainability", "sustainable", "green", "climate",
           "eco", "nature")),
     Kind("tech", "science and technology",
-         "STEM, coding, computing, data, engineering, hackathons, science talks and labs",
+         "STEM, coding, computing, data, engineering, hackathons, science talks and labs. Not "
+         "art, music or film made with software, such as animation (those are art, music or "
+         "film)",
          ("tech", "technology", "technologies", "technical", "stem", "science", "sciences",
           "scientific", "computer", "computers", "computing", "engineering")),
     Kind("games", "game and gaming",

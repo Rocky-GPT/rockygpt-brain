@@ -19,6 +19,7 @@ from rockygpt_brain.events import (
     kind_named,
     members_of,
     names_events,
+    of_shared_kind,
     only_kind_asked,
 )
 from rockygpt_brain.provider import Completion, ToolCall, Usage
@@ -162,3 +163,19 @@ def test_a_kinds_events_are_the_models_to_say_from_its_clubs() -> None:
     assert "clubs under Honor Society" not in given.get("already_written", "")
     assert [c["name"] for c in given["clubs"]] == [
         "Alpha Kappa Delta", "Psi Chi Honors Society", "Sigma Tau Delta"]
+
+
+def test_clubs_found_by_meaning_keep_the_kind_most_of_them_share() -> None:
+    # 11-03 practice: "is there a ballet club" found three dance clubs and the Balkan Club, a
+    # cultural club whose card scored near theirs.
+    found = [{"id": "d1", "name": "Dance Company"}, {"id": "d2", "name": "Naach"},
+             {"id": "d3", "name": "RCNJ Dance Team"}, {"id": "b", "name": "Balkan Club"}]
+    kinds = {"d1": ("dance",), "d2": ("dance", "culture"), "d3": ("dance", "athletics"),
+             "b": ("culture",)}
+    assert [c["name"] for c in of_shared_kind(found, kinds)] == [
+        "Dance Company", "Naach", "RCNJ Dance Team"]
+    # Two clubs, no kind most share, or no kinds at all: every club found stays.
+    assert of_shared_kind(found[2:], kinds) == found[2:]
+    mixed = {"d1": ("dance",), "d2": ("music",), "d3": ("games",), "b": ("culture",)}
+    assert of_shared_kind(found, mixed) == found
+    assert of_shared_kind(found, None) == found
