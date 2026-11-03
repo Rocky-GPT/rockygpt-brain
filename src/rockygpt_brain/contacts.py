@@ -83,6 +83,28 @@ def offices_named(offices: Sequence[Mapping[str, Any]], message: str,
     return list(found.values()), words
 
 
+def plain_name(name: str) -> str:
+    """An office's name without its parenthesised part: "Public Safety (Emergency)" is
+    "public safety"."""
+    return re.sub(r"\s*\([^)]*\)", "", name).strip().casefold()
+
+
+def with_siblings(chosen: Sequence[Mapping[str, Any]], offices: Sequence[Mapping[str, Any]],
+                  ) -> list[dict[str, Any]]:
+    """The chosen offices, each followed by the offices that share its name but for a part in
+    parentheses ("Public Safety (Emergency)" beside "Public Safety (Non-Emergency)"): their
+    names say which line is for what, so a reply that sends the student to one shows both
+    (11-03: the steps said 684-6666 and the card 684-7432, with nothing to tell them apart)."""
+    out: dict[str, dict[str, Any]] = {}
+    for office in chosen:
+        out.setdefault(str(office["id"]), dict(office))
+        plain = plain_name(str(office.get("name") or ""))
+        for other in offices:
+            if plain and plain_name(str(other.get("name") or "")) == plain:
+                out.setdefault(str(other["id"]), dict(other))
+    return list(out.values())
+
+
 def asks_contact_only(message: str, named_words: Iterable[str]) -> bool:
     """Whether a message asks only how to reach (or where to find) the offices it names."""
     rest = message

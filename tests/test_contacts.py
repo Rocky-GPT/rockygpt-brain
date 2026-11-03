@@ -108,3 +108,11 @@ def test_only_offices_the_reply_sends_the_student_to_get_their_contacts() -> Non
     assert ids("Ask your advisor. [1] See the handbook. [3]") == ["advising"]
     assert ids("Ask your advisor [1], or the Library [3].") == ["advising", "library"]
     assert ids("Tutors help. [2][1]") == ["tutoring"]
+
+
+def test_an_office_comes_with_the_offices_sharing_its_name_but_a_part_in_parentheses() -> None:
+    # 11-03: the bike-theft steps said 684-6666 and the card gave only the non-emergency
+    # 684-7432; both Public Safety cards, named Emergency and Non-Emergency, say which is which.
+    chosen = [OFFICES[3]]
+    assert [o["id"] for o in contacts.with_siblings(chosen, OFFICES)] == ["ps1", "ps2"]
+    assert [o["id"] for o in contacts.with_siblings([OFFICES[0]], OFFICES)] == ["hs"]

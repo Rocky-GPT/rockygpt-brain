@@ -1969,7 +1969,9 @@ class ChatEngine:
                        ) -> list[dict[str, Any]]:
         """The offices a reply sends the student to: the first whose sections it cites, and a
         second it cites and also names in its words, at most two. An office cited only for a
-        page (an employee handbook beside Public Safety's "how to report") is not one (11-03)."""
+        page (an employee handbook beside Public Safety's "how to report") is not one (11-03).
+        Each comes with the offices that share its name but for a part in parentheses
+        (Emergency, Non-Emergency), whose names say which line is for what."""
         office_of = {section.get("n"): office.get("office") for office in offices
                      for section in office.get("sections") or []}
         marks = [int(n) for group in re.findall(r"\[([\d,\s–-]+)\]", written)
@@ -1979,7 +1981,8 @@ class ChatEngine:
         cited = [dict(by_name[str(name)]) for name in names if str(name) in by_name]
         prose = re.sub(r"\[[^\]]*\]\([^)]*\)", " ", written)
         named = {str(o["id"]) for o in contacts.offices_named(cited, prose)[0]}
-        return [o for k, o in enumerate(cited) if k == 0 or str(o["id"]) in named][:2]
+        chosen = [o for k, o in enumerate(cited) if k == 0 or str(o["id"]) in named][:2]
+        return contacts.with_siblings(chosen, list(by_name.values()))[:contacts.MAX_OFFICES]
 
     def _office_contacts(self, offices: Sequence[Mapping[str, Any]], numbered_from: int,
                          ) -> tuple[str | None, list[dict[str, Any]], list[dict[str, Any]]]:
