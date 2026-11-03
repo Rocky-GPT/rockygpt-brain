@@ -20,6 +20,7 @@ from rockygpt_brain.retrieval.entity_facts import discovery_tokens
 CALENDAR_URL = "https://archway.ramapo.edu/home/events/"
 MAX_EVENTS = 15
 DEFAULT_DAYS = 14
+DEFAULT_LABEL = f"the next {DEFAULT_DAYS} days"
 _EVENT_WORDS = re.compile(
     r"\b(?:events?|happening|going on|games?|match(?:es)?|"
     r"shows?|concerts?|performances?|plays?|recitals?|fairs?|workshops?|speakers?|lectures?|"
@@ -62,8 +63,12 @@ _NOT_TOPIC = discovery_tokens(
     "really all each every both either neither no not too before after during until while")
 
 
+# "What shows up on my transcript" and "does it show up" ask about no show.
+_NOT_EVENT = re.compile(r"\bshows? up\b|\bshowing up\b|\bno[- ]shows?\b")
+
+
 def asks_events(message: str) -> bool:
-    text = message.casefold()
+    text = _NOT_EVENT.sub(" ", message.casefold())
     return bool(_EVENT_WORDS.search(text)
                 or (_WHEN_WORDS.search(text) and not _OTHER_SUBJECT.search(text)))
 
@@ -188,7 +193,7 @@ def _days(message: str, now: datetime) -> tuple[datetime, datetime, str]:
     if _LATER_TERM.search(text):
         last = date(today.year, 12, 31) if today.month >= 8 else date(today.year, 6, 30)
         return now, _end(last, now), "the rest of the semester"
-    return now, _end(today + timedelta(days=DEFAULT_DAYS), now), f"the next {DEFAULT_DAYS} days"
+    return now, _end(today + timedelta(days=DEFAULT_DAYS), now), DEFAULT_LABEL
 
 
 _LATER_TERM = re.compile(r"\b(?:finals?|end of (?:the )?(?:semester|term)|thanksgiving|"
@@ -549,8 +554,15 @@ def listing_text(label: str, start: datetime, end: datetime, shown: Sequence[dic
     head = (f"The calendar lists {listed} event{'s' if listed != 1 else ''} {phrase}"
             + (f"; here are the first {len(shown)} by time [1]:" if len(shown) < listed
                else " [1]:"))
+    return "\n\n".join([head, *_event_lines(list(enumerate(shown, start=2)), start, end)])
+
+
+def _event_lines(numbered: Sequence[tuple[int, dict[str, Any]]], start: datetime,
+                 end: datetime) -> list[str]:
+    """Events as code says them, in the order given: under their day when the window spans
+    several days, each with its time, title, host and place as published [its number]."""
     days: dict[str, list[str]] = {}
-    for n, value in enumerate(shown, start=2):
+    for n, value in numbered:
         began = _starts(value)
         on = began.astimezone(start.tzinfo).date() if began is not None else None
         heading = (f"{on:%A, %B} {on.day}:" if on is not None and start.date() != end.date()
@@ -563,8 +575,64 @@ def listing_text(label: str, start: datetime, end: datetime, shown: Sequence[dic
         days.setdefault(heading, []).append(
             "- " + (f"{when}: " if when else "") + literal(value["title"])
             + (f" ({literal(host)})" if host else "") + at + f" [{n}]")
-    return "\n\n".join([head, *("\n".join([heading, *lines]) if heading else "\n".join(lines)
-                                for heading, lines in days.items())])
+    return ["\n".join([heading, *lines]) if heading else "\n".join(lines)
+            for heading, lines in days.items()]
+
+
+def topic_text(label: str, start: datetime, end: datetime, in_window: int,
+               lines: Sequence[dict[str, Any]], matched: bool | None,
+               outside: Sequence[dict[str, Any]] = (), calendar_n: int = 1) -> str | None:
+    """A calendar question's events in code's own words, every one code chose (11-03: the reply
+    picked 2 of the 3 wellness events and said "three"): with no topic, the window's listing;
+    with a topic, the events whose listing matches it, then those only near it in meaning; with
+    none matching, that the calendar lists none then, the topic's next later dates, and the
+    window's events. `lines` are the window's chosen events (each with "n" and the published value
+    under "_value"), `outside` the topic's later ones. None when an event has no title."""
+    if any(not (line.get("_value") or {}).get("title") for line in [*lines, *outside]):
+        return None
+    phrase = _phrase(label, start, end)
+    cal = f"[{calendar_n}]"
+
+    def said(chosen: Sequence[dict[str, Any]], first: datetime, last: datetime) -> list[str]:
+        return _event_lines([(line["n"], line["_value"]) for line in chosen], first, last)
+    if matched is None:
+        if not in_window:
+            return f"The calendar lists no events {phrase} {cal}."
+        head = (f"The calendar lists {in_window} event{'s' if in_window != 1 else ''} {phrase}"
+                + (f"; here are the first {len(lines)} by time {cal}:" if len(lines) < in_window
+                   else f" {cal}:"))
+        return "\n\n".join([head, *said(lines, start, end)])
+    if matched:
+        named = [line for line in lines
+                 if (line.get("_value") or {}).get("_matched_by") in ("words", "food")]
+        near = [line for line in lines
+                if (line.get("_value") or {}).get("_matched_by") == "meaning"]
+        parts: list[str] = []
+        if named:
+            parts += [f"The calendar lists {len(named)} event{'s' if len(named) != 1 else ''} "
+                      f"{phrase} that match{'es' if len(named) == 1 else ''} what you asked (of "
+                      f"{in_window} events then) {cal}:",
+                      *said(named, start, end)]
+        if near:
+            parts += [("These are only near it in meaning, not named by their listings:"
+                       if named else
+                       f"No event {phrase} is listed by name for what you asked; these are the "
+                       f"closest in meaning (of {in_window} events then) {cal}:"),
+                      *said(near, start, end)]
+        return "\n\n".join(parts) if parts else None
+    parts = [f"The calendar lists no event {phrase} that matches what you asked {cal}."]
+    if outside:
+        later = [line for line in outside if _starts(line["_value"]) is not None]
+        if later:
+            # Later dates are always said under their day.
+            parts += ["Later on the calendar:", *said(later, start, start + timedelta(days=1))]
+    # The window's other events only for a time the question named: "is there a quidditch
+    # tournament" is not answered with the next two weeks' 114 events.
+    if lines and label != DEFAULT_LABEL:
+        parts += [f"All {in_window} event{'s' if in_window != 1 else ''} {phrase}"
+                  + (f", the first {len(lines)} by time:" if len(lines) < in_window else ":"),
+                  *said(lines, start, end)]
+    return "\n\n".join(parts)
 
 
 # A place that is no room ("Online Event", "Virtual (Register on Handshake for Details)") is said

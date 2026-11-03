@@ -92,6 +92,10 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   asked; when the first carries listed_first_of, say these are the first of that many.
   If the named person is not among them, say the directory lists no one by that name. Never guess
   a person, email or room.
+- already_written is the start of the reply, written by code from the college's own records
+  and placed before your text exactly as given. Never repeat, restate, shorten or contradict it:
+  it is the answer to what it covers, and a page that disagrees with it is out of date. Write only
+  what else the question asks. When it already answers everything asked, write an empty text.
 - Write a phone number as (XXX) XXX-XXXX with its own digits.
 - Cite each statement with its section number like [3]. Numbers are only marks: never write
   "section 4" in the text. Short plain sentences; numbered steps are fine. Under 1,600
@@ -220,6 +224,11 @@ def code_kind(question: str, named_people: Sequence[Any],
             (_COURSE_ASK.search(text) and _COURSE_FACT.search(text)) or _COURSE_WHAT.search(text)):
         return "course"
     return None
+
+
+def asks_more(question: str) -> bool:
+    """Whether a question asks something besides what code lists ("and how do I", "can I")."""
+    return bool(_MORE.search(question.casefold()))
 
 
 def course_facts_asked(question: str, facts: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -462,9 +471,11 @@ def messages(question: str, earlier_user: str | None, offices: list[dict[str, An
              calendar: dict[str, Any] | None = None,
              clubs: Sequence[dict[str, Any]] = (),
              people: Sequence[dict[str, Any]] = (),
-             computed: Sequence[dict[str, Any]] = ()) -> list[dict[str, Any]]:
+             computed: Sequence[dict[str, Any]] = (),
+             already_written: Sequence[str] = ()) -> list[dict[str, Any]]:
     given = {"today": f"{today:%A, %B} {today.day}, {today.year}", "question": question,
              **({"earlier_question": earlier_user} if earlier_user else {}),
+             **({"already_written": "\n\n".join(already_written)} if already_written else {}),
              **({"computed": list(computed)} if computed else {}),
              **({"programs": [{k: v for k, v in p.items() if not k.startswith("_")}
                               for p in programs]} if programs else {}),

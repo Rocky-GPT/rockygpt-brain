@@ -62,6 +62,19 @@ def kind_asked(message: str) -> str | None:
     return found[0]
 
 
+def kind_named(message: str) -> str | None:
+    """The one kind of calendar date a question names when it asks when or a deadline, whatever
+    else it asks ("what's the deadline to withdraw and what shows on my transcript"): code says
+    those dates first and the model the rest (11-03: the reply gave a page's 7-week dates and left
+    out the calendar's full-semester Nov 6 deadline). None for no kind or two."""
+    text = message.casefold().replace("’", "'")
+    if not re.search(r"\bwhen\b|\bwhat (?:day|date)\b|\blast day\b|\bdeadlines?\b|"
+                     r"\bdue date\b|\bby when\b|\bhow late\b|\buntil when\b", text):
+        return None
+    found = [kind for kind, pattern in _KINDS if pattern.search(text)]
+    return found[0] if len(found) == 1 else None
+
+
 def term_spans(dates: Sequence[dict[str, Any]]) -> dict[str, tuple[date, date]]:
     """Each term's first and last listed day, by the term names its dates carry."""
     spans: dict[str, tuple[date, date]] = {}
@@ -144,11 +157,12 @@ def _time(value: Any) -> str:
     return f" ({literal(text)})"
 
 
-def calendar_text(term: dict[str, Any], entries: Sequence[dict[str, Any]]) -> str | None:
+def calendar_text(term: dict[str, Any], entries: Sequence[dict[str, Any]],
+                  n: int = 1) -> str | None:
     """Code's answer: the entries asked, each with its day, title and time as the term's academic
-    calendar lists them [1]. None when there are none (the model reads the pages then)."""
+    calendar lists them [n]. None when there are none (the model reads the pages then)."""
     if not entries:
         return None
     lines = [f"- {_day(str(e['date']))}: {literal(e['title'])}{_time(e.get('time'))}"
              for e in entries]
-    return "\n".join([f"The {literal(term['name'])} academic calendar lists [1]:", *lines])
+    return "\n".join([f"The {literal(term['name'])} academic calendar lists [{n}]:", *lines])
