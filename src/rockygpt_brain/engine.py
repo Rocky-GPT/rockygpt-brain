@@ -50,7 +50,7 @@ from rockygpt_brain.contract import (
     ChatRequest,
 )
 from rockygpt_brain.fact_packet import PacketInvalid, build_packet
-from rockygpt_brain.hours_on import DAY_CHOICES, target_date
+from rockygpt_brain.hours_on import DAY_CHOICES, asked_clock, names_another_day, target_date
 from rockygpt_brain.plain_writer import plain_text
 from rockygpt_brain.provider import Completion, GatewayError, ToolCall, TurnBudget
 from rockygpt_brain.retrieval import (
@@ -1068,6 +1068,25 @@ def keep_named_day(requests: list[Any], message: str, today: Any) -> list[Any]:
     return out
 
 
+def with_asked_time(requests: list[Any], message: str) -> list[Any]:
+    """"Where can I get food after 9pm": hours asked at a clock time are one day's, so the time
+    can be answered (11-03: the model left the day out in three of five tries, and each venue's
+    whole week was said). It is the one weekday the student names, or today when they name no
+    day; with days in general ("on weekends", "usually") the week stays whole."""
+    if asked_clock(message) is None:
+        return requests
+    day = named_weekday(message) or (None if names_another_day(message) else "today")
+    if day is None:
+        return requests
+    return [item.model_copy(update={"day": day})
+            if isinstance(item, OfficeRequest) and "hours" in item.fields and item.day is None
+            else item for item in requests]
+
+
+# Words that also ask about this moment beside a clock time ("is it open now, and after 9pm?").
+_NOW_ASKED = re.compile(r"\b(?:now|rn|right now|currently|atm)\b", re.IGNORECASE)
+
+
 def with_meal_hours(requests: list[Any]) -> list[Any]:
     """A meal's menu ("what is for dinner") is read with that day's hours, so the answer starts
     with when the meal is served (Dan 11-02); code adds them, the model need not ask."""
@@ -1661,11 +1680,11 @@ class ChatEngine:
             return None
 
     def _place_hours(self, request: OfficeRequest, graph: CampusGraph,
-                     as_of: datetime) -> OfficeResult | None:
+                     as_of: datetime, latest: str = "") -> OfficeResult | None:
         """The hours of one place in a building, by its exact name; None when they cannot be
         read, and the building's other places are said without it."""
         try:
-            return self._lookup(request, graph, as_of, exact_name_only=True)
+            return self._lookup(request, graph, as_of, exact_name_only=True, latest=latest)
         except DatasetChanged:
             raise
         except (EvidenceUnavailable, UnknownEntity, InvalidFactRequest):
@@ -1850,11 +1869,15 @@ class ChatEngine:
                         value["value"]["details_asked"] = list(request.details)
         if request.day and "hours" in request.fields:
             # Worked out here, on the campus clock, so a writer never has to.
-            when: dict[str, str] = {
+            when: dict[str, Any] = {
                 "day": request.day,
                 "date": target_date(request.day, as_of.date()).isoformat()}
             if request.meal:
                 when["meal"] = request.meal  # A venue's one period, when one was named.
+            if asked := asked_clock(latest):
+                # "After 9pm": what is open then is worked out for that time (fact_packet.open_at).
+                when["at"] = {"relation": asked[0], "minute": asked[1],
+                              **({"now": True} if _NOW_ASKED.search(latest) else {})}
             part["when"] = when
             detail["day"] = when
         return OfficeResult(rendered, detail=detail, part=part, leads=leads)
@@ -4118,8 +4141,9 @@ class ChatEngine:
                             requests = GraphRequests.model_validate(call.arguments).requests
                             requests = self._every_venue(self._dining_kind(requests),
                                                          context.latest_message)
-                        requests = with_meal_hours(keep_named_day(
-                            requests, context.latest_message, turn.campus_now.date()))
+                        requests = with_asked_time(with_meal_hours(keep_named_day(
+                            requests, context.latest_message, turn.campus_now.date())),
+                            context.latest_message)
                         requests, situational = with_situation_procedures(
                             requests, context.latest_message)
                         attempts += len(requests)
@@ -4305,7 +4329,7 @@ class ChatEngine:
                                     self._place_hours, inside,
                                     CampusGraph(self.facts, dataset_version=version,
                                                 identity_hash=identity_hash),
-                                    turn.campus_now)
+                                    turn.campus_now, context.latest_message)
                             if hours is None:
                                 continue
                             rid = f"r{len(results) + 1}"
@@ -4481,6 +4505,8 @@ class ChatEngine:
         citations: dict[str, dict[str, Any]] = {}
         supported = False
         limited = False
+        # A lookup whose evidence text says it is not whole: judged again by the packet below.
+        incomplete = False
         clarify = False
         # The kind of each emergency the model named, after one the phrase floor named.
         situations: list[str] = [floor_situation] if floor_situation else []
@@ -4493,7 +4519,7 @@ class ChatEngine:
             if result.part is not None:
                 parts.append(result.part)
             supported |= result.rendered.supported
-            limited |= not result.rendered.complete
+            incomplete |= not result.rendered.complete
             clarify |= result.clarification
             citations.update({c["id"]: c for c in result.rendered.citations})
             if result.error_code:
@@ -4669,10 +4695,17 @@ class ChatEngine:
         text = "\n\n".join(dict.fromkeys(emergency + chunks))
         if len(text) > MAX_ANSWER_CHARS:
             raise GatewayError("provider_invalid_response")
-        status = "partial" if situations or supported and limited else (
+        status = "partial" if situations or supported and (limited or incomplete) else (
             "answered" if supported else ("clarification" if clarify else "unavailable"))
         reply = self._json(answered(turn, text, status, list(citations.values()), version),
                            parts, turn)
+        packet = reply.body.get("facts")
+        if (status == "partial" and incomplete and not limited and not situations
+                and isinstance(packet, dict) and packet.get("status") == "complete"):
+            # A lookup's evidence text judges its whole record; the packet judges what was asked.
+            # "Food after 9pm" on a Tuesday is answered whole though the Atrium lists no weekend
+            # hours (11-03): with nothing else limiting the reply, the packet's word stands.
+            reply = replace(reply, body={**reply.body, "status": "answered"})
         if self.output == "written" and budget is not None:
             reply = await self._written(reply, text, budget, trace, _plain_language(finish),
                                         lead="\n\n".join(emergency))

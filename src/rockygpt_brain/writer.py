@@ -52,6 +52,12 @@ give the page for the rest.
   closed, now is the time it is). Say it plainly first, with that day's hours, and never work out
   open or closed yourself when open_now is absent. listed_open_now is the same for hours whose
   dates are not published: say "by its listed hours it is open (or closed) now", never plainly.
+- open_at answers the time the student asked about (at). With relation after, periods are what
+  is open from then on (open_at_asked: already open then, so say until when), closed means
+  nothing is (last_closes is the day's closing), and it is said instead of the day's other
+  hours. With relation at, it is open or closed then: say that first, then the day's hours.
+  all_day means open 24 hours. listed_open_at is the same by listed hours whose dates are not
+  published.
 - open_now can carry meal (the period in service), closes, next_meal and next_opens: say them as
   given. closes is when service stops; meal_ends and then_meal mean the next meal follows straight
   on, so never say it closes at meal_ends. With reopens it opens again then (reopens_meal) until

@@ -4,7 +4,15 @@ from datetime import date
 
 import pytest
 
-from rockygpt_brain.hours_on import DAY_CHOICES, covers, hours_on, target_date, window
+from rockygpt_brain.hours_on import (
+    DAY_CHOICES,
+    asked_clock,
+    covers,
+    hours_on,
+    names_another_day,
+    target_date,
+    window,
+)
 
 WEEK = {"schedule": "Testing Center",
         "days": [{"day": d, "hours": "8:30am-4:30pm"} for d in
@@ -122,3 +130,39 @@ def test_a_date_known_to_be_outside_the_window_never_lists_hours() -> None:
     inside = hours_on(fall, FALL, date(2026, 10, 9))
     assert inside["applies"] is True and inside["value"]["hours"] == "8:30am-4:30pm"
     assert "listed_hours" not in inside["value"]
+
+
+@pytest.mark.parametrize(("message", "asked"), [
+    ("where can i get food after 9pm on campus?", ("after", 21 * 60)),
+    ("anything open past 10:30 p.m.?", ("after", 22 * 60 + 30)),
+    ("is the library open at 10 a.m.", ("at", 10 * 60)),
+    ("is birch open around 7 PM", ("at", 19 * 60)),
+    ("is the gym open at noon", ("at", 12 * 60)),
+    ("food after 9pm, like after 9 pm", ("after", 21 * 60)),  # one time, said twice
+    ("open 8pm?", ("at", 20 * 60)),
+])
+def test_the_clock_time_a_student_asks_about_is_read_from_their_words(
+        message: str, asked: tuple[str, int]) -> None:
+    assert asked_clock(message) == asked
+
+
+@pytest.mark.parametrize("message", [
+    "is the library open until 10pm",  # asks when it closes: the day's hours answer it
+    "is it open before 8am",
+    "open from 9pm to 11pm?",
+    "open at 9pm or 10pm?",  # two times
+    "food after 9",  # no am or pm: could be either
+    "the 4:30 train",
+    "anything open after 1am",  # the night after the day: one day's hours cannot say
+    "open at midnight?",
+    "where can i get food on campus?",
+])
+def test_a_time_asked_some_other_way_or_unclear_is_not_read(message: str) -> None:
+    assert asked_clock(message) is None
+
+
+def test_a_time_asked_with_another_day_named_is_that_days() -> None:
+    for message in ("food after 9pm on saturday", "is it open after 9pm tomorrow",
+                    "what's open after 9pm on weekends", "is birch usually open after 9pm"):
+        assert names_another_day(message), message
+    assert not names_another_day("where can i get food after 9pm tonight")

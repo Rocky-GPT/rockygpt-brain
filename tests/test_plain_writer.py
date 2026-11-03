@@ -526,3 +526,77 @@ def test_a_note_beside_the_hours_says_only_what_the_reply_has_not_said() -> None
                                      "minutes before closing time."}
     assert "Library:" not in (plain_text(view(derived_facts=[hours], facts=[only_repeats]))
                               or "")
+
+
+def asked_time(subject: str, source: int, open_at: dict[str, Any], hours: str,
+               **more: Any) -> dict[str, Any]:
+    return {"subject": subject, "predicate": "hours_on", "day": "Tuesday", "date": "2026-11-03",
+            "open_at": open_at, "value": {"schedule": subject, "hours": hours},
+            "sources": [source], **more}
+
+
+def test_a_time_asked_is_answered_for_that_time_with_the_places_open_then_first() -> None:
+    after = {"relation": "after", "at": "9:00pm"}
+    v = view(derived_facts=[
+        asked_time("The Atrium", 1, {**after, "state": "closed", "last_closes": "7:00pm"},
+                   "Lunch: 11:00 AM - 02:00 PM; Dinner: 04:30 PM - 07:00 PM"),
+        asked_time("Birch Tree Inn", 2, {**after, "state": "open", "periods": [
+            {"label": "Late Night", "opens": "9:00pm", "closes": "11:00pm"}]},
+            "Dinner: 05:00 PM - 08:00 PM; Late Night: 09:00 PM - 11:00 PM"),
+        asked_time("Library", 1, {**after, "state": "open", "periods": [
+            {"opens": "7:45am", "closes": "12:00am", "open_at_asked": True}]}, "7:45am-12:00am"),
+        asked_time("Public Safety", 2, {**after, "state": "open", "all_day": True}, "24 hours"),
+        asked_time("Starbucks", 1, {**after, "state": "closed"}, "Closed")])
+    said = plain_text(v)
+    # 11-03 "where can I get food after 9pm": each venue's whole day was said, the closed ones
+    # first. Now the time is answered, and the places open then lead.
+    assert said == (
+        "After 9:00pm on Tuesday, November 3, Birch Tree Inn serves Late Night from 9:00pm to "
+        "11:00pm. [2]\n\n"
+        "After 9:00pm on Tuesday, November 3, Library is open until 12:00am. [1]\n\n"
+        "Public Safety is open 24 hours on Tuesday, November 3. [2]\n\n"
+        "The Atrium is not open after 9:00pm on Tuesday, November 3: it closes at 7:00pm. [1]\n\n"
+        "Starbucks is closed on Tuesday, November 3. [1]")
+    assert unsupported_by(said, v) == []
+
+
+def test_open_at_a_time_says_open_or_closed_then_and_now_first_when_asked_too() -> None:
+    v = view(derived_facts=[
+        asked_time("Birch Tree Inn", 2, {"relation": "at", "at": "10:00pm", "state": "open",
+                                         "closes": "11:00pm", "meal": "Late Night"},
+                   "Dinner: 05:00 PM - 08:00 PM; Late Night: 09:00 PM - 11:00 PM",
+                   open_now={"state": "closed", "now": "6:10pm", "next_opens": "9:00pm",
+                             "next_meal": "Late Night"}),
+        asked_time("Registrar", 1, {"relation": "at", "at": "8:30pm", "state": "closed"},
+                   "8:30am-4:30pm"),
+        asked_time("Library", 1, {"relation": "at", "at": "10:00am", "state": "open",
+                                  "closes": "12:00am"}, "7:45am-12:00am")])
+    said = plain_text(v)
+    # The day's hours follow, so a time named for another reason ("I have class at 8:30pm")
+    # still gets them.
+    assert said == (
+        "Birch Tree Inn is closed now (6:10pm). It opens next at 9:00pm for Late Night. "
+        "Birch Tree Inn is open at 10:00pm on Tuesday, November 3, serving Late Night until "
+        "11:00pm. Birch Tree Inn on Tuesday, November 3: Dinner: 05:00 PM - 08:00 PM; Late "
+        "Night: 09:00 PM - 11:00 PM. [2]\n\n"
+        "Library is open at 10:00am on Tuesday, November 3, until 12:00am. Library on Tuesday, "
+        "November 3: 7:45am-12:00am. [1]\n\n"
+        "Registrar is closed at 8:30pm on Tuesday, November 3. Registrar on Tuesday, November 3: "
+        "8:30am-4:30pm. [1]")
+    assert unsupported_by(said, v) == []
+    # Listed hours whose dates are not published are said as listed, with why.
+    listed = view(derived_facts=[{
+        "subject": "Registrar", "predicate": "hours_on", "day": "Tuesday", "date": "2026-11-03",
+        "listed_open_at": {"relation": "after", "at": "9:00pm", "state": "closed",
+                           "last_closes": "4:30pm"},
+        "applicability": "unverified",
+        "applicability_reason": "The page does not say which dates this schedule covers.",
+        "current": False, "value": {"schedule": "Registrar", "hours": None,
+                                    "listed_hours": "8:30am-4:30pm"}, "sources": [1]}])
+    assert plain_text(listed) == (
+        "By its listed hours, Registrar is not open after 9:00pm on Tuesday, November 3: it "
+        "closes at 4:30pm. [1]\n\nThe page does not say which dates this schedule covers. [1]")
+    # A shape it does not know is left to the code's evidence text.
+    odd = view(derived_facts=[asked_time("Registrar", 1, {"relation": "before", "at": "8:30pm",
+                                                          "state": "closed"}, "8:30am-4:30pm")])
+    assert plain_text(odd) is None
