@@ -412,6 +412,37 @@ def test_a_building_is_where_the_map_shows_it_its_room_numbers_and_the_places_in
     assert said is not None and unsupported_by(said, v) == []
 
 
+def test_asked_what_is_in_a_building_every_place_is_named() -> None:
+    names = [f"Office {letter}" for letter in "ABCDEFGHIJ"]
+    v = view(asked={"intent": "office_facts", "offices": [], "fields": ["offices", "places_in"]},
+             facts=building(names))
+    said = plain_text(v)
+    assert said is not None and said.endswith(
+        "Places in Student Center (SC) include Office A, Office B, Office C, Office D, Office E, "
+        "Office F, Office G, Office H, Office I and Office J. [1][2]")
+    assert unsupported_by(said, v) == []
+
+
+def test_a_place_with_no_room_of_its_own_is_in_the_building_the_map_puts_it_in() -> None:
+    def placed(*buildings: str) -> dict[str, Any]:
+        return view(asked={"intent": "contact", "offices": [], "fields": ["offices"]}, facts=[
+            {"subject": "Marketing", "predicate": "building", "sources": [1, 2],
+             "value": [{"name": name, "map": f"https://map.example.edu/{name[-1].lower()}"}
+                       for name in buildings]}])
+    one = placed("Academic Building D")
+    said = plain_text(one)
+    assert said == ("Marketing is in Academic Building D, which is on the campus map: "
+                    "https://map.example.edu/d. [1][2]")
+    assert said is not None and unsupported_by(said, one) == []
+    two = placed("Academic Building A", "Academic Building D")
+    said = plain_text(two)
+    assert said == (
+        "Marketing is in Academic Building A and Academic Building D. Academic Building A is on "
+        "the campus map: https://map.example.edu/a. Academic Building D is on the campus map: "
+        "https://map.example.edu/d. [1][2]")
+    assert said is not None and unsupported_by(said, two) == []
+
+
 def test_a_buildings_hours_are_the_hours_its_places_publish() -> None:
     hours = {"subject": "Office A", "predicate": "hours_on", "day": "Sunday",
              "date": "2026-11-08",

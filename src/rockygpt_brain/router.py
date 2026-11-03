@@ -110,6 +110,16 @@ def _named(words: list[str], message: str, offices: Sequence[dict[str, Any]] | N
     return said, covered
 
 
+def asks_inside(message: str, building: dict[str, Any]) -> bool:
+    """Whether a message asks what is in a building it names ("what offices are in Academic
+    Building D?", "what's inside the Student Center?"): then its places are the answer, all of
+    them, not a few beside where it is (11-03 practice: eight of D's twenty-one were named)."""
+    words = _asked_words(message)
+    _, covered = _named(words, message, None, None, [building])
+    rest = " ".join(w for k, w in enumerate(words) if k not in covered)
+    return bool(covered) and _INSIDE.search(rest) is not None
+
+
 def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
                venues: Sequence[dict[str, Any]] | None,
                buildings: Sequence[dict[str, Any]] | None = None) -> dict[str, Any] | None:
