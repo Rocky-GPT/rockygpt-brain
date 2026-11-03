@@ -214,6 +214,14 @@ _ASKS_A_PROCESS = re.compile(
 _KILL_ME = re.compile(r"\b(gonna|going to|will|wants to|want to) kill (me|us)\b")
 
 
+# Overdoses asked about as a topic ("anything about narcan or overdoses", "overdose prevention
+# training") rather than one happening: the emergency text still comes first, and the question is
+# answered beside it (11-03 practice: the Narcan training on the calendar was never named).
+_ABOUT_OVERDOSES = re.compile(
+    r"\b(?:narcan|naloxone)\b|\boverdose (?:prevention|awareness|training|response)\b|"
+    r"\b(?:about|on|for) (?:an? |the )?(?:opioid )?overdoses?\b")
+
+
 def _only_a_threat_to_kill(text: str) -> bool:
     """Whether "going to kill me" is the only danger a message names."""
     rest = _KILL_ME.sub(" ", text)
@@ -248,7 +256,8 @@ def check(turn: Turn) -> BoundaryResult:
     if not kinds:
         return CONTINUE
     situation = kinds.pop() if len(kinds) == 1 else "other"
-    also = situation != "self_harm" and bool(_ASKS_A_PROCESS.search(text))
+    also = situation != "self_harm" and bool(_ASKS_A_PROCESS.search(text)
+                                             or _ABOUT_OVERDOSES.search(text))
     if situation == "danger" and _only_a_threat_to_kill(text):
         also = True
     return BoundaryResult("safety", safety_text(situation), situation, also_answer=also)

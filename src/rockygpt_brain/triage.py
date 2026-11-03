@@ -262,6 +262,9 @@ month year which tell me please can you could do know tonight this
 """.split())
 # Words that ask what is happening right now, which no published page can say: a question with
 # one stays a live_status limit even when its place or event is published.
+# A game's or a race's result, which the calendar never holds ("who won the game last night").
+RESULT_WORDS = re.compile(r"\b(?:won|win|wins|winning|winner|score|scores|scored|beat|lost|"
+                          r"results?|standings|highlights)\b", re.IGNORECASE)
 LIVE_WORDS = re.compile(
     r"\b(?:cancel\w*|postpon\w*|delay\w*|busy|crowded|packed|lines?|wait\w*|weather|snow\w*|"
     r"storm\w*|rain\w*|outage|power)\b", re.IGNORECASE)

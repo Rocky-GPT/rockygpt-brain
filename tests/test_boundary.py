@@ -367,3 +367,24 @@ def test_going_to_kill_me_keeps_the_danger_text_and_is_also_answered(message: st
 def test_a_threat_with_anything_more_is_the_floors_reply_alone(message: str) -> None:
     result = read(message)
     assert result.kind == "safety" and result.also_answer is False
+
+
+@pytest.mark.parametrize("message", [
+    "anything about narcan or overdoses",
+    "is there overdose prevention training on campus",
+    "where can i learn about overdoses",
+    "my friend overdosed, where do i get naloxone",
+])
+def test_overdoses_asked_about_keep_the_emergency_text_and_are_also_answered(
+        message: str) -> None:
+    # A question about Narcan or overdoses as a topic still gets the emergency text first, then
+    # its answer (11-03 practice: the Narcan training on the calendar was never named).
+    result = read(message)
+    assert result.kind == "safety" and result.message == SAFETY_TEXTS["other"]
+    assert result.also_answer is True
+
+
+@pytest.mark.parametrize("message", ["my roommate overdosed", "i think he is overdosing"])
+def test_an_overdose_happening_is_the_floors_reply_alone(message: str) -> None:
+    result = read(message)
+    assert result.kind == "safety" and result.also_answer is False
