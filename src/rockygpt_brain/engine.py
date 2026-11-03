@@ -2112,6 +2112,10 @@ class ChatEngine:
                 # nothing about what was asked (11-03 practice: "any karaoke nights" was answered
                 # with a long list of unrelated events).
                 ranked = []
+            # Counted before the list is cut, so the reply says how many match, not how many
+            # it shows.
+            totals = events.match_totals(ranked)
+            ranked = events.shown_events(ranked)
             chosen = numbered(ranked)
             outside: list[dict[str, Any]] = []
             outside_values: list[dict[str, Any]] = []
@@ -2133,13 +2137,13 @@ class ChatEngine:
             computed = events.computed_answers(
                 label, start, end, in_window, valued, matched, words, events.asks_food(message),
                 outside, numbered_from + 1, asked=message, kinds_said=kinds_said,
-                only_kinds=bool(asked_kinds) and not rest)
+                only_kinds=bool(asked_kinds) and not rest, totals=totals)
             said = events.topic_text(
                 label, start, end, in_window, valued, matched,
                 [{**line, "_value": value}
                  for line, value in zip(outside, outside_values, strict=True)],
                 numbered_from + 1, kinds_said=kinds_said,
-                only_kinds=bool(asked_kinds) and not rest)
+                only_kinds=bool(asked_kinds) and not rest, totals=totals)
             calendar = {"window": label, "events_on_the_calendar_in_it": len(dated),
                         **({"topic_matched": matched, "topic_words": sorted(words)}
                            if matched is not None else {}),
