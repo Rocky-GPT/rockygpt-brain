@@ -35,7 +35,7 @@ from rockygpt_brain.retrieval import (
     PostgresEntityFacts,
     UnknownEntity,
 )
-from rockygpt_brain.retrieval.graph_store import GraphOnlyFacts, GraphUnavailable, ReleaseGraphFacts
+from rockygpt_brain.retrieval.graph_store import GraphOnlyFacts, GraphUnavailable
 from rockygpt_brain.retrieval.graph_sync import GraphFollower, GraphStore, SyncError
 from rockygpt_brain.settings import ConfigurationError, ProviderSettings
 from rockygpt_brain.spending import SpendingError
@@ -189,15 +189,8 @@ def _configured_engine() -> ChatEngine:
     database_url = os.getenv("DATABASE_URL", "").strip()
     if not database_url:
         raise ConfigurationError("Missing DATABASE_URL")
+    # Rollback only: production serves the graph file (BRAIN_GRAPH_ONLY_DIR above).
     facts = PostgresEntityFacts(database_url)
-    # Off unless set: the graph is a derived copy of the active release that Postgres still owns.
-    # Without LadybugDB installed the Brain keeps answering from Postgres, not going down for it.
-    graph_directory = os.getenv("BRAIN_GRAPH_DIR", "").strip()
-    if graph_directory:
-        try:
-            facts = ReleaseGraphFacts(facts, Path(graph_directory))
-        except GraphUnavailable:
-            LOG.error("brain_graph_store_not_installed")
     return ChatEngine(Gateway(settings), facts, max_turn_nusd=settings.max_turn_nusd,
                       output=output)
 

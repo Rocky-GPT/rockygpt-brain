@@ -5,9 +5,7 @@ by comparing every reader operation against the in-memory source, then cover the
 build, release changes, in-place edits, the failures, and the engine limits.
 """
 
-import asyncio
 import json
-import logging
 import os
 import threading
 import time
@@ -26,7 +24,6 @@ import psycopg
 import pytest
 
 import rockygpt_brain.api.app as app_module
-from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.retrieval import (
     DatasetChanged,
@@ -40,13 +37,9 @@ from rockygpt_brain.retrieval.entity_facts import ReleaseInputs, Snapshot
 from rockygpt_brain.retrieval.graph_store import (
     GraphEntityFacts,
     GraphUnavailable,
-    ReleaseGraphFacts,
     build_release_graph,
-    graph_path,
 )
 from rockygpt_brain.retrieval.projection import OFFICE_FIELDS
-from rockygpt_brain.turn import intake
-from test_campus_graph import Script, call
 
 pytest.importorskip("ladybug")
 
@@ -409,239 +402,6 @@ def email(service: EntityFacts, *, version: str = VERSION, identity: str = IDENT
     return str(result["properties"][0]["values"][0]["value"])
 
 
-def follow(counting: Counting, folder: Path, **kwargs: Any) -> ReleaseGraphFacts:
-    return ReleaseGraphFacts(counting, folder, now=lambda: NOW, **kwargs)
-
-
-def test_the_first_question_is_answered_from_the_source_while_the_graph_builds(
-        folder: Path) -> None:
-    counting = Counting(basic())
-    counting.gate = threading.Event()  # Hold the background build open.
-    service = follow(counting, folder)
-    assert email(service) == "published@example.edu"  # Nobody waits for the build.
-    until(lambda: counting.builds == 1)
-    assert service.stats()["building"] is True and service.serving == "memory (graph not ready)"
-    for _ in range(8):
-        assert email(service) == "published@example.edu"
-    assert counting.builds == 1  # One build in flight, however many questions arrive.
-    counting.gate.set()
-    assert service.wait_for_build()
-    assert email(service) == "published@example.edu" and service.serving == "graph"
-    stats = service.stats()
-    assert stats["servedFromSource"] == 9 and stats["servedFromGraph"] >= 1
-    assert stats["builds"] == 1 and stats["lastError"] is None and stats["lastBuildMs"] is not None
-
-
-def test_the_release_graph_is_built_once_and_then_reused(folder: Path) -> None:
-    counting = Counting(basic())
-    service = follow(counting, folder)
-    email(service)
-    assert service.wait_for_build()
-    before = counting.snapshots
-    for _ in range(3):
-        assert email(service) == "published@example.edu"
-    assert counting.snapshots == before and counting.builds == 1  # The source is not read again.
-    again = follow(counting, folder)  # A restart reuses the file when nothing changed.
-    email(again)
-    assert again.wait_for_build() and counting.builds == 1
-    assert [p.name for p in folder.iterdir()] == [graph_path(folder, VERSION, IDENTITY).name]
-
-
-def test_simultaneous_questions_neither_wait_nor_start_a_second_build(folder: Path) -> None:
-    counting = Counting(hours())
-    service = follow(counting, folder)
-    gate, answers, errors = threading.Barrier(8), [], []
-
-    def ask() -> None:
-        try:
-            gate.wait()
-            answers.append(email(service))
-        except Exception as error:  # noqa: BLE001 - the test reports whatever went wrong.
-            errors.append(error)
-
-    threads = [threading.Thread(target=ask) for _ in range(8)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-    assert errors == [] and answers == ["published@example.edu"] * 8
-    assert service.wait_for_build() and counting.builds == 1
-
-
-def test_a_new_release_is_read_from_the_source_until_its_graph_is_ready(folder: Path) -> None:
-    counting = Counting(basic())
-    service = follow(counting, folder)
-    email(service)
-    assert service.wait_for_build()
-    old_file = graph_path(folder, VERSION, IDENTITY)
-    counting.dataset_version, counting.identity_hash = "release-2", "identities-2"
-    counting.contacts[0]["email"] = "new@example.edu"
-    counting.gate = threading.Event()
-    assert email(service, version="release-2", identity="identities-2") == "new@example.edu"
-    assert service.serving == "memory (graph not ready)"  # The old graph is never served.
-    with pytest.raises(DatasetChanged):  # A turn pinned to the old release is told so.
-        email(service)
-    counting.gate.set()
-    assert service.wait_for_build()
-    assert email(service, version="release-2", identity="identities-2") == "new@example.edu"
-    assert service.serving == "graph" and not old_file.exists()
-    assert graph_path(folder, "release-2", "identities-2").exists()
-
-
-def test_rows_edited_in_place_in_the_active_release_reach_the_answers(folder: Path) -> None:
-    ticks = [0.0]
-    counting = Counting(basic())
-    service = follow(counting, folder, clock=lambda: ticks[0])
-    email(service)
-    assert service.wait_for_build() and email(service) == "published@example.edu"
-    assert service.serving == "graph"
-    counting.contacts[0]["email"] = "edited@example.edu"
-    counting.fingerprint = "rows-2"  # The release name and hash are unchanged.
-    assert email(service) == "published@example.edu"  # Not yet noticed: inside the check window.
-    ticks[0] = graph_store.FINGERPRINT_SECONDS + 1
-    assert email(service) == "edited@example.edu"  # Noticed: answered from the source.
-    assert service.serving == "memory (graph not ready)"
-    assert service.wait_for_build() and email(service) == "edited@example.edu"
-    assert service.serving == "graph" and counting.builds == 2
-
-
-@pytest.mark.parametrize("error", [
-    EvidenceUnavailable("Published campus evidence exceeded its read deadline."),
-    GraphUnavailable("simulated"), OSError("disk full"), RuntimeError("engine crashed")])
-def test_a_failed_build_never_costs_an_answer_and_is_retried_later(
-        folder: Path, error: Exception) -> None:
-    ticks = [0.0]
-    counting = Counting(basic())
-    counting.build_error = error
-    service = follow(counting, folder, clock=lambda: ticks[0])
-    assert email(service) == "published@example.edu"
-    assert not service.wait_for_build()
-    assert service.stats()["lastError"] == type(error).__name__ and counting.builds == 1
-    for _ in range(5):  # Inside the pause nobody retries.
-        assert email(service) == "published@example.edu"
-    assert counting.builds == 1 and service.stats()["retryInSeconds"] > 0
-    ticks[0] = graph_store.RETRY_SECONDS + 1
-    counting.build_error = None
-    assert email(service) == "published@example.edu"
-    assert service.wait_for_build() and counting.builds == 2
-    assert service.stats()["lastError"] is None
-
-
-def test_questions_queued_behind_a_failing_build_do_not_each_rebuild(folder: Path) -> None:
-    counting = Counting(basic())
-    counting.gate = threading.Event()
-    counting.build_error = GraphUnavailable("simulated")
-    service = follow(counting, folder)
-    gate, errors = threading.Barrier(8), []
-
-    def ask() -> None:
-        try:
-            gate.wait()
-            email(service)
-        except Exception as error:  # noqa: BLE001 - the test reports whatever went wrong.
-            errors.append(error)
-
-    threads = [threading.Thread(target=ask) for _ in range(8)]
-    for thread in threads:
-        thread.start()
-    counting.gate.set()
-    for thread in threads:
-        thread.join()
-    service.wait_for_build()
-    assert errors == [] and counting.builds == 1
-
-
-def test_without_fallback_the_question_waits_for_the_graph_or_fails(folder: Path) -> None:
-    counting = Counting(basic())
-    waiting = follow(counting, folder, fallback=False)
-    assert email(waiting) == "published@example.edu" and waiting.serving == "graph"
-    broken = Counting(basic())
-    broken.build_error = GraphUnavailable("simulated")
-    with pytest.raises(EvidenceUnavailable, match="graph is unavailable"):
-        email(follow(broken, folder / "other", fallback=False))
-
-
-def test_a_graph_that_cannot_be_read_hands_the_question_to_the_source(
-        folder: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    ticks = [0.0]
-    counting = Counting(basic())
-    service = follow(counting, folder, clock=lambda: ticks[0])
-    email(service)
-    assert service.wait_for_build()
-    real = GraphEntityFacts.snapshot
-    broken = {"on": True}
-
-    @contextmanager
-    def snapshot(self: GraphEntityFacts) -> Iterator[Snapshot]:
-        if broken["on"]:
-            raise EvidenceUnavailable("The release graph could not be read.")
-        with real(self) as inner:
-            yield inner
-
-    monkeypatch.setattr(GraphEntityFacts, "snapshot", snapshot)
-    assert email(service) == "published@example.edu"  # Answered by the source.
-    assert service.serving == "memory (graph not ready)"
-    broken["on"] = False
-    ticks[0] = graph_store.RETRY_SECONDS + 1
-    email(service)
-    assert service.wait_for_build() and email(service) == "published@example.edu"
-    assert service.serving == "graph"
-
-
-def test_a_source_outage_is_not_hidden_by_the_graph(folder: Path) -> None:
-    counting = Counting(basic())
-    service = follow(counting, folder)
-    email(service)
-    assert service.wait_for_build()
-    counting.failure = EvidenceUnavailable("Published campus evidence is temporarily unavailable.")
-    with pytest.raises(EvidenceUnavailable, match="temporarily unavailable"):
-        email(service)
-    assert service.readiness() == {"ready": False}
-
-
-def test_a_damaged_file_is_rebuilt_not_trusted(folder: Path) -> None:
-    folder.mkdir(parents=True)
-    graph_path(folder, VERSION, IDENTITY).write_bytes(b"this is not a graph")
-    service = follow(Counting(basic()), folder)
-    email(service)
-    assert service.wait_for_build() and service.stats()["builds"] == 1
-    assert operations(service) == operations(basic())
-
-
-def test_a_file_built_for_other_kinds_is_rebuilt(folder: Path) -> None:
-    build_release_graph(basic(), folder, kinds=())
-    counting = Counting(basic())
-    service = follow(counting, folder)
-    email(service)
-    assert service.wait_for_build() and counting.builds == 1
-
-
-def test_a_chat_turn_through_the_release_graph_answers_like_one_through_the_source(
-        folder: Path) -> None:
-    request = ChatRequest.model_validate(
-        {"messages": [{"role": "user", "content": "What is the Registrar email?"}],
-         "omittedMessages": 0})
-
-    def answer(facts: EntityFacts) -> dict[str, Any]:
-        gateway = Script(
-            call("graph_lookup", {"requests": [{"query": "Registrar", "fields": ["email"]}]}),
-            call("finish", {"parts": []}))
-        result = asyncio.run(ChatEngine(gateway, facts).answer(intake(request, now=NOW), request))
-        assert result.status_code == 200 and result.trace is not None
-        return {"status": result.body["status"], "answer": result.body["answer"],
-                "citations": result.body["citations"], "path": result.trace["lookups"][0]["path"]}
-
-    graph = follow(Counting(basic()), folder)
-    during_build = answer(graph)  # Answered by the source while the graph builds.
-    assert graph.wait_for_build()
-    assert answer(graph) == during_build == answer(basic())
-    assert graph.serving == "graph"
-    runtime = ChatEngine(Script(), graph).runtime()
-    assert runtime["factsBackend"] == "graph" and runtime["factsGraph"]["builds"] == 1
-    plain = ChatEngine(Script(), basic()).runtime()
-    assert plain["factsBackend"] == "memory" and plain["factsGraph"] is None
-
-
 def test_a_failed_build_removes_every_side_file_the_engine_made(
         folder: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def refuse(*args: Any, **kwargs: Any) -> None:
@@ -660,80 +420,6 @@ def test_a_failed_build_removes_every_side_file_the_engine_made(
         path.write_bytes(b"x")
     graph_store._remove(base)  # noqa: SLF001 - the clean-up under test.
     assert [p.name for p in folder.iterdir()] == [neighbour.name]
-
-
-def test_two_builders_in_one_directory_do_not_destroy_each_other(folder: Path) -> None:
-    first, second = Counting(basic()), Counting(basic())
-    first.gate, second.gate = threading.Event(), threading.Event()
-    one, two = follow(first, folder), follow(second, folder)
-    email(one)
-    email(two)
-    until(lambda: first.builds == 1 and second.builds == 1)  # Both are building at once.
-    first.gate.set()
-    second.gate.set()
-    assert one.wait_for_build() and two.wait_for_build()
-    assert one.stats()["lastError"] is None and two.stats()["lastError"] is None
-    for service in (one, two):
-        assert email(service) == "published@example.edu" and service.serving == "graph"
-    assert [p.name for p in folder.iterdir()] == [graph_path(folder, VERSION, IDENTITY).name]
-
-
-def test_only_a_dead_processs_unfinished_build_is_cleaned_up(folder: Path) -> None:
-    folder.mkdir(parents=True)
-    young = folder / "release-other.lbug.111-aa.building"
-    old = folder / "release-other.lbug.222-bb.building"
-    other_release = folder / "release-older.lbug"
-    for path in (young, old, other_release):
-        path.write_bytes(b"x")
-    long_ago = time.time() - graph_store.STALE_BUILD_SECONDS - 10
-    os.utime(old, (long_ago, long_ago))
-    service = follow(Counting(basic()), folder)
-    email(service)
-    assert service.wait_for_build()
-    # Another process may be building right now, so its young file stays.
-    assert sorted(p.name for p in folder.iterdir()) == sorted(
-        [young.name, graph_path(folder, VERSION, IDENTITY).name])
-
-
-def test_a_graph_that_fails_a_read_is_dropped_and_the_source_takes_over(
-        folder: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    ticks = [0.0]
-    counting = Counting(basic())
-    service = follow(counting, folder, clock=lambda: ticks[0])
-    email(service)
-    assert service.wait_for_build() and email(service) == "published@example.edu"
-    real = graph_store._loads  # noqa: SLF001
-
-    def unreadable(text: str) -> Any:
-        if '"canonical_url"' in text:  # Only evidence rows carry it, never entities.
-            raise EvidenceUnavailable("The release graph could not be read.")
-        return real(text)
-
-    monkeypatch.setattr(graph_store, "_loads", unreadable)
-    with pytest.raises(EvidenceUnavailable, match="could not be read"):
-        email(service)  # The question that hits the damage fails once...
-    monkeypatch.undo()
-    assert email(service) == "published@example.edu"  # ...and the next is answered by the source.
-    assert service.serving == "memory (graph not ready)"
-    assert service.stats()["retryInSeconds"] > 0  # The graph is set aside for a while.
-    for _ in range(3):
-        email(service)
-    assert counting.builds == 1  # Nobody rebuilds inside the pause.
-    ticks[0] = graph_store.RETRY_SECONDS + 1
-    email(service)
-    assert service.wait_for_build() and email(service) == "published@example.edu"
-    assert service.serving == "graph"
-
-
-def test_a_file_holding_another_release_than_its_name_says_is_rebuilt(folder: Path) -> None:
-    other = Counting(basic())
-    other.dataset_version, other.identity_hash = "release-9", "identities-9"
-    build_release_graph(other, folder).rename(graph_path(folder, VERSION, IDENTITY))
-    counting = Counting(basic())
-    service = follow(counting, folder)
-    email(service)
-    assert service.wait_for_build() and counting.builds == 1  # Rebuilt, not trusted by its name.
-    assert email(service) == "published@example.edu" and service.serving == "graph"
 
 
 def test_a_graph_names_the_release_it_was_built_from(folder: Path) -> None:
@@ -801,20 +487,6 @@ def test_an_evidence_query_that_fails_puts_the_graph_aside(folder: Path) -> None
     with pytest.raises(EvidenceUnavailable, match="could not be read"):
         graph.get_office_facts("registrar", ["email"], VERSION)
     assert graph.broken is True
-
-
-def test_a_build_thread_that_cannot_start_leaves_the_answers_alone(
-        folder: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    def cannot(self: threading.Thread) -> None:
-        raise RuntimeError("can't start new thread")
-
-    counting = Counting(basic())
-    service = follow(counting, folder)
-    monkeypatch.setattr(threading.Thread, "start", cannot)
-    assert email(service) == "published@example.edu"
-    stats = service.stats()
-    assert stats["building"] is False and stats["lastError"] == "RuntimeError"
-    assert stats["retryInSeconds"] > 0 and counting.builds == 0
 
 
 # ---- Postgres: the probes and the build read ------------------------------------------------
@@ -960,35 +632,18 @@ def test_the_build_reads_the_release_in_one_transaction_with_its_own_limits(
 # ---- start-up wiring -------------------------------------------------------------------------
 
 
-def configured(monkeypatch: pytest.MonkeyPatch, graph_dir: str | None) -> ChatEngine:
+def configured(monkeypatch: pytest.MonkeyPatch) -> ChatEngine:
     monkeypatch.setattr(app_module, "ProviderSettings",
                         SimpleNamespace(from_env=lambda: SimpleNamespace(max_turn_nusd=1)))
     monkeypatch.setattr(app_module, "Gateway", lambda settings: object())
     monkeypatch.setenv("DATABASE_URL", "postgresql://example.invalid/test")
-    if graph_dir is None:
-        monkeypatch.delenv("BRAIN_GRAPH_DIR", raising=False)
-    else:
-        monkeypatch.setenv("BRAIN_GRAPH_DIR", graph_dir)
+    monkeypatch.delenv("BRAIN_GRAPH_ONLY_DIR", raising=False)
     return app_module._configured_engine()  # noqa: SLF001 - the wiring under test.
 
 
-def test_the_graph_is_off_unless_a_directory_is_named(
-        monkeypatch: pytest.MonkeyPatch, folder: Path) -> None:
-    assert isinstance(configured(monkeypatch, None).facts, PostgresEntityFacts)
-    wired = configured(monkeypatch, str(folder)).facts
-    assert isinstance(wired, ReleaseGraphFacts) and isinstance(wired.source, PostgresEntityFacts)
-
-
-def test_naming_a_directory_without_ladybug_keeps_answering_from_postgres(
-        monkeypatch: pytest.MonkeyPatch, folder: Path, caplog: pytest.LogCaptureFixture) -> None:
-    def missing() -> Any:
-        raise GraphUnavailable("not installed")
-
-    monkeypatch.setattr(graph_store, "ladybug_module", missing)
-    with caplog.at_level(logging.ERROR):
-        engine = configured(monkeypatch, str(folder))
-    assert isinstance(engine.facts, PostgresEntityFacts)  # A graph problem is not an outage.
-    assert "brain_graph_store_not_installed" in caplog.text
+def test_without_a_graph_directory_the_brain_reads_postgres(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    assert isinstance(configured(monkeypatch).facts, PostgresEntityFacts)
 
 
 def test_an_offices_own_pages_survive_the_graph_and_answer_a_procedure_the_same(
