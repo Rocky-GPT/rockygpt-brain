@@ -105,6 +105,20 @@ def with_siblings(chosen: Sequence[Mapping[str, Any]], offices: Sequence[Mapping
     return list(out.values())
 
 
+def without_variant_names(written: str, offices: Sequence[Mapping[str, Any]]) -> str:
+    """The reply with each office that has a sibling among `offices` called by the name they
+    share: the contact lines after it say which line is Emergency and which Non-Emergency, so
+    the words must not pin one number on the other's name (11-03: "Report it to Public Safety
+    (Non-Emergency)... Call (201) 684-6666", the emergency line)."""
+    plains = [plain_name(str(o.get("name") or "")) for o in offices]
+    for office, plain in zip(offices, plains, strict=True):
+        name = str(office.get("name") or "")
+        if plain and plains.count(plain) > 1 and name.casefold() != plain:
+            shared = re.sub(r"\s*\([^)]*\)", "", name).strip()
+            written = re.sub(re.escape(name), shared, written, flags=re.IGNORECASE)
+    return written
+
+
 def asks_contact_only(message: str, named_words: Iterable[str]) -> bool:
     """Whether a message asks only how to reach (or where to find) the offices it names."""
     rest = message

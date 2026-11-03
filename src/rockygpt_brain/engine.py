@@ -2793,13 +2793,15 @@ class ChatEngine:
         after: list[str] = []
         if contacts.asks_who(latest) and offices and written:
             try:
+                to_reach = self._cited_offices(written, offices)
                 said, found_sources, contact_facts = await asyncio.to_thread(
-                    self._office_contacts, self._cited_offices(written, offices), len(sources))
+                    self._office_contacts, to_reach, len(sources))
             except (DatasetChanged, EvidenceUnavailable, InvalidFactRequest,
                     UnknownEntity) as error:
                 LOG.warning("brain_office_contacts_failed error=%s", type(error).__name__)
                 said = None
             if said:
+                written = contacts.without_variant_names(written, to_reach)
                 sources = [*sources, *found_sources]
                 after.append(said)
                 code_view["contacts"] = contact_facts
