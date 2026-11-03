@@ -338,3 +338,75 @@ def test_a_mark_covers_its_paragraph_and_rewording_words_do_not_count() -> None:
                     evidence, "") == []
     assert unbacked("Fill out the form. [1]\n\nIt costs nothing.", evidence, "") == [
         {"statement": "It costs nothing.", "words": ["cost", "noth"], "uncited": True}]
+
+
+def emergency_service() -> Any:
+    """The how-to pages, one of which says to call 911, and Public Safety's emergency line."""
+    service = meaning_service()
+    tutoring = next(p for p in service.records["office_sections"] if p["id"] == "page-tutoring")
+    tutoring["sections"].append({"heading": "Worried about a student",
+                                 "text": "If a student is in danger right now, call 911."})
+    service.index = index_of(
+        [("page-tutoring", "0", ["tutoring"], [[1, 0, 0]]),
+         ("page-tutoring", "1", ["tutoring"], [[1, 0, 0]])], service.index.names)
+    service.entities.append({"id": "ps-e", "name": "Public Safety (Emergency)", "kind": "office",
+                             "aliases": [], "links": [{"collection": "contacts",
+                                                       "source_key": "directory",
+                                                       "source_record_keys": ["ps-e"]}]})
+    service.contacts.append({"id": "source-ps-e", "source_key": "directory",
+                             "source_record_key": "ps-e", "name": "Public Safety (Emergency)",
+                             "phone": "(201) 555-6666",
+                             "canonical_url": "https://example.edu/publicsafety",
+                             "collected_at": NOW, "freshness_sla_hours": 24})
+    return service
+
+
+def test_a_reply_that_says_call_911_also_gives_public_safetys_published_line() -> None:
+    # 11-03: "I'm worried about a student" said to call 911 but gave no campus number.
+    from rockygpt_brain.engine import HELP_TEXT
+
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "I'm worried about a student. Who do I contact?"}]})
+    gateway = PartsGateway(one_reply("If the student is in danger right now, call 911. [2]", [2]))
+    engine = ChatEngine(gateway, emergency_service(), output="written", howto_one_call=True)
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    text = result.body["answer"]
+    assert result.trace is not None and result.trace["decidedBy"] == "one_call"
+    body, sources = text.split("\n\nSources: ")
+    assert body.startswith("If the student is in danger right now, call 911. [2]\n\n" + HELP_TEXT)
+    assert "**Public Safety \\(Emergency\\)**: \\(201\\) 555-6666." in body
+    assert "https://example.edu/publicsafety" in body and sources.startswith("[2](")
+    assert "https://example.edu/publicsafety" in {c["url"] for c in result.body["citations"]}
+    # A reply that already gives the line gets nothing more.
+    from rockygpt_brain.answers import Rendered
+    from rockygpt_brain.engine import with_campus_help
+    line = Rendered("**Public Safety \\(Emergency\\)**: \\(201\\) 555-6666. [Source](https://x)",
+                    [{"id": "s", "url": "https://x"}], True, True)
+    said = "Call Public Safety at 201.555.6666 or 911. [1]\n\nSources: [1](https://y)"
+    assert with_campus_help(said, [], [line]) == (said, [])
+    # No 911, no campus line: a how-to that names no emergency is left as written.
+    plain = ask(PartsGateway(one_reply(
+        "Center for Reading and Writing: Apply with the online form by March 1. [1]", [1])),
+        "how do i become a peer tutor")
+    assert HELP_TEXT not in plain.body["answer"]
+
+
+def test_a_contact_question_naming_an_offices_service_label_is_looked_up_by_code_first() -> None:
+    # "Who do I contact for help with Canvas?" names the Instructional Design Center by the
+    # label its own page uses; code reads its contacts before any page search (11-03).
+    service = meaning_service()
+    library = next(e for e in service.entities if e["id"] == "library")
+    library["aliases"] = ["Book Renewals"]
+    for question in ("Who do I contact for help with Book Renewals?",
+                     "How do I contact the Library?"):
+        assert routes_here(question)
+        gateway = PartsGateway()
+        request = ChatRequest.model_validate({"messages": [
+            {"role": "user", "content": question}]})
+        engine = ChatEngine(gateway, service, output="written", howto_one_call=True)
+        result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+        assert result.trace is not None and result.trace["decidedBy"] == "code", question
+        assert gateway.inputs == [] and gateway.embedded == []
+        assert "library@example.edu" in result.body["answer"]
+    # A how-to naming the office still reads its pages.
+    assert routes_here("How do I borrow books from the Library?")

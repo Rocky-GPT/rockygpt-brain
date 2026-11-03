@@ -80,3 +80,14 @@ def test_a_menu_asked_of_no_place_is_the_menu_of_every_venue_that_publishes_one(
         "query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "lunch"}
     assert route("What is for dinner tonight?") == {
         "query": "Birch Tree Inn", "fields": ["menu"], "day": "today", "meal": "dinner"}
+
+
+def test_who_to_contact_for_help_with_an_offices_service_label_is_routed_by_code() -> None:
+    # 11-03: "Canvas" is the Instructional Design Center's own label for the service it supports.
+    offices = [*OFFICES, {"name": "Instructional Design Center",
+                          "also_called": ["IDC", "Canvas"]}]
+    assert code_route("Who do I contact for help with Canvas?", offices, VENUES) == {
+        "requests": [{"query": "Instructional Design Center",
+                      "fields": ["email", "phones", "offices"]}]}
+    assert code_route("Who can help me with Canvas quizzes?", offices, VENUES) is None
+    assert code_route("Who is the director of the IDC?", offices, VENUES) is None
