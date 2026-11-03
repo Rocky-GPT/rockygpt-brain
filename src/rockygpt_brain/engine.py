@@ -4755,8 +4755,6 @@ class ChatEngine:
             trace["situation"] = emergency_kind(situations)
             citations.update({c["id"]: c for r in help_ for c in r.citations})
         text = "\n\n".join(dict.fromkeys(emergency + chunks))
-        if len(text) > MAX_ANSWER_CHARS:
-            raise GatewayError("provider_invalid_response")
         status = "partial" if situations or supported and (limited or incomplete) else (
             "answered" if supported else ("clarification" if clarify else "unavailable"))
         reply = self._json(answered(turn, text, status, list(citations.values()), version),
@@ -4771,6 +4769,12 @@ class ChatEngine:
         if self.output == "written" and budget is not None:
             reply = await self._written(reply, text, budget, trace, _plain_language(finish),
                                         lead="\n\n".join(emergency))
+        # The limit is on the reply the student reads, not on code's notes for the writer: two
+        # venues' whole-day menus and Dining Services' contact were 12,500 characters of notes,
+        # said in 6,900, and the length of the notes failed the turn (11-03 repeat test, "where
+        # the halal food at", 2 tries of 5).
+        if len(str(reply.body.get("answer") or "")) > MAX_ANSWER_CHARS:
+            raise GatewayError("provider_invalid_response")
         return reply
 
     async def _written(self, result: ChatResult, code_text: str, budget: TurnBudget,

@@ -308,3 +308,28 @@ def test_the_evidence_text_names_a_matched_option_and_how_many_items_list_allerg
     assert gluten.startswith("Menu board: Atrium Menu Boards 2026. 4 of its 14 items list "
                              "allergens; the others cannot be checked. No item on the board "
                              "matches")
+
+
+def test_the_length_limit_is_on_the_reply_the_student_reads_not_codes_notes(
+        monkeypatch: Any) -> None:
+    """11-03 repeat test, "where the halal food at" (2 tries of 5): two venues' whole-day menus and
+    Dining Services' contact were 12,500 characters of code's notes for the writer, said in 6,900,
+    and the turn failed on the notes' length with "couldn't produce a valid answer"."""
+    import rockygpt_brain.engine as engine_module
+
+    def answer(output: Any) -> Any:
+        request = ChatRequest.model_validate(
+            {"messages": [{"role": "user", "content": "What's on the Atrium menu?"}]})
+        # Code answers a plain menu question in written output; the model looks it up in text.
+        calls = [] if output == "written" else [menu_lookup(), finish()]
+        engine = ChatEngine(ScriptedGateway(*calls), atrium(), output=output)
+        return asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+
+    notes, said = answer("text").body["answer"], answer("written").body["answer"]
+    assert len(said) < len(notes)
+    monkeypatch.setattr(engine_module, "MAX_ANSWER_CHARS", len(said))
+    result = answer("written")
+    assert result.status_code == 200 and result.body["answer"] == said
+    # A reply the student would read past the limit is still not sent.
+    monkeypatch.setattr(engine_module, "MAX_ANSWER_CHARS", len(said) - 1)
+    assert answer("written").status_code == 502
