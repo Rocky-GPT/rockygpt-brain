@@ -86,14 +86,38 @@ _NOT_TOPIC = discovery_tokens(
 
 # "What shows up on my transcript" and "does it show up" ask about no show.
 _NOT_EVENT = re.compile(r"\bshows? up\b|\bshowing up\b|\bno[- ]shows?\b")
+# An occasion ("Black Solidarity Week", "Pride Month", "Veterans Day") asked about by what is on
+# for it ("anything for", "what's planned for", "how is ... celebrated") is the calendar's: its
+# events are the answer (11-03 practice: "anything for black solidarity week" never reached the
+# calendar, and the reply missed its two events). The occasion is named by at least one word
+# that is not a time ("this week", "a week", "the first day").
+_OCCASION = (
+    re.compile(r"\b(?:anything|something|planned|scheduled|do|doing)\s+(?:(?:happening|going on|"
+               r"special|planned|scheduled)\s+)?(?:for|during|around)\s+((?:[\w'’-]+\s+){1,4}?)"
+               r"(?:week|month|weekend|day)\b"),
+    re.compile(r"\b(?:celebrat\w*|observ\w*|commemorat\w*|recogni[sz]\w*)\s+((?:[\w'’-]+\s+)"
+               r"{1,4}?)(?:week|month|weekend|day)\b"),
+    re.compile(r"\b((?:[\w'’-]+\s+){1,4}?)(?:week|month|weekend|day)\s+(?:is\s+|being\s+|be\s+)?"
+               r"(?:celebrat|observ|commemorat|recogni[sz])\w*"))
+_NOT_OCCASION = frozenset("a an one two three this next last every each per that the whole "
+                          "entire same following previous first second third final of how is "
+                          "are".split())
+
+
+def asks_occasion(message: str) -> bool:
+    """Whether a question asks what is on for a named week, month, weekend or day (_OCCASION)."""
+    text = message.casefold()
+    return any(set(found.group(1).split()) - _NOT_OCCASION
+               for pattern in _OCCASION for found in pattern.finditer(text))
 
 
 def names_events(message: str) -> bool:
-    """Whether a question names events themselves ("games", "shows", "coming up"), not only a
-    time: "what's the weather this weekend" names a time and no event (11-03 practice: read as a
-    calendar question, it listed the weekend's events)."""
+    """Whether a question names events themselves ("games", "shows", "coming up", what is on for
+    an occasion), not only a time: "what's the weather this weekend" names a time and no event
+    (11-03 practice: read as a calendar question, it listed the weekend's events)."""
     text = _NOT_EVENT.sub(" ", message.casefold())
-    return bool(_EVENT_WORDS.search(text) or _SESSIONS_ASKED.search(text))
+    return bool(_EVENT_WORDS.search(text) or _SESSIONS_ASKED.search(text)
+                or asks_occasion(text))
 
 
 def asks_sessions(message: str) -> bool:
@@ -113,6 +137,7 @@ def asks_events(message: str) -> bool:
             and not _WHEN_WORDS.search(text) and not asks_team(message):
         return False
     return bool(_EVENT_WORDS.search(text) or _SESSIONS_ASKED.search(text) or asks_team(message)
+                or asks_occasion(text)
                 or (_WHEN_WORDS.search(text) and not _OTHER_SUBJECT.search(text)))
 
 
@@ -298,8 +323,19 @@ def said_words(message: str, words: AbstractSet[str]) -> str:
 
 
 def topic_words(message: str) -> set[str]:
-    """The words of a question that say what an event or club is about."""
-    return _stems(message) - _stems(" ".join(_NOT_TOPIC))
+    """The words of a question that say what an event or club is about; a word asking for the
+    answer (_ASKING) counts only when no other does."""
+    words = _stems(_ASKING_PHRASE.sub(" ", message.casefold())) - _stems(" ".join(_NOT_TOPIC))
+    return (words - _ASKING) or words
+
+
+# Words asking for an answer ("list the honor societies", "name some", "which ones exist", "show
+# me art events", "tell me about") or pointing back ("how do I join one"), not what it is about
+# (11-03: "list the cultural clubs" was read as clubs about "list" and "cultural", so its kind
+# was never listed). "Show", "tell" and "give" ask only before "me" or "us": "any art shows" asks
+# for shows of art.
+_ASKING_PHRASE = re.compile(r"\b(?:show|tell|give)\s+(?:me|us)\b")
+_ASKING = _stems("list lists name names exist exists existing one ones")
 
 
 def asked_topic(message: str) -> set[str]:
@@ -734,8 +770,12 @@ def names_its_kind(entry: Mapping[str, Any]) -> bool:
     under Honor Society - Academic): it stands for the kind, not one club, so a question naming
     it asks for the kind (11-03 practice: "are there any honor societies" was answered with that
     one entry, and none of the 31 honor societies was named)."""
-    name = _stems(str(entry.get("name") or "")) - _stems("ramapo college rcnj")
+    name = _kind_words(entry)
     return bool(name) and name <= _stems(str(entry.get("category") or ""))
+
+
+def _kind_words(entry: Mapping[str, Any]) -> set[str]:
+    return _stems(str(entry.get("name") or "")) - _stems("ramapo college rcnj")
 
 
 def kind_members(found: Sequence[dict[str, Any]],
@@ -753,6 +793,50 @@ def kind_members(found: Sequence[dict[str, Any]],
                     chosen.setdefault(str(member.get("id")),
                                       {"id": member.get("id"), "name": member.get("name")})
     return list(chosen.values())[:MAX_CATEGORY_CLUBS]
+
+
+def kind_named(message: str, directory: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
+    """The directory entry named for its kind ("Honor Societies": names_its_kind) that a question
+    names in any form ("an honor society"), when it names no other club; None otherwise."""
+    said = _stems(message)
+    kinds = [e for e in directory if names_its_kind(e) and _kind_words(e) <= said]
+    others = [c for c in find_clubs(directory, message) if c not in kinds]
+    return kinds[0] if len(kinds) == 1 and not others else None
+
+
+def members_of(entry: Mapping[str, Any],
+               directory: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Every directory club listed under the category an entry named for its kind stands for,
+    but such entries themselves ("Honor Societies" stands for 31 honor societies)."""
+    return [e for e in directory
+            if _category_head(e) == _category_head(entry) and not names_its_kind(e)]
+
+
+def kind_head(entry: Mapping[str, Any]) -> str:
+    """The category an entry named for its kind stands for, as the directory writes it."""
+    return str(entry.get("category") or "").split(" - ")[0].strip()
+
+
+def only_kind_asked(message: str, entry: Mapping[str, Any]) -> bool:
+    """Whether a question asks for nothing but the clubs of the kind an entry is named for."""
+    return asked_topic(message) <= _stems(str(entry.get("name") or ""))
+
+
+def club_list_text(lead: str, clubs: Sequence[dict[str, Any]],
+                   inactive: Mapping[int, dict[str, Any]] | None = None) -> str:
+    """Code's list of every club of a kind asked, after its `lead` ("The club directory lists 31
+    clubs under Honor Society [1]"): each club by its name [its number], one per line, and beside
+    one a ramapo.edu page marks inactive, that page's word [its number] (`inactive`, by the
+    club's number). A list given to the model came back cut short (11-03 practice: given 25
+    honor societies, the reply named 5)."""
+    lines = []
+    for club in clubs:
+        status = (inactive or {}).get(club["n"])
+        lines.append(f"- {literal(club['name'])} [{club['n']}]"
+                     + (f", but Ramapo's page for it says it is not currently an active club, "
+                        f"as of {_as_of(str(status['as_of']))} [{status['n']}]"
+                        if status else ""))
+    return "\n\n".join([f"{lead}:", "\n".join(lines)])
 
 
 def club_category(found: Sequence[dict[str, Any]],
@@ -1001,27 +1085,23 @@ def asks_club_events(message: str) -> bool:
 
 
 def club_answers(clubs: Sequence[dict[str, Any]], message: str, by_name: bool,
-                 directory_size: int, kinds_said: str = "") -> list[dict[str, Any]]:
+                 directory_size: int) -> list[dict[str, Any]]:
     """What code works out about the clubs a question asks for: each club found by its name
-    as the directory lists it; the clubs of the kind asked (`kinds_said`, kinds.names), by what
-    their entries describe; for clubs found only by meaning, whether any has a word asked in its
-    name, and which say every word of it in their entries (else they are only the nearest); or
-    that the directory lists no club for what was asked. Whether a club found by meaning is
-    what was asked ("Astronomy Club" for space, "Culinary and Pastry Skills" for baking) is the
-    reply's to judge from the entries: words alone cannot say it, so code never says a club
-    found by meaning is or is not one (11-03 practice: code's "lists no club for space" was
-    wrong)."""
+    as the directory lists it; for clubs found only by meaning, whether any has a word asked in
+    its name, and which say every word of it in their entries (else they are only the nearest);
+    or that the directory lists no club for what was asked. Every club of a kind asked is code's
+    own list (club_list_text). Whether a club found by meaning is what was asked ("Astronomy
+    Club" for space, "Culinary and Pastry Skills" for baking) is the reply's to judge from the
+    entries: words alone cannot say it, so code never says a club found by meaning is or is not
+    one (11-03 practice: code's "lists no club for space" was wrong)."""
     words = topic_words(message) - _GENERIC_STEMS
     topic = topic_span(message, words)
     if not clubs:
         return [{"fact": f"The club directory ({directory_size} clubs and organizations) lists "
                          f"no club for {topic or 'what was asked'}."}]
     facts: list[dict[str, Any]] = []
-    if kinds_said:
-        facts.append({"fact": f"By what their directory entries describe, {len(clubs)} of the "
-                              f"directory's clubs are {kinds_said} clubs."})
-    elif not by_name and words and not any(words & _stems(str(c.get("name") or ""))
-                                           for c in clubs):
+    if not by_name and words and not any(words & _stems(str(c.get("name") or ""))
+                                         for c in clubs):
         # An entry may say the topic though no name does ("[Previously Sci Fi and Comic Book
         # Club]", "fans of games, anime ..."): the reply says both, so "is there an anime club"
         # learns that none is named for it and which club's entry covers it.

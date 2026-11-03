@@ -263,9 +263,9 @@ def test_a_kind_of_club_lists_the_clubs_of_the_kinds_it_includes() -> None:
              ("Study Abroad Ambassadors", "Student Organization"),
              ("Chess Club", "Student Organization")]
     engine = ChatEngine(ScriptedGateway(), club_calendar(names), output="written")
-    found = engine._clubs_by_kind(Index(), "are there any international clubs", 0)  # type: ignore[arg-type]
+    found = engine._clubs_by_kind(Index(), "are there any international clubs")  # type: ignore[arg-type]
     assert found is not None
-    clubs, _, said = found
+    clubs, said = found
     assert [c["name"] for c in clubs] == ["International Student Organization",
                                           "Study Abroad Ambassadors"]
     assert said == "international"

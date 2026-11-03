@@ -12,7 +12,7 @@ from rockygpt_brain.events import (
     asked_kinds,
     asked_topic,
     asks_events,
-    club_answers,
+    club_list_text,
     computed_answers,
     names_events,
     rank_events,
@@ -194,16 +194,16 @@ def test_the_reply_says_the_kind_and_how_many_events_of_it() -> None:
     assert "No upcoming art and crafts event is on the whole calendar." in none
 
 
-def test_clubs_of_a_kind_are_said_as_the_kind() -> None:
-    clubs = [{"n": 1, "name": "Black Student Union", "category": "Student Organization",
-              "url": "https://archway.ramapo.edu/BSU/"},
-             {"n": 2, "name": "Balkan Club", "category": "Student Organization",
-              "url": "https://archway.ramapo.edu/Balkan/"}]
-    facts = [f["fact"] for f in club_answers(clubs, "what cultural clubs are there", False, 248,
-                                             kinds_said="cultural and heritage")]
-    assert facts[0] == ("By what their directory entries describe, 2 of the directory's clubs "
-                        "are cultural and heritage clubs.")
-    assert not any("only the nearest by meaning" in fact for fact in facts)
+def test_clubs_of_a_kind_are_listed_by_code_each_by_name() -> None:
+    clubs = [{"n": 2, "name": "Balkan Club", "category": "Student Organization"},
+             {"n": 3, "name": "Black Student Union", "category": "Student Organization"}]
+    lead = "By what their entries describe, the club directory lists 2 cultural and heritage clubs"
+    assert club_list_text(lead, clubs) == (
+        f"{lead}:\n\n- Balkan Club [2]\n- Black Student Union [3]")
+    # A club a ramapo.edu page marks inactive says so beside its name.
+    assert club_list_text(lead, clubs, {3: {"as_of": "2025-06-12", "n": 4}}) == (
+        f"{lead}:\n\n- Balkan Club [2]\n- Black Student Union [3], but Ramapo's page for it says "
+        "it is not currently an active club, as of June 12, 2025 [4]")
 
 
 def test_the_index_gives_each_labelled_card_its_kinds() -> None:
@@ -255,14 +255,17 @@ def test_each_card_is_given_its_kinds_once_and_only_known_kinds() -> None:
     assert "Kinds:\n- arts: " in build.KINDS_PROMPT
 
 
-def club_calendar(names: list[tuple[str, str]]) -> Any:
+def club_calendar(names: list[tuple[str, str]],
+                  statuses: dict[int, dict[str, Any]] | None = None) -> Any:
     from rockygpt_brain.retrieval.entity_facts import MemoryEntityFacts
     now = datetime(2026, 10, 21, 18, 0, tzinfo=EASTERN)
     entities, records = [], []
     for n, (name, category) in enumerate(names):
+        status = (statuses or {}).get(n)
         entities.append({"id": f"c{n}", "name": name, "kind": "club", "aliases": [],
                          "links": [{"collection": "clubs", "source_key": "archway-clubs",
-                                    "source_record_keys": [name]}]})
+                                    "source_record_keys": [name]}],
+                         **({"status": status} if status else {})})
         records.append({"id": f"row-{n}", "source_key": "archway-clubs",
                         "source_record_key": name, "name": name, "category": category,
                         "website_url": f"https://archway.ramapo.edu/c{n}/", "collected_at": now,
@@ -321,11 +324,20 @@ def test_a_kind_of_club_is_every_club_given_that_kind() -> None:
     names = [("Black Student Union", "Student Organization"),
              ("Bachata Club", "Student Organization"), ("Chess Club", "Student Organization")]
     engine = ChatEngine(ScriptedGateway(), club_calendar(names), output="written")
-    found = engine._clubs_by_kind(Index(), "what cultural clubs are there", 3)  # type: ignore[arg-type]
+    found = engine._clubs_by_kind(Index(), "what cultural clubs are there")  # type: ignore[arg-type]
     assert found is not None
-    clubs, sources, said = found
+    clubs, said = found
     assert [c["name"] for c in clubs] == ["Black Student Union", "Bachata Club"]
-    assert [c["n"] for c in clubs] == [4, 5] and said == "cultural and heritage"
+    assert said == "cultural and heritage"
     # A question asking more than kinds, or a kind no club has, is left to meaning.
-    assert engine._clubs_by_kind(Index(), "is there a cooking club", 3) is None  # type: ignore[arg-type]
-    assert engine._clubs_by_kind(Index(), "any lgbtq clubs", 3) is None  # type: ignore[arg-type]
+    assert engine._clubs_by_kind(Index(), "is there a cooking club") is None  # type: ignore[arg-type]
+    assert engine._clubs_by_kind(Index(), "any lgbtq clubs") is None  # type: ignore[arg-type]
+    # Code lists them by name, numbered after what comes before.
+    listed = engine._kind_list(Index(), "what cultural clubs are there", 3)  # type: ignore[arg-type]
+    assert listed is not None
+    said_list, sources, listed_clubs, facts = listed
+    assert said_list == ("By what their entries describe, the club directory lists 2 cultural "
+                         "and heritage clubs:\n\n- Bachata Club [4]\n- Black Student Union [5]")
+    assert [s["n"] for s in sources] == [4, 5] and [c["n"] for c in listed_clubs] == [4, 5]
+    assert facts == [{"fact": "By what their entries describe, the club directory lists 2 "
+                              "cultural and heritage clubs."}]

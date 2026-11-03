@@ -1,0 +1,164 @@
+"""Lists of a kind and what is on for an occasion (11-03 practice set C, run 8).
+
+"Are there any honor societies" was given 25 of the 31 and the reply named 5; "anything for black
+solidarity week" never reached the calendar, whose two events for it the reply missed.
+"""
+
+import asyncio
+import json
+from datetime import datetime
+
+import pytest
+
+from rockygpt_brain.contract import ChatRequest
+from rockygpt_brain.engine import ChatEngine
+from rockygpt_brain.events import (
+    asked_topic,
+    asks_events,
+    asks_occasion,
+    kind_named,
+    members_of,
+    names_events,
+    only_kind_asked,
+)
+from rockygpt_brain.provider import Completion, ToolCall, Usage
+from rockygpt_brain.turn import intake
+from test_engine import ScriptedGateway
+from test_kinds import EASTERN, club_calendar
+
+NOW = datetime(2026, 10, 21, 18, 0, tzinfo=EASTERN)
+HONOR = [("Honor Societies", "Honor Society - Academic"),
+         ("Sigma Tau Delta", "Honor Society"), ("Alpha Kappa Delta", "Honor Society"),
+         ("Psi Chi Honors Society", "Honor Society - Professional"),
+         ("Chess Club", "Student Organization")]
+INACTIVE = {"state": "inactive", "as_of": "2025-06-12", "evidence": [
+    {"collection": "office_sections", "source_key": "office-pages", "field": "status",
+     "source_record_key": "www.ramapo.edu/clubs/organization/psi-chi/",
+     "source_url": "https://www.ramapo.edu/clubs/organization/psi-chi/"}]}
+
+
+@pytest.mark.parametrize("asked", [
+    "anything for black solidarity week",
+    "Is there anything for Black Solidarity Week?",
+    "What's planned for Black Solidarity Week?",
+    "How does Ramapo celebrate Black Solidarity Week?",
+    "How is Pride Month celebrated at Ramapo?",
+    "what does ramapo do for black history month",
+    "anything special for veterans day",
+])
+def test_what_is_on_for_an_occasion_is_the_calendars(asked: str) -> None:
+    assert asks_occasion(asked) and asks_events(asked) and names_events(asked), asked
+
+
+@pytest.mark.parametrize("asked", [
+    "is the library open during finals week",
+    "is housing open during thanksgiving week",
+    "meal plans for one week",
+    "is there anything for the week of thanksgiving",
+    "do I need anything for the first day",
+    "can I drop a class during the first week",
+    "how much is parking per month",
+])
+def test_a_time_or_a_service_is_no_occasion(asked: str) -> None:
+    assert not asks_occasion(asked) and not asks_events(asked), asked
+
+
+def test_words_asking_for_an_answer_are_not_what_is_asked() -> None:
+    # 11-03: "list the cultural clubs" was read as clubs about "list" and "cultural".
+    assert asked_topic("list the cultural clubs") == {"cultural"}
+    assert asked_topic("show me art events this week") == {"art"}
+    assert asked_topic("which cultural clubs exist") == {"cultural"}
+    assert asked_topic("can you list the honor societies") == {"honor"}
+    assert asked_topic("what honor societies are there and how do I join one") == {"honor"}
+    # Alone, such a word is what is asked: "any shows" asks for shows.
+    assert asked_topic("any shows this weekend") == {"show"}
+
+
+def directory() -> list[dict[str, str]]:
+    return [{"id": f"c{n}", "name": name, "category": category}
+            for n, (name, category) in enumerate(HONOR)]
+
+
+def test_an_entry_named_for_its_kind_stands_for_the_clubs_listed_under_it() -> None:
+    entries = directory()
+    umbrella = kind_named("are there any honor societies", entries)
+    assert umbrella is not None and umbrella["name"] == "Honor Societies"
+    assert [e["name"] for e in members_of(umbrella, entries)] == [
+        "Sigma Tau Delta", "Alpha Kappa Delta", "Psi Chi Honors Society"]
+    assert kind_named("is there an honor society", entries) == umbrella  # Any form of it.
+    assert only_kind_asked("list the honor societies", umbrella)
+    assert not only_kind_asked("are there any honor societies for nursing", umbrella)
+    # A club named beside it, or a club of its own name, is no kind asked.
+    assert kind_named("is sigma tau delta one of the honor societies", entries) is None
+    assert kind_named("is there a chess club", entries) is None
+
+
+def test_every_club_of_a_kind_is_listed_by_code_with_what_a_page_marks_inactive() -> None:
+    engine = ChatEngine(ScriptedGateway(), club_calendar(HONOR, {3: INACTIVE}),
+                        output="written")
+    listed = engine._kind_list(None, "are there any honor societies", 0)
+    assert listed is not None
+    said, sources, clubs, facts = listed
+    assert said == (
+        "Yes. The club directory lists 3 clubs under Honor Society [1]:\n\n"
+        "- Alpha Kappa Delta [2]\n"
+        "- Psi Chi Honors Society [3], but Ramapo's page for it says it is not currently an "
+        "active club, as of June 12, 2025 [5]\n"
+        "- Sigma Tau Delta [4]")
+    assert [s["n"] for s in sources] == [1, 2, 3, 4, 5]
+    assert sources[4]["url"] == "https://www.ramapo.edu/clubs/organization/psi-chi/"
+    assert [c["n"] for c in clubs] == [2, 3, 4]
+    assert facts[0] == {"fact": "The club directory lists 3 clubs under Honor Society.", "n": 1}
+    # No kind asked, or more than the kind: no list (the reply picks "for nursing").
+    assert engine._kind_list(None, "is there a chess club", 0) is None
+    assert engine._kind_list(None, "are there any honor societies for nursing", 0) is None
+
+
+def test_a_kind_asked_and_nothing_else_is_answered_by_code() -> None:
+    gateway = ScriptedGateway()  # Any model call would fail: none is scripted.
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "what honor societies are there"}]})
+    engine = ChatEngine(gateway, club_calendar(HONOR), output="written")
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    assert result.body["answer"].startswith(
+        "The club directory lists 3 clubs under Honor Society [1]:\n\n- Alpha Kappa Delta [2]\n"
+        "- Psi Chi Honors Society [3]\n- Sigma Tau Delta [4]")
+    assert gateway.inputs == [] and result.trace is not None
+    assert result.trace["decidedBy"] == "code"
+
+
+def test_a_kind_asked_with_more_starts_the_reply_with_codes_list() -> None:
+    reply = {"parts": [{"asked": "how to join", "not_on_pages": True, "sections": []}],
+             "text": "Each society's page says who may join. [3]"}
+    gateway = ScriptedGateway(Completion("", (ToolCall("w", "write_answer", reply),), [
+        {"type": "function_call", "call_id": "w", "name": "write_answer",
+         "arguments": json.dumps(reply)}], Usage(10, 10, 0)))
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "what honor societies are there and how do I join one"}]})
+    engine = ChatEngine(gateway, club_calendar(HONOR), output="written")
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    given = json.loads(gateway.inputs[0][1]["content"])
+    assert given["already_written"].startswith(
+        "The club directory lists 3 clubs under Honor Society [1]:")
+    # The model is given the clubs listed, and no club the question names again.
+    assert [c["name"] for c in given["clubs"]] == [
+        "Alpha Kappa Delta", "Psi Chi Honors Society", "Sigma Tau Delta"]
+    assert result.body["answer"].startswith(
+        "The club directory lists 3 clubs under Honor Society [1]:\n\n- Alpha Kappa Delta [2]")
+    assert "Each society's page says who may join. [3]" in result.body["answer"]
+
+
+def test_a_kinds_events_are_the_models_to_say_from_its_clubs() -> None:
+    reply = {"parts": [{"asked": "honor society events", "not_on_pages": True, "sections": []}],
+             "text": "The calendar lists no honor society events this week."}
+    gateway = ScriptedGateway(Completion("", (ToolCall("w", "write_answer", reply),), [
+        {"type": "function_call", "call_id": "w", "name": "write_answer",
+         "arguments": json.dumps(reply)}], Usage(10, 10, 0)))
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "any honor society events this week"}]})
+    engine = ChatEngine(gateway, club_calendar(HONOR), output="written")
+    asyncio.run(engine.answer(intake(request, now=NOW), request))
+    given = json.loads(gateway.inputs[0][1]["content"])
+    assert "clubs under Honor Society" not in given.get("already_written", "")
+    assert [c["name"] for c in given["clubs"]] == [
+        "Alpha Kappa Delta", "Psi Chi Honors Society", "Sigma Tau Delta"]

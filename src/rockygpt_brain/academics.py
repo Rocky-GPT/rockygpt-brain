@@ -644,6 +644,10 @@ def course_evidence(facts: dict[str, Any], n: int,
 _ROMAN = {"i": "1", "ii": "2", "iii": "3", "iv": "4"}
 _TITLE_FILLER = {"of", "and", "to", "the", "in", "for", "a", "an", "with", "on", "&", "lecture",
                  "lab", "laboratory"}
+# A question's "is" is never a title's: there it is Independent Study's code ("IS-HONORS", "IS-DATA
+# SCIENCE": 52 catalog titles), and "is there an honor society" named IS-HONORS as a course
+# (11-03), which sent it down the catalog's path.
+_NEVER_TITLE = {"is"}
 # Question words never read as the start of a title word ("for" is not Forensic).
 _ASKING = {"for", "the", "and", "can", "how", "what", "when", "who", "why", "does", "did",
            "take", "taking", "need", "before", "after", "with", "without", "about", "class",
@@ -705,9 +709,9 @@ def courses_by_title(titles: dict[str, str], message: str,
                     and parts[0] in words and _COURSE_TALK.search(message.casefold())):
                 scored.append((1.0, entity_id))
             continue
-        at = {p: [k for k, w in enumerate(words) if _abbreviates(w, p) and (
-            w not in _ASKING or w == p or (w == "gen" and k + 1 < len(words)
-                                           and words[k + 1] not in ("ed", "eds")))]
+        at = {p: [k for k, w in enumerate(words) if _abbreviates(w, p) and w not in _NEVER_TITLE
+                  and (w not in _ASKING or w == p or (w == "gen" and k + 1 < len(words)
+                                                      and words[k + 1] not in ("ed", "eds")))]
               for p in parts}
         hit = [p for p in parts if at[p]]
         if not any(not p.isdigit() for p in hit):

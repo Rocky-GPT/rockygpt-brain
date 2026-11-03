@@ -2069,13 +2069,15 @@ class ChatEngine:
     def _read_calendar(self, message: str, now: datetime, numbered_from: int,
                        scores: Mapping[str, float] | None = None,
                        kinds: Mapping[str, Sequence[str]] | None = None,
+                       named_clubs: bool = True,
                        ) -> tuple[dict[str, Any] | None, list[dict[str, Any]],
                                   list[dict[str, Any]], list[dict[str, Any]], str | None]:
         """The calendar events in the question's window and the clubs it names, read through the
         shared reader (events.py), numbered after the evidence before them, what code works
         out from them (counts, food, the topic's other dates, a club's events), and the events
         in code's own words (events.topic_text); scores are the event cards' meaning and kinds
-        their kinds (kinds.py), when the index has them."""
+        their kinds (kinds.py), when the index has them. With `named_clubs` False (a kind's
+        clubs are listed already: _kind_list), no club is read."""
         version, identity_hash = self.facts.active_release()
         named = self.facts.identities(("event", "club", "organization"))
         sources: list[dict[str, Any]] = []
@@ -2145,7 +2147,7 @@ class ChatEngine:
                         "events": [*chosen, *outside], "calendar_url": events.CALENDAR_URL}
         clubs: list[dict[str, Any]] = []
         found = events.find_clubs([e for e in named if e["kind"] in ("club", "organization")],
-                                  message) if events.asks_clubs(message) else []
+                                  message) if named_clubs and events.asks_clubs(message) else []
         if found:
             found = events.kind_members(found, self._club_directory())
             # The reader takes MAX_CLUBS_READ clubs at a time; an umbrella entry stands for up to
@@ -2564,13 +2566,12 @@ class ChatEngine:
             self._club_cache = (version, entries)
         return self._club_cache[1]
 
-    def _clubs_by_kind(self, index: MeaningIndex, message: str, numbered_from: int,
-                       ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str] | None:
-        """Every directory club of the kinds a question asks for and nothing else ("cultural
-        clubs", "is there a club for musicians"), numbered after the sources, at most
-        MAX_CATEGORY_CLUBS, with the kinds as a reply says them; None when the question asks
-        something besides kinds, or the index gives no club those kinds (then meaning finds
-        the nearest)."""
+    def _clubs_by_kind(self, index: MeaningIndex, message: str,
+                       ) -> tuple[list[dict[str, Any]], str] | None:
+        """Every directory entry of the kinds a question asks for and nothing else ("cultural
+        clubs", "is there a club for musicians"), with the kinds as a reply says them; None when
+        the question asks something besides kinds, or the index gives no club those kinds (then
+        meaning finds the nearest)."""
         if not index.kinds:
             return None
         asked, rest = events.asked_kinds(message, events.asked_topic(message))
@@ -2579,12 +2580,62 @@ class ChatEngine:
         listed = kinds_module.with_included(asked)
         chosen = [entry for entry in self._club_directory()
                   if listed & set(index.kinds.get(str(entry["id"]), ()))]
+        return (chosen, kinds_module.names(asked)) if chosen else None
+
+    def _kind_list(self, index: MeaningIndex | None, message: str, numbered_from: int,
+                   ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]],
+                              list[dict[str, Any]]] | None:
+        """Every directory club of the kind a question asks for and nothing else, listed by
+        code: the clubs under the category an entry it names stands for ("are there any honor
+        societies": the 31 listed under Honor Society), or the clubs given the kinds it asks for
+        ("what cultural clubs are there", kinds.py). Each is numbered from `numbered_from` by
+        name, and one a ramapo.edu page marks inactive says so. Returns the text, its sources,
+        the clubs and the facts the text holds; None when the question asks for no kind, or for
+        something besides it ("honor societies for nursing" is the reply's to pick), or no club
+        is of it."""
+        directory = self._club_directory()
+        umbrella = events.kind_named(message, directory)
+        if umbrella is not None and not events.only_kind_asked(message, umbrella):
+            return None
+        by_kind = (self._clubs_by_kind(index, message)
+                   if umbrella is None and index is not None else None)
+        chosen = (events.members_of(umbrella, directory) if umbrella is not None
+                  else by_kind[0] if by_kind is not None else [])
         if not chosen:
             return None
-        clubs = [{"n": numbered_from + k + 1, **{x: y for x, y in entry.items() if x != "id"}}
-                 for k, entry in enumerate(chosen[:events.MAX_CATEGORY_CLUBS])]
-        return (clubs, [{"n": c["n"], "url": c.get("url"), "title": c.get("name")} for c in clubs],
-                kinds_module.names(asked))
+        sources: list[dict[str, Any]] = []
+        if umbrella is not None:
+            sources.append({"n": numbered_from + 1, "url": umbrella.get("url"),
+                            "title": umbrella.get("name")})
+            lead = (f"The club directory lists {len(chosen)} clubs under "
+                    f"{literal(events.kind_head(umbrella))}")
+        else:
+            assert by_kind is not None
+            lead = (f"By what their entries describe, the club directory lists {len(chosen)} "
+                    f"{by_kind[1]} club{'' if len(chosen) == 1 else 's'}")
+        cited = {"n": sources[0]["n"]} if sources else {}
+        ordered = sorted(chosen, key=lambda e: str(e.get("name") or "").casefold())
+        clubs = []
+        for entry in ordered:
+            clubs.append({"n": numbered_from + len(sources) + 1,
+                          **{k: v for k, v in entry.items() if k != "id"}})
+            sources.append({"n": clubs[-1]["n"], "url": entry.get("url"),
+                            "title": entry.get("name")})
+        version, identity_hash = self.facts.active_release()
+        statuses = self.facts.identity_statuses(("club", "organization"), version,
+                                                identity_hash=identity_hash)
+        inactive: dict[int, dict[str, Any]] = {}
+        for entry, club in zip(ordered, clubs, strict=True):
+            status = statuses.get(entry["id"])
+            if (status and status.get("state") == "inactive" and status.get("as_of")
+                    and status.get("source_url")):
+                inactive[club["n"]] = {**status, "n": numbered_from + len(sources) + 1}
+                sources.append({"n": inactive[club["n"]]["n"], "url": status["source_url"],
+                                "title": f"{entry.get('name')} (ramapo.edu)"})
+        head = f"{lead} [{cited['n']}]" if cited else lead
+        said = events.club_list_text(
+            f"Yes. {head}" if events.asks_club_exists(message) else head, clubs, inactive)
+        return said, sources, clubs, [{"fact": f"{lead}.", **cited}, *inactive.values()]
 
     def _clubs_by_meaning(self, index: MeaningIndex, vectors: Sequence[Sequence[float]],
                           numbered_from: int,
@@ -2643,7 +2694,7 @@ class ChatEngine:
         academic: list[dict[str, Any]] = []
         calendar: dict[str, Any] | None = None
         clubs: list[dict[str, Any]] = []
-        # Whether the clubs are every club of a kind asked (_clubs_by_kind).
+        # Whether the clubs are every club of a kind asked, listed by code (_kind_list).
         kind_listed = False
         people: list[dict[str, Any]] = []
         vectors: list[list[float]] = []
@@ -2745,6 +2796,33 @@ class ChatEngine:
                             dataset_version or self.facts.active_release()[0], people=found,
                             computed=people_facts):
                         return done
+                # A kind of club asked ("are there any honor societies", "what cultural clubs are
+                # there"): code lists every club of it, and with nothing else asked that is the
+                # whole reply (Dan 11-03: code writes as much of each answer as it can; 11-03
+                # practice: given 25 honor societies, the reply named 5).
+                listing = (await asyncio.to_thread(self._kind_list, index, latest, len(sources))
+                           if calendar_asked and events.asks_clubs(latest) else None)
+                if listing is not None:
+                    said, found_sources, kind_clubs, listed_facts = listing
+                    dataset_version = dataset_version or self.facts.active_release()[0]
+                    # The kind's events, or when its clubs meet, are the model's to say from
+                    # its clubs; else the list starts the reply.
+                    lists = (not events.asks_events(latest)
+                             and not events.asks_club_events(latest))
+                    if (lists and earlier is None and not people_asked and not named_people
+                            and not (programs and any(programs))
+                            and not one_call.asks_more(latest)):
+                        if done := self._code_answer(turn, trace, said, found_sources,
+                                                     dataset_version, clubs=kind_clubs,
+                                                     computed=listed_facts):
+                            return done
+                    kind_listed = True
+                    sources = [*sources, *found_sources]
+                    clubs = kind_clubs[:events.MAX_CATEGORY_CLUBS]
+                    computed = [*computed, *listed_facts]
+                    if lists:
+                        code_parts.append(said)
+                        code_view["clubs"] = kind_clubs
                 if searchable:
                     assert index is not None and embed_many is not None
                     with measure("Embed the question's parts"):
@@ -2754,10 +2832,12 @@ class ChatEngine:
                     event_scores = (dict(index.academic_scores(vectors[0], "event"))
                                     if vectors and index is not None else None)
                     with measure("Read the calendar and clubs"):
-                        calendar, clubs, found_sources, calendar_facts, events_said = \
+                        calendar, named_clubs, found_sources, calendar_facts, events_said = \
                             await asyncio.to_thread(self._read_calendar, latest, turn.campus_now,
                                                     len(sources), event_scores,
-                                                    index.kinds if index is not None else None)
+                                                    index.kinds if index is not None else None,
+                                                    not kind_listed)
+                    clubs = clubs or named_clubs
                     sources = [*sources, *found_sources]
                     computed = [*computed, *calendar_facts]
                     dataset_version = dataset_version or self.facts.active_release()[0]
@@ -2859,20 +2939,7 @@ class ChatEngine:
                             people, found_people = await asyncio.to_thread(
                                 self._read_people, found, len(sources))
                             sources = [*sources, *found_people]
-                    kind_clubs = (self._clubs_by_kind(index, latest, len(sources))
-                                  if calendar_asked and not clubs and events.asks_clubs(latest)
-                                  and index is not None else None)
-                    if kind_clubs is not None:
-                        # A kind of club ("cultural clubs", "are there any religious clubs") is
-                        # every club of that kind, by the kinds given to each directory entry.
-                        kind_listed = True
-                        clubs, club_sources, kinds_said = kind_clubs
-                        sources = [*sources, *club_sources]
-                        clubs = self._clubs_by_words(clubs, latest, sources)
-                        computed = [*computed, *events.club_answers(
-                            clubs, latest, False, len(self._club_directory()),
-                            kinds_said=kinds_said)]
-                    elif calendar_asked and not clubs and events.asks_clubs(latest):
+                    if calendar_asked and not clubs and events.asks_clubs(latest):
                         # Each interest a question lists ("anime and community service") is
                         # searched on its own as well as the whole question.
                         interests = events.interests(latest)
@@ -2886,7 +2953,8 @@ class ChatEngine:
                         clubs = self._clubs_by_words(clubs, latest, sources)
                         computed = [*computed, *events.club_answers(
                             clubs, latest, False, len(self._club_directory()))]
-                    elif calendar_asked and clubs and events.asks_clubs(latest):
+                    elif calendar_asked and clubs and events.asks_clubs(latest) \
+                            and not kind_listed:
                         # A club named ("College Republicans") does not hide the others the
                         # question names by a word ("young democrats").
                         clubs = self._clubs_by_words(clubs, latest, sources)
