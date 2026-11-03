@@ -126,6 +126,12 @@ class MeaningIndex:
         # The courses whose attributes mark them Writing Intensive, by entity id.
         self.course_writing_intensive: frozenset[str] = frozenset(
             k.split("#")[0] for k in titles if k.endswith("#writing_intensive"))
+        # Each event's and club's kinds (kinds.py: "arts", "culture"), by entity id, given once
+        # when the index is built. An index built before kinds has none, and then no question
+        # is read as asking for a kind.
+        self.kinds: dict[str, tuple[str, ...]] = {
+            str(entity_id): tuple(str(k) for k in keys)
+            for entity_id, keys in (meta.get("kinds") or {}).items() if keys}
         count = len(self.owner) + len(self.cards) + len(self.academic)
         if len(vectors) != count * self.dimensions or (scales is not None
                                                        and len(scales) != count):

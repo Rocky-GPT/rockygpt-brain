@@ -374,6 +374,12 @@ def test_what_is_coming_up_on_the_calendar_is_never_off_topic_or_a_prediction(
     score = ask(MeteredGateway(read(limit="off_topic")), "who won the game last night")
     assert score.body["answer"].startswith("I only know about Ramapo College")
     assert score.trace is not None and "corrected" not in score.trace["read"]
+    # Nor is the weather, though it names a time the calendar covers (11-03 practice: corrected,
+    # "whats the weather gonna be like this weekend" listed the weekend's events).
+    weather = ask(MeteredGateway(read(limit="prediction")),
+                  "whats the weather gonna be like this weekend")
+    assert weather.body["answer"].startswith(triage.LIMIT_TEXTS["prediction"])
+    assert weather.trace is not None and "corrected" not in weather.trace["read"]
 
 
 def test_a_hello_before_a_question_is_said_once() -> None:
