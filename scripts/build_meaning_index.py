@@ -205,7 +205,11 @@ def academic_cards(facts: GraphOnlyFacts, version: str,
             cards.append((found["entity"]["id"], "course", card))
     # Each club's or student organization's directory name, category and its own mission ("is
     # there a club for anime", "cultural clubs", "service clubs").
-    clubs = [e["id"] for e in facts.identities(("club", "organization"))]
+    # Only clubs with a club directory record have facts to read: a club node made from a
+    # ramapo.edu page alone (one the page says is no longer active) has no directory row, and its
+    # status is answered from the identity, not from a card.
+    listed = set(facts.club_directory_ids())
+    clubs = [e["id"] for e in facts.identities(("club", "organization")) if e["id"] in listed]
     for start in range(0, len(clubs), 12):
         for found in facts.get_club_facts(clubs[start:start + 12], version,
                                           identity_hash=identity):
