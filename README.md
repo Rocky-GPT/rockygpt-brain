@@ -189,11 +189,13 @@ loads it on its own thread for the active release and identity publication; unti
 when none is stored, questions are answered without it.
 
 The same build gives every event and club card its kinds (`src/rockygpt_brain/kinds.py`: art and
-crafts, cultural, sports, volunteering and 22 more), read once by the chat model and cached by the
-card's text in the job's cache (`kinds.json`), so a day's build pays only for new listings. The
-model's rules (`RULES`: a club by its main purpose, a room booking has no kind, and only the
-listing's own words count, so a name that says nothing gets no kind) and the list
-are versioned together, so rewording either gives every card its kinds again. A
+crafts, cultural, sports, volunteering and 22 more). The chat model reads each card three times,
+beside different listings each time, and the card keeps the kinds most of its reads give
+(`LABEL_READS`). The picks are cached by the card's text in the job's cache (`kinds.json`), so a
+day's build pays only for new listings. The model's rules (`RULES`: a club by its main purpose, a
+room booking has no kind, and only the listing's own words count, so a name that says nothing
+gets no kind), the number of reads and the list are versioned together, so changing any of them
+gives every card its kinds again. A
 question naming a kind ("any art events", "cultural clubs") lists every event or club of it and
 of the narrower kinds it includes (international includes study abroad, academic includes study
 help), in code's own words: a club directory entry named for its category ("Honor Societies")

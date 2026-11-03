@@ -63,7 +63,8 @@ KINDS: tuple[Kind, ...] = (
     Kind("culture", "cultural and heritage",
          "celebrating or learning about a culture, ethnicity, nationality or heritage: heritage "
          "months and weeks, cultural holidays, cultural food, music or dance nights, and the "
-         "events and meetings of cultural student groups",
+         "events and meetings of cultural student groups. Not fan or hobby communities such as "
+         "geek, anime or gaming clubs (those are games or film)",
          ("culture", "cultures", "cultural", "multicultural", "multiculturalism", "heritage")),
     Kind("international", "international",
          "international students and exchange students, global issues and world affairs, "
@@ -191,13 +192,20 @@ RULES = (
     "its members play sports or study politics. A club's own meeting or social is the club's "
     "kind. An office's or academic department's own directory entry has no kind. A listing that "
     "only reserves, holds, blocks or locks out a room or stage, or is for staff only, has no "
-    "kind, even when the room is a theater. Use only the listing's own words, never what you may "
-    "know about the club or college: a listing whose name and words don't say what it is or does "
-    "has no kind.")
+    "kind, even when the room is a theater. Use only the listing's own words (its name, category, "
+    "tags and description), never what you may know about the club or college: a listing whose "
+    "words don't say what it is or does has no kind.")
+
+# Each card is read this many times, beside different listings each time, and keeps the kinds
+# most reads give it. One read alone moved borderline clubs in and out of a kind whenever the
+# rules were reworded: the Disc Club (category Athletics) once lost sports, and Geek and Nerd
+# Culture once became cultural.
+LABEL_READS = 3
 
 # The rules and the list as the model reads them. A change to either gives every card its kinds
 # again (the cache is keyed by this version), so a reworded rule or kind never keeps old picks.
-KINDS_VERSION = hashlib.sha256("\n".join([RULES, *(f"{k.key}: {k.holds}" for k in KINDS)]
+KINDS_VERSION = hashlib.sha256("\n".join([RULES, f"reads: {LABEL_READS}",
+                                          *(f"{k.key}: {k.holds}" for k in KINDS)]
                                          ).encode()).hexdigest()[:16]
 
 
