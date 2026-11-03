@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from rockygpt_brain.answers import plain_links
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.provider import Completion, GatewayError, ToolCall, Usage
@@ -307,3 +308,32 @@ def test_a_lookup_that_said_what_it_lacks_is_not_followed_by_saying_it_again() -
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     assert result.body["answer"] == ("I don't have verified information about Registrar's "
                                      f"location.\n\n{UNSUPPORTED_GAP_SAID_MESSAGE}")
+
+
+@pytest.mark.parametrize("said,shown", [
+    # The sentence's punctuation is not part of the address (11-03 repeat test).
+    ("See https://example.edu/registrar/, then wait.",
+     "See [https://example.edu/registrar/](https://example.edu/registrar/), then wait."),
+    ("Apply at https://example.edu/registrar.",
+     "Apply at [https://example.edu/registrar](https://example.edu/registrar)."),
+    ("Transport: https://example.edu/registrar; seats are first come.",
+     "Transport: [https://example.edu/registrar](https://example.edu/registrar); seats are "
+     "first come."),
+    # An address inside escaped brackets, as the evidence text writes it.
+    ("The page \\(https://example.edu/registrar/\\) lists it.",
+     "The page \\([https://example.edu/registrar/](https://example.edu/registrar/)\\) lists it."),
+    # An address already written as a link, and its label, are left as they are.
+    ("Read [the page](https://example.edu/registrar/), then wait.",
+     "Read [the page](https://example.edu/registrar/), then wait."),
+    ("Sources: [1](https://example.edu/registrar)", "Sources: [1](https://example.edu/registrar)"),
+])
+def test_an_address_written_on_its_own_becomes_a_link(said: str, shown: str) -> None:
+    assert plain_links(said) == shown
+
+
+def test_the_reply_a_student_reads_has_no_address_ending_in_punctuation() -> None:
+    body, _ = turn(LOOKUP, finish(),
+                   writing("Email published@example.edu or read "
+                           "https://example.edu/registrar, which lists the steps [1]."))
+    assert "https://example.edu/registrar," not in body["answer"]
+    assert "[https://example.edu/registrar](https://example.edu/registrar)," in body["answer"]

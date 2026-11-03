@@ -294,6 +294,21 @@ def test_a_reply_naming_a_course_the_facts_do_not_hold_is_not_sent() -> None:
     assert unsupported_by("It meets in room 425.", view) == []
 
 
+def test_a_word_before_a_course_number_is_not_a_course() -> None:
+    # 11-03 repeat test: "MATH 353 or 370", read casefolded, held the course "OR 370", and a whole
+    # CS major answer went unsent. Courses are read in capitals, as the catalog writes them; the
+    # number after any other word is still checked as a number.
+    from rockygpt_brain.writer import unsupported_by
+    view = {"facts": "Choose MATH 353 STATISTICS or MATH 370 APPLIED STATISTICS; CMPS 240 or "
+                     "CMPS 285", "sources": [{"n": 1}]}
+    assert unsupported_by("Take MATH 353 STATISTICS or 370 APPLIED STATISTICS, and CMPS 240 "
+                          "or 285 [1].", view) == []
+    assert unsupported_by("Take MATH 353 or 371 [1].", view) == [
+        "a number the facts do not hold: 371"]
+    # A code written in small letters is still held to its numbers.
+    assert unsupported_by("Take cmps 999 [1].", view) == ["a number the facts do not hold: 999"]
+
+
 def test_a_dean_a_persons_details_or_a_courses_facts_are_answered_by_code() -> None:
     from rockygpt_brain.one_call import code_kind, code_text
     course: tuple[list[Any], list[Any], list[dict[str, Any]]] = (

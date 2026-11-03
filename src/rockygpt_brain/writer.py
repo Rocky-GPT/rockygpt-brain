@@ -205,6 +205,8 @@ _URL = re.compile(r"https?://[^\s()\[\]<>\"']+")
 _PHONE = re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)")
 _NUMBER = re.compile(r"\d+")
 _COURSE = re.compile(r"\b([a-z]{2,6}) ?(\d{3}[a-z]?)\b")
+# A course code as the catalog writes it, its subject in capitals ("CMPS 147", "MATH 353").
+_COURSE_CODE = re.compile(r"\b([A-Z]{2,6}) ?(\d{3}[A-Z]?)\b")
 _LIST_ITEM = re.compile(r"(?m)^[ \t]*\d{1,2}[.)][ \t]")
 # A citation mark: one source's number ("[3]"), or several written together ("[3, 4]", "[4–6]").
 # Models group them though asked for one: on 11-02 15 of 100 replies had grouped marks, read as
@@ -292,13 +294,23 @@ def unsupported_by(text: str, view: dict[str, Any]) -> list[str]:
         if number not in digits:
             problems.append(f"a phone number the facts do not hold: {phone.strip()}")
     rest = _PHONE.sub(" ", rest)
-    # A course code of a subject the facts hold ("CHEM 425") must be one of their codes.
-    codes = {f"{m.group(1)} {m.group(2)}" for m in _COURSE.finditer(held)}
+    # A course code of a subject the facts hold ("CHEM 425") must be one of their codes. Codes
+    # are read as the catalog writes them, in capitals: read casefolded, the "or 370" of "MATH 353
+    # STATISTICS or 370 APPLIED STATISTICS" was a course "OR 370" that the facts do not hold, and
+    # a whole CS major answer was thrown away for it (11-03 repeat test). Any other word before
+    # a number leaves the number to the number check below.
+    codes = {f"{m.group(1)} {m.group(2)}"
+             for m in _COURSE_CODE.finditer(json.dumps(view, ensure_ascii=False))}
     subjects = {code.split()[0] for code in codes}
-    for m in _COURSE.finditer(rest):
-        if m.group(1) in subjects and f"{m.group(1)} {m.group(2)}" not in codes:
-            problems.append(f"a course the facts do not hold: {m.group(0).upper()}")
-    rest = _COURSE.sub(lambda m: " " if m.group(1) in subjects else m.group(0), rest)
+    checked: set[str] = set()
+    for m in _COURSE_CODE.finditer(_URL.sub(" ", text)):
+        if m.group(1) in subjects:
+            code = f"{m.group(1)} {m.group(2)}"
+            checked.add(code.casefold())
+            if code not in codes:
+                problems.append(f"a course the facts do not hold: {code}")
+    rest = _COURSE.sub(lambda m: " " if f"{m.group(1)} {m.group(2)}" in checked else m.group(0),
+                       rest)
     rest = _MARKER.sub(lambda m: " " if all(str(n) in sources for n in marked(m.group(1)))
                        else m.group(0), rest)
     # A numbered step ("2. Submit the form") numbers the reply's own list, not a fact.

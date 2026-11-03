@@ -1303,7 +1303,7 @@ def test_a_retired_topic_says_it_is_gone_in_its_pages_words() -> None:
     assert result.body["answer"].startswith(
         "Small Business Development Center is no longer at Ramapo College. Its page says: "
         "\"The Bergen County SBDC is no longer headquartered at Ramapo\" It points to "
-        "https://njsbdc.com/.")
+        "[https://njsbdc.com/](https://njsbdc.com/).")
 
 
 def test_an_office_named_exactly_wins_over_a_topic_and_a_topic_needs_its_exact_name() -> None:

@@ -26,6 +26,7 @@ from rockygpt_brain.answers import (
     citation_url,
     literal,
     phone_lines,
+    plain_links,
     readable_quote,
     render_facts,
     tidy_evidence,
@@ -3624,6 +3625,11 @@ class ChatEngine:
         code = result.body.get("reason") or result.body.get("limitation", {}).get("code")
         if code:
             trace["decidedBy"], trace["errorCode"] = "error", code
+        # Every reply leaves by here, so this is where a web address written on its own in a
+        # sentence is made into a link, whoever wrote the sentence.
+        answer = result.body.get("answer")
+        if isinstance(answer, str) and answer:
+            result = replace(result, body={**result.body, "answer": plain_links(answer)})
         return replace(result, trace=trace)
 
     async def _answer(self, turn: Turn, request: ChatRequest,

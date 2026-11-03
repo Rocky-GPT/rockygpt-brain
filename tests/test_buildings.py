@@ -79,8 +79,8 @@ def test_where_a_building_is_is_its_map_its_room_numbers_and_the_places_in_it() 
     assert result.trace["decidedBy"] == "code"
     assert lookups(result) == [("Student Center (SC)", "building", "ok")]
     assert result.body["answer"] == (
-        f"Student Center (SC) is on the campus map: {MAP}. [1] Room numbers in Student Center "
-        "(SC) start with SC. [1] Places in Student Center (SC) include Commuter Lounge and "
+        f"Student Center (SC) is on the campus map: [{MAP}]({MAP}). [1] Room numbers in Student "
+        "Center (SC) start with SC. [1] Places in Student Center (SC) include Commuter Lounge and "
         f"Registrar. [2][3]\n\nSources: [1]({MAP}) [2](https://example.edu/lounge) "
         "[3](https://example.edu/registrar)")
 
@@ -148,8 +148,9 @@ def test_where_a_hall_named_like_its_building_is_gives_the_map_and_its_offices_f
                                ("Pine Hall", "same_name_building", "ok")]
     # The building is said first; sources keep the order they were read in.
     assert result.body["answer"] == (
-        "Pine Hall is on the campus map: https://map.example.edu/ph. [2] Pine Hall's office is on "
-        "the first floor. [1]\n\nSources: [1](https://example.edu/reslife/pine-hall) "
+        "Pine Hall is on the campus map: [https://map.example.edu/ph](https://map.example.edu/ph). "
+        "[2] Pine Hall's office is on the first floor. [1]\n\nSources: "
+        "[1](https://example.edu/reslife/pine-hall) "
         "[2](https://map.example.edu/ph)")
 
 
@@ -228,13 +229,14 @@ def test_a_place_with_no_room_of_its_own_is_where_the_campus_map_puts_it() -> No
     assert pool.trace["decidedBy"] == "code"
     assert pool.body["answer"] == (
         "Swimming Pool is in Bill Bradley Sports and Recreation Center, which is on the campus "
-        f"map: {BR_MAP}. [1]\n\nSources: [1]({BR_MAP})")
+        f"map: [{BR_MAP}]({BR_MAP}). [1]\n\nSources: [1]({BR_MAP})")
     # Its own pages list no room, and the map's entry for it says where it is: both are
     # cited, and "doesn't publish a room" is no longer the answer.
     athletics = ask_bradley("Where is Athletics?").body["answer"]
     assert athletics == (
         "Athletics is in Bill Bradley Sports and Recreation Center, which is on the campus map: "
-        f"{BR_MAP}. [1][2]\n\nSources: [1](https://map.example.edu/?id=1#!m/77) [2]({BR_MAP})")
+        f"[{BR_MAP}]({BR_MAP}). [1][2]\n\nSources: [1](https://map.example.edu/?id=1#!m/77) "
+        f"[2]({BR_MAP})")
     # A room of its own is where it is, as before.
     desk = ask_bradley("Where is the Fitness Desk?").body["answer"]
     assert desk == "Fitness Desk is in BR-101. [1]\n\nSources: [1](https://example.edu/desk)"
