@@ -52,7 +52,9 @@ Fill every field:
   or "that's wrong" about RockyGPT's last reply), joke (asks for a joke), laugh (lol, haha, a
   laughing emoji), nonsense (keyboard mashing, a word or emoji repeated with no meaning, a lone
   "?"), upset (sounds upset or stressed in passing about a practical problem it asks how to fix:
-  something lost, missed, broken or locked), else none.
+  something lost, missed, broken or locked), else none. A hello before a question is still
+  greeting. A message that names a campus office, place or service is never nonsense, however
+  short or oddly typed.
 - danger: someone may be in danger right now: self_harm (wanting to die, to hurt or kill
   themselves, in any wording or slang, such as kms or unalive), medical (someone unconscious,
   not breathing, overdosed, having a seizure, badly hurt), danger (a weapon, an attack, being
@@ -66,7 +68,8 @@ Fill every field:
   thinking_of_leaving (dropping out, transferring, quitting school), harassment (harassment,
   discrimination, sexual misconduct), food_or_housing (no food, nowhere to live), disability
   (accommodations). A practical question with no feeling or problem in it has none, and so does a
-  passing word of feeling about a practical problem (that is social upset).
+  passing word of feeling about a practical problem (that is social upset). A question about a
+  cost, a rule or a deadline is no need either.
 - limit: what the message asks that RockyGPT cannot do: clock (the current time or date),
   off_topic (not about Ramapo or college life: sports scores, TV, dating advice, world news),
   my_records (their own grades, GPA, balance, schedule, aid status, who they are), homework (do
@@ -74,17 +77,19 @@ Fill every field:
   them), do_it_for_me (send a message, register, drop a class, pay or change something for them),
   opinion (which is best or better, what they should choose), prediction (will they get in, will
   something happen), live_status (weather, closings or cancellations today, how busy a place is,
-  whether someone is in right now), else none.
+  whether someone is in right now), else none. Whether a place is open on a day or at a time
+  asks its published hours, which is no limit.
 - question: the campus question in the message, in plain English with spelling and slang fixed,
   nothing added and nothing left out: "wen r finals" is "When are finals?". Keep the student's
   own names, places, days and numbers, and never add one. Keep "it", "that" and "they" as they
   are. When a limit has a campus side, write that instead: homework is where to get tutoring in
   that subject; writing is where to get help writing it; my_records is how to check it;
-  do_it_for_me is how to do it themselves; prediction is what the requirement is; live_status is
-  how Ramapo announces closings, when closings are asked. Leave it empty when the message asks
-  nothing about Ramapo: small talk, nonsense, off_topic, the weather, an opinion with no campus
-  side, a feeling the student only shares, and a medical question (what to take, whether
-  something is safe), which is no campus question.
+  do_it_for_me is how to do it themselves; opinion is what the college publishes about the
+  choices named; prediction is what the requirement is; live_status is how Ramapo announces
+  closings, when closings are asked. Homework and writing always have a campus side. Leave it
+  empty when the message asks nothing about Ramapo: small talk, nonsense, off_topic, the
+  weather, an opinion with no campus side, a feeling the student only shares, and a medical
+  question (what to take, whether something is safe), which is no campus question.
 Answer only with the read_message tool."""
 
 READ_TOOL: dict[str, Any] = {
@@ -214,11 +219,22 @@ LIMIT_TEXTS = {
     "live_status": "I can't see live updates, like the weather, closings or how busy a place is "
                    "right now.",
 }
-# A limit with nothing else asked: where the student can find out.
+# A limit with nothing else asked: where the student can find out, or what RockyGPT can do
+# instead. Every reply that says no also says what it can do (11-03 practice: "I can't predict
+# that." alone read as a dead end).
 LIMIT_ALONE = {
     "my_records": " Your student account, or the office that handles it, can tell you.",
     "do_it_for_me": " Please use your own student account, or ask the office that handles it.",
     "opinion": " Tell me what you'd like to compare, and I'll share what I can find.",
+    "prediction": f" I can help with {CAN_HELP}.",
+    "live_status": f" I can help with {CAN_HELP}.",
+}
+# A limit whose campus side is the same whatever was asked: homework always has tutoring, and
+# writing always has writing help. When the read leaves the question empty ("solve this: ..."
+# names no subject), this is the campus question asked in its place.
+LIMIT_QUESTIONS = {
+    "homework": "Where can I get tutoring?",
+    "writing": "Where can I get help with my writing?",
 }
 OFF_TOPIC_BESIDE = "I can't help with that part directly, but here's what Ramapo offers:"
 

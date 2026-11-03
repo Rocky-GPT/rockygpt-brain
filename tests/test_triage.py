@@ -91,7 +91,11 @@ def test_a_read_is_checked_field_by_field_and_its_question_adds_no_number() -> N
     ({"social": "complaint"}, triage.SOCIAL_TEXTS["complaint"]),
     ({"limit": "off_topic"}, triage.LIMIT_TEXTS["off_topic"]),
     ({"limit": "my_records"}, triage.LIMIT_TEXTS["my_records"] + triage.LIMIT_ALONE["my_records"]),
-    ({"social": "greeting", "limit": "homework"}, "Hi! " + triage.LIMIT_TEXTS["homework"]),
+    ({"social": "greeting", "limit": "off_topic"}, "Hi! " + triage.LIMIT_TEXTS["off_topic"]),
+    # A reply that says no also says what RockyGPT can do (11-03 practice).
+    ({"limit": "prediction"}, triage.LIMIT_TEXTS["prediction"] + triage.LIMIT_ALONE["prediction"]),
+    ({"limit": "live_status"},
+     triage.LIMIT_TEXTS["live_status"] + triage.LIMIT_ALONE["live_status"]),
     ({"social": "upset"}, triage.SOCIAL_TEXTS["upset"]),
 ])
 def test_a_message_with_no_campus_question_gets_codes_reply_from_the_read_alone(
@@ -277,3 +281,35 @@ def test_the_question_beside_a_floor_emergency_is_answered_like_any_other() -> N
     assert "Registrar email: published@example.edu." in answer
     assert result.body["status"] == "partial"
     assert result.trace is not None and "read" not in result.trace
+
+
+@pytest.mark.parametrize(("limit", "asked"), sorted(triage.LIMIT_QUESTIONS.items()))
+def test_homework_and_writing_always_ask_their_campus_side(limit: str, asked: str) -> None:
+    # 11-03 practice: "solve this: integral of x^2 dx" names no subject, and the read left the
+    # question empty, so the reply said no and offered nothing. Tutoring is the campus side.
+    gateway = MeteredGateway(read(limit=limit), LOOKUP, finish())
+    result = ask(gateway, "solve this for me pls")
+    assert result.body["answer"].startswith(triage.LIMIT_TEXTS[limit] + "\n\n")
+    assert latest_asked(gateway.inputs[1]) == asked
+    assert result.trace is not None and result.trace["read"]["corrected"]["why"] == (
+        "limit_question")
+    # A follow-up asks it too: it has no "it" or "that" to keep in the student's words.
+    history = ({"role": "user", "content": "hi"}, {"role": "assistant", "content": "Hi!"})
+    again = MeteredGateway(read(limit=limit), LOOKUP, finish())
+    ask(again, "ok now do my essay", history=history)
+    assert latest_asked(again.inputs[1]) == asked
+
+
+def test_a_message_that_names_a_campus_office_is_never_nonsense() -> None:
+    # 11-03 practice: "registrar # ?" was read as nonsense. Code knows the listed names, so a
+    # message that names one goes on as a question, in the student's own words.
+    gateway = MeteredGateway(read(social="nonsense"), LOOKUP, finish())
+    result = ask(gateway, "counseling center???")
+    assert latest_asked(gateway.inputs[1]) == "counseling center???"
+    assert result.trace is not None and result.trace["read"]["corrected"]["why"] == (
+        "names_a_place")
+    assert result.body["answer"] != triage.SOCIAL_TEXTS["nonsense"]
+    # Mashed keys name nothing: still nonsense, from the read alone.
+    mashed = ask(MeteredGateway(read(social="nonsense")), "jdjdjsjskskaka")
+    assert mashed.body["answer"] == triage.SOCIAL_TEXTS["nonsense"]
+    assert mashed.trace is not None and "corrected" not in mashed.trace["read"]
