@@ -31,7 +31,24 @@ _EVENT_WORDS = re.compile(
     r"screenings?|exhibits?|exhibitions?|movie nights?|game nights?|trivia|bingo|karaoke|"
     r"open mics?|festivals?|celebrations?|info(?:rmation)? sessions?|socials?|mixers?|"
     r"fundraisers?|ceremon(?:y|ies)|activities|coming up|upcoming|contests?|competitions?|"
-    r"costume|hunts?|5ks?|races?|walks? for|charity walks?|haunted)\b")
+    r"costume|hunts?|5ks?|races?|walks? for|charity walks?|haunted|try ?outs?|auditions?)\b")
+# Sessions or meetings a question asks for ("any study sessions", "any book clubs meeting") may
+# be the calendar's or an office's service (tutoring, counseling, advising), so the calendar is
+# read and the model writes from it and the pages; a term ("summer session") or "is school in
+# session" is the academic calendar's (11-03 practice: "any study sessions" and "any book clubs
+# meeting" never reached the calendar).
+_SESSIONS_ASKED = re.compile(
+    r"\b(?:any|are there|is there an?)\b(?:\s+(?!summer\b|winter\b|spring\b|fall\b|in\b)[\w'’]+)"
+    r"{0,3}\s+(?:sessions?|meetings?|meeting|meets?)\b")
+# A team a student can join ("is there a hockey team", "how do I join the cheer team") is a club
+# sports entry in the club directory ("Ramapo College Ice Hockey Club", "RCNJ Cheer"), and its
+# games are on the calendar; "the IT team" or "my team" asks about neither (11-03 practice: "is
+# there a hockey team" was answered from an admissions page, without the directory's club).
+_TEAM_ASKED = re.compile(
+    r"^\W*(?:is there|are there|does (?:ramapo|the college|rcnj|the school|campus) have|"
+    r"do (?:you|we|they) have)\b.*\bteams?\b"
+    r"|\b(?:join|joining|try ?outs?|tryouts?)\b.*\bteams?\b"
+    r"|\bteams?\b.*\b(?:try ?outs?|tryouts?)\b")
 # A time alone asks for the calendar ("anything tonight?"), but not beside a subject code answers
 # from its own records: "dinner at the Birch tonight" is the menu, "the last shuttle tonight" the
 # timetable, "is the Library open tonight" its hours.
@@ -59,7 +76,7 @@ _NOT_TOPIC = discovery_tokens(
     "time times date dates schedule calendar anywhere anything somewhere around usually ppl "
     "people gonna get got early many much how should would could will want need know see find "
     "some good like also near tmrw tmr whos host hosting hosted packed crowded busy worth "
-    "couple attend attending have has had does did are was were "
+    "couple attend attending join joining have has had does did are was were "
     # Function words, which never say what an event is about ("is any of it free").
     "a an the and or but nor so yet if then than that this these those it its im you your "
     "he she they them their we us our of in at by with from into onto about over under out "
@@ -75,23 +92,33 @@ def names_events(message: str) -> bool:
     """Whether a question names events themselves ("games", "shows", "coming up"), not only a
     time: "what's the weather this weekend" names a time and no event (11-03 practice: read as a
     calendar question, it listed the weekend's events)."""
-    return bool(_EVENT_WORDS.search(_NOT_EVENT.sub(" ", message.casefold())))
+    text = _NOT_EVENT.sub(" ", message.casefold())
+    return bool(_EVENT_WORDS.search(text) or _SESSIONS_ASKED.search(text))
+
+
+def asks_sessions(message: str) -> bool:
+    return bool(_SESSIONS_ASKED.search(message.casefold()))
+
+
+def asks_team(message: str) -> bool:
+    return bool(_TEAM_ASKED.search(message.casefold()))
 
 
 def asks_events(message: str) -> bool:
     text = _NOT_EVENT.sub(" ", message.casefold())
     # "Is there a chess club or a board game club?" asks whether clubs exist: its "game" is the
     # club's, and no event is asked of, unless it asks when or for events (11-03 practice: the
-    # reply led with three unrelated events).
+    # reply led with three unrelated events). A team's games are what it does, so they are read.
     if asks_club_exists(message) and not asks_club_events(message) \
-            and not _WHEN_WORDS.search(text):
+            and not _WHEN_WORDS.search(text) and not asks_team(message):
         return False
-    return bool(_EVENT_WORDS.search(text)
+    return bool(_EVENT_WORDS.search(text) or _SESSIONS_ASKED.search(text) or asks_team(message)
                 or (_WHEN_WORDS.search(text) and not _OTHER_SUBJECT.search(text)))
 
 
 def asks_clubs(message: str) -> bool:
-    return bool(_CLUB_WORDS.search(message.casefold()))
+    text = message.casefold()
+    return bool(_CLUB_WORDS.search(text) or _TEAM_ASKED.search(text))
 
 
 # A question asking only what is on in one time window ("what's happening this weekend", "any
@@ -313,17 +340,20 @@ def names_host(organizer: str, words: AbstractSet[str]) -> bool:
     return bool(own) and len(own & words) >= min(2, len(own))
 
 
-def _about(value: dict[str, Any], words: AbstractSet[str] = frozenset()) -> set[str]:
-    """An event's words: its title, tags, place and description, and its host's name only when
-    the question names the host. A host's name says who runs an event, not what it is about
-    (11-03 practice: "a board game club" matched every College Programming Board event, whose
-    listings say "Join the College Programming Board"), and a place named for its office says
-    where, not what ("service events" matched every event in the room of Women's Center &
-    LGBTQ+ Services, 11-03 practice). "Services" in a place's name is an office's word."""
+def _about(value: dict[str, Any], words: AbstractSet[str] = frozenset(),
+           description: bool = True) -> set[str]:
+    """An event's words: its title, tags, place and description (unless left out), and its
+    host's name only when the question names the host. A host's name says who runs an event, not
+    what it is about (11-03 practice: "a board game club" matched every College Programming
+    Board event, whose listings say "Join the College Programming Board"), and a place named for
+    its office says where, not what ("service events" matched every event in the room of
+    Women's Center & LGBTQ+ Services, 11-03 practice). "Services" in a place's name is an
+    office's word."""
     title = str(value.get("title") or "")
     organizer = str(value.get("organizer") or "").strip()
     place = str(value.get("location") or "")
-    said = [title, " ".join(value.get("tags") or []), str(value.get("description") or "")]
+    said = [title, " ".join(value.get("tags") or []),
+            str(value.get("description") or "") if description else ""]
     if organizer and not names_host(organizer, words):
         # Its listing names its host in its tags, description and place too, with either
         # apostrophe.
@@ -451,19 +481,26 @@ WHOLE_TOPIC = 0.999
 
 
 def by_words(timed: Sequence[dict[str, Any]], share: Mapping[int, float],
-             meaning: Mapping[int, float], scores: Mapping[str, float] | None) -> set[int]:
+             meaning: Mapping[int, float], scores: Mapping[str, float] | None,
+             titled: AbstractSet[int] = frozenset()) -> set[int]:
     """The window's events (by id of their value) whose listing names what was asked: every word
-    of it; or, when no listing does, most of its weight (TOPIC_SHARE) where the card's meaning
-    agrees, standing out for the question too (meaning.standout_bar; without scores the words
-    alone). A word can be the same and the thing different (11-03 practice: "saving money" found
-    "a life saving drug", "sports games" a birdwatching outing tagged Sports/Recreation and a
-    trading card game meeting, while the basketball games held both words)."""
-    whole = {id(v) for v in timed if share.get(id(v), 0.0) >= WHOLE_TOPIC}
+    of it; or, when no listing does, most of its weight (TOPIC_SHARE). Where the words are only in
+    a listing's description (`titled` holds the events whose title, tags, host or place hold
+    them all), or only most of them are anywhere, the card's meaning must agree, standing out
+    for the question too (meaning.standout_bar; without scores the words alone). A word can be
+    the same and the thing different (11-03 practice: "saving money" found "a life saving drug",
+    "sports games" a birdwatching outing tagged Sports/Recreation and a trading card game
+    meeting, while the basketball games held both words; "coding workshops" found a therapy
+    animal visit whose description says to scan the QR code)."""
+    bar = standout_bar((scores or {}).values()) if scores else None
+
+    def agrees(value: dict[str, Any]) -> bool:
+        return bar is None or meaning[id(value)] >= bar
+    whole = {id(v) for v in timed if share.get(id(v), 0.0) >= WHOLE_TOPIC
+             and (id(v) in titled or agrees(v))}
     if whole:
         return whole
-    bar = standout_bar((scores or {}).values()) if scores else None
-    return {id(v) for v in timed if share.get(id(v), 0.0) >= TOPIC_SHARE
-            and (bar is None or meaning[id(v)] >= bar)}
+    return {id(v) for v in timed if share.get(id(v), 0.0) >= TOPIC_SHARE and agrees(v)}
 
 
 def near_in_meaning(candidates: Sequence[dict[str, Any]], meaning: Mapping[int, float],
@@ -551,8 +588,11 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
         for alternative in rest:
             for key, part in topic_share(timed, alternative, corpus or values).items():
                 share[key] = max(share.get(key, 0.0), part)
+        titled = {id(v) for v in timed
+                  if any(alternative <= _about(v, alternative, description=False)
+                         for alternative in rest)}
         meaning = {id(v): (scores or {}).get(str(v.get("_id")), 0.0) for v in timed}
-        worded = by_words(timed, share, meaning, scores) if rest else set()
+        worded = by_words(timed, share, meaning, scores, titled) if rest else set()
         # Meaning finds a single thing asked ("pet therapy"), never a whole kind: with a kind
         # asked, its labels are the list.
         near = set() if asked else near_in_meaning(
@@ -975,6 +1015,29 @@ def club_answers(clubs: Sequence[dict[str, Any]], message: str, by_name: bool,
 MAX_CLUB_LINES = 6
 
 
+def nearest_clubs_text(clubs: Sequence[dict[str, Any]], message: str) -> str | None:
+    """Whether a club exists, said by code when the directory has none named for what was asked
+    and only the nearest by meaning were found ("is there a club for comic books": the model once
+    answered "Yes", 11-03 practice). None when a club given has a word asked in its name, or
+    none was given (the directory page itself is no source to cite)."""
+    words = topic_words(message) - _GENERIC_STEMS
+    said = said_words(message, words).split(", ")
+    if not clubs or not words or not said[0] \
+            or any(words & _stems(str(c.get("name") or "")) for c in clubs):
+        return None
+    text = message.casefold()
+    first = re.search(rf"\b{re.escape(said[0])}\b", text)
+    last = re.search(rf"\b{re.escape(said[-1])}\b", text[first.start():]) if first else None
+    topic = (text[first.start():first.start() + last.end()] if first and last
+             else " ".join(said))
+    shown = clubs[:MAX_CLUB_LINES]
+    lines = "; ".join(f"{c.get('name')} ({c['category']}) [{c['n']}]" if c.get("category")
+                      else f"{c.get('name')} [{c['n']}]" for c in shown)
+    whose = "what its entry describes" if len(shown) == 1 else "what their entries describe"
+    return (f"The club directory lists no club named for {topic}. The nearest, by {whose}: "
+            f"{lines}.")
+
+
 # A question asking only what a club the directory names in full hosts next ("when does the
 # Hiking Club meet", "what events does the Math Club have coming up") is answered by code when the
 # calendar lists events it hosts (club_events_text).
@@ -1025,7 +1088,10 @@ def club_named(message: str, clubs: Sequence[dict[str, Any]]) -> dict[str, Any] 
         return None
     short = [{**club, "name": _CAMPUS_PREFIX.sub("", str(club["name"])) or club["name"],
               "_named": club} for club in clubs]
-    for club in find_clubs(short, message)[:1]:
+    # Students call a club sports entry a team: "is there an ice hockey team" names the Ice Hockey
+    # Club (never the other way: "dance clubs" does not name the Dance Team alone).
+    said = f"{message} club" if asks_team(message) else message
+    for club in find_clubs(short, said)[:1]:
         rest = re.sub(re.escape(str(club["name"]).casefold()), " ", message.casefold())
         if (not re.search(r"\b(?:and|also|plus|or|how|why|who|when|where)\b", rest)
                 and discovery_tokens(message) - discovery_tokens(str(club["_named"]["name"]))

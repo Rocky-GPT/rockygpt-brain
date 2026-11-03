@@ -66,11 +66,14 @@ KINDS: tuple[Kind, ...] = (
          "International Education Week",
          ("international", "global")),
     Kind("abroad", "study abroad",
-         "study abroad programs and info sessions, and trips abroad for credit or service",
+         "studying in another country: study abroad programs and exchanges, their info sessions "
+         "and fairs, and courses or trips abroad. A trip within the United States or its "
+         "territories is not abroad",
          ("abroad", "overseas", "study abroad")),
     Kind("athletics", "sports",
-         "games and matches to watch or play: Ramapo Roadrunners varsity games, club sports and "
-         "intramural competitions, sports teams, sports watch parties",
+         "physical sports to watch or play: Ramapo Roadrunners varsity games, club sports teams "
+         "and their practices, intramural competitions. Not esports or video games (those are "
+         "games), and not a party to watch a professional game on a screen",
          ("sport", "sports", "athletic", "athletics", "game", "games", "match", "matches",
           "varsity", "home game", "home games")),
     Kind("fitness", "fitness and recreation",
@@ -116,11 +119,15 @@ KINDS: tuple[Kind, ...] = (
           "worship", "prayer", "prayers", "pray", "interfaith", "religious services",
           "worship services")),
     Kind("civic", "political and civic",
-         "elections, voting, political debates, government, activism, advocacy and social "
-         "justice",
+         "politics and government: elections and voting, political parties and political clubs, "
+         "debates about politics, student government, public policy and laws, citizenship",
          ("political", "politics", "civic", "civics", "election", "elections", "voting", "vote",
-          "voter", "voters", "government", "activism", "activist", "activists", "advocacy",
-          "social justice")),
+          "voter", "voters", "government", "student government")),
+    Kind("advocacy", "activism and advocacy",
+         "activism and advocacy: campaigns for a cause, awareness weeks, rallies and protests, "
+         "social justice and social change",
+         ("activism", "activist", "activists", "advocacy", "advocate", "advocates",
+          "social justice", "social change")),
     Kind("lgbtq", "LGBTQ+",
          "Pride, queer and trans community and allies, LGBTQ+ history and issues",
          ("lgbtq", "lgbt", "lgbtqia", "queer", "gay", "lesbian", "bisexual", "trans",
@@ -148,10 +155,25 @@ KINDS: tuple[Kind, ...] = (
 
 BY_KEY = {kind.key: kind for kind in KINDS}
 
-# The list as the model reads it. A change to it gives every card its kinds again (the cache is
-# keyed by this version), so a renamed or reworded kind never keeps another kind's picks.
-KINDS_VERSION = hashlib.sha256("\n".join(f"{k.key}: {k.holds}" for k in KINDS).encode()
-                               ).hexdigest()[:16]
+# How the model gives each card its kinds (scripts/build_meaning_index.py), before the list.
+RULES = (
+    "You see listings from Ramapo College's campus calendar and club directory. For each, pick "
+    "the kinds below that a student asking for that kind of event or club would want it listed "
+    "for. Most listings have one kind, some two or three, and some none (a residence hall's floor "
+    "meeting, an office's open hours). Judge an event by what happens at it, not by who hosts it "
+    "or where: an event is not cultural because a cultural center hosts it, nor theater because "
+    "it is held in a theater. Judge a club by its main purpose, from its name and mission, not by "
+    "an event it sometimes hosts: a board that plans campus events is not a music club because "
+    "it books concerts, and an honor society is academic, not a sports or political club because "
+    "its members play sports or study politics. A club's own meeting or social is the club's "
+    "kind. An office's or academic department's own directory entry has no kind. A listing that "
+    "only reserves, holds, blocks or locks out a room or stage, or is for staff only, has no "
+    "kind, even when the room is a theater.")
+
+# The rules and the list as the model reads them. A change to either gives every card its kinds
+# again (the cache is keyed by this version), so a reworded rule or kind never keeps old picks.
+KINDS_VERSION = hashlib.sha256("\n".join([RULES, *(f"{k.key}: {k.holds}" for k in KINDS)]
+                                         ).encode()).hexdigest()[:16]
 
 
 def names(keys: set[str] | frozenset[str]) -> str:

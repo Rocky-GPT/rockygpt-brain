@@ -2761,11 +2761,13 @@ class ChatEngine:
                     # The events code chose, said by code; with nothing else asked, that is the
                     # whole reply (11-03: the reply kept 2 of the 3 wellness events it was given).
                     # When none matches the topic, the pages may still say when it is held (a
-                    # fair's season), and the model reads them for the rest.
+                    # fair's season), and the model reads them for the rest. Sessions may be an
+                    # office's (tutoring, counseling), so the model reads the pages beside them.
                     if events_said and earlier is None and not people_asked \
                             and (calendar or {}).get("topic_matched") is not False \
                             and not named_people and not (programs and any(programs)) \
-                            and not events.asks_clubs(latest) and not one_call.asks_more(latest):
+                            and not events.asks_clubs(latest) and not one_call.asks_more(latest) \
+                            and not events.asks_sessions(latest):
                         if done := self._code_answer(turn, trace, events_said, sources,
                                                      dataset_version, calendar=calendar,
                                                      computed=computed):
@@ -2880,6 +2882,16 @@ class ChatEngine:
                         clubs = self._clubs_by_words(clubs, latest, sources)
                         computed = [*computed, *events.club_answers(
                             clubs, latest, False, len(self._club_directory()))]
+                        # Whether a club exists, when none is named for what was asked and only
+                        # the nearest were found, is said by code (the model said "Yes").
+                        if kind == "club" and earlier is None and not people_asked \
+                                and not named_people and not (programs and any(programs)) \
+                                and not events.asks_events(latest) \
+                                and (done := self._code_answer(
+                                    turn, trace, events.nearest_clubs_text(clubs, latest),
+                                    sources, dataset_version or self.facts.active_release()[0],
+                                    clubs=clubs, computed=computed)):
+                            return done
                     elif calendar_asked and clubs and events.asks_clubs(latest):
                         # A club named ("College Republicans") does not hide the others the
                         # question names by a word ("young democrats").
