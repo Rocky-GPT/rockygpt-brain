@@ -22,13 +22,17 @@ class CannotSay(Exception):
 _VIEW_KEYS = frozenset({"asked", "status", "facts", "derived_facts", "not_published", "missing",
                         "notices", "sources"})
 _DERIVED_KEYS = frozenset({"subject", "predicate", "day", "date", "value", "sources", "open_now",
-                           "listed_open_now", "applies", "applicability", "applicability_reason",
-                           "current"})
+                           "listed_open_now", "open_at", "listed_open_at", "applies",
+                           "applicability", "applicability_reason", "current"})
 _DAY_KEYS = frozenset({"schedule", "hours", "periods", "notes", "season", "status", "absence",
                        "dates_not_published", "listed_hours", "closed_gaps", "meal_asked",
                        "window", "meals_not_labelled", "meal_not_served"})
 _OPEN_KEYS = frozenset({"state", "now", "closes", "meal", "meal_ends", "then_meal", "reopens",
                         "reopens_meal", "last_closes", "next_meal", "next_opens"})
+# What the hours say for a time the student asked about (fact_packet.open_at).
+_OPEN_AT_KEYS = frozenset({"relation", "at", "state", "periods", "last_closes", "closes", "meal",
+                           "next_opens", "next_meal", "all_day"})
+_PERIOD_KEYS = frozenset({"label", "opens", "closes", "open_at_asked"})
 _WEEK_KEYS = frozenset({"schedule", "days", "notes", "season", "dates_not_published"})
 _MENU_KEYS = frozenset({"date", "meals", "meal_asked", "filter", "matched", "on_menu",
                         "matches_cut", "stations_listed", "details_asked", "rest_of_menu",
@@ -304,6 +308,48 @@ def _open_now(subject: str, now: dict[str, Any], listed: bool) -> list[str]:
     return said
 
 
+def _open_at(subject: str, day: str, at: Any, listed: bool) -> str:
+    """The time the student asked about, said for one place: what it is open for from that time
+    on ("after 9pm"), or whether it is open at that time, as code worked it out."""
+    if not isinstance(at, dict):
+        raise CannotSay
+    _known(at, _OPEN_AT_KEYS)
+    relation, time, state = at.get("relation"), at.get("at"), at.get("state")
+    if relation not in ("after", "at") or state not in ("open", "closed") \
+            or not isinstance(time, str):
+        raise CannotSay
+    by = "By its listed hours, " if listed else ""
+    if at.get("all_day") is True and state == "open":
+        return f"{by}{subject} is open 24 hours on {day}."
+    if relation == "after" and state == "closed":
+        if isinstance(at.get("last_closes"), str):
+            return f"{by}{subject} is not open after {time} on {day}: it closes at " \
+                   f"{at['last_closes']}."
+        return f"{by}{subject} is closed on {day}."
+    if relation == "after":
+        periods = at.get("periods")
+        if not isinstance(periods, list) or not periods:
+            raise CannotSay
+        for period in periods:
+            _known(period, _PERIOD_KEYS)
+        labelled = all(isinstance(p.get("label"), str) for p in periods)
+        spans = [(f"{literal(p['label'])} " if labelled else "")
+                 + (f"until {p['closes']}" if p.get("open_at_asked")
+                    else f"from {p['opens']} to {p['closes']}") for p in periods]
+        lead = f"after {time} on {day}" if listed else f"After {time} on {day}"
+        return f"{by}{lead}, {subject} {'serves' if labelled else 'is open'} {_and(spans)}."
+    if state == "open":
+        serving = f"serving {literal(at['meal'])}" if at.get("meal") else ""
+        until = f"until {at['closes']}" if at.get("closes") else ""
+        tail = " ".join(part for part in (serving, until) if part)
+        return f"{by}{subject} is open at {time} on {day}" + (f", {tail}." if tail else ".")
+    said = f"{by}{subject} is closed at {time} on {day}."
+    if at.get("next_opens"):
+        said += f" It opens at {at['next_opens']}" + (
+            f" for {literal(at['next_meal'])}" if at.get("next_meal") else "") + "."
+    return said
+
+
 def _day_hours(reply: _Reply, entry: dict[str, Any], brief: bool = False) -> None:
     """One office's or venue's hours on the day asked (a derived hours_on fact). Beside its menu
     (`brief`) only when the meal asked is served, not whether the venue is open now."""
@@ -317,6 +363,26 @@ def _day_hours(reply: _Reply, entry: dict[str, Any], brief: bool = False) -> Non
     schedule = value.get("schedule")
     named = (literal(schedule) if schedule and _plain(schedule) != _plain(entry["subject"])
              else subject)
+    asked_time = entry.get("open_at") or entry.get("listed_open_at")
+    now_said = False
+    if asked_time is not None and not brief:
+        # The time asked is said first, after whether it is open now when that was asked too.
+        for key, listed_now in (("open_now", False), ("listed_open_now", True)):
+            if key in entry:
+                for sentence in _open_now(subject, entry[key], listed_now):
+                    reply.say(subject, sentence, sources)
+                now_said = True
+        listed = "listed_open_at" in entry
+        said = _open_at(subject, day, asked_time, listed)
+        reply.say(subject, said, sources)
+        if asked_time["relation"] == "after":
+            # "Food after 9pm" is answered for that time, not with the whole day.
+            if listed or value.get("dates_not_published") or entry.get("applicability") \
+                    or entry.get("current") is False:
+                _undated(reply, entry, sources)
+            return
+        # "Open at 10am?" is followed by the day's hours as always, so a time named for another
+        # reason ("I have class at 10am, when is it open?") still gets them.
     if value.get("hours") is None:
         if value.get("status") == "not_published":
             checked = (value.get("absence") or {}).get("checked_at")
@@ -324,7 +390,7 @@ def _day_hours(reply: _Reply, entry: dict[str, Any], brief: bool = False) -> Non
                       + (f" (checked {_when(checked, year=True)})." if checked else "."), sources)
             return
         if isinstance(value.get("listed_hours"), str):
-            if "listed_open_now" in entry:
+            if "listed_open_now" in entry and not now_said:
                 for sentence in _open_now(subject, entry["listed_open_now"], True):
                     reply.say(subject, sentence, sources)
             reply.say(subject, f"{named} lists {entry['day']} hours of "
@@ -338,7 +404,7 @@ def _day_hours(reply: _Reply, entry: dict[str, Any], brief: bool = False) -> Non
         raise CannotSay
     later: list[str] = []
     for key, listed in (("open_now", False), ("listed_open_now", True)):
-        if key in entry and not brief:
+        if key in entry and not brief and not now_said:
             first, *later = _open_now(subject, entry[key], listed)
             reply.say(subject, first, sources)
     periods = value.get("periods") or []
@@ -1063,6 +1129,12 @@ def _unknown_days(reply: _Reply, subject: str, gap: dict[str, Any]) -> None:
         reply.say(subject, f'Its listing adds: "{literal(details.strip())}"', sources)
 
 
+def _open_then(entry: Any) -> bool:
+    """Whether a day's hours are open at or after the time the student asked about."""
+    at = entry.get("open_at") or entry.get("listed_open_at") if isinstance(entry, dict) else None
+    return isinstance(at, dict) and at.get("state") == "open"
+
+
 def plain_text(view: dict[str, Any], limit: int | None = None) -> str | None:
     """The reply in plain sentences with source marks, or None when the view holds a shape this
     writer does not know (an ambiguity, a conflict, a shuttle timetable, a menu filter...). A
@@ -1094,7 +1166,10 @@ def _plain_text(view: dict[str, Any], quotes: tuple[int, int]) -> str | None:
         _facts(reply, building, also=False)
         facts = [f for f in facts if not isinstance(f, dict)
                  or f.get("predicate") not in _BUILDING_KEYS]
-        for entry in _day_conflicts(reply, view.get("derived_facts") or [], menus):
+        days = _day_conflicts(reply, view.get("derived_facts") or [], menus)
+        # Asked about a time ("after 9pm"), the places open then are said first.
+        days.sort(key=lambda entry: not _open_then(entry))
+        for entry in days:
             if not isinstance(entry, dict) or entry.get("predicate") != "hours_on":
                 raise CannotSay
             _day_hours(reply, entry, brief=entry.get("subject") in menus)

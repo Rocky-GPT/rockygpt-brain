@@ -266,10 +266,19 @@ def test_the_hours_of_the_asked_day_are_worked_out_and_trace_to_the_full_week() 
     assert derived["from"] == [week_fact["id"]] and derived["source_ids"] == week_fact["source_ids"]
     assert derived["applies"] is True and derived["current"] is True
     assert derived["subject"]["id"] == "registrar"
-    # Friday is fully answered, but the weekend is a reported gap, so the packet is partial.
-    assert packet["status"] == "partial"
+    # Friday is answered whole. The weekend gap is still listed, but it is about other days, so
+    # it does not make the answer partial (11-03: "food after 9pm" on a Tuesday was "partial"
+    # because the Atrium lists no weekend hours).
+    assert packet["status"] == "complete"
     assert [(m["reason"], m["days"]) for m in packet["missing"]] == [
         ("partially_unknown_schedule", ["Saturday", "Sunday"])]
+    # Asked about a day in the gap, or about a date the schedule does not cover, or about no day
+    # at all (the whole week), it is partial.
+    assert build_packet(AS_OF, [hours_part("saturday", "2026-10-10")])["status"] == "partial"
+    assert build_packet(AS_OF, [hours_part("friday", "2027-01-08")])["status"] == "partial"
+    week_only = {key: value for key, value in hours_part("friday", "2026-10-09").items()
+                 if key != "when"}
+    assert build_packet(AS_OF, [week_only])["status"] == "partial"
     # The same day asked twice is one derived fact.
     twice = build_packet(AS_OF, [hours_part("friday", "2026-10-09"),
                                  hours_part("friday", "2026-10-09")])
@@ -391,6 +400,76 @@ def test_todays_hours_carry_open_now_and_another_days_do_not() -> None:
     (derived,) = build_packet(morning, [other])["derived_facts"]
     assert "open_now" not in derived
 
+
+
+def test_a_time_asked_is_worked_out_from_the_days_hours_and_never_guessed() -> None:
+    from rockygpt_brain.fact_packet import open_at
+
+    venue = ("Breakfast: 08:00 AM - 10:30 AM; Dinner: 05:00 PM - 08:00 PM; "
+             "Late Night: 09:00 PM - 11:00 PM")
+    # "Food after 9pm": what is served from then on. A period opening at 9pm has both ends; one
+    # already going at the time asked is said with when it ends.
+    assert open_at(venue, 21 * 60, "after") == {
+        "relation": "after", "at": "9:00pm", "state": "open",
+        "periods": [{"label": "Late Night", "opens": "9:00pm", "closes": "11:00pm"}]}
+    assert open_at(venue, 19 * 60, "after") == {
+        "relation": "after", "at": "7:00pm", "state": "open",
+        "periods": [{"label": "Dinner", "opens": "5:00pm", "closes": "8:00pm",
+                     "open_at_asked": True},
+                    {"label": "Late Night", "opens": "9:00pm", "closes": "11:00pm"}]}
+    assert open_at("8am-5pm", 21 * 60, "after") == {
+        "relation": "after", "at": "9:00pm", "state": "closed", "last_closes": "5:00pm"}
+    assert open_at("Closed", 21 * 60, "after") == {
+        "relation": "after", "at": "9:00pm", "state": "closed"}
+    # Open all day is never "until 12:00am".
+    assert open_at("24 hours", 21 * 60, "after") == {
+        "relation": "after", "at": "9:00pm", "state": "open", "all_day": True}
+    # "Open at 10pm?": open or closed then, with when that stretch ends or service starts again.
+    assert open_at(venue, 22 * 60, "at") == {
+        "relation": "at", "at": "10:00pm", "state": "open", "closes": "11:00pm",
+        "meal": "Late Night"}
+    assert open_at(venue, 20 * 60 + 30, "at") == {
+        "relation": "at", "at": "8:30pm", "state": "closed", "next_opens": "9:00pm",
+        "next_meal": "Late Night"}
+    assert open_at("9:00am-12:00pm, 12:00pm-5:00pm", 11 * 60, "at") == {
+        "relation": "at", "at": "11:00am", "state": "open", "closes": "5:00pm"}
+    for unclear in ("6:00pm-2:00am", "10:00am-6:00pm by appointment", "Hours unavailable",
+                    "1 hour prior to performances", "", None):
+        assert open_at(unclear, 21 * 60, "after") is None, unclear
+        assert open_at(unclear, 21 * 60, "at") is None, unclear
+
+
+def test_a_time_asked_is_answered_for_that_date_and_open_now_only_when_now_was_asked() -> None:
+    def asked(part: dict[str, Any], **at: Any) -> dict[str, Any]:
+        packet = build_packet(AS_OF, [{**part, "when": {**part["when"], "at": at}}])
+        validate_packet(packet)
+        derived: dict[str, Any]
+        (derived,) = packet["derived_facts"]
+        return derived
+
+    friday = hours_part("friday", "2026-10-09")
+    assert asked(friday, relation="after", minute=21 * 60)["open_at"] == {
+        "relation": "after", "at": "9:00pm", "state": "closed", "last_closes": "5:00pm"}
+    assert asked(friday, relation="at", minute=10 * 60)["open_at"] == {
+        "relation": "at", "at": "10:00am", "state": "open", "closes": "5:00pm"}
+    # Today (AS_OF is Tuesday at 12:00pm), the time asked takes the place of "open now" unless
+    # the student asked about now as well.
+    today = hours_part("tuesday", "2026-10-06")
+    alone = asked(today, relation="after", minute=21 * 60)
+    assert "open_now" not in alone and alone["open_at"]["state"] == "closed"
+    both = asked(today, relation="after", minute=21 * 60, now=True)
+    assert both["open_now"] == {"state": "open", "now": "12:00pm"}
+    assert both["open_at"] == alone["open_at"]
+    # Nothing is worked out for a date the schedule does not cover, or a weekday with no hours.
+    assert "open_at" not in asked(hours_part("friday", "2027-01-08"), relation="after",
+                                  minute=21 * 60)
+    assert "open_at" not in asked(hours_part("saturday", "2026-10-10"), relation="after",
+                                  minute=21 * 60)
+    # Listed hours whose dates are not published are worked out as listed, never plainly.
+    listed = asked(seasonal_part("friday", "2026-10-09"), relation="after", minute=21 * 60)
+    assert "open_at" not in listed
+    assert listed["listed_open_at"] == {
+        "relation": "after", "at": "9:00pm", "state": "closed", "last_closes": "5:00pm"}
 
 
 def test_a_fax_question_keeps_only_the_fax_lines_and_says_so_when_there_is_none() -> None:

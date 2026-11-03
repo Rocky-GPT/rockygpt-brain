@@ -1282,3 +1282,18 @@ def test_a_menu_read_for_one_meal_says_which_meal_was_asked() -> None:
     assert _menu_value(meal="lunch")["meal_asked"].casefold() == "lunch"
     assert "meal_asked" not in _menu_value(meal=None)
 
+
+
+def test_food_after_a_time_says_what_is_served_from_then_and_not_open_now() -> None:
+    evening = datetime(2026, 10, 13, 18, 0, tzinfo=EASTERN)
+    result = ask("where can i get food after 9pm?", lookup("Birch Tree Inn", ["hours"]),
+                 finish(), now=evening)
+    entry = derived(result, "hours_on")
+    assert entry["date"] == "2026-10-13" and "open_now" not in entry
+    assert entry["open_at"] == {"relation": "after", "at": "9:00pm", "state": "open", "periods": [
+        {"label": "Late Night", "opens": "9:00pm", "closes": "11:00pm"}]}
+    assert result.body["facts"]["status"] == "complete" and result.body["status"] == "answered"
+    # Asked about now as well, both are worked out.
+    both = derived(ask("is birch open now, and after 9pm?", lookup("Birch Tree Inn", ["hours"]),
+                       finish(), now=evening), "hours_on")
+    assert both["open_now"]["state"] == "open" and both["open_at"] == entry["open_at"]  # dinner
