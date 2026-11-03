@@ -295,6 +295,10 @@ def test_function_words_and_term_words_are_not_what_an_event_is_about() -> None:
     assert asked_topic("finals week destress events like therapy dogs") == _stems(
         "destress therapy dog")
     assert "thanksgiving" not in asked_topic("anything the week before thanksgiving")
+    # How good it is says nothing of what it is about: "cool" once matched "Clay it Cool".
+    assert asked_topic("any cool events happening on campus this week?") == set()
+    assert asked_topic("what are the best events this weekend") == set()
+    assert asked_topic("any cool art events") == _stems("art")
     at = datetime(2026, 10, 30, 0, 0, tzinfo=WEDNESDAY.tzinfo)
     facts = [f["fact"] for f in computed_answers("this weekend", at, at, 4, [], False, {"xy"},
                                                  False, (), 1)]

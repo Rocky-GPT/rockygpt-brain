@@ -77,12 +77,15 @@ Fill every field:
   exam, behind in class), professor_trouble, roommate_trouble, health (feeling sick, an injury,
   medicine, a medical question), alcohol_or_drugs, money (can't pay or afford something),
   thinking_of_leaving (dropping out, transferring, quitting school), harassment (harassment,
-  discrimination, sexual misconduct), food_or_housing (no food, nowhere to live), disability
+  discrimination, sexual misconduct), food_or_housing (not enough to eat or no money for food,
+  nowhere to live), disability
   (accommodations). A practical question with no feeling or problem in it has none, and so does a
   passing word of feeling about a practical problem (that is social upset). A question about a
   cost, a rule or a deadline is no need either. A need is only a problem the student says they
   have, never one guessed from what they ask for: wanting something free or cheap, a job or a
-  discount is a practical question.
+  discount is a practical question. So is looking for a kind of food (halal, kosher, vegan) or
+  asking what a dish contains because of an allergy or a diet: that is a question about the menu,
+  not health or food_or_housing.
 - limit: what the message asks that RockyGPT cannot do: clock (the current time or date),
   off_topic (not about Ramapo or college life: sports scores, TV, dating advice, world news),
   my_records (their own grades, GPA, balance, schedule, aid status, who they are), homework (do
@@ -105,8 +108,8 @@ Fill every field:
   closings, when closings are asked. Homework and writing always have a campus side. Leave it
   empty when the message asks nothing about Ramapo: small talk, nonsense, off_topic, the
   current time or date, the weather, an opinion with no campus side, a feeling the student only
-  shares, and a medical question (what to take, whether something is safe), which is no campus
-  question.
+  shares, and a medical question (which medicine to take, whether a medicine or treatment is
+  safe), which is no campus question.
 Answer only with the read_message tool."""
 
 READ_TOOL: dict[str, Any] = {
