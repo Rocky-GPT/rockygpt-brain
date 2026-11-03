@@ -1,6 +1,8 @@
 name: Brain checks
 on:
+  # Branch pushes are checked by their pull request; a push run too would check each commit twice.
   push:
+    branches: [main, dev]
   pull_request:
   # The price-renewal workflow starts checks on its own branch this way, because pushes and
   # pull requests made with the Actions token start no workflows.

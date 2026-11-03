@@ -279,7 +279,6 @@ def configured(monkeypatch: pytest.MonkeyPatch, output: str | None) -> ChatEngin
                         SimpleNamespace(from_env=lambda: SimpleNamespace(max_turn_nusd=1)))
     monkeypatch.setattr(app_module, "Gateway", lambda settings: object())
     monkeypatch.setenv("DATABASE_URL", "postgresql://example.invalid/test")
-    monkeypatch.delenv("BRAIN_GRAPH_DIR", raising=False)
     monkeypatch.delenv("BRAIN_GRAPH_ONLY_DIR", raising=False)
     if output is None:
         monkeypatch.delenv("BRAIN_OUTPUT", raising=False)
